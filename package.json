@@ -1,0 +1,52 @@
+{
+  "name": "dataset-tag-studio",
+  "version": "1.0.0",
+  "description": "Local dataset tag editor for AI training images, packaged as a desktop app.",
+  "main": "main.js",
+  "author": "",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:zip": "electron-builder --win zip",
+    "dist:dir": "electron-builder --dir",
+    "refresh-app": "electron-builder --dir && node scripts/refresh-portable-dev.js",
+    "push-update": "node scripts/push-update.js"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.local.datasettagstudio",
+    "productName": "Dataset Tag Studio",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "extraFiles": [
+      { "from": "PORTABLE_README.txt", "to": "README.txt" }
+    ],
+    "afterPack": "scripts/after-pack.js",
+    "compression": "maximum",
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.graphics-design"
+    },
+    "win": {
+      "target": ["nsis", "zip"]
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Graphics"
+    }
+  },
+  "allowScripts": {
+    "electron@31.7.7": true
+  }
+}

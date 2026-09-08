@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dataset Tag Studio</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+  <header id="topbar">
+    <div class="brand-block">
+      <div class="app-version" id="appVersion">v2.0.0</div>
+      <div class="brand">Dataset Tag Studio <span class="tag">local · no upload</span></div>
+    </div>
+    <div class="actions-arrows">
+      <button class="actions-arrow" id="actionsScrollLeft" title="Scroll toolbar left">‹</button>
+      <button class="actions-arrow" id="actionsScrollRight" title="Scroll toolbar right">›</button>
+    </div>
+      <div class="actions" id="topbarActions">
+        <div class="header-cat" id="fileCatWrap">
+          <button class="header-cat-btn primary" id="fileCatBtn" title="Open, save, undo/redo">📁 File ▾</button>
+          <div class="header-cat-flyout" id="fileCatFlyout" style="display:none;">
+            <button id="btnOpen" class="primary">Open dataset folder</button>
+            <button id="btnFavorites" title="Favorite folders for quick access">★ Favorites</button>
+            <button id="btnSave" disabled>Save changes <span id="dirtyCount">(0)</span></button>
+            <button id="btnUndo" disabled>Undo</button>
+            <button id="btnRedo" disabled>Redo</button>
+          </div>
+        </div>
+        <button id="btnLeftDrawerToggle" class="drawer-toggle" title="Open filters &amp; tags panel">☰</button>
+        <button id="btnRightDrawerToggle" class="drawer-toggle" title="Open tools panel">🔧</button>
+        <button id="btnLog">📜 Log</button>
+        <div id="statsline">
+          <span><b id="statImages">0</b> images</span>
+          <span><b id="statTags">0</b> unique tags</span>
+          <span><b id="statUntagged">0</b> untagged</span>
+          <span><b id="statDisabled">0</b> disabled</span>
+        </div>
+        <div class="header-cat" id="personalizationCatWrap">
+          <button class="header-cat-btn" id="personalizationCatBtn" title="Themes, colors, achievements, shop">🎨 Personalization ▾</button>
+          <div class="header-cat-flyout" id="personalizationCatFlyout" style="display:none;">
+            <select id="themeSelect" title="Theme">
+              <option value="studio">Studio (dark)</option>
+              <option value="cyberpunk">Neon Cyberpunk</option>
+              <option value="oriental">Oriental</option>
+              <option value="subway">Subway Fresh</option>
+              <option value="bioluminescent">🔒 Bioluminescent Deep</option>
+              <option value="sakura">🔒 Sakura Dusk</option>
+              <option value="terminal">🔒 Terminal Green</option>
+              <option value="amethyst">🔒 Royal Amethyst</option>
+              <option value="solarflare">🔒 Solar Flare</option>
+              <option value="midnight-ocean">🔒 Midnight Ocean</option>
+              <option value="autumn-ember">🔒 Autumn Ember</option>
+              <option value="arctic-frost">🔒 Arctic Frost</option>
+              <option value="forest-moss">🔒 Forest Moss</option>
+              <option value="vintage-paper">🔒 Vintage Paper</option>
+              <option value="obsidian">🔒 Obsidian</option>
+              <option value="retrowave">🔒 Retro Wave</option>
+              <option value="rose-gold">🔒 Rose Gold</option>
+              <option value="coral-reef">🔒 Coral Reef</option>
+              <option value="toxic-waste">🔒 Toxic Waste</option>
+              <option value="lavender-fields">🔒 Lavender Fields</option>
+              <option value="candy-pop">🔒 Candy Pop</option>
+              <option value="copper-forge">🔒 Copper Forge</option>
+              <option value="blood-moon">🔒 Blood Moon</option>
+              <option value="glacier">🔒 Glacier</option>
+              <option value="desert-dune">🔒 Desert Dune</option>
+              <option value="twilight-garden">🔒 Twilight Garden</option>
+              <option value="neon-tokyo">🔒 Neon Tokyo</option>
+              <option value="aurora-borealis">🔒 Aurora Borealis</option>
+              <option value="celestial-gold">🔒 Celestial Gold</option>
+              <option value="custom">Custom…</option>
+            </select>
+            <button id="btnThemeCustomize" title="Customize theme colors">🎨 Colors</button>
+            <button id="btnAchievements" title="Achievements">🏆 <span id="walletDisplay">0</span></button>
+            <button id="btnShop" title="Theme shop">💰 Shop</button>
+            <button id="btnResetZoom" title="Reset app zoom/font size (Ctrl+0 also works)">↺ Reset Zoom</button>
+          </div>
+        </div>
+        <button id="btnNightMode" title="Night mode">🌙</button>
+        <button id="btnResetEdibits" class="danger-ghost" title="Debug: reset Edibits to 0">Reset Edibits</button>
+        <button id="btnResetAchievements" class="danger-ghost" title="Debug: reset achievement progress for this folder">Reset Achievements</button>
+        <button id="btnSettings" title="Settings">⚙ Settings</button>
+        <button id="btnQuit" class="danger-ghost" title="Quit the app">✕ Quit</button>
+      </div>
+  </header>
+
+  <nav id="tabBar">
+    <button id="tabDataset" class="tab-btn active">Dataset</button>
+    <button id="tabMasterTags" class="tab-btn">🏷 Master Tags</button>
+    <button id="tabStats" class="tab-btn">📊 Editing Stats</button>
+  </nav>
+
+  <div id="datasetTab">
+  <div id="shell">
+
+    <aside id="left">
+      <div class="field-block">
+        <h3 class="panel-title">FILTER GALLERY</h3>
+        <input type="text" id="filterInput" placeholder="Show images containing tag(s)… e.g. red hair, blue eyes">
+        <div class="filter-help-row">
+          <span id="filterModeLabel" title="How multiple comma-separated tags combine">AND</span>
+          <div class="pdrop" id="filterModeDropdown"></div>
+          <button id="btnClearFilter" title="Clear all filters">Clear filter</button>
+        </div>
+        <div class="quickfilters">
+          <button id="filterAll" class="active">All</button>
+          <button id="filterUntagged">Untagged</button>
+          <button id="filterDirty">Unsaved</button>
+        </div>
+        <div class="exclude-badge" id="excludeBadge">
+          Excluding "<b id="excludeBadgeText"></b>" <button id="excludeBadgeClear" title="Clear exclude filter">✕</button>
+        </div>
+        <button id="btnFlagIsolated" title="Highlight rarely-used tags that might need review">🚩 Flag isolated tags</button>
+      </div>
+
+      <div class="field-block">
+        <h3 class="panel-title">DATASET</h3>
+        <div class="stat-grid">
+          <div class="stat-card"><div class="num" id="cardImages">0</div><div class="lbl">images</div></div>
+          <div class="stat-card"><div class="num" id="cardTags">0</div><div class="lbl">unique tags</div></div>
+        </div>
+      </div>
+
+      <div class="field-block" style="flex:1; min-height:0;">
+        <div class="left-sort-row">
+          <h3 class="panel-title">TAGS</h3>
+          <div class="pdrop" id="leftSortDropdown"></div>
+          <button id="leftSortDirBtn" title="Toggle ascending/descending">▼</button>
+          <button id="btnResetFamilyOrder" title="Reset the manual drag order of keyword families back to default">↺</button>
+        </div>
+        <div id="tagFrequencyList"></div>
+      </div>
+    </aside>
+
+    <main id="gallery">
+      <div class="gallery-content" id="dropHintWrap">
+      <div id="dropHint">
+        <div class="big">No folder loaded</div>
+        <div class="small">
+          Click <b>Open dataset folder</b> above and select the folder containing your images and matching <span style="font-family:var(--mono)">.txt</span> caption files. This tool reads and writes tags directly on disk — nothing is uploaded anywhere.
+          <br><br>
+          Requires Chrome or Edge. If you're viewing this inside an embedded preview, download the file and open it directly in your browser for folder access to work.
+        </div>
+      </div>
+      </div>
+
+      <div id="galleryToolbar">
+        <div class="viewToggle">
+          <button id="viewGridBtn" class="active">Grid</button>
+          <button id="viewCompactBtn">Compact</button>
+          <button id="viewSingleBtn">Single</button>
+          <button id="viewDisabledBtn" title="Disabled images">🗑 Disabled</button>
+        </div>
+        <div class="gallery-sort">
+          <div class="pdrop" id="gallerySortDropdown"></div>
+          <button id="gallerySortDirBtn" title="Toggle ascending/descending">▲ Asc</button>
+        </div>
+        <div id="singleNav">
+          <button id="singlePrevBtn">‹ Prev</button>
+          <span class="single-pos" id="singlePos">0 / 0</span>
+          <button id="singleNextBtn">Next ›</button>
+        </div>
+      </div>
+
+      <div class="gallery-content">
+      <div id="galleryGrid" style="display:none;"></div>
+      <div id="compactGrid" style="display:none;"></div>
+      <div id="compactCompareArea" class="compact-compare-area" style="display:none;">
+        <div class="compact-compare-header">
+          <span>🔗 Comparing <span id="compareCount">0</span> image(s) — shift-click another card to add it</span>
+          <button id="btnClearCompare">Clear comparison</button>
+        </div>
+        <div id="compactCompareTable" class="compact-compare-table"></div>
+      </div>
+      <div id="singleView"></div>
+      </div>
+    </main>
+
+    <aside id="right">
+
+      <div id="normalRightTools">
+      <div class="tool-section" data-dock-id="tagPruner" data-resizable="true">
+        <div class="sec-head"><span class="dot manual"></span><span class="t">Tag Pruner</span></div>
+        <div class="dock-scroll-body">
+          <div class="sec-head"><span class="d">Search or browse all tags and hand-pick any for the merge/void tool below. Leave the search empty to browse everything. Nothing is selected automatically.</span></div>
+          <div id="tagPrunerList"></div>
+          <button id="btnAddTagPruner">+ Add another Tag Pruner</button>
+        </div>
+      </div>
+
+      <div class="tool-section" data-dock-id="unifyVoid">
+        <div class="sec-head"><span class="t">Unify or void selected tags</span></div>
+        <div class="selection-summary" id="selectionSummary">No tags selected yet.</div>
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="includeDisabledToggle">
+          <span>Also apply to Disabled images (supports retroactive merges/voids)</span>
+        </label>
+        <div class="apply-row">
+          <input type="text" id="unifiedTagInput" placeholder="unified_tag_name">
+          <button id="btnApplyUnify" class="primary">Apply</button>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button id="btnClearSelection">Clear selection</button>
+          <button id="btnVoidSelected" class="danger-ghost">Void selected (delete)</button>
+        </div>
+      </div>
+
+      <div class="tool-section" data-dock-id="quickMerge" data-resizable="true">
+        <div class="sec-head"><span class="t">⚡ Quick Merge</span></div>
+        <div class="dock-scroll-body">
+          <div class="sec-head"><span class="d">Finds tags that are the same thing typed differently — different capitalization, for now — and lets you merge them all at once. Pick a canonical spelling per group before merging.</span></div>
+          <button id="btnQuickMergeScan" class="primary">🔍 Scan for duplicates</button>
+          <div id="quickMergeList" class="qm-list"></div>
+          <button id="btnQuickMergeApply" class="danger-ghost" style="display:none;">Merge selected groups</button>
+        </div>
+      </div>
+
+      </div>
+
+      <div id="masterTagPanel" style="display:none;">
+        <div class="tool-section">
+          <button id="btnMasterBack" style="align-self:flex-start;" title="Back to normal tools">← Back to Dataset tools</button>
+          <div class="sec-head"><span class="t">🏷 Master Tag Control</span></div>
+          <div class="sec-head" style="margin-top:-8px;"><span class="d">Click images in the gallery to select them (checkboxes appear on cards while this tab is active). Then apply operations here.</span></div>
+          <div class="selection-summary" id="masterSelectionSummary">No images selected yet.</div>
+          <div style="display:flex; gap:8px;">
+            <button id="btnMasterSelectAll">Select all visible</button>
+            <button id="btnMasterClearSelection">Clear selection</button>
+          </div>
+          <div class="sec-head" style="margin-top:4px;"><span class="d">Click a thumbnail below to select/deselect it too:</span></div>
+          <div id="masterMiniGrid" class="master-mini-grid"></div>
+        </div>
+
+        <div class="tool-section">
+          <div class="sec-head"><span class="t">Apply tag to selected images</span></div>
+          <div class="apply-row">
+            <input type="text" id="masterApplyTagInput" list="allTagsDatalist" placeholder="tag to apply">
+            <button id="btnMasterApplyToSelected" class="primary">Apply</button>
+          </div>
+        </div>
+
+        <div class="tool-section">
+          <div class="sec-head"><span class="t">Remove tag from selected images</span></div>
+          <div class="apply-row">
+            <input type="text" id="masterRemoveTagInput" list="allTagsDatalist" placeholder="tag to remove">
+            <button id="btnMasterRemoveFromSelected" class="danger-ghost">Remove</button>
+          </div>
+        </div>
+
+        <div class="tool-section">
+          <div class="sec-head"><span class="t">Conditional apply (dataset-wide)</span></div>
+          <div class="sec-head" style="margin-top:-8px;"><span class="d">Add a tag to every image that already has another tag — e.g. give every "1girl" image "green eyes" too. Ignores your selection above.</span></div>
+          <div class="gtt-row">
+            <input type="text" id="condSourceTag" list="allTagsDatalist" placeholder="images that have…">
+            <input type="text" id="condAddTag" list="allTagsDatalist" placeholder="…get this tag added">
+          </div>
+          <button id="btnCondApply" class="primary">Apply conditionally</button>
+        </div>
+
+        <div class="tool-section">
+          <div class="sec-head"><span class="t">Mass apply / remove (whole dataset)</span></div>
+          <div class="apply-row">
+            <input type="text" id="massApplyInput" list="allTagsDatalist" placeholder="tag to add to EVERY image">
+            <button id="btnMassApply" class="primary">Apply to all</button>
+          </div>
+          <div class="apply-row">
+            <input type="text" id="massRemoveInput" list="allTagsDatalist" placeholder="tag to remove from EVERY image">
+            <button id="btnMassRemove" class="danger-ghost">Remove from all</button>
+          </div>
+        </div>
+
+        <div class="tool-section">
+          <div class="sec-head"><span class="t">Replace a tag (exact or substring)</span></div>
+          <div class="gtt-label">Replace all (exact tag rename)</div>
+          <div class="gtt-row">
+            <input type="text" id="masterRenameFrom" list="allTagsDatalist" placeholder="existing tag">
+            <input type="text" id="masterRenameTo" placeholder="new tag name">
+          </div>
+          <button id="btnMasterRename">Rename everywhere</button>
+          <div class="gtt-divider"></div>
+          <div class="gtt-label">Find &amp; replace (substring inside tags)</div>
+          <div class="gtt-row">
+            <input type="text" id="masterFRFind" placeholder="substring to find">
+            <input type="text" id="masterFRReplace" placeholder="replace with">
+          </div>
+          <button id="btnMasterFR">Replace substring</button>
+        </div>
+      </div>
+
+    </aside>
+  </div>
+  </div>
+
+  <div id="statsTab" style="display:none;">
+    <div class="stats-header">
+      <button id="btnStatsBack" class="ghost-close" title="Back to Dataset">← Back</button>
+      <h2>Editing Stats</h2>
+      <div class="stats-view-toggle">
+        <button id="statsViewPie" class="active">Pie chart</button>
+        <button id="statsViewBar">Bar chart</button>
+      </div>
+    </div>
+    <div class="stats-body">
+      <div id="statsChartWrap" class="stats-chart-wrap"></div>
+      <div id="statsLegend" class="stats-legend"></div>
+    </div>
+    <div class="stats-totals" id="statsTotals"></div>
+  </div>
+</div>
+
+  <div id="favoritesPanel" class="theme-panel favorites-panel" style="display:none;">
+    <div class="theme-panel-head">Favorite folders</div>
+    <div id="favoritesList" class="favorites-list"></div>
+    <button id="btnAddFavorite" class="primary" disabled>+ Save current folder</button>
+    <button id="favoritesCloseBtn" class="ghost-close">Close</button>
+  </div>
+
+  <div id="themeCustomPanel" class="theme-panel" style="display:none;">
+    <div class="theme-panel-head">Customize theme colors</div>
+    <div id="themeVarRows" class="theme-var-rows"></div>
+    <div class="theme-panel-actions">
+      <button id="themeResetBtn">Reset to Studio</button>
+      <button id="themeApplyBtn" class="primary">Apply &amp; Save</button>
+    </div>
+    <div class="theme-panel-note">Colors preview live as you pick them. Border colors lose their built-in transparency once customized — that's expected. Hit Apply &amp; Save to keep it as your "Custom" theme.</div>
+    <button id="themeCloseBtn" class="ghost-close">Close</button>
+  </div>
+
+  <div id="logPanel" class="theme-panel log-panel" style="display:none;">
+    <div class="theme-panel-head" id="logPanelTitle">Edit log</div>
+    <div id="logList" class="log-list"></div>
+    <div class="log-panel-actions">
+      <button id="btnExportLog">Export log…</button>
+      <button id="btnClearLog" class="danger-ghost">Clear log</button>
+    </div>
+    <div class="theme-panel-note">Saved automatically as <span style="font-family:var(--mono)">_tag_edit_log.json</span> in the dataset folder. One log per folder.</div>
+    <button id="logCloseBtn" class="ghost-close">Close</button>
+  </div>
+
+  <div id="achievementsPanel" class="theme-panel log-panel" style="display:none;">
+    <div class="theme-panel-head">🏆 Achievements — <span id="achWallet">0</span> Edibits</div>
+    <label class="ach-toggle-row">
+      <input type="checkbox" id="achPopupsToggle" checked>
+      <span>Show popup when unlocked (stats always track regardless)</span>
+    </label>
+    <div id="achList" class="ach-list"></div>
+    <button id="achCloseBtn" class="ghost-close">Close</button>
+  </div>
+
+  <div id="shopPanel" class="theme-panel log-panel" style="display:none;">
+    <div class="theme-panel-head">🛍 Theme Shop — <span id="shopWallet">0</span> Edibits</div>
+    <div id="shopList" class="shop-list"></div>
+    <button id="btnFreeEdibits" class="primary">🎁 Beg for free Edibits</button>
+    <button id="shopCloseBtn" class="ghost-close">Close</button>
+  </div>
+
+  <div id="tagDetailsPanel" class="theme-panel log-panel" style="display:none;">
+    <div class="theme-panel-head" id="tagDetailsTitle">Tag Details</div>
+    <div id="tagDetailsBody" class="tag-details-body"></div>
+    <button id="tagDetailsCloseBtn" class="ghost-close">Close</button>
+  </div>
+
+  <div id="settingsPanel" class="theme-panel log-panel" style="display:none;">
+    <div class="theme-panel-head">⚙ Settings</div>
+
+    <div class="settings-section" data-section="appearance">
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Appearance</span></button>
+      <div class="settings-section-body">
+        <div class="settings-row">
+          <span>Font size</span>
+          <input type="range" id="fontSizeSlider" min="12" max="18" step="1" value="14">
+          <span id="fontSizeVal">14px</span>
+        </div>
+        <div class="theme-panel-note">Custom font (no internet needed — uses fonts already installed on your system)</div>
+        <div class="gtt-row">
+          <input type="text" id="customFontInput" placeholder="e.g. Fira Sans, Consolas…">
+          <button id="btnApplyCustomFont">Apply</button>
+        </div>
+        <button id="btnClearCustomFont">Reset to default fonts</button>
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="tagCountBadgeToggle">
+          <span>Show tag-count badge on cards (top-right)</span>
+        </label>
+        <div class="settings-row">
+          <span style="font-size:11px; color:var(--text-faint);">Sort tags within each card</span>
+          <div class="pdrop" id="cardTagSortDropdown"></div>
+        </div>
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="dynamicCardsToggle">
+          <span>Dynamic card heights (masonry-style grid instead of uniform rows)</span>
+        </label>
+        <div class="theme-panel-note">Discrete mode</div>
+        <div class="settings-row">
+          <button id="btnDiscreteToggle">Blur all images</button>
+          <button id="btnDiscreteOff">Unblur</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section" data-section="power-tools">
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Power Tools</span></button>
+      <div class="settings-section-body">
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="powerHighlightToggle" checked>
+          <span>Highlight power tools (Master Tags, Tag Pruner, Unify/Void, mass-apply, Purge)</span>
+        </label>
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="powerFillToggle">
+          <span>Fill power tools with the highlight color instead of just outlining them</span>
+        </label>
+        <div class="settings-row">
+          <span style="font-size:11px; color:var(--text-faint);">Mark any field or button elsewhere in the app as a power tool so it picks up the highlight above. Built-ins can't be unmarked.</span>
+        </div>
+        <button id="btnStartPowerToolPicker">🎯 Mark a field as power tool…</button>
+        <div class="theme-panel-note">All power tools currently in effect:</div>
+        <div id="powerToolList" class="power-tool-list"></div>
+        <button id="btnResetCustomPowerTools" class="danger-ghost">Reset custom power tool marks</button>
+      </div>
+    </div>
+
+    <div class="settings-section" data-section="tagging">
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Tagging &amp; Autocomplete</span></button>
+      <div class="settings-section-body">
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="tagAutocompleteToggle">
+          <span>Tag autocomplete — suggest from the full tag vocabulary while typing "+ add tag". Hover a suggestion for a second to preview its definition.</span>
+        </label>
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="tooltipsToggle" checked>
+          <span>Show hover tooltips (1s delay)</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-section" data-section="layout">
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Layout &amp; Panels</span></button>
+      <div class="settings-section-body">
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="flyoutOutsideCloseToggle" checked>
+          <span>Close File/Personalization menus by clicking off them. You can close them by clicking them again either way.</span>
+        </label>
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="panelsOutsideCloseToggle" checked>
+          <span>Close popups (Favorites, Log, Colors, Achievements, Shop, Tag Details) by clicking off them, not just their Close button</span>
+        </label>
+        <div class="theme-panel-note">Layout</div>
+        <div class="settings-row">
+          <span style="font-size:11px; color:var(--text-faint);">Panel arrangement</span>
+          <div class="pdrop" id="layoutDropdown"></div>
+        </div>
+        <div class="theme-panel-note">Right-sidebar panels</div>
+        <div class="settings-row">
+          <span style="font-size:11px; color:var(--text-faint);">Drag ☰ to reorder, ▼ to collapse, drag the bottom edge to resize.</span>
+        </div>
+        <button id="btnResetDockLayout">↺ Reset panel layout</button>
+      </div>
+    </div>
+
+    <div class="settings-section" data-section="updates">
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Updates &amp; Sharing</span></button>
+      <div class="settings-section-body">
+        <div class="settings-row">
+          <span style="font-size:11px; color:var(--text-faint);">Restart the app to instantly pick up the latest files — no need to quit and reopen by hand.</span>
+        </div>
+        <button id="btnRestartApp" class="primary">🔄 Restart app</button>
+        <div class="settings-row">
+          <span style="font-size:11px; color:var(--text-faint);">Unzip an update bundle somewhere, then point the app at that folder — no need to touch %appdata% by hand.</span>
+        </div>
+        <button id="btnApplyUpdateBundle" class="primary">⬆ Apply update bundle…</button>
+        <div class="theme-panel-note">Share on GitHub</div>
+        <div class="settings-row">
+          <span style="font-size:11px; color:var(--text-faint);">Creates a folder with the app's source code, a README, a .gitignore, and a plain-English HOW_TO_UPLOAD.txt — open that folder in a terminal and follow it to push to GitHub yourself. No git knowledge assumed.</span>
+        </div>
+        <button id="btnGithubPackage">📦 Generate GitHub-ready package…</button>
+      </div>
+    </div>
+
+    <div class="settings-section danger-section" data-section="danger">
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Danger Zone</span></button>
+      <div class="settings-section-body">
+        <button id="btnPurgeAllTags" class="danger-ghost">🗑 Purge ALL tags in this folder…</button>
+      </div>
+    </div>
+
+    <button id="settingsCloseBtn" class="ghost-close">Close</button>
+  </div>
+
+  <div id="langMenuPanel" class="ctx-menu" style="display:none;"></div>
+  <div id="achievementPopupHost"></div>
+
+  <div id="imageCardModal" class="modal-backdrop" style="display:none;">
+    <div class="modal-card" id="modalCardInner"></div>
+  </div>
+  <div id="tooltipBubble" class="tooltip-bubble" style="display:none;"></div>
+
+
+  <div id="toast"></div>
+  <div id="drawerBackdrop" class="drawer-backdrop"></div>
+
+
+<datalist id="allTagsDatalist"></datalist>
+
+<script src="app.js"></script>
+</body>
+</html>

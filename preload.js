@@ -1,0 +1,13 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+// Minimal, explicit bridge — only these actions are exposed to the
+// renderer, and all are simple pass-throughs to main-process handlers
+// that themselves only touch the app's own userData/tool folder or a
+// folder the user explicitly picks via a native dialog.
+contextBridge.exposeInMainWorld('electronAPI', {
+  applyUpdateBundle: () => ipcRenderer.invoke('apply-update-bundle'),
+  relaunchApp: () => ipcRenderer.invoke('relaunch-app'),
+  restartApp: () => ipcRenderer.invoke('restart-app'),
+  setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
+  generateGithubPackage: () => ipcRenderer.invoke('generate-github-package')
+});

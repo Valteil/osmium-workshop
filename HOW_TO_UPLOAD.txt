@@ -1,0 +1,73 @@
+HOW TO PUBLISH THIS PROJECT ON GITHUB
+======================================
+
+This folder is the SOURCE CODE only - the actual app you double-click to
+run (the ~115MB zip) is deliberately NOT in here. Source goes into the git
+repository; the built app goes onto a GitHub "Release" as a separate
+download. That keeps the repo itself small no matter how big the app gets.
+
+You don't need to know git already - just follow these in order, from a
+terminal (Command Prompt, PowerShell, or Terminal.app) opened IN THIS FOLDER.
+
+
+PART 1 - Push the source code to GitHub
+----------------------------------------
+
+0) Install git if you don't have it: https://git-scm.com/downloads
+   (Run "git --version" - if it prints a version, you're set.)
+
+1) Turn this folder into a git repository:
+     git init
+
+2) Stage every file:
+     git add .
+
+3) Make your first commit:
+     git commit -m "Initial commit"
+
+4) Create an empty repository on GitHub.com (click the "+" top-right ->
+   "New repository"). Do NOT check "Add a README" - this folder already
+   has one. Copy the repository URL it gives you (looks like
+   https://github.com/your-username/your-repo-name.git).
+
+5) Point your local folder at that GitHub repository:
+     git remote add origin https://github.com/your-username/your-repo-name.git
+
+6) Rename your branch to "main" (GitHub's default) and push:
+     git branch -M main
+     git push -u origin main
+
+You'll be asked to sign in to GitHub the first time - follow the prompts.
+After that, any time you make changes here, push them with:
+     git add .
+     git commit -m "describe what changed"
+     git push
+
+
+PART 2 - Publish the actual app as a Release
+----------------------------------------------
+
+The built app ("Dataset Tag Studio-1.0.0-win.zip", sitting one folder up
+from this one) is what end users actually download and run. It does NOT
+get committed to git - it goes on a GitHub "Release" instead:
+
+1) On your repository's GitHub page, click "Releases" (right-hand side),
+   then "Create a new release" (or "Draft a new release").
+
+2) Under "Choose a tag", type a version tag, e.g. v1.0.0, and choose
+   "Create new tag on publish".
+
+3) Give it a title (e.g. "v1.0.0") and a short description of what's new.
+
+4) Drag "Dataset Tag Studio-1.0.0-win.zip" into the "Attach binaries" box
+   at the bottom of the page (or click it to browse for the file).
+
+5) Click "Publish release".
+
+That's it - anyone can now go to your repo's Releases page and download
+the zip directly, without ever needing git or the source code.
+
+When you ship an update later: rebuild (npm run dist:zip), repeat Part 2
+with a new version tag (e.g. v1.0.1) and the new zip attached. Keep the
+source changes committed and pushed via Part 1 too, so the two stay in
+sync.
