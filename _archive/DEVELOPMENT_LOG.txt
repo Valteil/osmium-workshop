@@ -1,0 +1,1224 @@
+DATASET TAG STUDIO — DEVELOPMENT LOG
+Features built and fixes applied, oldest to newest.
+Purpose: avoid repeating the same mistakes.
+
+====================================================================
+1. TAG AUTOCOMPLETE WITH DEFINITIONS
+====================================================================
+Built: autocomplete dropdown for tag entry, hover/click shows a
+definition flash card pulled from wiki data.
+
+Bug: definition card flashed and instantly disappeared.
+  Root cause: addCtxItem() (context-menu item builder) didn't call
+  ev.stopPropagation(). Clicks bubbled up to a document-level
+  "close any open panel on outside click" listener, which then
+  closed the panel that had JUST opened, because the click target
+  wasn't recognized as "inside" it.
+  Fix: added stopPropagation() to ALL context-menu items (fixed the
+  whole bug class, not just this one instance).
+
+Bug: definition text ignored line breaks (wrapped as one blob).
+  Root cause: .ac-flash-def CSS was missing white-space: pre-wrap
+  (present on the older .tag-details-def but never copied over to
+  the newer autocomplete hover-card CSS).
+  Fix: added white-space: pre-wrap to .ac-flash-def.
+
+Lesson: when copy-pasting/adapting a CSS block for a new UI element,
+explicitly diff it against the original — properties silently
+missing are easy to miss and only show up as a visual bug later.
+
+====================================================================
+2. GITHUB PACKAGE GENERATOR + GITHUB PUBLISHING
+====================================================================
+Built: in-app "generate GitHub package" (source-only export), plus
+manual full publish process (repo, release, zip asset).
+
+Decision: never let Claude handle the user's GitHub password or raw
+tokens. Used `gh auth login --web` (device-flow OAuth) — user
+authenticates in their own browser, Claude only drives `gh` after
+that. Verified the uploaded release zip via byte-for-byte hash match
+against the local build before telling the user it was safe to share.
+
+Lesson: credential-sensitive steps should always be delegated to the
+tool's own browser-based auth flow, never typed/pasted by Claude.
+
+====================================================================
+3. QUICK MERGE DOCK / POWER TOOLS
+====================================================================
+Built: power-tool marking system (builtin + custom), full checklist
+UI, manual marking via a picker.
+
+Bug: clicking an already-marked tool in the picker always added it
+again instead of toggling it off.
+  Root cause: onPowerToolPickerClick() only ever handled the
+  "add new" path — no check for whether the target was already
+  marked.
+  Fix: added findPowerToolMatch() to detect existing marks first;
+  builtin tools refuse to unmark (toast shown), custom tools toggle
+  off on re-click.
+
+Feature refinement: picker now hides the settings flyout while
+picking and restores it afterward; holding Shift gives a temporary
+"normal cursor" escape hatch. Verified via CDP scripts (initial test
+showed a false negative caused by a CSS transition timing window,
+not an actual bug — re-tested after the transition completed and
+confirmed correct).
+
+Lesson: test asynchronous/animated UI states after transitions
+settle, not immediately on state change — a "failing" CDP snapshot
+mid-transition can look like a bug that isn't one.
+
+====================================================================
+4. SETTINGS MENU OVERHAUL (collapsible sections, power tool list)
+====================================================================
+Built: multi-section collapsible settings panel; dedicated
+Powertools section listing all existing power tools.
+
+Bug: text cut off, sections looked "messy" when panel content
+exceeded max-height.
+  Root cause: .settings-section had overflow:hidden (needed for
+  rounded-corner clipping), which per the flexbox spec resets a flex
+  item's automatic min-height to 0. That let flexbox squeeze
+  sections shorter than their actual content instead of letting the
+  panel's own scrollbar take over.
+  Fix: added flex-shrink: 0 to .settings-section. Also removed
+  .power-tool-list's own internal max-height/overflow-y:auto — a
+  second, smaller version of the same "nested scrollbar" problem the
+  user didn't want.
+  Verified visually via a local static server + browser screenshots,
+  not just code reasoning — this is what actually caught the bug.
+
+Lesson: overflow:hidden on a flex child has a non-obvious
+side-effect (min-height:auto → 0). When a flex/scroll layout looks
+"squeezed," check for this specifically.
+
+====================================================================
+5. DARK MODE OVERHAUL + 20 NEW THEMES + BUNDLED FONTS
+====================================================================
+Built: full theme system rework, 20 additional premium themes added
+to PREMIUM_THEMES, bundled font files (no external font downloads
+needed at runtime).
+No major bugs recorded for this feature; implemented and folded into
+the settings overhaul above.
+
+====================================================================
+6. PORTABLE BUILD (no AppData dependency) + IN-APP UPDATES
+====================================================================
+Built: app detects its own folder and stores all data there instead
+of AppData (configurePortableUserData() / getPortableRoot() in
+main.js), so the whole app is just one movable folder. Added
+DROP_UPDATES_HERE + "Apply update bundle" button so non-technical
+end users can update by dropping files and clicking a button.
+
+Bug: DROP_UPDATES_HERE folder appeared in the wrong location during
+dev (inside node_modules/electron/dist/, i.e. the bundled Electron
+binary's own folder).
+  Root cause: getPortableRoot() derived the root from
+  path.dirname(app.getPath('exe')), which in dev mode resolves to
+  Electron's own binary, not the project.
+  Fix: added `if (!app.isPackaged) return __dirname;` as the very
+  first line of getPortableRoot().
+  Caught via an actual launch test (folder didn't appear where
+  expected), not from code review.
+
+Bug: assumed `electron-builder --dir` output (dist/win-unpacked)
+could double as the persistent dev instance, since a build tool
+"shouldn't touch folders it doesn't manage."
+  Reality: electron-builder wipes and fully regenerates its ENTIRE
+  output directory on every build — proven by planting a canary file
+  in dist/win-unpacked/data/ and watching it disappear after a
+  rebuild.
+  Fix: introduced a separate persistent folder, portable-dev/, plus
+  scripts/refresh-portable-dev.js, which copies the fresh build into
+  portable-dev/ while explicitly preserving data/ and
+  DROP_UPDATES_HERE. Later refined further: it also clears
+  portable-dev/data/tool/ specifically after each copy, forcing a
+  fresh reseed of renderer files from the new build while still
+  preserving the rest of data/ (settings/achievements) — because
+  main.js only ever seeds data/tool/ once and otherwise leaves it
+  alone (correct for real end users, but means our own dev renderer
+  edits would go stale silently without this).
+
+Bug (process management, not code): reported a build's zip size
+while an earlier backgrounded `npm run dist:zip` was still actually
+running, causing file corruption/collisions ("Device or resource
+busy" on retry).
+  Fix: confirm background processes have actually exited (e.g. via
+  tasklist) before trusting any artifact's size or contents.
+  This is also why "wait for background processes to truly finish"
+  is now a standing Working Style rule.
+
+Lesson: never assume a build tool's side effects — test them
+directly (canary files, before/after diffs). Never trust artifact
+state from a process you haven't confirmed has exited.
+
+====================================================================
+7. FILE SIZE REDUCTION
+====================================================================
+Built: stripped all locale .pak files except en-US.pak
+(scripts/after-pack.js), set compression: "maximum", gzip'd the two
+large JSON data files (all_tags.json.gz, wiki.json.gz — 25.7MB→9.58MB
+and 23.8MB→8.92MB), loaded via DecompressionStream at runtime.
+
+Observation (not a bug, an expectation-correction): removing ~40MB of
+locales + shrinking the asar by ~31MB raw only reduced the final
+compressed zip from ~119-125MB to 115.8MB — much smaller win than the
+raw savings suggested, because zip/deflate was already compressing
+that content well, and the ~180MB main .exe barely compresses further
+regardless.
+
+Lesson: raw/uncompressed size savings do not translate 1:1 into
+compressed-artifact size savings. Set expectations accordingly before
+promising a specific final size.
+
+====================================================================
+8. FOUR-BUG FIX BATCH (drag-select, ctx-menu z-index, dynamic
+   masonry, power-tool picker UX)
+====================================================================
+Fix 1 (drag vs. select on add-tag input) — approved on first pass.
+
+Fix 2 (context menu / autocomplete / floating panels appearing
+behind the image-card modal) — CONFIRMED FIXED (two-part fix).
+  Part A: .ctx-menu and .ac-panel z-index bumped to 460 (above
+  .modal-backdrop's 450). Approved via screenshot, but user then
+  noted the same underlying bug still hit the Tag Details panel.
+  Part B: .theme-panel (z-index 320) is the SHARED base class behind
+  every floating panel in the app — favoritesPanel, themeCustomPanel,
+  logPanel, achievementsPanel, shopPanel, tagDetailsPanel, and
+  settingsPanel all use it, so any one of them could render behind
+  the modal, not just Tag Details. Also found .pt-choice-menu
+  (power-tool picker menu, z-index 400) had the identical problem.
+  Fix: bumped both to z-index 455 — above .modal-backdrop (450) but
+  below .ctx-menu/.ac-panel (460), so a context menu or autocomplete
+  opened from inside one of these panels still layers correctly on
+  top of it. Verified stale-file-free before applying (diffed staged
+  DROP_UPDATES_HERE files byte-for-byte against renderer/ source) and
+  confirmed fixed by the user after applying the update bundle.
+
+Lesson: when a UI bug traces back to a shared CSS class, check every
+element that shares that class before declaring the fix complete —
+the user's first report (Tag Details specifically) was only one
+symptom of a class-wide problem, not the whole bug.
+
+Fix 3 (dynamic masonry mode: cards stretch to match tallest card in
+their column instead of shrink-wrapping to their own content) — see
+full account below, this was the hardest bug of the whole project.
+
+Fix 4 (power-tool picker hides settings flyout while picking, Shift
+key gives temporary normal cursor) — approved via user screenshot.
+
+--------------------------------------------------------------------
+FIX 3 IN DETAIL — "THE BIG ONE"
+--------------------------------------------------------------------
+Attempt 1: removed `column-fill: auto` from
+`html.dynamic-cards #galleryGrid` (reverted to CSS default
+`balance`). Verified against a synthetic standalone-HTML repro, which
+DID show correct masonry behavior. Reported as fixed.
+
+Reality: user's real screenshot showed the bug still present — all
+cards in dynamic mode still stretched to match the tallest card in
+their row/column.
+
+Many follow-up test cycles (varying image dimensions, blob vs data
+URLs, lazy-loading, exact real file dimensions, card counts up to 9)
+were run via CDP directly against the REAL running app — every one
+of these synthetic-style tests passed, contradicting the user's
+actual reproducible failure.
+
+Key clue from the user: resizing/maximizing the window changed the
+column count, proving some reflow mechanism WAS working — ruled out
+"CSS never applies at all."
+
+Actual root cause (found only by inspecting computed styles on the
+user's real, live, currently-failing session):
+`getComputedStyle(galleryGrid).display` was `"grid"`, not `"block"`,
+even though the dynamic-mode column-width/column-fill CSS WAS being
+applied underneath. An INLINE style — which always wins over any
+external stylesheet rule regardless of specificity — was still
+forcing display:grid. Found via a jcodemunch text search for
+`galleryGrid.style.display`, which led to `switchView(mode)`:
+
+    galleryGrid.style.display = (mode === 'grid' || mode === 'disabled')
+      ? 'grid'   // <-- always set inline, permanently defeats CSS
+      : 'none';
+
+This explains why every synthetic test passed: those tests only did
+`classList.add('dynamic-cards')` directly and never called the real
+`switchView()`, so no inline style was ever set. The real app always
+calls `switchView('grid')` on load, so it always failed.
+
+Fix: changed the inline value to `''` (empty string, clears the
+inline style) instead of `'grid'`, letting the stylesheet cascade
+(base `#galleryGrid{display:grid}` vs.
+`html.dynamic-cards #galleryGrid{display:block}`) actually take
+effect as originally designed.
+
+Verified live via CDP against the user's real failing session:
+simulated the fix, confirmed computed `display` flipped from
+`"grid"` to `"block"`, and card heights became genuinely independent
+(547px, 238px×3, 256px×3 — no more forced uniform stretching).
+Rebuilt via `npm run refresh-app`; awaiting the user's own
+relaunch-and-confirm.
+
+LESSON (the most important one from this whole project): a synthetic
+/ isolated reproduction, no matter how faithful in DOM structure and
+data, can completely miss a bug caused by OTHER, unrelated
+application code that only runs in the real end-to-end path (here: a
+totally separate view-switching function nobody was thinking about
+as "the masonry code"). When a fix looks correct in isolation but a
+user reports it still failing in real use, stop refining the
+isolated repro — go inspect the real live failing state directly
+instead (CDP, devtools, whatever is available).
+
+Related, more general rule reinforced by this whole batch: inline
+styles beat stylesheet rules regardless of CSS specificity. Any time
+"the CSS looks right but isn't applying," check for a `.style.X =`
+assignment in JS before assuming the stylesheet itself is wrong.
+
+====================================================================
+9. TOOLING / INFRASTRUCTURE LESSONS (cross-cutting)
+====================================================================
+- npm's allowScripts blocked Electron's postinstall (binary
+  download). Fix: `npm install-scripts approve electron`, then
+  reinstall electron cleanly.
+
+- A .bat file with a UTF-8 em-dash + LF-only line endings caused
+  cmd.exe to misparse the whole file into garbage tokens. Fix:
+  rewrite batch files as pure ASCII with CRLF line endings, and
+  verify by actually running via `cmd /c` (not just a Bash/git-bash
+  wrapper, which can mangle batch execution differently than a real
+  cmd.exe session).
+
+- jcodemunch's `resolve_repo`/`index_folder` with a relative path
+  (".") resolved against the MCP SERVER's own working directory, not
+  the caller's — silently indexed the user's entire home directory
+  instead of the project (looked like "success" but was scoped
+  wrong). Fix: always pass an ABSOLUTE path to index_folder, and
+  verify by checking the returned file_count/file list, not just a
+  success flag.
+
+GENERAL PATTERN ACROSS ALL OF THE ABOVE: empirically verify every
+fix against the real running app (real builds, real launches, CDP
+inspection of real sessions, hash comparisons, process-exit checks)
+rather than trusting code review or a synthetic test alone. Every
+serious mistake in this log happened specifically because a
+plausible-looking test or assumption stood in for that real
+verification.
+
+====================================================================
+10. TYPESCRIPT PORT (Phase A — mechanical, done and verified)
+====================================================================
+Goal: type safety across main/preload/renderer, less "redundant and
+roundabout" code (size reduction is a side effect, not the point).
+Confirmed with the user: no installer — the NSIS target was dropped
+entirely, keeping the existing zip-download/unpack/run workflow as
+the only distribution path. Portability (no AppData) is untouched.
+
+Approach chosen: two phases, not a big-bang rewrite, because this
+exact file (renderer/app.js) is where nearly every hard bug in this
+log (items 1-2, 5-6, 8) originated — a one-shot rewrite-and-restructure
+on top of a language change would stack two kinds of risk at once.
+
+Phase A (this entry): renamed main.js/preload.js/renderer/app.js to
+src/main.ts/src/preload.ts/src/renderer/index.ts with NO logic or
+structure changes, added tsconfig.main.json (tsc emits main.js/
+preload.js at the project root, unchanged locations) and
+tsconfig.renderer.json (noEmit — esbuild does the actual bundle into
+renderer/app.js, since esbuild strips types without checking them).
+Added typescript/esbuild/@types/node as devDependencies (esbuild's
+postinstall needed the same `npm install-scripts approve` step
+electron did originally — expected, not a new bug).
+
+Renderer file needed `// @ts-nocheck`: the untyped single-file
+renderer produced 400+ TS2339 errors (DOM lib types `HTMLElement`
+narrower than what the code assumes, e.g. `.value`/`.checked`/
+`.dataset`; several state objects declared as `{}` with properties
+added dynamically later; `window.electronAPI` not ambiently typed).
+Hand-fixing all of these under time pressure risked wrong casts —
+i.e. introducing real bugs while chasing type errors on code that
+already works. Decision: suppress checking for the whole file now,
+remove the pragma module-by-module in Phase B as each domain is
+split out into its own properly-typed file — real types on new code,
+not retrofitted guesses on 5,458 lines at once.
+
+Verification (all reused the project's existing dev loop, nothing new
+invented): `npm run build` (tsc + esbuild) → `npm start` → `npm run
+refresh-app` (full electron-builder --dir + portable-dev copy) → `npm
+run dist:zip`. All succeeded; the zip came out byte-size-identical
+(115,822,105 bytes) to the pre-port build, and no `.exe` installer
+artifact was produced. User confirmed the manual in-app smoke test
+passed (open folder, edit tags, undo, view modes incl. dynamic
+masonry, power tools, Tag Details from the modal, themes) — Phase A
+is done and verified. Phase B (splitting into modules) not started.
+
+Lesson: when adding a type system to a large pre-existing untyped
+file, don't try to make it fully strict in one pass — get it building
+(loosely typed / suppressed) and verified behavior-identical first,
+then tighten types incrementally as you actually restructure the
+code into smaller pieces. Chasing type errors on unfamiliar-shape
+legacy code without also restructuring it is how you'd introduce the
+exact class of bug this whole log is full of (wrong assumption, no
+real verification).
+
+====================================================================
+11. FOLDER RESTRUCTURE (root build + Shippable/)
+====================================================================
+Built: reorganized the project so its purpose is clearer at a glance.
+Dev files (package.json, node_modules/, src/, scripts/, tsconfig*)
+stay at the project root, unmoved. `portable-dev/`'s contents (the
+electron-builder --dir build we personally test against) moved UP to
+become the project root's own loose contents (exe, resources/,
+locales/, data/, DROP_UPDATES_HERE/) — so dev files and the build we
+test coexist at the top level. A new `Shippable/` folder holds the
+zip and its unpacked-folder equivalent, produced by pointing
+electron-builder's `--config.directories.output` at it directly for
+`dist:zip` — no custom copy script needed, since electron-builder
+already stages an unpacked folder before zipping.
+
+Not done: an earlier version of this plan also tried to move
+node_modules/src/tsconfig into their own "Development Dependencies"
+subfolder, mirroring the root/Shippable split. The user reconsidered
+and rejected that part specifically — relocating node_modules/electron
+for tidiness wasn't worth the tooling risk (path assumptions in
+electron-builder, tsc, npm scripts). Only the smaller, lower-risk half
+of the reorg (root build + Shippable) shipped.
+
+`DROP_UPDATES_HERE`/`push-update.js`: no code change — main.js creates
+this folder identically everywhere since the shipped build and our
+root test build run the exact same code. We just stopped treating it
+as our default iteration loop (always edit src/ + `refresh-app`
+directly instead); it still exists and works, both for real end users
+in the Shippable build and for us if we ever want to deliberately test
+that specific feature.
+
+`scripts/refresh-portable-dev.js` and `scripts/push-update.js` needed
+one-line path fixes each (`PERSISTENT_DIR` now resolves to the project
+root instead of a `portable-dev` subfolder) plus a `firstTime` check
+fix (was checking if the root dir existed, which is now always true —
+switched to checking for the exe itself). `run-portable-dev.bat`'s exe
+path updated the same way. `.gitignore`'s `/portable-dev/` entry
+replaced with explicit entries for the build's actual loose files at
+root (tied to Electron's current bundled runtime files — a future
+Electron version bump could add/remove one, worth an eye on `git
+status` after the next `refresh-app` if that ever happens) plus
+`Shippable/`.
+
+Verified: `npm run refresh-app` correctly refreshed the app in place
+at the new root location without touching dev files/docs, and
+preserved `data/` (confirmed via a full directory listing showing
+Chromium profile contents like IndexedDB/Local Storage intact).
+`run-portable-dev.bat` launched the relocated exe successfully.
+
+Lesson: when a git-bash-wrapped `cmd //c` or `cmd /c "cd /d X && ..."`
+invocation fails to find a file that provably exists (confirmed via
+`Get-ChildItem`), suspect MSYS/Git-Bash path-mangling of anything
+that looks like a `/X` single-letter flag (here, `/d` in `cd /d`) —
+before assuming the target script itself is broken. Calling the exact
+same command through PowerShell, or via the script's own full path,
+sidesteps it. Don't burn time debugging a script that isn't actually
+the problem.
+
+====================================================================
+12. TYPESCRIPT PORT PHASE B (module split, in progress) + a zoom/
+    overflow bug found along the way
+====================================================================
+Started splitting src/renderer/index.ts (the single 5,458-line
+renderer, `// @ts-nocheck`'d in Phase A) into typed modules, per the
+extraction order in CLAUDE.md's "Critical Decisions" #1. Each module
+is extracted, built, refreshed into the root app, and user-verified
+before moving to the next — same one-fix-at-a-time discipline as the
+bug-fix batches.
+
+Extracted so far: dom.ts (pure $() + ~150 element refs), shared-ui.ts
+(toast/showPanel/hidePanel/showConfirmModal — pulled out ahead of
+schedule, before themes.ts, specifically to avoid a circular import:
+themes.ts needed these and index.ts needed themes.ts), themes.ts
+(theme data/application, day/night HSL inversion), docks.ts
+(dock reorder/collapse/resize), settings.ts (page zoom, custom font,
+settings-section persistence — kept small since most of the actual
+settings-panel wiring is too interleaved with other domains to factor
+cleanly yet).
+
+Deliberate seam worth remembering: themes.ts's toggleDayNightMode()
+returns whether it just turned ON instead of doing achievement
+tracking itself, because achievements state (folderStats/
+saveFolderStats/checkAchievements) is still private to index.ts's own
+IIFE — code inside an IIFE can't be `export`ed, so a moved function
+that needs it would need either a premature achievements.ts extraction
+or a real circular import. index.ts's toggleDayNightModeAndTrack()
+wrapper does the tracking based on the return value instead. Revisit
+once achievements.ts exists.
+
+Bug found during settings.ts verification (not caused by the port —
+this CSS was never touched during any extraction): using the font-size
+slider (which calls the same page-zoom mechanism as Ctrl+/Ctrl-) made
+`#btnResetFamilyOrder` (and generally the left sidebar's TAGS sort row)
+get visually cut off on the right edge at larger sizes.
+  Root cause: `.left-sort-row` is a flex row containing a `.pdrop`
+  (persistent dropdown) whose button has `white-space: nowrap`. A flex
+  item's default `min-width: auto` means it can't shrink below its own
+  content's width — for a nowrap text button, that's the full label
+  width. At larger zoom, the row's total content (title + dropdown +
+  two icon buttons) needed more space than the sidebar's fixed-width
+  column had, and once every shrinkable item hit its own floor
+  simultaneously, the excess simply overflowed the container and
+  visually pushed/clipped the last button.
+  Fix: `.left-sort-row .pdrop{ min-width:0; flex:0 1 auto; }` +
+  `.pdrop-btn{ overflow:hidden; text-overflow:ellipsis; max-width:100%; }`
+  so the dropdown's own label truncates under pressure, plus
+  `flex-shrink:0` on the two icon buttons so they're never the ones
+  that give way.
+  First attempt used `flex:1 1 auto` (flex-grow:1) on `.pdrop` — that
+  gave it equal growth priority with `.panel-title` (also grow:1), and
+  since the dropdown's content is wider it won that fight, squeezing/
+  overlapping the "TAGS" title instead. `.pdrop` should never actively
+  grow to claim space, only shrink when the row is actually tight —
+  flex-grow:0 fixed it. Caught by the user immediately after the first
+  fix landed, via a screenshot.
+  Second attempt (flex-grow:0 applied) still broke above ~15px font
+  size — this time because the SECOND fix had also added `min-width:0`
+  to `.panel-title` itself, "just to be safe." That removed title's own
+  natural protective floor (its default `min-width:auto` — for a plain
+  non-nowrap text element, that resolves to its min-content size, i.e.
+  "TAGS" at its own natural width) and let the browser collapse it all
+  the way to a literal 0px box under any real pressure, with its text
+  still rendering past that 0-width box (overflow:visible) and
+  appearing to sit "behind"/overlapping the dropdown that followed it
+  in DOM order. Root-caused via live CDP inspection (getBoundingClientRect
+  + computedStyle on the actual running app at 18px/1.29x zoom) rather
+  than guessing from the CSS alone — the measurements showed pdrop
+  sitting at its full 107px unclipped natural width while title measured
+  literally 0, which is what actually pointed at the real cause.
+  Fix: removed the unneeded `min-width:0` from `.panel-title` (left its
+  `flex:1` alone) — its default `auto` floor is exactly the protection
+  it needed. `.pdrop` keeps its own explicit `min-width:0`, since ITS
+  default floor (nowrap text's full label width) is what needed
+  overriding in the first place. Re-verified via the same CDP
+  measurement at 18px: title renders at its natural ~30px, pdrop
+  shrinks to fit (confirmed truncating via ellipsis — scrollWidth 116px
+  vs clientWidth 76px, not just visually clipping), and every element's
+  right edge lines up exactly at the row's own boundary.
+  Lesson: `min-width: 0` is not a blanket "make this shrinkable" fix —
+  it removes an item's DEFAULT min-content floor, which for most
+  ordinary text content (no nowrap) is already the correct, useful
+  floor (the size of its longest unbreakable word). Only override it on
+  the SPECIFIC item whose default floor is the actual problem (here,
+  the nowrap dropdown label) — not defensively on its neighbors too.
+  This is the same bug FAMILY as item 5's settings-section
+  `flex-shrink:0`/`overflow:hidden` fix and item 8's masonry
+  inline-style fix — different property (`min-width` here vs.
+  `min-height` there, and `flex-shrink` doing the opposite job in each)
+  but the same root cause shape: a flex/grid default that silently
+  works fine until content or zoom pushes it past an invisible floor
+  or ceiling.
+
+Lesson: `min-width: auto` (the flex-item default) is the width-axis
+twin of the `min-height: auto` trap already documented in this log —
+whenever a flex row contains an element with `white-space: nowrap`
+text, that element cannot shrink below its label's full width unless
+`min-width: 0` is set explicitly. Check for this specifically whenever
+a flex ROW (not column) "looks fine until you zoom in or the label
+gets longer."
+
+====================================================================
+13. TYPESCRIPT PORT PHASE B COMPLETED (module split) + a native-
+    tooltip-flash fix
+====================================================================
+Continued and finished the module split started in item 12. After
+dom.ts/shared-ui.ts/themes.ts/docks.ts/settings.ts (user-verified in
+the running app), the following were extracted, each build-verified
+(`npm run build` clean) before moving to the next: power-tools.ts,
+quick-merge.ts, tag-pruner.ts, tags-autocomplete.ts, achievements.ts,
+favorites.ts, edit-log.ts, tags-edit.ts, master-tag-control.ts,
+tag-details.ts, tag-index.ts, and finally view.ts (the largest — all
+gallery/compact/single rendering, chips, the floating image card
+modal, tag context menu, and the image options menu). index.ts went
+from 5,458 lines to ~1,090. Also fixed in this pass: hovering a button
+with a native `title` attribute briefly flashed the browser's own
+tooltip before the app's styled one appeared, because the `title`
+attribute was only being stripped inside the 1-second show-delay
+timeout, not immediately on `mouseover` — moved the stash-and-remove
+to run immediately.
+
+Key architectural pattern established (and reused for every module
+after themes.ts): index.ts is an IIFE, so anything declared inside it
+(state or functions) cannot be `export`ed — only true top-level
+declarations can. This meant two things could NOT simply be "moved
+and imported back":
+  - Any core state a moved module needs to read that index.ts still
+    owns (entries, dirHandle, galleryFilter, viewMode-adjacent
+    settings toggles, etc.) — solved by having index.ts pass a getter
+    (`() => entries`) into that module's own `init*(deps)` call, never
+    a raw reference, since several of these are reassigned wholesale
+    elsewhere (e.g. `entries = []` on folder load) and a captured
+    snapshot would go stale.
+  - Any state a moved module owns that index.ts (or another module)
+    needs to reset/reassign from outside — an imported binding is a
+    live but READ-ONLY view from the importer's side; `importedThing =
+    x` throws. Solved by having the OWNING module export a function
+    that does the reassignment internally (e.g. tags-edit.ts's
+    `resetUndoRedo()`, view.ts's `resetSingleIndex()` /
+    `resetStickyCompare()`) rather than ever exporting a raw mutable
+    primitive/array for an outside caller to overwrite directly.
+    (Object/Set/Map state that's only ever *mutated in place* —
+    `selectedTags.add()`, `folderStats.foo = 1` — has no such
+    restriction and could be passed by direct reference once.)
+Also generalized: any function found to be genuinely dependency-free
+(positionMenu, buildPersistentDropdown, attachPinchZoom,
+attachLongPress, escapeHtml) was pulled into shared-ui.ts on the spot
+when a new module needed it, rather than duplicating it or inventing
+a one-off import — this avoided several potential circular imports
+between sibling feature modules.
+
+One real bug caught only by grepping for leftover references after
+each extraction (not by the build, which only validates that named
+ES-module imports resolve, not that every runtime reference is
+defined): edit-log.ts's Stats-tab "Undo/redo stack depth" cards read
+`getUndoStack()`/`getRedoStack()` callbacks that index.ts wired as
+`() => undoStack` / `() => redoStack` — but after undoStack/redoStack
+moved to tags-edit.ts, index.ts never re-imported those two names, so
+those callbacks would have thrown a ReferenceError the first time the
+Stats tab was opened. Caught by explicitly re-checking every `init*()`
+deps object against its module's actual export list, not just
+trusting a clean build.
+
+IMPORTANT — the newer 11 modules (power-tools.ts through view.ts) were
+build-verified but, unlike the first 5, have NOT yet been exercised in
+the running app (see CLAUDE.md "Next Steps"). Test thoroughly before
+treating Phase B as fully done.
+
+====================================================================
+14. IN-APP EXERCISE OF PHASE B CAUGHT A SHIP-BLOCKING BUG; ADDED
+    RETROACTIVE MERGE/VOID FOR DISABLED IMAGES
+====================================================================
+Bug (exactly the risk flagged in item 13): File flyout, Log button,
+"Generate GitHub-ready package" button, and the Settings "Layout &
+Panels" dropdowns all appeared completely dead — no visible reaction
+to clicks at all.
+
+Root cause: index.ts's `initTagAutocomplete({ ..., addTagToEntry,
+... })` call passes the bare identifier `addTagToEntry`, which used to
+be an index.ts-local function but moved to tags-edit.ts during the
+Phase B split — and, like the undoStack/redoStack case in item 13, was
+never re-imported into index.ts. Since index.ts is one big top-level
+IIFE, the resulting `ReferenceError: addTagToEntry is not defined`
+fired partway through startup (before `btnOpen`, `initEditLog`,
+`btnGithubPackage`, and the layout dropdown were ever wired) and
+silently killed every statement after it — nothing downstream in the
+IIFE ever ran. A clean `npm run build` didn't catch it because esbuild
+only validates named ES-module imports resolve, not that every bare
+identifier used inside the bundle is actually defined somewhere.
+
+Found by launching the packaged exe with
+`ELECTRON_ENABLE_LOGGING=1 ... --enable-logging=stderr` and grepping
+the captured stderr for "Uncaught" — Electron doesn't forward renderer
+console output to the terminal by default, so this flag is the fast
+way to catch a silent renderer-side exception without opening
+DevTools by hand. Fix: added `addTagToEntry` to the `./tags-edit`
+import list in index.ts. Re-launched with the same logging flag and
+confirmed zero console errors on startup.
+
+Lesson (reinforcing item 13): after ANY module extraction, grep every
+moved symbol's old call sites — a clean build proves imports resolve,
+not that every reference is defined. Since index.ts is a single IIFE,
+one bare ReferenceError anywhere in it can silently disable everything
+that would have been wired after that point, with zero error dialog
+or visible symptom beyond "these buttons just don't do anything."
+
+Feature: overhauled retroactive merge/void. Previously the only way to
+apply a merge or void to disabled images was the "Also apply to
+Disabled images" checkbox at the moment you ran the operation — if an
+image was disabled either before that point or after, it permanently
+missed the change unless the checkbox happened to be on. Added two new
+ways to catch disabled images up after the fact, both driven off the
+existing edit log:
+  - Per log entry (Log panel, merge/void rows only): "Apply to
+    disabled images" replays just that one task against currently
+    disabled images that still carry the affected tag(s).
+  - Log panel toolbar: "Apply ALL merges/voids to disabled images"
+    replays every past merge/void, in original chronological order,
+    the same way.
+Implementation: `recordChange()` (tags-edit.ts) now accepts an
+optional `extra` object merged onto both the undo-stack record and the
+persisted log entry — merge entries now carry `mergedTags`/
+`unifiedTag`, void entries carry `voidedTags`. `retroApplyToDisabled()`
+uses that recorded data to replay the same tag transform against
+currently-disabled entries only (skipping ones that no longer have any
+of the affected tags), and records the result as its own new log entry
+tagged `retro: true` so `retroApplyAllToDisabled()` — which replays
+every non-retro merge/void entry in log order — doesn't re-process its
+own output. Log entries from before this feature shipped have no
+`mergedTags`/`voidedTags` recorded; retro-applying one of those reports
+"no tag data recorded" rather than silently doing nothing.
+
+====================================================================
+15. TEXT/LANGUAGE TAGGING FIX; REMOVED IN-APP UPDATE-BUNDLE FEATURE;
+    ADDED RANDOM-FACT EMPTY STATE
+====================================================================
+Bug: the 3-dot image menu's "Has text" → "Foreign language…" chip
+picker (`view.ts`, `renderLangChips()`) looked completely dead — no
+visible reaction to clicking a language chip — and Apply would
+sometimes produce just "text", sometimes something unexpected,
+depending on how the user got there.
+
+Two real bugs, not one:
+  - `.lang-common-chip.active` was referenced in the JS
+    (`chip.className = 'lang-common-chip' + (... ? ' active' : '')`)
+    but never defined in styles.css — clicking a chip DID correctly
+    update `draft.foreignLang` under the hood, it just had zero visual
+    confirmation, so it looked broken and got clicked repeatedly/
+    abandoned. Fixed by adding a `--accent-success` green highlight for
+    `.lang-common-chip.active`.
+  - `applyTextBtn`'s click handler always added the bare "text" tag
+    AND, if a foreign language was picked, additionally added
+    "[language] text" — so a foreign selection actually produced BOTH
+    tags instead of the Danbooru convention where they're mutually
+    exclusive (plain "text" implies Japanese, the assumed default;
+    "[language] text" replaces it for anything else). Fixed: Japanese
+    selection now adds bare "text" only; a foreign selection now
+    removes any existing "text"/other-language tag first and adds only
+    "[language] text".
+Also cleaned up a redundant double-render (`foreignBtn`'s click handler
+called `renderLangChips()` directly right after `renderTextSubOptions()`
+already called it internally — harmless but wasteful) and made the
+"Foreign language…" button label show the currently-picked language so
+the selection state doesn't rely on remembering which chip is green.
+
+Feature removal: deleted the entire in-app "Apply update bundle" system
+(`DROP_UPDATES_HERE/` drop-folder + folder-picker fallback, the
+Settings button, `apply-update-bundle`/`relaunch-app` IPC handlers,
+`applyUpdateBundle()`/`relaunchApp()` preload exposure, and the
+`scripts/push-update.js` dev-only test script + its `push-update` npm
+script) at the user's request — it's deprecated now that the supported
+update path is "download a fresh zip from GitHub, move your `data/`
+folder into it." `restartApp()`/`main.js`'s own `app.relaunch()` calls
+are unrelated and were kept — only the update-*bundle*-specific pieces
+were removed. Updated README.md, FEATURES.md, PORTABLE_README.txt,
+.gitignore, and scripts/refresh-portable-dev.js's PRESERVE set to match.
+
+Feature: replaced the "No folder loaded" empty state's dense
+paragraph with a short message plus a "🎲 Tell me a useless fact"
+button (`src/renderer/random-facts.ts`, a new self-contained module —
+no `init(deps)` needed since it touches no shared app state, just its
+own button and a ~50-entry hardcoded fact array spanning general
+trivia and pop-culture/fandom trivia, spoiler-free by construction).
+
+Verification note: this session confirmed no startup exceptions after
+each change by launching the packaged exe with
+`ELECTRON_ENABLE_LOGGING=1 ... --enable-logging=stderr` and grepping
+for "Uncaught" (see item 14) — same technique, now routine after any
+renderer change, not just Phase-B-era ones.
+
+====================================================================
+16. MULTI-LANGUAGE TEXT TAGGING; FIXED THE APP HANGING ON CLOSE WITH
+    UNSAVED CHANGES
+====================================================================
+Feature: item 15's text/language fix made "text" and "[language] text"
+correctly mutually exclusive, but a single image can legitimately have
+Japanese AND English AND Russian text on it at once — that's not an
+edge case, it's normal for translated/multi-language releases. Redid
+the 3-dot menu's text picker (`view.ts`) so Japanese and each foreign
+language are independent, non-exclusive toggles instead of one
+either/or choice:
+  - `draft.isForeign`/`draft.foreignLang` (single string) replaced with
+    `draft.isJapanese` (bool) + `draft.foreignLangs` (a `Set`).
+    `getForeignLangTags(entry)` (renamed from `hasForeignLangTag`, which
+    used to `.find()` the first match) now `.filter()`s ALL "* text"
+    tags on the entry, since there can be several at once.
+  - Clicking a common-language chip now toggles it in the Set (add if
+    absent, remove if present) instead of overwriting a single value —
+    multiple chips can show the green "active" highlight simultaneously.
+  - Apply reconciles `draft.foreignLangs` against the entry's current
+    "* text" tags: removes any that are no longer selected, adds any
+    newly selected, and independently adds/removes the bare "text" tag
+    based on `draft.isJapanese` — the two no longer interact.
+Also added a Settings toggle ("Auto-select a language when you add it…",
+`#langAutoSelectToggle`, Tagging & Autocomplete section) since typing a
+new language into the add-language field used to always immediately
+select it as well as adding it to the common-languages list, with no
+way to do just the latter. Persisted the same way as `commonLanguages`
+itself — a module-local pref inside `view.ts` (`autoSelectNewLanguage`),
+not injected from index.ts, since the whole feature is self-contained
+to this one module.
+
+Bug: closing the app (X button, Alt+F4, Cmd+Q, taskbar close) while
+there were unsaved caption changes made the window hang completely —
+no dialog, no response, required a Task Manager kill.
+  Root cause: the only unsaved-changes guard was a renderer-side
+  `window.addEventListener('beforeunload', ...)` calling
+  `e.preventDefault()`. That's the standard web-platform way to get a
+  "Leave site?" confirm dialog in a real browser — but Electron does
+  NOT implement that native prompt UI at all. Calling preventDefault()
+  on `beforeunload` in Electron just silently blocks the close with
+  zero visible feedback, which is indistinguishable from a hang.
+  Fix: replaced it with the correct Electron pattern — `main.ts`'s
+  `win.on('close', ...)` now always calls `event.preventDefault()` and
+  sends a `request-close` IPC message to the renderer instead of
+  closing directly; the renderer checks for dirty entries, shows the
+  existing `showConfirmModal()` confirm dialog only if needed, and
+  calls the new `electronAPI.confirmClose()` IPC handler once it's
+  actually OK to proceed. That handler sets a one-time
+  `win.__closeConfirmed` flag and calls `win.close()` again, which this
+  time falls through the 'close' handler instead of re-triggering
+  another round-trip (avoids an infinite loop). The in-app "Quit"
+  button's own separate dirty-check/confirm logic was removed — it
+  now just calls `window.close()`, which triggers the exact same
+  native close flow (X button, Alt+F4, etc. all funnel through
+  `win.on('close', ...)` in main.ts), so duplicating the check there
+  would have shown two confirm dialogs back to back.
+  Verified (this session) by launching the packaged exe and posting a
+  real `WM_CLOSE` message to its window handle via PowerShell/user32
+  (`PostMessage(hwnd, 0x0010, ...)` — the same signal the OS sends when
+  you click the title-bar X, NOT the same as killing the process):
+  confirmed the process exits cleanly with no hang in the no-unsaved-
+  changes case. Couldn't script clicking through the confirm-modal
+  dialog itself (no UI automation into the native Electron window from
+  this environment), so the actual unsaved-changes prompt still wants a
+  manual click-through — but the mechanism (main asks, renderer
+  answers, main acts once) is the standard fix for this well-known
+  Electron gotcha, and reuses the same `showConfirmModal()` already
+  proven elsewhere in the app.
+
+Lesson: `beforeunload` + `preventDefault()` is a browser-only pattern.
+Any future "warn before doing X" guard in this app (or any Electron
+app) needs to go through main-process event interception + an IPC
+round-trip, not the DOM event alone — the DOM event fires, but nothing
+shows the user why nothing happened.
+
+====================================================================
+17. TEXT/PANEL TAGS APPLY INSTANTLY — REMOVED THE "APPLY" BUTTON
+====================================================================
+The 3-dot menu's "Has text" / Japanese / foreign-language chips / Comic
+/ koma / speech bubble controls used to stage changes in a `draft`
+object and only write them to the image's actual tags when the
+separate "Apply text/panel tags" button was clicked. Changed to apply
+each control's tag change to the entry immediately on interaction —
+selecting/deselecting something IS the action now, no confirmation
+step needed, matching how every other tag-editing control in the app
+already works (add/remove tag, Master Tag Control, etc.).
+
+Implementation (`view.ts`, `openImageOptionsMenu()`): extracted the
+apply-button's old click handler into `syncTextPanelTags()`, called
+from every control's own change/click handler instead of a button —
+`textCb` (Has text), `jpCb` (Japanese), each language chip, the
+add-language Enter handler, `comicCb`, each koma button, and
+`bubbleCb`. It also refreshes the menu header's live tag count and
+calls `renderCurrentView()` so the gallery reflects the change right
+away. The `applyTextBtn` button and its listener were deleted outright
+rather than left dead. `draft` itself is unchanged in shape — it's
+still the in-menu staging object for computing diffs (which foreign
+languages were added/removed since the menu opened), just synced to
+the real tags after every single change instead of once at the end.
+
+Note: the menu (`ctxMenuEl`) lives as a `document.body` child, not
+inside a gallery card, so calling `renderCurrentView()` (which rebuilds
+gallery card DOM) on every toggle doesn't destroy or reposition the
+still-open menu — confirmed no regression here.
+
+====================================================================
+18. THEME OVERHAUL — DISTINCT ACCENTS/EFFECTS PER THEME, PRICES
+    RAISED, NEW ACHIEVEMENTS TO MATCH
+====================================================================
+User feedback: with 29 themes, a lot of the dark ones "converge on the
+same general vibe" — mostly true for the dark ones that had NO extra
+CSS beyond their color variables (12 of them: autumn-ember,
+arctic-frost, forest-moss, vintage-paper, obsidian, rose-gold,
+coral-reef, lavender-fields, candy-pop, copper-forge, glacier,
+desert-dune), and for three near-identical "neon city" treatments
+(cyberpunk/retrowave/neon-tokyo all had the same dot-grid-background +
+box-shadow-glow formula) and a cluster of near-identical "dark teal
+glow" ocean themes (bioluminescent/aurora-borealis/twilight-garden/
+midnight-ocean/coral-reef/glacier).
+
+Added (renderer/styles.css, ~29 theme blocks):
+  - A new `--accent-flair` CSS var on every theme (added to THEME_VARS
+    in themes.ts too, so it inverts correctly under night mode and
+    shows up in the Custom theme editor — a var not in THEME_VARS would
+    silently freeze at its dark-mode value when night mode flips every
+    other var, which would have been its own "night mode compatibility"
+    bug). Repointed `.tab-btn.active` and
+    `.settings-section.expanded .settings-section-arrow` to use it
+    instead of `--accent-manual`, so even baseline chrome (not just
+    theme-specific decoration) reads differently theme to theme.
+  - Each of the 12 previously-flat themes got a real, theme-appropriate
+    flourish instead of just color: arctic-frost got frosted-glass
+    panels (`backdrop-filter: blur` + `color-mix()` translucent
+    background — Chromium 111+/Electron 31 supports both, verified via
+    a clean build + no console errors); glacier got a crisp icy
+    top-border instead (kept deliberately un-blurred so the two "icy"
+    themes don't converge into each other the way the brief
+    complained about); forest-moss and coral-reef got organic
+    asymmetric card corners (`border-radius: 20px 8px 20px 8px` etc.);
+    vintage-paper got a paper-grain texture + a slight photo-tilt card
+    hover; obsidian got hard-edged shard buttons via `clip-path`
+    (deliberately the one theme with NO glow anywhere — minimal/matte
+    is its whole identity); rose-gold got a satin diagonal shimmer
+    sweep on its primary button on hover; candy-pop got a bouncy
+    scale-up button hover instead of a color-only change; copper-forge
+    got a brushed-metal repeating-gradient texture + a single-corner
+    industrial bevel via `clip-path`; lavender-fields and autumn-ember
+    got soft radial-gradient haze/ember glows; desert-dune got layered
+    dune-wave gradients.
+  - The three "neon city" themes got genuinely different treatments
+    instead of the same grid+glow: cyberpunk kept its grid (it's the
+    reference one) but the brand text now pulses; retrowave's
+    background became a horizon-sun radial gradient + wide horizontal
+    scanlines (not a dot grid) and its buttons got chamfered
+    (multi-corner) `clip-path` cuts; neon-tokyo's static radial glow
+    now has an animated light-streak sweeping across the topbar
+    (`flairSweep` keyframe) instead of a second static glow.
+  - The ocean-glow cluster got separated the same way: bioluminescent
+    got a slow pulsing tag glow + soft drifting background blobs;
+    aurora-borealis is now the one with actual motion — its background
+    gradient position animates back and forth (`flairDrift`, 18s) so
+    it's unmistakably the "moving aurora" theme; twilight-garden got
+    static scattered firefly-glint dots (deliberately NOT animated, to
+    stay visually distinct from aurora's motion); midnight-ocean stayed
+    the deliberately calm/understated one (just a faint horizon
+    gradient added) as a contrast to its more decorated siblings;
+    blood-moon got a vignette + a slow pulsing brand glow (its own
+    "heartbeat," unrelated to the ocean cluster but was also
+    previously under-decorated).
+  - celestial-gold got a small scattered starfield (multiple
+    radial-gradient dots at different positions/sizes) to differ from
+    aurora/bioluminescent's glow-only look.
+  - Button-shape variety (the "sleek/sharp to round/soft" range asked
+    for): obsidian and retrowave use `clip-path` corner cuts (sharp/
+    industrial); copper-forge uses a single bevel; candy-pop bounces on
+    hover instead of just recoloring; rose-gold shimmers. Also
+    deliberately de-duplicated `--radius` values that had 4-5-way ties
+    (five different themes were all sharing `10px`, five were sharing
+    `2px`) by nudging several by 1-2px so fewer themes share an
+    identical button roundness even where no other flourish applies.
+  - Premium hover-fill effect (the brief's "button fills up with color
+    from the side up to 3/4 body" request): added as a shared CSS rule
+    keyed to a `[data-theme]` selector list covering exactly the
+    epic + legendary tier shop themes (amethyst, solarflare,
+    twilight-garden, neon-tokyo, aurora-borealis, celestial-gold) —
+    every other button's `::after` fills from 0 to 75% height in
+    `var(--accent-flair)` on hover. Scoped to the pricier tier
+    on purpose, matching "some MORE EXPENSIVE themes can also have
+    effects."
+
+Economy: theme prices raised roughly 2.5-3x per rarity tier
+(common 15→40, uncommon 30→90, rare 60→180, epic 120→360,
+legendary 250→750 Edibits) in `PREMIUM_THEMES` (themes.ts).
+Per-achievement Edibit rewards (`RARITY_VALUE` in achievements.ts)
+were left unchanged — the intent is that affording a theme takes
+accumulating several achievements across a real editing session, not
+one lucky unlock. Added 12 new achievements to keep pace:
+  - Five quick-win commons for lighter sessions/smaller datasets
+    (first-save, tags-10, remove-10, review-1, favorite-1) — deliberately
+    modest in number per the "not so easy it feels patronizing"
+    guidance, and gated on real actions (an actual save, an actual
+    review flag), not just opening a panel.
+  - Three rare "grindier" milestones above the existing ones
+    (tags-500, remove-500, undo-100) and three epic ones
+    (merge-100, log-2000, marathon-1000 — 1000 combined edits) for
+    datasets you spend serious time in.
+  - One legendary capstone, 'completionist-25' (unlock 25 OTHER
+    achievements in this folder) — the first legendary-tier
+    ACHIEVEMENT in the game (previously only theme purchases used that
+    reward tier). Implemented via `folderStats.achievements_unlocked`,
+    set at the top of `checkAchievements()` from the PREVIOUS call's
+    `folderUnlocked.length` (achievements unlocked during the CURRENT
+    pass haven't been counted yet when their own `check()` runs, so
+    this naturally resolves on the call right after the 25th — no
+    special-casing needed).
+  Two of the new achievements needed stats that weren't tracked
+  anywhere yet: added `trackStat('saves')` + `checkAchievements()`
+  after a successful save in `tags-edit.ts`'s `btnSave` handler
+  (there wasn't even a `checkAchievements()` call after saving before
+  this), and `trackStat('favorited')` + `checkAchievements()` in
+  `favorites.ts`'s "Save current folder" handler (new import of
+  `trackStat`/`checkAchievements` from `./achievements` there).
+  Combined max Edibits obtainable from a single folder's achievements
+  (every achievement, common through the new legendary) went from 920
+  to about 1760 — enough for roughly one legendary theme plus change on
+  a thoroughly-worked dataset, matching the brief's "single dataset,
+  worked on for enough time, plus some spare change" target.
+
+====================================================================
+19. THEME/SHOP POLISH PASS — POSITIONING BUG, INSTANT PURCHASE-APPLY,
+    STARTUP THEME FLASH, HOVER-FILL DIRECTION, SWATCH ACCURACY
+====================================================================
+Five follow-up fixes from user testing of item 18's theme overhaul:
+
+Bug: the epic/legendary hover-fill effect (`button:not(.ghost-close)
+:not(.danger-ghost)` forcing `position: relative`) also matched
+`.img-menu-btn` — the 3-dot image-options button, which relies on
+`position: absolute` (set in its own `.img-menu-btn` rule) to sit
+pinned to its card's corner. Forcing `position: relative` on it knocked
+it back into normal document flow, most visibly broken in single view.
+Same issue existed for the remove button inside `.compare-img-cell`
+(compact-view comparison). Fixed by excluding both from the hover-fill
+selector: `:not(.img-menu-btn):not(.compare-img-cell button)` — the
+latter uses CSS Selectors Level 4's complex-selector support inside
+`:not()` (supported since Chromium 88; Electron 31 is well past that)
+to exclude a button purely by its ancestor, since it has no class of
+its own. Lesson: any theme-wide selector using a bare `button` (not
+scoped to a container) needs to be checked against every button that
+manages its OWN `position` for placement, not just the obviously
+`.ghost-close`/`.danger-ghost` exceptions already excluded.
+
+Feature: buying a theme now applies it immediately (`applyTheme(t.id)`
++ `themeSelect.value = t.id`, `achievements.ts`'s `buyTheme()`, now
+importing `applyTheme` from `themes.ts`) and no longer risks closing
+the shop panel — added `ev.stopPropagation()` to the Buy button's click
+handler (the same defensive pattern used by every other panel-toggle
+button in this app) so a click can never bubble into the
+outside-click-closes-panel document listener.
+
+Bug: the app always flashed the "studio" default theme for one frame
+before switching to the user's actual saved theme on launch — because
+theme application happened in `index.ts` (an ES module that only runs
+once the document is otherwise parsed/ready), by which point Chromium
+had already painted once with no `data-theme` attribute set (falling
+back to `:root`'s studio-colored defaults). Fixed with a synchronous
+inline `<script>` in `index.html`'s `<head>`, placed AFTER the
+stylesheet `<link>` (script tags are spec-guaranteed to wait for a
+preceding stylesheet to finish loading before executing, which is what
+lets `getComputedStyle()` see the theme's just-applied base variable
+values — needed to replicate night-mode's HSL inversion pre-paint too,
+not just the plain `data-theme` attribute). This duplicates a compact
+copy of `themes.ts`'s `applyTheme()`/`toggleDayNightMode()` math
+inline (unavoidable — it must run before any ES module has loaded) and
+sets `window.__dtsPreThemed = true` on success.
+  Fixing the flash required a second, less obvious fix: index.ts's own
+  `initTheme()`/`initNightMode()` startup code used to unconditionally
+  call `applyTheme()`/`toggleDayNightModeAndTrack()` again — which,
+  for night mode specifically, would have INVERTED THE ALREADY-INVERTED
+  colors right back to day colors (a second flash, just moved later,
+  and left the internal `dayNightOn` flag really is `true` while the
+  screen displays day colors — breaking the next click of the toggle
+  too). Added `themes.ts`'s `syncNightModeFromPrePaint()` (just sets
+  the `dayNightOn` flag, no re-inversion) and had `index.ts` call that
+  instead, guarded by `window.__dtsPreThemed`, with a plain-language
+  fallback to the original code path if the inline script ever threw.
+  Lesson: whenever DUPLICATE initialization logic is introduced for a
+  "run before the real module loads" reason (unavoidable here), the
+  REAL module's own init must be made aware it might already be done —
+  never assume "idempotent re-run" is automatically safe; an inversion
+  is the textbook case where re-running the same transform twice
+  produces the opposite of doing it once.
+
+Fix: the hover-fill effect now slides in horizontally from the left
+(`width: 0% → 75%`, `left/top` positioned) instead of filling from the
+bottom by height, per explicit correction — the original "fills from
+the side" wording had been implemented as a bottom-up fill by mistake.
+
+Fix: `PREMIUM_THEMES` swatches (`themes.ts`, shown in the shop) now
+exactly equal `[--bg-base, --accent-manual, --accent-flair]` for every
+theme, verified by a script diffing the swatches array against the
+actual CSS values (see the theme block in `styles.css`) — a couple
+were previously showing `--accent-auto` as the third color instead,
+technically present in the UI (the brand's "local · no upload" pill)
+but small/easy to miss, not the color a user actually associates with
+each theme. To make `--accent-flair` itself genuinely prominent (not
+just present) instead of only showing up on the active-tab underline
+and settings arrow, `#topbar`'s border-bottom now uses
+`var(--accent-flair)` (2px, up from a 1px neutral border) as the
+default for every theme without its own topbar treatment — always
+visible from the very first launch screen, alongside `--bg-base`
+(everywhere) and `--accent-manual` (the primary "Open dataset folder"
+button), giving every theme its 3 swatch colors genuinely, persistently
+visible rather than 2 dominant + 1 occasional.
+  Also caught two `--accent-flair` values that were accidental exact
+  duplicates of that theme's `--accent-manual` (obsidian, blood-moon) —
+  not a NEW bug from this fix, but it would have undermined it (a
+  "third" swatch color identical to the second isn't really three
+  colors) — reassigned both to genuinely distinct hues.
+
+Feature: the GitHub-ready package generator now exports the actual
+buildable TypeScript source, not just the compiled output that also
+ships in the release zip. Previously `copyGithubPackageSource()`
+(`main.ts`) copied only `main.js`/`preload.js`/`package.json`/
+`renderer/` (including `renderer/app.js`, esbuild's BUILD OUTPUT) —
+someone cloning that "source" export had no `src/`, no
+`tsconfig.main.json`/`tsconfig.renderer.json`, and no `scripts/`, so
+`npm run dist`/`npm run dist:zip` would have failed immediately. Now
+also copies `src/` and `scripts/` (via `copyDirSyncFiltered`, reusing
+the existing node_modules/dist/.git skip-list) and
+`tsconfig.main.json`/`tsconfig.renderer.json`/`PORTABLE_README.txt`,
+and EXCLUDES `renderer/app.js` specifically (a new `extraSkip`
+parameter on `copyDirSyncFiltered`) since that file is regenerated by
+`npm run build`, not source. `__dirname` at runtime is the project root
+itself when this feature is used the normal way (from the root
+portable dev build — see CLAUDE.md "The root build is the project root
+itself"), so `src/`/`tsconfig*.json`/`scripts/` all sit right next to
+`main.js` already and are safe to copy directly without special-casing
+dev vs. packaged contexts. Updated `GITHUB_README`'s wording to
+describe this (mentions `npm run dist:zip` → `Shippable/`, matching
+the maintainer's own release path) and widened `GITHUB_GITIGNORE` to
+also cover `Shippable/`/`data/`.
+
+====================================================================
+20. SQUASHED/OVERLAPPING TEXT IN THE 3-DOT MENU ON EPIC/LEGENDARY
+    THEMES
+====================================================================
+Bug: on amethyst (and, by the same mechanism, every other epic/
+legendary theme — solarflare, twilight-garden, neon-tokyo,
+aurora-borealis, celestial-gold), the 3-dot image-options menu's first
+two rows ("Disable"/"Restore" and "Reset this image to earliest known
+tags") rendered as garbled, overlapping text instead of two separate
+readable lines. Everything below them (checkboxes, chips) looked fine.
+
+Root cause: `.ctx-item` (every row-button in the right-click/3-dot
+context menus) uses `all: unset` to strip the browser's default button
+styling entirely, at that rule's own (low) specificity. Item 19's
+hover-fill effect selector — `html[data-theme="amethyst"]
+button:not(.ghost-close):not(.danger-ghost):not(...)` — has far higher
+specificity, and unconditionally sets `position: relative; overflow:
+hidden; isolation: isolate;` on every matching button. `.ctx-item`
+buttons weren't in that exclusion list, so they got these three
+properties forced on top of their `all: unset` reset. That combination
+is exactly what produced the layout corruption — same underlying shape
+of bug as item 19's `.img-menu-btn` positioning break (a theme-wide
+`button:not(...)` selector fighting a button class with unusual/reset
+styling), just a different symptom this time (garbled text instead of
+misplacement).
+
+Fix: added `:not(.ctx-item)` to the hover-fill selector's exclusion
+list, alongside the existing `.img-menu-btn`/`.compare-img-cell button`
+exclusions (all 18 occurrences across the 3 sub-rules × 6 themes,
+via one `replace_all`). `.ctx-item` rows on epic/legendary themes now
+render exactly like they do on every other theme — no hover-fill
+effect on them, which is fine; they were never the intended target
+of that flourish (it's meant for the big call-to-action buttons, not
+compact right-click menu rows).
+
+While fixing this, grepped the whole file for every other `all: unset`
+button class and found five more that were equally exposed but hadn't
+been reported yet: `.pdrop-item` (persistent dropdowns — Layout
+arrangement, card tag sort), `.dock-collapse-btn` (right-panel dock
+headers), and three classless-button-inside-a-classed-parent cases —
+`.chip button` (every tag chip's own remove button — the single
+highest-traffic button in the whole app), `.exclude-badge button`,
+`.lang-common-chip button`. Added all five to the same exclusion list
+proactively rather than waiting for separate bug reports on each.
+
+Lesson (generalizing item 19's): a broad theme-wide `button:not(...)`
+selector is fundamentally risky against ANY button class with unusual
+styling — not just ones with `position: absolute`. `all: unset` is the
+other major offender pattern (any class using it should be added to
+this exclusion list preemptively when introducing new theme-wide
+button selectors, not discovered by bug report). Search the codebase
+for `all: unset` button classes before adding another broad
+theme-wide button rule in the future.
+
+====================================================================
+21. THEME CONSOLIDATION — 29 → 25, REMOVED NEAR-DUPLICATES, SHOP
+    SORTED BY PRICE
+====================================================================
+User feedback (after item 18's differentiation pass): some themes
+still read as near-identical despite the per-theme flourishes, e.g.
+"autumn ember and solarflare, or neon tokyo and retro wave." Audited
+ALL 29 themes' core colors (bg-base/accent-manual/accent-auto/
+accent-flair, converted to HSL) with a script rather than eyeballing,
+to catch every close pair, not just the two named as examples. Found
+four genuine duplicate clusters (near-identical hue pairs, same
+dark/light bucket, same general structure):
+  - cyberpunk / retrowave / neon-tokyo — all three were the exact same
+    "cyan (~186-189°) + magenta (~317-323°) neon" palette on a
+    near-black background, differing only in which texture/effect
+    (grid, scanlines+chamfer, topbar-sweep) had been layered on top.
+  - autumn-ember / solarflare — both "orange (~18-20°) + gold (~36-42°)
+    fire" on near-black, exactly the pair the user named.
+  - arctic-frost / glacier — both a near-monochrome blue (~192-206°)
+    on a ~95-96%-lightness icy-white background; last session's
+    frosted-blur-vs-crisp-border split was a real difference in
+    TREATMENT but not in the underlying palette.
+  - vintage-paper / desert-dune — both a tan/sepia (~39° bg hue) light
+    background with brown (~27° manual, exact same hue in both) text/
+    accents; serif+paper-grain vs. dune-wave-gradient, same underlying
+    palette.
+Removed one theme from each cluster — the one with the less developed
+identity relative to its counterpart — rather than recoloring, since
+"consolidate" means fewer, more genuinely distinct themes: removed
+neon-tokyo (epic), autumn-ember (common), glacier (rare), desert-dune
+(rare). Kept retrowave (its chamfered-clip-path buttons + horizon-sun
+gradient read as more distinct than neon-tokyo's grid+sweep), solarflare
+(legendary tier, more established), arctic-frost (frosted-glass blur is
+a more unusual technique than glacier's plain border), vintage-paper
+(serif font + paper-grain + photo-tilt is a fuller identity than
+desert-dune's gradient-only treatment). 29 themes → 25 (4 free + 21
+shop). Removed the corresponding CSS blocks (`styles.css`), shop
+entries (`PREMIUM_THEMES` in `themes.ts`), and `<option>`s
+(`index.html`'s `#themeSelect`); verified afterward that the CSS
+theme-block count, `PREMIUM_THEMES` entry count, and non-Custom
+`<option>` count all agree (25/21/25) and grepped for dangling
+references to the four removed ids — none found.
+  Mid-fix, the user flagged that neon-tokyo's topbar light-sweep
+  animation (`#topbar::after` + the `flairSweep` keyframe) was a
+  "genuinely fun addition" worth keeping even though its THEME was
+  being removed — moved it to amethyst instead of just deleting it
+  (recolored from cyan to amethyst's gold `--accent-flair`, fits its
+  "royal" identity as a shimmer sweep). Lesson: when consolidating/
+  removing something for being redundant, check whether it also carries
+  a genuinely distinct sub-feature that deserves to survive
+  independently of the thing being removed — don't let cleanup destroy
+  value that was never actually duplicated.
+
+Also: the shop panel (`renderShopPanel()`, `achievements.ts`) now
+lists themes sorted by price ascending (tie-broken alphabetically by
+name) via `[...PREMIUM_THEMES].sort(...)` computed at render time,
+instead of `PREMIUM_THEMES`' own declaration order (which was really
+just "whatever order themes got added over time" — common/uncommon/
+rare/epic/legendary tiers were scattered throughout, not grouped).
+
+====================================================================
+22. THEME DROPDOWN CLOSING ERRATICALLY; HOVER-FILL CLICK FLASH
+====================================================================
+Bug: the Personalization flyout (`#personalizationCatFlyout`, holding
+`#themeSelect` plus the Colors/Achievements/Shop/Reset Zoom buttons)
+closed unpredictably — most noticeably right after actually picking a
+theme from the dropdown, which made it feel broken since you couldn't
+reliably do anything else in that flyout right after choosing a theme.
+
+Root cause: the outside-click-to-close handler (`index.ts`) checks
+`!wrap.contains(ev.target)` to decide whether a click landed "outside"
+the flyout. A native `<select>` (`#themeSelect`) resolves its
+OS-rendered option list with a click whose `event.target` can be
+`<html>`/`<body>` itself — outside the page's own element tree
+entirely, not any real element inside or outside the flyout. That
+click reads as "clicked off the dropdown" under the existing check and
+closes the flyout the instant you pick a theme (or, less predictably,
+on other native-select interactions).
+
+Fix: added a guard — `if (ev.target === document.documentElement ||
+ev.target === document.body) return;` — before the outside-click
+check. A genuinely deliberate "click off the dropdown" always lands on
+some real page element (the gallery, another button, the backdrop),
+never bare `<html>`/`<body>`, so this costs nothing for the intended
+"close on outside click" behavior while eliminating the native-select
+false positive. The flyout should now close ONLY via its own toggle
+button (re-clicking `#personalizationCatBtn`) or a genuine outside
+click, matching the requested spec exactly.
+
+Feature: on the epic/legendary shop themes' hover-fill effect (item
+19), clicking a button now floods it to 100% width and fades out via
+opacity, independent of whether the pointer is still over the button
+afterward — previously the fill only ever tracked `:hover` directly,
+so a click didn't read as "acknowledged." Implemented as a single
+self-contained CSS animation (`@keyframes flairClickFlash`, width
+0%→100%→100% while opacity 0.6→0.6→0) triggered by a `.fx-flash` class,
+rather than trying to chain `:active` + `transition` (which would
+snap back to nothing the instant the mouse releases, since `:active`
+stops applying at mouseup — can't "continue" a hover-relative
+transition past the interaction that triggered it). A tiny generic
+document-level click listener — `initClickFlash()`, new export in
+`shared-ui.ts`, called once from `index.ts` — adds `.fx-flash` to
+whatever button was clicked and removes it ~650ms later (with a
+remove+reflow+re-add if clicked again mid-animation, since re-adding
+an unchanged class name doesn't restart a running CSS animation).
+Deliberately NOT scoped per-theme or to specific button classes: the
+`.fx-flash::after` CSS rule only has a visible box to animate on
+buttons that already carry the hover-fill `::after` in the first place
+(the epic/legendary themes' buttons, already excluding ctx-item/
+ghost-close/etc.) — everywhere else it's a harmless no-op, so the
+exclusion list didn't need to be duplicated in JS.
+
+Also added `opacity` to the hover-fill `::after`'s existing `width`
+transition, so the flash's fade-to-0 hands off smoothly to whatever
+opacity the next matching rule (hover or base) applies, instead of a
+visible pop.

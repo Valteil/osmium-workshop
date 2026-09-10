@@ -1,0 +1,437 @@
+// Phase B module: Achievements, per-folder stats, wallet, and the theme shop.
+// `dirHandle` (for stat file I/O) and `editLog` (for the log-count achievement)
+// stay owned by index.ts's core folder/log state — injected once via
+// initAchievements() rather than imported, since index.ts's IIFE can't export
+// them. Everything else achievement/wallet-related (folderStats, folderUnlocked,
+// wallet, ownedThemes, achievementPopupsEnabled) is owned by this module.
+// @ts-nocheck
+import {
+  walletDisplay, achWallet, shopWallet, achievementsPanel, achList, achPopupsToggle,
+  btnAchievements, achCloseBtn, shopPanel, shopList, btnShop, shopCloseBtn,
+  btnFreeEdibits, favoritesPanel, themeCustomPanel, logPanel, tagDetailsPanel,
+  themeSelect, btnResetEdibits, btnResetAchievements, achievementPopupHost,
+  btnRefineTheme, suppressThemeUpgradeToggle
+} from './dom';
+import { toast, showPanel, hidePanel, showConfirmModal, escapeHtml } from './shared-ui';
+import {
+  PREMIUM_THEMES, applyTheme, themeAlreadyHasPremiumEffects, refineThemeCost, markThemeRefined,
+  refinedThemes
+} from './themes';
+
+export let folderStats = {};        // per-folder achievement stats, persisted in _dts_achievements.json
+export let folderUnlocked = [];     // achievement ids unlocked in the current folder
+export let wallet = 0;              // global Edibits balance
+export let ownedThemes = ['studio','cyberpunk','oriental','subway']; // global, always includes free themes
+export let achievementPopupsEnabled = true;
+
+let getDirHandle = () => null;
+let getEditLog = () => [];
+let refreshThemeDropdownLabel = () => {};
+
+export function initAchievements(deps){
+  getDirHandle = deps.getDirHandle;
+  getEditLog = deps.getEditLog;
+  refreshThemeDropdownLabel = deps.refreshThemeDropdownLabel;
+}
+
+const RARITY_VALUE = { common: 10, uncommon: 25, rare: 60, epic: 120, legendary: 250 };
+const RARITY_ICON = { common: '⚪', uncommon: '🟢', rare: '🔷', epic: '🟣', legendary: '⭐' };
+
+const ACHIEVEMENTS = [
+  { id:'first-edit', title:'Baby Steps', desc:'Make your first tag edit in this folder.', rarity:'common',
+    check: s => (s.tags_added||0)+(s.tags_removed||0)+(s.merges||0)+(s.voids||0)+(s.renames||0)+(s.find_replaces||0) >= 1 },
+  { id:'eye-hater', title:"You really hate seeing, don't you?", desc:'Void 5+ tags containing "eye" in a single void action.', rarity:'uncommon',
+    check: s => !!s.flag_eye_hater },
+  { id:'hair-raiser', title:'Follicly Judgmental', desc:'Void 5+ tags containing "hair" in a single void action.', rarity:'uncommon',
+    check: s => !!s.flag_hair_raiser },
+  { id:'merge-10', title:'Merge Enjoyer', desc:'Perform 10 merges in this folder.', rarity:'common', check: s => (s.merges||0) >= 10 },
+  { id:'merge-50', title:'Serial Merger', desc:'Perform 50 merges in this folder.', rarity:'rare', check: s => (s.merges||0) >= 50 },
+  { id:'tags-100', title:'Tag Hoarder', desc:'Add 100 tags total in this folder.', rarity:'uncommon', check: s => (s.tags_added||0) >= 100 },
+  { id:'remove-100', title:'Minimalist', desc:'Remove 100 tags total in this folder.', rarity:'uncommon', check: s => (s.tags_removed||0) >= 100 },
+  { id:'void-200', title:'The Great Purge', desc:'Void 200+ tag instances total in this folder.', rarity:'epic', check: s => (s.voided_tag_instances||0) >= 200 },
+  { id:'rename-10', title:'Rename Enjoyer', desc:'Use "Replace all" 10 times.', rarity:'common', check: s => (s.renames||0) >= 10 },
+  { id:'fr-10', title:'Find & Replace Wizard', desc:'Use find & replace 10 times.', rarity:'common', check: s => (s.find_replaces||0) >= 10 },
+  { id:'undo-20', title:'Time Traveler', desc:'Use Undo 20 times.', rarity:'uncommon', check: s => (s.undos||0) >= 20 },
+  { id:'redo-10', title:'Back to the Future', desc:'Use Redo 10 times.', rarity:'uncommon', check: s => (s.redos||0) >= 10 },
+  { id:'export-log', title:'Archivist', desc:'Export the edit log at least once.', rarity:'common', check: s => (s.log_exports||0) >= 1 },
+  { id:'log-500', title:'Paper Trail', desc:'Accumulate 500 log entries in this folder.', rarity:'rare', check: s => (s.log_count||0) >= 500 },
+  { id:'disable-10', title:'The Exile', desc:'Banish 10 images to Disabled/.', rarity:'uncommon', check: s => (s.disables||0) >= 10 },
+  { id:'restore-5', title:'Second Chances', desc:'Restore 5 disabled images.', rarity:'common', check: s => (s.restores||0) >= 5 },
+  { id:'indecisive', title:'Indecisive', desc:'Disable then restore the same image 3+ times.', rarity:'rare', check: s => !!s.flag_indecisive },
+  { id:'review-10', title:'The Reviewer', desc:'Flag 10 images for review.', rarity:'uncommon', check: s => (s.review_flags||0) >= 10 },
+  { id:'notes-5', title:'Note Taker', desc:'Write notes on 5 images.', rarity:'common', check: s => (s.notes_written||0) >= 5 },
+  { id:'polyglot', title:'Polyglot', desc:'Tag 3+ different foreign languages across the dataset.', rarity:'rare', check: s => ((s.foreign_languages||[]).length) >= 3 },
+  { id:'detective', title:'The Detective', desc:'Open Tag Details 20 times.', rarity:'uncommon', check: s => (s.tag_details_opened||0) >= 20 },
+  { id:'decorator', title:'Interior Decorator', desc:'Customize and save a theme.', rarity:'common', check: s => !!s.theme_customized },
+  { id:'shopper', title:'Window Shopper', desc:'Open the theme shop.', rarity:'common', check: s => !!s.shop_opened },
+  { id:'big-spender', title:'Big Spender', desc:'Purchase a theme with Edibits.', rarity:'rare', check: s => (s.themes_purchased||0) >= 1 },
+  { id:'cheapskate', title:'Cheapskate', desc:'Use the free Edibits button 5 times.', rarity:'common', check: s => (s.free_edibits_claims||0) >= 5 },
+  { id:'zoom-300', title:'Zoom Zoom', desc:'Zoom an image past 300%.', rarity:'common', check: s => (s.zoom_max||0) >= 300 },
+  { id:'card-peeker', title:'Card Peeker', desc:'Open the floating image card 10 times.', rarity:'common', check: s => (s.card_modal_opens||0) >= 10 },
+  { id:'compact-fan', title:'Compact Enjoyer', desc:'Switch to compact grid view.', rarity:'common', check: s => !!s.compact_used },
+  { id:'sort-master', title:'Sorted Life', desc:'Try 4+ different gallery sort modes.', rarity:'uncommon', check: s => ((s.sort_modes_used||[]).length) >= 4 },
+  { id:'night-owl', title:'Night Owl', desc:'Enable night mode.', rarity:'common', check: s => !!s.night_mode_used },
+  { id:'isolation-ward', title:'Isolation Ward', desc:'Use "Flag isolated tags" to review rare tags.', rarity:'uncommon', check: s => !!s.isolated_flag_used },
+  { id:'the-overseer', title:'The Overseer', desc:'Use Master Tag Control to apply, remove, or rename a tag.', rarity:'rare', check: s => (s.master_ops||0) >= 1 },
+  { id:'yeet', title:'Yeet', desc:'Drag an image onto the Disabled tab.', rarity:'uncommon', check: s => !!s.drag_disabled_used },
+  // Quick wins — for smaller datasets or a light editing pass, so there's
+  // still real Edibits to earn without grinding through hundreds of edits.
+  { id:'first-save', title:'Locked In', desc:'Save your changes to disk for the first time.', rarity:'common', check: s => (s.saves||0) >= 1 },
+  { id:'tags-10', title:'Ten Tags In', desc:'Add 10 tags total in this folder.', rarity:'common', check: s => (s.tags_added||0) >= 10 },
+  { id:'remove-10', title:'Tidied Up', desc:'Remove 10 tags total in this folder.', rarity:'common', check: s => (s.tags_removed||0) >= 10 },
+  { id:'review-1', title:'Speed Reviewer', desc:'Flag your first image for review.', rarity:'common', check: s => (s.review_flags||0) >= 1 },
+  { id:'favorite-1', title:'Keeper', desc:'Save this folder to Favorites.', rarity:'common', check: s => (s.favorited||0) >= 1 },
+  // Steady-progress milestones — the grindier tier above the originals, for
+  // datasets you spend real time in.
+  { id:'tags-500', title:'Compulsive Tagger', desc:'Add 500 tags total in this folder.', rarity:'rare', check: s => (s.tags_added||0) >= 500 },
+  { id:'remove-500', title:'Deep Clean', desc:'Remove 500 tags total in this folder.', rarity:'rare', check: s => (s.tags_removed||0) >= 500 },
+  { id:'undo-100', title:'Undo Veteran', desc:'Use Undo 100 times.', rarity:'rare', check: s => (s.undos||0) >= 100 },
+  { id:'merge-100', title:'Merge Machine', desc:'Perform 100 merges in this folder.', rarity:'epic', check: s => (s.merges||0) >= 100 },
+  { id:'log-2000', title:'Chronicler', desc:'Accumulate 2000 log entries in this folder.', rarity:'epic', check: s => (s.log_count||0) >= 2000 },
+  { id:'marathon-1000', title:'Marathon Session', desc:'Rack up 1000 combined tag edits (added/removed/merged/voided) in this folder.', rarity:'epic',
+    check: s => ((s.tags_added||0)+(s.tags_removed||0)+(s.merges||0)+(s.voids||0)) >= 1000 },
+  // Dataset tab / Refine Theme / Unload dataset / keyboard menu nav
+  { id:'dataset-collector', title:'Dataset Collector', desc:'Add 3 dataset folders to the Dataset tab.', rarity:'uncommon', check: s => (s.dataset_tab_adds||0) >= 3 },
+  { id:'icon-artist', title:'Icon Artist', desc:'Set an image as a Dataset tab folder\'s icon.', rarity:'common', check: s => (s.dataset_icon_images_set||0) >= 1 },
+  { id:'nosy-neighbor', title:'Nosy Neighbor', desc:'View another dataset folder\'s achievements from the Dataset tab.', rarity:'uncommon', check: s => (s.other_folder_achievements_viewed||0) >= 1 },
+  { id:'theme-refiner', title:'Theme Refiner', desc:'Refine a theme in the shop.', rarity:'rare', check: s => (s.themes_refined||0) >= 1 },
+  { id:'clean-slate', title:'Clean Slate', desc:'Unload a dataset without quitting the app.', rarity:'common', check: s => (s.dataset_unloads||0) >= 1 },
+  { id:'keyboard-navigator', title:'Keyboard Navigator', desc:'Navigate an open menu or dropdown with the arrow keys.', rarity:'common', check: s => !!s.keyboard_menu_nav_used },
+  { id:'completionist-25', title:'Living Legend', desc:'Unlock 25 other achievements in this folder.', rarity:'legendary', check: s => (s.achievements_unlocked||0) >= 25 }
+];
+
+export function trackStat(key, amount = 1){
+  folderStats[key] = (folderStats[key] || 0) + amount;
+  saveFolderStats();
+}
+
+const META_FILE_NAME = '_dts_meta.json';
+const ACH_FILE_NAME = '_dts_achievements.json';
+
+export async function saveFolderStats(){
+  const dirHandle = getDirHandle();
+  if (!dirHandle) return;
+  try {
+    const handle = await dirHandle.getFileHandle(ACH_FILE_NAME, { create: true });
+    const writable = await handle.createWritable();
+    await writable.write(JSON.stringify({ stats: folderStats, unlocked: folderUnlocked }, null, 2));
+    await writable.close();
+  } catch(err){}
+}
+
+export async function loadFolderStats(){
+  folderStats = {};
+  folderUnlocked = [];
+  const dirHandle = getDirHandle();
+  if (!dirHandle) return;
+  try {
+    const handle = await dirHandle.getFileHandle(ACH_FILE_NAME, { create: false });
+    const file = await handle.getFile();
+    const parsed = JSON.parse((await file.text()).trim() || '{}');
+    folderStats = parsed.stats || {};
+    folderUnlocked = parsed.unlocked || [];
+  } catch(err){
+    folderStats = {};
+    folderUnlocked = [];
+  }
+}
+
+export function saveWallet(){
+  try {
+    localStorage.setItem('dts-wallet', String(wallet));
+    localStorage.setItem('dts-owned-themes', JSON.stringify(ownedThemes));
+  } catch(e){}
+  walletDisplay.textContent = wallet;
+  achWallet.textContent = wallet;
+  shopWallet.textContent = wallet;
+}
+
+export function loadWallet(){
+  try {
+    wallet = parseInt(localStorage.getItem('dts-wallet') || '0', 10) || 0;
+    const owned = JSON.parse(localStorage.getItem('dts-owned-themes') || 'null');
+    if (Array.isArray(owned)) ownedThemes = Array.from(new Set(['studio','cyberpunk','oriental','subway', ...owned]));
+  } catch(e){}
+  saveWallet();
+}
+
+export function resetWallet(){
+  wallet = 0;
+  saveWallet();
+}
+
+export function resetFolderAchievements(){
+  folderUnlocked = [];
+  folderStats = {};
+  saveFolderStats();
+}
+
+export function checkAchievements(){
+  folderStats.log_count = getEditLog().length;
+  // Read by the 'completionist-25' meta-achievement below — set from the
+  // PREVIOUS call's tally, not this one's, since achievements unlocked
+  // during this same pass haven't been counted yet when their own check()
+  // runs. That's fine: it just resolves on the call right after the 25th.
+  folderStats.achievements_unlocked = folderUnlocked.length;
+  let unlockedAny = false;
+  for (const ach of ACHIEVEMENTS){
+    if (folderUnlocked.includes(ach.id)) continue;
+    let met = false;
+    try { met = !!ach.check(folderStats); } catch(e){ met = false; }
+    if (!met) continue;
+    folderUnlocked.push(ach.id);
+    unlockedAny = true;
+    const reward = RARITY_VALUE[ach.rarity] || 10;
+    wallet += reward;
+    saveWallet();
+    if (achievementPopupsEnabled) showAchievementPopup(ach, reward);
+  }
+  if (unlockedAny){
+    saveFolderStats();
+    if (achievementsPanel.style.display === 'flex') renderAchievementsPanel();
+  }
+}
+
+export function checkVoidThemeAchievements(tagList, voidedTagInstances){
+  const lower = tagList.map(t => t.toLowerCase());
+  const eyeCount = lower.filter(t => t.includes('eye')).length;
+  const hairCount = lower.filter(t => t.includes('hair')).length;
+  if (eyeCount >= 5) folderStats.flag_eye_hater = true;
+  if (hairCount >= 5) folderStats.flag_hair_raiser = true;
+  saveFolderStats();
+}
+
+function showAchievementPopup(ach, reward){
+  const popup = document.createElement('div');
+  popup.className = 'ach-popup';
+  popup.innerHTML = `
+    <span class="ach-rarity-icon">${RARITY_ICON[ach.rarity] || '⚪'}</span>
+    <div class="ach-info">
+      <div class="ach-title">🏆 ${escapeHtml(ach.title)}</div>
+      <div class="ach-desc">${escapeHtml(ach.desc)}</div>
+      <div class="ach-reward">${ach.rarity} achievement · +${reward} Edibits</div>
+    </div>
+  `;
+  achievementPopupHost.appendChild(popup);
+  setTimeout(() => {
+    popup.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+    popup.style.opacity = '0';
+    popup.style.transform = 'translateX(20px)';
+    setTimeout(() => popup.remove(), 420);
+  }, 5000);
+}
+
+// Optional unlockedOverride lets a caller render another folder's unlocked
+// achievements read-only (dataset-manager.ts's "View achievements"
+// context-menu action) WITHOUT touching the live folderUnlocked global —
+// mutating that would corrupt whichever folder is actually open. Every
+// existing call site calls this with no args, which keeps rendering the
+// live, currently-open folder exactly as before.
+export function renderAchievementsPanel(unlockedOverride){
+  const unlockedList = unlockedOverride || folderUnlocked;
+  achWallet.textContent = wallet;
+  achList.innerHTML = '';
+  for (const ach of ACHIEVEMENTS){
+    const unlocked = unlockedList.includes(ach.id);
+    const row = document.createElement('div');
+    row.className = 'ach-row ' + (unlocked ? 'unlocked' : 'locked');
+    row.innerHTML = `
+      <span class="ach-rarity-icon">${RARITY_ICON[ach.rarity] || '⚪'}</span>
+      <div class="ach-info">
+        <div class="ach-title">${unlocked ? '🏆 ' : ''}${escapeHtml(ach.title)}</div>
+        <div class="ach-desc">${escapeHtml(ach.desc)}</div>
+        <div class="ach-reward">${unlocked ? 'Unlocked' : 'Locked'} · ${ach.rarity} · +${RARITY_VALUE[ach.rarity]} Edibits</div>
+      </div>
+    `;
+    achList.appendChild(row);
+  }
+}
+
+export function updateThemeSelectLocks(){
+  for (const t of PREMIUM_THEMES){
+    const opt = themeSelect.querySelector(`option[value="${t.id}"]`);
+    if (opt) opt.textContent = ownedThemes.includes(t.id) ? t.name : `🔒 ${t.name}`;
+  }
+  refreshThemeDropdownLabel();
+}
+
+export function renderShopPanel(){
+  shopWallet.textContent = wallet;
+  shopList.innerHTML = '';
+  // Cheapest first — PREMIUM_THEMES' own order is just whatever order
+  // themes were added over time, not a meaningful browsing order.
+  const byPrice = [...PREMIUM_THEMES].sort((a, b) => a.price - b.price || a.name.localeCompare(b.name));
+  for (const t of byPrice){
+    const owned = ownedThemes.includes(t.id);
+    const row = document.createElement('div');
+    row.className = 'shop-row' + (refinedThemes.includes(t.id) ? ' refined' : '');
+    const swatches = document.createElement('div');
+    swatches.className = 'shop-swatches';
+    t.swatches.forEach(c => {
+      const sw = document.createElement('span');
+      sw.className = 'shop-swatch';
+      sw.style.background = c;
+      swatches.appendChild(sw);
+    });
+    const info = document.createElement('div');
+    info.className = 'shop-info';
+    info.innerHTML = `<div class="shop-name">${escapeHtml(t.name)}</div><div class="shop-rarity">${t.rarity} · ${t.price} Edibits</div>`;
+    const btn = document.createElement('button');
+    if (owned){
+      btn.textContent = 'Owned ✓';
+      btn.disabled = true;
+    } else {
+      btn.textContent = 'Buy';
+      btn.className = 'primary';
+      btn.disabled = wallet < t.price;
+      btn.addEventListener('click', (ev) => { ev.stopPropagation(); buyTheme(t); });
+    }
+    row.appendChild(swatches);
+    row.appendChild(info);
+    row.appendChild(btn);
+    shopList.appendChild(row);
+  }
+}
+
+function buyTheme(t){
+  if (ownedThemes.includes(t.id)) return;
+  if (wallet < t.price){ toast('Not enough Edibits for that yet.'); return; }
+  wallet -= t.price;
+  ownedThemes.push(t.id);
+  saveWallet();
+  themeSelect.value = t.id;
+  applyTheme(t.id);
+  toast(`Purchased and applied "${t.name}"!`);
+  folderStats.themes_purchased = (folderStats.themes_purchased || 0) + 1;
+  saveFolderStats();
+  // Deliberately does NOT hide/close shopPanel — buying a theme shouldn't
+  // kick you out of the shop, it should just let you keep browsing/buying.
+  renderShopPanel();
+  updateThemeSelectLocks();
+  updateRefineThemeButton();
+  checkAchievements();
+}
+
+// Refine Theme: buy the epic/legendary-tier hover-fill effect for whichever
+// theme is CURRENTLY ACTIVE (themeSelect.value), individually, rather than
+// only getting it by buying one of the five hardcoded epic/legendary
+// themes. Cost is epicPrice - thatTheme'sOwnPrice (free built-ins and
+// Custom cost 0, so they cost the full epic price) — see refineThemeCost()/
+// themeAlreadyHasPremiumEffects() in themes.ts, which also owns the
+// `refinedThemes` list and the `html.theme-refined` class the CSS keys off.
+export function updateRefineThemeButton(){
+  if (suppressThemeUpgradeToggle.checked){
+    btnRefineTheme.style.display = 'none';
+    return;
+  }
+  btnRefineTheme.style.display = '';
+  const currentTheme = themeSelect.value;
+  if (themeAlreadyHasPremiumEffects(currentTheme)){
+    btnRefineTheme.textContent = '🔨 Refine Theme (already refined)';
+    btnRefineTheme.disabled = true;
+    btnRefineTheme.title = 'The current theme already has the epic/legendary button effects.';
+    return;
+  }
+  const cost = refineThemeCost(currentTheme);
+  btnRefineTheme.textContent = `🔨 Refine Theme (${cost} Edibits)`;
+  btnRefineTheme.disabled = wallet < cost;
+  btnRefineTheme.title = 'Upgrade the current theme to epic/legendary-tier button effects.';
+}
+
+function refineCurrentTheme(){
+  const currentTheme = themeSelect.value;
+  if (themeAlreadyHasPremiumEffects(currentTheme)) return;
+  const cost = refineThemeCost(currentTheme);
+  if (wallet < cost){ toast('Not enough Edibits for that yet.'); return; }
+  wallet -= cost;
+  saveWallet();
+  markThemeRefined(currentTheme);
+  toast('Theme refined — it now has epic/legendary-tier button effects!');
+  folderStats.themes_refined = (folderStats.themes_refined || 0) + 1;
+  saveFolderStats();
+  updateRefineThemeButton();
+  checkAchievements();
+}
+
+export function initAchievementPanels(){
+  btnAchievements.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    if (achievementsPanel.style.display === 'flex'){ hidePanel(achievementsPanel); return; }
+    hidePanel(shopPanel); hidePanel(favoritesPanel); hidePanel(themeCustomPanel); hidePanel(logPanel); hidePanel(tagDetailsPanel);
+    renderAchievementsPanel();
+    showPanel(achievementsPanel);
+  });
+  achCloseBtn.addEventListener('click', () => hidePanel(achievementsPanel));
+
+  achPopupsToggle.addEventListener('change', () => {
+    achievementPopupsEnabled = achPopupsToggle.checked;
+    try { localStorage.setItem('dts-ach-popups', achievementPopupsEnabled ? '1' : '0'); } catch(e){}
+  });
+  (function initAchPopupPref(){
+    let on = true;
+    try { on = localStorage.getItem('dts-ach-popups') !== '0'; } catch(e){}
+    achievementPopupsEnabled = on;
+    achPopupsToggle.checked = on;
+  })();
+
+  btnShop.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    if (shopPanel.style.display === 'flex'){ hidePanel(shopPanel); return; }
+    hidePanel(achievementsPanel); hidePanel(favoritesPanel); hidePanel(themeCustomPanel); hidePanel(logPanel); hidePanel(tagDetailsPanel);
+    folderStats.shop_opened = true;
+    saveFolderStats();
+    renderShopPanel();
+    updateRefineThemeButton();
+    showPanel(shopPanel);
+    checkAchievements();
+  });
+  shopCloseBtn.addEventListener('click', () => hidePanel(shopPanel));
+
+  btnRefineTheme.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    refineCurrentTheme();
+  });
+
+  suppressThemeUpgradeToggle.addEventListener('change', () => {
+    try { localStorage.setItem('dts-suppress-theme-upgrade', suppressThemeUpgradeToggle.checked ? '1' : '0'); } catch(e){}
+    updateRefineThemeButton();
+  });
+  (function initSuppressThemeUpgradePref(){
+    let on = false;
+    try { on = localStorage.getItem('dts-suppress-theme-upgrade') === '1'; } catch(e){}
+    suppressThemeUpgradeToggle.checked = on;
+  })();
+
+  btnFreeEdibits.addEventListener('click', () => {
+    const lines = [
+      'The shopkeeper begrudgingly hands you some Edibits.',
+      'You find a few Edibits behind the couch cushions.',
+      'A stranger gives you Edibits, no questions asked.',
+      'You win a small prize at the Edibit lottery.',
+      'The developer takes pity on you.'
+    ];
+    const amount = 10 + Math.floor(Math.random() * 16);
+    wallet += amount;
+    saveWallet();
+    toast(`${lines[Math.floor(Math.random()*lines.length)]} +${amount} Edibits.`);
+    folderStats.free_edibits_claims = (folderStats.free_edibits_claims || 0) + 1;
+    saveFolderStats();
+    renderShopPanel();
+    checkAchievements();
+  });
+
+  btnResetEdibits.addEventListener('click', async () => {
+    const ok = await showConfirmModal('Reset your Edibits balance to 0? This does not affect owned themes or achievements.', { danger: true });
+    if (!ok) return;
+    resetWallet();
+    toast('Edibits reset to 0.');
+  });
+
+  btnResetAchievements.addEventListener('click', async () => {
+    const ok = await showConfirmModal('Reset achievement progress for this folder? This resets BOTH unlocked achievements and their underlying progress counters, so nothing re-unlocks itself on next load. Edibits already earned stay in your wallet.', { danger: true });
+    if (!ok) return;
+    resetFolderAchievements();
+    if (achievementsPanel.style.display === 'flex') renderAchievementsPanel();
+    toast('Achievement progress reset for this folder.');
+  });
+}
