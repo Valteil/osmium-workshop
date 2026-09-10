@@ -74,6 +74,108 @@ tab's "View achievements" action must never touch `achievements.ts`'s live
 `_dts_achievements.json` via its stored handle, defaulting to the live global for every other
 call site.
 
+**Unsaved-changes guard on dataset switching.** `confirmDatasetSwitch()` (`index.ts`) is called from
+`btnOpen`'s click handler and from `openFolderHandle()` (shared by `favorites.ts` and
+`dataset-manager.ts` for reopening a saved handle) — same `entries.filter(.dirty)` +
+`showConfirmModal()` pattern Quit/Restart/Unload already used, just phrased for "switching". Before
+this fix, only Quit/Restart/Unload had the guard; opening a different folder by any other route
+silently discarded edits.
+
+**WD14 Autotagger (`wd14-tagger.ts`) added.** Sends selected image(s) to a WD14 Tagger node on a
+user-run ComfyUI instance and merges returned tags onto each card; the app holds no model itself.
+Two hard constraints learned building this:
+1. **The HTTP calls MUST happen in `main.ts`, not a renderer `fetch()`.** Verified live against a
+   real ComfyUI instance: its `server.py` runs `origin_only_middleware` by default, which 403s a
+   cross-origin POST when `Origin` doesn't match `Host`; separately, Chromium's own CORS blocks
+   reading the response regardless of that middleware. Neither restriction exists for a plain Node
+   HTTP client. `main.ts`'s `wd14-get-models`/`wd14-tag-image` IPC handlers do the actual work
+   (`/object_info`, `/upload/image` multipart, `/prompt`, poll `/history/{id}`) using Node's
+   built-in `http`/`https` (no new npm dependency — multipart body is hand-built). This is the
+   pattern for any future "talk to a local HTTP server" feature.
+2. **All settings live in one place: Tag Overseer's expandable "⚙ WD14 settings" section**,
+   persisted to `localStorage['dts-wd14-settings']`. The per-image 3-dot menu (`view.ts`) only
+   calls `tagSingleImageWithWd14()` (a direct one-directional import, same as its existing
+   `masterSelectedImages` import from `master-tag-control.ts` — no injected dep needed) to run a
+   single-image batch with whatever's already configured; it never duplicates settings UI. The
+   model list is scraped live from ComfyUI's `/object_info/WD14Tagger|pysssss` rather than
+   hardcoded.
+
+Batches (bulk or single) always commit as one `recordChange('add-tag', ...)` — same
+`affected: [{base, prevTags, newTags}]` shape as every other bulk tag op, so Undo/Redo and the edit
+log work for free. "Apply tags automatically" (vs. a review modal with an editable per-image tag
+list + skip checkbox) is a user-facing toggle, not a fixed behavior.
+
+**"Generate GitHub package" export was fundamentally broken for every real (packaged) build, not
+just the stale-compiled-file issue fixed earlier.** Diagnosed by extracting a real built
+`app.asar` (`asar list`/`asar extract`) and actually running the export's IPC handler against it,
+then `npm install && npm run build && npm run dist:zip` on the result — the only way this class of
+bug reliably surfaces, since a dev (`npm start`, unpackaged) run never hits it. Two independent
+causes, both now fixed in `main.ts`'s `copyGithubPackageSource()`:
+1. `electron-builder`'s `build.files` whitelist only listed `main.js`/`preload.js`/`renderer/**/*`
+   — so a real packaged app's `app.asar` never contained `src/`, `scripts/`, or the two
+   `tsconfig*.json` files at all. The export function's own `fs.existsSync()` guards silently
+   skipped them, producing a "package" with no TypeScript source whatsoever. Fix: added
+   `src/**/*`, `scripts/**/*`, `tsconfig.main.json`, `tsconfig.renderer.json` to `build.files`.
+2. Even after that, `package.json` itself was still wrong: `electron-builder` unconditionally
+   REWRITES `package.json` for every packaged build, stripping `scripts`, `devDependencies`, and
+   `build` (verified by diff) — so the packaged copy on disk at runtime never has real build
+   scripts or devDependencies, in any packaged build, ever. Fix: `copyGithubPackageSource()` no
+   longer copies `package.json` from disk; it merges the live-but-stripped on-disk fields with
+   three source-embedded constants (`GITHUB_PACKAGE_SCRIPTS`/`_DEV_DEPENDENCIES`/`_BUILD_CONFIG`)
+   that must be kept in sync by hand if scripts/devDependencies/build config ever change.
+3. A side discovery while fixing #1: `electron-builder`'s default file filters drop every
+   `**/*.d.ts` unconditionally, and an explicit `files` entry for the exact path does NOT override
+   this (tested directly). `src/renderer/global.d.ts` got renamed to `global-types.ts` to dodge it
+   — a `declare global {}` block works the same regardless of file extension.
+
+**UI animation mode (Fade/Swipe/Off).** One mechanism, `html.motion-off`/`html.motion-swipe`
+classes toggled by a Settings dropdown (`index.ts`'s `applyUiAnimationMode()`), read everywhere via
+shared CSS vars (`--pop-dur`/`--panel-dur`/`--tab-dur`, `styles.css` top) that Off zeroes and Swipe
+leaves alone but that trigger different `transform` rules than Fade's default opacity ones. Every
+call site follows the same sequential shape: add an "outgoing" class -> `setTimeout` matching the
+duration -> swap actual state (display/mode) -> add an "incoming" starting-state class -> double-rAF
+remove it to trigger the transition to rest. This shape lives in four places doing conceptually the
+same thing: `shared-ui.ts`'s `positionMenu()`/`showPanel()`/`hidePanel()` (menus/panels, single
+element, no direction), `index.ts`'s `switchTab()` (fixed per-pane direction — Datasets is the
+leftmost tab so always slides left, Tag Overseer/Stats always right), `view.ts`'s `switchView()`
+(direction computed per-transition from a `VIEW_TRANSITION_ORDER` array), and `view.ts`'s
+`pageSingle()` (direction from prev/next). A new animated transition should reuse this shape and
+the existing vars rather than inventing its own timing or toggle.
+
+**Drag-reorder direction bug (fixed in `tag-index.ts` family reorder and `docks.ts`'s
+`reorderDock()`).** "Always insert before the drop target" only works when dragging UP a list;
+dragging DOWN silently lands one slot short (or does nothing, if dropped on the very next item)
+because removing the dragged item shifts every later index left by one before the insert happens.
+Fix: insert AFTER the target whenever the dragged item's original index was before the target's.
+Same fix shape applies to `docks.ts`'s drop handler no longer using cursor Y position at all — it
+now derives before/after purely from the two docks' current relative order, so dropping anywhere on
+a dock (not just the correct half of it) swaps them.
+
+**Real bug caught while adding the animation-mode dropdown: a bare, never-imported identifier
+(`uiAnimationsToggle`) had been silently working for an entire prior session** because any element
+with an `id` attribute is auto-exposed as a same-named global on `window` (HTML's "named access on
+the Window object") — not a `ReferenceError`, just an accidental global read, invisible in testing
+since it behaves identically to a correct import until the element's id changes. Always import
+element refs from `dom.ts` explicitly; don't trust "no console error" as proof a reference is wired
+correctly.
+
+**Dock collapse animation left `max-height` permanently pinned on every row after expanding** —
+`applyDockCollapse()` set `max-height`/`opacity` inline to drive the transition but only ever reset
+`transition`/`overflow` in its completion `setTimeout`, never `max-height`/`opacity` themselves.
+Confirmed live via Chrome DevTools Protocol (launched the packaged exe with
+`--remote-debugging-port`, drove it from a raw Node `WebSocket` + `Runtime.evaluate`, clicked the
+real collapse button, read `el.style.maxHeight` after the transition finished — stuck at a stale
+`scrollHeight`-measured px value, every time, confirmed across repeated cycles and both Fade/Swipe
+modes). Fixed by resetting every property the transition touched, not just the ones the "final
+state" logic already cared about. This CDP-attach-and-drive-the-real-app technique is the right
+tool for "some element's layout looks subtly wrong and I can't tell why from source" — worth
+reaching for again before guessing.
+
+Also fixed in the same pass: single-mode's arrow-key Left/Right navigation was calling
+`singleIndex--/++` + `renderSingleView()` directly, bypassing `pageSingle()` entirely — so Swipe
+mode's slide animation only ever played for the prev/next BUTTONS, never for keyboard navigation,
+even though both are meant to do the same thing.
+
 **Doc maintenance policy** (`CLAUDE.md`'s own "Maintenance Policy" section): after any
 feature/bugfix judged "major" (user-requested feature, a bug that took real investigation, or
 anything changing what `CLAUDE.md` currently asserts), update `CLAUDE.md` (Critical Decisions,

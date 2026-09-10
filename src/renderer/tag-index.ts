@@ -135,11 +135,26 @@ function saveFamilyOrder(){
   } catch(e){}
 })();
 
+// Direction-aware: "insert before target" always, regardless of drag
+// direction, meant dropping a family onto the very next one below it did
+// nothing (it was already right before that target), and dropping further
+// down only ever moved it one slot at a time instead of all the way to
+// where it was dropped — dragging UP worked fine (an earlier target's index
+// doesn't shift when the dragged item is removed from later in the list),
+// dragging DOWN didn't (the target's index shifts left by one once the
+// dragged item is removed from earlier in the list, so "insert before" always
+// landed one short). Fix: insert after the target instead, whenever the
+// dragged family started out ABOVE it — same asymmetry fix as docks.ts's
+// reorderDock().
 function reorderFamilyBefore(draggedWord, targetWord, currentOrder){
+  const draggedIdx = currentOrder.indexOf(draggedWord);
+  const targetIdxOriginal = currentOrder.indexOf(targetWord);
+  const movingDown = draggedIdx !== -1 && targetIdxOriginal !== -1 && draggedIdx < targetIdxOriginal;
   let order = currentOrder.slice();
   order = order.filter(w => w !== draggedWord);
-  const targetIdx = order.indexOf(targetWord);
-  order.splice(targetIdx, 0, draggedWord);
+  let insertIdx = order.indexOf(targetWord);
+  if (movingDown) insertIdx += 1;
+  order.splice(insertIdx, 0, draggedWord);
   familyOrder = order;
   saveFamilyOrder();
   refreshStats();

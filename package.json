@@ -1,6 +1,6 @@
 {
   "name": "dataset-tag-studio",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Local dataset tag editor for AI training images, packaged as a desktop app.",
   "main": "main.js",
   "author": "",
@@ -34,19 +34,17 @@
     "files": [
       "main.js",
       "preload.js",
-      "renderer/**/*"
+      "renderer/**/*",
+      "src/**/*",
+      "scripts/**/*",
+      "tsconfig.main.json",
+      "tsconfig.renderer.json"
     ],
     "directories": {
       "output": "dist"
     },
-    "extraFiles": [
-      {
-        "from": "PORTABLE_README.txt",
-        "to": "README.txt"
-      }
-    ],
     "afterPack": "scripts/after-pack.js",
-    "compression": "maximum",
+    "compression": "normal",
     "mac": {
       "target": "dmg",
       "category": "public.app-category.graphics-design"

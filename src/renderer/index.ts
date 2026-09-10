@@ -36,7 +36,7 @@ import {
   tagDetailsTitle, tagDetailsBody, tagDetailsCloseBtn, langMenuPanel,
   btnNightMode, viewGridBtn, viewCompactBtn, viewSingleBtn,
   viewDisabledBtn, gallerySortDropdown, gallerySortDirBtn, singleNav, singlePrevBtn,
-  singleNextBtn, singlePos
+  singleNextBtn, singlePos, uiAnimationsDropdown
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav } from './shared-ui';
 import {
@@ -77,6 +77,7 @@ import {
 import {
   masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid, initMasterTagControl
 } from './master-tag-control';
+import { initWd14Tagger } from './wd14-tagger';
 import {
   ensureWikiDataLoaded, ensureAllTagsLoaded, getCustomTagNote, setCustomTagNote,
   openTagDetails, initTagDetails
@@ -280,20 +281,45 @@ import { initRandomFacts } from './random-facts';
   const APP_VERSION = '2.0.0';
   appVersionEl.textContent = 'v' + APP_VERSION;
 
+  // Crossfades whichever of the plain-display panes (Datasets tab, Stats
+  // tab, the right-sidebar Master Tag Control swap) are actually changing
+  // visibility — #galleryTab itself is excluded since `display:contents`
+  // has no box of its own to fade. Sequential (fade out -> swap -> fade in),
+  // not a true overlapping crossfade, so it never collides with the layout
+  // shift the display swap itself causes. Respects the "Smooth transitions"
+  // Settings toggle (`html.motion-off`) by skipping straight to the final
+  // state with no delay when it's off.
   function switchTab(tab){
-    tabDatasetManager.classList.toggle('active', tab === 'datasets');
-    tabGallery.classList.toggle('active', tab === 'gallery');
-    tabMasterTags.classList.toggle('active', tab === 'master');
-    tabStats.classList.toggle('active', tab === 'stats');
-    datasetManagerTab.style.display = (tab === 'datasets') ? 'block' : 'none';
-    galleryTab.style.display = (tab === 'stats' || tab === 'datasets') ? 'none' : 'contents';
-    statsTab.style.display = (tab === 'stats') ? 'block' : 'none';
-    masterTagModeActive = (tab === 'master');
-    normalRightTools.style.display = masterTagModeActive ? 'none' : 'block';
-    masterTagPanel.style.display = masterTagModeActive ? 'block' : 'none';
-    if (tab === 'stats') renderStatsTab();
-    if (tab === 'datasets') renderDatasetManagerTab();
-    if (tab !== 'datasets') { renderCurrentView(); renderMasterSelectionSummary(); }
+    const fadePanes = [datasetManagerTab, statsTab, normalRightTools, masterTagPanel];
+    const applyState = () => {
+      tabDatasetManager.classList.toggle('active', tab === 'datasets');
+      tabGallery.classList.toggle('active', tab === 'gallery');
+      tabMasterTags.classList.toggle('active', tab === 'master');
+      tabStats.classList.toggle('active', tab === 'stats');
+      datasetManagerTab.style.display = (tab === 'datasets') ? 'block' : 'none';
+      galleryTab.style.display = (tab === 'stats' || tab === 'datasets') ? 'none' : 'contents';
+      statsTab.style.display = (tab === 'stats') ? 'block' : 'none';
+      masterTagModeActive = (tab === 'master');
+      normalRightTools.style.display = masterTagModeActive ? 'none' : 'block';
+      masterTagPanel.style.display = masterTagModeActive ? 'block' : 'none';
+      if (tab === 'stats') renderStatsTab();
+      if (tab === 'datasets') renderDatasetManagerTab();
+      if (tab !== 'datasets') { renderCurrentView(); renderMasterSelectionSummary(); }
+    };
+
+    if (document.documentElement.classList.contains('motion-off')){ applyState(); return; }
+
+    const leaving = fadePanes.filter(el => el.style.display !== 'none');
+    leaving.forEach(el => el.classList.add('tab-fading'));
+    setTimeout(() => {
+      applyState();
+      leaving.forEach(el => el.classList.remove('tab-fading'));
+      const entering = fadePanes.filter(el => el.style.display !== 'none');
+      entering.forEach(el => el.classList.add('tab-fading'));
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        entering.forEach(el => el.classList.remove('tab-fading'));
+      }));
+    }, 100);
   }
   tabDatasetManager.addEventListener('click', () => switchTab('datasets'));
   tabGallery.addEventListener('click', () => switchTab('gallery'));
@@ -372,11 +398,42 @@ import { initRandomFacts } from './random-facts';
     flyoutOutsideCloseToggle.checked = on;
   })();
 
+  // UI animation mode — everything that animates (menus/dropdowns/flyouts via
+  // positionMenu()/buildPersistentDropdown(), floating panels via
+  // showPanel()/hidePanel(), switchTab()'s pane transition, gallery view
+  // switching, single-image nav, the image modal) reads its duration from CSS
+  // vars (--pop-dur/--panel-dur/--tab-dur) that `html.motion-off` zeroes out,
+  // and checks `html.motion-swipe` to pick slide-from-the-side styling over
+  // the default fade/scale — so this dropdown only ever needs to set those
+  // two classes, never touch any animation code directly. See styles.css's
+  // "Motion timing" block.
+  function applyUiAnimationMode(mode){
+    document.documentElement.classList.toggle('motion-off', mode === 'off');
+    document.documentElement.classList.toggle('motion-swipe', mode === 'swipe');
+  }
+  let uiAnimationMode = 'fade';
+  try {
+    const saved = localStorage.getItem('dts-ui-animation-mode');
+    if (saved === 'off' || saved === 'swipe' || saved === 'fade') uiAnimationMode = saved;
+    // Migrates the earlier boolean-only "Smooth transitions" checkbox pref.
+    else if (localStorage.getItem('dts-ui-animations') === '0') uiAnimationMode = 'off';
+  } catch(e){}
+  buildPersistentDropdown(uiAnimationsDropdown, [
+    { value: 'fade', label: 'Fade' },
+    { value: 'swipe', label: 'Swipe' },
+    { value: 'off', label: 'Off' }
+  ], () => uiAnimationMode, (val) => {
+    uiAnimationMode = val;
+    try { localStorage.setItem('dts-ui-animation-mode', val); } catch(e){}
+    applyUiAnimationMode(val);
+  });
+  applyUiAnimationMode(uiAnimationMode);
+
   function setupHeaderCategory(btn, flyout){
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       const isOpen = flyout.style.display === 'flex';
-      document.querySelectorAll('.header-cat-flyout').forEach(f => { f.style.display = 'none'; });
+      document.querySelectorAll('.header-cat-flyout').forEach(f => { f.style.display = 'none'; f.classList.remove('menu-in'); });
       if (isOpen) return;
       const rect = btn.getBoundingClientRect();
       flyout.style.display = 'flex';
@@ -389,6 +446,10 @@ import { initRandomFacts } from './random-facts';
       if (flyoutRect.bottom > window.innerHeight - 8){
         flyout.style.top = Math.max(8, window.innerHeight - flyoutRect.height - 8) + 'px';
       }
+      // Pop-in, same treatment as every ctx-menu (see positionMenu()) — the
+      // flyout stays in the DOM between opens (display-toggled, not
+      // recreated), so `.menu-in` has to be explicitly removed on close too.
+      requestAnimationFrame(() => requestAnimationFrame(() => flyout.classList.add('menu-in')));
     });
   }
   setupHeaderCategory(fileCatBtn, fileCatFlyout);
@@ -412,6 +473,7 @@ import { initRandomFacts } from './random-facts';
       const flyout = wrap.querySelector('.header-cat-flyout');
       if (flyout && flyout.style.display === 'flex' && !wrap.contains(ev.target)){
         flyout.style.display = 'none';
+        flyout.classList.remove('menu-in');
       }
     });
   });
@@ -734,9 +796,20 @@ import { initRandomFacts } from './random-facts';
     hidePanel(settingsPanel);
   });
 
+  // Shared unsaved-changes guard for every way the active dataset can be
+  // switched away from (File > Open, Favorites reopen, Dataset tab reopen) —
+  // same entries.filter(.dirty) + showConfirmModal pattern as Quit/Restart/
+  // Unload, just phrased for "switching" instead of "closing".
+  async function confirmDatasetSwitch(message){
+    const dirtyCount = entries.filter(e => e.dirty).length;
+    if (dirtyCount === 0) return true;
+    return showConfirmModal(`You have ${dirtyCount} unsaved caption change(s). ${message}`, { okLabel: 'Switch anyway', danger: true });
+  }
+
   // Shared by favorites.ts and dataset-manager.ts — both reopen a saved
   // FileSystemDirectoryHandle the same way the initial folder-open flow does.
   async function openFolderHandle(handle){
+    if (!(await confirmDatasetSwitch('Switch datasets anyway without saving?'))) return;
     dirHandle = handle;
     await loadFolder();
   }
@@ -785,6 +858,15 @@ import { initRandomFacts } from './random-facts';
     getEntryByBase: (base) => entryByBase.get(base),
     filteredEntries: () => filteredEntries(),
     renderCurrentView: () => renderCurrentView(),
+    refreshAllUI: () => refreshAllUI()
+  });
+
+  // WD14 Autotagger (ComfyUI bridge) moved to ./wd14-tagger.ts — settings
+  // live entirely in Tag Overseer; the per-image 3-dot menu (view.ts) calls
+  // its tagSingleImageWithWd14() directly rather than through injected deps,
+  // same one-directional import view.ts already uses for master-tag-control.
+  initWd14Tagger({
+    getEntries: () => entries,
     refreshAllUI: () => refreshAllUI()
   });
 
@@ -837,6 +919,7 @@ import { initRandomFacts } from './random-facts';
       toast('Your browser does not support folder access. Use Chrome or Edge, opened as a normal tab (not an embedded preview).', 5000);
       return;
     }
+    if (!(await confirmDatasetSwitch('Open a different folder anyway without saving?'))) return;
     let picked = null;
     try {
       picked = await window.showDirectoryPicker({ mode: 'readwrite' });

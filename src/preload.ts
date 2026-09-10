@@ -9,5 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
   generateGithubPackage: () => ipcRenderer.invoke('generate-github-package'),
   onRequestClose: (callback) => ipcRenderer.on('request-close', callback),
-  confirmClose: () => ipcRenderer.invoke('confirm-close')
+  confirmClose: () => ipcRenderer.invoke('confirm-close'),
+  wd14GetModels: (host) => ipcRenderer.invoke('wd14-get-models', host),
+  wd14TagImage: (payload) => ipcRenderer.invoke('wd14-tag-image', payload)
 });

@@ -97,6 +97,7 @@ const ACHIEVEMENTS = [
   { id:'theme-refiner', title:'Theme Refiner', desc:'Refine a theme in the shop.', rarity:'rare', check: s => (s.themes_refined||0) >= 1 },
   { id:'clean-slate', title:'Clean Slate', desc:'Unload a dataset without quitting the app.', rarity:'common', check: s => (s.dataset_unloads||0) >= 1 },
   { id:'keyboard-navigator', title:'Keyboard Navigator', desc:'Navigate an open menu or dropdown with the arrow keys.', rarity:'common', check: s => !!s.keyboard_menu_nav_used },
+  { id:'wd14-autotagger', title:'Snake Charmer', desc:'Tag an image using the WD14 Autotagger.', rarity:'uncommon', check: s => (s.wd14_images_tagged||0) >= 1 },
   { id:'completionist-25', title:'Living Legend', desc:'Unlock 25 other achievements in this folder.', rarity:'legendary', check: s => (s.achievements_unlocked||0) >= 25 }
 ];
 
@@ -278,8 +279,12 @@ export function renderShopPanel(){
     info.innerHTML = `<div class="shop-name">${escapeHtml(t.name)}</div><div class="shop-rarity">${t.rarity} · ${t.price} Edibits</div>`;
     const btn = document.createElement('button');
     if (owned){
-      btn.textContent = 'Owned ✓';
-      btn.disabled = true;
+      const active = themeSelect.value === t.id;
+      btn.textContent = active ? 'In use ✓' : 'Use';
+      btn.disabled = active;
+      if (!active){
+        btn.addEventListener('click', (ev) => { ev.stopPropagation(); useOwnedTheme(t); });
+      }
     } else {
       btn.textContent = 'Buy';
       btn.className = 'primary';
@@ -291,6 +296,18 @@ export function renderShopPanel(){
     row.appendChild(btn);
     shopList.appendChild(row);
   }
+}
+
+// Switches to an already-owned theme straight from the shop — buyTheme()
+// already applies the theme it just sold, but before this there was no way
+// to switch BACK to a previously-bought theme from here; you had to leave
+// the shop and use the Settings theme dropdown instead.
+function useOwnedTheme(t){
+  themeSelect.value = t.id;
+  applyTheme(t.id);
+  toast(`Switched to "${t.name}".`);
+  renderShopPanel();
+  updateRefineThemeButton();
 }
 
 function buyTheme(t){

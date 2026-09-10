@@ -1,3 +1,61 @@
+/* Motion timing — deliberately NOT part of the per-theme var block below
+   (themes never touch these), so one toggle controls every menu/dropdown/
+   flyout/panel/tab transition in the app at once. `html.motion-off`
+   (Settings' "Smooth transitions" toggle, index.ts) zeroes them out rather
+   than removing the transition rules themselves — elements keep their
+   final resting state instantly instead of needing separate non-animated
+   code paths. Any NEW popup/panel/tab transition should reuse these vars,
+   not hardcode its own duration, so it's covered by the toggle for free. */
+:root{
+  --pop-dur: 130ms; --pop-ease: cubic-bezier(.22,.85,.32,1);
+  --panel-dur: 160ms; --tab-dur: 110ms;
+}
+html.motion-off{ --pop-dur: 0ms; --panel-dur: 0ms; --tab-dur: 0ms; }
+
+/* Tab/sidebar-pane transition (index.ts's switchTab()) — Datasets/Editing
+   Stats/the right-sidebar Master Tag Control swap all animate OUT, THEN swap
+   display, THEN animate IN (sequential, not overlapping — avoids a layout
+   collision with #galleryTab's own `display:contents`, which can't
+   participate in a transition itself since it has no box of its own).
+   `.tab-fading` is added/removed by switchTab(), never by CSS alone. Fade
+   mode (default) just fades opacity; Swipe mode (`html.motion-swipe`) slides
+   each pane fully off toward the edge it "lives" on instead — Datasets is
+   the leftmost tab so it slides to/from the left, Stats is the rightmost so
+   it slides to/from the right, and Master Tag Control slides in from the
+   right over the normal right-sidebar tools (which slide out the same way,
+   reading as "pushed off by the panel covering it") since the spec calls for
+   it to visually cover them, not swap places arbitrarily. */
+#datasetManagerTab, #statsTab, #normalRightTools, #masterTagPanel{
+  transition: opacity var(--tab-dur) var(--pop-ease), transform var(--tab-dur) var(--pop-ease);
+}
+#datasetManagerTab.tab-fading, #statsTab.tab-fading, #normalRightTools.tab-fading, #masterTagPanel.tab-fading{
+  opacity: 0;
+}
+html.motion-swipe #datasetManagerTab.tab-fading{ opacity: 1; transform: translateX(-100%); }
+html.motion-swipe #statsTab.tab-fading,
+html.motion-swipe #normalRightTools.tab-fading,
+html.motion-swipe #masterTagPanel.tab-fading{ opacity: 1; transform: translateX(100%); }
+
+/* Gallery view mode (Grid/Compact/Single/Disabled) and single-mode
+   prev/next paging — same sequential animate-out/swap/animate-in shape as
+   the tab panes above, driven by view.ts's switchView()/swipeSingleIndex().
+   Direction is per-transition (which view is to the left/right of which),
+   so it's carried as inline classes rather than fixed per-element rules. */
+#galleryGrid, #compactGrid, #singleView{
+  transition: opacity var(--tab-dur) var(--pop-ease), transform var(--tab-dur) var(--pop-ease);
+}
+.view-fade-out{ opacity: 0; }
+html.motion-swipe .view-swipe-out-left{ opacity: 1; transform: translateX(-100%); }
+html.motion-swipe .view-swipe-out-right{ opacity: 1; transform: translateX(100%); }
+html.motion-swipe .view-swipe-in-right{ opacity: 1; transform: translateX(100%); }
+html.motion-swipe .view-swipe-in-left{ opacity: 1; transform: translateX(-100%); }
+
+/* Image card modal — Swipe mode turns its scale-in-from-center into a
+   bottom-sheet-style slide up from off-screen, in place of the default
+   .modal-card scale(0.96)->scale(1) declared further down. */
+html.motion-swipe .modal-card{ transform: translateY(100%); }
+html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translateY(0); }
+
 :root, html[data-theme="studio"]{
     --bg-base:#16151c;
     --bg-panel:#1c1a24;
@@ -609,7 +667,7 @@
     display: flex; flex-direction: column; gap: 10px;
     max-height: 80vh; overflow-y: scroll;
     opacity: 0; transform: translateY(-8px) scale(0.98);
-    transition: opacity 0.16s ease, transform 0.16s ease;
+    transition: opacity var(--panel-dur) var(--pop-ease), transform var(--panel-dur) var(--pop-ease);
     pointer-events: none;
   }
   .theme-panel.panel-visible{ opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
@@ -711,7 +769,7 @@
 
   .dm-tile{
     position: relative; display: flex; flex-direction: column; align-items: center;
-    width: 108px; padding: 10px 6px; border-radius: var(--radius); cursor: pointer;
+    width: 150px; padding: 10px 6px; border-radius: var(--radius); cursor: pointer;
     background: transparent; border: 1px solid transparent;
   }
   .dm-tile:hover{ background: var(--bg-elevated); border-color: var(--border-soft); }
@@ -724,7 +782,7 @@
   /* Add-tile: a plain <button>, not one of this app's `all: unset` ctx-style
      buttons, so it keeps normal button focus/hover behavior for free. */
   .dm-add-tile{
-    width: 108px; height: 106px; display: flex; align-items: center; justify-content: center;
+    width: 150px; height: 160px; display: flex; align-items: center; justify-content: center;
     background: transparent; border: 2px dashed var(--accent-flair); border-radius: var(--radius);
     font-size: 28px; color: var(--accent-flair); line-height: 1;
   }
@@ -742,7 +800,7 @@
      night-mode-inverts automatically, same as every other themed element —
      see CLAUDE.md's Known Pitfalls re: native-vs-custom controls needing no
      new THEME_VARS entry since this reuses an existing var. */
-  .dm-folder-icon{ position: relative; width: 64px; height: 48px; flex-shrink: 0; }
+  .dm-folder-icon{ position: relative; width: 96px; height: 72px; flex-shrink: 0; }
   .dm-folder-back, .dm-folder-front{
     position: absolute; inset: 0; width: 100%; height: 100%;
     fill: none; stroke: var(--accent-flair); stroke-width: 2; stroke-linejoin: round;
@@ -767,7 +825,7 @@
      bottom offset from the image instead — the box defines the limit, the
      image just fills it. */
   .dm-folder-img{
-    position: absolute; z-index: 2; left: 3%; right: 3%; bottom: 13%; height: 86%;
+    position: absolute; z-index: 2; left: 17%; right: 17%; bottom: 13%; height: 86%;
     object-fit: cover; border-radius: 2px;
   }
 
@@ -1030,14 +1088,14 @@
   .modal-backdrop{
     position: fixed; inset: 0; background: rgba(0,0,0,0.72); z-index: 450;
     display: flex; align-items: center; justify-content: center;
-    opacity: 0; transition: opacity 0.18s ease;
+    opacity: 0; transition: opacity var(--panel-dur) ease;
   }
   .modal-backdrop.modal-visible{ opacity: 1; }
   .modal-card{
     width: min(1100px, 92vw); height: min(760px, 88vh);
     background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: 12px;
     box-shadow: 0 30px 80px rgba(0,0,0,0.6); display: flex; overflow: hidden;
-    transform: scale(0.96); transition: transform 0.18s ease;
+    transform: scale(0.96); transition: transform var(--panel-dur) ease;
   }
   .modal-backdrop.modal-visible .modal-card{ transform: scale(1); }
   .modal-close-btn{ position: absolute; top: 12px; right: 12px; z-index: 10; }
@@ -1047,13 +1105,13 @@
   .confirm-backdrop{
     position: fixed; inset: 0; background: rgba(0,0,0,0.62); z-index: 600;
     display: flex; align-items: center; justify-content: center;
-    opacity: 0; transition: opacity 0.15s ease;
+    opacity: 0; transition: opacity var(--panel-dur) ease;
   }
   .confirm-backdrop.modal-visible{ opacity: 1; }
   .confirm-box{
     width: 360px; background: var(--bg-elevated-2); border: 1px solid var(--border-strong);
     border-radius: 10px; padding: 18px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-    transform: scale(0.94); transition: transform 0.15s ease;
+    transform: scale(0.94); transition: transform var(--panel-dur) ease;
   }
   .confirm-backdrop.modal-visible .confirm-box{ transform: scale(1); }
   .confirm-message{ font-size: 13px; color: var(--text-primary); line-height: 1.5; margin-bottom: 16px; white-space: pre-wrap; }
@@ -1729,6 +1787,24 @@
 
   /* ---------- Tag context menu ---------- */
 
+  /* Menu/dropdown/flyout pop-in — one mechanism for every popup that funnels
+     through positionMenu() (ctx-menu, pt-choice-menu, and every dm/master/
+     view.ts context menu built on top of it), buildPersistentDropdown()'s
+     pdrop-menu, and the File/Personalization header flyouts. transform-origin
+     stays top-left since all of these are already positioned so their
+     top-left corner sits at (or very near) the point the user clicked to
+     open them — see shared-ui.ts's positionMenu()/buildPersistentDropdown()
+     and index.ts's setupHeaderCategory(). Toggling `.menu-in` on/off (rather
+     than swapping display) is what lets the transition actually run. */
+  .ctx-menu, .pdrop-menu, .pt-choice-menu, .header-cat-flyout{
+    transform-origin: top left;
+    opacity: 0; transform: scale(0.94) translateY(-4px);
+    transition: opacity var(--pop-dur) var(--pop-ease), transform var(--pop-dur) var(--pop-ease);
+  }
+  .ctx-menu.menu-in, .pdrop-menu.menu-in, .pt-choice-menu.menu-in, .header-cat-flyout.menu-in{
+    opacity: 1; transform: none;
+  }
+
   .ctx-menu{
     position: fixed;
     background: var(--bg-elevated-2);
@@ -1903,6 +1979,42 @@
   .gtt-divider{ height: 1px; background: var(--border-soft); margin: 2px 0; }
   .gtt-label{ font-size: 11px; color: var(--text-faint); }
   .gtt-result{ font-size: 11.5px; color: var(--text-muted); min-height: 14px; line-height: 1.4; }
+
+  /* ---------- WD14 Autotagger (Tag Overseer) ---------- */
+  .wd14-settings{
+    border: 1px solid var(--border-soft); border-radius: var(--radius);
+    padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .wd14-settings summary{
+    cursor: pointer; font-size: 11.5px; color: var(--text-muted); font-weight: 600;
+    padding: 2px 0; user-select: none;
+  }
+  .wd14-settings > *:not(summary){ margin-top: 2px; }
+  .wd14-settings select, .wd14-settings input[type="number"]{
+    font-family: var(--sans); font-size: 12.5px; color: var(--text-primary); background: var(--bg-elevated);
+    border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 6px 9px; cursor: pointer;
+  }
+  .wd14-settings select{ width: 100%; }
+  .wd14-settings input[type="number"]{ width: 100%; cursor: text; }
+  .wd14-settings select:focus, .wd14-settings input[type="number"]:focus{ border-color: var(--accent-manual); outline: none; }
+  .wd14-review-box{ width: 560px; max-width: 90vw; }
+  .wd14-review-list{
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: 50vh; overflow-y: scroll; margin-bottom: 12px;
+  }
+  .wd14-review-row{
+    display: flex; align-items: flex-start; gap: 8px; padding: 6px;
+    border-radius: 6px; background: var(--bg-base);
+  }
+  .wd14-review-row.excluded{ opacity: 0.4; }
+  .wd14-review-row img{ width: 56px; height: 56px; object-fit: cover; border-radius: 5px; flex-shrink: 0; }
+  .wd14-review-col{ display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+  .wd14-review-name{ font-size: 11px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wd14-review-col textarea{
+    width: 100%; min-height: 48px; background: var(--bg-elevated); border: 1px solid var(--border-strong);
+    border-radius: var(--radius); color: var(--text-primary); padding: 6px 8px; font-family: var(--sans);
+    font-size: 11.5px; resize: vertical;
+  }
 
   #toast {
     position: fixed;

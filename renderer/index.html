@@ -321,6 +321,49 @@
         </div>
 
         <div class="tool-section">
+          <div class="sec-head"><span class="t">🐍 WD14 Autotagger</span></div>
+          <div class="sec-head" style="margin-top:-8px;"><span class="d">Sends selected image(s) to a WD14 Tagger node on a running ComfyUI instance and drops the result tags onto each card. The app holds no model itself — everything runs on ComfyUI.</span></div>
+          <div style="display:flex; gap:8px;">
+            <button id="btnWd14TagSelected" class="primary" title="Tag every selected image using the settings below">🐍 Tag selected images with WD14</button>
+          </div>
+          <div id="wd14Status" class="sec-head" style="margin-top:2px; display:none;"><span class="d"></span></div>
+          <label class="ach-toggle-row" style="padding:6px 0;">
+            <input type="checkbox" id="wd14AutoApply">
+            <span> Apply tags automatically (skip the review step)</span>
+          </label>
+          <details class="wd14-settings">
+            <summary>⚙ WD14 settings</summary>
+            <div class="gtt-label">ComfyUI host</div>
+            <input type="text" id="wd14Host" placeholder="http://127.0.0.1:8188">
+            <div class="gtt-label">Model</div>
+            <div class="apply-row">
+              <select id="wd14ModelSelect"></select>
+              <button id="btnWd14RefreshModels" title="Fetch the current model list from ComfyUI">🔄</button>
+            </div>
+            <div class="gtt-row">
+              <div>
+                <div class="gtt-label">Threshold</div>
+                <input type="number" id="wd14Threshold" min="0" max="1" step="0.05" value="0.35">
+              </div>
+              <div>
+                <div class="gtt-label">Character threshold</div>
+                <input type="number" id="wd14CharThreshold" min="0" max="1" step="0.05" value="0.85">
+              </div>
+            </div>
+            <label class="ach-toggle-row" style="padding:6px 0;">
+              <input type="checkbox" id="wd14ReplaceUnderscore">
+              <span> Replace underscore (cosmetic only — this app always stores tags space-separated)</span>
+            </label>
+            <label class="ach-toggle-row" style="padding:6px 0;">
+              <input type="checkbox" id="wd14TrailingComma">
+              <span> Trailing comma</span>
+            </label>
+            <div class="gtt-label">Exclude tags (comma-separated)</div>
+            <input type="text" id="wd14ExcludeTags" placeholder="e.g. rating:safe, general">
+          </details>
+        </div>
+
+        <div class="tool-section">
           <div class="sec-head"><span class="t">Apply tag to selected images</span></div>
           <div class="apply-row">
             <input type="text" id="masterApplyTagInput" list="allTagsDatalist" placeholder="tag to apply">
@@ -551,6 +594,13 @@
           <input type="checkbox" id="panelsOutsideCloseToggle" checked>
           <span>Close popups (Favorites, Log, Colors, Achievements, Shop, Tag Details) by clicking off them, not just their Close button</span>
         </label>
+        <div class="settings-row">
+          <span style="font-size:11px; color:var(--text-faint);">UI animations — menus, dropdowns, popups, tabs, gallery views, and the image modal</span>
+        </div>
+        <div class="settings-row">
+          <span style="font-size:11px; color:var(--text-faint);">Fade = the default cross-fade/scale-in. Swipe = panels and views physically slide in/out from the side they live on. Off = instant, no animation.</span>
+          <div class="pdrop" id="uiAnimationsDropdown"></div>
+        </div>
         <div class="theme-panel-note">Layout</div>
         <div class="settings-row">
           <span style="font-size:11px; color:var(--text-faint);">Panel arrangement</span>

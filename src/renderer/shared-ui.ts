@@ -44,6 +44,7 @@ export function buildPersistentDropdown(container, options, getValue, onSelect){
       menuEl.appendChild(item);
     }
     container.appendChild(menuEl);
+    requestAnimationFrame(() => requestAnimationFrame(() => menuEl.classList.add('menu-in')));
   }
   btn.addEventListener('click', (ev) => {
     ev.stopPropagation();
@@ -134,6 +135,14 @@ export function positionMenu(menu, x, y) {
   if (top + rect.height + pad > window.innerHeight) top = window.innerHeight - rect.height - pad;
   menu.style.left = Math.max(pad, left) + 'px';
   menu.style.top = Math.max(pad, top) + 'px';
+  // Every ctx-menu/pt-choice-menu-style popup funnels through here, so this
+  // one spot covers all of them — see styles.css's `.ctx-menu, .pdrop-menu,
+  // .pt-choice-menu, .header-cat-flyout` pop-in rule. Starts in the CSS's
+  // opacity:0/scaled-down resting state; adding `.menu-in` a frame later is
+  // what actually triggers the transition (same double-rAF pattern as
+  // showPanel()/showConfirmModal(), needed so the browser paints the
+  // pre-transition state at least once before the class change).
+  requestAnimationFrame(() => requestAnimationFrame(() => menu.classList.add('menu-in')));
 }
 
 // ---------------- Themed confirm modal (replaces window.confirm) ----------------

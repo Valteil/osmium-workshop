@@ -302,6 +302,7 @@ export function initThemeDropdown(container){
     }
     container.appendChild(menuEl);
     document.addEventListener('mousedown', onOutsideMouseDown);
+    requestAnimationFrame(() => requestAnimationFrame(() => menuEl.classList.add('menu-in')));
   }
   btn.addEventListener('click', (ev) => {
     ev.stopPropagation();

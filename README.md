@@ -189,7 +189,7 @@ opening DevTools by hand.
       dom.ts                — every DOM element lookup, single source of truth
       shared-ui.ts          — toast/panels/confirm-modal/dropdown/pinch-zoom — dependency-free
       themes.ts, achievements.ts, tags-edit.ts, view.ts, ...   — one file per feature domain
-      global.d.ts           — ambient types for the preload bridge
+      global-types.ts        — ambient types for the preload bridge
   tsconfig.main.json, tsconfig.renderer.json
   package.json
 

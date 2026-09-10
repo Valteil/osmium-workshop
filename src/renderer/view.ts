@@ -21,6 +21,7 @@ import { attachTagAutocomplete, closeAutocomplete } from './tags-autocomplete';
 import { buildTagIndex, refreshStats, filteredEntries } from './tag-index';
 import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid } from './master-tag-control';
 import { renderTagPruners } from './tag-pruner';
+import { tagSingleImageWithWd14 } from './wd14-tagger';
 
 export let viewMode = 'grid'; // 'grid' | 'compact' | 'single' | 'disabled'
 export let stickyCompareImages = [];
@@ -59,25 +60,57 @@ export function renderCurrentView(){
 
 // ---------------- View mode (grid / compact / single) ----------------
 
+// Grid and Disabled share #galleryGrid (getGalleryFilter().disabledView is
+// what actually distinguishes them), so a switch between just those two never
+// needs a transition — the container never disappears/reappears.
+const VIEW_TRANSITION_ORDER = ['grid', 'compact', 'single', 'disabled'];
+function viewContainerFor(mode){
+  if (mode === 'compact') return compactGrid;
+  if (mode === 'single') return singleViewEl;
+  return galleryGrid;
+}
+
 export function switchView(mode){
-  viewMode = mode;
-  viewGridBtn.classList.toggle('active', mode === 'grid');
-  viewCompactBtn.classList.toggle('active', mode === 'compact');
-  viewSingleBtn.classList.toggle('active', mode === 'single');
-  viewDisabledBtn.classList.toggle('active', mode === 'disabled');
-  getGalleryFilter().disabledView = (mode === 'disabled');
-  // '' (not 'grid') when shown: an inline style always beats stylesheet rules,
-  // which would otherwise permanently defeat dynamic-cards mode's own
-  // `display: block` override (its column-width/fill were applying, but were
-  // inert since the container was still actually `display: grid` underneath).
-  galleryGrid.style.display = (mode === 'grid' || mode === 'disabled') ? '' : 'none';
-  compactGrid.style.display = mode === 'compact' ? 'grid' : 'none';
-  compactCompareArea.style.display = (mode === 'compact' && stickyCompareImages.length > 0) ? 'block' : 'none';
-  singleViewEl.style.display = mode === 'single' ? 'block' : 'none';
-  singleNav.style.display = mode === 'single' ? 'flex' : 'none';
-  if (mode === 'single') renderSingleView();
-  else if (mode === 'compact') renderCompactGrid();
-  else renderGallery();
+  const prevMode = viewMode;
+  const applyState = () => {
+    viewMode = mode;
+    viewGridBtn.classList.toggle('active', mode === 'grid');
+    viewCompactBtn.classList.toggle('active', mode === 'compact');
+    viewSingleBtn.classList.toggle('active', mode === 'single');
+    viewDisabledBtn.classList.toggle('active', mode === 'disabled');
+    getGalleryFilter().disabledView = (mode === 'disabled');
+    // '' (not 'grid') when shown: an inline style always beats stylesheet rules,
+    // which would otherwise permanently defeat dynamic-cards mode's own
+    // `display: block` override (its column-width/fill were applying, but were
+    // inert since the container was still actually `display: grid` underneath).
+    galleryGrid.style.display = (mode === 'grid' || mode === 'disabled') ? '' : 'none';
+    compactGrid.style.display = mode === 'compact' ? 'grid' : 'none';
+    compactCompareArea.style.display = (mode === 'compact' && stickyCompareImages.length > 0) ? 'block' : 'none';
+    singleViewEl.style.display = mode === 'single' ? 'block' : 'none';
+    singleNav.style.display = mode === 'single' ? 'flex' : 'none';
+    if (mode === 'single') renderSingleView();
+    else if (mode === 'compact') renderCompactGrid();
+    else renderGallery();
+  };
+
+  const html = document.documentElement;
+  const oldEl = viewContainerFor(prevMode);
+  const newEl = viewContainerFor(mode);
+  if (html.classList.contains('motion-off') || prevMode === mode || oldEl === newEl){ applyState(); return; }
+
+  const swipe = html.classList.contains('motion-swipe');
+  const movingForward = VIEW_TRANSITION_ORDER.indexOf(mode) > VIEW_TRANSITION_ORDER.indexOf(prevMode);
+  const outClass = swipe ? (movingForward ? 'view-swipe-out-left' : 'view-swipe-out-right') : 'view-fade-out';
+  const inClass = swipe ? (movingForward ? 'view-swipe-in-right' : 'view-swipe-in-left') : 'view-fade-out';
+
+  oldEl.classList.add(outClass);
+  setTimeout(() => {
+    oldEl.classList.remove(outClass);
+    applyState();
+    const shownEl = viewContainerFor(mode);
+    shownEl.classList.add(inClass);
+    requestAnimationFrame(() => requestAnimationFrame(() => shownEl.classList.remove(inClass)));
+  }, 100);
 }
 
 // ---------------- Gallery (grid) rendering ----------------
@@ -1154,6 +1187,16 @@ function openImageOptionsMenu(entry, x, y){
   });
   menu.appendChild(resetEditsBtn);
 
+  const wd14Btn = document.createElement('button');
+  wd14Btn.className = 'ctx-item';
+  wd14Btn.textContent = '🐍 Tag this image with WD14';
+  wd14Btn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    closeTagContextMenu();
+    tagSingleImageWithWd14(entry);
+  });
+  menu.appendChild(wd14Btn);
+
   // --- Text / language / comic / koma / speech bubble (draft, applied on demand) ---
   // Japanese and any number of foreign languages are independent, non-exclusive
   // selections — a page can legitimately have Japanese AND English AND Russian
@@ -1566,8 +1609,28 @@ export function initView(deps){
       checkAchievements();
     }
   });
-  singlePrevBtn.addEventListener('click', () => { singleIndex--; renderSingleView(); });
-  singleNextBtn.addEventListener('click', () => { singleIndex++; renderSingleView(); });
+  // Swipe mode only — paging in Grid/Compact/Fade mode stays instant, same
+  // as before this feature existed; only Swipe gets the physical slide.
+  function pageSingle(delta){
+    const html = document.documentElement;
+    if (!html.classList.contains('motion-swipe') || html.classList.contains('motion-off')){
+      singleIndex += delta;
+      renderSingleView();
+      return;
+    }
+    const outClass = delta > 0 ? 'view-swipe-out-left' : 'view-swipe-out-right';
+    const inClass = delta > 0 ? 'view-swipe-in-right' : 'view-swipe-in-left';
+    singleViewEl.classList.add(outClass);
+    setTimeout(() => {
+      singleViewEl.classList.remove(outClass);
+      singleIndex += delta;
+      renderSingleView();
+      singleViewEl.classList.add(inClass);
+      requestAnimationFrame(() => requestAnimationFrame(() => singleViewEl.classList.remove(inClass)));
+    }, 100);
+  }
+  singlePrevBtn.addEventListener('click', () => pageSingle(-1));
+  singleNextBtn.addEventListener('click', () => pageSingle(1));
 
   btnClearCompare.addEventListener('click', () => {
     stickyCompareImages = [];
@@ -1585,8 +1648,8 @@ export function initView(deps){
       if (viewMode === 'single'){ switchView('grid'); return; }
     }
     if (viewMode === 'single' && !ctxMenuEl){
-      if (ev.key === 'ArrowLeft' && !singlePrevBtn.disabled){ singleIndex--; renderSingleView(); }
-      if (ev.key === 'ArrowRight' && !singleNextBtn.disabled){ singleIndex++; renderSingleView(); }
+      if (ev.key === 'ArrowLeft' && !singlePrevBtn.disabled){ pageSingle(-1); }
+      if (ev.key === 'ArrowRight' && !singleNextBtn.disabled){ pageSingle(1); }
     }
   });
 
