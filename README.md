@@ -1,5 +1,7 @@
 # Dataset Tag Studio
 
+# WARNING: SWITCHING DATASETS THROUGH DATASET TAB CURRENTLY DOES NOT WARN NOR SAVE YOUR EDITS. ALWAYS SAVE BEFORE SWAPPING DATASETS THROUGH THAT TAB.
+
 A local, offline-first desktop app for tagging and cleaning up AI image-training datasets
 (image + `.txt` caption pairs, the format LoRA/Stable-Diffusion-style training expects).
 Everything reads and writes directly to your dataset folder on disk — no uploads, no cloud,
