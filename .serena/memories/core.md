@@ -34,3 +34,11 @@ build.** `Dataset Tag Studio.exe`, `resources/`, `locales/`, the Chromium runtim
 `data/` all sit loose at this directory's top level, gitignored, alongside `src/`,
 `package.json`, etc. This is deliberate, not clutter — `npm run refresh-app` regenerates them
 from `dist/win-unpacked`.
+
+**Second actively-maintained build target: `tauri-port/` (added 2026-09-11).** Standing rule
+from this point forward: any change to the Electron app (`src/`, `renderer/*.html`/`*.css`,
+`main.ts`/`preload.ts`) must be applied to this Tauri port in the same session — not a one-off
+experiment to leave behind. See `mem:conventions` for the technical specifics (what needs
+mirroring vs. what's shared automatically) and `CLAUDE.md`'s "Tauri Port" section for the full
+picture, including hard-won gotchas (data dir location, drag-and-drop, process exit) not to
+accidentally revert while porting a future Electron change.

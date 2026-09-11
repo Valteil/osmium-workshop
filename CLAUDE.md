@@ -28,6 +28,71 @@ A tag editor for managing thousands of images and their captions (stored as `.tx
 - App data is portable, next to the built app's own folder (`data/`). The AppData-based path (`%APPDATA%\Dataset Tag Studio\tool\`) only applies to `npm start` dev-mode runs, not packaged builds.
 - Don't reintroduce `DROP_UPDATES_HERE`, `applyUpdateBundle`, or `relaunchApp` — deliberately removed; updates are now a fresh zip download + moving `data/` over.
 
+## Tauri Port (`tauri-port/`)
+
+A second, actively-maintained build target living alongside the Electron
+app — **not experimental, not a one-off spike**: as of 2026-09-11, every
+change made to the Electron app must also be applied to this port in the
+same session (see Maintenance Policy below). Structure:
+
+- `tauri-port/src-tauri/`: the Rust backend — `src/lib.rs` (window setup,
+  close-confirm guard, `set_zoom_factor`/`confirm_close`/`restart_app`
+  commands), `src/wd14.rs` (Rust port of the WD14 Autotagger's ComfyUI
+  bridge, mirroring `main.ts`'s handlers using `reqwest`).
+- `tauri.conf.json`'s `build.frontendDist` points directly at this
+  project's own `../renderer` — **the Tauri build reuses the exact same
+  `renderer/` folder Electron does, not a copy.** This is only possible
+  because the renderer is vanilla TS/DOM with no framework; it's also why
+  most renderer changes need zero Tauri-specific work at all.
+- `renderer/tauri-shim.js` (new, shared file) maps `preload.ts`'s entire
+  `window.electronAPI` surface onto Tauri's `window.__TAURI__` global
+  (`app.withGlobalTauri: true`) — every other renderer module keeps calling
+  `window.electronAPI.*` exactly as it does under Electron. It no-ops under
+  Electron (only activates when `window.electronAPI` doesn't already exist).
+  **Any new `electronAPI` method added to `preload.ts` needs a matching
+  entry here**, backed by a new `#[tauri::command]` in `lib.rs` (or
+  `wd14.rs`, for anything ComfyUI-related) — this is the one place a
+  "matching Electron change" usually isn't just "do nothing, it already
+  works."
+- `renderer/index.html` has one added line (`<script src="tauri-shim.js">`
+  before `app.js`) — the only other shared-file change this port needed.
+- **Critical, hard-won differences from the Electron version — don't
+  "helpfully" revert these while porting a future Electron change:**
+  - Data directory is `%APPDATA%\<identifier>\` (`app_data_dir()` in
+    `lib.rs`), NOT portable-next-to-the-exe like Electron's
+    `configurePortableUserData()`. Deliberate: an installer defaults to
+    `Program Files`, which non-admin users can't write to.
+  - The window is built manually in Rust (`WebviewWindowBuilder`, in
+    `setup()`), not declared in `tauri.conf.json`'s `windows` array —
+    required for the custom data directory, and also carries
+    `.disable_drag_drop_handler()`, without which every native HTML5
+    drag-and-drop in the app (family reorder, dock reorder, Dataset tab
+    tiles) silently does nothing on Windows (Tauri's own doc comment
+    confirms this is the documented fix, not a workaround).
+  - `confirm_close` calls `std::process::exit(0)`, not `AppHandle::exit()`
+    — the latter was observed live to close the window but leave the
+    process running. `window.close()` from the renderer is overridden in
+    the shim (not left as Tauri's native command) because the permission
+    Tauri requires for it to work at all also lets it bypass the
+    close-confirm guard entirely if called directly.
+  - No "Generate GitHub package" port — decided against it; the shim stubs
+    it to fail cleanly instead.
+  - `npx tauri dev`'s Restart button shows a harmless-looking but alarming
+    `Failed to unregister class Chrome_WidgetWin_0` error and a blank
+    "127.0.0.1 refused to connect" page — confirmed to be a `tauri dev`
+    CLI-only artifact (its dev asset server doesn't survive the app
+    restarting), not reproducible in an actual built/installed binary. Not
+    a bug to fix.
+- `src-tauri/target/` regularly reaches several GB (normal Rust build-cache
+  growth, not a leak) — gitignored, and safe to reclaim anytime with
+  `cd tauri-port/src-tauri && cargo clean` (next `npx tauri dev` just
+  rebuilds it, ~3–5 minutes).
+- See `tauri-port/README.md` for the full history of what's been verified,
+  how (mostly live via Chrome DevTools Protocol — `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`
+  before launching, then attach like any other CDP target), and what
+  still needs a human click (native OS dialogs, real mouse-driven drag
+  gestures — CDP can't drive either).
+
 ## TypeScript Build
 
 - `npm run build` = `build:main` (tsc → `main.js`/`preload.js`) + `build:renderer` (tsc type-check, then esbuild bundles `src/renderer/index.ts` → `renderer/app.js`). Wired as a `pre*` step on `start`/`dist`/`dist:zip`/`dist:dir`/`refresh-app` — runs automatically.
@@ -148,3 +213,9 @@ This project uses **Serena** (MCP) exclusively for code exploration — not jCod
 ## Maintenance Policy
 
 Whenever a major feature ships or a major bug is fixed (user-requested feature, a bug that took real investigation, or anything changing what's true above), update this file in the same session: add a condensed rule to Known Pitfalls if it's a mistake worth not repeating, update Key Code Locations if a function moved, and update the relevant Serena memory if it's a durable convention worth keeping there too. Skip this for trivial edits.
+
+**Standing rule as of 2026-09-11: any change made to the Electron app (`src/`, `renderer/*.html`/`*.css`, `main.ts`/`preload.ts`) must also be applied to the Tauri port (`tauri-port/`) in the same session, not left for later.** Concretely:
+- Anything that only touches `renderer/*.ts` modules (the vast majority of changes) needs **no Tauri-specific work** — both builds load the exact same `renderer/` folder. Just verify it isn't one of the rare exceptions below.
+- A new/changed `preload.ts` method (`window.electronAPI.newThing()`) needs a matching case added to `renderer/tauri-shim.js` AND a new `#[tauri::command]` in `tauri-port/src-tauri/src/lib.rs` (or `wd14.rs` for ComfyUI-related additions) implementing the same behavior in Rust.
+- A new/changed `main.ts` IPC handler doing real work (file I/O, an HTTP call, window management) needs the equivalent written in Rust — never assume "the renderer doesn't know the difference" is good enough; it has to actually work.
+- After making the Tauri-side change, actually verify it — this project's own experience this session is that guessing wrong here is common and easy to catch: attach Chrome DevTools Protocol to a running `npx tauri dev` instance (see the Tauri Port section above) and check the real behavior rather than assuming Rust code compiles-therefore-works.

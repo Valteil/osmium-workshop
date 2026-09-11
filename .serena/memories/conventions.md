@@ -176,6 +176,54 @@ Also fixed in the same pass: single-mode's arrow-key Left/Right navigation was c
 mode's slide animation only ever played for the prev/next BUTTONS, never for keyboard navigation,
 even though both are meant to do the same thing.
 
+**Tauri port (`tauri-port/`) maintenance — standing rule, not optional.** Every session-ending
+change to the Electron app now needs the equivalent applied to this port too. What that actually
+means in practice:
+- `src/renderer/*.ts` changes: usually nothing extra — `tauri-port`'s `tauri.conf.json` points
+  `frontendDist` straight at this project's own `../renderer` folder (no copy), so both builds
+  serve the identical compiled output. Verify the change isn't one of the exceptions below before
+  assuming "free."
+- A new/changed `preload.ts` method: add the matching case to `renderer/tauri-shim.js` (which maps
+  `window.electronAPI.*` onto `window.__TAURI__.core.invoke(...)`) AND a new
+  `#[tauri::command]` in `tauri-port/src-tauri/src/lib.rs` or `wd14.rs` doing the same work in
+  Rust. The shim is the ONE shared file that needs a matching entry per Electron API surface
+  change — it's not automatically covered by the "same renderer folder" fact above.
+- A new/changed `main.ts` IPC handler that does real work (file I/O, HTTP, window control): needs
+  a genuine Rust implementation, not a stub — this project's actual experience is that skipping
+  this and assuming it'll "just work" is the most common way this rule gets silently violated.
+- Always verify the Tauri-side change actually works rather than trusting that Rust compiling
+  means it's correct — this session's own bugs (Quit doing nothing, drag-and-drop doing nothing,
+  data ending up in the wrong directory) all compiled fine and were still wrong. Attach Chrome
+  DevTools Protocol to a running `npx tauri dev` instance
+  (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` before launching, then a
+  raw Node `WebSocket` + `Runtime.evaluate` — no browser extension needed) and check the real
+  behavior, the same way every bug in this port was actually found and confirmed fixed, not just
+  argued into plausibility from reading the code.
+
+Hard-won differences from the Electron version that are correct on purpose — don't "fix" these
+back to match Electron while porting some unrelated future change:
+- Data directory is `%APPDATA%\<identifier>\` (`app_data_dir()` in `lib.rs`), not portable-next-
+  to-the-exe — an installer defaults to `Program Files`, which non-admin users can't write to.
+- The window is built manually in Rust (`WebviewWindowBuilder` inside `.setup()`), not declared
+  in `tauri.conf.json`'s `windows` array — needed for the custom data directory, and also carries
+  `.disable_drag_drop_handler()`, without which Tauri's own default OS-level drag-drop handling
+  silently breaks every native HTML5 drag-and-drop in the app on Windows (family reorder, dock
+  reorder, Dataset tab tiles) — confirmed via Tauri's own doc comment on that method.
+- `confirm_close` uses `std::process::exit(0)`, not `AppHandle::exit()` — the latter was observed
+  live to close the window but leave the process running in the background. `window.close()` is
+  overridden in the shim rather than left as Tauri's native window-close command, because the
+  permission Tauri requires for that command to work at all ALSO lets it bypass the close-confirm
+  guard entirely when called directly (confirmed live: granting the permission alone made Quit
+  close the webview immediately with no dirty-check).
+- No "Generate GitHub package" port exists or is planned — decided against it; the shim stub for
+  it is permanent, not a placeholder.
+- `npx tauri dev`'s Restart button shows a `Failed to unregister class Chrome_WidgetWin_0` error
+  plus a "127.0.0.1 refused to connect" page — confirmed (by testing Restart against both
+  `tauri dev` and a real compiled `tauri build --debug` binary side by side) to be a `tauri dev`
+  CLI-only artifact, not reproducible in an actual installed build. Don't spend time chasing this.
+- `src-tauri/target/` regrows to several GB after every full rebuild — normal Rust build-cache
+  behavior, not a leak; `cargo clean` reclaims it instantly and it's already gitignored.
+
 **Doc maintenance policy** (`CLAUDE.md`'s own "Maintenance Policy" section): after any
 feature/bugfix judged "major" (user-requested feature, a bug that took real investigation, or
 anything changing what `CLAUDE.md` currently asserts), update `CLAUDE.md` (Critical Decisions,
