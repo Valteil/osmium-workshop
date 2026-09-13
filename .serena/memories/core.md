@@ -35,10 +35,8 @@ build.** `Dataset Tag Studio.exe`, `resources/`, `locales/`, the Chromium runtim
 `package.json`, etc. This is deliberate, not clutter — `npm run refresh-app` regenerates them
 from `dist/win-unpacked`.
 
-**Second actively-maintained build target: `tauri-port/` (added 2026-09-11).** Standing rule
-from this point forward: any change to the Electron app (`src/`, `renderer/*.html`/`*.css`,
-`main.ts`/`preload.ts`) must be applied to this Tauri port in the same session — not a one-off
-experiment to leave behind. See `mem:conventions` for the technical specifics (what needs
-mirroring vs. what's shared automatically) and `CLAUDE.md`'s "Tauri Port" section for the full
-picture, including hard-won gotchas (data dir location, drag-and-drop, process exit) not to
-accidentally revert while porting a future Electron change.
+**A second build target, `tauri-port/` (added 2026-09-11), was discontinued and deleted from the
+repo on 2026-09-13** — the dual-maintenance cost of hand-porting every Electron change to Rust
+outweighed its value at this project's stage. This app is Electron-only now; no Tauri-parity work
+applies to any change going forward. See `mem:conventions` and `CLAUDE.md`'s "Tauri Port —
+DISCONTINUED" section if the old approach is ever worth referencing from git history.

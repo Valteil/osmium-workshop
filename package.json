@@ -22,11 +22,11 @@
     "refresh-app": "electron-builder --dir && node scripts/refresh-portable-dev.js"
   },
   "devDependencies": {
+    "@types/node": "^20.14.0",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3",
-    "typescript": "^5.5.0",
     "esbuild": "^0.23.0",
-    "@types/node": "^20.14.0"
+    "typescript": "^5.5.0"
   },
   "build": {
     "appId": "com.local.datasettagstudio",
@@ -38,7 +38,8 @@
       "src/**/*",
       "scripts/**/*",
       "tsconfig.main.json",
-      "tsconfig.renderer.json"
+      "tsconfig.renderer.json",
+      "node_modules/ws/**/*"
     ],
     "directories": {
       "output": "dist"
@@ -62,5 +63,8 @@
   "allowScripts": {
     "electron@31.7.7": true,
     "esbuild@0.23.1": true
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
   }
 }

@@ -97,6 +97,15 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   @keyframes flairDrift{ 0%{ background-position: 0% 0%, 100% 100%; } 100%{ background-position: 100% 100%, 0% 0%; } }
   @keyframes flairSweep{ 0%{ transform: translateX(-140%) skewX(-12deg); } 100%{ transform: translateX(140%) skewX(-12deg); } }
   @keyframes flairShimmer{ 0%{ background-position: -200% 0; } 100%{ background-position: 200% 0; } }
+  /* `--flair-play` gates every ambient flair* animation below in one place:
+     each such rule ends with `animation-play-state: var(--flair-play);`
+     instead of only the shorthand, so the Settings "disable theme
+     flourishes" toggle (`html.no-theme-flourishes`, for motion-sensitive
+     users who just want a theme's colors) can freeze all of them at once
+     without touching each selector individually — any NEW flair*-animated
+     rule just needs to add that same line to stay covered. */
+  :root{ --flair-play: running; }
+  html.no-theme-flourishes{ --flair-play: paused; }
 
   html[data-theme="cyberpunk"]{
     --bg-base:#05060f;
@@ -125,7 +134,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       linear-gradient(90deg, rgba(255,47,176,0.04) 1px, transparent 1px);
     background-size: 100% 34px, 34px 100%;
   }
-  html[data-theme="cyberpunk"] .brand{ font-family: var(--sans); font-weight: 800; text-shadow: 0 0 12px rgba(255,47,176,0.55); letter-spacing:1px; text-transform: uppercase; animation: flairPulse 3.2s ease-in-out infinite; }
+  html[data-theme="cyberpunk"] .brand{ font-family: var(--sans); font-weight: 800; text-shadow: 0 0 12px rgba(255,47,176,0.55); letter-spacing:1px; text-transform: uppercase; animation: flairPulse 3.2s ease-in-out infinite; animation-play-state: var(--flair-play); }
   html[data-theme="cyberpunk"] .brand span.tag{ box-shadow: 0 0 10px rgba(232,163,61,0.35); }
   html[data-theme="cyberpunk"] button.primary{ box-shadow: 0 0 14px rgba(34,230,255,0.3); }
   html[data-theme="cyberpunk"] button.primary:hover:not(:disabled){ box-shadow: 0 0 20px rgba(34,230,255,0.55); }
@@ -245,7 +254,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   html[data-theme="bioluminescent"] .card:hover{ box-shadow: 0 0 20px rgba(38,224,201,0.25); }
   html[data-theme="bioluminescent"] button.primary{ box-shadow: 0 0 12px rgba(123,91,255,0.3); }
-  html[data-theme="bioluminescent"] .brand span.tag{ animation: flairPulse 2.6s ease-in-out infinite; }
+  html[data-theme="bioluminescent"] .brand span.tag{ animation: flairPulse 2.6s ease-in-out infinite; animation-play-state: var(--flair-play); }
   html[data-theme="bioluminescent"] body{
     background-image: radial-gradient(circle at 20% 90%, rgba(38,224,201,0.06), transparent 40%),
       radial-gradient(circle at 75% 15%, rgba(123,91,255,0.05), transparent 35%);
@@ -270,6 +279,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     content:''; position:absolute; top:0; left:0; width:40%; height:100%;
     background: linear-gradient(90deg, transparent, rgba(232,196,104,0.14), transparent);
     animation: flairSweep 6s ease-in-out infinite;
+    animation-play-state: var(--flair-play);
     pointer-events: none;
   }
 
@@ -285,7 +295,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="solarflare"] body{
     background-image: radial-gradient(circle at 50% 0%, rgba(255,106,31,0.08), transparent 60%);
   }
-  html[data-theme="solarflare"] button.primary{ box-shadow: 0 0 16px rgba(255,106,31,0.4); animation: flairPulse 2.4s ease-in-out infinite; }
+  html[data-theme="solarflare"] button.primary{ box-shadow: 0 0 16px rgba(255,106,31,0.4); animation: flairPulse 2.4s ease-in-out infinite; animation-play-state: var(--flair-play); }
   html[data-theme="solarflare"] .card:hover{ box-shadow: 0 0 18px rgba(255,209,102,0.25); }
 
   /* ---- 20 additional shop themes ---- */
@@ -399,7 +409,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background-image: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.5) 48%, transparent 66%);
     background-size: 220% 100%;
   }
-  html[data-theme="rose-gold"] button.primary:hover:not(:disabled){ animation: flairShimmer 1.4s ease infinite; }
+  html[data-theme="rose-gold"] button.primary:hover:not(:disabled){ animation: flairShimmer 1.4s ease infinite; animation-play-state: var(--flair-play); }
 
   html[data-theme="coral-reef"]{
     --bg-base:#04191c; --bg-panel:#082428; --bg-elevated:#0d3237; --bg-elevated-2:#134147;
@@ -489,7 +499,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="blood-moon"] body{
     background-image: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,0.35) 100%);
   }
-  html[data-theme="blood-moon"] .brand{ animation: flairPulse 2s ease-in-out infinite; }
+  html[data-theme="blood-moon"] .brand{ animation: flairPulse 2s ease-in-out infinite; animation-play-state: var(--flair-play); }
 
   html[data-theme="twilight-garden"]{
     --bg-base:#0c1210; --bg-panel:#131f1a; --bg-elevated:#1a2b24; --bg-elevated-2:#22392f;
@@ -524,6 +534,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       radial-gradient(ellipse at 80% 10%, rgba(123,91,255,0.1), transparent 55%);
     background-size: 160% 160%, 160% 160%;
     animation: flairDrift 18s ease-in-out infinite alternate;
+    animation-play-state: var(--flair-play);
   }
   html[data-theme="aurora-borealis"] button.primary{ box-shadow: 0 0 16px rgba(92,255,176,0.35); }
   html[data-theme="aurora-borealis"] .card:hover{ box-shadow: 0 0 18px rgba(123,91,255,0.25); }
@@ -582,7 +593,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="twilight-garden"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
   html[data-theme="aurora-borealis"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
   html[data-theme="celestial-gold"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
-  html.theme-refined button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell){
+  html.theme-refined:not(.suppress-theme-upgrade) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell){
     position: relative; overflow: hidden; isolation: isolate;
   }
   html[data-theme="amethyst"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
@@ -590,7 +601,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="twilight-garden"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
   html[data-theme="aurora-borealis"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
   html[data-theme="celestial-gold"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
-  html.theme-refined button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
+  html.theme-refined:not(.suppress-theme-upgrade) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
     content: ''; position: absolute; left: 0; top: 0; width: 0%; height: 100%;
     background: var(--accent-flair); opacity: 0.28;
     transition: width 0.22s cubic-bezier(.2,.8,.3,1), opacity 0.2s ease;
@@ -602,7 +613,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      refined/epic/legendary theme gets — the [data-theme="subway"] attribute
      selector outranks the bare html.theme-refined rule above on
      specificity, so this only needs to override `background`. */
-  html.theme-refined[data-theme="subway"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
+  html.theme-refined:not(.suppress-theme-upgrade)[data-theme="subway"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
     background: linear-gradient(90deg, #ff9f1c 0%, #ff3f8e 33%, #2ec4f1 66%, #35d488 100%);
   }
   html[data-theme="amethyst"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
@@ -610,7 +621,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="twilight-garden"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
   html[data-theme="aurora-borealis"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
   html[data-theme="celestial-gold"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
-  html.theme-refined button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after{
+  html.theme-refined:not(.suppress-theme-upgrade) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after{
     width: 75%;
   }
   /* Click flash: on an actual click (not just hover), the hover-fill
@@ -641,6 +652,44 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      the same motion a fresh mouseenter would produce. `!important` because
      it must beat the `:hover` rule's own specificity unconditionally. */
   .fx-flash-reset::after{ transition: none !important; width: 0% !important; }
+
+  /* Card hover-tilt: Vintage Paper's own one-off flourish (below, in that
+     theme's own block) turned into a second Refine Theme reward alongside
+     the button hover-fill above — same epic/legendary + `.theme-refined`
+     group, so buying one buys both. A flat dark shadow is used here rather
+     than vintage-paper's warm brown one, since this group spans mostly-dark
+     themes (and any light common/uncommon theme someone refines). */
+  html[data-theme="amethyst"] .card,
+  html[data-theme="solarflare"] .card,
+  html[data-theme="twilight-garden"] .card,
+  html[data-theme="aurora-borealis"] .card,
+  html[data-theme="celestial-gold"] .card,
+  html.theme-refined:not(.suppress-theme-upgrade) .card{
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  html[data-theme="amethyst"] .card:hover,
+  html[data-theme="solarflare"] .card:hover,
+  html[data-theme="twilight-garden"] .card:hover,
+  html[data-theme="aurora-borealis"] .card:hover,
+  html[data-theme="celestial-gold"] .card:hover,
+  html.theme-refined:not(.suppress-theme-upgrade) .card:hover{
+    transform: rotate(-0.6deg) translateY(-2px);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+  }
+
+  /* "Disable theme flourishes" (Settings): unlike Suppress Theme Upgrade
+     above (which only withholds Refine-Theme-GRANTED effects), this is a
+     blanket motion-sensitivity switch that also kills each theme's own
+     NATIVE hover-tilt (epic/legendary, and Vintage Paper's original
+     one-off version below) and hover-fill flood — the two interactive
+     "motion" effects in the theme system. It deliberately does NOT touch
+     each theme's static, non-animated color accents (glows, gradients,
+     textures) — those aren't a motion trigger, and disabling all of them
+     individually would mean touching nearly every theme's own CSS block
+     rather than one shared switch. `!important` because this has to beat
+     several more specific per-theme `:hover` rules unconditionally. */
+  html.no-theme-flourishes .card:hover{ transform: none !important; }
+  html.no-theme-flourishes button::after{ display: none !important; }
 
   /* ================= End themes ================= */
 
@@ -724,6 +773,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     transform: translate(-50%, -8px) scale(0.98);
   }
   .log-panel.panel-visible{ transform: translate(-50%, 0) scale(1); }
+  /* Settings shares .log-panel's wider width/max-height, but NOT its
+     horizontal centering — it should anchor directly below the ⚙ Settings
+     button instead, wherever that button actually sits (its left/top get
+     set in JS at open time, index.ts's btnSettings click handler, the same
+     viewport-clamping positionMenu() every dropdown/context-menu uses). */
+  #settingsPanel{ left: auto; right: auto; transform: translateY(-8px) scale(0.98); }
+  #settingsPanel.panel-visible{ transform: translateY(0) scale(1); }
   .log-list{ display: flex; flex-direction: column; }
   .log-row{ display: flex; flex-direction: column; gap: 5px; padding: 9px 6px; border-bottom: 1px solid var(--border-soft); }
   .log-row:last-child{ border-bottom: none; }
@@ -884,6 +940,132 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .stats-total-card .lbl{ font-size: 11px; color: var(--text-muted); margin-top: 3px; }
   .stats-empty{ color: var(--text-faint); padding: 40px; text-align: center; }
 
+  /* ---------- SynthDat Overseer tab ---------- */
+
+  #synthDatTab{ padding: 24px; overflow-y: scroll; height: 100%; }
+  /* Generation (top, full-width) above a two-column row (left: connection/
+     reference/model/controlnet/resize/sampler settings; right: prompt
+     fields) — Generation gets the full tab width to itself since it's what
+     you look at/act on for every single generation, while the settings you
+     set up once per session and the prompt fields you edit occasionally sit
+     side by side below it. */
+  .synthdat-body{ display: flex; flex-direction: column; gap: 24px; }
+  .synthdat-cols{ display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .synthdat-col{ flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 16px; }
+  .synthdat-gen-top .synthdat-ref-preview{ max-height: 480px; }
+  .synthdat-gen-top .synthdat-ref-preview img{ max-height: 480px; }
+  /* Shrink-wraps to the image's own rendered size (capped by max-height,
+     and by the column's own width) instead of forcing a fixed-aspect box —
+     a portrait image inside a wider/shorter forced box (or vice versa)
+     used to letterbox with visible background padding on two sides. The
+     empty-state placeholder (.stats-empty, shown when no img yet) still
+     gets a sensible box from its own padding, so this only affects the
+     "image loaded" case. */
+  .synthdat-ref-preview{
+    display: block; width: fit-content; max-width: 100%; max-height: 340px;
+    background: #0f0e13; border-radius: var(--radius); overflow: hidden; margin: 0 auto; cursor: zoom-in;
+  }
+  /* Reference image + padded/resized preview side by side (each still sized
+     to its own image's natural aspect ratio via .synthdat-ref-preview's own
+     width:fit-content) rather than stacked — wraps to stacked automatically
+     if the column's too narrow for both. */
+  .synthdat-refs-row{ display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .synthdat-refs-row .synthdat-ref-preview{ margin: 0; }
+  .synthdat-ref-preview img{ display: block; max-width: 100%; max-height: 340px; width: auto; height: auto; }
+  .synthdat-wd14-result{
+    background: var(--bg-elevated); border: 1px solid var(--border-soft); border-radius: var(--radius);
+    padding: 8px 10px; font-size: 11.5px; color: var(--text-muted); font-family: var(--mono); word-break: break-word;
+  }
+  .synthdat-lora-row{ display: flex; gap: 8px; align-items: center; }
+  .synthdat-lora-row label{ display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+  .synthdat-warning{ font-size: 11px; color: var(--accent-danger); margin-top: 4px; }
+  .synthdat-pass-choice{
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: var(--bg-elevated); border: 2px solid var(--border-soft); border-radius: var(--radius);
+    padding: 6px; cursor: pointer; font-size: 11px; color: var(--text-muted);
+  }
+  .synthdat-pass-choice img{ display: block; max-width: 100%; max-height: 110px; width: auto; height: auto; border-radius: 4px; }
+  .synthdat-pass-choice:hover{ border-color: var(--border-strong); }
+  .synthdat-pass-choice.active{ border-color: var(--accent-manual); color: var(--text-primary); font-weight: 600; }
+  .synthdat-section-disabled{ opacity: 0.45; pointer-events: none; }
+  /* #synthDatRefImageSection (index.html) is a plain wrapper div added so
+     the whole reference-image sub-area can be grayed out via the class
+     above when "skip reference image" is checked — being a bare div with no
+     layout of its own, everything inside it lost .tool-section's flex/gap
+     rhythm (its own children, not this wrapper, count as the flex items),
+     which is why its two buttons rendered side-by-side with no spacing at
+     all instead of stacked like every other section. Match .tool-section's
+     own column-flex-with-gap shape so nesting content one level deeper
+     doesn't change its spacing. */
+  #synthDatRefImageSection{ display: flex; flex-direction: column; gap: 10px; }
+  .synthdat-resized-preview-label{ font-size: 10.5px; color: var(--text-faint); margin-top: 4px; }
+  .synthdat-tag-assign{
+    display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: scroll;
+  }
+  .synthdat-tag-assign-row{
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: var(--bg-elevated); border: 1px solid var(--border-soft); border-radius: var(--radius);
+    padding: 4px 6px 4px 9px;
+  }
+  .synthdat-tag-assign-label{ font-size: 11.5px; color: var(--text-primary); font-family: var(--mono); }
+  .synthdat-tag-assign-btns{ display: flex; gap: 4px; flex-shrink: 0; }
+  .synthdat-tag-assign-btn{
+    padding: 3px 7px; font-size: 10.5px; color: var(--text-muted);
+    background: var(--bg-elevated-2); border: 1px solid var(--border-soft); border-radius: var(--radius);
+  }
+  .synthdat-tag-assign-btn.active{
+    background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual);
+  }
+  /* Final tag card, right before Accept/Reject — reuses the same .chip/
+     .chiprow classes the Gallery card view builds its tag chips from
+     (view.ts's buildChip()), so pruning a tag here looks and behaves like
+     pruning one anywhere else in the app, just scoped to "what gets saved"
+     rather than a real entry's tags yet. */
+  .synthdat-tag-card{ display: flex; flex-direction: column; gap: 8px; }
+  .chip.synthdat-chip-excluded{ opacity: 0.45; text-decoration: line-through; }
+  .synthdat-merge-suggest{
+    all: unset; cursor: pointer; font-family: var(--sans); font-size: 10px;
+    color: var(--accent-manual); background: var(--accent-manual-dim);
+    border-radius: 8px; padding: 1px 6px; margin-left: 2px; white-space: nowrap;
+  }
+  .synthdat-merge-suggest:hover{ background: var(--accent-manual); color: #fff; }
+
+  /* General field styling scoped to #synthDatTab, but every property here
+     that a specific row layout (.synthdat-lora-row's select/number pairs)
+     needs to override is deliberately left OFF this rule (no width here) —
+     an ID selector always outranks any number of classes on specificity, so
+     a bare "#synthDatTab input[type=number]{width:100%}" would silently win
+     over ".synthdat-lora-row input[type=number]{width:80px}" regardless of
+     which rule comes later in the file. Width is set per-context below
+     instead (100% by default via .field-block's own children, 80px/flex:1
+     inside .synthdat-lora-row) so there's nothing here for that fight. */
+  #synthDatTab select, #synthDatTab input[type="number"], #synthDatTab input[type="text"], #synthDatTab textarea{
+    font-family: var(--sans); font-size: 12.5px; color: var(--text-primary); background: var(--bg-elevated);
+    border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 6px 9px; box-sizing: border-box;
+  }
+  #synthDatTab select{ cursor: pointer; }
+  #synthDatTab textarea{
+    font-family: var(--sans); line-height: 1.4; resize: none; overflow: hidden; min-height: 52px;
+    /* Auto-grows via JS (see growTextarea() in synthdat-overseer.ts) instead
+       of a manual drag-handle — the user asked these not be hand-resizable,
+       only ever taller when content actually overflows. min-height is the
+       actual fix for these looking cramped: growTextarea() sets an explicit
+       inline height from scrollHeight, and an EMPTY textarea's scrollHeight
+       collapses to one line regardless of its `rows` attribute once height
+       is driven by JS instead of layout — rows="2" alone stopped mattering
+       the moment init() ran growTextarea() over every field once on load. */
+  }
+  #synthDatTab select:focus, #synthDatTab input[type="number"]:focus, #synthDatTab input[type="text"]:focus, #synthDatTab textarea:focus{
+    border-color: var(--accent-manual); outline: none;
+  }
+  #synthDatTab .field-block > select, #synthDatTab .field-block > textarea,
+  #synthDatTab .field-block > input[type="number"], #synthDatTab .field-block > input[type="text"]{
+    width: 100%;
+  }
+  #synthDatTab .synthdat-lora-row select, #synthDatTab .synthdat-lora-row input[type="text"]{ flex: 1; min-width: 0; }
+  #synthDatTab .synthdat-lora-row input[type="number"]{ width: 80px; flex-shrink: 0; }
+  #synthDatTab .synthdat-lora-row button{ flex-shrink: 0; padding: 6px 10px; }
+
   @keyframes barGrow{ from{ transform: scaleX(0); } to{ transform: scaleX(1); } }
   .stat-bar-row{ display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .stat-bar-label{ width: 130px; font-size: 11.5px; color: var(--text-muted); flex-shrink: 0; }
@@ -1031,6 +1213,23 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     font-size: 11.5px; line-height: 1.4; padding: 7px 10px; border-radius: 6px;
     box-shadow: 0 8px 20px rgba(0,0,0,0.4); pointer-events: none;
   }
+  /* Used when there's no room to place the bubble above/adjacent to its
+     trigger (typical for topbar buttons) — index.ts pins it to the bottom
+     of the screen instead of directly below the cursor, where a small font
+     size or a custom cursor image can hide it entirely. Since it's no
+     longer spatially tied to what triggered it, the accent glow + one-shot
+     pulse gives the eye somewhere to jump to. */
+  .tooltip-bubble.tooltip-bottom-pinned{
+    border-color: var(--accent-manual);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.4), 0 0 0 2px var(--accent-manual), 0 0 16px 3px var(--accent-manual);
+    animation: tooltipHighlightPulse 900ms ease-out 1;
+  }
+  html.motion-off .tooltip-bubble.tooltip-bottom-pinned{ animation: none; }
+  @keyframes tooltipHighlightPulse{
+    0%{ box-shadow: 0 8px 20px rgba(0,0,0,0.4), 0 0 0 2px var(--accent-manual), 0 0 0 0 var(--accent-manual); }
+    50%{ box-shadow: 0 8px 20px rgba(0,0,0,0.4), 0 0 0 2px var(--accent-manual), 0 0 22px 8px var(--accent-manual); }
+    100%{ box-shadow: 0 8px 20px rgba(0,0,0,0.4), 0 0 0 2px var(--accent-manual), 0 0 16px 3px var(--accent-manual); }
+  }
 
   #btnFlagIsolated.active, #btnDiscreteToggle.active{
     background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual);
@@ -1063,6 +1262,29 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     display: flex; align-items: center; justify-content: center; cursor: pointer;
   }
   .note-badge:hover{ background: rgba(0,0,0,0.8); }
+  .lock-badge{
+    position: absolute; bottom: 8px; left: 8px; z-index: 5; font-size: 12px;
+    background: rgba(0,0,0,0.55); border-radius: 50%; width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card-status-icons{
+    position: absolute; top: 38px; left: 8px; z-index: 5;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .mv-badges{
+    position: absolute; bottom: 8px; left: 34px; z-index: 5;
+    display: flex; gap: 4px;
+  }
+  .mv-badge{
+    font-size: 12px; background: rgba(0,0,0,0.55); border-radius: 50%;
+    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  }
+  .status-icon-badge{
+    font-family: var(--mono); font-size: 15px; line-height: 1;
+    background: rgba(0,0,0,0.55); color: #fff; border-radius: 11px;
+    padding: 5px 8px; display: flex; align-items: center; gap: 3px;
+    width: fit-content;
+  }
   .card-note-visible{
     font-size: 10.5px; color: var(--text-muted); background: var(--bg-base); border-radius: 4px;
     padding: 5px 7px; line-height: 1.4; max-height: 54px; overflow-y: auto;
@@ -1099,6 +1321,19 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .modal-backdrop.modal-visible .modal-card{ transform: scale(1); }
   .modal-close-btn{ position: absolute; top: 12px; right: 12px; z-index: 10; }
+
+  /* ---------- Generic image lightbox (shared-ui.ts showImageLightbox()) ---------- */
+
+  .lightbox-backdrop{
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 500;
+    display: flex; align-items: center; justify-content: center; cursor: zoom-out;
+    opacity: 0; transition: opacity var(--panel-dur) ease;
+  }
+  .lightbox-backdrop.modal-visible{ opacity: 1; }
+  .lightbox-backdrop img{
+    max-width: 92vw; max-height: 92vh; object-fit: contain;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6); border-radius: 4px;
+  }
 
   /* ---------- Themed confirm modal ---------- */
 
@@ -1307,6 +1542,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     display: grid;
     grid-template-columns: 270px 1fr 380px;
     min-height: 0;
+    transition: grid-template-columns var(--panel-dur) var(--pop-ease);
   }
   #left{ order: 1; }
   #gallery{ order: 2; }
@@ -1321,6 +1557,19 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   #shell.layout-gallery-right #left{ order: 1; }
   #shell.layout-gallery-right #right{ order: 2; }
   #shell.layout-gallery-right #gallery{ order: 3; }
+
+  /* Right panel collapse: shrinks whichever grid track #right currently
+     occupies down to a thin strip (just wide enough for the toggle arrow)
+     instead of hiding #right outright — an empty grid cell doesn't
+     collapse on its own, so the track width has to be overridden per
+     layout mode (the right panel isn't always the rightmost column, see
+     layout-gallery-right above where it sits next to #left instead). The
+     arrow button itself lives at #right's own left edge in normal flow,
+     so it naturally ends up wherever #right's leading edge currently is
+     in every layout mode, with no separate positioning logic needed. */
+  #shell.right-panel-collapsed{ grid-template-columns: 270px 1fr 32px; }
+  #shell.right-panel-collapsed.layout-gallery-left{ grid-template-columns: 1fr 270px 32px; }
+  #shell.right-panel-collapsed.layout-gallery-right{ grid-template-columns: 270px 32px 1fr; }
 
   aside, main { min-height: 0; overflow-y: scroll; }
 
@@ -1340,7 +1589,29 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     display: flex;
     flex-direction: column;
     gap: 20px;
+    overflow-x: hidden;
   }
+
+  /* `sticky`, not `absolute` — #right is itself the scrolling element
+     (`aside{ overflow-y: scroll }` above), so an absolutely-positioned
+     child is placed relative to its full scrollable content height, not
+     the visible viewport. With 2+ Tag Pruner boxes (each independently
+     addable) that content height regularly exceeds the panel's visible
+     height, which pushed a vertically-centered absolute button below the
+     fold — sticky keeps it pinned to the top of whatever's currently
+     scrolled into view instead. */
+  .panel-collapse-arrow{
+    position: sticky; top: 0; left: 0; align-self: flex-start;
+    width: 20px; height: 28px; padding: 0; z-index: 2; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; line-height: 1; border-radius: var(--radius);
+    background: var(--bg-elevated); border: 1px solid var(--border-soft);
+    color: var(--text-muted); cursor: pointer;
+  }
+  .panel-collapse-arrow:hover{ color: var(--text-primary); background: var(--bg-elevated-2); }
+
+  #right.right-panel-collapsed{ padding-left: 0; padding-right: 0; }
+  #right.right-panel-collapsed #rightPanelContent{ display: none; }
 
   h3.panel-title {
     margin: 0;
@@ -1533,9 +1804,20 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     white-space: nowrap;
   }
   .pdrop-menu{
-    position: absolute; top: calc(100% + 4px); left: 0; z-index: 350;
+    /* Fixed + appended to document.body (buildPersistentDropdown(), shared-ui.ts)
+       rather than absolute-inside-its-own-container — a container-relative
+       popup gets silently clipped by any scrollable/overflow:hidden ancestor
+       (e.g. the Settings panel) once it doesn't fit, with no boundary
+       awareness at all. Matches .ctx-menu's own approach; positionMenu()
+       clamps it on-screen either way. z-index 460 (matching .ctx-menu) is
+       deliberately ABOVE .theme-panel's 455 — a pdrop-menu very often opens
+       from a button that lives INSIDE a floating panel (e.g. Settings'
+       "Panel arrangement"), so it must render in front of that panel, not
+       behind it. */
+    position: fixed; z-index: 460;
     background: var(--bg-elevated-2); border: 1px solid var(--border-strong); border-radius: 8px;
     padding: 4px; display: flex; flex-direction: column; gap: 2px; min-width: 160px;
+    max-width: min(320px, 90vw);
     box-shadow: 0 12px 30px rgba(0,0,0,0.5);
   }
   .pdrop-item{
@@ -1700,7 +1982,14 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .card img {
     width: 100%; height: 100%;
-    object-fit: cover;
+    /* `contain`, not `cover` — the card's box is a fixed 3:4 rectangle
+       regardless of the source image's own aspect ratio, and `cover` crops
+       whatever doesn't fit that shape (the reported "images are stuffed
+       into the card" bug: a landscape or otherwise off-ratio image had
+       real content sliced off, only visible after clicking through to the
+       full modal). `contain` always shows the whole image, letterboxed
+       into the thumbwrap's own background on whichever axis doesn't match. */
+    object-fit: contain;
     display: block;
   }
   .card .filename {
@@ -1835,6 +2124,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .ctx-sep{ font-size: 10.5px; color: var(--text-faint); padding: 6px 8px 2px; }
   .ctx-words{ display: flex; flex-wrap: wrap; gap: 5px; padding: 2px 8px 6px; }
   .ctx-words button{ padding: 4px 9px; font-size: 11.5px; }
+  .ctx-rename-row{ padding: 2px 8px 6px; }
+  .ctx-rename-row input{ width: 100%; padding: 5px 7px; font-size: 12px; }
+  .chip-rename-input{
+    width: 100px; font-size: inherit; font-family: inherit; color: inherit;
+    background: var(--bg-elevated); border: 1px solid var(--accent-manual);
+    border-radius: 3px; padding: 0 3px;
+  }
 
   /* ---------- Right panel: tag tools ---------- */
 
@@ -1857,6 +2153,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .dot.manual { background: var(--accent-manual); }
   .sec-head .t { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
   .sec-head .d { font-size: 11px; color: var(--text-faint); }
+  .sec-head .d ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 6px; }
+  .sec-head .d li { line-height: 1.4; }
+  .sec-head .d li b { color: var(--text-secondary); }
 
   .dock-controls{ display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
   .dock-drag-handle{ cursor: grab; color: var(--text-faint); font-size: 12px; user-select: none; }
@@ -1908,6 +2207,24 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .match-row:hover { background: var(--bg-elevated-2); }
   .match-row input[type="checkbox"] { accent-color: var(--accent-manual); cursor: pointer; }
   .match-row .name { flex: 1; color: var(--text-primary); }
+
+  .canonical-rule-row{
+    display: flex; flex-direction: column; gap: 6px; padding: 8px; margin-bottom: 8px;
+    background: var(--bg-elevated); border: 1px solid var(--border-soft); border-radius: 6px;
+  }
+  .canonical-rule-head{ display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .canonical-rule-label{ font-size: 12.5px; font-weight: 600; color: var(--accent-manual); }
+  .canonical-rule-label.canonical-rule-void{ color: var(--accent-danger); }
+  .canonical-rule-head button{ font-size: 11px; padding: 3px 7px; }
+  .canonical-rule-name-input{ flex: 1; font-size: 12.5px; }
+  .canonical-rule-add-row{ display: flex; gap: 6px; }
+  .canonical-rule-add-row input{ flex: 1; font-size: 12px; }
+  .canonical-rule-add-row button{ font-size: 11px; padding: 4px 8px; }
+  .canonical-rule-enable-toggle{ display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+  .canonical-rule-row.canonical-rule-disabled{ opacity: 0.55; }
+  .canonical-rule-row.canonical-rule-disabled .canonical-rule-label{ text-decoration: line-through; }
+  .canonical-chip-disabled{ opacity: 0.5; }
+  .canonical-chip-disabled span{ text-decoration: line-through; }
 
   .qm-list{ display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: scroll; }
   .qm-row{ display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 5px; font-size: 12px; }
@@ -2095,6 +2412,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
     .drawer-backdrop.drawer-visible{ display: block; }
     .drawer-toggle{ display: inline-flex; }
+    .panel-collapse-arrow{ display: none; }
 
     button{ padding: 9px 14px; font-size: 14px; }
     .chip{ padding: 5px 6px 5px 11px; font-size: 12.5px; }

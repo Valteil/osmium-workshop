@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {
   btnLog, logPanel, logPanelTitle, logList, btnExportLog, btnClearLog, logCloseBtn,
-  btnRetroApplyAll, themeCustomPanel, favoritesPanel, achievementsPanel, shopPanel, tagDetailsPanel,
+  themeCustomPanel, favoritesPanel, achievementsPanel, shopPanel, tagDetailsPanel,
   statsChartWrap, statsLegend, statsTotals, statsViewPie, statsViewBar
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal } from './shared-ui';
@@ -27,8 +27,6 @@ let checkAchievementsRef = () => {};
 let refreshAllUIRef = () => {};
 let getUndoStack = () => [];
 let getRedoStack = () => [];
-let retroApplyToDisabledRef = () => ({ count: 0, reason: 'unavailable' });
-let retroApplyAllToDisabledRef = () => ({ totalImages: 0, totalTasks: 0, consideredTasks: 0 });
 
 export function pushLogEntry(partial){
   const entry = {
@@ -100,12 +98,12 @@ function formatLogTime(ts){
 const STAT_CHART_COLORS = {
   'add-tag': '#6fb8d1', 'remove-tag': '#e2637a', 'merge': '#e8a33d', 'void': '#c1443c',
   'rename': '#7fbf8f', 'find-replace': '#a683e0', 'disable': '#8a6f57', 'restore': '#4fae7a',
-  'undo': '#9791a6', 'redo': '#6b6578'
+  'undo': '#9791a6', 'redo': '#6b6578', 'unmerge': '#d9b35c', 'unvoid': '#5cb9a8', 'rule-update': '#8a8fd9'
 };
 const STAT_TYPE_LABEL = {
   'add-tag': 'Tags added', 'remove-tag': 'Tags removed', 'merge': 'Merges', 'void': 'Voids',
   'rename': 'Renames', 'find-replace': 'Find & replace', 'disable': 'Disabled', 'restore': 'Restored',
-  'undo': 'Undos', 'redo': 'Redos'
+  'undo': 'Undos', 'redo': 'Redos', 'unmerge': 'Unmerges', 'unvoid': 'Unvoids', 'rule-update': 'Rule changes'
 };
 
 function computeStatsBreakdown(){
@@ -230,7 +228,7 @@ export function renderLogPanel(){
     logList.innerHTML = '<div class="log-empty">No edits logged yet for this folder.</div>';
     return;
   }
-  const TAG_TYPES = new Set(['add-tag','remove-tag','merge','void','rename','find-replace','reset-edits']);
+  const TAG_TYPES = new Set(['add-tag','remove-tag','merge','void','rename','find-replace','reset-edits','unmerge','unvoid']);
   const MOVE_TYPES = new Set(['disable','restore']);
   const recent = editLog.slice(-150).reverse();
   for (const logEntry of recent){
@@ -267,23 +265,6 @@ export function renderLogPanel(){
       redoBtn.addEventListener('click', () => applyLogEntryDirection(logEntry, 'redo'));
       actions.appendChild(undoBtn);
       actions.appendChild(redoBtn);
-      if (logEntry.type === 'merge' || logEntry.type === 'void'){
-        const retroBtn = document.createElement('button');
-        retroBtn.textContent = '⤵ Apply to disabled images';
-        retroBtn.title = 'Replay just this task against currently disabled images that still have the affected tags';
-        retroBtn.addEventListener('click', () => {
-          const result = retroApplyToDisabledRef(logEntry);
-          if (result.reason === 'no-data'){
-            toast('This entry predates retroactive apply and has no tag data recorded — nothing to replay.');
-          } else if (result.count === 0){
-            toast('No disabled images still have the affected tag(s) — nothing to change.');
-          } else {
-            toast(`Caught up ${result.count} disabled image(s) to match this task.`);
-          }
-          renderLogPanel();
-        });
-        actions.appendChild(retroBtn);
-      }
       row.appendChild(actions);
     } else if (MOVE_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length){
       const actions = document.createElement('div');
@@ -342,26 +323,6 @@ export function initEditLog(deps){
   refreshAllUIRef = deps.refreshAllUI;
   getUndoStack = deps.getUndoStack;
   getRedoStack = deps.getRedoStack;
-  retroApplyToDisabledRef = deps.retroApplyToDisabled;
-  retroApplyAllToDisabledRef = deps.retroApplyAllToDisabled;
-
-  btnRetroApplyAll.addEventListener('click', async () => {
-    const mergeVoidCount = editLog.filter(le => (le.type === 'merge' || le.type === 'void') && !le.retro).length;
-    if (mergeVoidCount === 0){ toast('No past merges or voids logged yet for this folder.'); return; }
-    const ok = await showConfirmModal(
-      `Replay all ${mergeVoidCount} past merge/void task(s), in order, against currently disabled images that still have the affected tags?`,
-      { okLabel: 'Apply to disabled images' }
-    );
-    if (!ok) return;
-    const result = retroApplyAllToDisabledRef();
-    if (result.totalTasks === 0){
-      toast('Every disabled image already matches its logged history — nothing to catch up.');
-    } else {
-      toast(`Caught up ${result.totalImages} disabled image edit(s) across ${result.totalTasks} task(s).`, 4000);
-    }
-    renderLogPanel();
-  });
-
   statsViewPie.addEventListener('click', () => { statsChartMode = 'pie'; statsViewPie.classList.add('active'); statsViewBar.classList.remove('active'); renderStatsTab(); });
   statsViewBar.addEventListener('click', () => { statsChartMode = 'bar'; statsViewBar.classList.add('active'); statsViewPie.classList.remove('active'); renderStatsTab(); });
 

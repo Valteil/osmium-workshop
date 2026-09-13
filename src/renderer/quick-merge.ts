@@ -7,7 +7,8 @@
 // reads a summary back from, the same signal-return pattern used by
 // themes.ts's toggleDayNightMode().
 // @ts-nocheck
-import { quickMergeList, btnQuickMergeApply } from './dom';
+import { quickMergeList, btnQuickMergeApply, quickMergeFamiliesList } from './dom';
+import { escapeHtml } from './shared-ui';
 
 export let quickMergeGroups = [];
 export let quickMergeSelection = new Map();
@@ -97,6 +98,54 @@ export function renderQuickMergeList(){
   btnQuickMergeApply.style.display = '';
 }
 
+// Groups tags that share a common word — same grouping logic as the left
+// sidebar's "Keyword family" sort mode (tag-index.ts), reused here as a
+// read-only reference view: unlike the spelling-variant groups above,
+// these tags aren't the same thing and shouldn't be auto-merged, but
+// surfacing them right next to Quick Merge helps a user spot ones worth
+// merging/unifying manually (e.g. via the Tag Pruner) without switching
+// tabs. Clicking a tag applies the same contains-filter the sidebar uses.
+export function scanKeywordFamilies(index){
+  const families = new Map(); // word -> [tag,...]
+  for (const [tag] of index){
+    const words = Array.from(new Set(tag.split(' ').filter(Boolean)));
+    for (const w of words){
+      if (!families.has(w)) families.set(w, []);
+      if (!families.get(w).includes(tag)) families.get(w).push(tag);
+    }
+  }
+  let familyList = Array.from(families.entries()).filter(([,tags]) => tags.length >= 2);
+  familyList.sort((a, b) => b[1].length - a[1].length);
+  for (const [, tags] of familyList) tags.sort((a, b) => a.localeCompare(b));
+  return familyList;
+}
+
+export function renderQuickMergeFamiliesList(index, onTagClick){
+  quickMergeFamiliesList.innerHTML = '';
+  const familyList = scanKeywordFamilies(index);
+  if (familyList.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'stats-empty';
+    empty.textContent = 'No tags share a common word yet.';
+    quickMergeFamiliesList.appendChild(empty);
+    return;
+  }
+  for (const [word, tags] of familyList){
+    const header = document.createElement('div');
+    header.className = 'freq-family-header';
+    header.style.cursor = 'default';
+    header.textContent = `— ${word} (${tags.length}) —`;
+    quickMergeFamiliesList.appendChild(header);
+    for (const tag of tags){
+      const row = document.createElement('div');
+      row.className = 'freq-row';
+      row.innerHTML = `<span>${escapeHtml(tag)}</span><span class="n">${index.get(tag).size}</span>`;
+      row.addEventListener('click', () => onTagClick(tag));
+      quickMergeFamiliesList.appendChild(row);
+    }
+  }
+}
+
 export function runQuickMergeScan(index){
   quickMergeGroups = scanTagVariants(index);
   quickMergeSelection = new Map();
@@ -127,7 +176,7 @@ export function applyQuickMerge(entries, includeDisabled, markDirty){
     if (variantSet.size === 0) continue;
     mergedVariants += variantSet.size;
     for (const e of entries){
-      if (e.disabled && !includeDisabled) continue;
+      if (e.meta.locked || (e.disabled && !includeDisabled)) continue;
       const hasAny = e.tags.some(t => variantSet.has(t));
       if (!hasAny) continue;
       if (!affectedMap.has(e.base)) affectedMap.set(e.base, { base: e.base, prevTags: e.tags.slice(), newTags: null });

@@ -1,0 +1,960 @@
+{
+  "1": {
+    "inputs": {
+      "delimiter": ", ",
+      "clean_whitespace": "true",
+      "text_a": [
+        "5",
+        0
+      ],
+      "text_b": [
+        "4",
+        0
+      ],
+      "text_c": [
+        "3",
+        0
+      ],
+      "text_d": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "Final"
+    }
+  },
+  "2": {
+    "inputs": {
+      "delimiter": ", ",
+      "clean_whitespace": "true",
+      "text_a": [
+        "10",
+        0
+      ],
+      "text_b": [
+        "13",
+        0
+      ],
+      "text_c": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "Merger 4"
+    }
+  },
+  "3": {
+    "inputs": {
+      "delimiter": ", ",
+      "clean_whitespace": "true",
+      "text_a": [
+        "6",
+        0
+      ],
+      "text_b": [
+        "20",
+        0
+      ],
+      "text_c": [
+        "14",
+        0
+      ],
+      "text_d": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "Merger 3"
+    }
+  },
+  "4": {
+    "inputs": {
+      "delimiter": ", ",
+      "clean_whitespace": "true",
+      "text_a": [
+        "12",
+        0
+      ],
+      "text_b": [
+        "15",
+        0
+      ],
+      "text_c": [
+        "18",
+        0
+      ],
+      "text_d": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "Merger 2"
+    }
+  },
+  "5": {
+    "inputs": {
+      "delimiter": ", ",
+      "clean_whitespace": "true",
+      "text_a": [
+        "21",
+        0
+      ],
+      "text_b": [
+        "8",
+        0
+      ],
+      "text_c": [
+        "19",
+        0
+      ],
+      "text_d": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "Merger 1"
+    }
+  },
+  "6": {
+    "inputs": {
+      "value": "black shrug (clothing), juliet sleeves, sleeves past fingers, "
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Clothes 9"
+    }
+  },
+  "7": {
+    "inputs": {
+      "value": "looking at viewer, standing "
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Pose 12"
+    }
+  },
+  "8": {
+    "inputs": {
+      "value": "safe"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Rating 2"
+    }
+  },
+  "9": {
+    "inputs": {
+      "value": "slim legs, slim, low wings, black wings, single spade tail, feet, barefoot, five toes"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Body 8"
+    }
+  },
+  "10": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Text 13"
+    }
+  },
+  "11": {
+    "inputs": {
+      "value": "Fam1Fam1"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Character 4"
+    }
+  },
+  "12": {
+    "inputs": {
+      "value": "white hair, hair between eyes, blunt bangs, pointy ears"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Hair 5"
+    }
+  },
+  "13": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Effects 14"
+    }
+  },
+  "14": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Sexual 11"
+    }
+  },
+  "15": {
+    "inputs": {
+      "value": "red eyes, white pupils, white eyelashes, annoyed expression, parted lips"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Face 6"
+    }
+  },
+  "16": {
+    "inputs": {
+      "text": "censored, blank censor, extra fingers, from front, six fingers, signature, username, logo, watermark, e621, ambiguous form, anthropomorphic, cropped, text",
+      "clip": [
+        "249",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative"
+    }
+  },
+  "17": {
+    "inputs": {
+      "value": "from front, white background"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Scene 15"
+    }
+  },
+  "18": {
+    "inputs": {
+      "value": "flat chest"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Chest 7"
+    }
+  },
+  "19": {
+    "inputs": {
+      "value": "1girl"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Character Count 3"
+    }
+  },
+  "20": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Limbs and Hands 10"
+    }
+  },
+  "21": {
+    "inputs": {
+      "value": "@daioo"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Global 1"
+    }
+  },
+  "22": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Whole Prompt"
+    }
+  },
+  "23": {
+    "inputs": {
+      "source": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Merged Prompt"
+    }
+  },
+  "28": {
+    "inputs": {
+      "text": [
+        "32",
+        0
+      ],
+      "sub_text": "explicit",
+      "case_insensitive": true
+    },
+    "class_type": "Text Contains",
+    "_meta": {
+      "title": "Rating Checker Param"
+    }
+  },
+  "32": {
+    "inputs": {
+      "select": [
+        "39",
+        0
+      ],
+      "sel_mode": false,
+      "input1": [
+        "23",
+        0
+      ],
+      "input2": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "ImpactSwitch",
+    "_meta": {
+      "title": "Prompt Sourcer"
+    }
+  },
+  "35": {
+    "inputs": {
+      "text_a": [
+        "36",
+        0
+      ],
+      "text_b": [
+        "36",
+        1
+      ],
+      "boolean": [
+        "28",
+        0
+      ]
+    },
+    "class_type": "Text Input Switch",
+    "_meta": {
+      "title": "Text Input Switch"
+    }
+  },
+  "36": {
+    "inputs": {
+      "text": "explicit",
+      "text_b": "safe",
+      "text_c": "",
+      "text_d": ""
+    },
+    "class_type": "Text String",
+    "_meta": {
+      "title": "Rating Checker"
+    }
+  },
+  "37": {
+    "inputs": {
+      "delimiter": "/",
+      "clean_whitespace": "true",
+      "text_a": [
+        "35",
+        0
+      ],
+      "text_b": [
+        "203",
+        0
+      ],
+      "text_c": [
+        "38",
+        2
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "File Namer"
+    }
+  },
+  "38": {
+    "inputs": {
+      "lora_name": [
+        "51",
+        0
+      ],
+      "strength_model": 1,
+      "strength_clip": 1,
+      "model": [
+        "41",
+        0
+      ],
+      "clip": [
+        "47:45",
+        0
+      ]
+    },
+    "class_type": "Lora Loader",
+    "_meta": {
+      "title": "Main LORA"
+    }
+  },
+  "39": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "1 = Green Prompt 2 = Blue Prompt"
+    }
+  },
+  "41": {
+    "inputs": {
+      "unet_name": "JANIMA_v10.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "49": {
+    "inputs": {
+      "anything": [
+        "47:45",
+        0
+      ],
+      "anything11": [
+        "47:46",
+        0
+      ]
+    },
+    "class_type": "Anything Everywhere",
+    "_meta": {
+      "title": "GLOBAL INPUT"
+    }
+  },
+  "51": {
+    "inputs": {
+      "lora_name": "Anima\\ANIMA - Daioo - @daioo.safetensors"
+    },
+    "class_type": "easy loraNames",
+    "_meta": {
+      "title": "MAIN LORA"
+    }
+  },
+  "52": {
+    "inputs": {
+      "text": [
+        "32",
+        0
+      ],
+      "clip": [
+        "47:45",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive"
+    }
+  },
+  "164": {
+    "inputs": {
+      "noise": [
+        "165",
+        0
+      ],
+      "guider": [
+        "158:54",
+        0
+      ],
+      "sampler": [
+        "169",
+        0
+      ],
+      "sigmas": [
+        "158:53",
+        0
+      ],
+      "latent_image": [
+        "170",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "165": {
+    "inputs": {
+      "noise_seed": 15
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "Seed"
+    }
+  },
+  "169": {
+    "inputs": {
+      "select": 2,
+      "sel_mode": false,
+      "input1": [
+        "168:166",
+        0
+      ],
+      "input2": [
+        "168:167",
+        0
+      ]
+    },
+    "class_type": "ImpactSwitch",
+    "_meta": {
+      "title": "1 = EA , 2 = ESDE"
+    }
+  },
+  "170": {
+    "inputs": {
+      "width": [
+        "174:171",
+        0
+      ],
+      "height": [
+        "174:172",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "173": {
+    "inputs": {
+      "value": "Green = Important Inputs\nPurple = Stylistic Inputs\nYellow = Switches and Variable\n"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "LEGEND"
+    }
+  },
+  "176": {
+    "inputs": {
+      "samples": [
+        "164",
+        0
+      ],
+      "vae": [
+        "47:46",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "190": {
+    "inputs": {
+      "noise": [
+        "227",
+        0
+      ],
+      "guider": [
+        "158:54",
+        0
+      ],
+      "sampler": [
+        "169",
+        0
+      ],
+      "sigmas": [
+        "195",
+        0
+      ],
+      "latent_image": [
+        "164",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "191": {
+    "inputs": {
+      "samples": [
+        "190",
+        0
+      ],
+      "vae": [
+        "47:46",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "192": {
+    "inputs": {
+      "filename_prefix": [
+        "207",
+        0
+      ],
+      "images": [
+        "191",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "No Upscale"
+    }
+  },
+  "193": {
+    "inputs": {
+      "images": [
+        "176",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "1Pass Result"
+    }
+  },
+  "195": {
+    "inputs": {
+      "scheduler": "beta",
+      "steps": 15,
+      "denoise": 0.6,
+      "model": [
+        "237",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "2Pass Parameters"
+    }
+  },
+  "203": {
+    "inputs": {
+      "text": [
+        "32",
+        0
+      ],
+      "escape_parentheses": false,
+      "fallback": ""
+    },
+    "class_type": "DanbooruCharacterDetect",
+    "_meta": {
+      "title": "Danbooru Character Detect"
+    }
+  },
+  "207": {
+    "inputs": {
+      "source": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "This will be the path of the output"
+    }
+  },
+  "212": {
+    "inputs": {
+      "category": "all",
+      "search": "",
+      "tag": "1girl",
+      "definition": "An image containing one female character.\n\nOnly living characters who are visibly present count towards this tag. Inanimate objects, such as dolls, figures, paintings, s, etc, or offscreen characters who aren't visibly present, don't count towards this tag.\n\nMale characters may also be present in addition to the female character. See solo for images containing a single character.\n\nExamples\n\n!post #8659492: 1girl solo\n!post #5501779: 1girl with 1boy\n\nSee also\n\ntag group:character count\n1boy\n1other\n2girls\n3girls\n4girls\n5girls\n6+girls\nmultiple girls\nmultiple views\nsolo / solo focus"
+    },
+    "class_type": "DanbooruTagLookup",
+    "_meta": {
+      "title": "Danbooru Tag Lookup"
+    }
+  },
+  "222": {
+    "inputs": {
+      "delimiter": "/",
+      "clean_whitespace": "true",
+      "text_a": [
+        "35",
+        0
+      ],
+      "text_b": [
+        "203",
+        0
+      ],
+      "text_d": [
+        "38",
+        2
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "File Namer 4 Upscaler"
+    }
+  },
+  "224": {
+    "inputs": {
+      "images": [
+        "191",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Unscaled Result"
+    }
+  },
+  "227": {
+    "inputs": {
+      "noise_seed": 15
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "2Pass Seed"
+    }
+  },
+  "237": {
+    "inputs": {
+      "lora_01": "Anima\\ANIMA - Lighting Slider.safetensors",
+      "strength_01": 1,
+      "lora_02": "Anima\\ANIMA - FamiOC - Fam1Fam1.safetensors",
+      "strength_02": 0.8,
+      "lora_03": "None",
+      "strength_03": 0,
+      "lora_04": "None",
+      "strength_04": 0,
+      "model": [
+        "248",
+        0
+      ],
+      "clip": [
+        "47:45",
+        0
+      ]
+    },
+    "class_type": "Lora Loader Stack (rgthree)",
+    "_meta": {
+      "title": "Lora Loader Stack (rgthree)"
+    }
+  },
+  "238": {
+    "inputs": {
+      "measurement": "pixels",
+      "width": [
+        "174:171",
+        0
+      ],
+      "height": [
+        "174:172",
+        0
+      ],
+      "fit": "pad",
+      "method": "lanczos",
+      "image": [
+        "239",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "Image Resize (rgthree)"
+    }
+  },
+  "239": {
+    "inputs": {
+      "image": "1934f5ce-3f50-418a-8d6d-88a339b2dc29.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "240": {
+    "inputs": {
+      "lllite_name": "anima-lllite-any-test-like-v2.safetensors",
+      "strength": 1,
+      "start_percent": 0,
+      "end_percent": 0.3,
+      "preserve_wrapper": true,
+      "model": [
+        "237",
+        0
+      ],
+      "image": [
+        "239",
+        0
+      ]
+    },
+    "class_type": "AnimaLLLiteApply_sdscripts",
+    "_meta": {
+      "title": "Apply Anima ControlNet-LLLite (sd-scripts)"
+    }
+  },
+  "243": {
+    "inputs": {
+      "select": 2,
+      "sel_mode": false,
+      "input1": [
+        "237",
+        0
+      ],
+      "input2": [
+        "240",
+        0
+      ]
+    },
+    "class_type": "ImpactSwitch",
+    "_meta": {
+      "title": "1 = Base 2 = CNET"
+    }
+  },
+  "246": {
+    "inputs": {
+      "images": [
+        "238",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "248": {
+    "inputs": {
+      "lora_name": [
+        "51",
+        0
+      ],
+      "strength_model": 1,
+      "model": [
+        "41",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "249": {
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "47:45": {
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "47:46": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "168:166": {
+    "inputs": {
+      "sampler_name": "sa_solver_pece"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "168:167": {
+    "inputs": {
+      "sampler_name": "res_multistep"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "174:171": {
+    "inputs": {
+      "value": 920
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Width"
+    }
+  },
+  "174:172": {
+    "inputs": {
+      "value": 1244
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Height"
+    }
+  },
+  "158:53": {
+    "inputs": {
+      "scheduler": "beta",
+      "steps": 25,
+      "denoise": 1,
+      "model": [
+        "243",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "158:54": {
+    "inputs": {
+      "cfg": 4.035552978515625,
+      "model": [
+        "243",
+        0
+      ],
+      "positive": [
+        "52",
+        0
+      ],
+      "negative": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "CFG Guider"
+    }
+  }
+}

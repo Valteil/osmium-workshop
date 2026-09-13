@@ -6,10 +6,11 @@
 // are injected once via initTagsEdit() rather than imported, since index.ts's
 // IIFE can't export them.
 // @ts-nocheck
-import { btnUndo, btnRedo, btnApplyUnify, btnVoidSelected, unifiedTagInput, btnSave, dirtyCountEl, includeDisabledToggle } from './dom';
+import { btnUndo, btnRedo, btnApplyUnify, btnVoidSelected, unifiedTagInput, btnSave, dirtyCountEl, includeDisabledToggle, autosaveToggle } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, checkVoidThemeAchievements, folderStats, saveFolderStats } from './achievements';
 import { pushLogEntry, editLog } from './edit-log';
+import { applyCanonicalRules, registerMergeRule, registerVoidRule, findBlockingRule, saveCanonicalRules } from './canonical-tags';
 
 export let undoStack = []; // [{type, summary, affected:[{base,prevTags,newTags}]}]
 export let redoStack = [];
@@ -20,20 +21,83 @@ let getEntryByBase = () => undefined;
 let getDirHandle = () => null;
 let getDisabledDirHandle = () => null;
 let setDisabledDirHandle = () => {};
+let getUnsavedApprovedDirHandle = () => null;
+let setUnsavedApprovedDirHandle = () => {};
 let resetSingleIndex = () => {};
 let refreshStatsRef = () => {};
 let refreshAllUIRef = () => {};
 let renderCurrentViewRef = () => {};
 
+// ---------------- Autosave ----------------
+// Off by default. When on, every markDirty() schedules a debounced
+// saveAllDirty(silent) a moment after the user stops editing, instead of
+// waiting for a manual Save click — safe to rely on since every change is
+// already in the Edit Log with its own undo regardless of whether the
+// underlying .txt has been physically written yet (see Settings' own
+// wording for this toggle).
+const AUTOSAVE_KEY = 'dts-autosave';
+(function initAutosavePref(){
+  let on = false;
+  try { on = localStorage.getItem(AUTOSAVE_KEY) === '1'; } catch(e){}
+  autosaveToggle.checked = on;
+})();
+autosaveToggle.addEventListener('change', () => {
+  try { localStorage.setItem(AUTOSAVE_KEY, autosaveToggle.checked ? '1' : '0'); } catch(e){}
+});
+let autosaveTimer = null;
+const AUTOSAVE_DEBOUNCE_MS = 1200;
+function scheduleAutosave(){
+  if (!autosaveToggle.checked) return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => { saveAllDirty(true); }, AUTOSAVE_DEBOUNCE_MS);
+}
+
 export function markDirty(entry){
+  // Every tag-mutating action in the app — add/remove, Quick Merge, Unify/
+  // Void, Master Tags, WD14, undo/redo — calls markDirty() right after
+  // changing entry.tags, making this THE single funnel point where the
+  // Retroactive Merge/Void dock's standing rules (canonical-tags.ts) can
+  // catch a child tag showing up "by any means" and rewrite it, without
+  // needing a call threaded into every one of those sites individually.
+  applyCanonicalRules(entry);
   entry.dirty = true;
+  updateDirtyUI();
+  scheduleAutosave();
+}
+
+// Whether the Retroactive Merge/Void dock's rules file
+// (_dts_canonical_tags.json) has changes not yet written to disk. Rule edits
+// used to save immediately on every toggle, bypassing the app's own Save/
+// autosave system entirely — now they're a dirty action like any tag edit:
+// markRulesDirty() (called from canonical-tags.ts via the same deps-injection
+// pattern as markDirty above, since that module can't import this one back)
+// just flags it and folds into the SAME dirty indicator, Save button, and
+// autosave debounce as everything else, actually persisted by saveAllDirty()
+// below.
+export let rulesDirty = false;
+export function markRulesDirty(){
+  rulesDirty = true;
+  updateDirtyUI();
+  scheduleAutosave();
+}
+// Called from index.ts right after loadCanonicalRulesForFolder() (folder
+// load/unload) — that call replaces `canonicalRules` wholesale with the new
+// dataset's own (already-saved) rules, so any pending rulesDirty from the
+// PREVIOUS dataset (e.g. the user chose "switch anyway" and discarded it)
+// must not linger and misrepresent the new dataset's actual save state.
+export function resetRulesDirty(){
+  rulesDirty = false;
   updateDirtyUI();
 }
 
 export function updateDirtyUI(){
   const dirtyCount = getEntries().filter(e=>e.dirty).length;
-  dirtyCountEl.textContent = `(${dirtyCount})`;
-  btnSave.disabled = dirtyCount === 0;
+  let label;
+  if (rulesDirty && dirtyCount > 0) label = `(${dirtyCount} + rules)`;
+  else if (rulesDirty) label = '(rules)';
+  else label = `(${dirtyCount})`;
+  dirtyCountEl.textContent = label;
+  btnSave.disabled = dirtyCount === 0 && !rulesDirty;
 }
 
 export function resetImageEdits(entry){
@@ -56,6 +120,17 @@ export function resetImageEdits(entry){
 export function addTagToEntry(entry, tag){
   tag = tag.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
   if (!tag) return;
+  // A standing Retroactive Merge/Void rule affecting this exact tag on this
+  // exact entry (respecting that rule's own enabled/child-toggle state and
+  // this entry's Merge Immunize/Antivoid flags) blocks the add outright
+  // instead of silently rewriting it after the fact — typing a tag by hand
+  // is a deliberate action, and swapping in something else the user didn't
+  // type is more confusing than just saying no. Typing the rule's own
+  // canonical tag is never blocked (see findBlockingRule()'s own comment).
+  if (findBlockingRule(tag, entry)){
+    toast('This tag is affected by a merge/void rule; please check the dock area for details.', 3600);
+    return;
+  }
   if (!entry.tags.includes(tag)){
     const prevTags = entry.tags.slice();
     entry.tags.push(tag);
@@ -124,12 +199,66 @@ async function ensureDisabledDir(){
   return disabledDirHandle;
 }
 
+// SynthDat Overseer's "accept" staging folder — an accepted-but-not-yet-saved
+// image lives here (not the dataset root) for its entire dirty lifetime, so
+// the generated file itself survives a crash/close-without-saving even
+// though its tags (memory-only until saved, like any dirty entry) don't.
+// promotePendingApproval() below moves it into the root once actually saved.
+export async function ensureUnsavedApprovedDir(){
+  let h = getUnsavedApprovedDirHandle();
+  if (!h){
+    h = await getDirHandle().getDirectoryHandle('Unsaved Approved', { create: true });
+    setUnsavedApprovedDirHandle(h);
+  }
+  return h;
+}
+
+// Moves a still-pending (never-saved) entry out of Unsaved Approved/ and
+// into the dataset root, writing its CURRENT in-memory tags for the first
+// time — this is what "saving" actually means for one of these, since it
+// never had a .txt file (or a root-folder home) until now. Called from
+// saveAllDirty() instead of that function's normal in-place write.
+async function promotePendingApproval(entry){
+  const dirHandle = getDirHandle();
+  if (!dirHandle) return false;
+  try {
+    const stagingDir = getUnsavedApprovedDirHandle();
+    const file = await entry.imgHandle.getFile();
+    const newImgHandle = await dirHandle.getFileHandle(entry.imgName, { create: true });
+    const iw = await newImgHandle.createWritable();
+    await iw.write(file);
+    await iw.close();
+
+    const newTxtHandle = await dirHandle.getFileHandle(entry.txtName, { create: true });
+    const tw = await newTxtHandle.createWritable();
+    await tw.write(entry.tags.join(', '));
+    await tw.close();
+
+    if (stagingDir){
+      try { await stagingDir.removeEntry(entry.imgName); } catch(e){}
+      try { await stagingDir.removeEntry(entry.txtName); } catch(e){}
+    }
+    entry.imgHandle = newImgHandle;
+    entry.txtHandle = newTxtHandle;
+    entry.txtExisted = true;
+    entry.pendingApproval = false;
+    entry.dirty = false;
+    return true;
+  } catch(err){
+    return false;
+  }
+}
+
 export async function moveEntry(entry, toDisabled){
   const dirHandle = getDirHandle();
   if (!dirHandle) return;
   try {
     const targetDir = toDisabled ? await ensureDisabledDir() : dirHandle;
-    const sourceDir = toDisabled ? dirHandle : getDisabledDirHandle();
+    // A still-pending entry's CURRENT location is Unsaved Approved/, not the
+    // root, regardless of which direction it's being moved (this only
+    // happens if the user manually disables/restores it via the 3-dot menu
+    // before it was ever saved/promoted).
+    const sourceDir = entry.pendingApproval ? getUnsavedApprovedDirHandle() : (toDisabled ? dirHandle : getDisabledDirHandle());
 
     const file = await entry.imgHandle.getFile();
     const newImgHandle = await targetDir.getFileHandle(entry.imgName, { create: true });
@@ -157,6 +286,7 @@ export async function moveEntry(entry, toDisabled){
 
     entry.dirty = false;
     entry.disabled = toDisabled;
+    entry.pendingApproval = false;
 
     toast(toDisabled
       ? `Moved "${entry.imgName}" to Disabled/. Filename kept as-is, so restoring slots it right back in.`
@@ -180,56 +310,11 @@ export async function moveEntry(entry, toDisabled){
   }
 }
 
-// ---------------- Retroactive merge/void (catch up disabled images) ----------------
-//
-// A merge or void applied while an image was disabled (and "Also apply to
-// disabled images" wasn't checked) never touched that image's tags. These
-// let the user catch specific disabled images up later, either by replaying
-// one past merge/void log entry or by replaying all of them in original order.
-
-export function retroApplyToDisabled(logEntry){
-  if (logEntry.type !== 'merge' && logEntry.type !== 'void') return { count: 0, reason: 'unsupported' };
-  const targetTags = logEntry.type === 'merge' ? logEntry.mergedTags : logEntry.voidedTags;
-  if (!targetTags || targetTags.length === 0) return { count: 0, reason: 'no-data' };
-
-  const affected = [];
-  for (const e of getEntries()){
-    if (!e.disabled) continue;
-    const hasAny = e.tags.some(t => targetTags.includes(t));
-    if (!hasAny) continue;
-    const prevTags = e.tags.slice();
-    let newTags = e.tags.filter(t => !targetTags.includes(t));
-    if (logEntry.type === 'merge' && logEntry.unifiedTag && !newTags.includes(logEntry.unifiedTag)){
-      newTags.push(logEntry.unifiedTag);
-    }
-    e.tags = newTags;
-    markDirty(e);
-    affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
-  }
-  if (affected.length === 0) return { count: 0, reason: 'no-match' };
-
-  const verb = logEntry.type === 'merge' ? 'Retroactively merged' : 'Retroactively voided';
-  const summary = `${verb} (replaying log #${logEntry.id}) on ${affected.length} disabled image(s): ${logEntry.summary}`;
-  const extra = logEntry.type === 'merge'
-    ? { mergedTags: targetTags, unifiedTag: logEntry.unifiedTag, retro: true }
-    : { voidedTags: targetTags, retro: true };
-  recordChange(logEntry.type, summary, affected, extra);
-  trackStat(logEntry.type === 'merge' ? 'merges' : 'voids');
-  refreshStatsRef();
-  refreshAllUIRef();
-  checkAchievements();
-  return { count: affected.length };
-}
-
-export function retroApplyAllToDisabled(){
-  const candidates = editLog.filter(le => (le.type === 'merge' || le.type === 'void') && !le.retro);
-  let totalImages = 0, totalTasks = 0;
-  for (const logEntry of candidates){
-    const result = retroApplyToDisabled(logEntry);
-    if (result.count > 0){ totalImages += result.count; totalTasks++; }
-  }
-  return { totalImages, totalTasks, consideredTasks: candidates.length };
-}
+// Retroactive merge/void catch-up (checkbox-driven, per-log-entry replay)
+// was replaced by canonical-tags.ts's standing-rules dock — see its own
+// header comment for why (this old system gave no visibility into what it
+// was actually doing, and only caught up Disabled images retroactively at
+// all if the user remembered to go find and click a replay button).
 
 export function initTagsEdit(deps){
   selectedTagsRef = deps.selectedTags;
@@ -238,6 +323,8 @@ export function initTagsEdit(deps){
   getDirHandle = deps.getDirHandle;
   getDisabledDirHandle = deps.getDisabledDirHandle;
   setDisabledDirHandle = deps.setDisabledDirHandle;
+  getUnsavedApprovedDirHandle = deps.getUnsavedApprovedDirHandle;
+  setUnsavedApprovedDirHandle = deps.setUnsavedApprovedDirHandle;
   resetSingleIndex = deps.resetSingleIndex;
   refreshStatsRef = deps.refreshStats;
   refreshAllUIRef = deps.refreshAllUI;
@@ -284,7 +371,7 @@ export function initTagsEdit(deps){
 
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled && !includeDisabledToggle.checked) continue;
+      if (e.meta.locked || (e.disabled && !includeDisabledToggle.checked)) continue;
       const hasAny = e.tags.some(t => selectedTagsRef.has(t));
       if (!hasAny) continue;
       const prevTags = e.tags.slice();
@@ -300,6 +387,10 @@ export function initTagsEdit(deps){
     toast(mergeSummary);
     recordChange('merge', mergeSummary, affected, { mergedTags: mergedTagsList, unifiedTag: unified });
     trackStat('merges');
+    // Turns this one-off merge into a standing rule — see canonical-tags.ts.
+    // Its own resweep also catches any Disabled image the loop above skipped
+    // (e.g. "Also apply to Disabled images right now" was left unchecked).
+    registerMergeRule(mergedTagsList, unified);
     selectedTagsRef.clear();
     unifiedTagInput.value = '';
     refreshAllUIRef();
@@ -325,7 +416,7 @@ export function initTagsEdit(deps){
     const affected = [];
     let voidedTagInstances = 0;
     for (const e of getEntries()){
-      if (e.disabled && !includeDisabledToggle.checked) continue;
+      if (e.meta.locked || (e.disabled && !includeDisabledToggle.checked)) continue;
       const hasAny = e.tags.some(t => selectedTagsRef.has(t));
       if (!hasAny) continue;
       const prevTags = e.tags.slice();
@@ -342,40 +433,64 @@ export function initTagsEdit(deps){
     trackStat('voids');
     trackStat('voided_tag_instances', voidedTagInstances);
     checkVoidThemeAchievements(tagList, voidedTagInstances);
+    // Turns this one-off void into a standing rule — see canonical-tags.ts.
+    registerVoidRule(tagList);
     selectedTagsRef.clear();
     refreshAllUIRef();
     checkAchievements();
   });
 
-  btnSave.addEventListener('click', async () => {
-    const dirHandle = getDirHandle();
-    const disabledDirHandle = getDisabledDirHandle();
-    const dirty = getEntries().filter(e => e.dirty);
-    if (dirty.length === 0) return;
-    let ok = 0, fail = 0;
-    for (const e of dirty){
-      try {
-        const targetDir = e.disabled ? disabledDirHandle : dirHandle;
-        if (!targetDir) { fail++; continue; }
-        if (!e.txtHandle){
-          e.txtHandle = await targetDir.getFileHandle(e.txtName, { create: true });
-        }
-        const writable = await e.txtHandle.createWritable();
-        await writable.write(e.tags.join(', '));
-        await writable.close();
-        e.dirty = false;
-        e.txtExisted = true;
-        ok++;
-      } catch(err){
-        fail++;
+  btnSave.addEventListener('click', () => saveAllDirty());
+}
+
+// Extracted from btnSave's own click handler so autosave (settings.ts) can
+// call the exact same logic programmatically instead of dispatching a fake
+// click. `silent` skips the toast — autosave firing after every keystroke-
+// driven edit would otherwise spam one every time, unlike a deliberate
+// manual Save click.
+export async function saveAllDirty(silent = false){
+  const dirHandle = getDirHandle();
+  const disabledDirHandle = getDisabledDirHandle();
+  const dirty = getEntries().filter(e => e.dirty);
+  if (dirty.length === 0 && !rulesDirty) return;
+  let ok = 0, fail = 0;
+  if (rulesDirty){
+    await saveCanonicalRules();
+    rulesDirty = false;
+  }
+  for (const e of dirty){
+    try {
+      if (e.pendingApproval){
+        // Never had a .txt or a root-folder home — "saving" it means moving
+        // it out of Unsaved Approved/ into the root for the first time, not
+        // an in-place write (see promotePendingApproval()).
+        if (await promotePendingApproval(e)) ok++; else fail++;
+        continue;
       }
+      const targetDir = e.disabled ? disabledDirHandle : dirHandle;
+      if (!targetDir) { fail++; continue; }
+      if (!e.txtHandle){
+        e.txtHandle = await targetDir.getFileHandle(e.txtName, { create: true });
+      }
+      const writable = await e.txtHandle.createWritable();
+      await writable.write(e.tags.join(', '));
+      await writable.close();
+      e.dirty = false;
+      e.txtExisted = true;
+      ok++;
+    } catch(err){
+      fail++;
     }
-    updateDirtyUI();
-    renderCurrentViewRef();
-    if (ok > 0){
-      trackStat('saves');
-      checkAchievements();
-    }
-    toast(fail === 0 ? `Saved ${ok} caption file(s).` : `Saved ${ok}, failed ${fail}. Check folder permissions.`, 3400);
-  });
+  }
+  updateDirtyUI();
+  renderCurrentViewRef();
+  if (ok > 0){
+    trackStat('saves');
+    checkAchievements();
+  }
+  if (!silent){
+    const savedParts = [];
+    if (ok > 0 || fail > 0) savedParts.push(fail === 0 ? `${ok} caption file(s)` : `${ok} caption file(s), failed ${fail}`);
+    toast(savedParts.length ? `Saved ${savedParts.join(' and ')}.` : 'Saved Retroactive Merge/Void rule changes.', 3400);
+  }
 }

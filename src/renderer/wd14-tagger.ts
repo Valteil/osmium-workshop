@@ -106,7 +106,7 @@ function readSettingsFromUI(){
 // left in place unless replace_underscore was on. This app's tag storage is
 // always space-separated, one-way (see CLAUDE.md Data Flow) — so normalize
 // here unconditionally, independent of that ComfyUI-side setting.
-function parseWd14Tags(tagsCsv){
+export function parseWd14Tags(tagsCsv){
   if (!tagsCsv) return [];
   return tagsCsv
     .split(',')
@@ -316,7 +316,7 @@ export function initWd14Tagger(deps){
 
   btnWd14TagSelected.addEventListener('click', () => {
     if (running) { cancelRequested = true; return; }
-    const entries = getEntries().filter(e => masterSelectedImages.has(e.base) && !e.disabled);
+    const entries = getEntries().filter(e => masterSelectedImages.has(e.base) && !e.disabled && !e.meta.locked);
     runBatch(entries);
   });
 }

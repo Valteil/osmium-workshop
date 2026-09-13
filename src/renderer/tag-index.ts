@@ -214,10 +214,12 @@ export function filteredEntries(){
 
 export function passesFilter(e){
   const galleryFilter = getGalleryFilter();
-  if (galleryFilter.disabledView){
+  if (galleryFilter.pendingApprovalView){
+    if (!e.pendingApproval) return false;
+  } else if (galleryFilter.disabledView){
     if (!e.disabled) return false;
   } else {
-    if (e.disabled) return false;
+    if (e.disabled || e.pendingApproval) return false;
     if (galleryFilter.base === 'untagged' && e.tags.length !== 0) return false;
     if (galleryFilter.base === 'dirty' && !e.dirty) return false;
   }

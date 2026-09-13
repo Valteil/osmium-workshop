@@ -13,7 +13,7 @@ import {
   favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel,
   themeVarRows, themeCustomPanel, themeSelect
 } from './dom';
-import { hidePanel, showPanel, toast } from './shared-ui';
+import { hidePanel, showPanel, toast, shrinkTextToFit } from './shared-ui';
 
 export const THEME_VARS = [
   ['--bg-base','Background'],
@@ -265,6 +265,10 @@ export function initThemeDropdown(container){
     const opt = themeSelect.options[themeSelect.selectedIndex];
     return (opt ? opt.textContent : themeSelect.value) + ' ▾';
   }
+  function setLabel(){
+    btn.textContent = currentLabel();
+    shrinkTextToFit(btn);
+  }
   btn.textContent = currentLabel();
   let menuEl = null;
   function onOutsideMouseDown(ev){
@@ -292,7 +296,7 @@ export function initThemeDropdown(container){
         ev.stopPropagation();
         themeSelect.value = opt.value;
         themeSelect.dispatchEvent(new Event('change'));
-        btn.textContent = currentLabel();
+        setLabel();
         menuEl.querySelectorAll('.pdrop-item').forEach(i => i.classList.remove('active'));
         item.classList.add('active');
         // Deliberately stays open, matching this app's other persistent
@@ -310,7 +314,8 @@ export function initThemeDropdown(container){
   });
   container.style.position = 'relative';
   container.appendChild(btn);
-  return { refreshLabel: () => { btn.textContent = currentLabel(); } };
+  shrinkTextToFit(btn);
+  return { refreshLabel: setLabel };
 }
 
 // Returns true iff this call just turned night mode ON — the caller is

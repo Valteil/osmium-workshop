@@ -8,6 +8,11 @@ no accounts, no telemetry.
 Built with Electron + TypeScript. Portable — unzip, run, done; nothing is installed elsewhere
 on your system.
 
+> **Note:** a Tauri-based port was attempted as a path toward Mac/Linux support, but has been
+> discontinued. Hand-translating every new Electron feature into an equivalent Rust backend
+> turned out to be too much ongoing maintenance overhead for this project — it was slowing down
+> real feature work without a payoff that justified it. This app is Electron-only going forward.
+
 ---
 
 ## Contents
@@ -64,9 +69,18 @@ place in the grid.
   any combination to feed into **Unify/Void**: merge selected tags into one name, or permanently
   delete them (confirmed, fully undoable/logged). An "Also apply to Disabled images" checkbox
   covers already-disabled images in the same action.
-- **Retroactive merge/void catch-up** (Log panel) — replay a specific past merge/void, or every
-  past one, against currently-disabled images that missed it (e.g. because they were disabled
-  before that merge ran). Per-entry "Apply to disabled images" button, or a toolbar "Apply ALL."
+- **Retroactive Merge/Void** (its own dock, gallery right sidebar) — standing rules of the shape
+  "these tags → this canonical tag" (or "→ nothing" for a void rule). Any matching tag that shows
+  up on a Gallery image afterward, by any automatic means (WD14, Master Tags, Quick Merge, an
+  accepted SynthDat image), gets auto-corrected; typing one in by hand is blocked instead, with a
+  toast pointing back at the dock. Full control over what's subject to a rule: pause a whole rule
+  or toggle one of its tags off without deleting anything — doing so actively unmerges/unvoids
+  every affected image using the edit log to restore exactly what it originally had, not just
+  stopping future correction. Per-image **Merge Immunize** / **Antivoid** / **Antimmunize**
+  (3-dot menu or Master Tag Control) permanently exempt one image from merge and/or void rules
+  regardless of the dock's own settings. Every rule change and every resulting unmerge/unvoid is
+  its own Log entry with Undo/Redo, correctly time-ordered (void → unvoid → void shows as three
+  separate rows, not one entry overwritten in place).
 - **Master Tag Control** (its own tab) — checkbox-select images in the gallery, then apply/remove
   a tag, conditionally apply one tag based on another being present, mass apply/remove across the
   whole dataset, or rename/find-and-replace. Select 2+ images and switch to Single view for an
@@ -85,6 +99,30 @@ place in the grid.
   (`_tag_edit_log.json`) — every entry has its own undo/redo, independent of the linear stack.
   **Reset image edits** reverts one image to its earliest known tag state.
 
+### WD14 Autotagger
+Sends selected image(s) — or a single image via its 3-dot menu — to a WD14 Tagger node on your own
+locally-run ComfyUI instance and merges the returned tags onto each card. Settings (host, model —
+scraped live from ComfyUI, thresholds, underscore/comma handling, exclude list) live in one
+expandable section on the Master Tag Control tab. "Apply automatically" toggles between committing
+immediately and a review modal (editable per-image tag list, skip checkbox) before anything is
+written; either way the whole batch is one undoable, logged action. The app holds no model
+itself — ComfyUI does the actual inference, over your own network only (see Security below).
+
+### SynthDat Overseer
+A dedicated tab that drives your own ComfyUI instance to generate MORE images of a character
+you've already started training a LoRA on, strong-armed into arbitrary reference poses via
+ControlNet — a way to grow a thin dataset rather than only clean up an existing one. Pick a
+reference pose image (optional — skippable for an ordinary prompted generation), WD14-interrogates
+it so you can copy just the pose tags across, fill in the rest of the prompt fields, then Generate
+(1-Pass or a 2nd refinement pass, with live preview and a Stop button). A final editable tag card
+shows exactly what will be saved, with per-tag pruning and a merge-history suggestion pulled from
+this dataset's own Retroactive Merge/Void rules. **Accept** stages the image + tags into the
+dataset's `Unsaved Approved/` folder immediately (tags are written to disk right away too, not
+left purely in-memory, so a crash before your next Save doesn't lose them) and later promotes into
+the dataset root on Save; **Reject** sends it straight to `Disabled/` like any other disabled
+image — nothing generated is ever silently discarded. Electron-only feature; see
+`ComfyUI-dependencies/` in this repo for what your ComfyUI instance needs to run its workflow.
+
 ### Wiki lookup, stats, favorites
 - **Tag Details** — Danbooru wiki definition, category, and post count for any tag (bundled data,
   lazy-loaded); write and save your own note for tags without an official entry.
@@ -99,6 +137,10 @@ place in the grid.
 - Discrete mode (blur all images, or just one) — instantly reversible.
 - Native-zoom font scaling (not CSS zoom, so it never breaks layout math).
 - Closing the app with unsaved changes prompts you properly — it will not hang.
+- **Hardware acceleration toggle** (Settings ▸ Performance) — steers this app's own UI rendering
+  onto your integrated GPU by default (still hardware-accelerated, just off the discrete one your
+  actual generation work needs), or lets you turn GPU acceleration off entirely. Takes effect on
+  next launch.
 
 ---
 
@@ -157,7 +199,8 @@ Main-process changes (`src/main.ts`) require a full quit + relaunch of the exe t
 ### Release build
 
 ```bash
-npm run dist:zip     # → Shippable/ — slow (maximum compression), only run when you actually want a release
+npm run dist:zip     # → Shippable/ — normal compression by default, only run when you actually want a release
+npm run dist:zip -- --config.compression=store   # skip compression entirely for a quick throwaway build
 ```
 
 ### Verifying a change actually works

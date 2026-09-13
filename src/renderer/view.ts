@@ -8,7 +8,7 @@
 // initView(), since index.ts's IIFE can't export them.
 // @ts-nocheck
 import {
-  viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, singlePrevBtn, singleNextBtn,
+  viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, viewPendingApprovalBtn, btnUnlockAll, singlePrevBtn, singleNextBtn,
   galleryGrid, compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
   selectionSummary, btnClearSelection, langAutoSelectToggle
@@ -23,7 +23,7 @@ import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGri
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
 
-export let viewMode = 'grid'; // 'grid' | 'compact' | 'single' | 'disabled'
+export let viewMode = 'grid'; // 'grid' | 'compact' | 'single' | 'disabled' | 'pendingApproval'
 export let stickyCompareImages = [];
 
 let singleIndex = 0;
@@ -60,10 +60,11 @@ export function renderCurrentView(){
 
 // ---------------- View mode (grid / compact / single) ----------------
 
-// Grid and Disabled share #galleryGrid (getGalleryFilter().disabledView is
-// what actually distinguishes them), so a switch between just those two never
-// needs a transition — the container never disappears/reappears.
-const VIEW_TRANSITION_ORDER = ['grid', 'compact', 'single', 'disabled'];
+// Grid, Disabled, and Unsaved Approved all share #galleryGrid
+// (getGalleryFilter().disabledView/pendingApprovalView is what actually
+// distinguishes them), so a switch between any of those three never needs a
+// transition — the container never disappears/reappears.
+const VIEW_TRANSITION_ORDER = ['grid', 'compact', 'single', 'disabled', 'pendingApproval'];
 function viewContainerFor(mode){
   if (mode === 'compact') return compactGrid;
   if (mode === 'single') return singleViewEl;
@@ -78,12 +79,14 @@ export function switchView(mode){
     viewCompactBtn.classList.toggle('active', mode === 'compact');
     viewSingleBtn.classList.toggle('active', mode === 'single');
     viewDisabledBtn.classList.toggle('active', mode === 'disabled');
+    viewPendingApprovalBtn.classList.toggle('active', mode === 'pendingApproval');
     getGalleryFilter().disabledView = (mode === 'disabled');
+    getGalleryFilter().pendingApprovalView = (mode === 'pendingApproval');
     // '' (not 'grid') when shown: an inline style always beats stylesheet rules,
     // which would otherwise permanently defeat dynamic-cards mode's own
     // `display: block` override (its column-width/fill were applying, but were
     // inert since the container was still actually `display: grid` underneath).
-    galleryGrid.style.display = (mode === 'grid' || mode === 'disabled') ? '' : 'none';
+    galleryGrid.style.display = (mode === 'grid' || mode === 'disabled' || mode === 'pendingApproval') ? '' : 'none';
     compactGrid.style.display = mode === 'compact' ? 'grid' : 'none';
     compactCompareArea.style.display = (mode === 'compact' && stickyCompareImages.length > 0) ? 'block' : 'none';
     singleViewEl.style.display = mode === 'single' ? 'block' : 'none';
@@ -280,6 +283,7 @@ function buildCard(e, tagIndex){
   menuBtn.title = 'More options';
   menuBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openImageOptionsMenu(e, ev.clientX, ev.clientY); });
   thumbwrap.appendChild(menuBtn);
+  thumbwrap.appendChild(buildStatusIconsEl(e));
 
   if (e.meta && e.meta.reviewColor){
     const badge = document.createElement('div');
@@ -287,6 +291,15 @@ function buildCard(e, tagIndex){
     badge.style.background = e.meta.reviewColor;
     thumbwrap.appendChild(badge);
   }
+  if (e.meta && e.meta.locked){
+    const lockBadge = document.createElement('div');
+    lockBadge.className = 'lock-badge';
+    lockBadge.textContent = '🔒';
+    lockBadge.title = 'Locked — mass tools (Quick Merge, Master Tags, bulk WD14, etc.) skip this image';
+    thumbwrap.appendChild(lockBadge);
+  }
+  const mvBadges = buildMergeVoidBadgesEl(e);
+  if (mvBadges) thumbwrap.appendChild(mvBadges);
   if (getShowTagCountBadges()){
     const countBadge = document.createElement('div');
     countBadge.className = 'tagcount-badge';
@@ -590,6 +603,17 @@ function renderSingleView(){
   menuBtn.addEventListener('pointerdown', (ev) => ev.stopPropagation());
   menuBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openImageOptionsMenu(e, ev.clientX, ev.clientY); });
   imgSide.appendChild(menuBtn);
+  const statusIconsEl = buildStatusIconsEl(e);
+  statusIconsEl.style.left = '10px';
+  statusIconsEl.style.top = '38px';
+  imgSide.appendChild(statusIconsEl);
+  const mvBadgesSingle = buildMergeVoidBadgesEl(e);
+  if (mvBadgesSingle){
+    mvBadgesSingle.style.position = 'absolute';
+    mvBadgesSingle.style.left = '10px';
+    mvBadgesSingle.style.bottom = '10px';
+    imgSide.appendChild(mvBadgesSingle);
+  }
 
   function applyTransform(){
     img.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom/100})`;
@@ -801,15 +825,33 @@ function buildChip(entry, tag, onChange, tagIndex){
   }
   const label = document.createElement('span');
   label.textContent = tag;
-  label.title = 'Click (or right-click) for tag options';
+  label.title = 'Click (or right-click) for tag options, double-click to edit';
   label.style.cursor = 'pointer';
+  // Single click is delayed slightly so a second click arriving within the
+  // window can upgrade it to a dblclick instead — without this, dblclick
+  // still fires on top of two already-handled single clicks (each of which
+  // opens the context menu, so the menu would flicker open/closed right
+  // before the rename input replaced the label).
+  let clickTimer = null;
   label.addEventListener('click', (ev) => {
     ev.stopPropagation();
-    openTagContextMenu(entry, tag, ev.clientX, ev.clientY);
+    const x = ev.clientX, y = ev.clientY;
+    if (clickTimer) clearTimeout(clickTimer);
+    clickTimer = setTimeout(() => {
+      clickTimer = null;
+      openTagContextMenu(entry, tag, x, y);
+    }, 220);
+  });
+  label.addEventListener('dblclick', (ev) => {
+    ev.stopPropagation();
+    if (clickTimer){ clearTimeout(clickTimer); clickTimer = null; }
+    closeTagContextMenu();
+    startInlineTagRename(chip, label, entry, tag, onChange);
   });
   label.addEventListener('contextmenu', (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
+    if (clickTimer){ clearTimeout(clickTimer); clickTimer = null; }
     openTagContextMenu(entry, tag, ev.clientX, ev.clientY);
   });
   attachLongPress(label, (ev) => openTagContextMenu(entry, tag, ev.clientX, ev.clientY));
@@ -824,6 +866,49 @@ function buildChip(entry, tag, onChange, tagIndex){
   chip.appendChild(label);
   chip.appendChild(rm);
   return chip;
+}
+
+// Renames a tag on ONE image only — unlike Master Tags' "Rename everywhere"
+// or Quick Merge (which both intentionally touch every image sharing that
+// tag), this is scoped to the single entry the chip belongs to, since tags
+// on other images may be correct as-is.
+function renameTagOnEntry(entry, oldTag, newTag){
+  if (!entry.tags.includes(oldTag) || oldTag === newTag) return false;
+  const prevTags = entry.tags.slice();
+  let newTags = entry.tags.map(t => t === oldTag ? newTag : t);
+  newTags = Array.from(new Set(newTags));
+  entry.tags = newTags;
+  markDirty(entry);
+  const summary = `Renamed "${oldTag}" → "${newTag}" on ${entry.imgName}.`;
+  recordChange('rename', summary, [{ base: entry.base, prevTags, newTags: newTags.slice() }]);
+  trackStat('renames');
+  checkAchievements();
+  return true;
+}
+
+function startInlineTagRename(chip, label, entry, tag, onChange){
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'chip-rename-input';
+  input.value = tag;
+  chip.replaceChild(input, label);
+  input.focus();
+  input.select();
+  let done = false;
+  function commit(){
+    if (done) return;
+    done = true;
+    const cleaned = input.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+    if (cleaned && cleaned !== tag) renameTagOnEntry(entry, tag, cleaned);
+    onChange();
+  }
+  input.addEventListener('click', (ev) => ev.stopPropagation());
+  input.addEventListener('keydown', (ev) => {
+    ev.stopPropagation();
+    if (ev.key === 'Enter'){ ev.preventDefault(); commit(); }
+    else if (ev.key === 'Escape'){ ev.preventDefault(); done = true; onChange(); }
+  });
+  input.addEventListener('blur', commit);
 }
 
 // ---------------- Floating image card modal (grid click) ----------------
@@ -1037,6 +1122,28 @@ function openTagContextMenu(entry, tag, x, y){
   });
 
   if (entry){
+    const renameSep = document.createElement('div');
+    renameSep.className = 'ctx-sep';
+    renameSep.textContent = 'Rename on this image:';
+    menu.appendChild(renameSep);
+    const renameRow = document.createElement('div');
+    renameRow.className = 'ctx-rename-row';
+    const renameInput = document.createElement('input');
+    renameInput.type = 'text';
+    renameInput.value = tag;
+    renameInput.addEventListener('click', (ev) => ev.stopPropagation());
+    renameInput.addEventListener('keydown', (ev) => {
+      ev.stopPropagation();
+      if (ev.key === 'Enter'){
+        const cleaned = renameInput.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+        if (cleaned && cleaned !== tag) renameTagOnEntry(entry, tag, cleaned);
+        closeTagContextMenu();
+        refreshAllUIRef();
+      }
+    });
+    renameRow.appendChild(renameInput);
+    menu.appendChild(renameRow);
+
     const flagged = entry.meta && entry.meta.flaggedTags && entry.meta.flaggedTags.includes(tag);
     addCtxItem(menu, flagged ? '🚩 Unflag this tag on this image' : '🚩 Flag this tag for review (this image)', () => {
       if (!entry.meta.flaggedTags) entry.meta.flaggedTags = [];
@@ -1091,6 +1198,86 @@ function closeTagContextMenu(){
 
 function getForeignLangTags(entry){
   return entry.tags.filter(t => / text$/.test(t) && t !== 'text');
+}
+
+// ---------------- Grid/single card status icons (censored / has-text) ----------------
+// Censored/uncensored is a tri-state, unlike Has Text below: the tag set
+// only ever *asserts* a fact, it never records "checked, and no" — so the
+// absence of a "censored" tag isn't itself proof the image is uncensored,
+// only that nobody's tagged it either way yet. Reading that absence as a
+// confident "no" (a red X) was the bug being fixed here; it's only a
+// confident "no" once an explicit "uncensored" tag says so. Has Text has
+// no such counter-tag (there's no "no text" tag), so its absence really
+// does mean no — it stays a plain boolean.
+function getEntryStatusIndicators(e){
+  const uncensoredTags = e.tags.filter(t => /uncensor/i.test(t));
+  const censoredTags = e.tags.filter(t => /censor/i.test(t) && !/uncensor/i.test(t));
+  const censored = censoredTags.length ? true : (uncensoredTags.length ? false : null);
+  const textTags = e.tags.includes('text') ? ['text', ...getForeignLangTags(e)] : getForeignLangTags(e);
+  const hasText = textTags.length > 0;
+  // No "unspecified perspective" tag exists to assert a negative here
+  // either, and unlike Censored there isn't even a plausible opposite tag
+  // to infer one from — so this indicator never shows a red X, only a
+  // check (a camera angle was called out) or "not indicated" (it wasn't).
+  const perspectiveTags = e.tags.filter(t => t === 'from front' || t === 'from side' || t === 'from below' || t === 'from above');
+  const perspective = perspectiveTags.length > 0 ? true : null;
+  return [
+    { emoji: '👁️', state: censored, label: 'Censored', matchedTags: censored ? censoredTags : (censored === false ? uncensoredTags : []) },
+    { emoji: '🗨️', state: hasText, label: 'Has text', matchedTags: textTags },
+    { emoji: '🧭', state: perspective, label: 'Perspective', matchedTags: perspectiveTags }
+  ];
+}
+
+// Hovering shows which exact tags produced the result — e.g. an image
+// tagged "censor" and "bar censor" but with actual bar censorship not
+// reflected precisely: seeing both tags listed next to "Censored: Yes"
+// surfaces that kind of tagging discrepancy at a glance, not just the
+// yes/no verdict.
+// Merge Immunize / Antivoid badges — shown in every view (Grid, Compact,
+// Single) so the permanent per-image exemption from the Retroactive Merge/
+// Void dock's standing rules is visible without opening the 3-dot menu (see
+// canonical-tags.ts). Returns null when neither flag is set, so callers can
+// skip appending an empty wrapper.
+function buildMergeVoidBadgesEl(e){
+  const meta = e.meta || {};
+  if (!meta.mergeImmune && !meta.antivoid) return null;
+  const wrap = document.createElement('div');
+  wrap.className = 'mv-badges';
+  if (meta.mergeImmune && meta.antivoid){
+    const b = document.createElement('div');
+    b.className = 'mv-badge';
+    b.textContent = '✋';
+    b.title = 'Antimmunized — exempt from BOTH merge and void rules';
+    wrap.appendChild(b);
+  } else if (meta.mergeImmune){
+    const b = document.createElement('div');
+    b.className = 'mv-badge';
+    b.textContent = '🚫';
+    b.title = 'Merge Immunized — merge rules never rewrite this image\'s tags';
+    wrap.appendChild(b);
+  } else {
+    const b = document.createElement('div');
+    b.className = 'mv-badge';
+    b.textContent = '🟢';
+    b.title = 'Antivoid — void rules never remove tags from this image';
+    wrap.appendChild(b);
+  }
+  return wrap;
+}
+
+function buildStatusIconsEl(e){
+  const wrap = document.createElement('div');
+  wrap.className = 'card-status-icons';
+  for (const { emoji, state, label, matchedTags } of getEntryStatusIndicators(e)){
+    const glyph = state === null ? '❓' : (state ? '✅' : '❌');
+    const statusText = state === null ? 'Not indicated' : (state ? 'Yes' : 'No');
+    const badge = document.createElement('div');
+    badge.className = 'status-icon-badge';
+    badge.textContent = `${emoji}${glyph}`;
+    badge.title = `${label}: ${statusText}` + (matchedTags.length ? `: ${matchedTags.join(', ')}` : '');
+    wrap.appendChild(badge);
+  }
+  return wrap;
 }
 
 function saveCommonLanguages(){
@@ -1168,19 +1355,108 @@ function openImageOptionsMenu(entry, x, y){
   header.textContent = `${entry.imgName} · ${entry.tags.length} tag${entry.tags.length===1?'':'s'}`;
   menu.appendChild(header);
 
+  // Every item below keeps its label to just the action name — the full
+  // explanation lives in `title` (native hover tooltip) instead of being
+  // crammed into the visible button text, which was making this menu read
+  // as a wall of text.
   const toggleDisableBtn = document.createElement('button');
   toggleDisableBtn.className = 'ctx-item';
-  toggleDisableBtn.textContent = entry.disabled ? '↩ Restore to dataset' : '🗑 Disable (move to /Disabled)';
+  toggleDisableBtn.textContent = entry.disabled ? '↩ Restore' : '🗑 Disable';
+  toggleDisableBtn.title = entry.disabled ? 'Restore this image to the dataset root' : 'Move this image to /Disabled';
   toggleDisableBtn.addEventListener('click', async (ev) => {
     ev.stopPropagation();
     await moveEntry(entry, !entry.disabled);
-    toggleDisableBtn.textContent = entry.disabled ? '↩ Restore to dataset' : '🗑 Disable (move to /Disabled)';
+    // The image this menu belongs to just moved out of whatever view it was
+    // opened from (active <-> Disabled) — leaving the menu open no longer
+    // makes sense once the thing it's about is gone from view.
+    closeTagContextMenu();
   });
   menu.appendChild(toggleDisableBtn);
 
+  // Locked images are skipped by every mass/automatic tool (Quick Merge,
+  // Master Tags, bulk WD14, retroactive catch-up, etc.) — manual per-image
+  // actions like this menu's own items are unaffected, since a lock is
+  // about protecting an image from being swept up by something the user
+  // didn't specifically aim at it.
+  const toggleLockBtn = document.createElement('button');
+  toggleLockBtn.className = 'ctx-item';
+  function lockLabel(){ return entry.meta.locked ? '🔓 Unlock' : '🔒 Lock'; }
+  toggleLockBtn.textContent = lockLabel();
+  toggleLockBtn.title = 'Skip mass tools (Quick Merge, Master Tags, bulk WD14, etc.) for this image';
+  toggleLockBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    entry.meta.locked = !entry.meta.locked;
+    getEntryMeta()[entry.base] = entry.meta;
+    saveEntryMetaRef();
+    toggleLockBtn.textContent = lockLabel();
+    renderCurrentView();
+  });
+  menu.appendChild(toggleLockBtn);
+
+  // Merge Immunize / Antivoid — a PERMANENT per-image exception to the
+  // Retroactive Merge/Void dock's standing rules (canonical-tags.ts), unlike
+  // Lock (above) which only skips mass/automatic tools in general. These
+  // stay in effect 24/7 regardless of what mass tool (if any) touches the
+  // image. "Antimmunize" is a convenience shortcut toggling both together,
+  // not a third independent flag. Icons: 🚫 for Merge Immunize (blocking a
+  // merge from applying reads like a "no entry" sign), 🟢 for Antivoid (a
+  // safe/protected green, deliberately not reusing void's own danger-red
+  // styling), ✋ for Antimmunize (an open hand — "stop, both ways").
+  const toggleMergeImmuneBtn = document.createElement('button');
+  toggleMergeImmuneBtn.className = 'ctx-item';
+  function mergeImmuneLabel(){ return entry.meta.mergeImmune ? '🚫 Un-Merge-Immunize' : '🚫 Merge Immunize'; }
+  toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
+  toggleMergeImmuneBtn.title = 'Merge rules will never rewrite this image\'s tags';
+  toggleMergeImmuneBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    entry.meta.mergeImmune = !entry.meta.mergeImmune;
+    getEntryMeta()[entry.base] = entry.meta;
+    saveEntryMetaRef();
+    toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
+    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+    renderCurrentView();
+  });
+  menu.appendChild(toggleMergeImmuneBtn);
+
+  const toggleAntivoidBtn = document.createElement('button');
+  toggleAntivoidBtn.className = 'ctx-item';
+  function antivoidLabel(){ return entry.meta.antivoid ? '🟢 Un-Antivoid' : '🟢 Antivoid'; }
+  toggleAntivoidBtn.textContent = antivoidLabel();
+  toggleAntivoidBtn.title = 'Void rules will never remove tags from this image';
+  toggleAntivoidBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    entry.meta.antivoid = !entry.meta.antivoid;
+    getEntryMeta()[entry.base] = entry.meta;
+    saveEntryMetaRef();
+    toggleAntivoidBtn.textContent = antivoidLabel();
+    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+    renderCurrentView();
+  });
+  menu.appendChild(toggleAntivoidBtn);
+
+  const toggleAntimmunizeBtn = document.createElement('button');
+  toggleAntimmunizeBtn.className = 'ctx-item';
+  function antimmunizeLabel(){ return (entry.meta.mergeImmune && entry.meta.antivoid) ? '✋ Un-Antimmunize' : '✋ Antimmunize'; }
+  toggleAntimmunizeBtn.title = 'Shortcut for toggling Merge Immunize and Antivoid together';
+  toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+  toggleAntimmunizeBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const bothOn = entry.meta.mergeImmune && entry.meta.antivoid;
+    entry.meta.mergeImmune = !bothOn;
+    entry.meta.antivoid = !bothOn;
+    getEntryMeta()[entry.base] = entry.meta;
+    saveEntryMetaRef();
+    toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
+    toggleAntivoidBtn.textContent = antivoidLabel();
+    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+    renderCurrentView();
+  });
+  menu.appendChild(toggleAntimmunizeBtn);
+
   const resetEditsBtn = document.createElement('button');
   resetEditsBtn.className = 'ctx-item';
-  resetEditsBtn.textContent = '⏮ Reset this image to earliest known tags';
+  resetEditsBtn.textContent = '⏮ Reset edits';
+  resetEditsBtn.title = 'Reset this image to its earliest known tag state';
   resetEditsBtn.addEventListener('click', (ev) => {
     ev.stopPropagation();
     resetImageEdits(entry);
@@ -1189,7 +1465,8 @@ function openImageOptionsMenu(entry, x, y){
 
   const wd14Btn = document.createElement('button');
   wd14Btn.className = 'ctx-item';
-  wd14Btn.textContent = '🐍 Tag this image with WD14';
+  wd14Btn.textContent = '🐍 WD14 Tag';
+  wd14Btn.title = 'Tag this image with WD14 (via ComfyUI)';
   wd14Btn.addEventListener('click', (ev) => {
     ev.stopPropagation();
     closeTagContextMenu();
@@ -1594,6 +1871,20 @@ export function initView(deps){
     checkAchievements();
   });
   viewSingleBtn.addEventListener('click', () => switchView('single'));
+  btnUnlockAll.addEventListener('click', () => {
+    const meta = getEntryMeta();
+    let count = 0;
+    for (const e of getEntries()){
+      if (!e.meta || !e.meta.locked) continue;
+      e.meta.locked = false;
+      meta[e.base] = e.meta;
+      count++;
+    }
+    if (count === 0){ toast('No locked images in this dataset.'); return; }
+    saveEntryMetaRef();
+    toast(`Unlocked ${count} image(s).`);
+    renderCurrentView();
+  });
   viewDisabledBtn.addEventListener('click', () => switchView('disabled'));
   viewDisabledBtn.addEventListener('dragover', (ev) => { ev.preventDefault(); viewDisabledBtn.classList.add('drag-over'); });
   viewDisabledBtn.addEventListener('dragleave', () => viewDisabledBtn.classList.remove('drag-over'));
@@ -1609,6 +1900,7 @@ export function initView(deps){
       checkAchievements();
     }
   });
+  viewPendingApprovalBtn.addEventListener('click', () => switchView('pendingApproval'));
   // Swipe mode only — paging in Grid/Compact/Fade mode stays instant, same
   // as before this feature existed; only Swipe gets the physical slide.
   function pageSingle(delta){

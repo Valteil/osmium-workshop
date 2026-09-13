@@ -6,6 +6,10 @@
 // @ts-nocheck
 import {
   masterSelectionSummary, masterMiniGrid, btnMasterSelectAll, btnMasterClearSelection,
+  btnMasterLockSelected, btnMasterUnlockSelected,
+  btnMasterMergeImmunizeSelected, btnMasterUnMergeImmunizeSelected,
+  btnMasterAntivoidSelected, btnMasterUnAntivoidSelected,
+  btnMasterAntimmunizeSelected, btnMasterUnAntimmunizeSelected,
   masterApplyTagInput, btnMasterApplyToSelected, masterRemoveTagInput, btnMasterRemoveFromSelected,
   condSourceTag, condAddTag, btnCondApply, massApplyInput, btnMassApply,
   massRemoveInput, btnMassRemove, masterRenameFrom, masterRenameTo, btnMasterRename,
@@ -22,6 +26,8 @@ let getEntryByBase = () => undefined;
 let filteredEntriesRef = () => [];
 let renderCurrentViewRef = () => {};
 let refreshAllUIRef = () => {};
+let getEntryMeta = () => ({});
+let saveEntryMetaRef = () => {};
 
 export function updateMasterSelectionText(){
   if (masterSelectedImages.size === 0){
@@ -84,6 +90,8 @@ export function initMasterTagControl(deps){
   filteredEntriesRef = deps.filteredEntries;
   renderCurrentViewRef = deps.renderCurrentView;
   refreshAllUIRef = deps.refreshAllUI;
+  getEntryMeta = deps.getEntryMeta;
+  saveEntryMetaRef = deps.saveEntryMeta;
 
   btnMasterSelectAll.addEventListener('click', () => {
     for (const e of filteredEntriesRef()) masterSelectedImages.add(e.base);
@@ -96,6 +104,62 @@ export function initMasterTagControl(deps){
     renderCurrentViewRef();
   });
 
+  // Locking is the one selection-based action that's exempt from the
+  // lock/mass-tool relationship it's managing — mass-LOCKING a hand-picked
+  // selection is exactly how you'd want to lock a batch in the first place,
+  // so this doesn't skip already-locked (or, for unlock, already-unlocked)
+  // entries the way every other mass tool skips locked ones.
+  function setLockedForSelection(locked){
+    if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
+    const meta = getEntryMeta();
+    let changed = 0;
+    for (const base of masterSelectedImages){
+      const e = getEntryByBase(base);
+      if (!e) continue;
+      if (!!e.meta.locked === locked) continue;
+      e.meta.locked = locked;
+      meta[e.base] = e.meta;
+      changed++;
+    }
+    if (changed === 0){ toast(`Nothing to ${locked ? 'lock' : 'unlock'} — already ${locked ? 'locked' : 'unlocked'}.`); return; }
+    saveEntryMetaRef();
+    toast(`${locked ? 'Locked' : 'Unlocked'} ${changed} image(s).`);
+    renderCurrentViewRef();
+  }
+  btnMasterLockSelected.addEventListener('click', () => setLockedForSelection(true));
+  btnMasterUnlockSelected.addEventListener('click', () => setLockedForSelection(false));
+
+  // Merge Immunize / Antivoid — a PERMANENT per-image exception to the
+  // Retroactive Merge/Void dock's standing rules (canonical-tags.ts), unlike
+  // Lock which only skips mass tools in general. "Antimmunize" is a
+  // convenience shortcut that sets/clears both flags together, not a third
+  // independent flag — see canonical-tags.ts's applyCanonicalRules() for
+  // where these are actually checked.
+  function setEntryFlagsForSelection(flags, actionLabel){
+    if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
+    const meta = getEntryMeta();
+    let changed = 0;
+    for (const base of masterSelectedImages){
+      const e = getEntryByBase(base);
+      if (!e) continue;
+      const keys = Object.keys(flags);
+      if (keys.every(k => !!e.meta[k] === flags[k])) continue;
+      for (const k of keys) e.meta[k] = flags[k];
+      meta[e.base] = e.meta;
+      changed++;
+    }
+    if (changed === 0){ toast(`Nothing to change — already ${actionLabel}.`); return; }
+    saveEntryMetaRef();
+    toast(`${actionLabel[0].toUpperCase()}${actionLabel.slice(1)} ${changed} image(s).`);
+    renderCurrentViewRef();
+  }
+  btnMasterMergeImmunizeSelected.addEventListener('click', () => setEntryFlagsForSelection({ mergeImmune: true }, 'merge immunized'));
+  btnMasterUnMergeImmunizeSelected.addEventListener('click', () => setEntryFlagsForSelection({ mergeImmune: false }, 'un-merge-immunized'));
+  btnMasterAntivoidSelected.addEventListener('click', () => setEntryFlagsForSelection({ antivoid: true }, 'antivoided'));
+  btnMasterUnAntivoidSelected.addEventListener('click', () => setEntryFlagsForSelection({ antivoid: false }, 'un-antivoided'));
+  btnMasterAntimmunizeSelected.addEventListener('click', () => setEntryFlagsForSelection({ mergeImmune: true, antivoid: true }, 'antimmunized'));
+  btnMasterUnAntimmunizeSelected.addEventListener('click', () => setEntryFlagsForSelection({ mergeImmune: false, antivoid: false }, 'un-antimmunized'));
+
   btnMasterApplyToSelected.addEventListener('click', () => {
     const tag = masterApplyTagInput.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
     if (!tag){ toast('Enter a tag to apply.'); return; }
@@ -103,7 +167,7 @@ export function initMasterTagControl(deps){
     const affected = [];
     for (const base of masterSelectedImages){
       const e = getEntryByBase(base);
-      if (!e || e.tags.includes(tag)) continue;
+      if (!e || e.meta.locked || e.tags.includes(tag)) continue;
       const prevTags = e.tags.slice();
       e.tags.push(tag);
       markDirty(e);
@@ -127,7 +191,7 @@ export function initMasterTagControl(deps){
     const affected = [];
     for (const base of masterSelectedImages){
       const e = getEntryByBase(base);
-      if (!e || !e.tags.includes(tag)) continue;
+      if (!e || e.meta.locked || !e.tags.includes(tag)) continue;
       const prevTags = e.tags.slice();
       e.tags = e.tags.filter(t => t !== tag);
       markDirty(e);
@@ -150,7 +214,7 @@ export function initMasterTagControl(deps){
     if (!sourceTag || !addTag){ toast('Fill in both tags.'); return; }
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled) continue;
+      if (e.disabled || e.meta.locked) continue;
       if (!e.tags.includes(sourceTag) || e.tags.includes(addTag)) continue;
       const prevTags = e.tags.slice();
       e.tags.push(addTag);
@@ -175,7 +239,7 @@ export function initMasterTagControl(deps){
     if (!ok) return;
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled || e.tags.includes(tag)) continue;
+      if (e.disabled || e.meta.locked || e.tags.includes(tag)) continue;
       const prevTags = e.tags.slice();
       e.tags.push(tag);
       markDirty(e);
@@ -199,7 +263,7 @@ export function initMasterTagControl(deps){
     if (!ok) return;
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled || !e.tags.includes(tag)) continue;
+      if (e.disabled || e.meta.locked || !e.tags.includes(tag)) continue;
       const prevTags = e.tags.slice();
       e.tags = e.tags.filter(t => t !== tag);
       markDirty(e);
@@ -223,7 +287,7 @@ export function initMasterTagControl(deps){
     if (from === to){ toast('New name is the same as the old one.'); return; }
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled || !e.tags.includes(from)) continue;
+      if (e.disabled || e.meta.locked || !e.tags.includes(from)) continue;
       const prevTags = e.tags.slice();
       let newTags = e.tags.map(t => t === from ? to : t);
       newTags = Array.from(new Set(newTags));
@@ -249,7 +313,7 @@ export function initMasterTagControl(deps){
     if (!find){ toast('Enter a substring to find.'); return; }
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled || !e.tags.some(t => t.includes(find))) continue;
+      if (e.disabled || e.meta.locked || !e.tags.some(t => t.includes(find))) continue;
       const prevTags = e.tags.slice();
       let newTags = e.tags.map(t => t.includes(find) ? t.split(find).join(repl) : t);
       newTags = newTags.map(t => t.trim()).filter(Boolean);

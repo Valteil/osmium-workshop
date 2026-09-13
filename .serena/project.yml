@@ -124,7 +124,9 @@ excluded_tools: []
 # list of tools to include that would otherwise be disabled (particularly optional tools that are disabled by default).
 # This extends the existing inclusions (e.g. from the global configuration).
 # Find the list of tools here: https://oraios.github.io/serena/01-about/035_tools.html
-included_optional_tools: []
+included_optional_tools:
+- get_diagnostics_for_symbol
+- restart_language_server
 
 # fixed set of tools to use as the base tool set (if non-empty), replacing Serena's default set of tools.
 # This cannot be combined with non-empty excluded_tools or included_optional_tools.
@@ -148,7 +150,27 @@ added_modes:
 
 # initial prompt for the project. It will always be given to the LLM upon activating the project
 # (contrary to the memories, which are loaded on demand).
-initial_prompt: ""
+initial_prompt: >
+  Use Serena's symbol-level tools as the default way to navigate and edit this
+  codebase, not just for initial exploration: get_symbols_overview/find_symbol
+  before opening a file cold, find_referencing_symbols before renaming or
+  changing the signature of any exported function/state (this project's
+  module convention — index.ts wiring every renderer/*.ts module via small
+  init(deps) calls — makes silent breakage from a moved symbol easy to miss),
+  and replace_symbol_body/insert_after_symbol/insert_before_symbol instead of
+  line-based edits when changing a whole function or adding a new one next to
+  an existing symbol. After any module-boundary change, use
+  find_referencing_symbols on the moved/renamed symbol to catch stale call
+  sites before considering the change done. Read the core/conventions memory
+  pair before relying on assumptions about this codebase's non-obvious
+  conventions, and update them (not just CLAUDE.md) when a change establishes
+  a new durable convention, per CLAUDE.md's Maintenance Policy.
+  Strong preference: use Serena's own search_for_pattern (or find_symbol /
+  find_referencing_symbols when the target is a named symbol) instead of a
+  generic text-search tool for ANY code lookup in this repo — plain grep-style
+  search should be treated as a fallback for the rare case Serena's tools
+  don't cover (e.g. searching inside binary/data assets, or something outside
+  the indexed workspace folders), not the default first move.
 
 # time budget (seconds) per tool call for the retrieval of additional symbol information
 # such as docstrings or parameter information.

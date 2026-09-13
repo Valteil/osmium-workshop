@@ -5,7 +5,7 @@
 // adds real types to each as it's extracted — remove this pragma module-by-module
 // as that happens, never all at once (that's how you get inaccurate casts).
 import {
-  $, btnOpen, btnSave, btnUndo, btnRedo, btnUnloadDataset, dirtyCountEl, galleryToolbar, galleryGrid,
+  $, btnOpen, btnSave, btnUndo, btnRedo, btnUnloadDataset, btnReloadDataset, dirtyCountEl, galleryToolbar, galleryGrid,
   compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, imageCardModal, modalCardInner, dropHint, dropHintWrap, filterInput,
   filterAllBtn, filterUntaggedBtn, filterDirtyBtn, excludeBadge, excludeBadgeText,
@@ -21,10 +21,12 @@ import {
   panelsOutsideCloseToggle, btnSettings, favoritesPanel,
   btnAddFavorite, logPanel, appVersionEl, tabGallery, tabMasterTags,
   tabStats, galleryTab, statsTab, btnStatsBack, btnMasterBack, normalRightTools,
+  tabSynthDat, synthDatTab, btnSynthDatBack,
   tabDatasetManager, datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown,
-  layoutDropdown, shellEl, btnResetZoom,
+  layoutDropdown, shellEl, btnResetZoom, btnRightPanelCollapse,
   customFontInput, btnApplyCustomFont, btnClearCustomFont, powerHighlightToggle,
   powerFillToggle, btnQuickMergeScan, quickMergeList, btnQuickMergeApply,
+  btnQuickMergeFamilies, quickMergeFamiliesList,
   tagAutocompleteToggle, btnGithubPackage, btnStartPowerToolPicker, powerToolList,
   btnResetCustomPowerTools, masterTagPanel, masterSelectionSummary, masterMiniGrid,
   btnMasterSelectAll, btnMasterClearSelection, masterApplyTagInput,
@@ -36,12 +38,12 @@ import {
   tagDetailsTitle, tagDetailsBody, tagDetailsCloseBtn, langMenuPanel,
   btnNightMode, viewGridBtn, viewCompactBtn, viewSingleBtn,
   viewDisabledBtn, gallerySortDropdown, gallerySortDirBtn, singleNav, singlePrevBtn,
-  singleNextBtn, singlePos, uiAnimationsDropdown
+  singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle
 } from './dom';
-import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav } from './shared-ui';
+import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop } from './shared-ui';
 import {
   PREMIUM_THEMES, STUDIO_DEFAULTS, applyTheme, openThemeCustomPanel, toggleDayNightMode, syncNightModeFromPrePaint,
-  initThemeDropdown
+  initThemeDropdown, refinedThemes
 } from './themes';
 import { initDockSystem } from './docks';
 import {
@@ -51,7 +53,7 @@ import {
 import { initPowerTools } from './power-tools';
 import {
   quickMergeGroups, quickMergeSelection, runQuickMergeScan, resetQuickMergeState,
-  applyQuickMerge, renderQuickMergeList
+  applyQuickMerge, renderQuickMergeList, renderQuickMergeFamiliesList
 } from './quick-merge';
 import { initTagPruner, renderTagPruners, addTagPruner } from './tag-pruner';
 import {
@@ -69,15 +71,17 @@ import {
   editLog, pushLogEntry, loadEditLogForFolder, updateLogButton, renderLogPanel,
   renderStatsTab, initEditLog
 } from './edit-log';
+import { initCanonicalTags, loadCanonicalRulesForFolder } from './canonical-tags';
 import {
   markDirty, updateDirtyUI, recordChange, applyTagDirection, updateUndoRedoButtons,
   resetUndoRedo, moveEntry, initTagsEdit, undoStack, redoStack, addTagToEntry,
-  retroApplyToDisabled, retroApplyAllToDisabled
+  markRulesDirty, rulesDirty, resetRulesDirty
 } from './tags-edit';
 import {
   masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid, initMasterTagControl
 } from './master-tag-control';
 import { initWd14Tagger } from './wd14-tagger';
+import { initSynthDatOverseer } from './synthdat-overseer';
 import {
   ensureWikiDataLoaded, ensureAllTagsLoaded, getCustomTagNote, setCustomTagNote,
   openTagDetails, initTagDetails
@@ -96,7 +100,8 @@ import { initRandomFacts } from './random-facts';
   // ---------------- State ----------------
   let dirHandle = null;
   let disabledDirHandle = null;
-  let entries = [];            // [{base, imgHandle, txtHandle, txtExisted, objectUrl, tags:[], dirty:bool, disabled:bool}]
+  let unsavedApprovedDirHandle = null;
+  let entries = [];            // [{base, imgHandle, txtHandle, txtExisted, objectUrl, tags:[], dirty:bool, disabled:bool, pendingApproval:bool}]
   let entryByBase = new Map();
   let selectedTags = new Set();
   let galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false };
@@ -148,9 +153,9 @@ import { initRandomFacts } from './random-facts';
       toast('Restart isn\'t available in this build — close and reopen the app by hand.', 3600);
       return;
     }
-    const dirtyCount = entries.filter(e => e.dirty).length;
-    if (dirtyCount > 0){
-      const ok = await showConfirmModal(`You have ${dirtyCount} unsaved caption change(s). Restart anyway without saving?`, { okLabel: 'Restart anyway', danger: true });
+    const unsaved = unsavedChangesDescription();
+    if (unsaved){
+      const ok = await showConfirmModal(`You have ${unsaved}. Restart anyway without saving?`, { okLabel: 'Restart anyway', danger: true });
       if (!ok) return;
     }
     window.electronAPI.restartApp();
@@ -222,13 +227,23 @@ import { initRandomFacts } from './random-facts';
       // already applied this theme before first paint (see its comment);
       // this only runs if that script failed/threw for some reason.
       applyTheme(saved);
-    } else if (saved === 'custom'){
-      // The pre-paint script applies saved custom colors if there are any,
-      // but doesn't know about the "no custom colors saved yet" first-run
-      // case — that still needs the editor opened, same as applyTheme('custom') would.
-      let hasCustom = false;
-      try { hasCustom = !!localStorage.getItem('dts-custom-theme'); } catch(e){}
-      if (!hasCustom) setTimeout(openThemeCustomPanel, 0);
+    } else {
+      // The pre-paint script also mirrors the theme-refined check (see its
+      // own comment), but do it again here too in case refinedThemes was
+      // still empty when that inline copy ran for some transient reason —
+      // this is the one that was actually missing before: previously
+      // nothing on this path ever set '.theme-refined' at all, so a
+      // refined theme's hover-fill effect silently didn't show up until
+      // switching themes (which runs the real applyTheme() and sets it).
+      document.documentElement.classList.toggle('theme-refined', refinedThemes.includes(saved));
+      if (saved === 'custom'){
+        // The pre-paint script applies saved custom colors if there are any,
+        // but doesn't know about the "no custom colors saved yet" first-run
+        // case — that still needs the editor opened, same as applyTheme('custom') would.
+        let hasCustom = false;
+        try { hasCustom = !!localStorage.getItem('dts-custom-theme'); } catch(e){}
+        if (!hasCustom) setTimeout(openThemeCustomPanel, 0);
+      }
     }
   })();
 
@@ -290,15 +305,17 @@ import { initRandomFacts } from './random-facts';
   // Settings toggle (`html.motion-off`) by skipping straight to the final
   // state with no delay when it's off.
   function switchTab(tab){
-    const fadePanes = [datasetManagerTab, statsTab, normalRightTools, masterTagPanel];
+    const fadePanes = [datasetManagerTab, statsTab, synthDatTab, normalRightTools, masterTagPanel];
     const applyState = () => {
       tabDatasetManager.classList.toggle('active', tab === 'datasets');
       tabGallery.classList.toggle('active', tab === 'gallery');
       tabMasterTags.classList.toggle('active', tab === 'master');
       tabStats.classList.toggle('active', tab === 'stats');
+      tabSynthDat.classList.toggle('active', tab === 'synthdat');
       datasetManagerTab.style.display = (tab === 'datasets') ? 'block' : 'none';
-      galleryTab.style.display = (tab === 'stats' || tab === 'datasets') ? 'none' : 'contents';
+      galleryTab.style.display = (tab === 'stats' || tab === 'datasets' || tab === 'synthdat') ? 'none' : 'contents';
       statsTab.style.display = (tab === 'stats') ? 'block' : 'none';
+      synthDatTab.style.display = (tab === 'synthdat') ? 'block' : 'none';
       masterTagModeActive = (tab === 'master');
       normalRightTools.style.display = masterTagModeActive ? 'none' : 'block';
       masterTagPanel.style.display = masterTagModeActive ? 'block' : 'none';
@@ -325,8 +342,10 @@ import { initRandomFacts } from './random-facts';
   tabGallery.addEventListener('click', () => switchTab('gallery'));
   tabMasterTags.addEventListener('click', () => switchTab('master'));
   tabStats.addEventListener('click', () => switchTab('stats'));
+  tabSynthDat.addEventListener('click', () => switchTab('synthdat'));
   btnStatsBack.addEventListener('click', () => switchTab('gallery'));
   btnMasterBack.addEventListener('click', () => switchTab('gallery'));
+  btnSynthDatBack.addEventListener('click', () => switchTab('gallery'));
 
   // stats pie/bar toggle wiring moved to ./edit-log.ts (initEditLog)
 
@@ -429,6 +448,28 @@ import { initRandomFacts } from './random-facts';
   });
   applyUiAnimationMode(uiAnimationMode);
 
+  // Hardware acceleration (Settings ▸ Performance) — this can only be
+  // decided at process startup, before any window/webview exists, so
+  // changing it here just persists the choice (main.ts's
+  // get/setHardwareAcceleration, which write a tiny file main.ts itself
+  // reads directly — see its own comment for why that can't just be
+  // localStorage) and prompts a restart, same as any other startup-only
+  // preference in this app.
+  (async function initHardwareAccelToggle(){
+    try {
+      hwAccelToggle.checked = await window.electronAPI.getHardwareAcceleration();
+    } catch(e){ /* preload not ready yet or unsupported — leave the default checked state */ }
+  })();
+  hwAccelToggle.addEventListener('change', async () => {
+    const enabled = hwAccelToggle.checked;
+    await window.electronAPI.setHardwareAcceleration(enabled);
+    const restart = await showConfirmModal(
+      'This change only takes effect after a restart. Restart now?',
+      { okLabel: 'Restart now' }
+    );
+    if (restart) window.electronAPI.restartApp();
+  });
+
   function setupHeaderCategory(btn, flyout){
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -469,13 +510,20 @@ import { initRandomFacts } from './random-facts';
     // outside the page's own element tree entirely — skip those two too,
     // a deliberate click always lands on some real page element.
     if (ev.target === document.documentElement || ev.target === document.body) return;
+    let closedAny = false;
     document.querySelectorAll('.header-cat').forEach(wrap => {
       const flyout = wrap.querySelector('.header-cat-flyout');
       if (flyout && flyout.style.display === 'flex' && !wrap.contains(ev.target)){
         flyout.style.display = 'none';
         flyout.classList.remove('menu-in');
+        closedAny = true;
       }
     });
+    // The close above already happened on mousedown — the eventual 'click'
+    // dispatched from this same gesture is a SEPARATE event we can't stop
+    // from here (see shared-ui.ts's comment). markSwallowNextClick() flags
+    // it for shared-ui.ts's own capture-phase 'click' listener to consume.
+    if (closedAny && shouldSwallowOutsideClick()) markSwallowNextClick();
   });
 
   // ---------------- Floating panel outside-click-to-close (Favorites/Log/Colors/Achievements/Shop/Tag Details) ----------------
@@ -494,14 +542,20 @@ import { initRandomFacts } from './random-facts';
 
   // getOutsideClosablePanels moved to ./settings.ts
 
+  // Capture phase (not bubble) so this can swallow the click — see
+  // shared-ui.ts's shouldSwallowOutsideClick() comment for why that requires
+  // deciding-and-stopping before the event ever reaches its target.
   document.addEventListener('click', (ev) => {
     if (!panelsCloseOnOutsideClick) return;
+    let closedAny = false;
     getOutsideClosablePanels().forEach(panel => {
-      if (panel.style.display === 'flex' && !panel.contains(ev.target)){
+      if (panel.style.display === 'flex' && !panel.contains(ev.target) && !isClickInsideOwnedPdrop(panel, ev.target)){
         hidePanel(panel);
+        closedAny = true;
       }
     });
-  });
+    if (closedAny && shouldSwallowOutsideClick()){ ev.stopPropagation(); ev.preventDefault(); }
+  }, true);
 
   // ---------------- Reset Edibits / Achievements (debug) ----------------
 
@@ -554,9 +608,71 @@ import { initRandomFacts } from './random-facts';
 
   let tooltipTimer = null;
   let tooltipTarget = null;
+  let tooltipMeasureCtx = null;
+
+  // Reliable placeholder-overflow check: an EMPTY input's `scrollWidth`
+  // doesn't necessarily reflect its placeholder's rendered width (Chromium
+  // computes it from actual value content, which there isn't any of) — so
+  // this measures the placeholder text directly via a throwaway canvas
+  // context using the input's own computed font, the standard reliable way
+  // to measure text width without touching the DOM.
+  function placeholderOverflowWidth(el){
+    if (!tooltipMeasureCtx) tooltipMeasureCtx = document.createElement('canvas').getContext('2d');
+    const cs = getComputedStyle(el);
+    tooltipMeasureCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const textWidth = tooltipMeasureCtx.measureText(el.placeholder).width;
+    const availWidth = el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    return textWidth > availWidth;
+  }
+
+  function showTooltipBubble(el, tipText){
+    tooltipTimer = setTimeout(() => {
+      if (tooltipTarget !== el) return;
+      const rect = el.getBoundingClientRect();
+      tooltipBubble.textContent = tipText;
+      tooltipBubble.style.display = 'block';
+      tooltipBubble.classList.remove('tooltip-bottom-pinned');
+      const bubbleRect = tooltipBubble.getBoundingClientRect();
+      let top = rect.top - bubbleRect.height - 8;
+      if (top < 8){
+        // Not enough room above (the normal case for topbar buttons, whose
+        // rect.top is near 0) — landing the tooltip directly below the
+        // element instead puts it right where the cursor usually still is,
+        // which a small font size or a custom cursor image can hide
+        // entirely (reported directly). Pin it to the bottom of the screen
+        // instead, decoupled from the trigger element's position, with a
+        // highlight so it's still easy to notice despite that.
+        tooltipBubble.classList.add('tooltip-bottom-pinned');
+        tooltipBubble.style.left = '50%';
+        tooltipBubble.style.bottom = '16px';
+        tooltipBubble.style.top = '';
+        tooltipBubble.style.transform = 'translateX(-50%)';
+      } else {
+        let left = rect.left;
+        if (left + bubbleRect.width + 8 > window.innerWidth) left = window.innerWidth - bubbleRect.width - 8;
+        tooltipBubble.style.left = Math.max(8, left) + 'px';
+        tooltipBubble.style.top = top + 'px';
+        tooltipBubble.style.bottom = '';
+        tooltipBubble.style.transform = '';
+      }
+    }, tooltipDelayMs);
+  }
 
   document.addEventListener('mouseover', (ev) => {
     if (!tooltipsEnabled) return;
+    // Ghost/placeholder text tooltip: an empty field's placeholder can run
+    // past the field's own visible width with no way to read the rest
+    // short of widening the sidebar — show the full placeholder the same
+    // way a title-attribute tooltip works, reusing the same bubble/timer/
+    // positioning below.
+    const placeholderEl = ev.target.closest ? ev.target.closest('input[placeholder]') : null;
+    if (placeholderEl && !placeholderEl.value && placeholderOverflowWidth(placeholderEl)){
+      if (placeholderEl === tooltipTarget) return;
+      clearTimeout(tooltipTimer);
+      tooltipTarget = placeholderEl;
+      showTooltipBubble(placeholderEl, placeholderEl.placeholder);
+      return;
+    }
     const el = ev.target.closest('[title]');
     if (!el || el === tooltipTarget) return;
     clearTimeout(tooltipTimer);
@@ -568,23 +684,11 @@ import { initRandomFacts } from './random-facts';
     // briefly before our styled tooltipBubble appears a second later.
     el.dataset.tipStash = tipText;
     el.removeAttribute('title');
-    tooltipTimer = setTimeout(() => {
-      if (tooltipTarget !== el) return;
-      const rect = el.getBoundingClientRect();
-      tooltipBubble.textContent = tipText;
-      tooltipBubble.style.display = 'block';
-      const bubbleRect = tooltipBubble.getBoundingClientRect();
-      let left = rect.left;
-      if (left + bubbleRect.width + 8 > window.innerWidth) left = window.innerWidth - bubbleRect.width - 8;
-      tooltipBubble.style.left = Math.max(8, left) + 'px';
-      let top = rect.top - bubbleRect.height - 8;
-      if (top < 8) top = rect.bottom + 8; // fall back below only if there's no room above
-      tooltipBubble.style.top = top + 'px';
-    }, tooltipDelayMs);
+    showTooltipBubble(el, tipText);
   });
 
   document.addEventListener('mouseout', (ev) => {
-    const el = ev.target.closest('[title], [data-tip-stash]');
+    const el = ev.target.closest('[title], [data-tip-stash], input[placeholder]');
     if (!el) return;
     clearTimeout(tooltipTimer);
     if (el.dataset.tipStash){
@@ -601,7 +705,15 @@ import { initRandomFacts } from './random-facts';
     ev.stopPropagation();
     if (settingsPanel.style.display === 'flex'){ hidePanel(settingsPanel); return; }
     [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
+    // Anchored directly below the button that opened it (not centered — see
+    // styles.css's #settingsPanel override of .log-panel's centering) using
+    // the same viewport-clamped positioning every dropdown/context-menu in
+    // the app already uses, rather than a fixed CSS position that wouldn't
+    // track the button's actual location. showPanel() first so offsetWidth
+    // is measurable (display:none elements report 0).
     showPanel(settingsPanel);
+    const rect = btnSettings.getBoundingClientRect();
+    positionMenu(settingsPanel, rect.right - settingsPanel.offsetWidth, rect.bottom + 6);
   });
   settingsCloseBtn.addEventListener('click', () => hidePanel(settingsPanel));
 
@@ -796,14 +908,28 @@ import { initRandomFacts } from './random-facts';
     hidePanel(settingsPanel);
   });
 
+  // Shared by every unsaved-changes guard below (Quit/Restart/Unload/Reload/
+  // switch-dataset) — a plain-English description of what's unsaved, or null
+  // if nothing is. Covers both per-image caption edits AND the Retroactive
+  // Merge/Void dock's own rule changes (rulesDirty, tags-edit.ts) now that
+  // rule edits are a dirty/saveable action instead of writing to disk
+  // immediately on every toggle.
+  function unsavedChangesDescription(){
+    const dirtyCount = entries.filter(e => e.dirty).length;
+    const parts = [];
+    if (dirtyCount > 0) parts.push(`${dirtyCount} unsaved caption change(s)`);
+    if (rulesDirty) parts.push('unsaved Retroactive Merge/Void rule change(s)');
+    return parts.length ? parts.join(' and ') : null;
+  }
+
   // Shared unsaved-changes guard for every way the active dataset can be
   // switched away from (File > Open, Favorites reopen, Dataset tab reopen) —
-  // same entries.filter(.dirty) + showConfirmModal pattern as Quit/Restart/
-  // Unload, just phrased for "switching" instead of "closing".
+  // same pattern as Quit/Restart/Unload, just phrased for "switching" instead
+  // of "closing".
   async function confirmDatasetSwitch(message){
-    const dirtyCount = entries.filter(e => e.dirty).length;
-    if (dirtyCount === 0) return true;
-    return showConfirmModal(`You have ${dirtyCount} unsaved caption change(s). ${message}`, { okLabel: 'Switch anyway', danger: true });
+    const unsaved = unsavedChangesDescription();
+    if (!unsaved) return true;
+    return showConfirmModal(`You have ${unsaved}. ${message}`, { okLabel: 'Switch anyway', danger: true });
   }
 
   // Shared by favorites.ts and dataset-manager.ts — both reopen a saved
@@ -836,6 +962,8 @@ import { initRandomFacts } from './random-facts';
     getDirHandle: () => dirHandle,
     getDisabledDirHandle: () => disabledDirHandle,
     setDisabledDirHandle: (h) => { disabledDirHandle = h; },
+    getUnsavedApprovedDirHandle: () => unsavedApprovedDirHandle,
+    setUnsavedApprovedDirHandle: (h) => { unsavedApprovedDirHandle = h; },
     resetSingleIndex: () => resetSingleIndex(),
     refreshStats: () => refreshStats(),
     refreshAllUI: () => refreshAllUI(),
@@ -858,7 +986,9 @@ import { initRandomFacts } from './random-facts';
     getEntryByBase: (base) => entryByBase.get(base),
     filteredEntries: () => filteredEntries(),
     renderCurrentView: () => renderCurrentView(),
-    refreshAllUI: () => refreshAllUI()
+    refreshAllUI: () => refreshAllUI(),
+    getEntryMeta: () => entryMeta,
+    saveEntryMeta: () => saveEntryMeta()
   });
 
   // WD14 Autotagger (ComfyUI bridge) moved to ./wd14-tagger.ts — settings
@@ -867,6 +997,17 @@ import { initRandomFacts } from './random-facts';
   // same one-directional import view.ts already uses for master-tag-control.
   initWd14Tagger({
     getEntries: () => entries,
+    refreshAllUI: () => refreshAllUI()
+  });
+
+  // SynthDat Overseer moved to ./synthdat-overseer.ts — reuses buildEntry()
+  // (the same per-image entry constructor scanDirInto() uses on folder open)
+  // so a freshly-accepted generated image is appended to `entries` the exact
+  // same way a folder rescan would have built it.
+  initSynthDatOverseer({
+    getDirHandle: () => dirHandle,
+    addEntryFromNewFile: (base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled, pendingApproval) =>
+      buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled, pendingApproval),
     refreshAllUI: () => refreshAllUI()
   });
 
@@ -880,9 +1021,17 @@ import { initRandomFacts } from './random-facts';
     checkAchievements: () => checkAchievements(),
     refreshAllUI: () => refreshAllUI(),
     getUndoStack: () => undoStack,
-    getRedoStack: () => redoStack,
-    retroApplyToDisabled: (logEntry) => retroApplyToDisabled(logEntry),
-    retroApplyAllToDisabled: () => retroApplyAllToDisabled()
+    getRedoStack: () => redoStack
+  });
+
+  // Retroactive Merge/Void dock (right sidebar) moved to ./canonical-tags.ts
+  initCanonicalTags({
+    getDirHandle: () => dirHandle,
+    getEntries: () => entries,
+    markDirty: (e) => markDirty(e),
+    markRulesDirty: () => markRulesDirty(),
+    recordChange: (type, summary, affected, extra) => recordChange(type, summary, affected, extra),
+    refreshAllUI: () => refreshAllUI()
   });
 
   // Gallery/compact/single view rendering, chips, modal, image options menu moved to ./view.ts
@@ -945,7 +1094,7 @@ import { initRandomFacts } from './random-facts';
     maybePromptAddDataset(picked);
   });
 
-  async function scanDirInto(handle, disabled){
+  async function scanDirInto(handle, disabled, pendingApproval = false){
     const imageHandles = new Map();
     const txtHandles = new Map();
     for await (const [name, h] of handle.entries()){
@@ -974,28 +1123,42 @@ import { initRandomFacts } from './random-facts';
         } catch(e){ tags = []; }
       }
 
-      const file = await img.handle.getFile();
-      const objectUrl = URL.createObjectURL(file);
-
-      const entry = {
-        base,
-        imgName: img.name,
-        imgHandle: img.handle,
-        txtHandle,
-        txtName: base + '.txt',
-        txtExisted,
-        objectUrl,
-        tags,
-        dirty: false,
-        disabled,
-        width: null,
-        height: null,
-        meta: { reviewColor: null, flaggedTags: [], note: '', noteAlwaysVisible: false }
-      };
-      entries.push(entry);
-      entryByBase.set(base, entry);
-      loadImageDimensions(entry);
+      await buildEntry(base, img.handle, img.name, txtHandle, txtExisted, tags, disabled, pendingApproval);
     }
+  }
+
+  // Extracted from scanDirInto's per-image body so a single new file (e.g.
+  // SynthDat Overseer's "Accept" flow, which writes one freshly-generated
+  // image+.txt into dirHandle without a full folder rescan) can be appended
+  // to `entries` the exact same way a folder-open scan would have built it,
+  // rather than a second, divergent entry-shape constructor.
+  async function buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled, pendingApproval = false){
+    const file = await imgHandle.getFile();
+    const objectUrl = URL.createObjectURL(file);
+
+    const entry = {
+      base,
+      imgName,
+      imgHandle,
+      txtHandle,
+      txtName: base + '.txt',
+      txtExisted,
+      objectUrl,
+      tags,
+      // A pending-approval entry (SynthDat Accept, not yet saved) is always
+      // "not yet saved" by definition — dirty starts true for it, false for
+      // every normal entry as before.
+      dirty: pendingApproval,
+      disabled,
+      pendingApproval,
+      width: null,
+      height: null,
+      meta: { reviewColor: null, flaggedTags: [], note: '', noteAlwaysVisible: false, locked: false, mergeImmune: false, antivoid: false }
+    };
+    entries.push(entry);
+    entryByBase.set(base, entry);
+    loadImageDimensions(entry);
+    return entry;
   }
 
   function loadImageDimensions(entry){
@@ -1034,8 +1197,10 @@ import { initRandomFacts } from './random-facts';
     entries = [];
     entryByBase.clear();
     disabledDirHandle = null;
+    unsavedApprovedDirHandle = null;
     btnAddFavorite.disabled = !dirHandle;
     btnUnloadDataset.disabled = !dirHandle;
+    btnReloadDataset.disabled = !dirHandle;
     resetUndoRedo();
     masterSelectedImages.clear();
     resetStickyCompare();
@@ -1051,16 +1216,27 @@ import { initRandomFacts } from './random-facts';
       disabledDirHandle = null;
     }
 
+    try {
+      // Leftover images from a previous session's SynthDat Accept that never
+      // got saved before the app closed — they survive here (see
+      // ensureUnsavedApprovedDir()/tags-edit.ts) with no tags recoverable
+      // (those only ever existed in memory), but the image itself isn't lost.
+      unsavedApprovedDirHandle = await dirHandle.getDirectoryHandle('Unsaved Approved', { create: false });
+      await scanDirInto(unsavedApprovedDirHandle, false, true);
+    } catch(e){
+      unsavedApprovedDirHandle = null;
+    }
+
     await loadEntryMeta();
     for (const e of entries){
-      e.meta = entryMeta[e.base] || { reviewColor: null, flaggedTags: [], note: '', noteAlwaysVisible: false };
+      e.meta = entryMeta[e.base] || { reviewColor: null, flaggedTags: [], note: '', noteAlwaysVisible: false, locked: false, mergeImmune: false, antivoid: false };
     }
 
     dropHint.style.display = entries.length ? 'none' : 'flex';
     dropHintWrap.style.display = entries.length ? 'none' : 'block';
     galleryToolbar.style.display = entries.length ? 'flex' : 'none';
 
-    galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false };
+    galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, pendingApprovalView: false };
     filterInput.value = '';
     excludeBadge.style.display = 'none';
     [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach(b=>b.classList.remove('active'));
@@ -1071,6 +1247,11 @@ import { initRandomFacts } from './random-facts';
 
     await loadEditLogForFolder();
     await loadFolderStats();
+    // After the edit log — its own first-run bootstrap (canonical-tags.ts)
+    // reconstructs standing rules from past merge/void log entries when this
+    // dataset has no _dts_canonical_tags.json of its own yet.
+    await loadCanonicalRulesForFolder();
+    resetRulesDirty();
 
     renderAll();
     checkAchievements();
@@ -1087,19 +1268,21 @@ import { initRandomFacts } from './random-facts';
   // "reset" export was needed on either module.
   async function unloadDataset(){
     if (!dirHandle) return;
-    const dirtyCount = entries.filter(e => e.dirty).length;
-    if (dirtyCount > 0){
-      const ok = await showConfirmModal(`You have ${dirtyCount} unsaved caption change(s). Unload the dataset anyway without saving?`, { okLabel: 'Unload anyway', danger: true });
+    const unsavedUnload = unsavedChangesDescription();
+    if (unsavedUnload){
+      const ok = await showConfirmModal(`You have ${unsavedUnload}. Unload the dataset anyway without saving?`, { okLabel: 'Unload anyway', danger: true });
       if (!ok) return;
     }
     trackStat('dataset_unloads');
     checkAchievements();
     dirHandle = null;
     disabledDirHandle = null;
+    unsavedApprovedDirHandle = null;
     entries = [];
     entryByBase.clear();
     btnAddFavorite.disabled = true;
     btnUnloadDataset.disabled = true;
+    btnReloadDataset.disabled = true;
     resetUndoRedo();
     masterSelectedImages.clear();
     resetStickyCompare();
@@ -1121,11 +1304,31 @@ import { initRandomFacts } from './random-facts';
 
     await loadEditLogForFolder();
     await loadFolderStats();
+    await loadCanonicalRulesForFolder();
+    resetRulesDirty();
 
     renderAll();
     toast('Dataset unloaded.');
   }
   btnUnloadDataset.addEventListener('click', unloadDataset);
+
+  // Re-scans the current dataset folder from disk — the exact same
+  // loadFolder() a fresh File > Open would run, just without re-picking the
+  // folder. Picks up files changed/added outside the app (e.g. hand-edited
+  // .txt files, images dropped in via Explorer) and any leftover Unsaved
+  // Approved images from a previous session. Same unsaved-changes guard as
+  // Unload/Quit/Restart, since anything not yet saved would otherwise be
+  // silently overwritten by the rescan's fresh-from-disk tag values.
+  async function reloadDataset(){
+    if (!dirHandle) return;
+    const unsavedReload = unsavedChangesDescription();
+    if (unsavedReload){
+      const ok = await showConfirmModal(`You have ${unsavedReload}. Reload the dataset from disk anyway, discarding them?`, { okLabel: 'Reload anyway', danger: true });
+      if (!ok) return;
+    }
+    await loadFolder();
+  }
+  btnReloadDataset.addEventListener('click', reloadDataset);
 
   // Tag index/frequency list + gallery filtering moved to ./tag-index.ts
 
@@ -1187,6 +1390,28 @@ import { initRandomFacts } from './random-facts';
     try { saved = localStorage.getItem('dts-panel-layout') || 'standard'; } catch(e){}
     applyPanelLayout(saved);
   })();
+
+  // Right panel collapse: tucks #right away to a thin strip (see styles.css's
+  // comment on #shell.right-panel-collapsed for why the track width has to
+  // vary per layout mode instead of just hiding #right). The arrow lives at
+  // #right's own left edge, so it always ends up at whichever edge of the
+  // screen #right currently occupies, including gallery-right layout where
+  // that's the boundary next to #left rather than the screen's right edge.
+  function applyRightPanelCollapsed(collapsed){
+    shellEl.classList.toggle('right-panel-collapsed', collapsed);
+    rightAside.classList.toggle('right-panel-collapsed', collapsed);
+    btnRightPanelCollapse.textContent = collapsed ? '‹' : '›';
+    btnRightPanelCollapse.title = collapsed ? 'Show this panel' : 'Hide this panel';
+    try { localStorage.setItem('dts-right-panel-collapsed', collapsed ? '1' : '0'); } catch(e){}
+  }
+  (function initRightPanelCollapsed(){
+    let saved = false;
+    try { saved = localStorage.getItem('dts-right-panel-collapsed') === '1'; } catch(e){}
+    applyRightPanelCollapsed(saved);
+  })();
+  btnRightPanelCollapse.addEventListener('click', () => {
+    applyRightPanelCollapsed(!rightAside.classList.contains('right-panel-collapsed'));
+  });
   const layoutDropdownCtrl = buildPersistentDropdown(layoutDropdown,
     [
       { value: 'standard', label: 'Standard (left · gallery · right)' },
@@ -1259,6 +1484,18 @@ import { initRandomFacts } from './random-facts';
       : 'No duplicate-spelling tags found.');
   });
 
+  btnQuickMergeFamilies.addEventListener('click', () => {
+    const showing = quickMergeFamiliesList.style.display !== 'none';
+    if (showing){
+      quickMergeFamiliesList.style.display = 'none';
+      btnQuickMergeFamilies.textContent = '🔤 Show keyword families';
+    } else {
+      renderQuickMergeFamiliesList(buildTagIndex(), (tag) => setContainsFilter(tag));
+      quickMergeFamiliesList.style.display = '';
+      btnQuickMergeFamilies.textContent = '🔤 Hide keyword families';
+    }
+  });
+
   btnQuickMergeApply.addEventListener('click', async () => {
     const activeCount = quickMergeGroups.filter(g => quickMergeSelection.get(g.key).selected).length;
     if (activeCount === 0){
@@ -1316,9 +1553,9 @@ import { initRandomFacts } from './random-facts';
   // confirms losing their changes.
   if (window.electronAPI && window.electronAPI.onRequestClose){
     window.electronAPI.onRequestClose(async () => {
-      const dirtyCount = entries.filter(e => e.dirty).length;
-      if (dirtyCount > 0){
-        const ok = await showConfirmModal(`You have ${dirtyCount} unsaved caption change(s). Quit anyway without saving?`, { okLabel: 'Quit anyway', danger: true });
+      const unsavedClose = unsavedChangesDescription();
+      if (unsavedClose){
+        const ok = await showConfirmModal(`You have ${unsavedClose}. Quit anyway without saving?`, { okLabel: 'Quit anyway', danger: true });
         if (!ok) return;
       }
       window.electronAPI.confirmClose();

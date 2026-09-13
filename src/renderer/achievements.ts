@@ -10,7 +10,7 @@ import {
   btnAchievements, achCloseBtn, shopPanel, shopList, btnShop, shopCloseBtn,
   btnFreeEdibits, favoritesPanel, themeCustomPanel, logPanel, tagDetailsPanel,
   themeSelect, btnResetEdibits, btnResetAchievements, achievementPopupHost,
-  btnRefineTheme, suppressThemeUpgradeToggle
+  btnRefineTheme, suppressThemeUpgradeToggle, disableThemeFlourishesToggle
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, escapeHtml } from './shared-ui';
 import {
@@ -410,13 +410,28 @@ export function initAchievementPanels(){
   });
 
   suppressThemeUpgradeToggle.addEventListener('change', () => {
-    try { localStorage.setItem('dts-suppress-theme-upgrade', suppressThemeUpgradeToggle.checked ? '1' : '0'); } catch(e){}
+    const on = suppressThemeUpgradeToggle.checked;
+    try { localStorage.setItem('dts-suppress-theme-upgrade', on ? '1' : '0'); } catch(e){}
+    document.documentElement.classList.toggle('suppress-theme-upgrade', on);
     updateRefineThemeButton();
   });
   (function initSuppressThemeUpgradePref(){
     let on = false;
     try { on = localStorage.getItem('dts-suppress-theme-upgrade') === '1'; } catch(e){}
     suppressThemeUpgradeToggle.checked = on;
+    document.documentElement.classList.toggle('suppress-theme-upgrade', on);
+  })();
+
+  disableThemeFlourishesToggle.addEventListener('change', () => {
+    const on = disableThemeFlourishesToggle.checked;
+    try { localStorage.setItem('dts-no-theme-flourishes', on ? '1' : '0'); } catch(e){}
+    document.documentElement.classList.toggle('no-theme-flourishes', on);
+  });
+  (function initDisableThemeFlourishesPref(){
+    let on = false;
+    try { on = localStorage.getItem('dts-no-theme-flourishes') === '1'; } catch(e){}
+    disableThemeFlourishesToggle.checked = on;
+    document.documentElement.classList.toggle('no-theme-flourishes', on);
   })();
 
   btnFreeEdibits.addEventListener('click', () => {
