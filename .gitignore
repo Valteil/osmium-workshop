@@ -3,6 +3,11 @@ dist/
 Shippable/
 /data/
 
+# Obsidian vault — Claude-maintained project notes/documentation, replacing
+# most of CLAUDE.md's old bulk (see CLAUDE.md itself, now a short pointer
+# into this vault). Local-only by design, not shared via git.
+/notes/
+
 # Tauri port exploration (tauri-port/) — Rust build output and the
 # Tauri CLI's own npm install, both regenerable via `npx tauri dev`/`build`.
 tauri-port/src-tauri/target/
