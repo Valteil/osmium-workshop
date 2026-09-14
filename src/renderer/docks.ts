@@ -1,6 +1,6 @@
 // Phase B module 4/N: dockable panels — drag-reorder, collapse, resize,
 // layout persistence. Originally built for the right-sidebar power-tool
-// docks (Tag Pruner/Unify-Void/Quick Merge); generalized into a factory
+// docks (Tag Pruner/Unify-Void/Retroactive Merge-Void); generalized into a factory
 // (`createDockManager`) so SynthDat Overseer's two columns of tool-sections
 // can reuse the exact same tested collapse-animation/drag-reorder code
 // (including the "reset every inline style after the transition ends" fix —
@@ -63,12 +63,13 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
 
   // `animate` is only ever true from the collapse button's own click handler —
   // initial setup and "Reset panel layout" both apply the resting state
-  // directly, with no transition to play. Two section shapes exist: quickMerge
-  // has a single `.dock-scroll-body` wrapping its content; most others don't,
-  // so their direct children (other than the header) are collapsed
-  // individually — animating each one in parallel looks the same as animating
-  // one combined wrapper would, without needing to introduce a synthetic
-  // wrapper div around content another part of this module also reaches into.
+  // directly, with no transition to play. Two section shapes exist: some
+  // (tagPruner, canonicalTags) have a single `.dock-scroll-body` wrapping
+  // their content; others don't, so their direct children (other than the
+  // header) are collapsed individually — animating each one in parallel
+  // looks the same as animating one combined wrapper would, without needing
+  // to introduce a synthetic wrapper div around content another part of this
+  // module also reaches into.
   function applyDockCollapse(sec, id, animate){
     const scrollBody = sec.querySelector('.dock-scroll-body');
     const bodyEls = scrollBody ? [scrollBody] : Array.from(sec.children).filter(el =>
@@ -205,7 +206,15 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
       ev.preventDefault();
       sec.classList.remove('dock-drop-target');
       const draggedId = ev.dataTransfer.getData('text/plain');
-      if (!draggedId || draggedId === id || !dockOrder.includes(draggedId)) return;
+      // Validated against an actual dock currently in the DOM, NOT against
+      // `dockOrder.includes(draggedId)` — that used to silently no-op the
+      // drop for any dock missing from a stale PERSISTED order (e.g. a
+      // saved order captured before this dock existed, or while some
+      // other, since-removed dock's id was still in it), even though the
+      // dock being dragged was completely valid. `reorderDock()` already
+      // handles a dock that isn't yet in `dockOrder` fine (its `filter()`
+      // call is just a no-op for it).
+      if (!draggedId || draggedId === id || !container.querySelector(`.tool-section[data-dock-id="${draggedId}"]`)) return;
       // Direction comes from the two docks' CURRENT relative order, not cursor
       // position within the target — dropping anywhere on a dock swaps it with
       // the dragged one. Previously this needed the cursor in the correct half
@@ -289,7 +298,7 @@ const rightToolsDockManager = createDockManager({
   storageOrderKey: 'dts-dock-order',
   storageCollapsedKey: 'dts-dock-collapsed',
   storageHeightsKey: 'dts-dock-heights',
-  defaultOrder: ['tagPruner', 'unifyVoid', 'canonicalTags', 'quickMerge'],
+  defaultOrder: ['tagPruner', 'unifyVoid', 'canonicalTags'],
   scrollContainer: rightAside
 });
 

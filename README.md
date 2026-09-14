@@ -74,8 +74,8 @@ place in the grid.
   covers already-disabled images in the same action.
 - **Retroactive Merge/Void** (its own dock, gallery right sidebar) — standing rules of the shape
   "these tags → this canonical tag" (or "→ nothing" for a void rule). Any matching tag that shows
-  up on a Gallery image afterward, by any automatic means (WD14, Master Tags, Quick Merge, an
-  accepted SynthDat image), gets auto-corrected; typing one in by hand is blocked instead, with a
+  up on a Gallery image afterward, by any automatic means (WD14, Master Tags, an accepted SynthDat
+  image), gets auto-corrected; typing one in by hand is blocked instead, with a
   toast pointing back at the dock. Full control over what's subject to a rule: pause a whole rule
   or toggle one of its tags off without deleting anything — doing so actively unmerges/unvoids
   every affected image using the edit log to restore exactly what it originally had, not just
@@ -119,11 +119,11 @@ reference pose image (optional — skippable for an ordinary prompted generation
 it so you can copy just the pose tags across, fill in the rest of the prompt fields, then Generate
 (1-Pass or a 2nd refinement pass, with live preview and a Stop button). A final editable tag card
 shows exactly what will be saved, with per-tag pruning and a merge-history suggestion pulled from
-this dataset's own Retroactive Merge/Void rules. **Accept** stages the image + tags into the
-dataset's `Unsaved Approved/` folder immediately (tags are written to disk right away too, not
-left purely in-memory, so a crash before your next Save doesn't lose them) and later promotes into
-the dataset root on Save; **Reject** sends it straight to `Disabled/` like any other disabled
-image — nothing generated is ever silently discarded. Electron-only feature; see
+this dataset's own Retroactive Merge/Void rules. **Accept** writes the image + tags straight into
+the dataset root immediately (tags are written to disk right away too, not left purely in-memory,
+so a crash before your next Save doesn't lose them) as a normal unsaved edit; **Reject** sends it
+straight to `Disabled/` like any other disabled image — nothing generated is ever silently
+discarded. Electron-only feature; see
 `ComfyUI-dependencies/` in this repo for what your ComfyUI instance needs to run its workflow.
 
 ### Wiki lookup, stats, favorites
@@ -133,6 +133,11 @@ image — nothing generated is ever silently discarded. Electron-only feature; s
 - **★ Favorites** — save frequently-used dataset folders, reopen with one click.
 
 ### Quality of life
+- **❓ Help** (topbar) — a condensed in-app copy of the user guide, including the beginner-friendly
+  glossary entries, for when you don't want to leave the app to look something up.
+- **🩺 Export app state** (Settings ▸ Updates & Sharing) — a troubleshooting aid that writes a text
+  file next to the app with your settings/theme/panel layout and whether a dataset's loaded, useful
+  for reporting a bug.
 - Themed confirm dialogs everywhere (no native OS popups).
 - Hover tooltips (toggleable, adjustable delay) on most controls.
 - Dockable right-sidebar panels — drag-reorder, collapse, resize; resettable to defaults.
@@ -155,9 +160,13 @@ theme has its own accent set and at least one real visual flourish beyond just i
 (a texture, an animation, a distinct button/card shape) — the epic and legendary tiers
 additionally get a hover/click "fill" effect on buttons as a purchase-worthy touch.
 
-- **🏆 Achievements** (45+, comedic, unlocked per-folder — opening a different dataset starts
+- **🏆 Achievements** (55+, comedic, unlocked per-folder — opening a different dataset starts
   fresh) pay out **Edibits**, a small currency with rarity tiers. A "beg for free Edibits" button
   exists if you're short.
+- **Motion-sensitivity controls** (Settings ▸ Appearance) — Suppress Theme Flourishes (hides Refine
+  Theme, turns off epic/legendary-tier hover-fill/card-tilt everywhere) plus three independent
+  toggles for hover-fill, card hover-tilt, and ambient animations, if you'd rather turn off just
+  one motion effect instead of all of them.
 - **🎨 Colors** — customize any theme's palette live via color pickers, save as your own "Custom"
   theme.
 - **🌙 Night mode** — a genuine HSL lightness-inversion per theme, not a screen filter.
@@ -228,7 +237,8 @@ opening DevTools by hand.
 ```
 <project root>/
   src/
-    main.ts              — Electron main process (window, IPC: restart/zoom/GitHub-package export)
+    main.ts              — Electron main process (window, IPC: app version, restart, zoom,
+                             hardware acceleration, export app state, WD14/SynthDat's ComfyUI calls)
     preload.ts            — minimal security bridge exposed to the renderer
     renderer/
       index.ts             — composition root (core state, folder loading, wires every module)

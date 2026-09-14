@@ -6,8 +6,9 @@ declare global {
   interface Window {
     electronAPI: {
       restartApp: () => Promise<void>;
+      getAppVersion: () => Promise<string>;
       setZoomFactor: (factor: number) => Promise<void>;
-      generateGithubPackage: () => Promise<{ ok: boolean; message: string; path?: string }>;
+      exportAppState: (text: string) => Promise<{ ok: boolean; message?: string; path?: string }>;
       onRequestClose: (callback: () => void) => void;
       confirmClose: () => Promise<void>;
       wd14GetModels: (host: string) => Promise<{ ok: boolean; models?: string[]; error?: string }>;

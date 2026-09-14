@@ -21,8 +21,6 @@ let getEntryByBase = () => undefined;
 let getDirHandle = () => null;
 let getDisabledDirHandle = () => null;
 let setDisabledDirHandle = () => {};
-let getUnsavedApprovedDirHandle = () => null;
-let setUnsavedApprovedDirHandle = () => {};
 let resetSingleIndex = () => {};
 let refreshStatsRef = () => {};
 let refreshAllUIRef = () => {};
@@ -199,66 +197,12 @@ async function ensureDisabledDir(){
   return disabledDirHandle;
 }
 
-// SynthDat Overseer's "accept" staging folder — an accepted-but-not-yet-saved
-// image lives here (not the dataset root) for its entire dirty lifetime, so
-// the generated file itself survives a crash/close-without-saving even
-// though its tags (memory-only until saved, like any dirty entry) don't.
-// promotePendingApproval() below moves it into the root once actually saved.
-export async function ensureUnsavedApprovedDir(){
-  let h = getUnsavedApprovedDirHandle();
-  if (!h){
-    h = await getDirHandle().getDirectoryHandle('Unsaved Approved', { create: true });
-    setUnsavedApprovedDirHandle(h);
-  }
-  return h;
-}
-
-// Moves a still-pending (never-saved) entry out of Unsaved Approved/ and
-// into the dataset root, writing its CURRENT in-memory tags for the first
-// time — this is what "saving" actually means for one of these, since it
-// never had a .txt file (or a root-folder home) until now. Called from
-// saveAllDirty() instead of that function's normal in-place write.
-async function promotePendingApproval(entry){
-  const dirHandle = getDirHandle();
-  if (!dirHandle) return false;
-  try {
-    const stagingDir = getUnsavedApprovedDirHandle();
-    const file = await entry.imgHandle.getFile();
-    const newImgHandle = await dirHandle.getFileHandle(entry.imgName, { create: true });
-    const iw = await newImgHandle.createWritable();
-    await iw.write(file);
-    await iw.close();
-
-    const newTxtHandle = await dirHandle.getFileHandle(entry.txtName, { create: true });
-    const tw = await newTxtHandle.createWritable();
-    await tw.write(entry.tags.join(', '));
-    await tw.close();
-
-    if (stagingDir){
-      try { await stagingDir.removeEntry(entry.imgName); } catch(e){}
-      try { await stagingDir.removeEntry(entry.txtName); } catch(e){}
-    }
-    entry.imgHandle = newImgHandle;
-    entry.txtHandle = newTxtHandle;
-    entry.txtExisted = true;
-    entry.pendingApproval = false;
-    entry.dirty = false;
-    return true;
-  } catch(err){
-    return false;
-  }
-}
-
 export async function moveEntry(entry, toDisabled){
   const dirHandle = getDirHandle();
   if (!dirHandle) return;
   try {
     const targetDir = toDisabled ? await ensureDisabledDir() : dirHandle;
-    // A still-pending entry's CURRENT location is Unsaved Approved/, not the
-    // root, regardless of which direction it's being moved (this only
-    // happens if the user manually disables/restores it via the 3-dot menu
-    // before it was ever saved/promoted).
-    const sourceDir = entry.pendingApproval ? getUnsavedApprovedDirHandle() : (toDisabled ? dirHandle : getDisabledDirHandle());
+    const sourceDir = toDisabled ? dirHandle : getDisabledDirHandle();
 
     const file = await entry.imgHandle.getFile();
     const newImgHandle = await targetDir.getFileHandle(entry.imgName, { create: true });
@@ -286,7 +230,6 @@ export async function moveEntry(entry, toDisabled){
 
     entry.dirty = false;
     entry.disabled = toDisabled;
-    entry.pendingApproval = false;
 
     toast(toDisabled
       ? `Moved "${entry.imgName}" to Disabled/. Filename kept as-is, so restoring slots it right back in.`
@@ -323,8 +266,6 @@ export function initTagsEdit(deps){
   getDirHandle = deps.getDirHandle;
   getDisabledDirHandle = deps.getDisabledDirHandle;
   setDisabledDirHandle = deps.setDisabledDirHandle;
-  getUnsavedApprovedDirHandle = deps.getUnsavedApprovedDirHandle;
-  setUnsavedApprovedDirHandle = deps.setUnsavedApprovedDirHandle;
   resetSingleIndex = deps.resetSingleIndex;
   refreshStatsRef = deps.refreshStats;
   refreshAllUIRef = deps.refreshAllUI;
@@ -460,13 +401,6 @@ export async function saveAllDirty(silent = false){
   }
   for (const e of dirty){
     try {
-      if (e.pendingApproval){
-        // Never had a .txt or a root-folder home — "saving" it means moving
-        // it out of Unsaved Approved/ into the root for the first time, not
-        // an in-place write (see promotePendingApproval()).
-        if (await promotePendingApproval(e)) ok++; else fail++;
-        continue;
-      }
       const targetDir = e.disabled ? disabledDirHandle : dirHandle;
       if (!targetDir) { fail++; continue; }
       if (!e.txtHandle){

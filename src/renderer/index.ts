@@ -7,7 +7,7 @@
 import {
   $, btnOpen, btnSave, btnUndo, btnRedo, btnUnloadDataset, btnReloadDataset, dirtyCountEl, galleryToolbar, galleryGrid,
   compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
-  singleViewEl, imageCardModal, modalCardInner, dropHint, dropHintWrap, filterInput,
+  singleViewEl, imageCardModal, modalCardInner, dropHint, dropHintWrap, filterInput, filterExactToggle,
   filterAllBtn, filterUntaggedBtn, filterDirtyBtn, excludeBadge, excludeBadgeText,
   excludeBadgeClear, tagFrequencyList, leftSortDropdown, leftSortDirBtn,
   btnResetFamilyOrder, btnClearFilter, filterModeDropdown, btnFlagIsolated,
@@ -15,19 +15,18 @@ import {
   btnClearSelection, btnVoidSelected, includeDisabledToggle, allTagsDatalist, toastEl,
   themeSelect, themeDropdown, btnThemeCustomize, themeCustomPanel, themeVarRows, themeResetBtn,
   themeApplyBtn, themeCloseBtn, btnQuit, btnLeftDrawerToggle, btnRightDrawerToggle,
-  drawerBackdrop, leftAside, rightAside, actionsScrollLeft, actionsScrollRight,
+  drawerBackdrop, leftAside, rightAside,
   topbarActions, fileCatBtn, fileCatFlyout,
   personalizationCatBtn, personalizationCatFlyout, flyoutOutsideCloseToggle,
   panelsOutsideCloseToggle, btnSettings, favoritesPanel,
   btnAddFavorite, logPanel, appVersionEl, tabGallery, tabMasterTags,
-  tabStats, galleryTab, statsTab, btnStatsBack, btnMasterBack, normalRightTools,
+  tabStats, galleryTab, statsTab, btnStatsBack, btnMasterBack, btnGoToTagOverseer, normalRightTools,
   tabSynthDat, synthDatTab, btnSynthDatBack,
   tabDatasetManager, datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown,
-  layoutDropdown, shellEl, btnResetZoom, btnRightPanelCollapse,
-  customFontInput, btnApplyCustomFont, btnClearCustomFont, powerHighlightToggle,
-  powerFillToggle, btnQuickMergeScan, quickMergeList, btnQuickMergeApply,
-  btnQuickMergeFamilies, quickMergeFamiliesList,
-  tagAutocompleteToggle, btnGithubPackage, btnStartPowerToolPicker, powerToolList,
+  layoutDropdown, shellEl, btnResetZoom, btnExportAppState, btnRightPanelCollapse, rightPanelResizeHandle,
+  powerHighlightToggle,
+  powerFillToggle,
+  tagAutocompleteToggle, btnStartPowerToolPicker, powerToolList,
   btnResetCustomPowerTools, masterTagPanel, masterSelectionSummary, masterMiniGrid,
   btnMasterSelectAll, btnMasterClearSelection, masterApplyTagInput,
   btnMasterApplyToSelected, masterRemoveTagInput, btnMasterRemoveFromSelected,
@@ -40,7 +39,7 @@ import {
   viewDisabledBtn, gallerySortDropdown, gallerySortDirBtn, singleNav, singlePrevBtn,
   singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle
 } from './dom';
-import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop } from './shared-ui';
+import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons } from './shared-ui';
 import {
   PREMIUM_THEMES, STUDIO_DEFAULTS, applyTheme, openThemeCustomPanel, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes
@@ -48,13 +47,10 @@ import {
 import { initDockSystem } from './docks';
 import {
   applyAppZoom, resetAppZoom, getOutsideClosablePanels, saveSettingsSectionState,
-  SETTINGS_SECTIONS_KEY, applyCustomFont
+  SETTINGS_SECTIONS_KEY
 } from './settings';
 import { initPowerTools } from './power-tools';
-import {
-  quickMergeGroups, quickMergeSelection, runQuickMergeScan, resetQuickMergeState,
-  applyQuickMerge, renderQuickMergeList, renderQuickMergeFamiliesList
-} from './quick-merge';
+import { initHelp } from './help';
 import { initTagPruner, renderTagPruners, addTagPruner } from './tag-pruner';
 import {
   tagAutocompleteEnabled, setTagAutocompleteEnabled, initTagAutocomplete
@@ -81,7 +77,7 @@ import {
   masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid, initMasterTagControl
 } from './master-tag-control';
 import { initWd14Tagger } from './wd14-tagger';
-import { initSynthDatOverseer } from './synthdat-overseer';
+import { initSynthDatOverseer, loadSynthDatSettingsForFolder } from './synthdat-overseer';
 import {
   ensureWikiDataLoaded, ensureAllTagsLoaded, getCustomTagNote, setCustomTagNote,
   openTagDetails, initTagDetails
@@ -100,11 +96,10 @@ import { initRandomFacts } from './random-facts';
   // ---------------- State ----------------
   let dirHandle = null;
   let disabledDirHandle = null;
-  let unsavedApprovedDirHandle = null;
-  let entries = [];            // [{base, imgHandle, txtHandle, txtExisted, objectUrl, tags:[], dirty:bool, disabled:bool, pendingApproval:bool}]
+  let entries = [];            // [{base, imgHandle, txtHandle, txtExisted, objectUrl, tags:[], dirty:bool, disabled:bool}]
   let entryByBase = new Map();
   let selectedTags = new Set();
-  let galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false };
+  let galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false };
   // undoStack/redoStack moved to ./tags-edit.ts
   // viewMode/singleIndex/ctxMenuEl/commonLanguages moved to ./view.ts
   // editLog/logIdCounter moved to ./edit-log.ts
@@ -125,7 +120,6 @@ import { initRandomFacts } from './random-facts';
   // wikiData/allTagsMap moved to ./tag-details.ts
   let activeLangMenuBase = null;
   // tagAutocompleteEnabled/autocompleteEl moved to ./tags-autocomplete.ts
-  // quickMergeGroups/quickMergeSelection moved to ./quick-merge.ts
   // customPowerTools/powerToolPickerActive moved to ./power-tools.ts
 
   const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'];
@@ -293,8 +287,19 @@ import { initRandomFacts } from './random-facts';
 
   // ---------------- Version / tabs / night mode ----------------
 
-  const APP_VERSION = '2.0.0';
-  appVersionEl.textContent = 'v' + APP_VERSION;
+  // Fetched from main (app.getVersion(), which reads package.json itself) so
+  // this can never drift from the real version the way a hand-typed constant
+  // did — falls back to '' (shown as no version string) if the IPC call ever
+  // fails, rather than showing a made-up number.
+  let APP_VERSION = '';
+  (async () => {
+    try {
+      if (window.electronAPI && window.electronAPI.getAppVersion){
+        APP_VERSION = await window.electronAPI.getAppVersion();
+      }
+    } catch(e){}
+    appVersionEl.textContent = APP_VERSION ? ('v' + APP_VERSION) : '';
+  })();
 
   // Crossfades whichever of the plain-display panes (Datasets tab, Stats
   // tab, the right-sidebar Master Tag Control swap) are actually changing
@@ -319,9 +324,23 @@ import { initRandomFacts } from './random-facts';
       masterTagModeActive = (tab === 'master');
       normalRightTools.style.display = masterTagModeActive ? 'none' : 'block';
       masterTagPanel.style.display = masterTagModeActive ? 'block' : 'none';
+      // Sits in the right panel's own header row (next to the collapse
+      // arrow), swapping which of the two shows depending on which side
+      // of the dock/Master-Tag-Control split is currently visible — fills
+      // what used to be dead space there instead of adding a second button
+      // inside the dock content itself.
+      btnGoToTagOverseer.style.display = masterTagModeActive ? 'none' : '';
+      btnMasterBack.style.display = masterTagModeActive ? '' : 'none';
       if (tab === 'stats') renderStatsTab();
       if (tab === 'datasets') renderDatasetManagerTab();
       if (tab !== 'datasets') { renderCurrentView(); renderMasterSelectionSummary(); }
+      // #right is hidden (display:none, via #galleryTab above) on every tab
+      // except gallery/master — re-measuring the resize handle's position
+      // here, every switch, is a cheap no-op when it's still hidden (see
+      // repositionRightResizeHandle()'s own guard) and self-corrects it the
+      // moment it's visible again, covering any staleness picked up while
+      // away (e.g. a zoom-triggered resize event landing on another tab).
+      repositionRightResizeHandleSoon();
     };
 
     if (document.documentElement.classList.contains('motion-off')){ applyState(); return; }
@@ -340,11 +359,16 @@ import { initRandomFacts } from './random-facts';
   }
   tabDatasetManager.addEventListener('click', () => switchTab('datasets'));
   tabGallery.addEventListener('click', () => switchTab('gallery'));
-  tabMasterTags.addEventListener('click', () => switchTab('master'));
+  // Clicking Tag Overseer while it's already the active tab toggles back to
+  // the default Gallery view/right panel instead of just re-selecting itself.
+  tabMasterTags.addEventListener('click', () => {
+    switchTab(tabMasterTags.classList.contains('active') ? 'gallery' : 'master');
+  });
   tabStats.addEventListener('click', () => switchTab('stats'));
   tabSynthDat.addEventListener('click', () => switchTab('synthdat'));
   btnStatsBack.addEventListener('click', () => switchTab('gallery'));
   btnMasterBack.addEventListener('click', () => switchTab('gallery'));
+  btnGoToTagOverseer.addEventListener('click', () => switchTab('master'));
   btnSynthDatBack.addEventListener('click', () => switchTab('gallery'));
 
   // stats pie/bar toggle wiring moved to ./edit-log.ts (initEditLog)
@@ -382,26 +406,28 @@ import { initRandomFacts } from './random-facts';
     }
   })();
 
-  // ---------------- Topbar scroll arrows ----------------
+  // ---------------- Topbar auto-scale (replaces the old scroll arrows) ----------------
 
-  actionsScrollLeft.addEventListener('click', () => topbarActions.scrollBy({ left: -220, behavior: 'smooth' }));
-  actionsScrollRight.addEventListener('click', () => topbarActions.scrollBy({ left: 220, behavior: 'smooth' }));
-
-  // Greyed out (via the normal `disabled` attribute/styling) whenever the
-  // actions row has nothing to scroll, so the two arrows don't sit there
-  // clickable-but-useless — and re-enable the instant a scrollbar actually
-  // appears (e.g. the font-size slider pushes the row into overflow).
-  // ResizeObserver on the row itself covers every cause of that (window
-  // resize, font-size zoom, content changes) with one mechanism, since
-  // Electron's native page zoom changes the row's effective CSS-px size
-  // the same way a real resize would.
-  function updateActionsScrollArrows(){
-    const hasOverflow = topbarActions.scrollWidth > topbarActions.clientWidth + 1;
-    actionsScrollLeft.disabled = !hasOverflow;
-    actionsScrollRight.disabled = !hasOverflow;
+  // Instead of letting the actions row overflow into a scrollbar, shrink it
+  // in place to fit. `scrollWidth`/`clientWidth` are unaffected by an
+  // element's own `transform`, so this stays self-correcting on every tick:
+  // reset to scale(1), measure the row's natural (unscaled) content width
+  // against the space actually available, and re-apply. ResizeObserver on
+  // the row covers every cause of that changing (window resize, font-size
+  // zoom, content changes) with one mechanism, since Electron's native page
+  // zoom changes the row's effective CSS-px size the same way a real resize
+  // would.
+  const TOPBAR_MIN_SCALE = 0.6;
+  function updateTopbarScale(){
+    topbarActions.style.transform = '';
+    const natural = topbarActions.scrollWidth;
+    const available = topbarActions.clientWidth;
+    if (natural <= 0 || available <= 0) return;
+    const scale = Math.min(1, Math.max(TOPBAR_MIN_SCALE, available / natural));
+    topbarActions.style.transform = scale < 1 ? `scale(${scale})` : '';
   }
-  new ResizeObserver(updateActionsScrollArrows).observe(topbarActions);
-  updateActionsScrollArrows();
+  new ResizeObserver(updateTopbarScale).observe(topbarActions);
+  updateTopbarScale();
 
   // ---------------- Header category flyouts (File / Personalization) ----------------
 
@@ -567,6 +593,7 @@ import { initRandomFacts } from './random-facts';
   const tooltipsToggle = $('tooltipsToggle');
   const tagCountBadgeToggle = $('tagCountBadgeToggle');
   const cardTagSortDropdown = $('cardTagSortDropdown');
+  const galleryColumnsDropdown = $('galleryColumnsDropdown');
   const dynamicCardsToggle = $('dynamicCardsToggle');
   const btnDiscreteToggle = $('btnDiscreteToggle');
   const btnDiscreteOff = $('btnDiscreteOff');
@@ -740,41 +767,50 @@ import { initRandomFacts } from './random-facts';
     });
   })();
 
-  fontSizeSlider.addEventListener('input', () => {
+  // NOT debounced-on-input — applying real page zoom WHILE the slider itself
+  // is being dragged rescales the very control the mouse is on, mid-drag: a
+  // native <input type=range>'s value is computed from mouse position
+  // relative to its (now-rescaled) track, so the SAME physical mouse
+  // position suddenly maps to a different value the instant zoom lands,
+  // firing another 'input' with that new (wrong) value — which applies
+  // ANOTHER zoom, rescaling the track again. That's a genuine feedback
+  // loop, not just an event-frequency problem — any debounce short enough
+  // to feel responsive still re-triggers it every time it fires, and it
+  // self-sustains independent of further real mouse movement (matches the
+  // reported "keeps flickering regardless of where the slider is").
+  // Fix: only commit the actual zoom on 'change' (fires once, on release/
+  // arrow-key commit) — the live label on 'input' is cheap DOM text and
+  // doesn't move the control, so it's safe to update on every tick.
+  async function applyFontZoomFromSlider(){
     const px = fontSizeSlider.value;
-    fontSizeVal.textContent = px + 'px';
-    applyAppZoom(parseInt(px, 10) / 14);
+    // applyAppZoom's setZoomFactor is a real cross-process IPC round-trip
+    // (ipcRenderer.invoke to the main process, which calls
+    // webContents.setZoomFactor on this same window) — NOT instant from the
+    // renderer's own perspective. Reading getBoundingClientRect()/
+    // offsetWidth immediately after firing it (without awaiting) reads
+    // stale pre-zoom layout, which is exactly why the panel ended up
+    // mispositioned/overflowing at higher zoom instead of tracking it. Await
+    // the round-trip, then one rAF to be sure the resulting layout pass has
+    // actually run, before measuring anything.
+    await applyAppZoom(parseInt(px, 10) / 14);
     try { localStorage.setItem('dts-font-size', px); } catch(e){}
+    if (settingsPanel.style.display === 'flex'){
+      requestAnimationFrame(() => {
+        const rect = btnSettings.getBoundingClientRect();
+        positionMenu(settingsPanel, rect.right - settingsPanel.offsetWidth, rect.bottom + 6);
+      });
+    }
+  }
+  fontSizeSlider.addEventListener('input', () => {
+    fontSizeVal.textContent = fontSizeSlider.value + 'px';
   });
+  fontSizeSlider.addEventListener('change', applyFontZoomFromSlider);
   (function initFontSize(){
     let px = '14';
     try { px = localStorage.getItem('dts-font-size') || '14'; } catch(e){}
     fontSizeSlider.value = px;
     fontSizeVal.textContent = px + 'px';
     applyAppZoom(parseInt(px, 10) / 14);
-  })();
-
-  // applyCustomFont moved to ./settings.ts
-  btnApplyCustomFont.addEventListener('click', () => {
-    const name = customFontInput.value.trim();
-    if (!name){ toast('Type a font name first (must be installed on your system).'); return; }
-    applyCustomFont(name);
-    try { localStorage.setItem('dts-custom-font', name); } catch(e){}
-    toast(`Using "${name}" where your system has it installed.`);
-  });
-  btnClearCustomFont.addEventListener('click', () => {
-    customFontInput.value = '';
-    applyCustomFont('');
-    try { localStorage.removeItem('dts-custom-font'); } catch(e){}
-    toast('Back to default fonts.');
-  });
-  (function initCustomFont(){
-    let name = '';
-    try { name = localStorage.getItem('dts-custom-font') || ''; } catch(e){}
-    if (name){
-      customFontInput.value = name;
-      applyCustomFont(name);
-    }
   })();
 
   powerHighlightToggle.addEventListener('change', () => {
@@ -824,22 +860,46 @@ import { initRandomFacts } from './random-facts';
     tagAutocompleteToggle.checked = on;
   })();
 
-  btnGithubPackage.addEventListener('click', async () => {
-    if (!window.electronAPI || !window.electronAPI.generateGithubPackage){
-      toast('GitHub packaging isn\'t available in this build.');
+  // Settings → "Export app state": a debugging snapshot, not a real feature
+  // for most users — dumps every localStorage key this app writes (theme,
+  // toggles, panel layout/width, WD14 settings, achievements/wallet
+  // progress, etc. — practically everything persisted lives in localStorage
+  // here, per this app's portable-data design) plus a bit of in-memory
+  // runtime state localStorage doesn't cover (whether a dataset is actually
+  // loaded right now, how many images, current view mode). Written next to
+  // the app by main.ts's export-app-state handler, named with the current
+  // date/time so a bug report can be matched to exactly this.
+  btnExportAppState.addEventListener('click', async () => {
+    if (!window.electronAPI || !window.electronAPI.exportAppState){
+      toast('Export isn\'t available in this build.');
       return;
     }
-    btnGithubPackage.disabled = true;
-    const prevLabel = btnGithubPackage.textContent;
-    btnGithubPackage.textContent = 'Generating…';
+    const localStorageDump = {};
     try {
-      const result = await window.electronAPI.generateGithubPackage();
-      toast(result.message, result.ok ? 6000 : 4000);
+      for (let i = 0; i < localStorage.length; i++){
+        const key = localStorage.key(i);
+        localStorageDump[key] = localStorage.getItem(key);
+      }
+    } catch(e){}
+    const state = {
+      exportedAt: new Date().toISOString(),
+      appVersion: APP_VERSION,
+      runtime: {
+        datasetLoaded: !!dirHandle,
+        imageCount: entries.length,
+        viewMode,
+        currentTheme: document.documentElement.getAttribute('data-theme') || 'studio',
+        panelLayout,
+        rightPanelCollapsed: rightAside.classList.contains('right-panel-collapsed'),
+        masterTagModeActive
+      },
+      localStorage: localStorageDump
+    };
+    try {
+      const result = await window.electronAPI.exportAppState(JSON.stringify(state, null, 2));
+      toast(result.ok ? `Exported app state to ${result.path}` : (result.message || 'Export failed.'), result.ok ? 5000 : 4000);
     } catch(err){
-      toast('Failed to generate package: ' + err.message);
-    } finally {
-      btnGithubPackage.disabled = false;
-      btnGithubPackage.textContent = prevLabel;
+      toast('Failed to export app state: ' + err.message);
     }
   });
 
@@ -962,8 +1022,6 @@ import { initRandomFacts } from './random-facts';
     getDirHandle: () => dirHandle,
     getDisabledDirHandle: () => disabledDirHandle,
     setDisabledDirHandle: (h) => { disabledDirHandle = h; },
-    getUnsavedApprovedDirHandle: () => unsavedApprovedDirHandle,
-    setUnsavedApprovedDirHandle: (h) => { unsavedApprovedDirHandle = h; },
     resetSingleIndex: () => resetSingleIndex(),
     refreshStats: () => refreshStats(),
     refreshAllUI: () => refreshAllUI(),
@@ -1006,8 +1064,8 @@ import { initRandomFacts } from './random-facts';
   // same way a folder rescan would have built it.
   initSynthDatOverseer({
     getDirHandle: () => dirHandle,
-    addEntryFromNewFile: (base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled, pendingApproval) =>
-      buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled, pendingApproval),
+    addEntryFromNewFile: (base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled) =>
+      buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled),
     refreshAllUI: () => refreshAllUI()
   });
 
@@ -1094,7 +1152,7 @@ import { initRandomFacts } from './random-facts';
     maybePromptAddDataset(picked);
   });
 
-  async function scanDirInto(handle, disabled, pendingApproval = false){
+  async function scanDirInto(handle, disabled){
     const imageHandles = new Map();
     const txtHandles = new Map();
     for await (const [name, h] of handle.entries()){
@@ -1123,7 +1181,7 @@ import { initRandomFacts } from './random-facts';
         } catch(e){ tags = []; }
       }
 
-      await buildEntry(base, img.handle, img.name, txtHandle, txtExisted, tags, disabled, pendingApproval);
+      await buildEntry(base, img.handle, img.name, txtHandle, txtExisted, tags, disabled);
     }
   }
 
@@ -1132,7 +1190,7 @@ import { initRandomFacts } from './random-facts';
   // image+.txt into dirHandle without a full folder rescan) can be appended
   // to `entries` the exact same way a folder-open scan would have built it,
   // rather than a second, divergent entry-shape constructor.
-  async function buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled, pendingApproval = false){
+  async function buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled){
     const file = await imgHandle.getFile();
     const objectUrl = URL.createObjectURL(file);
 
@@ -1145,12 +1203,8 @@ import { initRandomFacts } from './random-facts';
       txtExisted,
       objectUrl,
       tags,
-      // A pending-approval entry (SynthDat Accept, not yet saved) is always
-      // "not yet saved" by definition — dirty starts true for it, false for
-      // every normal entry as before.
-      dirty: pendingApproval,
+      dirty: false,
       disabled,
-      pendingApproval,
       width: null,
       height: null,
       meta: { reviewColor: null, flaggedTags: [], note: '', noteAlwaysVisible: false, locked: false, mergeImmune: false, antivoid: false }
@@ -1197,7 +1251,6 @@ import { initRandomFacts } from './random-facts';
     entries = [];
     entryByBase.clear();
     disabledDirHandle = null;
-    unsavedApprovedDirHandle = null;
     btnAddFavorite.disabled = !dirHandle;
     btnUnloadDataset.disabled = !dirHandle;
     btnReloadDataset.disabled = !dirHandle;
@@ -1217,15 +1270,16 @@ import { initRandomFacts } from './random-facts';
     }
 
     try {
-      // Leftover images from a previous session's SynthDat Accept that never
-      // got saved before the app closed — they survive here (see
-      // ensureUnsavedApprovedDir()/tags-edit.ts) with no tags recoverable
-      // (those only ever existed in memory), but the image itself isn't lost.
-      unsavedApprovedDirHandle = await dirHandle.getDirectoryHandle('Unsaved Approved', { create: false });
-      await scanDirInto(unsavedApprovedDirHandle, false, true);
-    } catch(e){
-      unsavedApprovedDirHandle = null;
-    }
+      // One-time migration: a dataset last touched by an older version of
+      // this app may still have a leftover "Unsaved Approved" staging folder
+      // (SynthDat Accept used to write there instead of straight into the
+      // root). Fold anything still in it back into the active set as normal
+      // entries — the .txt alongside each image already has real tags, not
+      // just in-memory ones, so nothing is lost — rather than leaving those
+      // images permanently unreachable now that the dedicated view is gone.
+      const legacyUnsavedApprovedDir = await dirHandle.getDirectoryHandle('Unsaved Approved', { create: false });
+      await scanDirInto(legacyUnsavedApprovedDir, false);
+    } catch(e){}
 
     await loadEntryMeta();
     for (const e of entries){
@@ -1236,7 +1290,7 @@ import { initRandomFacts } from './random-facts';
     dropHintWrap.style.display = entries.length ? 'none' : 'block';
     galleryToolbar.style.display = entries.length ? 'flex' : 'none';
 
-    galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, pendingApprovalView: false };
+    galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: filterExactToggle.checked };
     filterInput.value = '';
     excludeBadge.style.display = 'none';
     [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach(b=>b.classList.remove('active'));
@@ -1252,6 +1306,7 @@ import { initRandomFacts } from './random-facts';
     // dataset has no _dts_canonical_tags.json of its own yet.
     await loadCanonicalRulesForFolder();
     resetRulesDirty();
+    await loadSynthDatSettingsForFolder();
 
     renderAll();
     checkAchievements();
@@ -1277,7 +1332,6 @@ import { initRandomFacts } from './random-facts';
     checkAchievements();
     dirHandle = null;
     disabledDirHandle = null;
-    unsavedApprovedDirHandle = null;
     entries = [];
     entryByBase.clear();
     btnAddFavorite.disabled = true;
@@ -1293,7 +1347,7 @@ import { initRandomFacts } from './random-facts';
     dropHintWrap.style.display = 'block';
     galleryToolbar.style.display = 'none';
 
-    galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false };
+    galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: filterExactToggle.checked };
     filterInput.value = '';
     excludeBadge.style.display = 'none';
     [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach(b=>b.classList.remove('active'));
@@ -1306,6 +1360,7 @@ import { initRandomFacts } from './random-facts';
     await loadFolderStats();
     await loadCanonicalRulesForFolder();
     resetRulesDirty();
+    await loadSynthDatSettingsForFolder();
 
     renderAll();
     toast('Dataset unloaded.');
@@ -1377,6 +1432,75 @@ import { initRandomFacts } from './random-facts';
     (val) => { cardTagSortMode = val; renderCurrentView(); }
   );
 
+  // Forces the gallery's column count instead of letting it auto-fit —
+  // otherwise columns naturally drop as font-size zoom or open side panels
+  // shrink the space actually available, which is the opposite of what
+  // someone bumping the font size for readability usually wants.
+  const GALLERY_COLUMNS_KEY = 'dts-gallery-columns';
+  let galleryColumns = 'auto';
+  function applyGalleryColumnOverride(){
+    const root = document.documentElement;
+    if (galleryColumns === 'auto'){
+      root.style.removeProperty('--gallery-cols');
+      root.style.removeProperty('--gallery-col-count');
+      root.style.removeProperty('--gallery-col-width');
+    } else {
+      root.style.setProperty('--gallery-cols', `repeat(${galleryColumns}, 1fr)`);
+      root.style.setProperty('--gallery-col-count', String(galleryColumns));
+      root.style.setProperty('--gallery-col-width', '1px');
+    }
+  }
+  try {
+    const savedGalleryColumns = localStorage.getItem(GALLERY_COLUMNS_KEY);
+    if (savedGalleryColumns) galleryColumns = savedGalleryColumns;
+  } catch(e){}
+  applyGalleryColumnOverride();
+  buildPersistentDropdown(galleryColumnsDropdown,
+    [
+      { value: 'auto', label: 'Auto (default)' },
+      { value: '2', label: '2 columns' },
+      { value: '3', label: '3 columns' },
+      { value: '4', label: '4 columns' },
+      { value: '5', label: '5 columns' },
+      { value: '6', label: '6 columns' },
+      { value: '7', label: '7 columns' },
+      { value: '8', label: '8 columns' }
+    ],
+    () => galleryColumns,
+    (val) => {
+      galleryColumns = val;
+      try { localStorage.setItem(GALLERY_COLUMNS_KEY, val); } catch(e){}
+      applyGalleryColumnOverride();
+      if (val !== 'auto'){
+        folderStats.gallery_columns_forced = true;
+        saveFolderStats();
+        checkAchievements();
+      }
+    }
+  );
+
+  // In gallery-right layout, #right sits directly next to #left (the
+  // boundary that's actually draggable/collapsible is its RIGHT edge, next
+  // to #gallery) instead of at the screen's own right edge (where that
+  // boundary is #right's LEFT edge) — every place below that cares about
+  // "which side is #right's outer/draggable edge" checks this once.
+  function rightPanelIsFlipped(){
+    return shellEl.classList.contains('layout-gallery-right');
+  }
+
+  // Declared up here (not down by repositionRightResizeHandle() below, where
+  // they're actually used) because applyPanelLayout()/initPanelLayout() —
+  // right below — already call that function via repositionRightResizeHandleSoon()
+  // before the code further down runs; `const` isn't hoisted with its value
+  // the way a `function` declaration is, so referencing these from that
+  // early call before reaching their own declaration line was a genuine
+  // "Cannot access before initialization" crash, not just a style nit.
+  const RIGHT_RESIZE_HANDLE_WIDTH = 8; // must match #rightPanelResizeHandle's CSS width
+  // Leaves a strip of dead space between the handle and whichever edge of
+  // #right it's inset from — flush against that edge still left it right up
+  // against #gallery's own always-on scrollbar with no breathing room.
+  const RIGHT_RESIZE_HANDLE_GAP = 6;
+
   let panelLayout = 'standard';
   function applyPanelLayout(val){
     shellEl.classList.remove('layout-gallery-left', 'layout-gallery-right');
@@ -1384,6 +1508,8 @@ import { initRandomFacts } from './random-facts';
     else if (val === 'gallery-right') shellEl.classList.add('layout-gallery-right');
     panelLayout = val;
     try { localStorage.setItem('dts-panel-layout', val); } catch(e){}
+    applyRightPanelCollapsedArrow();
+    repositionRightResizeHandleSoon();
   }
   (function initPanelLayout(){
     let saved = 'standard';
@@ -1393,15 +1519,22 @@ import { initRandomFacts } from './random-facts';
 
   // Right panel collapse: tucks #right away to a thin strip (see styles.css's
   // comment on #shell.right-panel-collapsed for why the track width has to
-  // vary per layout mode instead of just hiding #right). The arrow lives at
-  // #right's own left edge, so it always ends up at whichever edge of the
-  // screen #right currently occupies, including gallery-right layout where
-  // that's the boundary next to #left rather than the screen's right edge.
+  // vary per layout mode instead of just hiding #right).
+  function applyRightPanelCollapsedArrow(){
+    const collapsed = rightAside.classList.contains('right-panel-collapsed');
+    // The arrow always points toward #right's own draggable/outer edge —
+    // which, per rightPanelIsFlipped() above, is the LEFT edge normally but
+    // the RIGHT edge in gallery-right layout, so both the resting and
+    // collapsed glyphs flip together with it.
+    const flipped = rightPanelIsFlipped();
+    btnRightPanelCollapse.textContent = collapsed ? (flipped ? '›' : '‹') : (flipped ? '‹' : '›');
+    btnRightPanelCollapse.title = collapsed ? 'Show this panel' : 'Hide this panel';
+  }
   function applyRightPanelCollapsed(collapsed){
     shellEl.classList.toggle('right-panel-collapsed', collapsed);
     rightAside.classList.toggle('right-panel-collapsed', collapsed);
-    btnRightPanelCollapse.textContent = collapsed ? '‹' : '›';
-    btnRightPanelCollapse.title = collapsed ? 'Show this panel' : 'Hide this panel';
+    applyRightPanelCollapsedArrow();
+    repositionRightResizeHandleSoon();
     try { localStorage.setItem('dts-right-panel-collapsed', collapsed ? '1' : '0'); } catch(e){}
   }
   (function initRightPanelCollapsed(){
@@ -1421,6 +1554,85 @@ import { initRandomFacts } from './random-facts';
     () => panelLayout,
     applyPanelLayout
   );
+
+  // ---------------- Right panel width (drag-resizable) ----------------
+
+  const RIGHT_PANEL_MIN_WIDTH = 260;
+  const RIGHT_PANEL_WIDTH_KEY = 'dts-right-panel-width';
+  let rightPanelWidth = 380;
+  function rightPanelMaxWidth(){
+    // Leaves room for #left's fixed 270px plus a usable sliver of gallery,
+    // rather than letting the drag swallow the whole window.
+    return Math.max(RIGHT_PANEL_MIN_WIDTH, window.innerWidth - 270 - 200);
+  }
+  function applyRightPanelWidth(px){
+    rightPanelWidth = Math.min(rightPanelMaxWidth(), Math.max(RIGHT_PANEL_MIN_WIDTH, px));
+    shellEl.style.setProperty('--right-w', rightPanelWidth + 'px');
+  }
+  // Positioned `absolute` against #shell (see styles.css) — top/bottom are
+  // free via CSS, only `left` needs JS since the draggable edge's offset
+  // within #shell depends on the live grid track widths. Placed fully
+  // INSIDE #right rather than centered on the boundary with #gallery.
+  function repositionRightResizeHandle(){
+    const rect = rightAside.getBoundingClientRect();
+    // #right (and #shell) go `display:none`-equivalent (via #galleryTab's
+    // own `display:contents`/`none` toggle in switchTab()) while a non-
+    // Gallery tab like SynthDat Overseer is active — a hidden element's
+    // rect is all zeros, not "wherever it last was." A resize/zoom event
+    // landing while a different tab is active (native zoom is an async IPC
+    // round-trip, see the font-slider pitfall notes — its own resulting
+    // 'resize' event can arrive after the user's already switched tabs)
+    // used to compute `left` from that zeroed rect and leave the handle
+    // stuck at the window's left edge even after switching back to
+    // Gallery, since nothing re-measured it there. Skip the update entirely
+    // on a degenerate rect instead of applying a wrong one — leaves
+    // whatever the last GOOD position was until something legitimately
+    // re-triggers this while #right is actually visible again.
+    if (rect.width === 0 && rect.height === 0) return;
+    const shellRect = shellEl.getBoundingClientRect();
+    const xViewport = rightPanelIsFlipped()
+      ? (rect.right - RIGHT_RESIZE_HANDLE_WIDTH - RIGHT_RESIZE_HANDLE_GAP)
+      : (rect.left + RIGHT_RESIZE_HANDLE_GAP);
+    rightPanelResizeHandle.style.left = Math.round(xViewport - shellRect.left) + 'px';
+  }
+  // #shell animates grid-template-columns (var(--panel-dur)) on layout/
+  // collapse changes, so the handle's target position keeps moving for the
+  // duration of that transition — reposition once now (so it's not
+  // wildly wrong for the whole animation) and once more after it settles.
+  function repositionRightResizeHandleSoon(){
+    repositionRightResizeHandle();
+    setTimeout(repositionRightResizeHandle, 200);
+  }
+  (function initRightPanelWidth(){
+    let saved = NaN;
+    try { saved = parseInt(localStorage.getItem(RIGHT_PANEL_WIDTH_KEY), 10); } catch(e){}
+    applyRightPanelWidth(isNaN(saved) ? rightPanelWidth : saved);
+    repositionRightResizeHandle();
+  })();
+  window.addEventListener('resize', repositionRightResizeHandle);
+  rightPanelResizeHandle.addEventListener('mousedown', (ev) => {
+    if (rightAside.classList.contains('right-panel-collapsed')) return;
+    ev.preventDefault();
+    const startX = ev.clientX;
+    const startWidth = rightPanelWidth;
+    const flipped = rightPanelIsFlipped();
+    shellEl.style.transition = 'none';
+    rightPanelResizeHandle.classList.add('resizing');
+    function onMove(mv){
+      const dx = mv.clientX - startX;
+      applyRightPanelWidth(startWidth + (flipped ? dx : -dx));
+      repositionRightResizeHandle();
+    }
+    function onUp(){
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      shellEl.style.transition = '';
+      rightPanelResizeHandle.classList.remove('resizing');
+      try { localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(rightPanelWidth)); } catch(e){}
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 
   // renderCurrentView/switchView + view-mode button/drag wiring moved to ./view.ts
 
@@ -1449,6 +1661,8 @@ import { initRandomFacts } from './random-facts';
 
   // Premium hover-fill "click flash" (epic/legendary shop themes) — see shared-ui.ts
   initClickFlash();
+  initInfoButtons();
+  initHelp();
   // Arrow-key navigation inside dropdowns/context menus — see shared-ui.ts
   initMenuKeyboardNav(() => {
     if (folderStats.keyboard_menu_nav_used) return; // avoid a disk write on every single arrow press
@@ -1473,55 +1687,6 @@ import { initRandomFacts } from './random-facts';
 
   // Global tag tools (Find / Replace all / Find & replace) previously lived here,
   // superseded by the Master Tags tab which covers the same ground plus more.
-
-  // ---------------- Quick Merge (finds tags that are the same thing typed differently) ----------------
-  // moved to ./quick-merge.ts
-
-  btnQuickMergeScan.addEventListener('click', () => {
-    const found = runQuickMergeScan(buildTagIndex());
-    toast(found
-      ? `Found ${found} duplicate-spelling group(s).`
-      : 'No duplicate-spelling tags found.');
-  });
-
-  btnQuickMergeFamilies.addEventListener('click', () => {
-    const showing = quickMergeFamiliesList.style.display !== 'none';
-    if (showing){
-      quickMergeFamiliesList.style.display = 'none';
-      btnQuickMergeFamilies.textContent = '🔤 Show keyword families';
-    } else {
-      renderQuickMergeFamiliesList(buildTagIndex(), (tag) => setContainsFilter(tag));
-      quickMergeFamiliesList.style.display = '';
-      btnQuickMergeFamilies.textContent = '🔤 Hide keyword families';
-    }
-  });
-
-  btnQuickMergeApply.addEventListener('click', async () => {
-    const activeCount = quickMergeGroups.filter(g => quickMergeSelection.get(g.key).selected).length;
-    if (activeCount === 0){
-      toast('Select at least one group to merge.');
-      return;
-    }
-    const ok = await showConfirmModal(
-      `Merge ${activeCount} duplicate-spelling group(s)? Each group's variants combine into the spelling you picked.`,
-      { okLabel: 'Merge groups' }
-    );
-    if (!ok) return;
-
-    const { active, affected, mergedVariants } = applyQuickMerge(entries, includeDisabledToggle.checked, markDirty);
-    if (affected.length === 0){
-      toast('Nothing to merge — selected groups had no effect.');
-      return;
-    }
-    const summary = `Quick Merge: combined ${mergedVariants} duplicate-spelling tag(s) across ${active.length} group(s), affecting ${affected.length} image(s).`;
-    toast(summary);
-    recordChange('merge', summary, affected);
-    trackStat('merges');
-    resetQuickMergeState();
-    renderQuickMergeList();
-    refreshAllUI();
-    checkAchievements();
-  });
 
   // Master Tag Control moved to ./master-tag-control.ts
 

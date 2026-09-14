@@ -14,10 +14,17 @@ import {
 // all stay consistent automatically. This replaced an earlier CSS `zoom`
 // approach that reliably caused overflow no matter how it was compensated,
 // since CSS zoom scales an element's own box independently of its parent.
+// Returns the IPC round-trip's own promise (setZoomFactor is ipcRenderer.
+// invoke, a real cross-process call to the main process, not instant from
+// the renderer's perspective) — callers that need to measure anything
+// zoom-dependent right after (e.g. repositioning a panel) must await this,
+// or they'll read stale pre-zoom layout metrics. Callers that don't care
+// can keep calling it fire-and-forget as before.
 export function applyAppZoom(factor){
   if (window.electronAPI && window.electronAPI.setZoomFactor){
-    window.electronAPI.setZoomFactor(factor);
+    return window.electronAPI.setZoomFactor(factor);
   }
+  return Promise.resolve();
 }
 
 export function resetAppZoom(){
@@ -40,15 +47,3 @@ export function saveSettingsSectionState(state){
   try { localStorage.setItem(SETTINGS_SECTIONS_KEY, JSON.stringify(state)); } catch(e){}
 }
 export { SETTINGS_SECTIONS_KEY };
-
-export function applyCustomFont(fontName){
-  if (fontName){
-    const currentSans = getComputedStyle(document.documentElement).getPropertyValue('--sans').trim() || 'sans-serif';
-    const currentMono = getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || 'monospace';
-    document.documentElement.style.setProperty('--sans', `'${fontName}', ${currentSans}`);
-    document.documentElement.style.setProperty('--mono', `'${fontName}', ${currentMono}`);
-  } else {
-    document.documentElement.style.removeProperty('--sans');
-    document.documentElement.style.removeProperty('--mono');
-  }
-}

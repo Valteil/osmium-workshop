@@ -4,6 +4,10 @@ A practical walkthrough of everything in the app, organized by tab. If you just 
 list, see [README.md](README.md#features) instead — this document is the "how do I actually do X"
 companion to that.
 
+The app also has its own **❓ Help** button in the topbar — a condensed, in-app copy of most of
+this guide (including the beginner-friendly glossary entries) for when you don't want to leave the
+app to look something up.
+
 ---
 
 ## Contents
@@ -38,10 +42,10 @@ none of them touch your images or captions unless you tell them to:
 | Folder/file | What it's for |
 |---|---|
 | `Disabled/` | Images you've moved out of the active set (still editable, just hidden from the normal views) |
-| `Unsaved Approved/` | Staging area for images accepted from SynthDat Overseer, until your next Save |
 | `_tag_edit_log.json` | The full undo-able edit history for this dataset |
 | `_dts_canonical_tags.json` | Your Retroactive Merge/Void rules |
 | `_dts_meta.json` | Per-image notes, review flags, locks, and other metadata |
+| `_dts_synthdat_settings.json` | SynthDat Overseer's prompt/generation settings for this dataset (only appears once you've used that tab) |
 
 ---
 
@@ -56,20 +60,27 @@ This is the tag editor itself — everything else in the app supports what happe
   side in an aligned comparison table.
 - **Single** — one image at a time, up to 400% zoom, drag-to-pan, arrow-key navigation. Select 2+
   images in Tag Overseer first and switch here for a multi-image tag-alignment table.
-- **⏳ Unsaved Approved** — images accepted from SynthDat Overseer, not yet saved.
-- **🗑 Disabled** — images you've moved out of the active set.
+- **❌ Disabled** — images you've moved out of the active set.
+
+The gallery's own column count normally shrinks as font-size zoom or an open side panel eats into
+the available width — Settings ▸ Appearance ▸ "Gallery columns" forces a fixed count instead, if
+you'd rather bump the font size for readability without losing columns.
 
 **Editing tags:** click a tag chip to open its context menu (select it for a merge, filter by
 it, open its wiki definition, flag it for review). Type into a card's "+ add tag" field and press
 Enter to add a new one. Click the × on a chip to remove it.
 
 **Filtering:** the sidebar filter box supports multi-tag search combined with AND / OR / XOR /
-NOT, plus quick filters for All / Untagged / Unsaved. "Flag isolated tags" highlights tags that
-appear on 2 or fewer images — a fast way to spot typos.
+NOT, plus quick filters for All / Untagged / Unsaved. Typing 2+ characters shows a suggestions
+dropdown — direct matches first, then other tags sharing a word with them (e.g. searching "dr"
+suggests "dress" directly, and "black dress"/"dress shoes" under "Same keyword family"). "Exact
+tag match" (checkbox under the search box) makes a search match only a tag that equals your term
+exactly, instead of the default "contains" behavior — so "dress" won't also pull in "black dress".
+"Flag isolated tags" highlights tags that appear on 2 or fewer images — a fast way to spot typos.
 
-**Locking an image** (🔒 in the 3-dot menu) excludes it from every mass/automatic tool (Quick
-Merge, Unify/Void, Master Tags, bulk WD14) while leaving it fully editable by hand — use it to
-protect an image you don't want an unattended batch operation to touch.
+**Locking an image** (🔒 in the 3-dot menu) excludes it from every mass/automatic tool (Unify/Void,
+Master Tags, bulk WD14) while leaving it fully editable by hand — use it to protect an image you
+don't want an unattended batch operation to touch.
 
 ---
 
@@ -78,7 +89,7 @@ protect an image you don't want an unattended batch operation to touch.
 Every image card has a "⋯" button (or right-click the card) opening a menu of per-image actions.
 Each item's label is short on purpose — hover any of them for the full explanation.
 
-- **🗑 Disable / ↩ Restore** — move the image to/from `Disabled/`.
+- **❌ Disable / ↩ Restore** — move the image to/from `Disabled/`.
 - **🔒 Lock / 🔓 Unlock** — see above.
 - **🚫 Merge Immunize**, **🟢 Antivoid**, **✋ Antimmunize** — permanently exempt this one image
   from the Retroactive Merge/Void dock's rules (see below) — merge rules, void rules, or both.
@@ -95,8 +106,10 @@ Each item's label is short on purpose — hover any of them for the full explana
 ## Power tools (right sidebar)
 
 Docked panels in the Gallery's right sidebar. Drag a dock's header to reorder it, click to
-collapse/expand, drag its bottom edge to resize. Settings has a "Reset panel layout" button if
-things ever get into a bad state.
+collapse/expand; most docks can also be resized by dragging their bottom edge (Retroactive
+Merge/Void auto-sizes to its own content instead, so it skips this). The whole right sidebar can
+also be dragged wider/narrower from its own left edge, and collapsed entirely via the arrow at its
+top. Settings has a "Reset panel layout" button if things ever get into a bad state.
 
 ### Tag Pruner
 Search/browse every tag in the dataset, hand-pick any combination, then feed them into Unify/Void
@@ -114,12 +127,12 @@ same correction keeps applying going forward without you having to repeat it.
 ### Retroactive Merge/Void
 Standing rules of the shape **"these tags → this one canonical tag"** (a merge), or **"these tags
 → nothing"** (a void — deletes outright, no replacement). Whenever any of a rule's tags show up on
-a Gallery image afterward — by WD14, Master Tags, Quick Merge, an accepted SynthDat image, or
-anything else — they're automatically corrected. If you try to type one of those tags in by hand,
-the app blocks it instead of silently rewriting it, with a toast pointing you back here.
+a Gallery image afterward — by WD14, Master Tags, an accepted SynthDat image, or anything else —
+they're automatically corrected. If you try to type one of those tags in by hand, the app blocks
+it instead of silently rewriting it, with a toast pointing you back here.
 
-**This only affects Gallery images.** Disabled and Unsaved Approved images are frozen exactly as
-they are — they only get corrected once they're back in the Gallery.
+**This only affects Gallery images.** Disabled images are frozen exactly as they are — they only
+get corrected once they're back in the Gallery.
 
 **Full control, so you're never stuck with a rule doing something you don't want:**
 - **Pause a whole rule** (the "Enabled" checkbox) without deleting it — this actively un-merges or
@@ -137,10 +150,9 @@ Every rule change, and every resulting correction, shows up as its own entry in 
 Undo/Redo — voiding a tag, un-voiding it, then voiding it again shows as three separate,
 correctly-ordered log rows.
 
-### Quick Merge
-Suggests likely duplicate/near-duplicate tags across your dataset for quick one-click merging.
-"Keyword families" groups tags by shared prefix (e.g. every "blue ___" tag together) for review
-without auto-merging anything.
+Void rules and merge rules are shown as two separate groups in this dock — Void is collapsible
+(all your voided tags actually live under one shared rule, so there's normally just one to
+expand), Merge lists each canonical-tag rule on its own.
 
 ---
 
@@ -206,11 +218,11 @@ this repo for exactly what and why (some of it is bundled there directly).
    model actually drew (it sometimes adds details nobody prompted for). Prune any tags you don't
    want from the final tag card — it'll also suggest merges based on your Retroactive Merge/Void
    rules.
-6. **✅ Accept** stages the image + tags into `Unsaved Approved/` (tags are written to disk right
-   away, so a crash before your next Save doesn't lose them) — it gets promoted into the dataset
-   root the next time you Save. **❌ Reject** sends it straight to `Disabled/` instead. Either way,
-   nothing generated is ever silently thrown away — even the pass you didn't pick, if you ran
-   2-Pass, gets saved to `Disabled/` rather than discarded.
+6. **✅ Accept** writes the image + tags straight into the dataset root (tags are written to disk
+   right away too, so a crash before your next Save doesn't lose them) as a normal unsaved edit.
+   **❌ Reject** sends it straight to `Disabled/` instead. Either way, nothing generated is ever
+   silently thrown away — even the pass you didn't pick, if you ran 2-Pass, gets saved to
+   `Disabled/` rather than discarded.
 
 Every preview image in this tab (reference, resized preview, live progress, pass thumbnails,
 final output) opens in a zoomable/pannable lightbox on click — scroll to zoom, drag to pan once
@@ -222,7 +234,9 @@ zoomed in.
 
 Click the ⚙ button to open Settings. Sections (click each to expand):
 
-- **Appearance** — theme picker, night/day mode, custom font.
+- **Appearance** — theme picker, night/day mode, font size (drag the slider — the gallery and
+  panels reflow live), and "Gallery columns" to lock the gallery's column count independent of
+  zoom or panel width.
 - **Power Tools** — options for the right-sidebar docks.
 - **Tagging** — tag-input behavior (e.g. whether typing a new language auto-selects it).
 - **Saving** — **Autosave** toggle (off by default): when on, edits save to disk automatically
@@ -236,8 +250,11 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
 - **Layout & Panels** — **UI animation mode**: Fade (default), Swipe (directional slide), or Off.
   Also has "Reset panel layout" if a dock's drag-reorder/collapse state ever gets into a bad
   state.
-- **Updates** — this app has no auto-updater; see [README.md](README.md#updating) for how to
-  update manually.
+- **Updates & Sharing** — "Restart app" instantly reloads the latest files without a manual
+  quit/reopen (see [README.md](README.md#updating) for how to actually pull an update first).
+  "🩺 Export app state" is a troubleshooting aid, not something you'd normally need — it writes a
+  text file next to the app with your settings/theme/panel layout and whether a dataset's loaded,
+  useful if you're reporting a bug and want to show exactly what state the app was in.
 
 ---
 
@@ -249,8 +266,15 @@ real visual flourish, not just a palette swap. Epic/legendary themes get an extr
 button effect; any cheaper theme can buy that same effect individually via the Shop's
 **🔨 Refine Theme** button for the price difference.
 
-**🏆 Achievements** (45+, unlocked per-dataset-folder — a fresh dataset starts with none unlocked)
+**🏆 Achievements** (55+, unlocked per-dataset-folder — a fresh dataset starts with none unlocked)
 pay out Edibits. **🌙 Night mode** is a genuine per-theme color inversion, not a screen filter.
+
+Settings ▸ Appearance has motion-sensitivity controls for all of this: **Suppress Theme
+Flourishes** hides the Refine Theme button and turns off the epic/legendary hover-fill/card-tilt
+effect everywhere (whether a theme has it natively or you bought it via Refine Theme), while
+**Disable hover-fill** / **Disable card hover-tilt** / **Disable ambient animations** let you turn
+off just one specific motion effect app-wide if you'd rather keep the others. None of these touch
+a theme's static colors, textures, or glows.
 
 ---
 

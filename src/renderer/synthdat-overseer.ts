@@ -37,7 +37,7 @@ import {
 } from './dom';
 import { toast, showImageLightbox } from './shared-ui';
 import { parseWd14Tags } from './wd14-tagger';
-import { moveEntry, markDirty, ensureUnsavedApprovedDir } from './tags-edit';
+import { moveEntry, markDirty } from './tags-edit';
 import { canonicalRules } from './canonical-tags';
 import { initSynthDatSectionDocks } from './docks';
 
@@ -51,7 +51,7 @@ function getWd14Settings(){
     const saved = JSON.parse(localStorage.getItem(WD14_SETTINGS_KEY) || 'null');
     if (saved && typeof saved === 'object') return saved;
   } catch(e){ /* fall through */ }
-  return { host: 'http://127.0.0.1:8188', model: '', threshold: 0.35, characterThreshold: 0.85, replaceUnderscore: false, trailingComma: false, excludeTags: '' };
+  return { host: 'http://127.0.0.1:8188', model: '', threshold: 0.35, characterThreshold: 0.85, trailingComma: false, excludeTags: '' };
 }
 
 // SynthDat gets its OWN ComfyUI host, independent of Tag Overseer's WD14
@@ -62,25 +62,26 @@ function getWd14Settings(){
 function getHost(){ return (synthDatHost.value || '').trim() || 'http://127.0.0.1:8188'; }
 
 // ---------------- Persistence ----------------
-// Everything here describes the CHARACTER/setup being generated, not the
-// currently-open dataset — it deliberately survives unloading/switching
-// datasets and even an app restart (a character's own look doesn't change
-// just because the folder you're generating into does). Pose is the one
-// exception: it's tied to a specific reference image/session rather than
-// the character's standing description, so it isn't part of this persisted
-// blob — note it is NOT auto-cleared or auto-updated anywhere (picking a
-// new reference image leaves it as-is; only editing it directly or using
-// "Apply tag assignment" changes it, see pickReferenceImage()/
-// applyTagAssignment()).
-const SETTINGS_KEY = 'dts-synthdat-settings';
+// Everything here describes the CHARACTER/setup being generated — saved as
+// its own file INSIDE the dataset folder (like Retroactive Merge/Void's
+// _dts_canonical_tags.json), not in localStorage. It used to be one global
+// localStorage blob shared across every dataset (and even shown with no
+// dataset loaded at all, which is exactly the confusing case that changed
+// this): the character you're generating for is tied to a specific dataset,
+// so its prompt belongs to that dataset, not to the app as a whole.
+const SETTINGS_FILE_NAME = '_dts_synthdat_settings.json';
 let saveTimer = null;
 function scheduleSave(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveSettings, 400);
 }
-function saveSettings(){
+async function saveSettings(){
+  const dirHandle = getDirHandle();
+  if (!dirHandle) return; // nothing to save into with no dataset open
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+    const handle = await dirHandle.getFileHandle(SETTINGS_FILE_NAME, { create: true });
+    const writable = await handle.createWritable();
+    await writable.write(JSON.stringify({
       host: synthDatHost.value,
       global: synthDatGlobal.value, character: synthDatCharacter.value, characterTrigger: synthDatCharacterTrigger.value,
       rating: synthDatRating.value, hair: synthDatHair.value, face: synthDatFace.value, chest: synthDatChest.value,
@@ -96,12 +97,43 @@ function saveSettings(){
       width: synthDatWidth.value, height: synthDatHeight.value, use2Pass: synthDatUse2Pass.checked,
       seed1: synthDatSeed1.value, seed2: synthDatSeed2.value, denoise2: synthDatDenoise2.value,
       stripHairFace: synthDatStripHairFace.checked, skipRefImage: synthDatSkipRefImage.checked
-    }));
-  } catch(e){ /* non-fatal */ }
+    }, null, 2));
+    await writable.close();
+  } catch(e){ /* non-fatal, best-effort autosave same as canonical-tags.ts's own */ }
 }
-function loadSettings(){
+// Blanks every field back to its bare static-HTML default — used before
+// loading a (possibly nonexistent) dataset's own settings file, so a
+// dataset with no saved file yet never shows through whatever the
+// PREVIOUSLY loaded dataset had typed, and so has nothing loaded at all
+// (app just launched, or a dataset was unloaded) shows a clean slate
+// instead of stale data from session state.
+function resetSettingsToDefault(){
+  synthDatHost.value = '';
+  synthDatGlobal.value = ''; synthDatCharacter.value = ''; synthDatCharacterTrigger.value = '';
+  synthDatRating.value = ''; synthDatHair.value = ''; synthDatFace.value = ''; synthDatChest.value = '';
+  synthDatBody.value = ''; synthDatClothes.value = ''; synthDatLimbs.value = ''; synthDatSexual.value = '';
+  synthDatScene.value = ''; synthDatEffects.value = ''; synthDatExtra.value = ''; synthDatNegative.value = '';
+  synthDatDiffModel.value = ''; synthDatClip.value = ''; synthDatVae.value = ''; synthDatMainLora.value = '';
+  synthDatLoraStackRows.innerHTML = ''; loraRows = [];
+  synthDatLLLiteStrength.value = 1; synthDatLLLiteStartPercent.value = 0; synthDatLLLiteEndPercent.value = 0.3;
+  synthDatLLLitePreserveWrapper.checked = true;
+  synthDatResizeFit.value = 'pad'; synthDatResizeMethod.value = 'lanczos';
+  synthDatSampler.value = 'res_multistep'; synthDatScheduler.value = 'beta';
+  synthDatSteps1.value = 25; synthDatCfg1.value = 4.04; synthDatSteps2.value = 15;
+  synthDatWidth.value = 920; synthDatHeight.value = 1244; synthDatUse2Pass.checked = false;
+  synthDatSeed1.value = 15; synthDatSeed2.value = 15; synthDatDenoise2.value = 0.6;
+  synthDatStripHairFace.checked = true; synthDatSkipRefImage.checked = false;
+  applySkipRefImageUI();
+}
+async function loadSettingsFromFile(){
+  const dirHandle = getDirHandle();
+  if (!dirHandle) return null;
   let saved = null;
-  try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); } catch(e){ saved = null; }
+  try {
+    const handle = await dirHandle.getFileHandle(SETTINGS_FILE_NAME, { create: false });
+    const file = await handle.getFile();
+    saved = JSON.parse((await file.text()).trim() || 'null');
+  } catch(e){ return null; } // no settings file for this dataset yet — not an error
   if (!saved) return null;
   synthDatHost.value = saved.host || '';
   synthDatGlobal.value = saved.global || ''; synthDatCharacter.value = saved.character || '';
@@ -130,6 +162,36 @@ function loadSettings(){
   synthDatSkipRefImage.checked = !!saved.skipRefImage;
   applySkipRefImageUI();
   return saved;
+}
+
+// Called from index.ts on dataset open AND on unload (getDirHandle() reads
+// as null in the unload case) — always resets to blank first, so a dataset
+// with no saved file of its own never shows through whatever the PREVIOUSLY
+// loaded dataset had, and "no dataset open" shows a clean slate instead of
+// stale session state.
+export async function loadSynthDatSettingsForFolder(){
+  resetSettingsToDefault();
+  const dirHandle = getDirHandle();
+  if (!dirHandle){
+    document.querySelectorAll('#synthDatTab textarea').forEach(el => growTextarea(el));
+    return;
+  }
+  const saved = await loadSettingsFromFile();
+  if (saved){
+    const rows = Array.isArray(saved.loraRows) && saved.loraRows.length ? saved.loraRows : [{ lora: '', strength: 1 }, { lora: '', strength: 0.8 }];
+    for (const r of rows) addLoraRow(r.lora, r.strength);
+  } else {
+    // This dataset has no SynthDat settings file yet — seed the ComfyUI
+    // host from Tag Overseer's WD14 setting purely as a convenience
+    // default (see getHost()'s own comment on why the two stay independent
+    // from here on), and two blank LoRA rows to fill in. No particular LoRA
+    // is seeded here anymore — each dataset generates a different
+    // character, so there's no sensible default LoRA to guess.
+    synthDatHost.value = getWd14Settings().host || 'http://127.0.0.1:8188';
+    addLoraRow('', 1);
+    addLoraRow('', 0.8);
+  }
+  document.querySelectorAll('#synthDatTab textarea').forEach(el => growTextarea(el));
 }
 
 // Three curated sets, not derived ones — Danbooru's real tag categories
@@ -998,10 +1060,10 @@ async function generate(){
 }
 
 // Writes one generated image and appends it to `entries`, either disabling
-// it immediately (Reject, auto-reject) or staging it as a normal unsaved
-// edit (Accept). Returns the new entry, or null if the write failed
-// (toasting its own error either way). Shared by every path that commits a
-// generated image to disk.
+// it immediately (Reject, auto-reject) or adding it as a normal unsaved edit
+// (Accept). Returns the new entry, or null if the write failed (toasting its
+// own error either way). Shared by every path that commits a generated
+// image to disk.
 async function writeImageEntry(bytes, base, imgName, tags, disable){
   const dirHandle = getDirHandle();
   if (!dirHandle) return null;
@@ -1024,27 +1086,23 @@ async function writeImageEntry(bytes, base, imgName, tags, disable){
       if (entry) await moveEntry(entry, true);
       return entry;
     }
-    // Accept: written into Unsaved Approved/ (NOT the dataset root) and
-    // stays there for its entire pre-Save lifetime. The .txt is written
-    // alongside the image immediately, not deferred — accepting an image
-    // means trusting the tag card's tags as they stand, so there's no reason
-    // to risk losing them to a crash between now and the next Save the way a
-    // purely in-memory edit would. entry.pendingApproval/dirty still start
-    // true regardless: this is a safety-net write into the STAGING location,
-    // not the real save — saveAllDirty()'s promotePendingApproval()
-    // (tags-edit.ts) is still what moves both files into the dataset root
-    // (it already tries to remove this exact staged .txt alongside the
-    // image once that happens).
-    const stagingDir = await ensureUnsavedApprovedDir();
-    const imgHandle = await stagingDir.getFileHandle(imgName, { create: true });
+    // Accept: written straight into the dataset root, same as any other
+    // entry. The .txt is written alongside the image immediately, not
+    // deferred — accepting an image means trusting the tag card's tags as
+    // they stand, so there's no reason to risk losing them to a crash
+    // between now and the next Save the way a purely in-memory edit would.
+    // entry.dirty still starts true regardless (markDirty() below): this
+    // immediate write is a safety net, not a substitute for the normal
+    // dirty/save lifecycle every other entry goes through.
+    const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
     const imgWritable = await imgHandle.createWritable();
     await imgWritable.write(bytes);
     await imgWritable.close();
-    const txtHandle = await stagingDir.getFileHandle(`${base}.txt`, { create: true });
+    const txtHandle = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
     const txtWritable = await txtHandle.createWritable();
     await txtWritable.write(tags.map(t => t.replace(/ /g, '_')).join(', '));
     await txtWritable.close();
-    const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false, true);
+    const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false);
     if (entry) markDirty(entry);
     return entry;
   } catch(err){
@@ -1175,20 +1233,9 @@ export function initSynthDatOverseer(deps){
   fillStaticOptions(synthDatSampler, SAMPLERS, 'res_multistep');
   fillStaticOptions(synthDatScheduler, SCHEDULERS, 'beta');
 
-  const saved = loadSettings();
-  if (!saved){
-    // First run: seed the host from Tag Overseer's WD14 setting purely as a
-    // convenience default — see getHost()'s own comment on why these two
-    // stay independent from here on.
-    synthDatHost.value = getWd14Settings().host || 'http://127.0.0.1:8188';
-    addLoraRow('Anima\\ANIMA - Lighting Slider.safetensors', 1);
-    addLoraRow('Anima\\ANIMA - FamiOC - Fam1Fam1.safetensors', 0.8);
-  } else {
-    const rows = Array.isArray(saved.loraRows) && saved.loraRows.length ? saved.loraRows : [{ lora: '', strength: 1 }, { lora: '', strength: 0.8 }];
-    for (const r of rows) addLoraRow(r.lora, r.strength);
-  }
-
-  document.querySelectorAll('#synthDatTab textarea').forEach(el => growTextarea(el));
+  // No dataset is open yet at app startup, so there's nothing to load —
+  // loadSynthDatSettingsForFolder() (called from index.ts on dataset
+  // open/unload) does the actual loading, per dataset, from here on.
 
   // Any field that shapes either the generation prompt or the saved tag
   // list schedules a persistence save; the prompt-field ones also refresh

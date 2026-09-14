@@ -99,13 +99,16 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   @keyframes flairShimmer{ 0%{ background-position: -200% 0; } 100%{ background-position: 200% 0; } }
   /* `--flair-play` gates every ambient flair* animation below in one place:
      each such rule ends with `animation-play-state: var(--flair-play);`
-     instead of only the shorthand, so the Settings "disable theme
-     flourishes" toggle (`html.no-theme-flourishes`, for motion-sensitive
+     instead of only the shorthand, so the Settings "Disable ambient
+     animations" toggle (`html.no-flourish-ambient`, for motion-sensitive
      users who just want a theme's colors) can freeze all of them at once
      without touching each selector individually — any NEW flair*-animated
-     rule just needs to add that same line to stay covered. */
+     rule just needs to add that same line to stay covered. This is one of
+     three independent flourish toggles (see "Visual flourishes" near the
+     end of this section) — ambient animations, hover-fill, and card-tilt
+     can each be turned off on their own. */
   :root{ --flair-play: running; }
-  html.no-theme-flourishes{ --flair-play: paused; }
+  html.no-flourish-ambient{ --flair-play: paused; }
 
   html[data-theme="cyberpunk"]{
     --bg-base:#05060f;
@@ -201,7 +204,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: linear-gradient(90deg, #ff9f1c 0%, #ff3f8e 33%, #2ec4f1 66%, #35d488 100%);
     border-bottom: none;
   }
-  html[data-theme="subway"] .brand, html[data-theme="subway"] #statsline, html[data-theme="subway"] #statsline b{ color:#ffffff; }
+  html[data-theme="subway"] .brand{ color:#ffffff; }
   html[data-theme="subway"] .brand span.tag{ background: rgba(255,255,255,0.28); color:#ffffff; box-shadow:none; }
   html[data-theme="subway"] #topbar button{ background: rgba(255,255,255,0.9); color:#14213d; border-color: transparent; }
   html[data-theme="subway"] #topbar button:hover:not(:disabled){ background:#ffffff; }
@@ -587,21 +590,28 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      effect for ANY theme individually (applyTheme(), themes.ts, toggles
      this class based on the refinedThemes list). A future new epic/
      legendary theme still gets its own `html[data-theme="..."]` line as
-     before; theme-refined only covers themes bought UP to this tier. */
-  html[data-theme="amethyst"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
-  html[data-theme="solarflare"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
-  html[data-theme="twilight-garden"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
-  html[data-theme="aurora-borealis"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
-  html[data-theme="celestial-gold"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
-  html.theme-refined:not(.suppress-theme-upgrade) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell){
+     before; theme-refined only covers themes bought UP to this tier.
+
+     Every selector here (native AND theme-refined) also carries
+     `:not(.suppress-theme-flourishes)` — the Settings "Suppress Theme
+     Flourishes" toggle (was "Suppress Theme Upgrade") hides the Refine
+     Theme button AND blanks this effect everywhere, not just on
+     individually-refined themes; a theme that's natively epic/legendary
+     is suppressed the same as one bought up to that tier. */
+  html[data-theme="amethyst"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
+  html[data-theme="solarflare"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
+  html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
+  html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
+  html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
+  html.theme-refined:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell){
     position: relative; overflow: hidden; isolation: isolate;
   }
-  html[data-theme="amethyst"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
-  html[data-theme="solarflare"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
-  html[data-theme="twilight-garden"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
-  html[data-theme="aurora-borealis"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
-  html[data-theme="celestial-gold"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
-  html.theme-refined:not(.suppress-theme-upgrade) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
+  html[data-theme="amethyst"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
+  html[data-theme="solarflare"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
+  html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
+  html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
+  html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
+  html.theme-refined:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
     content: ''; position: absolute; left: 0; top: 0; width: 0%; height: 100%;
     background: var(--accent-flair); opacity: 0.28;
     transition: width 0.22s cubic-bezier(.2,.8,.3,1), opacity 0.2s ease;
@@ -613,15 +623,15 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      refined/epic/legendary theme gets — the [data-theme="subway"] attribute
      selector outranks the bare html.theme-refined rule above on
      specificity, so this only needs to override `background`. */
-  html.theme-refined:not(.suppress-theme-upgrade)[data-theme="subway"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
+  html.theme-refined:not(.suppress-theme-flourishes)[data-theme="subway"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
     background: linear-gradient(90deg, #ff9f1c 0%, #ff3f8e 33%, #2ec4f1 66%, #35d488 100%);
   }
-  html[data-theme="amethyst"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
-  html[data-theme="solarflare"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
-  html[data-theme="twilight-garden"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
-  html[data-theme="aurora-borealis"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
-  html[data-theme="celestial-gold"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
-  html.theme-refined:not(.suppress-theme-upgrade) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after{
+  html[data-theme="amethyst"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
+  html[data-theme="solarflare"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
+  html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
+  html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
+  html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
+  html.theme-refined:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after{
     width: 75%;
   }
   /* Click flash: on an actual click (not just hover), the hover-fill
@@ -659,37 +669,37 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      group, so buying one buys both. A flat dark shadow is used here rather
      than vintage-paper's warm brown one, since this group spans mostly-dark
      themes (and any light common/uncommon theme someone refines). */
-  html[data-theme="amethyst"] .card,
-  html[data-theme="solarflare"] .card,
-  html[data-theme="twilight-garden"] .card,
-  html[data-theme="aurora-borealis"] .card,
-  html[data-theme="celestial-gold"] .card,
-  html.theme-refined:not(.suppress-theme-upgrade) .card{
+  html[data-theme="amethyst"]:not(.suppress-theme-flourishes) .card,
+  html[data-theme="solarflare"]:not(.suppress-theme-flourishes) .card,
+  html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) .card,
+  html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) .card,
+  html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) .card,
+  html.theme-refined:not(.suppress-theme-flourishes) .card{
     transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
-  html[data-theme="amethyst"] .card:hover,
-  html[data-theme="solarflare"] .card:hover,
-  html[data-theme="twilight-garden"] .card:hover,
-  html[data-theme="aurora-borealis"] .card:hover,
-  html[data-theme="celestial-gold"] .card:hover,
-  html.theme-refined:not(.suppress-theme-upgrade) .card:hover{
+  html[data-theme="amethyst"]:not(.suppress-theme-flourishes) .card:hover,
+  html[data-theme="solarflare"]:not(.suppress-theme-flourishes) .card:hover,
+  html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) .card:hover,
+  html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) .card:hover,
+  html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) .card:hover,
+  html.theme-refined:not(.suppress-theme-flourishes) .card:hover{
     transform: rotate(-0.6deg) translateY(-2px);
     box-shadow: 0 6px 14px rgba(0,0,0,0.35);
   }
 
-  /* "Disable theme flourishes" (Settings): unlike Suppress Theme Upgrade
-     above (which only withholds Refine-Theme-GRANTED effects), this is a
-     blanket motion-sensitivity switch that also kills each theme's own
-     NATIVE hover-tilt (epic/legendary, and Vintage Paper's original
-     one-off version below) and hover-fill flood — the two interactive
-     "motion" effects in the theme system. It deliberately does NOT touch
-     each theme's static, non-animated color accents (glows, gradients,
-     textures) — those aren't a motion trigger, and disabling all of them
-     individually would mean touching nearly every theme's own CSS block
-     rather than one shared switch. `!important` because this has to beat
-     several more specific per-theme `:hover` rules unconditionally. */
-  html.no-theme-flourishes .card:hover{ transform: none !important; }
-  html.no-theme-flourishes button::after{ display: none !important; }
+  /* Visual flourishes (Settings): three independent motion-sensitivity
+     switches, each killing one NATIVE effect app-wide — regardless of
+     whether a theme has it built-in (epic/legendary, Vintage Paper's
+     one-off card-tilt) or via Suppress Theme Flourishes/Refine Theme.
+     Deliberately does NOT touch each theme's static, non-animated color
+     accents (glows, gradients, textures) — those aren't a motion trigger,
+     and disabling all of them individually would mean touching nearly
+     every theme's own CSS block rather than one shared switch per effect.
+     `!important` because these have to beat several more specific
+     per-theme `:hover` rules unconditionally. Ambient animations are
+     handled separately above via `--flair-play`. */
+  html.no-flourish-tilt .card:hover{ transform: none !important; }
+  html.no-flourish-hover button::after{ display: none !important; }
 
   /* ================= End themes ================= */
 
@@ -708,6 +718,14 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   .theme-panel{
     position: fixed; top: 64px; right: 20px; width: 300px;
+    /* Fixed CSS-px width never shrinks on its own — at high enough native
+       page zoom (Settings' own font-size slider), 300 CSS-px can exceed the
+       viewport's own (zoom-shrunk) CSS-px width, so the box itself would
+       overflow past the window edge no matter how well JS repositions it.
+       max-width ties it to whatever room actually exists at the current
+       zoom, same safety-net shape as max-height below for the vertical
+       axis. */
+    max-width: calc(100vw - 16px);
     background: var(--bg-elevated-2); border: 1px solid var(--border-strong);
     border-radius: 10px; padding: 14px; z-index: 455; /* above .modal-backdrop (450) — this class backs every
     floating panel (settings, favorites, theme customizer, log, achievements, shop, tag details), any of which
@@ -836,14 +854,19 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   /* Add-tile: a plain <button>, not one of this app's `all: unset` ctx-style
-     buttons, so it keeps normal button focus/hover behavior for free. */
+     buttons, so it keeps normal button focus/hover behavior for free.
+     Sized to match the actual folder ICON graphic (.dm-folder-icon, 96x72)
+     other tiles show, not their full 150x160 tile box — that box is mostly
+     padding/label space around a much smaller icon, so a dashed border
+     filling the whole thing read as a conspicuously oversized square next
+     to the other (visually much smaller) folder icons. */
   .dm-add-tile{
-    width: 150px; height: 160px; display: flex; align-items: center; justify-content: center;
+    width: 110px; height: 82px; margin: 10px 6px; display: flex; align-items: center; justify-content: center;
     background: transparent; border: 2px dashed var(--accent-flair); border-radius: var(--radius);
-    font-size: 28px; color: var(--accent-flair); line-height: 1;
+    font-size: 22px; color: var(--accent-flair); line-height: 1;
   }
   .dm-add-tile:hover:not(:disabled){ background: var(--bg-elevated); }
-  .dm-grid.dm-list-view .dm-add-tile{ width: 100%; height: 44px; }
+  .dm-grid.dm-list-view .dm-add-tile{ width: 100%; height: 44px; margin: 0; }
 
   .dm-pin-badge{
     position: absolute; top: 4px; left: 8px; color: var(--accent-auto); font-size: 12px; z-index: 4;
@@ -952,8 +975,34 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .synthdat-body{ display: flex; flex-direction: column; gap: 24px; }
   .synthdat-cols{ display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
   .synthdat-col{ flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 16px; }
+  /* Generation's own two columns are deliberately NOT an even split — the
+     result/preview is the actual point of interest here (what you're
+     generating and deciding accept/reject on), the settings column is
+     secondary controls you set up once per session. Same relationship as a
+     video player's main view vs. its sidebar: capping the settings column's
+     width and giving the preview column the lion's share of extra space
+     makes the preview read as the dominant screen element instead of a
+     small box squeezed beside a tall list of number fields. */
+  .synthdat-gen-top .synthdat-cols > .synthdat-col:first-child{ flex: 1 1 300px; max-width: 360px; }
+  .synthdat-gen-top .synthdat-cols > .synthdat-col:last-child{ flex: 2 1 480px; }
   .synthdat-gen-top .synthdat-ref-preview{ max-height: 480px; }
   .synthdat-gen-top .synthdat-ref-preview img{ max-height: 480px; }
+  /* The empty-state placeholder ("No image generated yet") used to just
+     shrink-wrap its own text (via .synthdat-ref-preview's width:fit-content
+     below), reading as a tiny incidental box rather than an actual screen
+     element. Large and stable instead — fills the preview column's width at
+     a consistent minimum height in BOTH states (empty and loaded), like a
+     video player's frame that doesn't resize around whatever's currently
+     playing. A loaded image renders centered at its own natural size
+     (still capped by max-height/max-width above) rather than stretched to
+     fill, so it can letterbox within the frame instead of the frame
+     shrinking to match it. */
+  .synthdat-gen-top #synthDatPreviewWrap,
+  .synthdat-gen-top #synthDatLivePreviewWrap{
+    width: 100%; min-height: 420px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .synthdat-gen-top #synthDatPreviewWrap .stats-empty{ padding: 0; font-size: 14px; }
   /* Shrink-wraps to the image's own rendered size (capped by max-height,
      and by the column's own width) instead of forcing a fixed-aspect box —
      a portrait image inside a wider/shorter forced box (or vice versa)
@@ -1079,7 +1128,44 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   /* ---------- Achievements ---------- */
 
-  .ach-toggle-row{ display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-muted); }
+  /* Every checkbox in the app lives inside one of these — a bordered card
+     around the checkbox AND its label text (not just the bare native
+     checkbox floating next to plain text), matching the same "boxed row"
+     language .ach-row already used for achievement entries. Applies
+     app-wide: Settings toggles, the exact-match filter checkbox, every
+     SynthDat checkbox, the achievements popup toggle — anywhere a checkbox
+     appears, it's wrapped in `<label class="ach-toggle-row">…<span>label
+     text</span></label>` (originally just this panel's own class, kept the
+     name since renaming it everywhere would've been pure churn). */
+  .ach-toggle-row{
+    display: flex; align-items: center; gap: 9px; font-size: 11.5px; color: var(--text-muted);
+    padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: var(--radius);
+    background: var(--bg-base); cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .ach-toggle-row:hover{ border-color: var(--border-strong); background: var(--bg-elevated); }
+  /* Custom checkbox — bigger than a native one (18px vs. a browser's usual
+     ~13px) and styled to match the app's own controls (rounded, accent-
+     colored check) instead of whatever the OS theme happens to render. */
+  .ach-toggle-row input[type="checkbox"]{
+    appearance: none; -webkit-appearance: none; margin: 0;
+    width: 18px; height: 18px; flex-shrink: 0; position: relative;
+    border: 1.5px solid var(--border-strong); border-radius: 4px;
+    background: var(--bg-elevated); cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  .ach-toggle-row input[type="checkbox"]:hover{ border-color: var(--accent-manual); }
+  .ach-toggle-row input[type="checkbox"]:checked{
+    background: var(--accent-manual); border-color: var(--accent-manual);
+  }
+  .ach-toggle-row input[type="checkbox"]:checked::after{
+    content: ''; position: absolute; left: 5px; top: 1px;
+    width: 5px; height: 9px; border: solid var(--bg-base); border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .ach-toggle-row input[type="checkbox"]:focus-visible{
+    outline: 2px solid var(--accent-manual); outline-offset: 1px;
+  }
   .ach-list{
     display: flex; flex-direction: column; gap: 8px;
     max-height: 340px; overflow-y: scroll; flex-shrink: 0;
@@ -1322,6 +1408,48 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .modal-backdrop.modal-visible .modal-card{ transform: scale(1); }
   .modal-close-btn{ position: absolute; top: 12px; right: 12px; z-index: 10; }
 
+  /* ---------- Help & documentation panel ---------- */
+
+  .help-modal-card{ position: relative; }
+  .help-toc{
+    width: 230px; flex-shrink: 0; overflow-y: auto;
+    background: var(--bg-elevated); border-right: 1px solid var(--border-soft);
+    padding: 16px 10px;
+  }
+  .help-toc-title{
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 10px 10px;
+  }
+  .help-toc-item{
+    display: block; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 2px;
+    border-radius: var(--radius); font-size: 12.5px; color: var(--text-muted);
+    background: transparent; border: 1px solid transparent; cursor: pointer;
+  }
+  .help-toc-item:hover{ background: var(--bg-elevated-2); color: var(--text-primary); }
+  .help-toc-item.active{
+    background: var(--accent-manual-dim); color: var(--accent-manual);
+    border-color: var(--accent-manual); font-weight: 600;
+  }
+  /* Only the selected section's content is ever in the DOM at once — this
+     is meant to be read one digestible piece at a time via the TOC on the
+     left, not scrolled through as one long page. */
+  .help-content{
+    flex: 1; overflow-y: auto; padding: 30px 40px 40px; line-height: 1.65;
+    font-size: 13.5px; color: var(--text-primary);
+  }
+  .help-content h2{ margin: 0 0 18px; font-size: 18px; padding-right: 30px; }
+  .help-content p{ margin: 0 0 13px; color: var(--text-muted); }
+  .help-content p:last-child{ margin-bottom: 0; }
+  .help-content ul, .help-content ol{
+    margin: 0 0 13px; padding-left: 20px; display: flex; flex-direction: column; gap: 7px;
+    color: var(--text-muted);
+  }
+  .help-content b{ color: var(--text-primary); }
+  .help-content code{
+    font-family: var(--mono); font-size: 12px; background: var(--bg-elevated);
+    padding: 1px 5px; border-radius: 4px; color: var(--text-secondary, var(--accent-manual));
+  }
+
   /* ---------- Generic image lightbox (shared-ui.ts showImageLightbox()) ---------- */
 
   .lightbox-backdrop{
@@ -1352,6 +1480,29 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .confirm-message{ font-size: 13px; color: var(--text-primary); line-height: 1.5; margin-bottom: 16px; white-space: pre-wrap; }
   .confirm-btn-row{ display: flex; gap: 8px; justify-content: flex-end; }
 
+  /* A tip's own ⓘ button — sits inline right after the short teaser text,
+     opens showInfoModal() with the matching #info<Id>Content <template>'s
+     full explanation instead of that text always taking up dock space. */
+  .info-btn{
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; padding: 0; margin-left: 4px;
+    border-radius: 50%; font-size: 12px; line-height: 1;
+    background: var(--bg-elevated); color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .info-btn:hover{ color: var(--text-primary); border-color: var(--accent-manual); }
+
+  .info-modal-box{
+    width: min(520px, 88vw); max-height: 76vh; overflow-y: auto;
+  }
+  .info-modal-title{ font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; }
+  .info-modal-body{ font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+  .info-modal-body p{ margin: 0 0 12px; }
+  .info-modal-body p:last-child{ margin-bottom: 0; }
+  .info-modal-body ul{ margin: 0 0 12px; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+  .info-modal-body ul:last-child{ margin-bottom: 0; }
+  .info-modal-body b{ color: var(--text-primary); }
+
   html.discrete-mode .card img, html.discrete-mode .compact-card img, html.discrete-mode .single-img-side img{
     filter: blur(24px);
   }
@@ -1381,6 +1532,19 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   /* ---------- Topbar ---------- */
+
+  /* Sits OUTSIDE #topbarActions on purpose — that row scales its own content
+     down (updateTopbarScale(), index.ts) to fit instead of scrolling, so a
+     button living inside it could shrink away with everything else. This
+     one stays a fixed sibling at the actual far-right edge of the header,
+     same role .brand-block plays at the far left — separated from every
+     other topbar control, easy to find when someone's actually looking for
+     it, not just another item in a crowded row. */
+  .topbar-help-btn{
+    flex-shrink: 0;
+    border-color: var(--accent-manual); color: var(--accent-manual); font-weight: 600;
+  }
+  .topbar-help-btn:hover:not(:disabled){ background: var(--accent-manual-dim); }
 
   #topbar {
     display: flex;
@@ -1430,39 +1594,29 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     border-radius: 4px;
   }
 
-  .actions-arrows{
-    display: flex; align-items: center; gap: 4px; flex-shrink: 0;
-  }
-  .actions-arrow{
-    flex-shrink: 0; padding: 7px 9px; font-size: 13px;
-  }
   #topbar .actions {
     display: flex;
     align-items: center;
     gap: 10px;
     flex: 1;
     flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: hidden;
     min-width: 0;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-strong) var(--bg-base);
-    padding-bottom: 2px;
+    /* JS (updateTopbarScale in index.ts) sets a transform: scale(n) here
+       instead of letting this row overflow into a scrollbar — scrollWidth/
+       clientWidth are unaffected by an element's own transform, so that scale
+       is recomputed straight off this row's natural (unscaled) content width
+       vs. the space actually available, on every resize/zoom. Scaling
+       in-place (transform-origin: left) shrinks every icon/label together
+       instead of clipping or scrolling them. */
+    transform-origin: left center;
   }
-  #topbar .actions::-webkit-scrollbar{ height: 9px; }
-  #topbar .actions::-webkit-scrollbar-track{ background: var(--bg-base); border-radius: 5px; }
-  #topbar .actions::-webkit-scrollbar-thumb{
-    background: var(--border-strong); border-radius: 5px; border: 2px solid var(--bg-base);
-  }
-  #topbar .actions::-webkit-scrollbar-thumb:hover{ background: var(--accent-manual); }
   /* Every direct child must refuse to shrink below its own nowrap content
      width — a flex item's default min-width:auto already prevents this in
-     most cases, but #statsline (a bare div, no explicit flex-shrink) was
-     the one exception, and at high font-size zoom that let it get squeezed
-     enough to visually shove the buttons after it (drifting their content
-     rightward inside their own boxes). `.actions` already scrolls
-     (overflow-x: auto) for genuine overflow, so nothing here needs to
-     shrink to fit. */
+     most cases, but a bare div with no explicit flex-shrink could still get
+     squeezed enough to visually shove the buttons after it (drifting their
+     content rightward inside their own boxes). Real overflow is handled by
+     the transform-scale above, not by shrinking children individually. */
   #topbar .actions > *{ flex-shrink: 0; }
 
   .header-cat{ position: relative; display: inline-block; flex-shrink: 0; }
@@ -1523,16 +1677,6 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   button.danger-ghost { color: var(--accent-danger); border-color: #5a2f38; background: #2a1c20; }
   button.danger-ghost:hover:not(:disabled) { background: #37232a; }
 
-  #statsline {
-    display: flex;
-    gap: 16px;
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text-muted);
-    white-space: nowrap;
-  }
-  #statsline b { color: var(--text-primary); font-weight: 600; }
-
   /* ---------- Shell layout ---------- */
 
   #galleryTab{ display: contents; }
@@ -1540,20 +1684,30 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   #shell {
     flex: 1;
     display: grid;
-    grid-template-columns: 270px 1fr 380px;
+    /* --right-w (dragged via #rightPanelResizeHandle, see below) overrides
+       the fixed 380px default in every layout mode at once. */
+    grid-template-columns: 270px 1fr var(--right-w, 380px);
     min-height: 0;
     transition: grid-template-columns var(--panel-dur) var(--pop-ease);
+    /* Containing block for #rightPanelResizeHandle's position:absolute —
+       #shell's own box already starts/ends exactly where the 3-column
+       layout does (below #topbar/#tabBar), so an absolute child anchored
+       top:0/bottom:0 gets that for free with no JS height/top math needed,
+       unlike position:fixed (viewport-relative, and silently broken by any
+       ancestor transform — see the mobile drawer layout's own #right
+       transform, which is exactly what went wrong before this). */
+    position: relative;
   }
   #left{ order: 1; }
   #gallery{ order: 2; }
   #right{ order: 3; }
 
-  #shell.layout-gallery-left{ grid-template-columns: 1fr 270px 380px; }
+  #shell.layout-gallery-left{ grid-template-columns: 1fr 270px var(--right-w, 380px); }
   #shell.layout-gallery-left #gallery{ order: 1; }
   #shell.layout-gallery-left #left{ order: 2; }
   #shell.layout-gallery-left #right{ order: 3; }
 
-  #shell.layout-gallery-right{ grid-template-columns: 270px 380px 1fr; }
+  #shell.layout-gallery-right{ grid-template-columns: 270px var(--right-w, 380px) 1fr; }
   #shell.layout-gallery-right #left{ order: 1; }
   #shell.layout-gallery-right #right{ order: 2; }
   #shell.layout-gallery-right #gallery{ order: 3; }
@@ -1599,16 +1753,60 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      addable) that content height regularly exceeds the panel's visible
      height, which pushed a vertically-centered absolute button below the
      fold — sticky keeps it pinned to the top of whatever's currently
-     scrolled into view instead. */
+     scrolled into view instead. Sits on the ROW now (was on the arrow
+     button alone), since the row also holds btnGoToTagOverseer/btnMasterBack
+     — those fill what used to be dead space beside a lone 20px-wide arrow
+     in an otherwise-empty full-width strip, rather than leaving it empty. */
+  #rightPanelHeaderRow{
+    position: sticky; top: 0; left: 0; z-index: 2;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-panel);
+  }
   .panel-collapse-arrow{
-    position: sticky; top: 0; left: 0; align-self: flex-start;
-    width: 20px; height: 28px; padding: 0; z-index: 2; flex-shrink: 0;
+    width: 20px; height: 28px; padding: 0; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     font-size: 13px; line-height: 1; border-radius: var(--radius);
     background: var(--bg-elevated); border: 1px solid var(--border-soft);
     color: var(--text-muted); cursor: pointer;
   }
   .panel-collapse-arrow:hover{ color: var(--text-primary); background: var(--bg-elevated-2); }
+  .right-panel-header-action{
+    flex: 1; min-width: 0; font-size: 11.5px; padding: 5px 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #right.right-panel-collapsed .right-panel-header-action{ display: none; }
+
+  /* Lets the right panel be dragged wider/narrower (down to a minimum) — a
+     sibling of #left/#gallery/#right rather than a child of #right (which
+     is itself the scrolling element, see the comment above on
+     .panel-collapse-arrow — a child anchored inside it would scroll away
+     with its content instead of staying put along the panel's actual edge).
+     `position: absolute` against #shell's own box (see #shell's `position:
+     relative`) gets top:0/bottom:0 for free with no JS math, unlike the
+     `position: fixed` this used originally — viewport-relative, and it
+     silently broke (ended up spanning the whole window height, through the
+     header) the moment any ANCESTOR got a `transform` (the mobile drawer
+     layout's #right does), since that creates a new containing block fixed
+     positioning suddenly resolves against instead of the viewport.
+     index.ts's repositionRightResizeHandle() still keeps `left` lined up
+     with whichever edge is actually draggable (the boundary next to
+     #gallery — #right's own left edge normally, but its right edge in
+     gallery-right layout, where #right sits directly next to #left instead
+     of at the screen's outer edge) any time that edge could have moved.
+     Hidden entirely while the panel is collapsed — nothing meaningful to
+     resize down to a 32px strip. */
+  #rightPanelResizeHandle{
+    position: absolute; top: 0; bottom: 0; width: 8px;
+    cursor: ew-resize; z-index: 50;
+    /* Same "grip" indicator as .dock-resize-handle (vertical dock resize),
+       rotated — a repeating stripe pattern that's always faintly visible
+       (not just a hover-only tint) so the draggable edge is discoverable,
+       not just a proximity-tolerant hit zone that happens to highlight. */
+    background: repeating-linear-gradient(180deg, var(--border-strong) 0 6px, transparent 6px 12px);
+    opacity: 0.35;
+  }
+  #rightPanelResizeHandle:hover, #rightPanelResizeHandle.resizing{ opacity: 0.85; }
+  #right.right-panel-collapsed + #rightPanelResizeHandle{ display: none; }
 
   #right.right-panel-collapsed{ padding-left: 0; padding-right: 0; }
   #right.right-panel-collapsed #rightPanelContent{ display: none; }
@@ -1741,6 +1939,23 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .insp-result{ font-size: 12px; color: var(--text-muted); line-height: 1.5; min-height: 16px; }
   .insp-result b{ color: var(--text-primary); }
   .ghost-close{ align-self: flex-start; font-size: 11.5px; padding: 5px 10px; background:transparent; }
+
+  /* Merge Immunize / Antivoid / Antimmunize toggle pairs (Master Tags) —
+     smaller and less visually loud than the app's normal buttons, since six
+     of these stacked (three do/undo pairs, each with its own icon) read as
+     garish at full button size/weight. The "undo" side of each pair
+     (.ghost-secondary) is deliberately de-emphasized further — it's the
+     less-common action, shouldn't visually compete with its own "do" pair. */
+  /* Always stacked (column), not a wrapping row — a width-dependent wrap
+     looked inconsistent between pairs at any given zoom level (e.g. one
+     pair happens to fit side-by-side while the other two don't, purely from
+     incidental label-width differences) and would keep reshuffling itself
+     as zoom changes. Stacking is zoom-invariant: the same layout at every
+     zoom level, not just "narrow enough to force it." */
+  .immunize-row{ display: flex; flex-direction: column; gap: 6px; }
+  .immunize-row button{ font-size: 11.5px; padding: 5px 9px; }
+  .immunize-row .ghost-secondary{ background: transparent; color: var(--text-muted); }
+  .immunize-row .ghost-secondary:hover:not(:disabled){ color: var(--text-primary); background: var(--bg-elevated); }
   .shop-bottom-row{ display: flex; gap: 8px; }
   .shop-bottom-row .ghost-close{ align-self: auto; }
 
@@ -1829,6 +2044,26 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .filter-help-row{ display: flex; align-items: center; gap: 8px; }
   .filter-help-row span{ font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
   .filter-help-row button{ font-size: 11px; padding: 5px 9px; }
+
+  .filter-suggestions{
+    margin-top: 4px;
+    background: var(--bg-elevated-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .filter-suggestion-family{
+    padding: 4px 8px 2px;
+    font-family: var(--mono); font-size: 10px; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.03em;
+  }
+
+  #filterMatchCount{
+    font-family: var(--mono); font-size: 12px; color: var(--text-muted);
+    white-space: nowrap;
+  }
 
   #singleNav{ display: none; align-items: center; gap: 10px; }
   .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 64px; text-align:center; }
@@ -1919,13 +2154,21 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   #galleryGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    /* --gallery-cols (set from Settings' "Gallery columns" picker) overrides
+       this with a fixed repeat(N, 1fr) — auto-fill's column count otherwise
+       drifts with whatever width happens to be left over after font-size
+       zoom or open side panels eat into it. */
+    grid-template-columns: var(--gallery-cols, repeat(auto-fill, minmax(230px, 1fr)));
     gap: 16px;
   }
 
   html.dynamic-cards #galleryGrid{
     display: block;
-    column-width: 240px;
+    /* Same override, CSS-columns flavor: a fixed --gallery-col-count pairs
+       with --gallery-col-width forced down to ~0 (set together in JS) so the
+       width constraint can't further reduce the column count underneath it. */
+    column-width: var(--gallery-col-width, 240px);
+    column-count: var(--gallery-col-count, auto);
     column-gap: 16px;
     /* Deliberately NOT column-fill:auto: with an auto-height container (this
        one grows with content, no fixed/viewport height to paginate against),
@@ -2145,6 +2388,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .tool-section .sec-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
@@ -2212,7 +2456,14 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     display: flex; flex-direction: column; gap: 6px; padding: 8px; margin-bottom: 8px;
     background: var(--bg-elevated); border: 1px solid var(--border-soft); border-radius: 6px;
   }
-  .canonical-rule-head{ display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .canonical-rule-head{ display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+  .canonical-rule-group{ margin-bottom: 10px; }
+  .canonical-rule-group .settings-section-body{ padding: 10px 0 0; background: transparent; }
+  .canonical-rule-group-header{
+    font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.03em;
+    margin: 4px 0 8px; padding-top: 6px; border-top: 1px solid var(--border-soft);
+  }
   .canonical-rule-label{ font-size: 12.5px; font-weight: 600; color: var(--accent-manual); }
   .canonical-rule-label.canonical-rule-void{ color: var(--accent-danger); }
   .canonical-rule-head button{ font-size: 11px; padding: 3px 7px; }
@@ -2226,10 +2477,6 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .canonical-chip-disabled{ opacity: 0.5; }
   .canonical-chip-disabled span{ text-decoration: line-through; }
 
-  .qm-list{ display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: scroll; }
-  .qm-row{ display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 5px; font-size: 12px; }
-  .qm-row:hover{ background: var(--bg-elevated-2); }
-  .qm-row input[type="checkbox"]{ accent-color: var(--accent-manual); cursor: pointer; margin-top: 2px; }
   .qm-variants{ color: var(--text-muted); }
   select.qm-canon{
     color: var(--accent-manual); font-weight: 600; font-family: var(--sans); font-size: 12px;
@@ -2290,6 +2537,19 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   .apply-row { display: flex; gap: 8px; }
   .apply-row input { flex: 1; }
+
+  /* Explicit nowrap + shared flex-shrink so these two stay side-by-side at
+     any dock width/zoom level instead of dropping onto separate lines —
+     they shrink together (min-width:0 lets `white-space:nowrap` button text
+     actually compress) rather than one wrapping under the other. */
+  /* Wrap rather than force an equal 1:1 flex split between these two —
+     equal-split shrinks both buttons to the SAME width regardless of label
+     length, which squeezed "Clear selection" (the longer label) down below
+     its own readable width and clipped its text (some themes give buttons
+     `overflow:hidden` for their hover-fill flourish, which then clips
+     instead of just visually bleeding). Buttons keep their natural size and
+     drop to a second line if the panel's too narrow for both. */
+  .selection-actions-row{ display: flex; flex-wrap: wrap; gap: 8px; }
 
   .gtt-row{ display: flex; gap: 8px; }
   .gtt-row input{ flex: 1; min-width: 0; }
@@ -2381,7 +2641,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 
   @media (max-width: 1400px) {
-    #shell { grid-template-columns: 230px 1fr 330px; }
+    /* Narrower default left-column width at this breakpoint, but the right
+       column still has to defer to --right-w (see #shell's own base rule) —
+       a hardcoded 330px here was silently overriding the user's dragged
+       width (and the drag handle itself) any time the window was under
+       1400px wide, which is most normal window sizes. */
+    #shell { grid-template-columns: 230px 1fr var(--right-w, 330px); }
   }
 
   /* ---------- Mobile / narrow-viewport layout (groundwork for a mobile port) ---------- */
@@ -2412,7 +2677,18 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
     .drawer-backdrop.drawer-visible{ display: block; }
     .drawer-toggle{ display: inline-flex; }
-    .panel-collapse-arrow{ display: none; }
+    #rightPanelHeaderRow{ display: none; }
+    /* #left/#right become fixed-width sliding drawers here, each with its
+       own `transform` — a `transform` on an ancestor creates a new
+       containing block for `position: fixed` descendants, so the handle's
+       viewport-relative top/left math (repositionRightResizeHandle(), in
+       index.ts) no longer means what it thinks it means once #right has
+       one: it ends up rendered relative to #right's own (fixed, full-height)
+       box instead, which is how it ended up spanning the header and
+       touching dock content. Resizing a fixed-width drawer isn't a
+       meaningful action anyway — hide it here, same as the collapse arrow
+       just above. */
+    #rightPanelResizeHandle{ display: none; }
 
     button{ padding: 9px 14px; font-size: 14px; }
     .chip{ padding: 5px 6px 5px 11px; font-size: 12.5px; }

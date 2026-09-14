@@ -217,6 +217,13 @@ function createWindow() {
 // the 'request-close' message above. Marking __closeConfirmed lets the
 // re-triggered .close() below fall through the 'close' handler instead of
 // looping back into another 'request-close' round-trip.
+// Single source of truth for the version shown in the renderer's own top-left
+// corner and baked into Export App State — app.getVersion() reads package.json
+// itself, so this can never drift from the real version the way a hand-typed
+// renderer-side constant did (it sat at '2.0.0' while package.json had long
+// since moved to '1.1.0', with nothing keeping the two in sync).
+ipcMain.handle('get-app-version', () => app.getVersion());
+
 ipcMain.handle('confirm-close', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) {
@@ -225,220 +232,22 @@ ipcMain.handle('confirm-close', (event) => {
   }
 });
 
-// ---- GitHub-ready package generator ----
-// Copies the app's own source (main.js/preload.js/package.json/renderer/)
-// into a folder the user picks, alongside a .gitignore, a README, and a
-// plain-English HOW_TO_UPLOAD.txt — everything needed to `git init` and
-// push it, without assuming the user knows git already.
-
-const GITHUB_PACKAGE_SKIP = new Set(['node_modules', 'dist', '.git', '.DS_Store']);
-
-function copyDirSyncFiltered(src, dest, extraSkip = null) {
-  fs.mkdirSync(dest, { recursive: true });
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    if (GITHUB_PACKAGE_SKIP.has(entry.name)) continue;
-    if (extraSkip && extraSkip.has(entry.name)) continue;
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) copyDirSyncFiltered(srcPath, destPath, extraSkip);
-    else fs.copyFileSync(srcPath, destPath);
-  }
-}
-
-// main.js/preload.js/renderer/app.js are listed even though
-// copyGithubPackageSource() no longer ships them — if the recipient runs
-// `npm run build` inside this export, those regenerate on disk, and they
-// should never get committed as tracked build output in what's meant to be
-// a clean-source GitHub repo.
-const GITHUB_GITIGNORE = `node_modules/\ndist/\nShippable/\ndata/\n*.log\n.DS_Store\nThumbs.db\n/main.js\n/preload.js\n/renderer/app.js\n`;
-
-const GITHUB_README = `# Dataset Tag Studio
-
-A local Electron desktop app for managing AI training dataset tags (image/caption pairs for LoRA or Stable Diffusion training). No network calls, no uploads — everything stays on disk.
-
-This is the full TypeScript source (\`src/\`), not just a compiled copy —
-\`npm start\`/\`npm run dist\` build it automatically first (see
-package.json's \`pre*\` scripts), so building from this export reproduces
-the exact same app as the release zip it was generated from.
-
-## Running it
-
-\`\`\`
-npm install
-npm start
-\`\`\`
-
-## Building a portable release zip
-
-\`\`\`
-npm run dist:zip
-\`\`\`
-
-This uses electron-builder and outputs a portable .zip to \`Shippable/\`
-(same output the maintainer's own releases are built from). Plain
-\`npm run dist\` builds installers for your OS into \`dist/\` instead.
-
-See HOW_TO_UPLOAD.txt for step-by-step instructions on pushing this folder to GitHub.
-`;
-
-const GITHUB_HOWTO = `HOW TO PUSH THIS FOLDER TO GITHUB
-==================================
-
-You don't need to know git already — just follow these in order, from a
-terminal (Command Prompt, PowerShell, or Terminal.app) opened IN THIS FOLDER.
-
-0) Install git if you don't have it: https://git-scm.com/downloads
-   (Run "git --version" in a terminal — if it prints a version, you're set.)
-
-1) Turn this folder into a git repository:
-     git init
-
-2) Stage every file:
-     git add .
-
-3) Make your first commit:
-     git commit -m "Initial commit"
-
-4) Create an empty repository on GitHub.com (click the "+" top-right ->
-   "New repository"). Do NOT check "Add a README" — this folder already
-   has one. Copy the repository URL it gives you (looks like
-   https://github.com/your-username/your-repo-name.git).
-
-5) Point your local folder at that GitHub repository:
-     git remote add origin https://github.com/your-username/your-repo-name.git
-
-6) Rename your branch to "main" (GitHub's default) and push:
-     git branch -M main
-     git push -u origin main
-
-You'll be asked to sign in to GitHub the first time — follow the prompts.
-After that, any time you make changes here, push them with:
-     git add .
-     git commit -m "describe what changed"
-     git push
-`;
-
-// Ships the actual buildable TypeScript source (src/, tsconfig*.json,
-// scripts/, package.json with its real scripts/devDependencies — not just
-// the compiled main.js/preload.js/renderer/app.js), so `npm install` +
-// `npm run dist`/`npm run dist:zip` from this export reproduces the exact
-// same release build, not a stale or incomplete copy of it. __dirname here
-// points inside the RUNNING app's own resources (an app.asar path in any
-// packaged build, the project root only when unpackaged via `npm start`) —
-// so this only works at all because package.json's `build.files` explicitly
-// ships src/**/*, scripts/**/*, and both tsconfig*.json inside every
-// packaged build alongside main.js/preload.js/renderer/**/*. Previously it
-// didn't: those four entries were missing from `files`, so a real packaged
-// build's asar held only main.js/preload.js/package.json/renderer/ — this
-// function's own `fs.existsSync()` guards silently swallowed the missing
-// src/scripts/tsconfigs, producing an export with no TypeScript source at
-// all (package.json + renderer assets only) that could never actually
-// build. Verified via `asar list` on a real packaged build's app.asar
-// before this fix. If a future file gets added here, it needs a matching
-// `build.files` entry too, or the same silent-omission bug comes back.
-// electron-builder REWRITES package.json for the packaged app — it strips
-// "scripts", "devDependencies", and "build" (a real, deliberate,
-// non-configurable part of how it packages an app; verified by diffing this
-// project's own real package.json against the copy sitting in a built
-// app.asar) and keeps everything else as-is. That means the package.json
-// sitting on disk at runtime, in ANY packaged build, can never be copied
-// verbatim — doing so was the actual reason this export was unbuildable
-// even after the src/scripts/tsconfig fix above: the copied package.json
-// had no "build"/"start"/"dist:zip" scripts and no devDependencies at all,
-// so `npm install` had nothing to install and `npm run build` didn't exist.
-// Fix: keep the live, always-accurate fields (name/version/description/
-// author/license/etc. — whatever electron-builder actually preserved) but
-// splice the three stripped fields back in from constants kept here. Those
-// three constants are the actual maintenance burden this function carries —
-// keep them in sync with the real package.json by hand whenever scripts,
-// devDependencies, or the electron-builder `build` config change.
-const GITHUB_PACKAGE_SCRIPTS = {
-  'build:main': 'tsc -p tsconfig.main.json',
-  'build:renderer': 'tsc -p tsconfig.renderer.json --noEmit && esbuild src/renderer/index.ts --bundle --outfile=renderer/app.js',
-  'build': 'npm run build:main && npm run build:renderer',
-  'prestart': 'npm run build',
-  'start': 'electron .',
-  'predist': 'npm run build',
-  'dist': 'electron-builder',
-  'predist:zip': 'npm run build',
-  'dist:zip': 'electron-builder --win zip --config.directories.output=Shippable',
-  'predist:dir': 'npm run build',
-  'dist:dir': 'electron-builder --dir',
-  'prerefresh-app': 'npm run build',
-  'refresh-app': 'electron-builder --dir && node scripts/refresh-portable-dev.js'
-};
-const GITHUB_PACKAGE_DEV_DEPENDENCIES = {
-  electron: '^31.0.0',
-  'electron-builder': '^24.13.3',
-  typescript: '^5.5.0',
-  esbuild: '^0.23.0',
-  '@types/node': '^20.14.0'
-};
-const GITHUB_PACKAGE_BUILD_CONFIG = {
-  appId: 'com.local.datasettagstudio',
-  productName: 'Dataset Tag Studio',
-  files: ['main.js', 'preload.js', 'renderer/**/*', 'src/**/*', 'scripts/**/*', 'tsconfig.main.json', 'tsconfig.renderer.json'],
-  directories: { output: 'dist' },
-  afterPack: 'scripts/after-pack.js',
-  compression: 'normal',
-  mac: { target: 'dmg', category: 'public.app-category.graphics-design' },
-  win: { target: ['zip'] },
-  linux: { target: 'AppImage', category: 'Graphics' }
-};
-
-function copyGithubPackageSource(destDir) {
-  const projectRoot = __dirname;
-  const runtimePkgPath = path.join(projectRoot, 'package.json');
-  const runtimePkg = fs.existsSync(runtimePkgPath) ? JSON.parse(fs.readFileSync(runtimePkgPath, 'utf8')) : {};
-  const fullPkg = {
-    ...runtimePkg,
-    scripts: GITHUB_PACKAGE_SCRIPTS,
-    devDependencies: GITHUB_PACKAGE_DEV_DEPENDENCIES,
-    build: GITHUB_PACKAGE_BUILD_CONFIG
-  };
-  fs.writeFileSync(path.join(destDir, 'package.json'), JSON.stringify(fullPkg, null, 2) + '\n');
-  // tsconfig*.json aren't touched by electron-builder's packaging (only
-  // package.json gets rewritten), so a plain copy is safe here.
-  for (const f of ['tsconfig.main.json', 'tsconfig.renderer.json']) {
-    const src = path.join(projectRoot, f);
-    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(destDir, f));
-  }
-  // renderer/app.js is excluded — it's esbuild's compiled bundle of
-  // src/renderer/index.ts, regenerated by `npm run build`, not source.
-  // main.js/preload.js (tsc's compiled output of src/main.ts and
-  // src/preload.ts) are excluded the same way, for the same reason.
-  copyDirSyncFiltered(path.join(projectRoot, 'renderer'), path.join(destDir, 'renderer'), new Set(['app.js']));
-  if (fs.existsSync(path.join(projectRoot, 'src'))) {
-    copyDirSyncFiltered(path.join(projectRoot, 'src'), path.join(destDir, 'src'));
-  }
-  if (fs.existsSync(path.join(projectRoot, 'scripts'))) {
-    copyDirSyncFiltered(path.join(projectRoot, 'scripts'), path.join(destDir, 'scripts'));
-  }
-}
-
-ipcMain.handle('generate-github-package', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  const result = await dialog.showOpenDialog(win, {
-    title: 'Choose where to create the GitHub-ready package',
-    properties: ['openDirectory', 'createDirectory']
-  });
-  if (result.canceled || !result.filePaths[0]) {
-    return { ok: false, message: 'No folder selected.' };
-  }
-  const destDir = path.join(result.filePaths[0], 'dataset-tag-studio-github-ready');
+// Settings → "Export app state": a debugging snapshot (localStorage prefs,
+// theme, whether a dataset is loaded, view mode, etc. — gathered entirely
+// on the renderer side, this handler just writes the already-formatted text
+// it's handed) dropped next to the exe/project root — the same "root
+// folder" getPortableRoot() already resolves for the portable-mode data
+// folder, so it's wherever the user would actually look for app-adjacent
+// files, not buried in userData.
+ipcMain.handle('export-app-state', (event, text) => {
   try {
-    if (fs.existsSync(destDir) && fs.readdirSync(destDir).length > 0) {
-      return { ok: false, message: `"${destDir}" already exists and isn't empty — remove it or pick a different folder, then try again.` };
-    }
-    fs.mkdirSync(destDir, { recursive: true });
-    copyGithubPackageSource(destDir);
-    fs.writeFileSync(path.join(destDir, '.gitignore'), GITHUB_GITIGNORE);
-    fs.writeFileSync(path.join(destDir, 'README.md'), GITHUB_README);
-    fs.writeFileSync(path.join(destDir, 'HOW_TO_UPLOAD.txt'), GITHUB_HOWTO);
-    shell.showItemInFolder(path.join(destDir, 'HOW_TO_UPLOAD.txt'));
-    return { ok: true, message: `Package created at ${destDir} — opened it for you. Read HOW_TO_UPLOAD.txt for the exact commands to push it to GitHub.`, path: destDir };
+    const stamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '').replace('T', '_');
+    const filePath = path.join(getPortableRoot(), `dts-app-state_${stamp}.txt`);
+    fs.writeFileSync(filePath, text);
+    shell.showItemInFolder(filePath);
+    return { ok: true, path: filePath };
   } catch (err) {
-    return { ok: false, message: 'Failed to generate package: ' + err.message };
+    return { ok: false, message: 'Failed to write app state file: ' + err.message };
   }
 });
 
@@ -574,7 +383,10 @@ ipcMain.handle('wd14-tag-image', async (event, { host, filename, imageBytes, set
           model: settings.model,
           threshold: settings.threshold,
           character_threshold: settings.characterThreshold,
-          replace_underscore: !!settings.replaceUnderscore,
+          // No longer user-configurable (app.ts normalizes tags to
+          // space-separated unconditionally either way) — always false so the
+          // WD14Tagger|pysssss node still gets a value for this required input.
+          replace_underscore: false,
           trailing_comma: !!settings.trailingComma,
           exclude_tags: settings.excludeTags || ''
         }

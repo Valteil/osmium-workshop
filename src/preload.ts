@@ -6,8 +6,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 // folder the user explicitly picks via a native dialog.
 contextBridge.exposeInMainWorld('electronAPI', {
   restartApp: () => ipcRenderer.invoke('restart-app'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
-  generateGithubPackage: () => ipcRenderer.invoke('generate-github-package'),
+  exportAppState: (text) => ipcRenderer.invoke('export-app-state', text),
   onRequestClose: (callback) => ipcRenderer.on('request-close', callback),
   confirmClose: () => ipcRenderer.invoke('confirm-close'),
   wd14GetModels: (host) => ipcRenderer.invoke('wd14-get-models', host),

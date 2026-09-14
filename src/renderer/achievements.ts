@@ -10,7 +10,7 @@ import {
   btnAchievements, achCloseBtn, shopPanel, shopList, btnShop, shopCloseBtn,
   btnFreeEdibits, favoritesPanel, themeCustomPanel, logPanel, tagDetailsPanel,
   themeSelect, btnResetEdibits, btnResetAchievements, achievementPopupHost,
-  btnRefineTheme, suppressThemeUpgradeToggle, disableThemeFlourishesToggle
+  btnRefineTheme, suppressThemeFlourishesToggle, noFlourishHoverToggle, noFlourishTiltToggle, noFlourishAmbientToggle
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, escapeHtml } from './shared-ui';
 import {
@@ -98,6 +98,10 @@ const ACHIEVEMENTS = [
   { id:'clean-slate', title:'Clean Slate', desc:'Unload a dataset without quitting the app.', rarity:'common', check: s => (s.dataset_unloads||0) >= 1 },
   { id:'keyboard-navigator', title:'Keyboard Navigator', desc:'Navigate an open menu or dropdown with the arrow keys.', rarity:'common', check: s => !!s.keyboard_menu_nav_used },
   { id:'wd14-autotagger', title:'Snake Charmer', desc:'Tag an image using the WD14 Autotagger.', rarity:'uncommon', check: s => (s.wd14_images_tagged||0) >= 1 },
+  // Right-panel UX pass additions
+  { id:'sniper-search', title:'Sniper Search', desc:'Turn on Exact tag match in the gallery filter.', rarity:'common', check: s => !!s.exact_match_used },
+  { id:'family-finder', title:'Family Finder', desc:"Pick a tag from the filter's suggestion dropdown.", rarity:'common', check: s => !!s.filter_suggestions_used },
+  { id:'grid-lock', title:'Grid Lock', desc:'Force a fixed gallery column count in Settings.', rarity:'common', check: s => !!s.gallery_columns_forced },
   { id:'completionist-25', title:'Living Legend', desc:'Unlock 25 other achievements in this folder.', rarity:'legendary', check: s => (s.achievements_unlocked||0) >= 25 }
 ];
 
@@ -168,6 +172,16 @@ export function resetFolderAchievements(){
 }
 
 export function checkAchievements(){
+  // Achievements/Edibits are per-dataset (see saveFolderStats()/
+  // loadFolderStats()), but folderStats itself is a plain module-level
+  // object — with no dataset loaded it should already be {} (reset on
+  // unload), yet several features (Settings toggles, the gallery filter's
+  // "Exact tag match"/suggestions, etc.) are still reachable with nothing
+  // loaded and call trackStat()/checkAchievements() unconditionally. Without
+  // this guard, using one of those with no dataset open could unlock an
+  // achievement and grant real (globally-persisted) wallet currency for
+  // progress that isn't tied to any actual dataset.
+  if (!getDirHandle()) return;
   folderStats.log_count = getEditLog().length;
   // Read by the 'completionist-25' meta-achievement below — set from the
   // PREVIOUS call's tally, not this one's, since achievements unlocked
@@ -337,7 +351,7 @@ function buyTheme(t){
 // themeAlreadyHasPremiumEffects() in themes.ts, which also owns the
 // `refinedThemes` list and the `html.theme-refined` class the CSS keys off.
 export function updateRefineThemeButton(){
-  if (suppressThemeUpgradeToggle.checked){
+  if (suppressThemeFlourishesToggle.checked){
     btnRefineTheme.style.display = 'none';
     return;
   }
@@ -409,30 +423,36 @@ export function initAchievementPanels(){
     refineCurrentTheme();
   });
 
-  suppressThemeUpgradeToggle.addEventListener('change', () => {
-    const on = suppressThemeUpgradeToggle.checked;
-    try { localStorage.setItem('dts-suppress-theme-upgrade', on ? '1' : '0'); } catch(e){}
-    document.documentElement.classList.toggle('suppress-theme-upgrade', on);
+  suppressThemeFlourishesToggle.addEventListener('change', () => {
+    const on = suppressThemeFlourishesToggle.checked;
+    try { localStorage.setItem('dts-suppress-theme-flourishes', on ? '1' : '0'); } catch(e){}
+    document.documentElement.classList.toggle('suppress-theme-flourishes', on);
     updateRefineThemeButton();
   });
-  (function initSuppressThemeUpgradePref(){
+  (function initSuppressThemeFlourishesPref(){
     let on = false;
-    try { on = localStorage.getItem('dts-suppress-theme-upgrade') === '1'; } catch(e){}
-    suppressThemeUpgradeToggle.checked = on;
-    document.documentElement.classList.toggle('suppress-theme-upgrade', on);
+    try { on = localStorage.getItem('dts-suppress-theme-flourishes') === '1'; } catch(e){}
+    suppressThemeFlourishesToggle.checked = on;
+    document.documentElement.classList.toggle('suppress-theme-flourishes', on);
   })();
 
-  disableThemeFlourishesToggle.addEventListener('change', () => {
-    const on = disableThemeFlourishesToggle.checked;
-    try { localStorage.setItem('dts-no-theme-flourishes', on ? '1' : '0'); } catch(e){}
-    document.documentElement.classList.toggle('no-theme-flourishes', on);
-  });
-  (function initDisableThemeFlourishesPref(){
+  // Three independent "visual flourish" toggles — hover-fill, card-tilt,
+  // and ambient animations can each be turned off on their own, instead of
+  // one blanket switch (see styles.css's "Visual flourishes" comment).
+  function wireFlourishToggle(toggleEl, storageKey, className){
+    toggleEl.addEventListener('change', () => {
+      const on = toggleEl.checked;
+      try { localStorage.setItem(storageKey, on ? '1' : '0'); } catch(e){}
+      document.documentElement.classList.toggle(className, on);
+    });
     let on = false;
-    try { on = localStorage.getItem('dts-no-theme-flourishes') === '1'; } catch(e){}
-    disableThemeFlourishesToggle.checked = on;
-    document.documentElement.classList.toggle('no-theme-flourishes', on);
-  })();
+    try { on = localStorage.getItem(storageKey) === '1'; } catch(e){}
+    toggleEl.checked = on;
+    document.documentElement.classList.toggle(className, on);
+  }
+  wireFlourishToggle(noFlourishHoverToggle, 'dts-no-flourish-hover', 'no-flourish-hover');
+  wireFlourishToggle(noFlourishTiltToggle, 'dts-no-flourish-tilt', 'no-flourish-tilt');
+  wireFlourishToggle(noFlourishAmbientToggle, 'dts-no-flourish-ambient', 'no-flourish-ambient');
 
   btnFreeEdibits.addEventListener('click', () => {
     const lines = [

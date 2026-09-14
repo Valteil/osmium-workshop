@@ -35,6 +35,10 @@
     var refined = null;
     try { refined = JSON.parse(localStorage.getItem('dts-refined-themes') || '[]'); } catch(e){}
     if (Array.isArray(refined) && refined.indexOf(theme) !== -1) root.classList.add('theme-refined');
+    if (localStorage.getItem('dts-suppress-theme-flourishes') === '1') root.classList.add('suppress-theme-flourishes');
+    if (localStorage.getItem('dts-no-flourish-hover') === '1') root.classList.add('no-flourish-hover');
+    if (localStorage.getItem('dts-no-flourish-tilt') === '1') root.classList.add('no-flourish-tilt');
+    if (localStorage.getItem('dts-no-flourish-ambient') === '1') root.classList.add('no-flourish-ambient');
     if (localStorage.getItem('dts-night-mode') === '1'){
       var VARS = ['--bg-base','--bg-panel','--bg-elevated','--bg-elevated-2','--border-soft','--border-strong',
         '--text-primary','--text-muted','--text-faint','--accent-auto','--accent-auto-dim','--accent-manual',
@@ -90,10 +94,6 @@
       <div class="app-version" id="appVersion">v2.0.0</div>
       <div class="brand">Dataset Tag Studio <span class="tag">local · no upload</span></div>
     </div>
-    <div class="actions-arrows">
-      <button class="actions-arrow" id="actionsScrollLeft" title="Scroll toolbar left">‹</button>
-      <button class="actions-arrow" id="actionsScrollRight" title="Scroll toolbar right">›</button>
-    </div>
       <div class="actions" id="topbarActions">
         <div class="header-cat" id="fileCatWrap">
           <button class="header-cat-btn primary" id="fileCatBtn" title="Open, save, undo/redo">📁 File ▾</button>
@@ -103,19 +103,14 @@
             <button id="btnSave" disabled title="Write all unsaved tag changes to disk">Save changes <span id="dirtyCount">(0)</span></button>
             <button id="btnUndo" disabled title="Undo the last tag edit">Undo</button>
             <button id="btnRedo" disabled title="Redo the last undone edit">Redo</button>
-            <button id="btnReloadDataset" disabled title="Re-scan the current dataset folder from disk — picks up files changed/added outside the app, and any leftover Unsaved Approved images from a previous session. Warns first if you have unsaved changes.">↻ Reload dataset</button>
+            <button id="btnReloadDataset" disabled title="Re-scan the current dataset folder from disk — picks up files changed/added outside the app. Warns first if you have unsaved changes.">↻ Reload dataset</button>
             <button id="btnUnloadDataset" disabled title="Close the current dataset and return to the empty state">Unload dataset</button>
           </div>
         </div>
+        <button id="btnSettings" title="Settings">⚙ Settings</button>
         <button id="btnLeftDrawerToggle" class="drawer-toggle" title="Open filters &amp; tags panel">☰</button>
         <button id="btnRightDrawerToggle" class="drawer-toggle" title="Open tools panel">🔧</button>
         <button id="btnLog" title="View the edit history log for this folder">📜 Log</button>
-        <div id="statsline">
-          <span><b id="statImages">0</b> images</span>
-          <span><b id="statTags">0</b> unique tags</span>
-          <span><b id="statUntagged">0</b> untagged</span>
-          <span><b id="statDisabled">0</b> disabled</span>
-        </div>
         <div class="header-cat" id="personalizationCatWrap">
           <button class="header-cat-btn" id="personalizationCatBtn" title="Themes, colors, achievements, shop">🎨 Personalization ▾</button>
           <div class="header-cat-flyout" id="personalizationCatFlyout" style="display:none;">
@@ -157,9 +152,9 @@
         <button id="btnNightMode" title="Night mode">🌙</button>
         <button id="btnResetEdibits" class="danger-ghost" title="Debug: reset Edibits to 0">Reset Edibits</button>
         <button id="btnResetAchievements" class="danger-ghost" title="Debug: reset achievement progress for this folder">Reset Achievements</button>
-        <button id="btnSettings" title="Settings">⚙ Settings</button>
         <button id="btnQuit" class="danger-ghost" title="Quit the app">✕ Quit</button>
       </div>
+      <button id="btnHelp" class="topbar-help-btn" title="Help &amp; documentation">❓ Help</button>
   </header>
 
   <nav id="tabBar">
@@ -191,11 +186,15 @@
       <div class="field-block">
         <h3 class="panel-title">FILTER GALLERY</h3>
         <input type="text" id="filterInput" placeholder="Show images containing tag(s)… e.g. red hair, blue eyes">
+        <div id="filterSuggestions" class="filter-suggestions" style="display:none;"></div>
         <div class="filter-help-row">
           <span id="filterModeLabel" title="How multiple comma-separated tags combine">AND</span>
           <div class="pdrop" id="filterModeDropdown"></div>
           <button id="btnClearFilter" title="Clear all filters">Clear filter</button>
         </div>
+        <label class="ach-toggle-row" id="filterExactWrap" title="When on, a term only matches a tag that equals it exactly — searching &quot;dress&quot; won't also match &quot;black dress&quot; or &quot;frilly dress&quot;">
+          <input type="checkbox" id="filterExactToggle"><span>Exact tag match</span>
+        </label>
         <div class="quickfilters">
           <button id="filterAll" class="active" title="Show all active images">All</button>
           <button id="filterUntagged" title="Show only images with no tags yet">Untagged</button>
@@ -244,9 +243,9 @@
           <button id="viewCompactBtn" title="Compact view — smaller thumbnails, shift-click to compare">Compact</button>
           <button id="viewSingleBtn" title="Single image view — one at a time, with zoom/pan">Single</button>
           <button id="btnUnlockAll" title="Unlock every locked image in this dataset, so mass tools (Quick Merge, Master Tags, bulk WD14, etc.) can affect them again">🔓 Unlock all</button>
-          <button id="viewPendingApprovalBtn" title="Images accepted from SynthDat Overseer that haven't been saved yet — they live in this dataset's 'Unsaved Approved' folder until Save/autosave promotes them into the dataset root">⏳ Unsaved Approved</button>
-          <button id="viewDisabledBtn" title="Disabled images">🗑 Disabled</button>
+          <button id="viewDisabledBtn" title="Disabled images">❌ Disabled</button>
         </div>
+        <span id="filterMatchCount" style="display:none;"></span>
         <div class="gallery-sort">
           <div class="pdrop" id="gallerySortDropdown"></div>
           <button id="gallerySortDirBtn" title="Toggle ascending/descending">▲ Asc</button>
@@ -274,7 +273,11 @@
 
     <aside id="right">
 
-      <button id="btnRightPanelCollapse" class="panel-collapse-arrow" title="Hide this panel">›</button>
+      <div id="rightPanelHeaderRow">
+        <button id="btnRightPanelCollapse" class="panel-collapse-arrow" title="Hide this panel">›</button>
+        <button id="btnGoToTagOverseer" class="right-panel-header-action" title="Switch to Tag Overseer">🏷 Tag Overseer</button>
+        <button id="btnMasterBack" class="right-panel-header-action" style="display:none;" title="Back to normal tools">← Gallery tools</button>
+      </div>
 
       <div id="rightPanelContent">
       <div id="normalRightTools">
@@ -292,47 +295,37 @@
         <div class="selection-summary" id="selectionSummary">No tags selected yet.</div>
         <label class="ach-toggle-row">
           <input type="checkbox" id="includeDisabledToggle">
-          <span>Also apply to Disabled images right now (the Retroactive Merge/Void dock below no longer catches up Disabled images automatically — its standing rules only affect Gallery images going forward — so this checkbox is the only way a Disabled image gets this specific merge/void; it'll also pick up any future rule changes once restored to the Gallery)</span>
+          <span>Also apply to Disabled images right now&nbsp;<button type="button" class="info-btn" id="infoIncludeDisabled" title="More about this checkbox">ⓘ</button></span>
         </label>
+        <template id="infoIncludeDisabledContent">The Retroactive Merge/Void dock below no longer catches up Disabled images automatically — its standing rules only affect Gallery images going forward — so this checkbox is the only way a Disabled image gets this specific merge/void; it'll also pick up any future rule changes once restored to the Gallery.</template>
         <div class="apply-row">
-          <input type="text" id="unifiedTagInput" placeholder="unified_tag_name">
+          <input type="text" id="unifiedTagInput" placeholder="Unified_tag_name">
           <button id="btnApplyUnify" class="primary" title="Merge all selected tags into this one name">Apply</button>
         </div>
-        <div style="display:flex; gap:8px;">
+        <div class="selection-actions-row">
           <button id="btnClearSelection" title="Deselect all tags">Clear selection</button>
-          <button id="btnVoidSelected" class="danger-ghost" title="Permanently delete the selected tags from every image — nothing is merged into a replacement">Void selected (delete)</button>
+          <button id="btnVoidSelected" class="danger-ghost" title="Permanently delete the selected tags from every image — nothing is merged into a replacement">Void</button>
         </div>
       </div>
 
-      <div class="tool-section" data-dock-id="canonicalTags" data-resizable="true">
+      <div class="tool-section" data-dock-id="canonicalTags">
         <div class="sec-head"><span class="t">Retroactive Merge/Void</span></div>
         <div class="dock-scroll-body">
           <div class="sec-head">
-            <div class="d">
+            <span class="d">Standing rules automatically rewrite or remove matching tags as they show up on Gallery images.&nbsp;<button type="button" class="info-btn" id="infoCanonicalRules" title="More about how Retroactive Merge/Void works">ⓘ</button></span>
+          </div>
+          <template id="infoCanonicalRulesContent">
               <ul>
-                <li><b>Standing rules:</b> when any of a rule's ACTIVE tags show up on a Gallery image — by any automatic means (WD14, Master Tags, Quick Merge, an accepted SynthDat image, etc.) — they're rewritten to the canonical tag, or removed entirely for a void rule (no canonical).</li>
+                <li><b>Standing rules:</b> when any of a rule's ACTIVE tags show up on a Gallery image — by any automatic means (WD14, Master Tags, an accepted SynthDat image, etc.) — they're rewritten to the canonical tag, or removed entirely for a void rule (no canonical).</li>
                 <li><b>Typing an affected tag in by hand is blocked</b> instead of silently corrected, with a toast pointing back here.</li>
-                <li><b>Retroactive:</b> new/edited rules apply to every already-loaded Gallery image the moment you change them. Disabled and Unsaved Approved images are untouched until they're back in the Gallery (they keep whatever merge/void state they already had).</li>
+                <li><b>Retroactive:</b> new/edited rules apply to every already-loaded Gallery image the moment you change them. Disabled images are untouched until they're back in the Gallery (they keep whatever merge/void state they already had).</li>
                 <li><b>Full control:</b> pause a whole rule, or toggle one of its tags off, without deleting anything — this actively unmerges/unvoids the affected images too, using the edit log to restore exactly what each one originally had.</li>
                 <li><b>Per-image exceptions:</b> "Merge Immunize"/"Antivoid" (3-dot menu or Tag Overseer) permanently exempt one image from merge and/or void rules, regardless of what's set here.</li>
                 <li>Tag Pruner's own Unify/Void above creates or extends a rule here automatically — or add one by hand with "+ New rule" below.</li>
               </ul>
-            </div>
-          </div>
+          </template>
           <div id="canonicalTagsList"></div>
           <button id="btnAddCanonicalRule" title="Add a new merge or void rule by hand">+ New rule</button>
-        </div>
-      </div>
-
-      <div class="tool-section" data-dock-id="quickMerge" data-resizable="true">
-        <div class="sec-head"><span class="t">⚡ Quick Merge</span></div>
-        <div class="dock-scroll-body">
-          <div class="sec-head"><span class="d">Finds tags that are the same thing typed differently — different capitalization, for now — and lets you merge them all at once. Pick a canonical spelling per group before merging.</span></div>
-          <button id="btnQuickMergeScan" class="primary" title="Find tags that differ only by capitalization or separator style">🔍 Scan for duplicates</button>
-          <div id="quickMergeList" class="qm-list"></div>
-          <button id="btnQuickMergeApply" class="danger-ghost" style="display:none;" title="Combine the checked groups into their chosen spelling">Merge selected groups</button>
-          <button id="btnQuickMergeFamilies" title="Show tags that share a common word — not auto-merged, just grouped for review">🔤 Show keyword families</button>
-          <div id="quickMergeFamiliesList" class="qm-list" style="display:none;"></div>
         </div>
       </div>
 
@@ -340,30 +333,29 @@
 
       <div id="masterTagPanel" style="display:none;">
         <div class="tool-section">
-          <button id="btnMasterBack" style="align-self:flex-start;" title="Back to normal tools">← Back to Gallery tools</button>
           <div class="sec-head"><span class="t">🏷 Master Tag Control</span></div>
           <div class="sec-head" style="margin-top:-8px;"><span class="d">Click images in the gallery to select them (checkboxes appear on cards while this tab is active). Then apply operations here.</span></div>
           <div class="selection-summary" id="masterSelectionSummary">No images selected yet.</div>
-          <div style="display:flex; gap:8px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button id="btnMasterSelectAll" title="Select every image currently visible in the gallery">Select all visible</button>
             <button id="btnMasterClearSelection" title="Deselect all images">Clear selection</button>
           </div>
-          <div style="display:flex; gap:8px;">
-            <button id="btnMasterLockSelected" title="Lock the selected images so mass tools (Quick Merge, Master Tags, bulk WD14, etc.) skip them">🔒 Lock selected</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="btnMasterLockSelected" title="Lock the selected images so mass tools (Master Tags, bulk WD14, etc.) skip them">🔒 Lock selected</button>
             <button id="btnMasterUnlockSelected" title="Unlock the selected images">🔓 Unlock selected</button>
           </div>
           <div class="sec-head" style="margin-top:4px;"><span class="d">Retroactive Merge/Void exceptions — a permanent per-image setting, unlike Lock (which only skips mass tools):</span></div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button id="btnMasterMergeImmunizeSelected" title="Merge rules will never rewrite tags on the selected images">🚫 Merge Immunize selected</button>
-            <button id="btnMasterUnMergeImmunizeSelected" title="Remove Merge Immunize from the selected images">Un-immunize selected</button>
+          <div class="immunize-row">
+            <button id="btnMasterMergeImmunizeSelected" title="Merge rules will never rewrite tags on the selected images">🚫 Merge Immunize</button>
+            <button id="btnMasterUnMergeImmunizeSelected" class="ghost-secondary" title="Remove Merge Immunize from the selected images">↩ Un-immunize</button>
           </div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button id="btnMasterAntivoidSelected" title="Void rules will never remove tags from the selected images">🟢 Antivoid selected</button>
-            <button id="btnMasterUnAntivoidSelected" title="Remove Antivoid from the selected images">Un-antivoid selected</button>
+          <div class="immunize-row">
+            <button id="btnMasterAntivoidSelected" title="Void rules will never remove tags from the selected images">🟢 Antivoid</button>
+            <button id="btnMasterUnAntivoidSelected" class="ghost-secondary" title="Remove Antivoid from the selected images">↩ Un-antivoid</button>
           </div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button id="btnMasterAntimmunizeSelected" title="Shortcut for both Merge Immunize AND Antivoid at once">✋ Antimmunize selected</button>
-            <button id="btnMasterUnAntimmunizeSelected" title="Clear both Merge Immunize and Antivoid from the selected images">Un-antimmunize selected</button>
+          <div class="immunize-row">
+            <button id="btnMasterAntimmunizeSelected" title="Shortcut for both Merge Immunize AND Antivoid at once, on the selected images">✋ Antimmunize</button>
+            <button id="btnMasterUnAntimmunizeSelected" class="ghost-secondary" title="Clear both Merge Immunize and Antivoid from the selected images">↩ Un-antimmunize</button>
           </div>
           <div class="sec-head" style="margin-top:4px;"><span class="d">Click a thumbnail below to select/deselect it too:</span></div>
           <div id="masterMiniGrid" class="master-mini-grid"></div>
@@ -373,10 +365,10 @@
           <div class="sec-head"><span class="t">🐍 WD14 Autotagger</span></div>
           <div class="sec-head" style="margin-top:-8px;"><span class="d">Sends selected image(s) to a WD14 Tagger node on a running ComfyUI instance and drops the result tags onto each card. The app holds no model itself — everything runs on ComfyUI.</span></div>
           <div style="display:flex; gap:8px;">
-            <button id="btnWd14TagSelected" class="primary" title="Tag every selected image using the settings below">🐍 Tag selected images with WD14</button>
+            <button id="btnWd14TagSelected" class="primary" style="white-space:normal;" title="Tag every selected image using the settings below">🐍 Tag selected images with WD14</button>
           </div>
           <div id="wd14Status" class="sec-head" style="margin-top:2px; display:none;"><span class="d"></span></div>
-          <label class="ach-toggle-row" style="padding:6px 0;">
+          <label class="ach-toggle-row">
             <input type="checkbox" id="wd14AutoApply">
             <span> Apply tags automatically (skip the review step)</span>
           </label>
@@ -399,11 +391,7 @@
                 <input type="number" id="wd14CharThreshold" min="0" max="1" step="0.05" value="0.85">
               </div>
             </div>
-            <label class="ach-toggle-row" style="padding:6px 0;">
-              <input type="checkbox" id="wd14ReplaceUnderscore">
-              <span> Replace underscore (cosmetic only — this app always stores tags space-separated)</span>
-            </label>
-            <label class="ach-toggle-row" style="padding:6px 0;">
+            <label class="ach-toggle-row">
               <input type="checkbox" id="wd14TrailingComma">
               <span> Trailing comma</span>
             </label>
@@ -415,7 +403,7 @@
         <div class="tool-section">
           <div class="sec-head"><span class="t">Apply tag to selected images</span></div>
           <div class="apply-row">
-            <input type="text" id="masterApplyTagInput" list="allTagsDatalist" placeholder="tag to apply">
+            <input type="text" id="masterApplyTagInput" list="allTagsDatalist" placeholder="Tag to apply">
             <button id="btnMasterApplyToSelected" class="primary" title="Add this tag to every selected image">Apply</button>
           </div>
         </div>
@@ -423,7 +411,7 @@
         <div class="tool-section">
           <div class="sec-head"><span class="t">Remove tag from selected images</span></div>
           <div class="apply-row">
-            <input type="text" id="masterRemoveTagInput" list="allTagsDatalist" placeholder="tag to remove">
+            <input type="text" id="masterRemoveTagInput" list="allTagsDatalist" placeholder="Tag to remove">
             <button id="btnMasterRemoveFromSelected" class="danger-ghost" title="Remove this tag from every selected image">Remove</button>
           </div>
         </div>
@@ -432,7 +420,7 @@
           <div class="sec-head"><span class="t">Conditional apply (dataset-wide)</span></div>
           <div class="sec-head" style="margin-top:-8px;"><span class="d">Add a tag to every image that already has another tag — e.g. give every "1girl" image "green eyes" too. Ignores your selection above.</span></div>
           <div class="gtt-row">
-            <input type="text" id="condSourceTag" list="allTagsDatalist" placeholder="images that have…">
+            <input type="text" id="condSourceTag" list="allTagsDatalist" placeholder="Images that have…">
             <input type="text" id="condAddTag" list="allTagsDatalist" placeholder="…get this tag added">
           </div>
           <button id="btnCondApply" class="primary" title="Add the second tag to every image that already has the first tag">Apply conditionally</button>
@@ -441,11 +429,11 @@
         <div class="tool-section">
           <div class="sec-head"><span class="t">Mass apply / remove (whole dataset)</span></div>
           <div class="apply-row">
-            <input type="text" id="massApplyInput" list="allTagsDatalist" placeholder="tag to add to EVERY image">
+            <input type="text" id="massApplyInput" list="allTagsDatalist" placeholder="Tag to add to EVERY image">
             <button id="btnMassApply" class="primary" title="Add this tag to every active image in the dataset">Apply to all</button>
           </div>
           <div class="apply-row">
-            <input type="text" id="massRemoveInput" list="allTagsDatalist" placeholder="tag to remove from EVERY image">
+            <input type="text" id="massRemoveInput" list="allTagsDatalist" placeholder="Tag to remove from EVERY image">
             <button id="btnMassRemove" class="danger-ghost" title="Remove this tag from every active image in the dataset">Remove from all</button>
           </div>
         </div>
@@ -454,15 +442,15 @@
           <div class="sec-head"><span class="t">Replace a tag (exact or substring)</span></div>
           <div class="gtt-label">Replace all (exact tag rename)</div>
           <div class="gtt-row">
-            <input type="text" id="masterRenameFrom" list="allTagsDatalist" placeholder="existing tag">
-            <input type="text" id="masterRenameTo" placeholder="new tag name">
+            <input type="text" id="masterRenameFrom" list="allTagsDatalist" placeholder="Existing tag">
+            <input type="text" id="masterRenameTo" placeholder="New tag name">
           </div>
           <button id="btnMasterRename" title="Rename this exact tag everywhere it appears">Rename everywhere</button>
           <div class="gtt-divider"></div>
           <div class="gtt-label">Find &amp; replace (substring inside tags)</div>
           <div class="gtt-row">
-            <input type="text" id="masterFRFind" placeholder="substring to find">
-            <input type="text" id="masterFRReplace" placeholder="replace with">
+            <input type="text" id="masterFRFind" placeholder="Substring to find">
+            <input type="text" id="masterFRReplace" placeholder="Replace with">
           </div>
           <button id="btnMasterFR" title="Replace this substring inside every tag that contains it">Replace substring</button>
         </div>
@@ -470,6 +458,7 @@
       </div>
 
     </aside>
+    <div id="rightPanelResizeHandle" title="Drag to resize this panel"></div>
   </div>
   </div>
 
@@ -500,7 +489,7 @@
         <div class="sec-head"><span class="t">Generation</span></div>
         <div class="synthdat-cols">
           <div class="synthdat-col">
-            <div class="synthdat-lora-row"><label title="Runs a 2nd refinement pass over the 1st pass's result — only worth enabling if the 1-Pass result came out bad."><input type="checkbox" id="synthDatUse2Pass"> Enable 2nd pass (only if 1-Pass came out bad)</label></div>
+            <div class="synthdat-lora-row"><label class="ach-toggle-row" title="Runs a 2nd refinement pass over the 1st pass's result — only worth enabling if the 1-Pass result came out bad."><input type="checkbox" id="synthDatUse2Pass"><span>Enable 2nd pass (only if 1-Pass came out bad)</span></label></div>
             <label class="field-block" title="Which sampling algorithm to use."><span>Sampler</span><select id="synthDatSampler"></select></label>
             <label class="field-block" title="The noise schedule paired with the sampler above."><span>Scheduler</span><select id="synthDatScheduler"></select></label>
             <label class="field-block" title="Pass 1's random seed — same seed + same fields reproduces the same image."><span>Pass 1 seed</span><input type="number" id="synthDatSeed1" value="15"></label>
@@ -509,6 +498,7 @@
             <label class="field-block" title="Pass 2's random seed, used only when 2nd pass is enabled."><span>Pass 2 seed</span><input type="number" id="synthDatSeed2" value="15"></label>
             <label class="field-block" title="How many sampling steps the optional 2nd pass runs, if enabled."><span>Pass 2 steps</span><input type="number" id="synthDatSteps2" value="15"></label>
             <label class="field-block" title="How strongly the 2nd pass changes the 1st pass's result — higher fixes more but can drift further from it."><span>Pass 2 denoise</span><input type="number" id="synthDatDenoise2" step="0.05" value="0.6"></label>
+            <label class="field-block" title="How far into sampling ControlNet stays active, as a fraction of total steps. Lower values let the LoRA take over sooner for a less rigid pose match. (ControlNet's own Strength/Start % are still set in the ControlNet section — this one's here because it's really a generation-timing knob, closely tied to Pass 2's denoise above.)"><span>ControlNet end %</span><input type="number" id="synthDatLLLiteEndPercent" step="0.05" value="0.3"></label>
             <div class="synthdat-lora-row">
               <button id="btnSynthDatGenerate" class="primary">▶ Generate</button>
               <button id="btnSynthDatStop" class="danger-ghost" disabled title="Interrupt the generation currently running">⏹ Stop</button>
@@ -534,9 +524,9 @@
               <div id="synthDatPreviewEmpty" class="stats-empty">No image generated yet.</div>
             </div>
             <div class="sec-head"><span class="d">Accept adds this image + its tags to the dataset. Reject still saves it, but straight into the dataset's Disabled/ folder — out of the way, but recoverable later like any other disabled image.</span></div>
-            <div class="synthdat-lora-row"><label title="Hair and Face tags are usually left out of a character LoRA's own caption, since the trigger word already implies them."><input type="checkbox" id="synthDatStripHairFace" checked> Exclude Hair &amp; Face from saved tags</label></div>
+            <div class="synthdat-lora-row"><label class="ach-toggle-row" title="Hair and Face tags are usually left out of a character LoRA's own caption, since the trigger word already implies them."><input type="checkbox" id="synthDatStripHairFace" checked><span>Exclude Hair &amp; Face from saved tags</span></label></div>
             <div class="sec-head"><span class="t" style="font-size:11px;">Tags this will save:</span></div>
-            <div class="synthdat-lora-row"><label title="Compound keeps every tag already in the list below and only adds ones WD14 catches that aren't already there (a tag both you and WD14 agree on, like 'dress', just stays 'dress' once). Overwrite throws out the whole list below and replaces it with exactly what WD14 returns for the output image."><input type="checkbox" id="synthDatReinterrogateOverwrite"> Overwrite instead of compounding (replaces the whole list below with WD14's output tags)</label></div>
+            <div class="synthdat-lora-row"><label class="ach-toggle-row" title="Compound keeps every tag already in the list below and only adds ones WD14 catches that aren't already there (a tag both you and WD14 agree on, like 'dress', just stays 'dress' once). Overwrite throws out the whole list below and replaces it with exactly what WD14 returns for the output image."><input type="checkbox" id="synthDatReinterrogateOverwrite"><span>Overwrite instead of compounding (replaces the whole list below with WD14's output tags)</span></label></div>
             <button id="btnSynthDatReinterrogateOutput" disabled title="Run WD14 on the actual generated image (not the reference) — useful since the model sometimes adds details you never prompted for (e.g. it draws a pond and throws in lily pads on its own).">🐍 Re-interrogate output with WD14</button>
             <div id="synthDatReinterrogateResult" class="synthdat-wd14-result" style="display:none;"></div>
             <div id="synthDatTagPreview" class="synthdat-tag-card" title="Click × to drop a tag from what gets saved, or click a merge suggestion to fold it into your dataset's existing canonical spelling"></div>
@@ -559,7 +549,7 @@
         <div class="tool-section" data-dock-id="synthdatRefImage">
           <div class="sec-head"><span class="t">Reference image</span></div>
           <div class="sec-head"><span class="d">Pick an image showing the pose you want — WD14 interrogates it so you can copy just the pose tags into the Pose field below via ControlNet (Anima-LLLite), with the character LoRA guiding what actually gets drawn.</span></div>
-          <div class="synthdat-lora-row"><label title="ControlNet is only useful for a specific pose you can't easily prompt into existence, or to nudge a weak/undertrained LoRA — skip it (and the reference image entirely) for an ordinary prompted generation. Bypasses LoadImage and Anima-LLLite completely rather than just switching them off, so you don't pay their generation-time cost for nothing."><input type="checkbox" id="synthDatSkipRefImage"> I don't want to use a reference image (skip ControlNet)</label></div>
+          <div class="synthdat-lora-row"><label class="ach-toggle-row" title="ControlNet is only useful for a specific pose you can't easily prompt into existence, or to nudge a weak/undertrained LoRA — skip it (and the reference image entirely) for an ordinary prompted generation. Bypasses LoadImage and Anima-LLLite completely rather than just switching them off, so you don't pay their generation-time cost for nothing."><input type="checkbox" id="synthDatSkipRefImage"><span>I don't want to use a reference image (skip ControlNet)</span></label></div>
           <div id="synthDatRefImageSection">
           <div class="synthdat-refs-row">
             <div id="synthDatRefPreviewWrap" class="synthdat-ref-preview" title="Click to zoom in">
@@ -580,7 +570,7 @@
           <button id="btnSynthDatInterrogate" disabled title="Run WD14 on the reference image">🐍 Interrogate with WD14</button>
           <div id="synthDatWd14Result" class="synthdat-wd14-result" style="display:none;"></div>
           <div id="synthDatTagAssign" class="synthdat-tag-assign" title="Each tag defaults to a suggestion (based on Danbooru's own posture/gesture/hands tag groups) — click a different button to reassign it, or leave it on Skip."></div>
-          <div class="synthdat-lora-row"><label title="Compound adds these tags onto whatever's already in Pose/Limbs/Sexual. Clear first wipes each of those three fields before adding this image's tags — use it when the previous image's pose has nothing to do with this one."><input type="checkbox" id="synthDatMigrateClearFirst"> Clear existing Pose/Limbs/Sexual tags first</label></div>
+          <div class="synthdat-lora-row"><label class="ach-toggle-row" title="Compound adds these tags onto whatever's already in Pose/Limbs/Sexual. Clear first wipes each of those three fields before adding this image's tags — use it when the previous image's pose has nothing to do with this one."><input type="checkbox" id="synthDatMigrateClearFirst"><span>Clear existing Pose/Limbs/Sexual tags first</span></label></div>
           <button id="btnSynthDatMigratePose" disabled title="Send every tag above to whichever field you assigned it to">↳ Apply tag assignment</button>
           </div>
         </div>
@@ -603,8 +593,7 @@
           <div class="sec-head"><span class="d">Applied against the reference image whenever one is in use — this is what strong-arms the LoRA's character into the reference pose. Skipped entirely if "I don't want to use a reference image" above is checked.</span></div>
           <label class="field-block" title="How strongly the reference pose is enforced. Lower it if the character looks too rigid/copied."><span>Strength</span><input type="number" id="synthDatLLLiteStrength" step="0.05" value="1"></label>
           <label class="field-block" title="How far into sampling ControlNet START being active, as a fraction of total steps. 0 = active from the very first step."><span>Start % (how far in ControlNet starts being active)</span><input type="number" id="synthDatLLLiteStartPercent" step="0.05" value="0" min="0" max="1"></label>
-          <label class="field-block" title="How far into sampling ControlNet stays active, as a fraction of total steps. Lower values let the LoRA take over sooner for a less rigid pose match."><span>End % (how far into the sampling steps ControlNet stays active)</span><input type="number" id="synthDatLLLiteEndPercent" step="0.05" value="0.3"></label>
-          <div class="synthdat-lora-row"><label title="If another node earlier in the graph already installed a model_function_wrapper, delegate to it instead of overwriting it so effects cascade. Leave this on unless you know you need otherwise — it's the node's own default."><input type="checkbox" id="synthDatLLLitePreserveWrapper" checked> Preserve existing model wrapper</label></div>
+          <div class="synthdat-lora-row"><label class="ach-toggle-row" title="If another node earlier in the graph already installed a model_function_wrapper, delegate to it instead of overwriting it so effects cascade. Leave this on unless you know you need otherwise — it's the node's own default."><input type="checkbox" id="synthDatLLLitePreserveWrapper" checked><span>Preserve existing model wrapper</span></label></div>
         </div>
 
         <div class="tool-section" data-dock-id="synthdatResize">
@@ -709,12 +698,10 @@
           <input type="range" id="fontSizeSlider" min="12" max="18" step="1" value="14">
           <span id="fontSizeVal">14px</span>
         </div>
-        <div class="theme-panel-note">Custom font (no internet needed — uses fonts already installed on your system)</div>
-        <div class="gtt-row">
-          <input type="text" id="customFontInput" placeholder="e.g. Fira Sans, Consolas…">
-          <button id="btnApplyCustomFont" title="Use this font instead of the default">Apply</button>
+        <div class="settings-row" title="Keeps the gallery's column count fixed regardless of font-size zoom or which side panels are open — otherwise columns naturally shrink as those eat into the available width.">
+          <span>Gallery columns</span>
+          <div class="pdrop" id="galleryColumnsDropdown"></div>
         </div>
-        <button id="btnClearCustomFont" title="Go back to the built-in system font">Reset to default fonts</button>
         <label class="ach-toggle-row">
           <input type="checkbox" id="tagCountBadgeToggle">
           <span>Show tag-count badge on cards (top-right)</span>
@@ -733,12 +720,21 @@
           <button id="btnDiscreteOff" title="Remove the blur">Unblur</button>
         </div>
         <label class="ach-toggle-row">
-          <input type="checkbox" id="suppressThemeUpgradeToggle">
-          <span>Suppress Theme Upgrade (hide the Shop's 🔨 Refine Theme button, and turn off its hover-fill/card-tilt effects on any theme that's already been refined)</span>
+          <input type="checkbox" id="suppressThemeFlourishesToggle">
+          <span>Suppress Theme Flourishes (hide the Shop's 🔨 Refine Theme button, and turn off epic/legendary-tier hover-fill/card-tilt effects on every theme — whether it's naturally that tier or individually refined)</span>
+        </label>
+        <div class="theme-panel-note">Visual flourishes — for motion sensitivity, when you just want a theme's colors. Static per-theme textures/glows are unaffected by any of these.</div>
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="noFlourishHoverToggle">
+          <span>Disable hover-fill (the color flood that fills a button on hover)</span>
         </label>
         <label class="ach-toggle-row">
-          <input type="checkbox" id="disableThemeFlourishesToggle">
-          <span>Disable theme visual flourishes (hover-tilt, hover-fill, and ambient animations) on every theme — for motion sensitivity, when you just want a theme's colors. Static per-theme textures/glows are unaffected.</span>
+          <input type="checkbox" id="noFlourishTiltToggle">
+          <span>Disable card hover-tilt</span>
+        </label>
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="noFlourishAmbientToggle">
+          <span>Disable ambient animations (pulses, drifts, sweeps, shimmers)</span>
         </label>
       </div>
     </div>
@@ -853,11 +849,11 @@
           <span style="font-size:11px; color:var(--text-faint);">Restart the app to instantly pick up the latest files — no need to quit and reopen by hand.</span>
         </div>
         <button id="btnRestartApp" class="primary">🔄 Restart app</button>
-        <div class="theme-panel-note">Share on GitHub</div>
+        <div class="theme-panel-note">Troubleshooting</div>
         <div class="settings-row">
-          <span style="font-size:11px; color:var(--text-faint);">Creates a folder with the app's source code, a README, a .gitignore, and a plain-English HOW_TO_UPLOAD.txt — open that folder in a terminal and follow it to push to GitHub yourself. No git knowledge assumed.</span>
+          <span style="font-size:11px; color:var(--text-faint);">Writes a text file (settings, theme, panel layout, whether a dataset is loaded, etc.) next to the app, named with the current date and time — attach it when reporting a bug so the app's state at the time is known, not guessed at.</span>
         </div>
-        <button id="btnGithubPackage">📦 Generate GitHub-ready package…</button>
+        <button id="btnExportAppState">🩺 Export app state</button>
       </div>
     </div>
 
@@ -878,6 +874,14 @@
     <div class="modal-card" id="modalCardInner"></div>
   </div>
   <div id="tooltipBubble" class="tooltip-bubble" style="display:none;"></div>
+
+  <div id="helpModal" class="modal-backdrop" style="display:none;">
+    <div class="modal-card help-modal-card">
+      <button id="helpCloseBtn" class="modal-close-btn ghost-close" title="Close">✕</button>
+      <nav id="helpToc" class="help-toc"></nav>
+      <div id="helpContent" class="help-content"></div>
+    </div>
+  </div>
 
 
   <div id="toast"></div>

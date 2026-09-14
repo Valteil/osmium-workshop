@@ -8,10 +8,10 @@
 // initView(), since index.ts's IIFE can't export them.
 // @ts-nocheck
 import {
-  viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, viewPendingApprovalBtn, btnUnlockAll, singlePrevBtn, singleNextBtn,
+  viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, btnUnlockAll, singlePrevBtn, singleNextBtn,
   galleryGrid, compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
-  selectionSummary, btnClearSelection, langAutoSelectToggle
+  selectionSummary, btnClearSelection, langAutoSelectToggle, filterMatchCount
 } from './dom';
 import { toast, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
@@ -23,7 +23,7 @@ import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGri
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
 
-export let viewMode = 'grid'; // 'grid' | 'compact' | 'single' | 'disabled' | 'pendingApproval'
+export let viewMode = 'grid'; // 'grid' | 'compact' | 'single' | 'disabled'
 export let stickyCompareImages = [];
 
 let singleIndex = 0;
@@ -56,15 +56,30 @@ export function renderCurrentView(){
   else if (viewMode === 'compact') renderCompactGrid();
   else renderGallery();
   if (getMasterTagModeActive()) renderMasterMiniGrid();
+  updateFilterMatchCount();
+}
+
+// Shows how many images the active tag filter currently matches, to the left
+// of the sort controls in the gallery toolbar — only while a tag filter is
+// actually active (base 'all'/'untagged'/'dirty' quick-filters alone don't
+// count, only real search terms typed into filterInput).
+function updateFilterMatchCount(){
+  const gf = getGalleryFilter();
+  if (gf.terms && gf.terms.length && !gf.disabledView){
+    const n = filteredEntries().length;
+    filterMatchCount.textContent = `${n} match${n === 1 ? '' : 'es'}`;
+    filterMatchCount.style.display = '';
+  } else {
+    filterMatchCount.style.display = 'none';
+  }
 }
 
 // ---------------- View mode (grid / compact / single) ----------------
 
-// Grid, Disabled, and Unsaved Approved all share #galleryGrid
-// (getGalleryFilter().disabledView/pendingApprovalView is what actually
-// distinguishes them), so a switch between any of those three never needs a
-// transition — the container never disappears/reappears.
-const VIEW_TRANSITION_ORDER = ['grid', 'compact', 'single', 'disabled', 'pendingApproval'];
+// Grid and Disabled share #galleryGrid (getGalleryFilter().disabledView is
+// what actually distinguishes them), so a switch between the two never needs
+// a transition — the container never disappears/reappears.
+const VIEW_TRANSITION_ORDER = ['grid', 'compact', 'single', 'disabled'];
 function viewContainerFor(mode){
   if (mode === 'compact') return compactGrid;
   if (mode === 'single') return singleViewEl;
@@ -79,14 +94,12 @@ export function switchView(mode){
     viewCompactBtn.classList.toggle('active', mode === 'compact');
     viewSingleBtn.classList.toggle('active', mode === 'single');
     viewDisabledBtn.classList.toggle('active', mode === 'disabled');
-    viewPendingApprovalBtn.classList.toggle('active', mode === 'pendingApproval');
     getGalleryFilter().disabledView = (mode === 'disabled');
-    getGalleryFilter().pendingApprovalView = (mode === 'pendingApproval');
     // '' (not 'grid') when shown: an inline style always beats stylesheet rules,
     // which would otherwise permanently defeat dynamic-cards mode's own
     // `display: block` override (its column-width/fill were applying, but were
     // inert since the container was still actually `display: grid` underneath).
-    galleryGrid.style.display = (mode === 'grid' || mode === 'disabled' || mode === 'pendingApproval') ? '' : 'none';
+    galleryGrid.style.display = (mode === 'grid' || mode === 'disabled') ? '' : 'none';
     compactGrid.style.display = mode === 'compact' ? 'grid' : 'none';
     compactCompareArea.style.display = (mode === 'compact' && stickyCompareImages.length > 0) ? 'block' : 'none';
     singleViewEl.style.display = mode === 'single' ? 'block' : 'none';
@@ -356,7 +369,7 @@ function buildCard(e, tagIndex){
   const addInput = document.createElement('input');
   addInput.type = 'text';
   addInput.className = 'addtag-input';
-  addInput.placeholder = '+ add tag';
+  addInput.placeholder = '+ Add tag';
   addInput.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && addInput.value.trim()){
       addTagToEntry(e, addInput.value.trim());
@@ -532,7 +545,7 @@ function openMultiCompareTagMenu(entry, tag, x, y){
   replaceRow.style.cssText = 'display:flex; gap:6px; padding:2px 8px 8px;';
   const replaceInput = document.createElement('input');
   replaceInput.type = 'text';
-  replaceInput.placeholder = 'replace with…';
+  replaceInput.placeholder = 'Replace with…';
   replaceInput.style.flex = '1';
   replaceInput.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && replaceInput.value.trim()){
@@ -735,7 +748,7 @@ function renderSingleView(){
   const addInput = document.createElement('input');
   addInput.type = 'text';
   addInput.className = 'addtag-input';
-  addInput.placeholder = '+ add tag, press Enter';
+  addInput.placeholder = '+ Add tag, press Enter';
   addInput.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && addInput.value.trim()){
       addTagToEntry(e, addInput.value.trim());
@@ -792,7 +805,11 @@ function orderedTagsForDisplay(entry, tagIndex){
     const matched = [], isolated = [], rest = [];
     for (const t of tags){
       const lower = t.toLowerCase();
-      const isSearchMatch = searchTerms.some(term => lower.includes(term));
+      // Exact tag equality, not substring — searching "dress" should only
+      // push/highlight a tag that IS "dress", not "black dress" (which the
+      // gallery filter itself can still substring-match into view; this is
+      // just about which tag on the card gets called out as the reason).
+      const isSearchMatch = searchTerms.some(term => lower === term);
       const isIsolated = isolatedSet && isolatedSet.has(t);
       if (isSearchMatch) matched.push(t);
       else if (isIsolated) isolated.push(t);
@@ -806,7 +823,7 @@ function orderedTagsForDisplay(entry, tagIndex){
 function tagDisplayFlags(tag, tagIndex){
   const searchTerms = (getGalleryFilter().terms || []);
   const lower = tag.toLowerCase();
-  const isMatch = searchTerms.some(term => lower.includes(term));
+  const isMatch = searchTerms.some(term => lower === term);
   const isIsolated = getIsolatedFlagActive() && tagIndex && (tagIndex.get(tag) ? tagIndex.get(tag).size <= 2 : false);
   return { isMatch, isIsolated };
 }
@@ -1053,7 +1070,7 @@ function renderImageCardModal(entry){
   const addInput = document.createElement('input');
   addInput.type = 'text';
   addInput.className = 'addtag-input';
-  addInput.placeholder = '+ add tag, press Enter';
+  addInput.placeholder = '+ Add tag, press Enter';
   addInput.addEventListener('keydown', ev => {
     if (ev.key === 'Enter' && addInput.value.trim()){
       addTagToEntry(entry, addInput.value.trim());
@@ -1900,7 +1917,6 @@ export function initView(deps){
       checkAchievements();
     }
   });
-  viewPendingApprovalBtn.addEventListener('click', () => switchView('pendingApproval'));
   // Swipe mode only — paging in Grid/Compact/Fade mode stays instant, same
   // as before this feature existed; only Swipe gets the physical slide.
   function pageSingle(delta){

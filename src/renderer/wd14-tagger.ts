@@ -12,7 +12,7 @@
 // @ts-nocheck
 import {
   btnWd14TagSelected, wd14Status, wd14AutoApply, wd14Host, wd14ModelSelect,
-  btnWd14RefreshModels, wd14Threshold, wd14CharThreshold, wd14ReplaceUnderscore,
+  btnWd14RefreshModels, wd14Threshold, wd14CharThreshold,
   wd14TrailingComma, wd14ExcludeTags
 } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
@@ -26,7 +26,6 @@ const DEFAULT_SETTINGS = {
   model: '',
   threshold: 0.35,
   characterThreshold: 0.85,
-  replaceUnderscore: false,
   trailingComma: false,
   excludeTags: '',
   autoApply: false
@@ -53,7 +52,6 @@ function applySettingsToUI(){
   wd14Host.value = settings.host;
   wd14Threshold.value = settings.threshold;
   wd14CharThreshold.value = settings.characterThreshold;
-  wd14ReplaceUnderscore.checked = !!settings.replaceUnderscore;
   wd14TrailingComma.checked = !!settings.trailingComma;
   wd14ExcludeTags.value = settings.excludeTags;
   wd14AutoApply.checked = !!settings.autoApply;
@@ -93,7 +91,6 @@ function readSettingsFromUI(){
     model: wd14ModelSelect.value,
     threshold: parseFloat(wd14Threshold.value) || 0,
     characterThreshold: parseFloat(wd14CharThreshold.value) || 0,
-    replaceUnderscore: wd14ReplaceUnderscore.checked,
     trailingComma: wd14TrailingComma.checked,
     excludeTags: wd14ExcludeTags.value,
     autoApply: wd14AutoApply.checked
@@ -103,9 +100,8 @@ function readSettingsFromUI(){
 
 // WD14's raw output is a comma-separated string with `(`/`)` escaped as
 // `\(`/`\)` (its own convention, meant for prompt syntax) and underscores
-// left in place unless replace_underscore was on. This app's tag storage is
-// always space-separated, one-way (see CLAUDE.md Data Flow) — so normalize
-// here unconditionally, independent of that ComfyUI-side setting.
+// in place of spaces. This app's tag storage is always space-separated,
+// one-way (see CLAUDE.md Data Flow) — so normalize here unconditionally.
 export function parseWd14Tags(tagsCsv){
   if (!tagsCsv) return [];
   return tagsCsv
@@ -309,7 +305,7 @@ export function initWd14Tagger(deps){
   applySettingsToUI();
   refreshModels(true);
 
-  [wd14Host, wd14Threshold, wd14CharThreshold, wd14ReplaceUnderscore, wd14TrailingComma, wd14ExcludeTags, wd14AutoApply, wd14ModelSelect]
+  [wd14Host, wd14Threshold, wd14CharThreshold, wd14TrailingComma, wd14ExcludeTags, wd14AutoApply, wd14ModelSelect]
     .forEach(el => el.addEventListener('change', readSettingsFromUI));
 
   btnWd14RefreshModels.addEventListener('click', () => refreshModels(false));

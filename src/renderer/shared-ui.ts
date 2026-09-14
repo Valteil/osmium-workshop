@@ -446,6 +446,71 @@ export function showConfirmModal(message, opts = {}) {
   });
 }
 
+// For a long instructional block that's better tucked behind an ⓘ button
+// than shown inline all the time — content is trusted static HTML from this
+// app's own <template> elements (see initInfoButtons() below), never
+// user/external input, so innerHTML here is safe.
+export function showInfoModal(html, title){
+  const backdrop = document.createElement('div');
+  backdrop.className = 'confirm-backdrop';
+  const box = document.createElement('div');
+  box.className = 'confirm-box info-modal-box';
+  if (title){
+    const head = document.createElement('div');
+    head.className = 'info-modal-title';
+    head.textContent = title;
+    box.appendChild(head);
+  }
+  const body = document.createElement('div');
+  body.className = 'info-modal-body';
+  body.innerHTML = html;
+  box.appendChild(body);
+  const btnRow = document.createElement('div');
+  btnRow.className = 'confirm-btn-row';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'primary';
+  closeBtn.textContent = 'Close';
+  function close(){
+    backdrop.classList.remove('modal-visible');
+    setTimeout(() => backdrop.remove(), 160);
+  }
+  closeBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', (ev) => { if (ev.target === backdrop) close(); });
+  document.addEventListener('keydown', function escHandler(ev){
+    if (ev.key === 'Escape'){ close(); document.removeEventListener('keydown', escHandler); }
+  });
+  btnRow.appendChild(closeBtn);
+  box.appendChild(btnRow);
+  backdrop.appendChild(box);
+  document.body.appendChild(backdrop);
+  requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));
+}
+
+// Wires every `.info-btn` on the page to open showInfoModal() with the
+// content of its matching `#info<Id>Content` <template> — a fixed naming
+// convention (button id "infoFoo" ↔ template id "infoFooContent") so adding
+// a new one elsewhere needs no new JS wiring, just those two elements in the
+// HTML. Safe to call once at startup since it's a static document scan, not
+// per-panel setup.
+// `scope` restricts the scan to one container's own `.info-btn`s — needed
+// for content that gets re-inserted after startup (e.g. the Help panel
+// swapping sections via innerHTML): re-scanning the whole `document` every
+// time would re-wire every OTHER already-wired button too, stacking a
+// duplicate click listener onto each one every time. Defaults to the whole
+// document for the one-time startup call that covers everything static.
+export function initInfoButtons(scope){
+  (scope || document).querySelectorAll('.info-btn').forEach(btn => {
+    if (btn.dataset.infoWired) return;
+    const tpl = document.getElementById(btn.id + 'Content');
+    if (!tpl) return;
+    btn.dataset.infoWired = '1';
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      showInfoModal(tpl.innerHTML, btn.title || '');
+    });
+  });
+}
+
 // ---------------- Premium hover-fill "click flash" (see styles.css) ----------------
 //
 // On the epic/legendary shop themes, a button's hover-fill effect normally

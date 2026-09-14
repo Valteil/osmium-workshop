@@ -6,11 +6,11 @@
 // loaded GALLERY entry whenever a rule (or its enabled state, or a child's
 // enabled state) changes — this is what makes it "retroactive": an image
 // that missed a correction gets caught up the moment the rule exists, not
-// via a separate manual "replay" action. Disabled and Unsaved Approved
-// entries are deliberately out of scope (applyCanonicalRules() skips them
-// outright) — they keep whatever tags they already had and only get swept
-// once restored to the Gallery, where the same markDirty()/moveEntry() path
-// picks them up like any other entry.
+// via a separate manual "replay" action. Disabled entries are deliberately
+// out of scope (applyCanonicalRules() skips them outright) — they keep
+// whatever tags they already had and only get swept once restored to the
+// Gallery, where the same markDirty()/moveEntry() path picks them up like
+// any other entry.
 //
 // Full control knobs on top of the base rule: a rule can be paused as a
 // whole (`enabled`) or have individual children toggled off without being
@@ -171,11 +171,11 @@ export async function loadCanonicalRulesForFolder(){
 // entry isn't immunized against this rule's KIND (Merge Immunize skips every
 // merge rule, Antivoid skips every void rule — independent flags, checked
 // per-rule so an image can be immune to merges but still get voids applied),
-// and — per the "these effects only apply to Gallery" scoping — the entry is
-// neither Disabled nor still Unsaved Approved (a Disabled/pending image is
-// frozen exactly as it was; it only gets corrected once it's back in
-// Gallery, via this same function running through markDirty()/moveEntry()
-// at that point — see CLAUDE.md's Retroactive Merge/Void entry).
+// and — per the "these effects only apply to Gallery" scoping — the entry
+// isn't Disabled (a Disabled image is frozen exactly as it was; it only gets
+// corrected once it's back in Gallery, via this same function running
+// through markDirty()/moveEntry() at that point — see CLAUDE.md's
+// Retroactive Merge/Void entry).
 function ruleAppliesToEntry(rule, entry){
   if (!rule.enabled) return false;
   const meta = entry.meta || {};
@@ -190,7 +190,7 @@ function ruleAppliesToEntry(rule, entry){
 // actually changed, so callers can skip a pointless markDirty() when nothing
 // matched.
 export function applyCanonicalRules(entry){
-  if (entry.disabled || entry.pendingApproval) return false;
+  if (entry.disabled) return false;
   let changed = false;
   for (const rule of canonicalRules){
     if (!ruleAppliesToEntry(rule, entry)) continue;
@@ -226,9 +226,9 @@ export function findBlockingRule(tag, entry){
 
 // The "retroactive" half — applies every current rule to every currently
 // loaded Gallery entry (locked entries excluded, matching every other mass/
-// automatic tool in the app; Disabled/Unsaved Approved entries excluded per
-// the Gallery-only scoping above — applyCanonicalRules() already skips them,
-// this just avoids the pointless iteration). Called whenever a rule (or its
+// automatic tool in the app; Disabled entries excluded per the Gallery-only
+// scoping above — applyCanonicalRules() already skips them, this just avoids
+// the pointless iteration). Called whenever a rule (or its
 // enabled state, or a child's enabled state) changes, so an image that
 // missed a correction gets caught up the moment the rule exists, not on some
 // later manual trigger.
@@ -236,7 +236,7 @@ export function resweepAllEntries(){
   let touched = 0;
   for (const e of getEntries()){
     if (e.meta && e.meta.locked) continue;
-    if (e.disabled || e.pendingApproval) continue;
+    if (e.disabled) continue;
     if (applyCanonicalRules(e)){
       markDirtyRef(e);
       touched++;
@@ -311,7 +311,7 @@ export function unmergeChildren(rule, childrenBeingTurnedOff){
     const index = buildVoidEvidenceIndex(childrenBeingTurnedOff);
     for (const e of getEntries()){
       if (e.meta && e.meta.locked) continue;
-      if (e.disabled || e.pendingApproval) continue;
+      if (e.disabled) continue;
       const prevTags = e.tags.slice();
       let changed = false;
       for (const child of childrenBeingTurnedOff){
@@ -335,7 +335,7 @@ export function unmergeChildren(rule, childrenBeingTurnedOff){
     const disabledChildren = rule.disabledChildren || [];
     for (const e of getEntries()){
       if (e.meta && e.meta.locked) continue;
-      if (e.disabled || e.pendingApproval) continue;
+      if (e.disabled) continue;
       if (!e.tags.includes(rule.canonical)) continue;
       const prevTags = e.tags.slice();
       let changed = false;
@@ -450,6 +450,7 @@ function buildChip(text, active, onToggleActive, onRemove){
 function buildRuleRow(rule){
   const row = document.createElement('div');
   row.className = 'canonical-rule-row';
+  row.dataset.ruleId = String(rule.id);
 
   row.classList.toggle('canonical-rule-disabled', !rule.enabled);
 
@@ -546,7 +547,7 @@ function buildRuleRow(rule){
   addRow.className = 'canonical-rule-add-row';
   const input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = rule.canonical ? 'add another tag to merge in…' : 'add another tag to void…';
+  input.placeholder = rule.canonical ? 'Add another tag to merge in…' : 'Add another tag to void…';
   const addBtn = document.createElement('button');
   addBtn.textContent = '+ Add';
   function commitAdd(){
@@ -570,6 +571,14 @@ function buildRuleRow(rule){
   return row;
 }
 
+let voidSectionExpanded = true;
+try { voidSectionExpanded = localStorage.getItem('dts-void-section-expanded') !== '0'; } catch(e){}
+
+// Void and merge rules are visually grouped instead of one undifferentiated
+// list — void's own group is collapsible (voidSectionExpanded, persisted)
+// since void rules tend to be numerous/set-and-forget once tuned; merge just
+// gets a plain header, mainly so it's clear where void's rules end and
+// merge's begin instead of the list just continuing with no divider.
 export function renderCanonicalTagsList(){
   canonicalTagsList.innerHTML = '';
   if (canonicalRules.length === 0){
@@ -579,8 +588,44 @@ export function renderCanonicalTagsList(){
     canonicalTagsList.appendChild(empty);
     return;
   }
-  for (const rule of canonicalRules){
-    canonicalTagsList.appendChild(buildRuleRow(rule));
+
+  const voidRules = canonicalRules.filter(r => !r.canonical);
+  const mergeRules = canonicalRules.filter(r => r.canonical);
+
+  if (voidRules.length){
+    // Void rules are a single shared bucket by design (registerVoidRule()
+    // funnels every voided tag into one rule, no separate rule per tag) —
+    // counting RULES here would almost always just say "(1)" regardless of
+    // how many tags are actually being voided, which reads as wrong even
+    // though it's technically accurate. Count tags instead, since that's
+    // what this section is actually communicating.
+    const voidTagCount = voidRules.reduce((sum, r) => sum + r.children.length, 0);
+    const section = document.createElement('div');
+    section.className = 'settings-section canonical-rule-group';
+    section.classList.toggle('expanded', voidSectionExpanded);
+    const header = document.createElement('button');
+    header.type = 'button';
+    header.className = 'settings-section-header';
+    header.innerHTML = `<span class="settings-section-arrow">▸</span><span>🗑 Void — ${voidTagCount} tag${voidTagCount === 1 ? '' : 's'}</span>`;
+    header.addEventListener('click', () => {
+      voidSectionExpanded = !section.classList.contains('expanded');
+      section.classList.toggle('expanded', voidSectionExpanded);
+      try { localStorage.setItem('dts-void-section-expanded', voidSectionExpanded ? '1' : '0'); } catch(e){}
+    });
+    section.appendChild(header);
+    const body = document.createElement('div');
+    body.className = 'settings-section-body';
+    for (const rule of voidRules) body.appendChild(buildRuleRow(rule));
+    section.appendChild(body);
+    canonicalTagsList.appendChild(section);
+  }
+
+  if (mergeRules.length){
+    const header = document.createElement('div');
+    header.className = 'canonical-rule-group-header';
+    header.textContent = `→ Merge rules (${mergeRules.length})`;
+    canonicalTagsList.appendChild(header);
+    for (const rule of mergeRules) canonicalTagsList.appendChild(buildRuleRow(rule));
   }
 }
 
@@ -593,20 +638,28 @@ export function initCanonicalTags(deps){
   recordChangeRef = deps.recordChange;
 
   btnAddCanonicalRule.addEventListener('click', () => {
-    canonicalRules.push({ id: nextRuleId(), canonical: '', children: [], ...newRuleDefaults() });
+    const newRule = { id: nextRuleId(), canonical: '', children: [], ...newRuleDefaults() };
+    canonicalRules.push(newRule);
+    // A blank-canonical new rule renders inside the void group (see
+    // renderCanonicalTagsList()) until it's given a name — force that group
+    // open so the inline rename input below is actually visible, even if
+    // the user had collapsed it.
+    voidSectionExpanded = true;
     renderCanonicalTagsList();
     // The freshly-added row's canonical name still needs typing in — turn
     // its label into an editable input this one time, since every other
-    // rule already has a name by the point it exists. Simplest: re-render
-    // with the last rule shown as an inline name field instead of a label.
-    const rows = canonicalTagsList.querySelectorAll('.canonical-rule-row');
-    const lastRow = rows[rows.length - 1];
-    const head = lastRow && lastRow.querySelector('.canonical-rule-head');
+    // rule already has a name by the point it exists. Looked up by the
+    // rule's own id (not "the last .canonical-rule-row in the DOM") since
+    // the void/merge grouping above means a blank-canonical (void-shaped)
+    // new rule doesn't necessarily render last — it lands in the void
+    // group, which renders BEFORE merge rules.
+    const newRow = canonicalTagsList.querySelector(`.canonical-rule-row[data-rule-id="${newRule.id}"]`);
+    const head = newRow && newRow.querySelector('.canonical-rule-head');
     if (!head) return;
     const label = head.querySelector('.canonical-rule-label');
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
-    nameInput.placeholder = 'canonical tag name (leave blank for a void rule)';
+    nameInput.placeholder = 'Canonical tag name (leave blank for a void rule)';
     nameInput.className = 'canonical-rule-name-input';
     function commitName(){
       const rule = canonicalRules[canonicalRules.length - 1];

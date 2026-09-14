@@ -21,8 +21,6 @@ export let powerToolPickerActive = false;
 export const BUILTIN_POWER_TOOLS = [
   { id:'builtin-unify', field:['unifiedTagInput'], button:'btnApplyUnify', mode:'both', label:'Unify selected tags' },
   { id:'builtin-void', button:'btnVoidSelected', mode:'button', label:'Void selected tags' },
-  { id:'builtin-qm-scan', button:'btnQuickMergeScan', mode:'button', label:'Quick Merge: scan' },
-  { id:'builtin-qm-apply', button:'btnQuickMergeApply', mode:'button', label:'Quick Merge: apply' },
   { id:'builtin-master-apply', field:['masterApplyTagInput'], button:'btnMasterApplyToSelected', mode:'both', label:'Master Tags: apply to selected' },
   { id:'builtin-master-remove', field:['masterRemoveTagInput'], button:'btnMasterRemoveFromSelected', mode:'both', label:'Master Tags: remove from selected' },
   { id:'builtin-cond-apply', field:['condSourceTag','condAddTag'], button:'btnCondApply', mode:'both', label:'Master Tags: conditional apply' },

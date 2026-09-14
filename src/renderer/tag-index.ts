@@ -6,21 +6,26 @@
 // @ts-nocheck
 import {
   $, tagFrequencyList, leftSortDropdown, leftSortDirBtn, btnResetFamilyOrder,
-  filterInput, filterAllBtn, filterUntaggedBtn, filterDirtyBtn,
+  filterInput, filterSuggestions, filterExactToggle, filterAllBtn, filterUntaggedBtn, filterDirtyBtn,
   excludeBadge, excludeBadgeText, excludeBadgeClear, btnClearFilter, allTagsDatalist
 } from './dom';
 import { toast, escapeHtml, buildPersistentDropdown } from './shared-ui';
+import { folderStats, saveFolderStats, checkAchievements } from './achievements';
 
 export let leftSortMode = 'family';
 export let leftSortDir = 'desc';
 export let familyOrder = []; // manual drag order of keyword families, persists across sort-mode switches
 
 let getEntries = () => [];
-let getGalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false });
+let getGalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false });
 let getGallerySortMode = () => 'filename';
 let getGallerySortDir = () => 'asc';
 let resetSingleIndex = () => {};
 let renderCurrentViewRef = () => {};
+
+// Kept in sync by refreshStats() so the filter-suggestions dropdown doesn't
+// need to rebuild the tag index itself on every keystroke.
+let lastTagIndex = new Map();
 
 export function buildTagIndex(){
   const index = new Map(); // tag -> Set(base)
@@ -32,6 +37,96 @@ export function buildTagIndex(){
     }
   }
   return index;
+}
+
+function wordsOf(tag){
+  return Array.from(new Set(tag.split(' ').filter(Boolean)));
+}
+
+// For the filter-suggestions dropdown: given the partial term currently being
+// typed, returns { direct, family } — tags that directly match the partial
+// text (prefix matches first), plus sibling tags that share a keyword-family
+// word (same grouping used by the TAGS panel's "family" sort mode) with the
+// closest direct matches, so typing "dr" surfaces "dress" as a direct match
+// and e.g. "black dress"/"dress shoes" as family suggestions.
+function buildFilterSuggestions(query){
+  const q = query.trim().toLowerCase();
+  if (!q) return { direct: [], family: [] };
+  const allTags = Array.from(lastTagIndex.keys());
+  const starts = allTags.filter(t => t.toLowerCase().startsWith(q));
+  const contains = allTags.filter(t => !starts.includes(t) && t.toLowerCase().includes(q));
+  const direct = starts.concat(contains).slice(0, 12);
+
+  const familyWords = new Set();
+  for (const t of (starts.length ? starts : direct).slice(0, 5)){
+    for (const w of wordsOf(t)) familyWords.add(w);
+  }
+  const directSet = new Set(direct);
+  const family = allTags
+    .filter(t => !directSet.has(t) && wordsOf(t).some(w => familyWords.has(w)))
+    .slice(0, 8);
+
+  return { direct, family };
+}
+
+function currentFilterTermSpan(value){
+  const lastComma = value.lastIndexOf(',');
+  const prefix = lastComma === -1 ? '' : value.slice(0, lastComma + 1) + ' ';
+  const partial = lastComma === -1 ? value : value.slice(lastComma + 1);
+  return { prefix, partial: partial.trim() };
+}
+
+function pickFilterSuggestion(tag){
+  const { prefix } = currentFilterTermSpan(filterInput.value);
+  filterInput.value = prefix + tag;
+  getGalleryFilter().terms = parseFilterTerms(filterInput.value);
+  hideFilterSuggestions();
+  folderStats.filter_suggestions_used = true;
+  saveFolderStats();
+  checkAchievements();
+  resetSingleIndex();
+  renderCurrentViewRef();
+  filterInput.focus();
+}
+
+function hideFilterSuggestions(){
+  filterSuggestions.style.display = 'none';
+  filterSuggestions.innerHTML = '';
+}
+
+function buildSuggestionRow(tag){
+  const row = document.createElement('div');
+  row.className = 'ac-row';
+  row.innerHTML = `<span class="ac-row-name">${escapeHtml(tag)}</span>`;
+  // mousedown (not click) fires before filterInput's blur, so the input
+  // never loses focus and the outside-click-close handler never gets a
+  // chance to hide this row out from under the click.
+  row.addEventListener('mousedown', (ev) => {
+    ev.preventDefault();
+    pickFilterSuggestion(tag);
+  });
+  return row;
+}
+
+function updateFilterSuggestions(){
+  const { partial } = currentFilterTermSpan(filterInput.value);
+  if (partial.length < 2){ hideFilterSuggestions(); return; }
+  const { direct, family } = buildFilterSuggestions(partial);
+  if (direct.length === 0 && family.length === 0){ hideFilterSuggestions(); return; }
+
+  filterSuggestions.innerHTML = '';
+  const list = document.createElement('div');
+  list.className = 'ac-list';
+  for (const tag of direct) list.appendChild(buildSuggestionRow(tag));
+  if (family.length){
+    const header = document.createElement('div');
+    header.className = 'filter-suggestion-family';
+    header.textContent = 'Same keyword family';
+    list.appendChild(header);
+    for (const tag of family) list.appendChild(buildSuggestionRow(tag));
+  }
+  filterSuggestions.appendChild(list);
+  filterSuggestions.style.display = '';
 }
 
 export function renderTagFrequencyList(index){
@@ -162,14 +257,9 @@ function reorderFamilyBefore(draggedWord, targetWord, currentOrder){
 
 export function refreshStats(){
   const index = buildTagIndex();
+  lastTagIndex = index;
   const entries = getEntries();
   const activeEntries = entries.filter(e => !e.disabled);
-  const untaggedCount = activeEntries.filter(e => e.tags.length === 0).length;
-  const disabledCount = entries.filter(e => e.disabled).length;
-  $('statImages').textContent = activeEntries.length;
-  $('statTags').textContent = index.size;
-  $('statUntagged').textContent = untaggedCount;
-  $('statDisabled').textContent = disabledCount;
   $('cardImages').textContent = activeEntries.length;
   $('cardTags').textContent = index.size;
 
@@ -214,17 +304,18 @@ export function filteredEntries(){
 
 export function passesFilter(e){
   const galleryFilter = getGalleryFilter();
-  if (galleryFilter.pendingApprovalView){
-    if (!e.pendingApproval) return false;
-  } else if (galleryFilter.disabledView){
+  if (galleryFilter.disabledView){
     if (!e.disabled) return false;
   } else {
-    if (e.disabled || e.pendingApproval) return false;
+    if (e.disabled) return false;
     if (galleryFilter.base === 'untagged' && e.tags.length !== 0) return false;
     if (galleryFilter.base === 'dirty' && !e.dirty) return false;
   }
   if (galleryFilter.terms && galleryFilter.terms.length){
-    const matchCount = galleryFilter.terms.filter(term => e.tags.some(t => t.toLowerCase().includes(term))).length;
+    const tagMatches = galleryFilter.exactMatch
+      ? (t, term) => t.toLowerCase() === term
+      : (t, term) => t.toLowerCase().includes(term);
+    const matchCount = galleryFilter.terms.filter(term => e.tags.some(t => tagMatches(t, term))).length;
     const mode = galleryFilter.mode || 'AND';
     if (mode === 'AND' && matchCount !== galleryFilter.terms.length) return false;
     if (mode === 'OR' && matchCount === 0) return false;
@@ -252,6 +343,7 @@ export function setContainsFilter(value){
   galleryFilter.terms = [value.toLowerCase()];
   galleryFilter.mode = 'AND';
   filterInput.value = value;
+  hideFilterSuggestions();
   resetSingleIndex();
   renderCurrentViewRef();
 }
@@ -298,7 +390,32 @@ export function initTagIndex(deps){
     getGalleryFilter().terms = parseFilterTerms(filterInput.value);
     resetSingleIndex();
     renderCurrentViewRef();
+    updateFilterSuggestions();
   });
+  filterInput.addEventListener('focus', updateFilterSuggestions);
+  filterInput.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') hideFilterSuggestions();
+  });
+  document.addEventListener('click', (ev) => {
+    if (ev.target !== filterInput && !filterSuggestions.contains(ev.target)) hideFilterSuggestions();
+  }, true);
+  filterExactToggle.addEventListener('change', () => {
+    getGalleryFilter().exactMatch = filterExactToggle.checked;
+    try { localStorage.setItem('dts-filter-exact-match', filterExactToggle.checked ? '1' : '0'); } catch(e){}
+    if (filterExactToggle.checked){
+      folderStats.exact_match_used = true;
+      saveFolderStats();
+      checkAchievements();
+    }
+    resetSingleIndex();
+    renderCurrentViewRef();
+  });
+  (function initExactMatchPref(){
+    let on = false;
+    try { on = localStorage.getItem('dts-filter-exact-match') === '1'; } catch(e){}
+    filterExactToggle.checked = on;
+    getGalleryFilter().exactMatch = on;
+  })();
   filterAllBtn.addEventListener('click', () => setBaseFilter('all'));
   filterUntaggedBtn.addEventListener('click', () => setBaseFilter('untagged'));
   filterDirtyBtn.addEventListener('click', () => setBaseFilter('dirty'));
@@ -314,6 +431,7 @@ export function initTagIndex(deps){
     galleryFilter.terms = [];
     galleryFilter.excludes = '';
     excludeBadge.style.display = 'none';
+    hideFilterSuggestions();
     setBaseFilter('all');
   });
 }

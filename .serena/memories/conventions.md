@@ -105,28 +105,25 @@ Batches (bulk or single) always commit as one `recordChange('add-tag', ...)` —
 log work for free. "Apply tags automatically" (vs. a review modal with an editable per-image tag
 list + skip checkbox) is a user-facing toggle, not a fixed behavior.
 
-**"Generate GitHub package" export was fundamentally broken for every real (packaged) build, not
-just the stale-compiled-file issue fixed earlier.** Diagnosed by extracting a real built
-`app.asar` (`asar list`/`asar extract`) and actually running the export's IPC handler against it,
-then `npm install && npm run build && npm run dist:zip` on the result — the only way this class of
-bug reliably surfaces, since a dev (`npm start`, unpackaged) run never hits it. Two independent
-causes, both now fixed in `main.ts`'s `copyGithubPackageSource()`:
-1. `electron-builder`'s `build.files` whitelist only listed `main.js`/`preload.js`/`renderer/**/*`
-   — so a real packaged app's `app.asar` never contained `src/`, `scripts/`, or the two
-   `tsconfig*.json` files at all. The export function's own `fs.existsSync()` guards silently
-   skipped them, producing a "package" with no TypeScript source whatsoever. Fix: added
-   `src/**/*`, `scripts/**/*`, `tsconfig.main.json`, `tsconfig.renderer.json` to `build.files`.
-2. Even after that, `package.json` itself was still wrong: `electron-builder` unconditionally
-   REWRITES `package.json` for every packaged build, stripping `scripts`, `devDependencies`, and
-   `build` (verified by diff) — so the packaged copy on disk at runtime never has real build
-   scripts or devDependencies, in any packaged build, ever. Fix: `copyGithubPackageSource()` no
-   longer copies `package.json` from disk; it merges the live-but-stripped on-disk fields with
-   three source-embedded constants (`GITHUB_PACKAGE_SCRIPTS`/`_DEV_DEPENDENCIES`/`_BUILD_CONFIG`)
-   that must be kept in sync by hand if scripts/devDependencies/build config ever change.
-3. A side discovery while fixing #1: `electron-builder`'s default file filters drop every
-   `**/*.d.ts` unconditionally, and an explicit `files` entry for the exact path does NOT override
-   this (tested directly). `src/renderer/global.d.ts` got renamed to `global-types.ts` to dodge it
-   — a `declare global {}` block works the same regardless of file extension.
+**The "Generate GitHub-ready package" Settings button/feature was removed entirely** (right-panel
+UX pass) — it packaged the app's own source into a user-picked folder with a README/.gitignore/
+HOW_TO_UPLOAD.txt for pushing to GitHub by hand; judged redundant and removed along with
+`main.ts`'s `copyGithubPackageSource()`/`GITHUB_*` constants/`generate-github-package` IPC handler,
+`preload.ts`'s `generateGithubPackage`, and the renderer wiring (`btnGithubPackage`). One fact from
+building it is still relevant if this ever comes back or something similar is attempted:
+`electron-builder`'s default file filters drop every `**/*.d.ts` unconditionally, and an explicit
+`files` entry for the exact path does NOT override this (tested directly) — `src/renderer/
+global.d.ts` got renamed to `global-types.ts` to dodge it, since a `declare global {}` block works
+the same regardless of file extension. That rename stays even though the feature that surfaced the
+bug is gone.
+
+Its Settings-panel slot was reused for a new **"Export app state" button** — a debugging aid (not a
+real feature for most users) that dumps every `localStorage` key this app writes (theme, toggles,
+panel layout/width, WD14 settings, achievements/wallet progress — practically everything persisted
+lives in localStorage here, per this app's portable-data design) plus a bit of runtime state
+localStorage doesn't cover (dataset loaded y/n, image count, view mode), as JSON to a timestamped
+`.txt` file next to the app (`main.ts`'s `export-app-state` handler, written via `getPortableRoot()`
+— the same "root folder" the portable-data design already resolves).
 
 **UI animation mode (Fade/Swipe/Off).** One mechanism, `html.motion-off`/`html.motion-swipe`
 classes toggled by a Settings dropdown (`index.ts`'s `applyUiAnimationMode()`), read everywhere via
@@ -438,17 +435,20 @@ directions). Updated in three places that all needed to independently agree: `vi
 menu buttons, `view.ts`'s `buildMergeVoidBadgesEl()` (card badges), and the Master Tags mass-select
 button labels in `index.html`.
 
-**SynthDat Accept's tags are now written to disk immediately, not left purely in-memory until
-Save.** `synthdat-overseer.ts`'s `writeImageEntry()` (Accept branch) used to write only the image
-into `Unsaved Approved/`, leaving tags as a normal dirty in-memory edit — meaning a crash between
-Accept and the next Save lost them entirely, an explicitly-documented limitation. Fixed by writing
-a `.txt` into that same staging folder immediately alongside the image (reasoning: accepting an
-image means trusting its tags as they stand at that moment). `entry.dirty`/`pendingApproval` still
-start `true` regardless — this is a safety-net write into the STAGING location, not the real save;
-`promotePendingApproval()` (tags-edit.ts) still does the actual move-into-root-and-supersede once
-the user actually saves. Notably, `promotePendingApproval()`'s cleanup code was ALREADY trying to
-`removeEntry(entry.txtName)` from the staging dir before this fix — a sign this write was
-anticipated but never actually added on the write side.
+**The "Unsaved Approved" staging folder / `pendingApproval` concept was removed entirely
+(right-panel UX pass).** SynthDat Accept used to write into a separate `Unsaved Approved/` folder
+and stay there (as an `entry.pendingApproval` entry, hidden from the normal Grid view, with its own
+dedicated toolbar filter button) until `promotePendingApproval()` (tags-edit.ts) moved it into the
+dataset root on the next Save. All of that — the folder, the flag, the toolbar button/view mode,
+`promotePendingApproval()`/`ensureUnsavedApprovedDir()`, and every `!e.disabled && !e.pendingApproval`-
+style check across `canonical-tags.ts`/`tag-index.ts`/`view.ts` — is gone. `writeImageEntry()`
+(Accept branch, `synthdat-overseer.ts`) now writes the image + a `.txt` straight into the dataset
+root immediately (tags are still written to disk right away, not left purely in-memory, so a crash
+before the next Save doesn't lose them), then calls `markDirty(entry)` — Accept is just a normal
+new dirty entry now, same lifecycle as anything else. `loadFolder()` (index.ts) still does a
+one-time backward-compat scan of a leftover `Unsaved Approved/` folder from an older app version
+(if present) and folds its contents into the active set as ordinary entries, so nobody upgrading
+loses images that were stuck there — but nothing writes into that folder anymore going forward.
 
 **Doc maintenance policy** (`CLAUDE.md`'s own "Maintenance Policy" section): after any
 feature/bugfix judged "major" (user-requested feature, a bug that took real investigation, or
