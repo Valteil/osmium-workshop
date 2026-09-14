@@ -6,7 +6,7 @@
 // are injected once via initTagsEdit() rather than imported, since index.ts's
 // IIFE can't export them.
 // @ts-nocheck
-import { btnUndo, btnRedo, btnApplyUnify, btnVoidSelected, unifiedTagInput, btnSave, dirtyCountEl, includeDisabledToggle, autosaveToggle } from './dom';
+import { btnUndo, btnRedo, btnSave, dirtyCountEl, includeDisabledToggle, autosaveToggle } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, checkVoidThemeAchievements, folderStats, saveFolderStats } from './achievements';
 import { pushLogEntry, editLog } from './edit-log';
@@ -15,7 +15,6 @@ import { applyCanonicalRules, registerMergeRule, registerVoidRule, findBlockingR
 export let undoStack = []; // [{type, summary, affected:[{base,prevTags,newTags}]}]
 export let redoStack = [];
 
-let selectedTagsRef = null;
 let getEntries = () => [];
 let getEntryByBase = () => undefined;
 let getDirHandle = () => null;
@@ -260,7 +259,6 @@ export async function moveEntry(entry, toDisabled){
 // all if the user remembered to go find and click a replay button).
 
 export function initTagsEdit(deps){
-  selectedTagsRef = deps.selectedTags;
   getEntries = deps.getEntries;
   getEntryByBase = deps.getEntryByBase;
   getDirHandle = deps.getDirHandle;
@@ -299,89 +297,88 @@ export function initTagsEdit(deps){
     checkAchievements();
   });
 
-  btnApplyUnify.addEventListener('click', () => {
-    const unified = unifiedTagInput.value.trim();
-    if (!unified){
-      toast('Enter a name for the unified tag first.');
-      return;
-    }
-    if (selectedTagsRef.size === 0){
-      toast('Select at least one tag to merge.');
-      return;
-    }
-
-    const affected = [];
-    for (const e of getEntries()){
-      if (e.meta.locked || (e.disabled && !includeDisabledToggle.checked)) continue;
-      const hasAny = e.tags.some(t => selectedTagsRef.has(t));
-      if (!hasAny) continue;
-      const prevTags = e.tags.slice();
-      let newTags = e.tags.filter(t => !selectedTagsRef.has(t));
-      if (!newTags.includes(unified)) newTags.push(unified);
-      e.tags = newTags;
-      markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
-    }
-
-    const mergedTagsList = Array.from(selectedTagsRef);
-    const mergeSummary = `Merged ${selectedTagsRef.size} tag(s) into "${unified}" across ${affected.length} image(s).`;
-    toast(mergeSummary);
-    recordChange('merge', mergeSummary, affected, { mergedTags: mergedTagsList, unifiedTag: unified });
-    trackStat('merges');
-    // Turns this one-off merge into a standing rule — see canonical-tags.ts.
-    // Its own resweep also catches any Disabled image the loop above skipped
-    // (e.g. "Also apply to Disabled images right now" was left unchecked).
-    registerMergeRule(mergedTagsList, unified);
-    selectedTagsRef.clear();
-    unifiedTagInput.value = '';
-    refreshAllUIRef();
-    checkAchievements();
-  });
-
-  btnVoidSelected.addEventListener('click', async () => {
-    if (selectedTagsRef.size === 0){
-      toast('Select at least one tag to void.');
-      return;
-    }
-    const tagList = Array.from(selectedTagsRef);
-    const preview = tagList.length > 4
-      ? `${tagList.slice(0,4).join(', ')}, +${tagList.length - 4} more`
-      : tagList.join(', ');
-    const ok = await showConfirmModal(
-      `Permanently remove ${tagList.length} tag(s) from every image?\n\n${preview}\n\n` +
-      `This deletes them outright — nothing is merged into a replacement tag. Use Undo right after if you change your mind.`,
-      { okLabel: 'Void tags', danger: true }
-    );
-    if (!ok) return;
-
-    const affected = [];
-    let voidedTagInstances = 0;
-    for (const e of getEntries()){
-      if (e.meta.locked || (e.disabled && !includeDisabledToggle.checked)) continue;
-      const hasAny = e.tags.some(t => selectedTagsRef.has(t));
-      if (!hasAny) continue;
-      const prevTags = e.tags.slice();
-      voidedTagInstances += e.tags.filter(t => selectedTagsRef.has(t)).length;
-      const newTags = e.tags.filter(t => !selectedTagsRef.has(t));
-      e.tags = newTags;
-      markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
-    }
-
-    const voidSummary = `Voided ${selectedTagsRef.size} tag(s), removed from ${affected.length} image(s).`;
-    toast(voidSummary);
-    recordChange('void', voidSummary, affected, { voidedTags: tagList });
-    trackStat('voids');
-    trackStat('voided_tag_instances', voidedTagInstances);
-    checkVoidThemeAchievements(tagList, voidedTagInstances);
-    // Turns this one-off void into a standing rule — see canonical-tags.ts.
-    registerVoidRule(tagList);
-    selectedTagsRef.clear();
-    refreshAllUIRef();
-    checkAchievements();
-  });
-
   btnSave.addEventListener('click', () => saveAllDirty());
+}
+
+// ---------------- Unify/Void, parameterized per-caller ----------------
+// Each Tag Pruner instance owns its own independent selection Set (see
+// tag-pruner.ts) and renders its own Apply/Void row — these two functions
+// used to be single click handlers closed over ONE shared selectedTagsRef;
+// now the caller passes in whichever Set + name apply to its own row, and
+// clears/re-renders on success. Logic itself is unchanged from before the
+// per-pruner split.
+export function applyUnifyToTags(tagsSet, unified){
+  unified = (unified || '').trim();
+  if (!unified){ toast('Enter a name for the unified tag first.'); return false; }
+  if (tagsSet.size === 0){ toast('Select at least one tag to merge.'); return false; }
+
+  const affected = [];
+  for (const e of getEntries()){
+    if (e.meta.locked || (e.disabled && !includeDisabledToggle.checked)) continue;
+    const hasAny = e.tags.some(t => tagsSet.has(t));
+    if (!hasAny) continue;
+    const prevTags = e.tags.slice();
+    let newTags = e.tags.filter(t => !tagsSet.has(t));
+    if (!newTags.includes(unified)) newTags.push(unified);
+    e.tags = newTags;
+    markDirty(e);
+    affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
+  }
+
+  const mergedTagsList = Array.from(tagsSet);
+  const mergeSummary = `Merged ${tagsSet.size} tag(s) into "${unified}" across ${affected.length} image(s).`;
+  toast(mergeSummary);
+  recordChange('merge', mergeSummary, affected, { mergedTags: mergedTagsList, unifiedTag: unified });
+  trackStat('merges');
+  // Turns this one-off merge into a standing rule — see canonical-tags.ts.
+  // Its own resweep also catches any Disabled image the loop above skipped
+  // (e.g. "Also apply to Disabled images right now" was left unchecked).
+  registerMergeRule(mergedTagsList, unified);
+  tagsSet.clear();
+  refreshAllUIRef();
+  checkAchievements();
+  return true;
+}
+
+export async function applyVoidToTags(tagsSet){
+  if (tagsSet.size === 0){ toast('Select at least one tag to void.'); return false; }
+  const tagList = Array.from(tagsSet);
+  const preview = tagList.length > 4
+    ? `${tagList.slice(0,4).join(', ')}, +${tagList.length - 4} more`
+    : tagList.join(', ');
+  const ok = await showConfirmModal(
+    `Permanently remove ${tagList.length} tag(s) from every image?\n\n${preview}\n\n` +
+    `This deletes them outright — nothing is merged into a replacement tag. Use Undo right after if you change your mind.`,
+    { okLabel: 'Void tags', danger: true }
+  );
+  if (!ok) return false;
+
+  const affected = [];
+  let voidedTagInstances = 0;
+  for (const e of getEntries()){
+    if (e.meta.locked || (e.disabled && !includeDisabledToggle.checked)) continue;
+    const hasAny = e.tags.some(t => tagsSet.has(t));
+    if (!hasAny) continue;
+    const prevTags = e.tags.slice();
+    voidedTagInstances += e.tags.filter(t => tagsSet.has(t)).length;
+    const newTags = e.tags.filter(t => !tagsSet.has(t));
+    e.tags = newTags;
+    markDirty(e);
+    affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
+  }
+
+  const voidSummary = `Voided ${tagsSet.size} tag(s), removed from ${affected.length} image(s).`;
+  toast(voidSummary);
+  recordChange('void', voidSummary, affected, { voidedTags: tagList });
+  trackStat('voids');
+  trackStat('voided_tag_instances', voidedTagInstances);
+  checkVoidThemeAchievements(tagList, voidedTagInstances);
+  // Turns this one-off void into a standing rule — see canonical-tags.ts.
+  registerVoidRule(tagList);
+  tagsSet.clear();
+  refreshAllUIRef();
+  checkAchievements();
+  return true;
 }
 
 // Extracted from btnSave's own click handler so autosave (settings.ts) can

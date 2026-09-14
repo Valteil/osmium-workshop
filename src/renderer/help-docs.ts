@@ -41,9 +41,9 @@ export const HELP_SECTIONS = [
         <li><b>Single</b> — one image at a time, zoomable up to 400%, drag to pan.</li>
         <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
       </ul>
-      <p>To edit tags: click a chip to open its menu (select it, filter by it, look up its wiki
-      definition, flag it for review), type into a card's "+ add tag" box and press Enter to add
-      one, or click a chip's × to remove it.</p>
+      <p>To edit tags: click a chip to open its menu (filter by it, look up its wiki definition,
+      flag it for review, explore its keyword family), type into a card's "+ add tag" box and
+      press Enter to add one, or click a chip's × to remove it.</p>
       <p><b>Filtering</b> — the search box on the left supports multiple tags combined with AND /
       OR / XOR / NOT. Type 2 or more characters and a suggestions list appears below the box:
       direct matches first, then other tags that share a word with them (searching "dr" suggests
@@ -65,6 +65,11 @@ export const HELP_SECTIONS = [
       Labels are kept short on purpose — hover any of them for the full explanation.</p>
       <ul>
         <li><b>❌ Disable / ↩ Restore</b> — move the image to/from Disabled.</li>
+        <li><b>❌ Delete permanently</b> — unlike Disable, removes the image and its tags from
+        disk outright, not just to Disabled. Confirmed first; no undo. Also available as a mass
+        action in Master Tag Control. Only removes the copy inside your DATASET folder — if the
+        image came from SynthDat Overseer, ComfyUI's own <code>output/</code> folder keeps its own
+        separate copy from when it was generated, untouched by this.</li>
         <li><b>🔒 Lock / 🔓 Unlock</b> — see the Gallery section above.</li>
         <li><b>🚫 Merge Immunize / 🟢 Antivoid / ✋ Antimmunize</b> — permanently exempt this one
         image from the Retroactive Merge/Void dock's rules. This is stronger than Lock: Lock only
@@ -86,11 +91,17 @@ export const HELP_SECTIONS = [
       The whole sidebar can also be dragged wider or narrower from its own left edge, or tucked
       away entirely via the arrow at its top.</p>
       <p><b>Tag Pruner</b> — search or browse every tag in the dataset and hand-pick any
-      combination to feed into Unify/Void below it.</p>
-      <p><b>Unify/Void</b> — Unify merges every selected tag into one name you type in. Void
-      permanently deletes every selected tag (confirmed first, fully undoable). Both actions
-      automatically create or extend a standing rule in Retroactive Merge/Void below, so the same
-      correction keeps applying to future tags without you repeating it by hand.</p>
+      combination to feed into Unify/Void below it. "+ Add another Tag Pruner" opens as many
+      independent boxes as you want — each has its OWN selection (a tag picked in one is hidden
+      from the others, so several unrelated keyword families can be browsed side by side without
+      colliding). Each box's own header also has <b>🔍 Mirror to gallery search</b> (only one box
+      can drive the left-hand gallery filter at a time — checking one unchecks any other) and its
+      own <b>Clear</b>, affecting just that box.</p>
+      <p><b>Unify/Void</b> — one row per Tag Pruner box that currently has a selection, each with
+      its own tag summary and its own Apply/Void. Apply merges that box's selected tags into the
+      name you type in; Void permanently deletes them (confirmed first, fully undoable). Both
+      actions automatically create or extend a standing rule in Retroactive Merge/Void below, so
+      the same correction keeps applying to future tags without you repeating it by hand.</p>
       <p><b>Retroactive Merge/Void</b> — standing rules: "these tags → this one canonical tag" (a
       merge) or "these tags → nothing" (a void). Whenever a rule's tags show up on a Gallery image
       afterward — by WD14, Master Tags, an accepted SynthDat image, or typing it in — they're
@@ -163,7 +174,9 @@ export const HELP_SECTIONS = [
       you can apply or remove a tag across the whole selection, conditionally apply one tag based
       on another already being present, or run a dataset-wide rename or find-and-replace. The
       Lock/Unlock and Merge Immunize/Antivoid/Antimmunize buttons here apply the same per-image
-      flags described in the 3-dot menu section, but to your entire selection at once.</p>
+      flags described in the 3-dot menu section, but to your entire selection at once. <b>❌ Delete
+      selected permanently</b> removes every selected image and its tags from disk outright
+      (confirmed, locked images skipped) — no undo.</p>
       <p><b>🐍 WD14 Autotagger</b> — sends selected images (or a single one, via its 3-dot menu) to
       a WD14 Tagger node on your own ComfyUI instance and merges the tags it returns onto each
       card. Expand "⚙ WD14 settings" to set the ComfyUI host, model, confidence thresholds, and
@@ -242,8 +255,12 @@ export const HELP_SECTIONS = [
         interrupts a run in progress.</li>
         <li>Review the result — "🐍 Re-interrogate output with WD14" checks what the model actually
         drew, since it sometimes adds details nobody prompted for. Prune anything you don't want
-        from the tag card; it also suggests merges based on your existing Retroactive Merge/Void
-        rules.</li>
+        from the "pending" tag card; it also suggests merges based on your existing Retroactive
+        Merge/Void rules. Right-click a tag for <b>📖 Definition</b> or <b>🚫 Mark as void</b> —
+        voiding drops it from this image AND adds a Retroactive Void rule for it on Accept, so
+        import tags (artist, rating, trigger words) get stripped without re-running WD14. A tag
+        already covered by an existing void rule shows struck through automatically, previewing
+        what Accept will drop.</li>
         <li>✅ Accept writes the image and its tags straight into the dataset as a normal unsaved
         edit (tags are written to disk immediately too, so a crash before your next Save can't lose
         them). ❌ Reject sends it straight to Disabled instead. Either way, nothing generated is
@@ -293,7 +310,13 @@ export const HELP_SECTIONS = [
       individually via the Shop's "🔨 Refine Theme" button, for the price difference.</p>
       <p>🏆 Achievements (55+, unlocked per dataset folder — a fresh dataset starts with none
       unlocked) pay out Edibits as you use the app's features. 🌙 Night mode is a genuine per-theme
-      color inversion, not a screen filter laid on top.</p>`
+      color inversion, not a screen filter laid on top.</p>
+      <p>Settings ▸ Appearance has motion-sensitivity controls: <b>Suppress Theme Flourishes</b>
+      hides the Refine Theme button and turns off epic/legendary-tier hover-fill/card-tilt
+      everywhere — whether a theme has it natively or you bought it via Refine Theme. Three
+      independent toggles (<b>Disable hover-fill</b>, <b>Disable card hover-tilt</b>, <b>Disable
+      ambient animations</b>) let you turn off just one specific motion effect instead of all of
+      them. None of these touch a theme's static colors, textures, or glows.</p>`
   },
   {
     id: 'favorites',

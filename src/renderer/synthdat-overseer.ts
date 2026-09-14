@@ -35,10 +35,11 @@ import {
   synthDatStripHairFace, synthDatTagPreview, btnSynthDatAccept, btnSynthDatReject,
   synthDatMigrateClearFirst, synthDatSkipRefImage, synthDatRefImageSection, synthDatCol1
 } from './dom';
-import { toast, showImageLightbox } from './shared-ui';
+import { toast, showImageLightbox, positionMenu } from './shared-ui';
 import { parseWd14Tags } from './wd14-tagger';
 import { moveEntry, markDirty } from './tags-edit';
-import { canonicalRules } from './canonical-tags';
+import { canonicalRules, activeVoidTagSet, registerVoidRule } from './canonical-tags';
+import { openTagDetails } from './tag-details';
 import { initSynthDatSectionDocks } from './docks';
 
 // Same key wd14-tagger.ts persists to (Tag Overseer's WD14 settings) — read
@@ -482,6 +483,7 @@ async function reinterrogateOutput(){
     pendingTagSnapshot = outputTags;
     excludedTags = new Set();
     mergedTagOverrides = new Map();
+    markedVoidTags = new Set();
     renderTagCard();
     synthDatReinterrogateResult.textContent = `Replaced the list with ${outputTags.length} tag(s) from WD14: ${outputTags.join(', ')}`;
     return;
@@ -742,6 +744,12 @@ function buildMergeHistoryMap(){
 // clicks (see renderTagCard()'s own comment for why that's safe).
 let excludedTags = new Set();
 let mergedTagOverrides = new Map(); // tag (as computed) -> canonical replacement the user accepted
+// Tags the user has explicitly marked "void" in the pending card (its own
+// little context menu, see openPendingTagMenu()) — excluded from what gets
+// saved on THIS image same as excludedTags, but also registered as a real
+// Retroactive Merge/Void rule on Accept (registerVoidRule()), so the same
+// tag never needs manually removing again on a future image either.
+let markedVoidTags = new Set();
 
 // The tag card shows exactly one thing: what the currently pending
 // generation will be saved with. It is NOT a live preview of the prompt
@@ -754,7 +762,65 @@ let mergedTagOverrides = new Map(); // tag (as computed) -> canonical replacemen
 // whatever the fields currently say.
 let pendingTagSnapshot: string[] | null = null;
 
+// The pending card's own right-click menu — deliberately just two actions,
+// not the full Gallery chip context menu (view.ts's openTagContextMenu):
+// this image isn't a real entry yet, so per-image things like flag-for-
+// review/rename don't apply, and merge-pool selection/gallery filters make
+// little sense against a card that isn't in the Gallery to filter. Reusing
+// tag-details.ts's openTagDetails() directly rather than reimplementing it.
+let pendingTagMenuEl = null;
+function closePendingTagMenu(){
+  if (pendingTagMenuEl){ pendingTagMenuEl.remove(); pendingTagMenuEl = null; }
+  document.removeEventListener('click', onDocClickClosePendingTagMenu);
+}
+function onDocClickClosePendingTagMenu(ev){
+  if (!pendingTagMenuEl) return;
+  const path = typeof ev.composedPath === 'function' ? ev.composedPath() : [];
+  if (path.includes(pendingTagMenuEl)) return;
+  closePendingTagMenu();
+}
+function openPendingTagMenu(tag, x, y){
+  closePendingTagMenu();
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  const header = document.createElement('div');
+  header.className = 'ctx-header';
+  header.textContent = tag;
+  menu.appendChild(header);
+
+  const defBtn = document.createElement('button');
+  defBtn.className = 'ctx-item';
+  defBtn.textContent = '📖 Definition';
+  defBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    closePendingTagMenu();
+    openTagDetails(tag);
+  });
+  menu.appendChild(defBtn);
+
+  const isVoid = markedVoidTags.has(tag);
+  const voidBtn = document.createElement('button');
+  voidBtn.className = 'ctx-item';
+  voidBtn.textContent = isVoid ? '↩️ Unmark void' : '🚫 Mark as void';
+  voidBtn.title = isVoid
+    ? 'Stop treating this tag as a void rule candidate.'
+    : 'Drop this tag from what gets saved, and add a Retroactive Void rule for it on Accept — so it\'s auto-stripped from future images too, not just this one.';
+  voidBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    if (isVoid) markedVoidTags.delete(tag); else markedVoidTags.add(tag);
+    closePendingTagMenu();
+    renderTagCard();
+  });
+  menu.appendChild(voidBtn);
+
+  document.body.appendChild(menu);
+  pendingTagMenuEl = menu;
+  positionMenu(menu, x, y);
+  setTimeout(() => document.addEventListener('click', onDocClickClosePendingTagMenu), 0);
+}
+
 function renderTagCard(){
+  closePendingTagMenu();
   synthDatTagPreview.innerHTML = '';
   const tags = pendingTagSnapshot || [];
   if (tags.length === 0){
@@ -765,17 +831,36 @@ function renderTagCard(){
     return;
   }
   const mergeHistory = buildMergeHistoryMap();
+  const voidSet = activeVoidTagSet();
   const row = document.createElement('div');
   row.className = 'chiprow';
   for (const tag of tags){
     const displayTag = mergedTagOverrides.get(tag) || tag;
     const excluded = excludedTags.has(tag);
+    // Struck through either because the user explicitly marked it void this
+    // round, or because it already matches a standing void rule from a past
+    // one — both mean this exact string won't survive being added to the
+    // Gallery, see finalTagList()'s own voidSet filter.
+    const willVoid = markedVoidTags.has(tag) || voidSet.has(displayTag);
 
     const chip = document.createElement('span');
-    chip.className = 'chip' + (excluded ? ' synthdat-chip-excluded' : '');
+    chip.className = 'chip'
+      + (excluded ? ' synthdat-chip-excluded' : '')
+      + (willVoid ? ' synthdat-chip-void' : '');
 
     const label = document.createElement('span');
     label.textContent = displayTag;
+    label.title = willVoid
+      ? (markedVoidTags.has(tag)
+          ? 'Marked as void — will be dropped and added as a Void rule on Accept.'
+          : 'Already covered by an existing Void rule — will be dropped automatically once added to the Gallery.')
+      : 'Right-click for definition / mark as void';
+    label.style.cursor = 'pointer';
+    label.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openPendingTagMenu(tag, ev.clientX, ev.clientY);
+    });
     chip.appendChild(label);
 
     // Only offer the merge suggestion while the tag is still in its
@@ -811,12 +896,16 @@ function renderTagCard(){
 }
 
 // The list writePendingEntry() actually saves: merge overrides applied,
-// excluded tags dropped, deduped again in case a merge collapsed two tags
-// into the same canonical spelling.
+// excluded/voided tags dropped, deduped again in case a merge collapsed two
+// tags into the same canonical spelling. voidSet is re-checked AFTER the
+// merge-override map so a tag merged INTO an already-voided spelling is
+// still caught, not just tags that were voided in their original form.
 function finalTagList(){
+  const voidSet = activeVoidTagSet();
   const tags = (pendingTagSnapshot || [])
-    .filter(t => !excludedTags.has(t))
-    .map(t => mergedTagOverrides.get(t) || t);
+    .filter(t => !excludedTags.has(t) && !markedVoidTags.has(t))
+    .map(t => mergedTagOverrides.get(t) || t)
+    .filter(t => !voidSet.has(t));
   return Array.from(new Set(tags));
 }
 
@@ -1013,6 +1102,7 @@ async function generate(){
   pendingTagSnapshot = null;
   excludedTags = new Set();
   mergedTagOverrides = new Map();
+  markedVoidTags = new Set();
   renderTagCard();
   setGenStatus('Generating… this can take a while.');
 
@@ -1127,6 +1217,12 @@ async function acceptImage(){
   if (!dirHandle){ toast('Open a dataset folder first.'); return; }
   if (!previewBytes){ toast('Nothing to accept or reject yet.'); return; }
   const tags = finalTagList(); // reflects the tag card's own prune/merge decisions
+  // Tags marked void this round become a real standing rule the moment this
+  // image is actually committed — not on every render, and not on Reject
+  // (a rejected image's tag choices aren't being trusted as dataset intent).
+  // registerVoidRule() also resweeps every other loaded Gallery entry, so
+  // any past image already carrying one of these tags gets cleaned up too.
+  if (markedVoidTags.size > 0) registerVoidRule(Array.from(markedVoidTags));
   const entry = await writeImageEntry(previewBytes, pendingBase, pendingImgName, tags, false);
   if (!entry) return;
   const alt = otherPassBytes();
@@ -1193,6 +1289,7 @@ function clearPreview(){
   pendingTagSnapshot = null;
   excludedTags = new Set();
   mergedTagOverrides = new Map();
+  markedVoidTags = new Set();
   renderTagCard();
 }
 

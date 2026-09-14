@@ -11,8 +11,7 @@ import {
   filterAllBtn, filterUntaggedBtn, filterDirtyBtn, excludeBadge, excludeBadgeText,
   excludeBadgeClear, tagFrequencyList, leftSortDropdown, leftSortDirBtn,
   btnResetFamilyOrder, btnClearFilter, filterModeDropdown, btnFlagIsolated,
-  tagPrunerList, btnAddTagPruner, selectionSummary, unifiedTagInput, btnApplyUnify,
-  btnClearSelection, btnVoidSelected, includeDisabledToggle, allTagsDatalist, toastEl,
+  tagPrunerList, btnAddTagPruner, allTagsDatalist, toastEl,
   themeSelect, themeDropdown, btnThemeCustomize, themeCustomPanel, themeVarRows, themeResetBtn,
   themeApplyBtn, themeCloseBtn, btnQuit, btnLeftDrawerToggle, btnRightDrawerToggle,
   drawerBackdrop, leftAside, rightAside,
@@ -84,11 +83,11 @@ import {
 } from './tag-details';
 import {
   buildTagIndex, refreshStats, filteredEntries, passesFilter, setBaseFilter,
-  parseFilterTerms, setContainsFilter, setExcludesFilter, initTagIndex
+  parseFilterTerms, setContainsFilter, setExcludesFilter, setMirroredSelectionFilter, initTagIndex
 } from './tag-index';
 import {
   viewMode, resetSingleIndex, resetStickyCompare,
-  renderCurrentView, switchView, refreshSelectionSummary, refreshRightPanels, initView
+  renderCurrentView, switchView, refreshRightPanels, initView
 } from './view';
 import { initRandomFacts } from './random-facts';
 (function(){
@@ -98,7 +97,6 @@ import { initRandomFacts } from './random-facts';
   let disabledDirHandle = null;
   let entries = [];            // [{base, imgHandle, txtHandle, txtExisted, objectUrl, tags:[], dirty:bool, disabled:bool}]
   let entryByBase = new Map();
-  let selectedTags = new Set();
   let galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false };
   // undoStack/redoStack moved to ./tags-edit.ts
   // viewMode/singleIndex/ctxMenuEl/commonLanguages moved to ./view.ts
@@ -838,12 +836,14 @@ import { initRandomFacts } from './random-facts';
   initPowerTools();
 
   // Tag Pruner / tag autocomplete moved to ./tag-pruner.ts / ./tags-autocomplete.ts —
-  // both need a few core internals (selectedTags, buildTagIndex, refreshRightPanels,
-  // the wiki/all-tags loaders, addTagToEntry) that can't be exported out of this
-  // IIFE, so they're injected once here instead of imported.
+  // both need a few core internals (buildTagIndex, refreshRightPanels, the
+  // wiki/all-tags loaders, addTagToEntry) that can't be exported out of this
+  // IIFE, so they're injected once here instead of imported. Tag Pruner also
+  // gets setMirroredSelectionFilter (tag-index.ts) for its per-instance
+  // "mirror to gallery search" checkbox.
   initAchievements({ getDirHandle: () => dirHandle, getEditLog: () => editLog, refreshThemeDropdownLabel: () => themeDropdownCtrl.refreshLabel() });
   initAchievementPanels();
-  initTagPruner(selectedTags, buildTagIndex, refreshRightPanels);
+  initTagPruner(buildTagIndex, refreshRightPanels, setMirroredSelectionFilter);
   initTagAutocomplete({
     ensureWikiDataLoaded, getCustomTagNote, setCustomTagNote,
     ensureAllTagsLoaded, addTagToEntry, refreshRightPanels
@@ -1016,7 +1016,6 @@ import { initRandomFacts } from './random-facts';
 
   // Core tag mutation / undo-redo / disable-restore / save moved to ./tags-edit.ts
   initTagsEdit({
-    selectedTags,
     getEntries: () => entries,
     getEntryByBase: (base) => entryByBase.get(base),
     getDirHandle: () => dirHandle,
@@ -1046,7 +1045,8 @@ import { initRandomFacts } from './random-facts';
     renderCurrentView: () => renderCurrentView(),
     refreshAllUI: () => refreshAllUI(),
     getEntryMeta: () => entryMeta,
-    saveEntryMeta: () => saveEntryMeta()
+    saveEntryMeta: () => saveEntryMeta(),
+    deleteEntriesPermanently: (entriesList) => deleteEntriesPermanently(entriesList)
   });
 
   // WD14 Autotagger (ComfyUI bridge) moved to ./wd14-tagger.ts — settings
@@ -1094,7 +1094,6 @@ import { initRandomFacts } from './random-facts';
 
   // Gallery/compact/single view rendering, chips, modal, image options menu moved to ./view.ts
   initView({
-    selectedTags,
     getEntries: () => entries,
     getEntryByBase: (base) => entryByBase.get(base),
     getMasterTagModeActive: () => masterTagModeActive,
@@ -1106,7 +1105,8 @@ import { initRandomFacts } from './random-facts';
     saveEntryMeta: () => saveEntryMeta(),
     refreshAllUI: () => refreshAllUI(),
     setContainsFilter: (tag) => setContainsFilter(tag),
-    setExcludesFilter: (tag) => setExcludesFilter(tag)
+    setExcludesFilter: (tag) => setExcludesFilter(tag),
+    deleteEntryPermanently: (entry) => deleteEntryPermanently(entry)
   });
 
   // Achievements/stats/wallet/shop moved to ./achievements.ts
@@ -1219,6 +1219,86 @@ import { initRandomFacts } from './random-facts';
     const probe = new Image();
     probe.onload = () => { entry.width = probe.naturalWidth; entry.height = probe.naturalHeight; };
     probe.src = entry.objectUrl;
+  }
+
+  // Permanently removes an image + its .txt from disk — unlike Disable
+  // (moveEntry(), tags-edit.ts), which relocates the files into Disabled/
+  // and keeps the entry around (fully restorable), this deletes the actual
+  // files and drops the entry from memory entirely. No undo is offered (see
+  // edit-log.ts's STAT_TYPE_LABEL — deliberately not in TAG_TYPES/MOVE_TYPES,
+  // so the log row renders with no Undo/Restore action) since there's
+  // nothing left on disk to restore from; a confirm modal at every call site
+  // is the only safety net. Works on both active and Disabled entries —
+  // resolves the correct source directory either way, same as moveEntry()
+  // does. Just the file/state cleanup, no toast/log/refresh — those differ
+  // between the single-image path (deleteEntryPermanently) and the mass one
+  // (deleteEntriesPermanently), which collapses them into ONE toast/log
+  // entry instead of one per image.
+  async function deleteEntryFilesAndState(entry){
+    if (!dirHandle) return false;
+    const sourceDir = entry.disabled ? disabledDirHandle : dirHandle;
+    if (!sourceDir) return false;
+    try { await sourceDir.removeEntry(entry.imgName); } catch(e){}
+    try { await sourceDir.removeEntry(entry.txtName); } catch(e){}
+
+    const idx = entries.indexOf(entry);
+    if (idx !== -1) entries.splice(idx, 1);
+    entryByBase.delete(entry.base);
+    delete entryMeta[entry.base];
+    masterSelectedImages.delete(entry.base);
+    try { URL.revokeObjectURL(entry.objectUrl); } catch(e){}
+    return true;
+  }
+
+  // Single-image path — view.ts's 3-dot menu "Delete permanently".
+  async function deleteEntryPermanently(entry){
+    if (!dirHandle) return;
+    try {
+      const ok = await deleteEntryFilesAndState(entry);
+      if (!ok) return;
+      saveEntryMeta();
+      toast(`Permanently deleted "${entry.imgName}".`, 3200);
+      pushLogEntry({
+        type: 'delete',
+        summary: `Permanently deleted ${entry.imgName}`,
+        affected: [{ base: entry.base }]
+      });
+      resetSingleIndex();
+      refreshAllUI();
+      checkAchievements();
+    } catch(err){
+      toast('Could not delete that file — check folder permissions.', 3600);
+    }
+  }
+
+  // Mass path — Tag Overseer's "Delete selected permanently". Locked entries
+  // are skipped, same as every other mass tool (Master Tag Control's own
+  // apply/remove/rename all do this too) — a lock is specifically meant to
+  // protect an image from being swept up by something aimed at a broader
+  // selection, and that protection matters MOST for an irreversible action
+  // like this one. Returns how many were actually deleted, so the caller can
+  // report skipped-vs-deleted counts accurately.
+  async function deleteEntriesPermanently(entriesList){
+    if (!dirHandle) return 0;
+    let deleted = 0;
+    for (const entry of entriesList){
+      if (entry.meta && entry.meta.locked) continue;
+      try {
+        const ok = await deleteEntryFilesAndState(entry);
+        if (ok) deleted++;
+      } catch(err){ /* keep going — report the partial count either way */ }
+    }
+    if (deleted === 0) return 0;
+    saveEntryMeta();
+    pushLogEntry({
+      type: 'delete',
+      summary: `Permanently deleted ${deleted} image(s)`,
+      affected: entriesList.filter(e => !(e.meta && e.meta.locked)).map(e => ({ base: e.base }))
+    });
+    resetSingleIndex();
+    refreshAllUI();
+    checkAchievements();
+    return deleted;
   }
 
   const META_FILE_NAME = '_dts_meta.json';
@@ -1680,10 +1760,13 @@ import { initRandomFacts } from './random-facts';
 
   btnAddTagPruner.addEventListener('click', addTagPruner);
 
-  // refreshSelectionSummary/refreshRightPanels/toggleTagSelection + btnClearSelection
-  // wiring moved to ./view.ts
+  // Per-instance selection/Clear/mirror-to-gallery + the Unify/Void rows
+  // they each render are all self-contained in ./tag-pruner.ts now.
+  // refreshRightPanels() (./view.ts) is just an alias for renderTagPruners().
 
-  // Undo/redo, Unify/Void apply moved to ./tags-edit.ts
+  // Undo/redo moved to ./tags-edit.ts; Unify/Void apply moved there too,
+  // now as parameterized applyUnifyToTags()/applyVoidToTags() functions
+  // tag-pruner.ts's per-instance rows call directly.
 
   // Global tag tools (Find / Replace all / Find & replace) previously lived here,
   // superseded by the Master Tags tab which covers the same ground plus more.
@@ -1698,7 +1781,6 @@ import { initRandomFacts } from './random-facts';
     refreshStats();
     renderCurrentView();
     renderTagPruners();
-    refreshSelectionSummary();
     renderMasterSelectionSummary();
     updateDirtyUI();
   }

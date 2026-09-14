@@ -62,16 +62,20 @@ Clicking any image opens a floating **image card modal** (zoomable/pannable) wit
 place in the grid.
 
 ### Tagging
-- Click a chip for its context menu: select for merge, filter by presence/absence, open Tag
-  Details, flag for review, explore its keyword family.
+- Click a chip for its context menu: filter by presence/absence, open Tag Details, flag for
+  review, explore its keyword family.
 - Type into a card's "+ add tag" field and press Enter to add.
 - **Filter sidebar**: multi-tag search combined with AND/OR/XOR/NOT, quick filters
   (All/Untagged/Unsaved), **Flag isolated tags** (highlights tags appearing in ≤2 images — good
   for catching typos), a draggable keyword-family sort order.
-- **Tag Pruner** (right sidebar, supports multiple instances) — search/browse all tags, hand-pick
-  any combination to feed into **Unify/Void**: merge selected tags into one name, or permanently
-  delete them (confirmed, fully undoable/logged). An "Also apply to Disabled images" checkbox
-  covers already-disabled images in the same action.
+- **Tag Pruner** (right sidebar, supports multiple independent instances) — search/browse all
+  tags, hand-pick any combination to feed into **Unify/Void**: merge selected tags into one name,
+  or permanently delete them (confirmed, fully undoable/logged). Each instance has its own
+  selection — a tag picked in one is hidden from the others, so you can browse several unrelated
+  keyword families side by side without them colliding — and its own "🔍 Mirror to gallery search"
+  (radio-exclusive across instances: only one drives the left-hand gallery filter at a time, so
+  you can see exactly which images a merge/void is about to touch) and its own Clear button. An
+  "Also apply to Disabled images" checkbox covers already-disabled images in the same action.
 - **Retroactive Merge/Void** (its own dock, gallery right sidebar) — standing rules of the shape
   "these tags → this canonical tag" (or "→ nothing" for a void rule). Any matching tag that shows
   up on a Gallery image afterward, by any automatic means (WD14, Master Tags, an accepted SynthDat
@@ -86,8 +90,14 @@ place in the grid.
   separate rows, not one entry overwritten in place).
 - **Master Tag Control** (its own tab) — checkbox-select images in the gallery, then apply/remove
   a tag, conditionally apply one tag based on another being present, mass apply/remove across the
-  whole dataset, or rename/find-and-replace. Select 2+ images and switch to Single view for an
+  whole dataset, rename/find-and-replace, or **permanently delete the selection** (confirmed,
+  locked images skipped, one summary log entry). Select 2+ images and switch to Single view for an
   editable tag-comparison table across the selection.
+- **Delete permanently** (3-dot menu, single image, or Master Tag Control for a batch) — unlike
+  Disable, which relocates an image + its tags into `Disabled/` and keeps it fully restorable, this
+  removes the files from disk outright. No undo; confirm-modal gated. Only removes the copy inside
+  your dataset folder — a SynthDat-generated image's separate original in ComfyUI's own `output/`
+  folder is untouched.
 - **Text & panel tagging** (3-dot menu) — every control applies to the image's real tags the
   instant you toggle it, no separate confirm step:
   - **Has text** → **Japanese** (the assumed default, plain `text` tag) and/or any number of
@@ -117,9 +127,14 @@ you've already started training a LoRA on, strong-armed into arbitrary reference
 ControlNet — a way to grow a thin dataset rather than only clean up an existing one. Pick a
 reference pose image (optional — skippable for an ordinary prompted generation), WD14-interrogates
 it so you can copy just the pose tags across, fill in the rest of the prompt fields, then Generate
-(1-Pass or a 2nd refinement pass, with live preview and a Stop button). A final editable tag card
-shows exactly what will be saved, with per-tag pruning and a merge-history suggestion pulled from
-this dataset's own Retroactive Merge/Void rules. **Accept** writes the image + tags straight into
+(1-Pass or a 2nd refinement pass, with live preview and a Stop button). A final editable "pending"
+tag card shows exactly what will be saved, with per-tag pruning, a merge-history suggestion pulled
+from this dataset's own Retroactive Merge/Void rules, and a right-click "Mark as void" per tag
+(drops it from this image AND adds a Retroactive Void rule for it on Accept — handy for import
+tags like artist/rating that don't belong in the dataset, without needing to re-run WD14 just to
+strip them). Any tag already covered by an existing void rule shows the same strikethrough
+automatically, previewing what Accept would drop even without marking anything new. **Accept**
+writes the image + tags straight into
 the dataset root immediately (tags are written to disk right away too, not left purely in-memory,
 so a crash before your next Save doesn't lose them) as a normal unsaved edit; **Reject** sends it
 straight to `Disabled/` like any other disabled image — nothing generated is ever silently
@@ -215,6 +230,11 @@ npm run dist:zip     # → Shippable/ — normal compression by default, only ru
 npm run dist:zip -- --config.compression=store   # skip compression entirely for a quick throwaway build
 ```
 
+A GitHub release also gets a second, separate zip of just
+`ComfyUI-dependencies/custom_nodes/ComfyUI-DataSetManagerNodes/` — so a user who only needs the
+ComfyUI node pack (e.g. re-installing it after a ComfyUI update) doesn't have to download the whole
+app to get it.
+
 ### Verifying a change actually works
 
 A clean `npm run build` only proves imports resolve — it does not prove every runtime reference
@@ -270,7 +290,7 @@ opening DevTools by hand.
 The renderer was ported from a single ~5,500-line untyped script into TypeScript and split into
 ~17 feature modules. `src/renderer/index.ts` is one top-level IIFE (it can't `export` from inside
 itself) acting as the composition root: it owns core cross-cutting state (`entries`, `dirHandle`,
-`selectedTags`, ...) and wires every extracted module together via a small injected-`deps` object
+`entryByBase`, ...) and wires every extracted module together via a small injected-`deps` object
 passed to that module's own `init*(deps)` call — never a circular import. Every extracted module
 still carries `// @ts-nocheck`; real type annotations are a possible future increment, one module
 at a time.

@@ -6,7 +6,7 @@
 // @ts-nocheck
 import {
   masterSelectionSummary, masterMiniGrid, btnMasterSelectAll, btnMasterClearSelection,
-  btnMasterLockSelected, btnMasterUnlockSelected,
+  btnMasterLockSelected, btnMasterUnlockSelected, btnMasterDeleteSelected,
   btnMasterMergeImmunizeSelected, btnMasterUnMergeImmunizeSelected,
   btnMasterAntivoidSelected, btnMasterUnAntivoidSelected,
   btnMasterAntimmunizeSelected, btnMasterUnAntimmunizeSelected,
@@ -28,6 +28,7 @@ let renderCurrentViewRef = () => {};
 let refreshAllUIRef = () => {};
 let getEntryMeta = () => ({});
 let saveEntryMetaRef = () => {};
+let deleteEntriesPermanentlyRef = async () => 0;
 
 export function updateMasterSelectionText(){
   if (masterSelectedImages.size === 0){
@@ -92,6 +93,7 @@ export function initMasterTagControl(deps){
   refreshAllUIRef = deps.refreshAllUI;
   getEntryMeta = deps.getEntryMeta;
   saveEntryMetaRef = deps.saveEntryMeta;
+  deleteEntriesPermanentlyRef = deps.deleteEntriesPermanently;
 
   btnMasterSelectAll.addEventListener('click', () => {
     for (const e of filteredEntriesRef()) masterSelectedImages.add(e.base);
@@ -128,6 +130,30 @@ export function initMasterTagControl(deps){
   }
   btnMasterLockSelected.addEventListener('click', () => setLockedForSelection(true));
   btnMasterUnlockSelected.addEventListener('click', () => setLockedForSelection(false));
+
+  // Permanently deletes every selected image + its tags from disk — unlike
+  // every other mass action here, there's no Undo for this one, so the
+  // confirm modal names the exact count and is danger-styled. Locked images
+  // are silently skipped (see deleteEntriesPermanently() in index.ts) same
+  // as any other mass tool; the toast reports that split if it happened.
+  btnMasterDeleteSelected.addEventListener('click', async () => {
+    if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
+    const total = masterSelectedImages.size;
+    const ok = await showConfirmModal(
+      `Permanently delete ${total} selected image(s) and their tags? This cannot be undone — the files are removed from disk, not moved to Disabled/. Locked images will be skipped.`,
+      { okLabel: `Delete ${total} permanently`, danger: true }
+    );
+    if (!ok) return;
+    const entriesList = Array.from(masterSelectedImages).map(base => getEntryByBase(base)).filter(Boolean);
+    const deleted = await deleteEntriesPermanentlyRef(entriesList);
+    if (deleted === 0){ toast('Nothing deleted — every selected image is locked.'); return; }
+    const skipped = total - deleted;
+    toast(skipped > 0
+      ? `Permanently deleted ${deleted} image(s) — ${skipped} skipped (locked).`
+      : `Permanently deleted ${deleted} image(s).`, 3600);
+    renderMasterSelectionSummary();
+    renderCurrentViewRef();
+  });
 
   // Merge Immunize / Antivoid — a PERMANENT per-image exception to the
   // Retroactive Merge/Void dock's standing rules (canonical-tags.ts), unlike

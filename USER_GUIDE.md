@@ -66,9 +66,9 @@ The gallery's own column count normally shrinks as font-size zoom or an open sid
 the available width — Settings ▸ Appearance ▸ "Gallery columns" forces a fixed count instead, if
 you'd rather bump the font size for readability without losing columns.
 
-**Editing tags:** click a tag chip to open its context menu (select it for a merge, filter by
-it, open its wiki definition, flag it for review). Type into a card's "+ add tag" field and press
-Enter to add a new one. Click the × on a chip to remove it.
+**Editing tags:** click a tag chip to open its context menu (filter by it, open its wiki
+definition, flag it for review, explore its keyword family). Type into a card's "+ add tag" field
+and press Enter to add a new one. Click the × on a chip to remove it.
 
 **Filtering:** the sidebar filter box supports multi-tag search combined with AND / OR / XOR /
 NOT, plus quick filters for All / Untagged / Unsaved. Typing 2+ characters shows a suggestions
@@ -90,6 +90,11 @@ Every image card has a "⋯" button (or right-click the card) opening a menu of 
 Each item's label is short on purpose — hover any of them for the full explanation.
 
 - **❌ Disable / ↩ Restore** — move the image to/from `Disabled/`.
+- **❌ Delete permanently** — unlike Disable, this removes the image and its `.txt` from disk
+  outright, not just to `Disabled/` — fully confirmed, and there's no undo. Also available as a
+  mass action for your whole selection in Master Tag Control (see below). Only removes the copy
+  inside your dataset folder — a SynthDat-generated image's separate original in ComfyUI's own
+  `output/` folder is untouched.
 - **🔒 Lock / 🔓 Unlock** — see above.
 - **🚫 Merge Immunize**, **🟢 Antivoid**, **✋ Antimmunize** — permanently exempt this one image
   from the Retroactive Merge/Void dock's rules (see below) — merge rules, void rules, or both.
@@ -113,13 +118,25 @@ top. Settings has a "Reset panel layout" button if things ever get into a bad st
 
 ### Tag Pruner
 Search/browse every tag in the dataset, hand-pick any combination, then feed them into Unify/Void
-below.
+below. **+ Add another Tag Pruner** opens as many independent boxes as you want — each has its own
+selection, so a tag picked in one box is hidden from every other box's results (it can't be
+double-picked), letting you browse and select several unrelated keyword families side by side
+without them interfering.
+
+Each box's own header row also has:
+- **🔍 Mirror to gallery search** — checking it makes THIS box's selection drive the gallery
+  filter on the left, so you can see exactly which images a merge/void is about to touch. Only one
+  box can do this at a time — checking one unchecks any other.
+- **Clear** — deselects everything in just this box; other boxes are unaffected.
 
 ### Unify/Void
-- **Unify** merges every selected tag into one name you type in.
-- **Void** permanently deletes every selected tag (confirmed, fully undoable).
-- An "Also apply to Disabled images right now" checkbox covers already-disabled images in this
-  one action — see the next section for what happens to Disabled images otherwise.
+Every Tag Pruner box with a non-empty selection gets its own row here — its own tag summary, its
+own "unified tag name" field, its own Apply and Void:
+- **Apply** merges that box's selected tags into the name you type in.
+- **Void** permanently deletes that box's selected tags (confirmed, fully undoable).
+- An "Also apply to Disabled images right now" checkbox (shared, above every row) covers
+  already-disabled images in the action — see the next section for what happens to Disabled
+  images otherwise.
 
 Every Unify/Void action automatically creates or extends a standing rule in the dock below, so the
 same correction keeps applying going forward without you having to repeat it.
@@ -167,6 +184,9 @@ Two things live here: **Master Tag Control** and the **WD14 Autotagger**.
    being present, or run a dataset-wide rename / find-and-replace.
 3. Mass **Lock/Unlock**, **Merge Immunize/Antivoid/Antimmunize** buttons apply the same per-image
    flags described above to your entire selection at once.
+4. **❌ Delete selected permanently** — removes every selected image and its tags from disk
+   outright (not to `Disabled/`). Confirmed first, names the count, and skips locked images —
+   there's no undo, so Lock anything you want protected from an accidental mass-select first.
 
 ### 🐍 WD14 Autotagger
 Sends selected images (or one image via its 3-dot menu) to a WD14 Tagger node on your own
@@ -216,8 +236,12 @@ this repo for exactly what and why (some of it is bundled there directly).
    - Watch the live preview while it runs; **⏹ Stop** interrupts a running generation.
 5. **Review the result.** A "🐍 Re-interrogate output with WD14" button lets you check what the
    model actually drew (it sometimes adds details nobody prompted for). Prune any tags you don't
-   want from the final tag card — it'll also suggest merges based on your Retroactive Merge/Void
-   rules.
+   want from the final "pending" tag card — it'll also suggest merges based on your Retroactive
+   Merge/Void rules. Right-click a tag in this card for **📖 Definition** or **🚫 Mark as void** —
+   voiding drops that tag from this image AND adds a Retroactive Void rule for it once you Accept,
+   handy for import tags (artist, rating, trigger words) you don't want without needing to re-run
+   WD14 just to strip them. Any tag already covered by an existing void rule shows struck through
+   automatically, previewing what Accept will drop even without marking anything new.
 6. **✅ Accept** writes the image + tags straight into the dataset root (tags are written to disk
    right away too, so a crash before your next Save doesn't lose them) as a normal unsaved edit.
    **❌ Reject** sends it straight to `Disabled/` instead. Either way, nothing generated is ever

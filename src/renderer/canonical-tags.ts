@@ -224,6 +224,20 @@ export function findBlockingRule(tag, entry){
   return null;
 }
 
+// Every tag currently covered by an ACTIVE void rule (enabled, not
+// per-child-disabled) — used by SynthDat Overseer's pending tag card to
+// preview which tags would be silently stripped once this image is actually
+// added to the Gallery, without needing a real entry (no per-image immunity
+// applies yet, since the image isn't an entry until Accept).
+export function activeVoidTagSet(){
+  const set = new Set();
+  for (const rule of canonicalRules){
+    if (!rule.enabled || rule.canonical) continue;
+    for (const t of activeChildren(rule)) set.add(t);
+  }
+  return set;
+}
+
 // The "retroactive" half — applies every current rule to every currently
 // loaded Gallery entry (locked entries excluded, matching every other mass/
 // automatic tool in the app; Disabled entries excluded per the Gallery-only

@@ -158,9 +158,9 @@
   </header>
 
   <nav id="tabBar">
-    <button id="tabDatasetManager" class="tab-btn">Datasets</button>
-    <button id="tabGallery" class="tab-btn active">Gallery</button>
-    <button id="tabMasterTags" class="tab-btn">🏷 Tag Overseer</button>
+    <button id="tabDatasetManager" class="tab-btn">📁 Datasets</button>
+    <button id="tabGallery" class="tab-btn active">🖼 Gallery</button>
+    <button id="tabMasterTags" class="tab-btn">🔭 Tag Overseer</button>
     <button id="tabStats" class="tab-btn">📊 Editing Stats</button>
     <button id="tabSynthDat" class="tab-btn">🧪 SynthDat Overseer</button>
   </nav>
@@ -275,7 +275,7 @@
 
       <div id="rightPanelHeaderRow">
         <button id="btnRightPanelCollapse" class="panel-collapse-arrow" title="Hide this panel">›</button>
-        <button id="btnGoToTagOverseer" class="right-panel-header-action" title="Switch to Tag Overseer">🏷 Tag Overseer</button>
+        <button id="btnGoToTagOverseer" class="right-panel-header-action" title="Switch to Tag Overseer">🔭 Tag Overseer</button>
         <button id="btnMasterBack" class="right-panel-header-action" style="display:none;" title="Back to normal tools">← Gallery tools</button>
       </div>
 
@@ -284,7 +284,7 @@
       <div class="tool-section" data-dock-id="tagPruner" data-resizable="true">
         <div class="sec-head"><span class="dot manual"></span><span class="t">Tag Pruner</span></div>
         <div class="dock-scroll-body">
-          <div class="sec-head"><span class="d">Search or browse all tags and hand-pick any for the merge/void tool below. Leave the search empty to browse everything. Nothing is selected automatically.</span></div>
+          <div class="sec-head"><span class="d">Search or browse all tags and hand-pick any for the merge/void tool below. Leave the search empty to browse everything. Nothing is selected automatically. Each box's selection (and its 🔍/Clear) is independent — a tag picked in one won't show up in another, so you can browse several keyword families side by side.</span></div>
           <div id="tagPrunerList"></div>
           <button id="btnAddTagPruner" title="Add another independent Tag Pruner search box">+ Add another Tag Pruner</button>
         </div>
@@ -292,19 +292,13 @@
 
       <div class="tool-section" data-dock-id="unifyVoid">
         <div class="sec-head"><span class="t">Unify or void selected tags</span></div>
-        <div class="selection-summary" id="selectionSummary">No tags selected yet.</div>
         <label class="ach-toggle-row">
           <input type="checkbox" id="includeDisabledToggle">
           <span>Also apply to Disabled images right now&nbsp;<button type="button" class="info-btn" id="infoIncludeDisabled" title="More about this checkbox">ⓘ</button></span>
         </label>
         <template id="infoIncludeDisabledContent">The Retroactive Merge/Void dock below no longer catches up Disabled images automatically — its standing rules only affect Gallery images going forward — so this checkbox is the only way a Disabled image gets this specific merge/void; it'll also pick up any future rule changes once restored to the Gallery.</template>
-        <div class="apply-row">
-          <input type="text" id="unifiedTagInput" placeholder="Unified_tag_name">
-          <button id="btnApplyUnify" class="primary" title="Merge all selected tags into this one name">Apply</button>
-        </div>
-        <div class="selection-actions-row">
-          <button id="btnClearSelection" title="Deselect all tags">Clear selection</button>
-          <button id="btnVoidSelected" class="danger-ghost" title="Permanently delete the selected tags from every image — nothing is merged into a replacement">Void</button>
+        <div id="unifyVoidRows">
+          <div class="selection-summary">No tags selected yet.</div>
         </div>
       </div>
 
@@ -343,6 +337,9 @@
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button id="btnMasterLockSelected" title="Lock the selected images so mass tools (Master Tags, bulk WD14, etc.) skip them">🔒 Lock selected</button>
             <button id="btnMasterUnlockSelected" title="Unlock the selected images">🔓 Unlock selected</button>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="btnMasterDeleteSelected" class="danger-ghost" title="Permanently delete the selected images and their tags from disk — cannot be undone. Locked images are skipped.">❌ Delete selected permanently</button>
           </div>
           <div class="sec-head" style="margin-top:4px;"><span class="d">Retroactive Merge/Void exceptions — a permanent per-image setting, unlike Lock (which only skips mass tools):</span></div>
           <div class="immunize-row">

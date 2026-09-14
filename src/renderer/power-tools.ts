@@ -19,8 +19,7 @@ export let powerToolPickerActive = false;
 // can be added), so those get the class directly at creation time instead
 // of going through this id-based system.
 export const BUILTIN_POWER_TOOLS = [
-  { id:'builtin-unify', field:['unifiedTagInput'], button:'btnApplyUnify', mode:'both', label:'Unify selected tags' },
-  { id:'builtin-void', button:'btnVoidSelected', mode:'button', label:'Void selected tags' },
+  { id:'builtin-unify-void', infoOnly:true, label:'Unify/Void selected tags (always marked, dynamic — one row per Tag Pruner)' },
   { id:'builtin-master-apply', field:['masterApplyTagInput'], button:'btnMasterApplyToSelected', mode:'both', label:'Master Tags: apply to selected' },
   { id:'builtin-master-remove', field:['masterRemoveTagInput'], button:'btnMasterRemoveFromSelected', mode:'both', label:'Master Tags: remove from selected' },
   { id:'builtin-cond-apply', field:['condSourceTag','condAddTag'], button:'btnCondApply', mode:'both', label:'Master Tags: conditional apply' },

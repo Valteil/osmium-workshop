@@ -348,6 +348,23 @@ export function setContainsFilter(value){
   renderCurrentViewRef();
 }
 
+// Tag Pruner's "Mirror my selections to gallery search" toggle (tag-pruner.ts)
+// — replaces the filter terms wholesale with the CURRENT selection set (AND
+// mode: an image has to carry every selected tag to show), so the gallery
+// shows exactly the overlap a merge/void action is about to touch. An empty
+// selection clears the filter terms back to "show everything" rather than
+// leaving stale terms behind.
+export function setMirroredSelectionFilter(tags){
+  const galleryFilter = getGalleryFilter();
+  const list = Array.from(tags);
+  galleryFilter.terms = list.map(t => t.toLowerCase());
+  galleryFilter.mode = 'AND';
+  filterInput.value = list.join(', ');
+  hideFilterSuggestions();
+  resetSingleIndex();
+  renderCurrentViewRef();
+}
+
 export function setExcludesFilter(value){
   getGalleryFilter().excludes = value.toLowerCase();
   excludeBadgeText.textContent = value;

@@ -11,7 +11,7 @@ import {
   viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, btnUnlockAll, singlePrevBtn, singleNextBtn,
   galleryGrid, compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
-  selectionSummary, btnClearSelection, langAutoSelectToggle, filterMatchCount
+  langAutoSelectToggle, filterMatchCount
 } from './dom';
 import { toast, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
@@ -31,7 +31,6 @@ let ctxMenuEl = null;
 let commonLanguages = ['English'];
 let autoSelectNewLanguage = true;
 
-let selectedTagsRef = null;
 let getEntries = () => [];
 let getEntryByBase = () => undefined;
 let getMasterTagModeActive = () => false;
@@ -831,7 +830,6 @@ function tagDisplayFlags(tag, tagIndex){
 function buildChip(entry, tag, onChange, tagIndex){
   const chip = document.createElement('span');
   chip.className = 'chip';
-  if (selectedTagsRef.has(tag)) chip.classList.add('selected');
   const isFlaggedForReview = entry.meta && entry.meta.flaggedTags && entry.meta.flaggedTags.includes(tag);
   if (isFlaggedForReview){
     chip.classList.add('chip-flagged-review');
@@ -1121,10 +1119,6 @@ function openTagContextMenu(entry, tag, x, y){
   header.textContent = `${tag} · ${set.size} image${set.size===1?'':'s'}`;
   menu.appendChild(header);
 
-  addCtxItem(menu, selectedTagsRef.has(tag) ? 'Deselect tag (merge pool)' : 'Select tag for merge', () => {
-    toggleTagSelection(tag);
-    closeTagContextMenu();
-  });
   addCtxItem(menu, 'Show all images WITH this tag', () => {
     setContainsFilter(tag);
     closeTagContextMenu();
@@ -1389,6 +1383,27 @@ function openImageOptionsMenu(entry, x, y){
     closeTagContextMenu();
   });
   menu.appendChild(toggleDisableBtn);
+
+  // Unlike Disable above (relocates into Disabled/, fully restorable), this
+  // deletes the image + its .txt from disk outright and drops the entry
+  // from memory — no undo, nothing left to restore from. Gated behind its
+  // own confirm modal (danger-styled) since a single click here is
+  // otherwise indistinguishable from Disable in the menu's own layout.
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'ctx-item ctx-item-danger';
+  deleteBtn.textContent = '❌ Delete permanently';
+  deleteBtn.title = 'Permanently delete this image and its tags from disk — cannot be undone';
+  deleteBtn.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    closeTagContextMenu();
+    const ok = await showConfirmModal(
+      `Permanently delete "${entry.imgName}" and its tags? This cannot be undone — the files are removed from disk, not moved to Disabled/.`,
+      { okLabel: 'Delete permanently', danger: true }
+    );
+    if (!ok) return;
+    await deleteEntryPermanentlyRef(entry);
+  });
+  menu.appendChild(deleteBtn);
 
   // Locked images are skipped by every mass/automatic tool (Quick Merge,
   // Master Tags, bulk WD14, retroactive catch-up, etc.) — manual per-image
@@ -1805,44 +1820,15 @@ function openImageOptionsMenu(entry, x, y){
 }
 
 // ---------------- Selection summary + apply ----------------
-
-export function refreshSelectionSummary(){
-  if (selectedTagsRef.size === 0){
-    selectionSummary.textContent = 'No tags selected yet.';
-    return;
-  }
-  const index = buildTagIndex();
-  let totalImages = new Set();
-  selectionSummary.innerHTML = '';
-  for (const tag of selectedTagsRef){
-    const span = document.createElement('span');
-    span.className = 'tk';
-    span.textContent = tag;
-    selectionSummary.appendChild(span);
-    const set = index.get(tag);
-    if (set) set.forEach(b => totalImages.add(b));
-  }
-  const footer = document.createElement('div');
-  footer.style.marginTop = '6px';
-  footer.style.color = 'var(--text-faint)';
-  footer.textContent = `${selectedTagsRef.size} tag${selectedTagsRef.size===1?'':'s'} selected · affects ${totalImages.size} image${totalImages.size===1?'':'s'}`;
-  selectionSummary.appendChild(footer);
-}
+// Per-tag selection (for the Unify/Void tool) and its summary/apply UI now
+// live entirely in tag-pruner.ts — each Tag Pruner instance owns its own
+// independent selection Set and renders its own summary + Apply/Void row,
+// see renderUnifyVoidRows() there. This function is now just an alias kept
+// for the many refreshRightPanels() call sites scattered through this file
+// (every tag add/remove needs the Tag Pruner tag-count list to catch up).
 
 export function refreshRightPanels(){
   renderTagPruners();
-  refreshSelectionSummary();
-  document.querySelectorAll('.chip').forEach(chip => {
-    const label = chip.querySelector('span');
-    if (!label) return;
-    chip.classList.toggle('selected', selectedTagsRef.has(label.textContent));
-  });
-}
-
-function toggleTagSelection(tag){
-  if (selectedTagsRef.has(tag)) selectedTagsRef.delete(tag);
-  else selectedTagsRef.add(tag);
-  refreshRightPanels();
 }
 
 // setContainsFilter/setExcludesFilter are wired in from index.ts (they live in
@@ -1853,9 +1839,9 @@ let setContainsFilterRef = () => {};
 let setExcludesFilterRef = () => {};
 function setContainsFilter(tag){ setContainsFilterRef(tag); }
 function setExcludesFilter(tag){ setExcludesFilterRef(tag); }
+let deleteEntryPermanentlyRef = () => {};
 
 export function initView(deps){
-  selectedTagsRef = deps.selectedTags;
   getEntries = deps.getEntries;
   getEntryByBase = deps.getEntryByBase;
   getMasterTagModeActive = deps.getMasterTagModeActive;
@@ -1868,6 +1854,7 @@ export function initView(deps){
   refreshAllUIRef = deps.refreshAllUI;
   setContainsFilterRef = deps.setContainsFilter;
   setExcludesFilterRef = deps.setExcludesFilter;
+  deleteEntryPermanentlyRef = deps.deleteEntryPermanently;
 
   langAutoSelectToggle.addEventListener('change', () => {
     autoSelectNewLanguage = langAutoSelectToggle.checked;
@@ -1959,10 +1946,5 @@ export function initView(deps){
       if (ev.key === 'ArrowLeft' && !singlePrevBtn.disabled){ pageSingle(-1); }
       if (ev.key === 'ArrowRight' && !singleNextBtn.disabled){ pageSingle(1); }
     }
-  });
-
-  btnClearSelection.addEventListener('click', () => {
-    selectedTagsRef.clear();
-    refreshRightPanels();
   });
 }

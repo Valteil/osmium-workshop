@@ -1072,6 +1072,15 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      rather than a real entry's tags yet. */
   .synthdat-tag-card{ display: flex; flex-direction: column; gap: 8px; }
   .chip.synthdat-chip-excluded{ opacity: 0.45; text-decoration: line-through; }
+  /* Void-marked/already-void-ruled tags: kept at full opacity (unlike plain
+     excluded above) since the strikethrough itself IS the signal here — this
+     tag isn't just being dropped from this one image, it's flagged as
+     fundamentally unwanted dataset-wide (see synthdat-overseer.ts's
+     renderTagCard()/finalTagList()). Danger-tinted border to read as more
+     deliberate than a casual per-image exclude. */
+  .chip.synthdat-chip-void{
+    text-decoration: line-through; border-color: var(--accent-danger); color: var(--accent-danger);
+  }
   .synthdat-merge-suggest{
     all: unset; cursor: pointer; font-family: var(--sans); font-size: 10px;
     color: var(--accent-manual); background: var(--accent-manual-dim);
@@ -2364,6 +2373,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     font-size: 12.5px; color: var(--text-primary);
   }
   .ctx-item:hover, .ctx-item:focus-visible{ background: var(--bg-elevated); }
+  /* Destructive ctx-item (e.g. "Delete permanently") — .ctx-item's own
+     `all: unset` means a generic .danger-ghost class can't reliably layer
+     color on top of it, so this is its own modifier instead. */
+  .ctx-item.ctx-item-danger{ color: var(--accent-danger); }
+  .ctx-item.ctx-item-danger:hover, .ctx-item.ctx-item-danger:focus-visible{ background: #2a1c20; }
   .ctx-sep{ font-size: 10.5px; color: var(--text-faint); padding: 6px 8px 2px; }
   .ctx-words{ display: flex; flex-wrap: wrap; gap: 5px; padding: 2px 8px 6px; }
   .ctx-words button{ padding: 4px 9px; font-size: 11.5px; }
@@ -2438,6 +2452,29 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .pruner-instance-head{ display: flex; gap: 6px; align-items: center; }
   .pruner-instance-head input{ flex: 1; }
   .pruner-remove-btn{ flex-shrink: 0; font-size: 11px; padding: 6px 8px; }
+  /* Mirror-to-gallery-search checkbox — deliberately just an emoji, not a
+     labeled toggle, to stay compact in an already-busy head row; the title
+     tooltip carries the full explanation. Radio-button semantics (only one
+     Tag Pruner instance can be checked at a time) are enforced in JS
+     (tag-pruner.ts), not CSS. */
+  .pruner-mirror-toggle{
+    display: flex; align-items: center; gap: 3px; flex-shrink: 0;
+    font-size: 13px; cursor: pointer; padding: 4px 6px; border-radius: 6px;
+    border: 1px solid var(--border-soft); background: var(--bg-elevated);
+  }
+  .pruner-mirror-toggle input{ flex: none; margin: 0; accent-color: var(--accent-manual); }
+  .pruner-clear-btn{ flex-shrink: 0; font-size: 11px; padding: 6px 8px; }
+  .pruner-clear-btn:disabled{ opacity: 0.4; cursor: default; }
+  /* One row per Tag Pruner instance with a non-empty selection, in the
+     "Unify or void selected tags" dock (unifyVoidRows, tag-pruner.ts's
+     renderUnifyVoidRows()) — visually separated since there can be several
+     at once, each acting on a completely independent selection. */
+  .unify-void-row{
+    display: flex; flex-direction: column; gap: 6px; padding: 8px;
+    border: 1px solid var(--border-soft); border-radius: 8px; margin-bottom: 8px;
+    background: var(--bg-elevated);
+  }
+  .unify-void-row:last-child{ margin-bottom: 0; }
 
   .match-row {
     display: flex;
