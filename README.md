@@ -18,6 +18,7 @@ on your system.
 ## Contents
 
 - [Quick start (using the app)](#quick-start-using-the-app)
+- [Full user guide](USER_GUIDE.md) — a walkthrough of every tab and feature
 - [Features](#features)
 - [Themes & the shop economy](#themes--the-shop-economy)
 - [Updating](#updating)
@@ -37,6 +38,8 @@ on your system.
    matching `.txt` caption files.
 4. Tags are shown and edited as clean space-separated text (e.g. `red hair`, not `red_hair`) —
    underscores are normalized on load and restored on save automatically.
+
+See [USER_GUIDE.md](USER_GUIDE.md) for a full walkthrough of every tab, power tool, and setting.
 
 Your settings, themes, and achievements live in a `data/` folder next to the executable — delete
 it to reset the app to defaults, or copy it to another machine to carry your setup over.

@@ -1,0 +1,298 @@
+# Dataset Tag Studio — User Guide
+
+A practical walkthrough of everything in the app, organized by tab. If you just want a feature
+list, see [README.md](README.md#features) instead — this document is the "how do I actually do X"
+companion to that.
+
+---
+
+## Contents
+
+- [Opening a dataset](#opening-a-dataset)
+- [The Gallery tab](#the-gallery-tab)
+- [The 3-dot image menu](#the-3-dot-image-menu)
+- [Power tools (right sidebar)](#power-tools-right-sidebar)
+- [Tag Overseer tab](#tag-overseer-tab)
+- [Datasets tab](#datasets-tab)
+- [Editing Stats tab](#editing-stats-tab)
+- [SynthDat Overseer tab](#synthdat-overseer-tab)
+- [Settings](#settings)
+- [Themes, Shop & Achievements](#themes-shop--achievements)
+- [Favorites](#favorites)
+- [The Edit Log](#the-edit-log)
+- [Saving your work](#saving-your-work)
+- [Tips & troubleshooting](#tips--troubleshooting)
+
+---
+
+## Opening a dataset
+
+**File ▸ Open dataset folder** and pick the folder containing your images and their matching
+`.txt` caption files (same base filename — `image.png` + `image.txt`). Underscores in tags are
+shown as spaces in the app and converted back to underscores when saved, so you never need to
+think about the distinction while editing.
+
+The app also creates a few of its own files/folders inside your dataset folder as you use it —
+none of them touch your images or captions unless you tell them to:
+
+| Folder/file | What it's for |
+|---|---|
+| `Disabled/` | Images you've moved out of the active set (still editable, just hidden from the normal views) |
+| `Unsaved Approved/` | Staging area for images accepted from SynthDat Overseer, until your next Save |
+| `_tag_edit_log.json` | The full undo-able edit history for this dataset |
+| `_dts_canonical_tags.json` | Your Retroactive Merge/Void rules |
+| `_dts_meta.json` | Per-image notes, review flags, locks, and other metadata |
+
+---
+
+## The Gallery tab
+
+This is the tag editor itself — everything else in the app supports what happens here.
+
+**Views** (toolbar buttons):
+- **Grid** — the default. Each card shows the image, its tags as editable chips, a dirty/untagged
+  indicator, and a 3-dot menu. Toggle "Dynamic card heights" for a masonry layout.
+- **Compact** — dense thumbnails with tags on hover. Shift-click two images to pin them side by
+  side in an aligned comparison table.
+- **Single** — one image at a time, up to 400% zoom, drag-to-pan, arrow-key navigation. Select 2+
+  images in Tag Overseer first and switch here for a multi-image tag-alignment table.
+- **⏳ Unsaved Approved** — images accepted from SynthDat Overseer, not yet saved.
+- **🗑 Disabled** — images you've moved out of the active set.
+
+**Editing tags:** click a tag chip to open its context menu (select it for a merge, filter by
+it, open its wiki definition, flag it for review). Type into a card's "+ add tag" field and press
+Enter to add a new one. Click the × on a chip to remove it.
+
+**Filtering:** the sidebar filter box supports multi-tag search combined with AND / OR / XOR /
+NOT, plus quick filters for All / Untagged / Unsaved. "Flag isolated tags" highlights tags that
+appear on 2 or fewer images — a fast way to spot typos.
+
+**Locking an image** (🔒 in the 3-dot menu) excludes it from every mass/automatic tool (Quick
+Merge, Unify/Void, Master Tags, bulk WD14) while leaving it fully editable by hand — use it to
+protect an image you don't want an unattended batch operation to touch.
+
+---
+
+## The 3-dot image menu
+
+Every image card has a "⋯" button (or right-click the card) opening a menu of per-image actions.
+Each item's label is short on purpose — hover any of them for the full explanation.
+
+- **🗑 Disable / ↩ Restore** — move the image to/from `Disabled/`.
+- **🔒 Lock / 🔓 Unlock** — see above.
+- **🚫 Merge Immunize**, **🟢 Antivoid**, **✋ Antimmunize** — permanently exempt this one image
+  from the Retroactive Merge/Void dock's rules (see below) — merge rules, void rules, or both.
+  This is a stronger, always-on version of Lock: Lock only skips mass *tools*, these specifically
+  block the standing rule system even when you deliberately re-trigger it.
+- **⏮ Reset edits** — revert this image to its earliest known tag state.
+- **🐍 WD14 Tag** — run the WD14 Autotagger on just this one image (settings live in Tag
+  Overseer — see below).
+- **Text/language, comic/koma, review flags, blur, notes** — additional per-image metadata, all
+  written immediately as you toggle them (no separate "Apply" step).
+
+---
+
+## Power tools (right sidebar)
+
+Docked panels in the Gallery's right sidebar. Drag a dock's header to reorder it, click to
+collapse/expand, drag its bottom edge to resize. Settings has a "Reset panel layout" button if
+things ever get into a bad state.
+
+### Tag Pruner
+Search/browse every tag in the dataset, hand-pick any combination, then feed them into Unify/Void
+below.
+
+### Unify/Void
+- **Unify** merges every selected tag into one name you type in.
+- **Void** permanently deletes every selected tag (confirmed, fully undoable).
+- An "Also apply to Disabled images right now" checkbox covers already-disabled images in this
+  one action — see the next section for what happens to Disabled images otherwise.
+
+Every Unify/Void action automatically creates or extends a standing rule in the dock below, so the
+same correction keeps applying going forward without you having to repeat it.
+
+### Retroactive Merge/Void
+Standing rules of the shape **"these tags → this one canonical tag"** (a merge), or **"these tags
+→ nothing"** (a void — deletes outright, no replacement). Whenever any of a rule's tags show up on
+a Gallery image afterward — by WD14, Master Tags, Quick Merge, an accepted SynthDat image, or
+anything else — they're automatically corrected. If you try to type one of those tags in by hand,
+the app blocks it instead of silently rewriting it, with a toast pointing you back here.
+
+**This only affects Gallery images.** Disabled and Unsaved Approved images are frozen exactly as
+they are — they only get corrected once they're back in the Gallery.
+
+**Full control, so you're never stuck with a rule doing something you don't want:**
+- **Pause a whole rule** (the "Enabled" checkbox) without deleting it — this actively un-merges or
+  un-voids every image the rule had affected, using the edit log to restore exactly what each one
+  originally had (not just "stop correcting from now on"). Re-enabling resweeps everything forward
+  again.
+- **Toggle one child tag off** the same way, without forgetting it was ever part of the rule —
+  e.g. you merged "black dress"/"frilly dress"/"dress" into "black frilly dress" but decide "dress"
+  alone shouldn't auto-merge anymore, since not every dress is black.
+- **Per-image Merge Immunize/Antivoid/Antimmunize** (see the 3-dot menu section above) — the
+  strongest override, ignoring the dock's settings entirely for one specific image.
+- **+ New rule** adds one by hand instead of waiting for a Unify/Void action to create it.
+
+Every rule change, and every resulting correction, shows up as its own entry in the Edit Log with
+Undo/Redo — voiding a tag, un-voiding it, then voiding it again shows as three separate,
+correctly-ordered log rows.
+
+### Quick Merge
+Suggests likely duplicate/near-duplicate tags across your dataset for quick one-click merging.
+"Keyword families" groups tags by shared prefix (e.g. every "blue ___" tag together) for review
+without auto-merging anything.
+
+---
+
+## Tag Overseer tab
+
+Two things live here: **Master Tag Control** and the **WD14 Autotagger**.
+
+### Master Tag Control
+1. Select images — click thumbnails in the mini-grid here, or select in the main Gallery first
+   (selection stays in sync both ways).
+2. Apply or remove a tag across the whole selection, conditionally apply one tag based on another
+   being present, or run a dataset-wide rename / find-and-replace.
+3. Mass **Lock/Unlock**, **Merge Immunize/Antivoid/Antimmunize** buttons apply the same per-image
+   flags described above to your entire selection at once.
+
+### 🐍 WD14 Autotagger
+Sends selected images (or one image via its 3-dot menu) to a WD14 Tagger node on your own
+ComfyUI instance and merges the returned tags onto each card. Expand "⚙ WD14 settings" here to set
+the ComfyUI host, model (scraped live from your ComfyUI instance), confidence thresholds, and
+whether results apply automatically or go through a review step first. The app holds no model
+itself — your ComfyUI instance does the actual tagging.
+
+---
+
+## Datasets tab
+
+A folder manager separate from the Gallery — shows every dataset folder you've ever opened as a
+themed folder icon. Sort manually (drag) or by name/time. Right-click a folder for options:
+remove from this list, pin as a favorite, view its achievements read-only, or change its icon.
+Opening an untracked folder prompts once to add it here.
+
+---
+
+## Editing Stats tab
+
+Animated charts (pie or bar) of every logged action by type, plus summary cards — total edits,
+undo/redo stack depth, achievements unlocked.
+
+---
+
+## SynthDat Overseer tab
+
+Drives your own local ComfyUI instance to generate **more** training images of a character you've
+already started a LoRA on — the real use case: your dataset is thin, so you strong-arm that LoRA
+into new reference poses via ControlNet instead of hand-posing/hand-drawing more source material.
+
+**Requires ComfyUI with a few extra things installed** — see `ComfyUI-dependencies/README.md` in
+this repo for exactly what and why (some of it is bundled there directly).
+
+**The flow:**
+1. **Pick a reference pose image** (or skip this entirely via "I don't want to use a reference
+   image" for an ordinary prompted generation with no ControlNet).
+2. Click to **WD14-interrogate** it — this pulls tags from the reference image so you can
+   hand-assign the ones that matter (pose, limbs, etc.) to their prompt fields below.
+3. Fill in the rest of the prompt fields — Global, Character, Rating, Hair/Face/Chest/Body,
+   Clothes/Limbs/Sexual, Extra/Effects/Scene, Negative.
+4. Set your generation parameters (sampler, seeds, steps, CFG — all live in the Generation section
+   now, alongside Generate/Stop) and click **▶ Generate**.
+   - **1-Pass** is the default (fast). Check "Enable 2nd pass" for an optional refinement pass —
+     when it's on, BOTH results come back and you pick which to keep before deciding.
+   - Watch the live preview while it runs; **⏹ Stop** interrupts a running generation.
+5. **Review the result.** A "🐍 Re-interrogate output with WD14" button lets you check what the
+   model actually drew (it sometimes adds details nobody prompted for). Prune any tags you don't
+   want from the final tag card — it'll also suggest merges based on your Retroactive Merge/Void
+   rules.
+6. **✅ Accept** stages the image + tags into `Unsaved Approved/` (tags are written to disk right
+   away, so a crash before your next Save doesn't lose them) — it gets promoted into the dataset
+   root the next time you Save. **❌ Reject** sends it straight to `Disabled/` instead. Either way,
+   nothing generated is ever silently thrown away — even the pass you didn't pick, if you ran
+   2-Pass, gets saved to `Disabled/` rather than discarded.
+
+Every preview image in this tab (reference, resized preview, live progress, pass thumbnails,
+final output) opens in a zoomable/pannable lightbox on click — scroll to zoom, drag to pan once
+zoomed in.
+
+---
+
+## Settings
+
+Click the ⚙ button to open Settings. Sections (click each to expand):
+
+- **Appearance** — theme picker, night/day mode, custom font.
+- **Power Tools** — options for the right-sidebar docks.
+- **Tagging** — tag-input behavior (e.g. whether typing a new language auto-selects it).
+- **Saving** — **Autosave** toggle (off by default): when on, edits save to disk automatically
+  ~1.2 seconds after you stop typing, instead of only on a manual Save click. Safe to enable —
+  every edit is already in the Edit Log with its own undo regardless of whether the file's been
+  physically written yet.
+- **Performance** — **Hardware acceleration** toggle: on by default, steering this app's own UI
+  rendering onto your integrated GPU instead of competing with ComfyUI's real workload on your
+  discrete one. Turn it off for pure CPU rendering, or if you'd rather this app use your discrete
+  GPU for max smoothness. Takes effect on your next launch.
+- **Layout & Panels** — **UI animation mode**: Fade (default), Swipe (directional slide), or Off.
+  Also has "Reset panel layout" if a dock's drag-reorder/collapse state ever gets into a bad
+  state.
+- **Updates** — this app has no auto-updater; see [README.md](README.md#updating) for how to
+  update manually.
+
+---
+
+## Themes, Shop & Achievements
+
+25 themes total — 4 free, 21 in the **💰 Shop** (common → legendary, 40–750 Edibits, a small
+in-app currency earned from achievements). Every theme has its own accent color and at least one
+real visual flourish, not just a palette swap. Epic/legendary themes get an extra hover-fill
+button effect; any cheaper theme can buy that same effect individually via the Shop's
+**🔨 Refine Theme** button for the price difference.
+
+**🏆 Achievements** (45+, unlocked per-dataset-folder — a fresh dataset starts with none unlocked)
+pay out Edibits. **🌙 Night mode** is a genuine per-theme color inversion, not a screen filter.
+
+---
+
+## Favorites
+
+**★ Favorites** saves frequently-used dataset folders for one-click reopening — separate from the
+Datasets tab's own folder list, though pinning a folder there syncs it into Favorites too.
+
+---
+
+## The Edit Log
+
+Click **📜 Log** to see every logged action for the current dataset, most recent first. Actions
+with real tag data (add/remove, merge/void, rename, find-replace, and the Retroactive Merge/Void
+dock's own unmerge/unvoid corrections) get their own **↩ Undo this / ↪ Redo this** buttons,
+independent of the main toolbar's linear Undo/Redo stack. Disable/Restore actions get a toggle
+button instead. Rule-configuration changes (pausing a rule, toggling a child tag, etc.) show up
+too, just without an Undo button of their own, since there's no tag-level change to reverse for a
+pure setting flip.
+
+**Export log…** saves the full log as JSON. **Clear log** permanently deletes it for this dataset
+(confirmed first).
+
+---
+
+## Saving your work
+
+The toolbar's dirty counter shows how many images (and, separately, whether the Retroactive
+Merge/Void dock has unsaved rule changes) are waiting to be written to disk — click **Save** to
+write them all. Closing the app, switching datasets, or reloading with unsaved changes always
+prompts you first; nothing is silently discarded.
+
+---
+
+## Tips & troubleshooting
+
+- **Drag a card onto the Disabled tab** to disable it quickly (hover a card to see this hint).
+- **Underscore normalization is one-way** — a tag that ends up with an underscore while editing
+  in-app is treated as containing a literal space, by design.
+- **Night mode doesn't apply to the Custom theme**, since that's already fully under your control.
+- **If a dock's layout looks broken** (stuck collapsed, wrong order), use Settings ▸ Layout &
+  Panels ▸ "Reset panel layout."
+- **If Tag Details says "no definition found" for everything**, the bundled Danbooru wiki data
+  files are missing from your install — redownload the release zip.
+- **The window hides Electron's default menu bar** — tap `Alt` to reveal it temporarily.
