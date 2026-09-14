@@ -1,0 +1,5 @@
+# Only what the nodes actually bundled here need beyond what ComfyUI/PyTorch already bring in.
+# was_text_nodes/ vendors the FULL upstream WAS Node Suite file (see its own README.md for why),
+# whose own requirements.txt lists ~20 heavier packages (opencv, transformers, rembg, ...) — none
+# of those are needed for the five text-utility nodes this pack actually registers from it.
+onnxruntime
