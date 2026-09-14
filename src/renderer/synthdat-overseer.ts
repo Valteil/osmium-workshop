@@ -357,7 +357,7 @@ async function pickReferenceImage(){
   btnSynthDatMigratePose.disabled = true;
 }
 
-// A client-side stand-in for the workflow's own "Image Resize (rgthree)"
+// A client-side stand-in for the workflow's own "DSM Image Resize"
 // node (238) — its output now IS what ControlNet (240) actually conditions
 // on (see buildPromptFromFields()), so this preview genuinely shows what
 // CNET sees, not just an approximation for its own sake. Reproduces that
@@ -627,7 +627,7 @@ function fillDatalist(datalistEl, values){
 }
 
 // ---------------- Dynamic LoRA stack rows ----------------
-// The template's own "Lora Loader Stack (rgthree)" node (id 237) only has 4
+// The template's own "DSM Lora Loader Stack" node (id 237) only has 4
 // slots. "+ Add LoRA" doesn't try to give that fixed node a 5th input —
 // instead, past 4 rows, buildPromptFromFields() chains additional cloned
 // stack nodes (each one's model input wired to the previous stack's output)
@@ -670,8 +670,8 @@ async function refreshModelLists(){
     fetchComboValues('UNETLoader', 'unet_name'),
     fetchComboValues('CLIPLoader', 'clip_name'),
     fetchComboValues('VAELoader', 'vae_name'),
-    fetchComboValues('easy loraNames', 'lora_name'),
-    fetchComboValues('Lora Loader Stack (rgthree)', 'lora_01')
+    fetchComboValues('DSM Lora Name', 'lora_name'),
+    fetchComboValues('DSM Lora Loader Stack', 'lora_01')
   ]);
   if (unetValues) fillDatalist(synthDatUnetDatalist, unetValues);
   if (clipValues) fillDatalist(synthDatClipDatalist, clipValues);
@@ -868,7 +868,7 @@ function buildPromptFromFields(){
     const newId = `237_extra_${c}`;
     const newInputs = { model: [lastStackId, 0], clip: ['47:45', 0] };
     fillStackInputs(newInputs, chunks[c]);
-    prompt[newId] = { class_type: 'Lora Loader Stack (rgthree)', inputs: newInputs, _meta: { title: 'Lora Loader Stack (rgthree)' } };
+    prompt[newId] = { class_type: 'DSM Lora Loader Stack', inputs: newInputs, _meta: { title: 'DSM Lora Loader Stack' } };
     lastStackId = newId;
   }
   if (lastStackId !== '237'){
@@ -880,7 +880,7 @@ function buildPromptFromFields(){
   if (synthDatSkipRefImage.checked){
     // No reference image: literally remove the ControlNet path (LoadImage +
     // AnimaLLLiteApply + the switch) from the graph rather than just
-    // flipping ImpactSwitch's `select` to the base-model branch — ComfyUI's
+    // flipping DSM Switch (Any)'s `select` to the base-model branch — ComfyUI's
     // executor resolves what to run from the prompt graph's edges, not from
     // a switch node's runtime value, so a connected-but-unselected branch
     // still executes (LoadImage still loads, AnimaLLLiteApply still runs

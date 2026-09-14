@@ -20,7 +20,7 @@
         0
       ]
     },
-    "class_type": "Text Concatenate",
+    "class_type": "DSM Text Concatenate",
     "_meta": {
       "title": "Final"
     }
@@ -42,7 +42,7 @@
         0
       ]
     },
-    "class_type": "Text Concatenate",
+    "class_type": "DSM Text Concatenate",
     "_meta": {
       "title": "Merger 4"
     }
@@ -68,7 +68,7 @@
         0
       ]
     },
-    "class_type": "Text Concatenate",
+    "class_type": "DSM Text Concatenate",
     "_meta": {
       "title": "Merger 3"
     }
@@ -94,7 +94,7 @@
         0
       ]
     },
-    "class_type": "Text Concatenate",
+    "class_type": "DSM Text Concatenate",
     "_meta": {
       "title": "Merger 2"
     }
@@ -120,7 +120,7 @@
         0
       ]
     },
-    "class_type": "Text Concatenate",
+    "class_type": "DSM Text Concatenate",
     "_meta": {
       "title": "Merger 1"
     }
@@ -303,7 +303,7 @@
       "sub_text": "explicit",
       "case_insensitive": true
     },
-    "class_type": "Text Contains",
+    "class_type": "DSM Text Contains",
     "_meta": {
       "title": "Rating Checker Param"
     }
@@ -324,7 +324,7 @@
         0
       ]
     },
-    "class_type": "ImpactSwitch",
+    "class_type": "DSM Switch (Any)",
     "_meta": {
       "title": "Prompt Sourcer"
     }
@@ -344,9 +344,9 @@
         0
       ]
     },
-    "class_type": "Text Input Switch",
+    "class_type": "DSM Text Input Switch",
     "_meta": {
-      "title": "Text Input Switch"
+      "title": "DSM Text Input Switch"
     }
   },
   "36": {
@@ -356,7 +356,7 @@
       "text_c": "",
       "text_d": ""
     },
-    "class_type": "Text String",
+    "class_type": "DSM Text String",
     "_meta": {
       "title": "Rating Checker"
     }
@@ -378,7 +378,7 @@
         2
       ]
     },
-    "class_type": "Text Concatenate",
+    "class_type": "DSM Text Concatenate",
     "_meta": {
       "title": "File Namer"
     }
@@ -400,7 +400,7 @@
         0
       ]
     },
-    "class_type": "Lora Loader",
+    "class_type": "DSM Lora Loader",
     "_meta": {
       "title": "Main LORA"
     }
@@ -428,7 +428,7 @@
     "inputs": {
       "lora_name": "Anima\\ANIMA - Daioo - @daioo.safetensors"
     },
-    "class_type": "easy loraNames",
+    "class_type": "DSM Lora Name",
     "_meta": {
       "title": "MAIN LORA"
     }
@@ -499,7 +499,7 @@
         0
       ]
     },
-    "class_type": "ImpactSwitch",
+    "class_type": "DSM Switch (Any)",
     "_meta": {
       "title": "1 = EA , 2 = ESDE"
     }
@@ -642,7 +642,7 @@
       "escape_parentheses": false,
       "fallback": ""
     },
-    "class_type": "DanbooruCharacterDetect",
+    "class_type": "DSM Danbooru Character Detect",
     "_meta": {
       "title": "Danbooru Character Detect"
     }
@@ -676,7 +676,7 @@
         2
       ]
     },
-    "class_type": "Text Concatenate",
+    "class_type": "DSM Text Concatenate",
     "_meta": {
       "title": "File Namer 4 Upscaler"
     }
@@ -721,9 +721,9 @@
         0
       ]
     },
-    "class_type": "Lora Loader Stack (rgthree)",
+    "class_type": "DSM Lora Loader Stack",
     "_meta": {
-      "title": "Lora Loader Stack (rgthree)"
+      "title": "DSM Lora Loader Stack"
     }
   },
   "238": {
@@ -744,9 +744,9 @@
         0
       ]
     },
-    "class_type": "Image Resize (rgthree)",
+    "class_type": "DSM Image Resize",
     "_meta": {
-      "title": "Image Resize (rgthree)"
+      "title": "DSM Image Resize"
     }
   },
   "239": {
@@ -774,7 +774,7 @@
         0
       ]
     },
-    "class_type": "AnimaLLLiteApply_sdscripts",
+    "class_type": "DSM Anima LLLite Apply",
     "_meta": {
       "title": "Apply Anima ControlNet-LLLite (sd-scripts)"
     }
@@ -792,7 +792,7 @@
         0
       ]
     },
-    "class_type": "ImpactSwitch",
+    "class_type": "DSM Switch (Any)",
     "_meta": {
       "title": "1 = Base 2 = CNET"
     }

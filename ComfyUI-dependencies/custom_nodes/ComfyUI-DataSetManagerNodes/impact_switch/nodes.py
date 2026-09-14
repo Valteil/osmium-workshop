@@ -118,9 +118,11 @@ class GeneralSwitch:
         return None, "", selected_index
 
 
+# Registered as "DSM Switch (Any)" — not upstream's own "ImpactSwitch" key — so this can never
+# collide with (or be shadowed by) a real ComfyUI-Impact-Pack install.
 NODE_CLASS_MAPPINGS = {
-    "ImpactSwitch": GeneralSwitch,
+    "DSM Switch (Any)": GeneralSwitch,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "ImpactSwitch": "Switch (Any)",
+    "DSM Switch (Any)": "DSM Switch (Any)",
 }

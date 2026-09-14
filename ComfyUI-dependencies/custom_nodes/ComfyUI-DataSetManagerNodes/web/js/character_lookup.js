@@ -34,7 +34,9 @@ async function copyToClipboard(text) {
 app.registerExtension({
     name: "ClearableTextInput.DanbooruCharacterLookup",
     beforeRegisterNodeDef(nodeType, nodeData) {
-        if (nodeData.name !== "DanbooruCharacterLookup") return;
+        // Registered as "DSM Danbooru Character Lookup" — see
+        // danbooru_character_detect/__init__.py for the rename.
+        if (nodeData.name !== "DSM Danbooru Character Lookup") return;
 
         const onNodeCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {

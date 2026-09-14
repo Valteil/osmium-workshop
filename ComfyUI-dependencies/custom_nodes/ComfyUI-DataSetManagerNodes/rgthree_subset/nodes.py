@@ -1,26 +1,30 @@
 # Extracted from https://github.com/rgthree/rgthree-comfy (MIT, LICENSE in this folder) —
 # rgthree-comfy is a large general-purpose node pack; this file keeps only the two node classes
-# SynthDat Overseer's workflow actually uses ("Image Resize (rgthree)" and
-# "Lora Loader Stack (rgthree)"), trimmed of the rest of the pack (~50 other nodes, a JS frontend
-# extension, a settings service, etc.) that nothing here calls. Logic is unmodified from upstream
+# SynthDat Overseer's workflow actually uses (upstream "Image Resize (rgthree)" and "Lora Loader
+# Stack (rgthree)", registered here as "DSM Image Resize"/"DSM Lora Loader Stack" instead — see
+# _dsm_name() below), trimmed of the rest of the pack (~50 other nodes, a JS frontend extension, a
+# settings service, etc.) that nothing here calls. Logic is unmodified from upstream
 # (py/image_resize.py, py/lora_stack.py as of the version vendored) — only the `from .constants
-# import get_name, get_category` indirection was inlined below, since that module exists solely to
-# generate the "(rgthree)" suffix on node display names, which is reproduced verbatim.
+# import get_name, get_category` indirection was inlined below and repurposed to generate a "DSM "
+# prefix instead of rgthree-comfy's own "(rgthree)" suffix, so this can never collide with (or be
+# shadowed by) rgthree-comfy itself if a user also has that installed.
 import torch
 import comfy.utils
 import folder_paths
 import nodes
 
 
-def _rgthree_name(name):
-    return "{} (rgthree)".format(name)
+def _dsm_name(name):
+    # "DSM " prefix (not rgthree-comfy's own "(rgthree)" suffix) so this registers under a name
+    # that can never collide with rgthree-comfy itself, or any other pack, if also installed.
+    return "DSM {}".format(name)
 
 
 class RgthreeImageResize:
-    """Image Resize (rgthree) — resize with crop/pad/contain fit modes."""
+    """DSM Image Resize — resize with crop/pad/contain fit modes."""
 
-    NAME = _rgthree_name("Image Resize")
-    CATEGORY = "rgthree"
+    NAME = _dsm_name("Image Resize")
+    CATEGORY = "DataSetManagerNodes"
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -128,10 +132,10 @@ class RgthreeImageResize:
 
 
 class RgthreeLoraLoaderStack:
-    """Lora Loader Stack (rgthree) — up to 4 LoRAs applied in sequence."""
+    """DSM Lora Loader Stack — up to 4 LoRAs applied in sequence."""
 
-    NAME = _rgthree_name("Lora Loader Stack")
-    CATEGORY = "rgthree"
+    NAME = _dsm_name("Lora Loader Stack")
+    CATEGORY = "DataSetManagerNodes"
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -177,6 +181,6 @@ NODE_CLASS_MAPPINGS = {
     RgthreeLoraLoaderStack.NAME: RgthreeLoraLoaderStack,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    RgthreeImageResize.NAME: "Image Resize (rgthree)",
-    RgthreeLoraLoaderStack.NAME: "Lora Loader Stack (rgthree)",
+    RgthreeImageResize.NAME: RgthreeImageResize.NAME,
+    RgthreeLoraLoaderStack.NAME: RgthreeLoraLoaderStack.NAME,
 }

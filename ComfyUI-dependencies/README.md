@@ -1,18 +1,22 @@
 # ComfyUI dependencies for SynthDat Overseer
 
 SynthDat Overseer (the Dataset Tag Studio tab that drives ComfyUI to generate synthetic dataset
-images) needs a few things installed on your ComfyUI instance that don't ship with ComfyUI core —
-same for the WD14 Autotagger node the Tag Overseer tab uses. None of this is required for the rest
-of Dataset Tag Studio.
+images) needs a few things installed on your ComfyUI instance that don't ship with ComfyUI core.
+None of this is required for the rest of Dataset Tag Studio.
 
-## Install: one folder
+## Install
 
-**`custom_nodes/ComfyUI-DataSetManagerNodes/`** bundles every node this app needs — nine node
-types extracted from six different third-party packs, plus a bespoke node built for this project,
-plus the Anima ControlNet-LLLite weights file itself — into one self-contained pack, instead of
-needing to track down and install 4+ separate node packs by hand. Copy that whole folder into your
-ComfyUI's `custom_nodes/` directory, `pip install -r` its `requirements.txt` (just `onnxruntime`),
-and restart ComfyUI. That's the entire install.
+**`custom_nodes/ComfyUI-DataSetManagerNodes/`** bundles most of what this app needs — six node
+types extracted from five different third-party packs, plus a bespoke node built for this project,
+plus the Anima ControlNet-LLLite weights file itself — into one self-contained pack, registered
+under unique "DSM "-prefixed names so it can never collide with (or be shadowed by) any other
+ComfyUI pack you already have, including the ones these nodes were extracted from. Copy that whole
+folder into your ComfyUI's `custom_nodes/` directory and restart ComfyUI.
+
+**Separately, install
+[pythongosssss/ComfyUI-WD14-Tagger](https://github.com/pythongosssss/ComfyUI-WD14-Tagger)** for
+Tag Overseer's WD14 Autotagger tab — deliberately not bundled, so you get its actual releases/model
+downloads rather than a vendored snapshot.
 
 See **`custom_nodes/ComfyUI-DataSetManagerNodes/README.md`** for the full per-node credit table
 (which node came from which upstream repo, and under what license), and each node's own subfolder

@@ -1,10 +1,10 @@
 # ComfyUI Danbooru Character Detect (trimmed)
 
-Bundled here in full, unlike the linked-not-bundled packs in the parent `ComfyUI-dependencies/`
-folder — this one has no public repo to link to. It's a bespoke node built for this project's own
-ComfyUI setup, used by SynthDat Overseer's workflow (node `Danbooru Character Detect`) to sort
-generated images into a per-character output folder by scanning the prompt text for a known
-Danbooru character tag.
+Bundled here in full — this one has no public repo to link to. It's a bespoke node built for this
+project's own ComfyUI setup, used by SynthDat Overseer's workflow (registered here as
+`DSM Danbooru Character Detect`, upstream class `DanbooruCharacterDetect` — see this pack's own
+`__init__.py` for the rename) to sort generated images into a per-character output folder by
+scanning the prompt text for a known Danbooru character tag.
 
 ## What's included vs. the original
 

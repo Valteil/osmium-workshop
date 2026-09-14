@@ -54,15 +54,16 @@ ComfyUI/PyTorch itself), this modded copy should load cleanly even with nothing 
 
 ## Nodes SynthDat's workflow actually uses from this pack
 
-`Text Concatenate`, `Text Contains`, `Text Input Switch`, `Text String`, and `Lora Loader` (the
-one with a `name_string` 3rd output core ComfyUI's own `LoraLoader` lacks) — all five only build
-the generated image's OUTPUT FILENAME, not the image itself. See the node-id map in this
-project's `CLAUDE.md`.
+Upstream `Text Concatenate`, `Text Contains`, `Text Input Switch`, `Text String`, and `Lora Loader`
+(the one with a `name_string` 3rd output core ComfyUI's own `LoraLoader` lacks) — all five only
+build the generated image's OUTPUT FILENAME, not the image itself. `__init__.py` in this folder
+only re-exports these 5 of WAS's ~229 classes, under "DSM "-prefixed names (`DSM Text Concatenate`,
+etc.) so they can't collide with a real WAS Node Suite install — the other ~224 classes still get
+defined by importing the file, they're just never registered under any name.
 
 ## Install
 
-Copy this whole folder into `ComfyUI/custom_nodes/` (rename it to whatever you like, e.g. back to
-`was-node-suite-comfyui` — the folder name doesn't matter, `__init__.py` is what ComfyUI reads),
-then restart ComfyUI. If you already have stock/upstream WAS Node Suite installed, remove or
-disable it first — running two copies of the same node classes side by side will make ComfyUI
-pick one arbitrarily and can cause confusing "duplicate node" warnings.
+Not meant to be installed on its own — this folder is a subpackage of the parent
+`ComfyUI-DataSetManagerNodes` pack (see that pack's own README.md for install instructions). Since
+the 5 nodes registered from here use "DSM "-prefixed names (not WAS's own), it's fine to also have
+stock/upstream WAS Node Suite installed at the same time — no name collision either way.

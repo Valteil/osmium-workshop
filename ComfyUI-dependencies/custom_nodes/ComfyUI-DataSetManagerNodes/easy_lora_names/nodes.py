@@ -1,8 +1,9 @@
 # Extracted from https://github.com/yolain/ComfyUI-Easy-Use (GPLv3, LICENSE in this folder) —
 # Easy-Use is a large general-purpose node pack (100+ nodes); this file keeps only the
-# "easy loraNames" node (upstream class `setLoraName`, py/nodes/util.py) that SynthDat Overseer's
-# workflow uses to read back a chosen LoRA's filename for the output filename chain. Logic is
-# unmodified from upstream; the one helper it relied on from a sibling module
+# "easy loraNames" node (upstream class `setLoraName`, py/nodes/util.py, registered here as
+# "DSM Lora Name" instead — so this can never collide with a real Easy-Use install) that SynthDat
+# Overseer's workflow uses to read back a chosen LoRA's filename for the output filename chain.
+# Logic is unmodified from upstream; the one helper it relied on from a sibling module
 # (libs.utils.AlwaysEqualProxy) is inlined below instead of importing Easy-Use's own module tree,
 # which this trimmed copy doesn't include.
 #
@@ -22,7 +23,7 @@ class _AlwaysEqualProxy(str):
 
 
 class EasySetLoraName:
-    NAME = "easy loraNames"
+    NAME = "DSM Lora Name"
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -43,5 +44,5 @@ NODE_CLASS_MAPPINGS = {
     EasySetLoraName.NAME: EasySetLoraName,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    EasySetLoraName.NAME: "Lora Names",
+    EasySetLoraName.NAME: EasySetLoraName.NAME,
 }
