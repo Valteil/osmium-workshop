@@ -424,22 +424,6 @@
       "title": "Load Diffusion Model"
     }
   },
-  "49": {
-    "inputs": {
-      "anything": [
-        "47:45",
-        0
-      ],
-      "anything11": [
-        "47:46",
-        0
-      ]
-    },
-    "class_type": "Anything Everywhere",
-    "_meta": {
-      "title": "GLOBAL INPUT"
-    }
-  },
   "51": {
     "inputs": {
       "lora_name": "Anima\\ANIMA - Daioo - @daioo.safetensors"
@@ -673,18 +657,6 @@
     "class_type": "PreviewAny",
     "_meta": {
       "title": "This will be the path of the output"
-    }
-  },
-  "212": {
-    "inputs": {
-      "category": "all",
-      "search": "",
-      "tag": "1girl",
-      "definition": "An image containing one female character.\n\nOnly living characters who are visibly present count towards this tag. Inanimate objects, such as dolls, figures, paintings, s, etc, or offscreen characters who aren't visibly present, don't count towards this tag.\n\nMale characters may also be present in addition to the female character. See solo for images containing a single character.\n\nExamples\n\n!post #8659492: 1girl solo\n!post #5501779: 1girl with 1boy\n\nSee also\n\ntag group:character count\n1boy\n1other\n2girls\n3girls\n4girls\n5girls\n6+girls\nmultiple girls\nmultiple views\nsolo / solo focus"
-    },
-    "class_type": "DanbooruTagLookup",
-    "_meta": {
-      "title": "Danbooru Tag Lookup"
     }
   },
   "222": {
