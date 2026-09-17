@@ -28,6 +28,13 @@ html.motion-off{ --pop-dur: 0ms; --panel-dur: 0ms; --tab-dur: 0ms; }
 #datasetManagerTab, #statsTab, #normalRightTools, #masterTagPanel{
   transition: opacity var(--tab-dur) var(--pop-ease), transform var(--tab-dur) var(--pop-ease);
 }
+/* Which of #normalRightTools/#masterTagPanel is showing is a class now
+   (switchTab(), index.ts), not an inline style — see index.ts's own
+   comment on that. Base resting display matches what was previously set
+   inline; `.rt-hidden` always wins regardless of any other display rule
+   elsewhere (including the mobile breakpoint's `display:flex`). */
+#normalRightTools, #masterTagPanel{ display: block; }
+.rt-hidden{ display: none !important; }
 #datasetManagerTab.tab-fading, #statsTab.tab-fading, #normalRightTools.tab-fading, #masterTagPanel.tab-fading{
   opacity: 0;
 }
@@ -937,6 +944,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .dm-icon-picker-cell:hover{ border-color: var(--accent-flair); }
   .dm-icon-picker-cell img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+  .dm-icon-picker-noimage{
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    font-size: 10px; line-height: 1.2; padding: 4px; background: var(--bg-elevated); color: var(--text-muted);
+  }
+  .dm-icon-picker-scanning{ grid-column: 1 / -1; padding: 8px 0; color: var(--text-muted); }
 
   /* ---------- Editing Stats tab ---------- */
 
@@ -965,16 +977,54 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   /* ---------- SynthDat Overseer tab ---------- */
 
-  #synthDatTab{ padding: 24px; overflow-y: scroll; height: 100%; }
-  /* Generation (top, full-width) above a two-column row (left: connection/
-     reference/model/controlnet/resize/sampler settings; right: prompt
-     fields) — Generation gets the full tab width to itself since it's what
-     you look at/act on for every single generation, while the settings you
-     set up once per session and the prompt fields you edit occasionally sit
-     side by side below it. */
+  /* position:relative + a (harmless, no-op) transform makes #synthDatTab
+     itself the containing block for any position:fixed descendant (a
+     transformed/relatively-positioned ancestor intercepts fixed positioning
+     per spec) instead of the viewport — so the prompt-panel overlay and its
+     edge tab below can anchor with plain top:0/right:0 rather than a guessed
+     pixel offset for the app's own topbar+tab-bar height, AND stay pinned to
+     #synthDatTab's own (unmoving) box rather than scrolling away with its
+     `overflow-y:scroll` content, without needing position:sticky (which
+     can't do "flush against an edge regardless of that edge's own scroll"
+     the way this containing-block trick does). */
+  #synthDatTab{ padding: 24px; overflow-y: scroll; height: 100%; position: relative; transform: translateZ(0); }
+  /* Generation (top, full-width, its own internal 2-col settings/preview
+     split — see below) above a single column of the setup docks (ComfyUI
+     connection/Reference image/Model & LoRA/ControlNet/Reference resize),
+     since Generation is what you look at/act on for every single
+     generation while the setup docks are configure-once-and-forget. Prompt
+     fields lives outside this flow entirely now — a fixed-position overlay
+     (#synthDatPromptFieldsDock below) toggled via its own edge tab, so it
+     doesn't cost either section any width and stays reachable regardless of
+     scroll position. */
   .synthdat-body{ display: flex; flex-direction: column; gap: 24px; }
   .synthdat-cols{ display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
   .synthdat-col{ flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Prompt fields' own edge tab — permanently docked to the right edge,
+     independent of #synthDatTab's own scroll position (fixed, not
+     absolute/sticky), so it's reachable no matter how far down the setup
+     docks column you've scrolled. Only ever visible while the SynthDat tab
+     itself is showing (#synthDatTab's own display:none, inherited, handles
+     that — no extra guard needed here). */
+  #btnSynthDatPromptPanelToggle{
+    position: fixed; top: 60px; right: 0; z-index: 40;
+    padding: 10px 12px; border-radius: var(--radius) 0 0 var(--radius);
+    border-right: none;
+  }
+  /* Overlaps directly over whatever's currently in view underneath —
+     deliberately NOT part of the flex column flow (no reserved width,
+     nothing reflows when it opens/closes), per direct feedback: the app's
+     shared #right sidebar resizes the interface around itself, which reads
+     as heavier than warranted for a panel you dip into for a few seconds at
+     a time. Slides in from the right edge; closing is either its own header
+     arrow or the edge tab underneath it (both call the same close path). */
+  #synthDatPromptFieldsDock{
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 41;
+    width: min(420px, 92vw); overflow-y: auto;
+    background: var(--bg-panel); border-left: 1px solid var(--border-strong);
+    box-shadow: -12px 0 32px rgba(0,0,0,0.35); padding: 16px;
+  }
   /* Generation's own two columns are deliberately NOT an even split — the
      result/preview is the actual point of interest here (what you're
      generating and deciding accept/reject on), the settings column is
@@ -1027,6 +1077,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .synthdat-lora-row{ display: flex; gap: 8px; align-items: center; }
   .synthdat-lora-row label{ display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+  #btnSynthDatSwapReso{ flex-shrink: 0; padding: 6px 9px; font-size: 13px; }
   .synthdat-warning{ font-size: 11px; color: var(--accent-danger); margin-top: 4px; }
   .synthdat-pass-choice{
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -1380,6 +1431,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     padding: 5px 8px; display: flex; align-items: center; gap: 3px;
     width: fit-content;
   }
+  .modal-status-row{
+    display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0;
+  }
+  .modal-status-badge{
+    font-size: 11px; color: var(--text-secondary); background: var(--bg-elevated);
+    border: 1px solid var(--border-soft); border-radius: 11px; padding: 3px 8px;
+  }
   .card-note-visible{
     font-size: 10.5px; color: var(--text-muted); background: var(--bg-base); border-radius: 4px;
     padding: 5px 7px; line-height: 1.4; max-height: 54px; overflow-y: auto;
@@ -1408,6 +1466,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     opacity: 0; transition: opacity var(--panel-dur) ease;
   }
   .modal-backdrop.modal-visible{ opacity: 1; }
+  /* Base/desktop state — hidden here (source order BEFORE the mobile media
+     query below) so its `display:inline-flex` override there reliably wins
+     at narrow widths. A later plain rule at equal specificity beats an
+     earlier one even when it's wrapped in a satisfied @media block, so this
+     has to come first, not just live outside the block — a stray rule
+     placed AFTER the media query silently cancelled it here before. */
+  .modal-info-btn{ display: none; }
   .modal-card{
     width: min(1100px, 92vw); height: min(760px, 88vh);
     background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: 12px;
@@ -1420,6 +1485,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   /* ---------- Help & documentation panel ---------- */
 
   .help-modal-card{ position: relative; }
+  /* Base/desktop state — before the mobile media query for the same reason
+     .modal-info-btn's own base rule is (see that comment): a later plain
+     rule beats an earlier one at equal specificity even inside a satisfied
+     @media, so the hide has to come first, not just live outside the block. */
+  .help-toc-toggle{ display: none; }
   .help-toc{
     width: 230px; flex-shrink: 0; overflow-y: auto;
     background: var(--bg-elevated); border-right: 1px solid var(--border-soft);
@@ -1470,6 +1540,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .lightbox-backdrop img{
     max-width: 92vw; max-height: 92vh; object-fit: contain;
     box-shadow: 0 30px 80px rgba(0,0,0,0.6); border-radius: 4px;
+    /* Without this, the WebView's own touch-scroll/pinch-zoom gesture
+       recognizer competes with the pointer-event pan/pinch-zoom handlers
+       in shared-ui.ts's showImageLightbox() for the same drag — reported
+       as panning feeling clipped/janky on-device. `none` hands the browser
+       zero built-in touch behavior on this element, so only our own
+       pointermove/attachPinchZoom logic ever sees the gesture. */
+    touch-action: none;
   }
 
   /* ---------- Themed confirm modal ---------- */
@@ -1500,10 +1577,34 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     flex-shrink: 0;
   }
   .info-btn:hover{ color: var(--text-primary); border-color: var(--accent-manual); }
+  /* Dock-header info buttons (Tag Pruner/Retroactive Merge-Void/Master Tag
+     Control/SynthDat sections) now show on desktop too — the long inline
+     description paragraphs they replace (.dock-desc-hide-mobile, hidden
+     unconditionally now, not just in the mobile breakpoint) were eating a
+     lot of dock space for text most people read once. .info-btn's own base
+     rule above already sets display:inline-flex, so no override needed here. */
+  /* `.tool-section .sec-head` (base rule, specificity 0-2-0) sets its own
+     `display:flex` — a bare `.dock-desc-hide-mobile{display:none}` (0-1-0)
+     loses to it despite coming later in the file, same specificity trap as
+     the topbar/`.actions` scroll bug elsewhere in this file. Scoped to match
+     (or beat) that specificity here, same fix this rule already needed when
+     it only applied inside the mobile breakpoint. */
+  .tool-section .sec-head.dock-desc-hide-mobile{ display: none; }
+  /* openDockListModal() trigger buttons ("🔍 Browse tags" etc.) — mobile
+     only, same reasoning .dock-info-btn used to need. Desktop's dock list
+     stays inline exactly as before, no trigger needed. */
+  .dock-list-open-btn{ display: none; }
 
   .info-modal-box{
     width: min(520px, 88vw); max-height: 76vh; overflow-y: auto;
   }
+  /* openDockListModal()'s box (shared-ui.ts) — bigger than the plain info
+     modal since it holds a real list/grid (Tag Pruner's matches, Master
+     Tag Control's thumbnail grid, etc.), not just a paragraph of text. */
+  .dock-list-modal-box{
+    width: min(640px, 94vw); max-height: 82vh; overflow-y: auto;
+  }
+  .dock-list-modal-content{ width: 100%; }
   .info-modal-title{ font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; }
   .info-modal-body{ font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
   .info-modal-body p{ margin: 0 0 12px; }
@@ -1782,6 +1883,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .right-panel-header-action{
     flex: 1; min-width: 0; font-size: 11.5px; padding: 5px 10px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    /* Same centered-clipping risk as .pdrop-btn above — see its comment. */
+    text-align: left;
   }
   #right.right-panel-collapsed .right-panel-header-action{ display: none; }
 
@@ -2026,6 +2129,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     font-family: var(--sans); font-size: 12.5px; color: var(--text-primary); background: var(--bg-elevated);
     border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 6px 9px; cursor: pointer;
     white-space: nowrap;
+    /* <button>'s own UA default is text-align:center — harmless at full
+       width, but once a narrow flex context (e.g. .left-sort-row) forces
+       this to shrink+ellipsis (below), a centered label clips evenly from
+       BOTH edges with no visible ellipsis instead of truncating from the
+       right only. */
+    text-align: left;
   }
   .pdrop-menu{
     /* Fixed + appended to document.body (buildPersistentDropdown(), shared-ui.ts)
@@ -2033,12 +2142,15 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
        popup gets silently clipped by any scrollable/overflow:hidden ancestor
        (e.g. the Settings panel) once it doesn't fit, with no boundary
        awareness at all. Matches .ctx-menu's own approach; positionMenu()
-       clamps it on-screen either way. z-index 460 (matching .ctx-menu) is
-       deliberately ABOVE .theme-panel's 455 — a pdrop-menu very often opens
-       from a button that lives INSIDE a floating panel (e.g. Settings'
-       "Panel arrangement"), so it must render in front of that panel, not
-       behind it. */
-    position: fixed; z-index: 460;
+       clamps it on-screen either way. z-index 650 (matching .ctx-menu) is
+       deliberately ABOVE .theme-panel's 455 AND .confirm-backdrop's 600 — a
+       pdrop-menu very often opens from a button that lives INSIDE a floating
+       panel (e.g. Settings' "Panel arrangement") or, on mobile, inside
+       openDockListModal()'s reparented content (the sort dropdown for
+       "Browse tags"/"Prune tags" — this was the actual bug: at the old 460 it
+       rendered behind that modal's own 600 backdrop, completely unusable),
+       so it must render in front of whichever one it's opened from. */
+    position: fixed; z-index: 650;
     background: var(--bg-elevated-2); border: 1px solid var(--border-strong); border-radius: 8px;
     padding: 4px; display: flex; flex-direction: column; gap: 2px; min-width: 160px;
     max-width: min(320px, 90vw);
@@ -2076,6 +2188,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   #singleNav{ display: none; align-items: center; gap: 10px; }
   .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 64px; text-align:center; }
+  /* Prev/Next inside the image card modal (view.ts's renderImageCardModal)
+     — same shape as #singleNav above, reused here since mobile drops
+     Single view (see the viewSingleBtn mobile rule) in favor of always
+     navigating through this modal instead. */
+  .modal-card-nav{ display: flex; align-items: center; gap: 10px; margin: 4px 0; }
 
   #compactGrid{
     display: none;
@@ -2322,6 +2439,14 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     color: var(--text-muted);
   }
   .addtag-input:focus { border-style: solid; border-color: var(--accent-manual); }
+  /* Mobile grid cards only (view.ts's buildCard()) — a plain label instead
+     of a non-functional `<input>`, since tapping anywhere in the tagbox
+     already opens the edit modal there. No border/dashed-box styling, so
+     it doesn't read as a text field that isn't really one. */
+  .addtag-ghost{
+    padding: 8px; font-family: var(--mono); font-size: 11.5px;
+    color: var(--text-faint); text-align: center;
+  }
 
   .card-btn-row button, .single-btn-row button { font-size: 11.5px; padding: 6px; }
   .card-btn-row button { width: 100%; }
@@ -2356,9 +2481,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     max-height: min(440px, 65vh);
     overflow-y: scroll;
     box-shadow: 0 12px 32px rgba(0,0,0,0.5);
-    z-index: 460; /* above .modal-backdrop (450) — a tag/image context menu opened
-      while the image card modal is up must render in front of its dim overlay,
-      not behind it (it's a sibling of the backdrop under <body>, not a child) */
+    z-index: 650; /* above .modal-backdrop (450) AND .confirm-backdrop (600) — a
+      tag/image context menu opened while the image card modal (or, on mobile, a
+      Browse/Prune-tags dock-list-modal) is up must render in front of its dim
+      overlay, not behind it (it's a sibling of the backdrop under <body>, not a
+      child). At the old 460 this rendered invisibly behind any confirm-backdrop-
+      based modal — confirmed as the cause of "Browse tags" sort/context menus
+      being unusable on mobile. */
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -2486,6 +2615,15 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     cursor: pointer;
   }
   .match-row:hover { background: var(--bg-elevated-2); }
+  /* A real highlight for a selected tag, not just its checkbox's own tick
+     — see tag-pruner.ts's comment on why this needed to stop being solely
+     the checkbox: on mobile, the other place selection used to be obvious
+     (the mirrored gallery search box) lives in a separate bottom-panel
+     sheet, not visible at the same time as Tag Pruner. */
+  .match-row.selected{
+    background: var(--accent-manual-dim); border-radius: var(--radius);
+  }
+  .match-row.selected .name{ color: var(--accent-manual); font-weight: 600; }
   .match-row input[type="checkbox"] { accent-color: var(--accent-manual); cursor: pointer; }
   .match-row .name { flex: 1; color: var(--text-primary); }
 
@@ -2533,7 +2671,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     max-height: min(320px, 60vh);
     overflow-y: auto;
     box-shadow: 0 12px 32px rgba(0,0,0,0.5);
-    z-index: 460; /* same reasoning as .ctx-menu: must outrank .modal-backdrop (450) */
+    z-index: 650; /* same reasoning as .ctx-menu: must outrank .modal-backdrop (450) AND .confirm-backdrop (600) */
   }
   .ac-empty{ padding: 8px; font-size: 12px; color: var(--text-faint); }
   .ac-list{ display: flex; flex-direction: column; gap: 1px; }
@@ -2611,6 +2749,29 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .wd14-settings select{ width: 100%; }
   .wd14-settings input[type="number"]{ width: 100%; cursor: text; }
   .wd14-settings select:focus, .wd14-settings input[type="number"]:focus{ border-color: var(--accent-manual); outline: none; }
+  .wd14-settings input[type="text"]{
+    font-family: var(--sans); font-size: 12.5px; color: var(--text-primary); background: var(--bg-elevated);
+    border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 6px 9px; width: 100%;
+  }
+  .wd14-settings input[type="text"]:focus{ border-color: var(--accent-manual); outline: none; }
+  /* Batch-tagging progress bar (wd14-tagger.ts's setStatus()) — local
+     on-device inference is real per-image compute time, unlike the async
+     ComfyUI round-trip, so a plain "Tagging 3/8" text counter wasn't a
+     strong enough "this is actually moving" signal on its own. */
+  .wd14-progress-track{
+    height: 4px; border-radius: 2px; background: var(--bg-base); margin-top: 4px; overflow: hidden;
+  }
+  .wd14-progress-fill{
+    height: 100%; width: 0; background: var(--accent-manual); transition: width 0.2s ease;
+  }
+  .wd14-local-model-list{ display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .wd14-local-model-row{
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 11.5px; color: var(--text-muted); background: var(--bg-elevated); border-radius: var(--radius);
+    padding: 5px 8px;
+  }
+  .wd14-local-model-row button{ padding: 2px 7px; font-size: 11px; }
+  .wd14-download-status{ font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
   .wd14-review-box{ width: 560px; max-width: 90vw; }
   .wd14-review-list{
     display: flex; flex-direction: column; gap: 6px;
@@ -2629,6 +2790,24 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     border-radius: var(--radius); color: var(--text-primary); padding: 6px 8px; font-family: var(--sans);
     font-size: 11.5px; resize: vertical;
   }
+  /* Touch-only alternative to the textarea above (see showWd14ReviewModal(),
+     wd14-tagger.ts) — a raw comma-list is fiddly to hand-edit on a phone
+     keyboard for what's usually 20-40 tags. Checkbox = keep/skip this tag
+     (reversible while still reviewing); × = drop it from the row entirely,
+     a harder edit than just unchecking, matching the same checkbox+×
+     distinction the SynthDat pending-tag card already uses. */
+  .wd14-review-chips{ display: flex; flex-wrap: wrap; gap: 5px; }
+  .wd14-review-chip{
+    display: flex; align-items: center; gap: 4px; background: var(--bg-elevated);
+    border: 1px solid var(--border-strong); border-radius: 12px; padding: 3px 6px 3px 8px;
+    font-size: 11px; color: var(--text-primary);
+  }
+  .wd14-review-chip.unchecked{ opacity: 0.4; text-decoration: line-through; }
+  .wd14-review-chip-drop{
+    all: unset; cursor: pointer; color: var(--text-faint); font-size: 13px; line-height: 1;
+    padding: 0 2px;
+  }
+  .wd14-review-chip-drop:hover{ color: var(--accent-danger); }
 
   #toast {
     position: fixed;
@@ -2665,6 +2844,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     padding: 16px; display: flex; flex-direction: column; gap: 12px;
   }
   .single-name{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); word-break: break-all; }
+  /* Scoped to the expanded-card modal only (not Single view, which reuses
+     this same class but has no close button to clear) — .modal-close-btn is
+     position:absolute top-right over .single-panel, and a long filename's
+     first line had nowhere reserved to avoid it, so it ran directly under
+     "✕ Close" instead of wrapping clear of it. */
+  .modal-card .single-name{ padding-right: 76px; }
   .single-disabled-badge{
     background: var(--accent-auto-dim); color: var(--accent-auto); border-radius: 4px;
     padding: 4px 8px; font-size: 11px; font-family: var(--mono); align-self: flex-start;
@@ -2686,7 +2871,49 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     #shell { grid-template-columns: 230px 1fr var(--right-w, 330px); }
   }
 
-  /* ---------- Mobile / narrow-viewport layout (groundwork for a mobile port) ---------- */
+  /* ---------- Touch-device fallbacks (capability-based, not width-based) ----------
+     `.touch-device` is set once at boot in index.ts via
+     matchMedia('(hover:none) and (pointer:coarse)') — unlike everything
+     below this point, these rules apply on ANY touch device regardless of
+     window size, since they fix things that are wrong on touch specifically
+     (no real hover state), not things that are wrong because of narrow
+     width. */
+
+  /* .compact-hover-tags is hover-only by default (see its base rule) — on
+     touch there's no hover to reveal it at all, and a tap on the card is
+     already spoken for (opens the image card modal, view.ts) so there's no
+     free gesture to toggle it with either. Simplest touch-usable
+     equivalent: always show it, rather than inventing a second gesture
+     that would compete with tap-to-open. */
+  html.touch-device .compact-hover-tags{ opacity: 1; pointer-events: none; }
+
+  /* attachLongPress() (shared-ui.ts) uses passive touch listeners on
+     purpose (so it never blocks scroll performance) — but a passive
+     listener can't call preventDefault(), so it can't stop the BROWSER's
+     own native long-press behavior (text selection, and on iOS the
+     copy/look-up callout) from firing at the same time as our custom
+     long-press menu. Confirmed on-device: long-pressing a tag chip opened
+     the context menu AND selected its text underneath. CSS is what
+     actually suppresses that native behavior, not the JS. Excludes real
+     text inputs — those should still support normal text
+     selection/editing. */
+  html.touch-device *:not(input):not(textarea){
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+
+  /* Grid cards' own inline tag chips/add-tag input are impractical to hit
+     precisely on a card that's a fraction of the screen wide — tapping
+     anywhere in the tag area redirects to the full edit modal instead
+     (view.ts's buildCard(), touch-device-gated) rather than trying to
+     support real inline editing there. Children get pointer-events:none so
+     the tap always lands on .tagbox itself (the thing with the redirect
+     listener) rather than being swallowed by a chip's own delete button or
+     focusing the input — chips/input stay visually present as a preview,
+     just inert to touch. */
+  html.touch-device #galleryGrid .card .tagbox{ cursor: pointer; }
+  html.touch-device #galleryGrid .card .tagbox *{ pointer-events: none; }
+
+  /* ---------- Mobile / narrow-viewport layout ---------- */
 
   .drawer-toggle{ display: none; }
   .drawer-backdrop{
@@ -2694,6 +2921,89 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   @media (max-width: 900px) {
+    /* Safe-area insets (notch / gesture bar) — no-op on desktop, and a
+       no-op on any device that doesn't report safe-area insets at all
+       (the @supports guard just avoids a broken `max()` calc on engines
+       that don't understand env() rather than actually needing it here,
+       since an unsupported env() argument falls back to 0 anyway — belt
+       and suspenders). */
+    @supports (padding: max(0px)) {
+      #topbar{ padding-top: max(8px, env(safe-area-inset-top)); }
+      #tabBar{ padding-bottom: max(0px, env(safe-area-inset-bottom)); }
+    }
+    /* Desktop's 20px side padding reads as a bigger dead margin on a
+       narrow phone screen, particularly next to Help now that it sits
+       flush against the actions row (fix above) — tightened for mobile. */
+    #topbar{ padding-left: 10px; padding-right: 10px; }
+
+    /* Topbar: horizontal scroll instead of updateTopbarScale()'s shrink
+       (that function early-returns at this width — see index.ts). Plain
+       overflow, no JS positioning math, and avoids the `transform`
+       containing-block trap that broke the File/Personalization dropdown
+       flyouts earlier in the mobile port. */
+    /* `#topbar .actions` (not just `#topbarActions`) to match the base
+       rule's own specificity (id+class, 1-1-0) — a bare `#topbarActions`
+       selector (1-0-0) LOST to that base rule's `overflow:hidden` despite
+       coming later in the file, since specificity beats source order;
+       confirmed on-device (the row never actually scrolled). */
+    /* flex-grow:0 (NOT 1) is the actual fix here, reverting an earlier
+       attempt that made things worse: giving this row flex-grow made it
+       fill the ENTIRE remaining topbar width, but its own buttons still
+       pack to its left edge (no justify-content), so the leftover space
+       just moved INSIDE .actions — an invisible dead zone sitting right
+       before Help, indistinguishable from real space after it. Content-
+       sized (shrink-to-fit via width:auto + overflow-x:auto, capped by
+       min-width:0 so it can still shrink below content) packs File/Log/
+       drawer-toggles flush against Help with no gap in between; any
+       genuinely leftover width now shows up only after Help, as normal
+       trailing topbar padding. */
+    #topbar .actions{ overflow-x: auto; touch-action: pan-x; flex: 0 1 auto; min-width: 0; }
+    /* Scrollbar exists only to hint the row scrolls, not to be dragged —
+       thin and non-interactive so it can't be mistaken for a real control. */
+    /* pointer-events:none on the scrollbar THUMB alone (tried previously)
+       still left the TRACK clickable (jump-scroll on tap) — reported still
+       tappable. none on the whole ::-webkit-scrollbar element disables all
+       interaction with it while leaving normal touch-drag scrolling of the
+       row's own content untouched (that's independent of the scrollbar UI
+       on touch). Also brightened — the previous border-strong-based color
+       read as barely visible against this dark background. */
+    #topbar .actions, #tabBar{ scrollbar-width: thin; scrollbar-color: var(--text-muted) transparent; }
+    #topbar .actions::-webkit-scrollbar, #tabBar::-webkit-scrollbar{ height: 5px; pointer-events: none; }
+    #topbar .actions::-webkit-scrollbar-thumb, #tabBar::-webkit-scrollbar-thumb{
+      background: var(--text-muted); border-radius: 3px; pointer-events: none;
+    }
+    #topbar .actions::-webkit-scrollbar-track, #tabBar::-webkit-scrollbar-track{ pointer-events: none; background: transparent; }
+    /* File stays first (expected/familiar), then the three Dock Panel
+       switcher buttons right after it — without this they're real but
+       effectively undiscoverable, since .brand-block + #btnHelp alone
+       leave .actions barely any visible width before it has to scroll, and
+       a bare overflow-x:auto region with no visible scrollbar in this
+       WebView gives no hint there's more to swipe to. Everything else
+       (Settings/Log/Personalization/etc.) keeps its natural DOM order,
+       reachable by scrolling. */
+    #fileCatWrap{ order: -2; }
+    /* Same order value as File — flex resolves the tie by DOM order (File
+       comes first in the markup), so this lands right after File and
+       before the drawer toggles below, without needing its own order
+       tier. */
+    #btnLog{ order: -2; }
+    .drawer-toggle{ order: -1; }
+    /* .actions itself only gets whatever width .brand-block/#btnHelp don't
+       claim first — shrinking both here is what actually gives it enough
+       room to show File + the switcher buttons without immediately
+       scrolling, not the `order` rules above on their own. Dropped
+       entirely (not just shrunk) per direct feedback — on a phone the app
+       identity/version isn't worth the width it costs .actions. */
+    .brand-block{ display: none; }
+    /* Matches the plain `button` base padding exactly (7px 13px) instead of
+       its own slightly-taller 9px 10px — that mismatch was part of why
+       Help read as visually inconsistent with its row neighbors. */
+    .topbar-help-btn{ padding: 7px 13px; }
+    .topbar-help-btn .help-btn-label{ display: none; }
+
+    /* Tab bar had no overflow handling at all before this pass. */
+    #tabBar{ overflow-x: auto; flex-wrap: nowrap; touch-action: pan-x; }
+
     #shell{
       display: block;
       grid-template-columns: none;
@@ -2701,31 +3011,288 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     #shell.layout-gallery-left, #shell.layout-gallery-right{
       grid-template-columns: none;
     }
+
+    /* #left/#right become one-at-a-time BOTTOM sheets (not side drawers) —
+       "Dock Panels": Left / Tools / Overseer, switched via
+       btnLeftDrawerToggle/btnRightDrawerToggle/btnOverseerDrawerToggle in
+       the topbar (index.ts). "Overseer" isn't a third container of its own
+       — it's #right with switchTab('master') active instead of 'gallery',
+       reusing that existing logic rather than new state (see index.ts's
+       drawer-toggle section). */
+    /* height (not just max-height) + overflow-y:hidden: the base `aside,
+       main{ overflow-y: scroll }` rule elsewhere in this file otherwise
+       still applies here, and with no fixed height an aside just grows to
+       fit its content — so instead of the intended horizontal dock scroll,
+       the WHOLE sheet became one tall vertically-scrolling column (its
+       content was never actually clipped to 48vh to begin with, confirmed
+       on-device). A real fixed height plus hidden overflow here is what
+       makes #normalRightTools/#left/#masterTagPanel's own horizontal
+       scroll (below) the only scrolling that happens at this level. */
     #left, #right{
-      position: fixed; top: 0; bottom: 0; width: min(86vw, 320px);
-      z-index: 200; transition: transform 0.22s ease; box-shadow: 0 0 40px rgba(0,0,0,0.5);
+      position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+      width: 100%; height: 48vh; overflow-y: hidden;
+      z-index: 200; transition: transform 0.22s ease; box-shadow: 0 -8px 30px rgba(0,0,0,0.5);
       order: initial;
     }
-    #left{ left: 0; transform: translateX(-105%); }
-    #right{ right: 0; transform: translateX(105%); }
-    #left.drawer-open{ transform: translateX(0); }
-    #right.drawer-open{ transform: translateX(0); }
-    #gallery{ order: initial; width: 100%; }
+    #rightPanelContent{ height: 100%; }
+    #left{ transform: translateY(105%); }
+    #right{ transform: translateY(105%); }
+    #left.drawer-open{ transform: translateY(0); }
+    #right.drawer-open{ transform: translateY(0); }
+    /* #shell stays `display:block` here (see #left/#right above, which are
+       taken out of flow entirely once `position:fixed`) but it's still a
+       flex item of #app, so it DOES get a real resolved height from that.
+       #gallery itself switches to flex-column so #galleryToolbar keeps its
+       own natural height and the active .gallery-content gets the rest via
+       `flex:1` — needed so #galleryGrid's `height:100%` (single-row layout,
+       below) has something definite to resolve against; without it the
+       single-row card rendered at its intrinsic image height instead,
+       taller than the viewport, since a plain block child doesn't stretch
+       to fill its parent's height on its own the way a flex child does. */
+    #shell{ height: 100%; }
+    #gallery{
+      order: initial; width: 100%; height: 100%; overflow-y: hidden;
+      display: flex; flex-direction: column;
+    }
+    #gallery > .gallery-content{ flex: 1; min-height: 0; }
 
     .drawer-backdrop.drawer-visible{ display: block; }
     .drawer-toggle{ display: inline-flex; }
     #rightPanelHeaderRow{ display: none; }
-    /* #left/#right become fixed-width sliding drawers here, each with its
-       own `transform` — a `transform` on an ancestor creates a new
-       containing block for `position: fixed` descendants, so the handle's
+    /* #left/#right become fixed-position sheets here, each with its own
+       `transform` — a `transform` on an ancestor creates a new containing
+       block for `position: fixed` descendants, so the handle's
        viewport-relative top/left math (repositionRightResizeHandle(), in
        index.ts) no longer means what it thinks it means once #right has
-       one: it ends up rendered relative to #right's own (fixed, full-height)
-       box instead, which is how it ended up spanning the header and
-       touching dock content. Resizing a fixed-width drawer isn't a
-       meaningful action anyway — hide it here, same as the collapse arrow
-       just above. */
+       one. Resizing a fixed-size sheet isn't a meaningful action anyway —
+       hide it here, same as the collapse arrow just above. */
     #rightPanelResizeHandle{ display: none; }
+
+    /* No vertical scrolling inside the sheet, per the user's explicit
+       direction — #left/#normalRightTools/#masterTagPanel each become a
+       horizontally-scrolling row of side-by-side sections instead of a
+       vertical stack, so switching between sections is a horizontal swipe,
+       not a vertical scroll. Each section keeps its OWN internal vertical
+       scroll if its content is tall (a long tag list, say) — that's normal
+       for "a list beside its controls," not what this avoids. */
+    /* No !important on display here (deliberately) — switchTab() (index.ts)
+       now toggles a `.rt-hidden` CLASS rather than an inline style
+       specifically so this rule can win through normal cascade (same
+       #-specificity as the base `#normalRightTools,#masterTagPanel{
+       display:block}` rule near the top of this file, later in source
+       order → wins when neither is hidden). `.rt-hidden{display:none
+       !important}` still always wins over this regardless — !important
+       beats a non-important rule outright, specificity never enters into
+       it. An earlier version used `!important` on this line too, which
+       "worked" for showing the active panel but also made the HIDDEN one
+       `display:flex` instead of `none` (an !important ID-selector rule
+       beats an !important class-selector rule on specificity) — its
+       content leaked in underneath the visible panel, confirmed on-device. */
+    /* height:100% deliberately left OFF this shared rule and applied only
+       to #normalRightTools/#masterTagPanel below — #left is `position:
+       fixed` with its own explicit `height:48vh` from the #left,#right
+       rule above; adding `height:100%` here too would (later in the
+       cascade) resolve against the viewport instead for a fixed element,
+       silently overriding that 48vh back to full-screen. #normalRightTools/
+       #masterTagPanel aren't fixed themselves (only their #right ancestor
+       is), so `height:100%` on them correctly means "100% of #right's
+       content box," via #rightPanelContent{height:100%} above. */
+    #normalRightTools, #masterTagPanel{
+      display: flex; flex-direction: row; flex-wrap: nowrap;
+      overflow-x: auto; overflow-y: hidden;
+      gap: 10px; align-items: stretch;
+      /* Without an explicit hint, a touch drag starting inside one of these
+         rows' own vertically-scrolling children (immediately below) got
+         captured as a VERTICAL scroll even for an intentionally horizontal
+         swipe — confirmed on-device, not just a synthetic-input quirk.
+         `pan-x` tells the browser this row only ever handles the
+         horizontal axis itself, so a horizontal swipe is unambiguously
+         its gesture to claim rather than something to hand to whichever
+         nested vertical-scroll child happens to be under the finger. */
+      touch-action: pan-x;
+    }
+    /* #left reverted back to a plain vertical stack — direct feedback:
+       unlike Tools'/Overseer's docks (independent jobs that make sense to
+       swipe between one at a time), Filter/Dataset-stats/Tags here are
+       always relevant together, and horizontal swiping between them read
+       as a bug ("still has a horizontal scrollable"), not a feature. */
+    #left{
+      display: flex; flex-direction: column; flex-wrap: nowrap;
+      overflow-x: hidden; overflow-y: auto;
+      gap: 10px;
+    }
+    /* The height:100% actually promised by the comment above — without it,
+       #normalRightTools/#masterTagPanel had no definite height, so
+       `align-items:stretch` just matched every dock to whichever was
+       tallest AT THAT MOMENT — meaning collapsing Tag Pruner's content
+       (usually the tallest, long description text) shrunk the row's own
+       computed height, and every OTHER dock visibly shrank down along
+       with it instead of staying full-height while only Tag Pruner
+       narrowed. Confirmed on-device. */
+    #normalRightTools, #masterTagPanel{ height: 100%; }
+    /* No explicit touch-action here (deliberately) — this is the exact
+       same "vertical-scroll child nested inside a horizontal-scroll row"
+       shape that caused genuinely janky scrolling for #normalRightTools's
+       docks earlier (see that section's own explanation), just not fixed
+       here yet at the time: `touch-action:pan-y` on these while their
+       parent (#left/#masterTagPanel) is `pan-x` gave conflicting signals
+       to the gesture recognizer — confirmed on-device, Left/Overseer's
+       horizontal dock-switching was noticeably less fluid than Tools'
+       (which had already lost this same conflict when its lists moved to
+       modals). `overflow-y:auto` stays as a safety net for genuinely tall
+       content; not declaring touch-action lets the browser fall back to
+       its own default per-gesture disambiguation instead of a hardcoded
+       axis that fights the parent. */
+    #masterTagPanel .tool-section{
+      flex: 0 0 auto; width: 78vw; max-width: 320px;
+      overflow-y: auto; overflow-x: hidden;
+    }
+    /* #left's sections stack full-width now (see #left above) — no fixed
+       swipe-panel width needed. */
+    #left .field-block{ flex: 0 0 auto; width: 100%; overflow-x: hidden; }
+    /* index.ts moves #tagFamilyGroup's actual content (sort row, Browse
+       tags button, the list) into the Tag Pruner dock on mobile — this
+       wrapper is left behind empty, would otherwise just be a dead gap. */
+    #tagFamilyGroup{ display: none; }
+
+    /* The three REAL docks in #normalRightTools (Tag Pruner/Unify-Void/
+       Retroactive Merge-Void — the ones with drag/collapse/resize controls,
+       via docks.ts's createDockManager) get the fuller "horizontal dock"
+       treatment: header/controls run down one edge instead of across the
+       top, with the list beside them instead of below. createDockManager
+       is instantiated with `horizontal:true` for this container (index.ts),
+       which makes its collapse animation shrink width instead of height —
+       this CSS is the resting-state layout that animates between. */
+    /* Widened from an earlier 280px — that was sized back when the whole
+       body was one column, then briefly widened to 340px/92vw to fit a
+       controls+list split side by side — that split is GONE now (see
+       .dock-list-area below: lists open in a full modal instead of
+       competing for space in the dock itself), so this only has to fit a
+       column of buttons again. Narrower than the original 280px too,
+       since a pure button column needs less than a column that also had
+       to leave room for a list peeking in from the side. */
+    #normalRightTools .tool-section[data-dock-id]{
+      flex: 0 0 auto; flex-direction: row; width: 230px; max-width: 72vw;
+      overflow: hidden;
+    }
+    #normalRightTools .tool-section[data-dock-id] > .sec-head{
+      flex-direction: column; flex-wrap: nowrap; flex-shrink: 0; width: 80px;
+      align-items: flex-start; gap: 6px;
+      border-right: 1px solid var(--border-soft); padding-right: 8px; margin-right: 2px;
+    }
+    /* .dock-controls (header's drag-handle + collapse-button span, set up
+       in docks.ts — NOT the same thing as .dock-controls-area below,
+       naming collision avoided on purpose) just needs to lay out
+       horizontally in the narrow vertical header strip instead of
+       vertically. */
+    .tool-section[data-dock-id] > .sec-head .dock-controls{
+      margin-left: 0; flex-direction: row;
+    }
+    /* Dock body is a plain vertical stack of controls again — the
+       controls/list SIDE-BY-SIDE split (and its `touch-action:pan-x` on
+       this element) is what was causing genuinely janky, inconsistent
+       scrolling on-device: a horizontal-pan row directly containing a
+       vertical-pan list, nested inside an ALREADY horizontal-pan dock
+       row one level up, gave the browser's touch gesture recognizer
+       conflicting signals for a lot of real touch angles. Removed
+       entirely rather than tuned further — see .dock-list-area below for
+       where lists went instead (a modal has none of this nesting). */
+    .dock-scroll-body{
+      display: flex; flex-direction: column; gap: 8px;
+      max-width: none !important; max-height: none !important;
+    }
+    .dock-controls-area{
+      display: flex; flex-direction: column; gap: 8px; width: 100%;
+      /* Safety net only, not the primary design — moving each dock's list
+         into a modal (above) should mean the remaining pure-button content
+         fits within the sheet's height on its own. But #right itself is
+         `overflow-y:hidden` (deliberately, so it isn't ALSO independently
+         vertically scrollable on top of the horizontal dock-switching
+         scroll), so if a dock's buttons ever did exceed that height with
+         no scroll of their own, the excess would be silently clipped and
+         unreachable — strictly worse than a same-dock scroll would be. */
+      max-height: 100%; overflow-y: auto;
+    }
+    /* Buttons don't wrap text by default — a long label (e.g. "+ Add
+       another Tag Pruner") otherwise forces its own box wider than the
+       dock. */
+    .dock-controls-area button{ white-space: normal; width: 100%; }
+    /* A dock's list/grid (Tag Pruner's matches, Master Tag Control's
+       thumbnail grid, etc.) no longer renders inline in the dock at all —
+       direct feedback: squeezed beside a controls column, it either had no
+       usable width or forced the whole dock too wide, AND it was the
+       source of the touch-action conflict above. It's still the exact
+       same real element (openDockListModal(), shared-ui.ts, re-parents it
+       rather than cloning — every other module's own reference to it by
+       id keeps working), just hidden here and shown full-size in a modal
+       instead, opened via a button in .dock-controls-area
+       ("Browse tags"/"Select images"/etc.). */
+    .dock-list-area{ display: none; }
+    .dock-list-modal-content{ display: block !important; }
+    /* .master-mini-grid is itself a `.dock-list-area` (masterMiniGrid) with
+       its own display:grid — the blanket !important above was winning over
+       it too (same class, !important beats source order regardless), which
+       silently flattened the image-select grid into a single-column
+       vertical list of full-width images inside the modal. Beat it back
+       with a MORE specific selector at the same !important weight — the
+       CSS-specificity-trap pattern this file keeps hitting, see
+       notes/Mobile-Port.md. */
+    .master-mini-grid.dock-list-modal-content{ display: grid !important; }
+    .dock-list-open-btn{ display: block; }
+    /* Drag-to-reorder isn't implemented for touch (still HTML5 DnD,
+       mouse-only — see notes/Mobile-Port.md's deferred-items list), and
+       reordering itself is largely redundant on mobile anyway (docks are
+       swiped through one at a time, not compared side by side the way
+       desktop's stacked sidebar invites). Hiding the handle rather than
+       leaving a dead/non-functional control visible. */
+    .dock-drag-handle{ display: none; }
+    /* Every OTHER info button inside a dock — a specific checkbox's own
+       ⓘ, say — is redundant with the dock's single consolidated header ⓘ
+       now (which folds every setting's explanation into one place) and
+       was also rendering visibly stretched/misshapen squeezed into the
+       narrow controls column. Only `.dock-info-btn` (the header one)
+       stays. */
+    .tool-section .info-btn:not(.dock-info-btn){ display: none; }
+    /* `.dock-controls` (drag-handle+collapse span, docks.ts) is always
+       APPENDED last within `.sec-head`, so a `.dock-info-btn` placed
+       earlier in the static HTML would render above it by DOM order alone
+       — `order` overrides that so the info button reliably lands below
+       the collapse arrow regardless of where it sits in markup. */
+    .tool-section[data-dock-id] > .sec-head .dock-controls{ order: 1; }
+    .dock-info-btn{ display: inline-flex; margin-left: 4px; order: 2; }
+    /* Resize handle: width instead of height, right edge instead of bottom
+       — matches the `horizontal:true` resize-by-clientX behavior in
+       docks.ts (also rewritten to pointer events there, so this is
+       touch-draggable, unlike the desktop vertical handle). */
+    /* Hidden rather than reoriented for horizontal dragging: this handle is
+       a direct child of `.tool-section` sitting alongside `.sec-head` and
+       `.dock-scroll-body` in the row layout above, and its desktop-sized
+       negative margins (meant to pull a BOTTOM edge bar flush against a
+       vertical dock's corners) rendered as a stray blip near the dock's
+       top-right corner once the layout went horizontal, confirmed
+       on-device. Width is already capped (max-width:72vw) and collapse
+       handles sizing, so this isn't worth fixing up for touch dragging —
+       simpler to just drop it here. */
+    .dock-resize-handle{ display: none; }
+
+    /* Mobile only ever has one Tag Pruner instance — "Save as task" in the
+       Browse-tags modal (tag-pruner.ts) replaces the desktop pattern of
+       several independent dock instances for several prune jobs at once,
+       and folds Unify/Void into that same modal, so the separate Unify/
+       Void dock is redundant here. */
+    #btnAddTagPruner{ display: none; }
+    .tool-section[data-dock-id="unifyVoid"]{ display: none; }
+    .pruner-mobile-tasks{ display: flex; flex-direction: column; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-soft); }
+
+    /* Masonry mode is disabled outright on touch devices (index.ts) — hide
+       its now-inert Settings toggle rather than leave a dead control. */
+    #dynamicCardsRow{ display: none; }
+
+    /* Tag suggestion popup ("+ Add tag") — 320px/60vh was still large
+       enough to swallow most of the screen above the keyboard on a phone,
+       reported as "intrusive". Capped tighter here; still scrolls for
+       longer result sets. */
+    .ac-panel{ max-height: 34vh; }
 
     button{ padding: 9px 14px; font-size: 14px; }
     .chip{ padding: 5px 6px 5px 11px; font-size: 12.5px; }
@@ -2733,17 +3300,191 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     .img-menu-btn{ width: 28px; height: 28px; }
     .master-select-cb{ width: 22px; height: 22px; }
 
-    #galleryGrid{ grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    /* #galleryToolbar itself already wraps (base CSS), but .viewToggle (the
+       Grid/Compact/Single/Unlock all/Disabled button row inside it) didn't
+       wrap ITS OWN children — on a narrow phone those 5 buttons together
+       are wider than the screen, and with nothing to contain that overflow
+       it was bleeding out into making the WHOLE gallery area horizontally
+       pannable to reach "Disabled", fighting with #galleryGrid's own
+       intentional horizontal scroll for image cards. Wrapping viewToggle's
+       buttons onto a second line (plus overflow-x:hidden safety nets so
+       nothing here can ever cause page-level horizontal panning again)
+       means the only thing left to scroll horizontally is the image row. */
+    #galleryToolbar{ overflow-x: hidden; }
+    .viewToggle{ flex-wrap: wrap; }
+    #gallery{ overflow-x: hidden; }
+    /* Single view is now practically identical to the image card modal
+       (tag editing moved there — see the touch-device .tagbox redirect
+       above), which also gained the Prev/Next this view existed for
+       (.modal-card-nav) — direct feedback: keeping both was redundant.
+       Grid view + tapping into the modal replaces it entirely on mobile;
+       untouched on desktop. */
+    #viewSingleBtn{ display: none; }
+
+    /* Gallery: a single horizontally-scrolling row instead of a multi-column
+       grid, per the user's explicit direction — fixed regardless of the
+       desktop column-count preference (applyGalleryColumnOverride()'s
+       --gallery-cols var has no effect once this isn't `display:grid`). */
+    /* !important throughout this rule and the two below it: Settings'
+       "Dynamic card heights" toggle (`html.dynamic-cards`) switches
+       #galleryGrid to CSS-columns masonry with variable-height, non-
+       uniform-width cards — its selectors (`html.dynamic-cards
+       #galleryGrid`/`.card`) have higher specificity than a bare
+       `#galleryGrid`/`#galleryGrid .card` here (an id+class beats a plain
+       id), so without !important that mode silently won even inside this
+       breakpoint, stretching cards to irregular widths — confirmed
+       on-device. Masonry doesn't make sense for a fixed-height single row
+       at all, so this forces uniform-width cards regardless of that
+       setting on mobile, rather than trying to support both. */
+    #galleryGrid{
+      display: flex !important; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+      gap: 16px; height: 100%; touch-action: pan-x;
+    }
+    /* .thumbwrap was `height:100%` — taking the card's ENTIRE height and
+       leaving nothing for .tagbox below it, which is why tags/the add-tag
+       input rendered fully cut off (not scrollable, not visible at all).
+       Image gets a share of the card's height now, tagbox gets the rest.
+       .tagbox is non-interactive here (below) — see the touch-device rule
+       there for why — but stays visible as a preview, and its own
+       `overflow-y:auto` is a safety net for a genuinely tall tag list, not
+       the primary interaction (tapping it opens the full edit modal). */
+    /* Fixed pixel width (not width:auto driven by the thumbwrap's own
+       height+aspect-ratio) — deriving a flex item's width FROM a
+       percentage-height child's aspect-ratio, inside a column flex
+       container, inside a row flex container, is exactly the kind of
+       nested-auto-sizing case where Android's WebView (older Chromium
+       builds especially) doesn't reliably match desktop Chrome — seen
+       on-device as cards not landing on a uniform width and a portrait
+       image's box coming out wider/shorter than the intended 3:4 (reading
+       as "letterboxed like a landscape image"). Width-drives-height via
+       aspect-ratio (below) is the well-supported direction. */
+    #galleryGrid .card{
+      display: flex !important; flex-direction: column !important;
+      flex: 0 0 150px !important; width: 150px !important; height: 100%; margin-bottom: 0 !important;
+    }
+    #galleryGrid .card .thumbwrap{ flex: 0 0 auto; width: 100%; height: auto; aspect-ratio: 3/4; }
+    #galleryGrid .card .tagbox{ flex: 1 !important; min-height: 0; width: 100%; overflow-y: auto; }
+    /* Censored/Has-text/Perspective badges: buildCard() (view.ts) appends
+       these as a direct child of `.card` here instead of inside
+       `.thumbwrap` — desktop's absolute-positioned overlay covered too
+       much of a card that's only a few hundred px wide. A plain row above
+       the image instead, using space this row layout already left as
+       blank top padding above each card; safe to do per-card (rather than
+       only once above the whole row) specifically because every card is
+       the same uniform width/height here — nothing to misalign against. */
+    #galleryGrid .card > .card-status-icons{
+      position: static; flex: 0 0 auto; flex-direction: row; flex-wrap: wrap;
+      gap: 3px; padding-bottom: 4px; width: 100%;
+    }
+    #galleryGrid .card > .card-status-icons .status-icon-badge{ font-size: 12px; padding: 3px 6px; }
     #compactGrid{ grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
 
     .single-wrap{ flex-direction: column; }
     .single-panel{ width: 100%; }
 
+    /* Help modal was a fixed 230px TOC + content ROW regardless of
+       viewport — on a ~92vw-wide phone modal that left barely a sliver for
+       the actual content. A horizontally-scrolling TOC strip was tried
+       first, but a swipeable row with no visible scroll hint at this width
+       just buried the section list — a ☰ dropdown (help.ts, same
+       .ctx-menu/positionMenu() every other popup here already uses) reads
+       better than either. */
+    .help-modal-card{ flex-direction: column; width: 94vw; height: 88vh; }
+    .help-toc{ display: none; }
+    .help-toc-toggle{ display: inline-flex; position: absolute; top: 12px; left: 12px; z-index: 10; }
+    .help-content{ padding: 16px 18px 24px; }
+    /* The ☰ toggle floats over this same top-left corner (its own
+       position:absolute takes it out of flow, so it doesn't push the
+       heading text over on its own) — same fix as modal-card-nav's own
+       clearance for the ⓘ button. */
+    .help-content h2{ padding-left: 46px; }
+
     .theme-panel{ left: 4vw; right: 4vw; width: auto; }
     .log-panel{ left: 50%; transform: translate(-50%, -8px) scale(0.98); width: 92vw; }
     .log-panel.panel-visible{ transform: translate(-50%, 0) scale(1); }
 
-    .modal-card{ width: 96vw; height: 92vh; flex-direction: column; }
-    .modal-card .single-img-side{ flex: 1; }
-    .modal-card .single-panel{ width: 100%; max-height: 40vh; }
+    /* Image card modal (view.ts's openImageCardModal/renderImageCardModal)
+       — was giving the image side `flex:1` (grow to fill whatever the
+       panel's own max-height:40vh left over, up to ~52vh of the modal's
+       92vh) and the tag panel a fixed 40vh ceiling; reported cut off, with
+       the image taking far too much of the modal. Flipped: image gets a
+       genuinely small, fixed share (~30%) and the tag panel gets the rest
+       via flex:1, with its own scroll — this is now the PRIMARY tag-editing
+       surface on mobile (grid cards' own inline tags redirect here, see
+       the touch-device .tagbox rule above), so it needs to be the one
+       that's roomy, not the image. */
+    .modal-card{ width: 96vw; height: 92vh; flex-direction: column; min-height: 0; }
+    .modal-card .single-img-side{ flex: 0 0 30%; max-height: 30%; min-height: 0; }
+    .modal-card .single-img-side img{ max-width: 100%; max-height: 100%; }
+    .modal-card .single-panel{ width: 100%; flex: 1; min-height: 0; max-height: none; overflow-y: auto; }
+
+    /* Filename/resolution text moves behind an ⓘ button (opposite side of
+       the panel from Close) instead of the inline text, which had nowhere
+       to wrap and bled under modal-close-btn — see renderImageCardModal()
+       in view.ts. */
+    .single-name{ display: none; }
+    .modal-info-btn{ display: inline-flex; position: absolute; top: 12px; left: 12px; z-index: 10; }
+    /* .modal-card-nav (Prev/Next) is the first flow content in the panel,
+       landing at the same top-left corner the ⓘ button floats over —
+       confirmed on-device, "Prev" was clipped under it. Reserve space
+       for the button's own width instead of overlapping it. */
+    .modal-card-nav{ padding-left: 46px; }
+    /* .single-name being hidden above (mobile) makes .modal-status-row the
+       new first flow content in the panel — same clipping-under-the-ⓘ-
+       button issue .modal-card-nav already had and already solves with
+       padding-left, applied here too now that this row sits above it. */
+    .modal-status-row{ padding-left: 46px; }
+
+    /* Pan/zoom by pinch-gesture already works in this modal — the slider
+       duplicates it and just eats vertical space on a small screen.
+       !important: view.ts sets `display:flex` via inline style.cssText on
+       this element, and an inline style attribute always wins over a
+       plain (non-!important) stylesheet rule regardless of specificity —
+       confirmed on-device (rule alone had no effect). */
+    .modal-zoom-row{ display: none !important; }
+
+    /* Mobile quits via the OS task switcher, not an in-app button. */
+    #btnQuit{ display: none; }
+
+    /* ---------- SynthDat Overseer ---------- */
+    /* Desktop's 2-column layout (.synthdat-cols/.synthdat-col) already
+       falls back to stacked via flex-wrap on a narrow viewport, but the
+       Generation section's own deliberately-uneven split — settings column
+       capped at 360px, preview column given a 480px flex-basis, sized that
+       way specifically so the preview reads as dominant in a WIDE desktop
+       layout — has no reason to keep either number once there's only one
+       column. #synthDatCol1's own min-width:320px is dropped too so its
+       docks can't be forced wider than the screen.
+       `width:100%` alone doesn't actually do it, though — desktop's own
+       `.synthdat-col{flex:1 ...}` sets flex-basis to its default (0%), and
+       flex-basis wins over a separately-declared `width` for a flex item's
+       main-axis size. Every column (top-level ComfyUI-connection/Reference-
+       image/Model-LoRA one AND the nested Generation-section one) needs its
+       OWN flex-basis pushed to 100% — not just width — or two columns still
+       split the row 50/50 regardless of width, which is exactly what was
+       happening (reported as "docks look horizontally shortened"). */
+    .synthdat-col{ flex: 1 1 100%; max-width: 100%; min-width: 0; }
+    /* A number/select/button row that fit fine at desktop widths (e.g.
+       Width × Height, or a LoRA stack row's model+strength+remove) has no
+       slack left on a phone — wrapping instead of forcing every row onto
+       one line that can't fully fit is the same fallback already relied on
+       for .synthdat-cols itself, just extended to this file's other
+       multi-control rows. */
+    .synthdat-lora-row{ flex-wrap: wrap; }
+    /* The LoRA stack row's name field wraps to earlier rules just fine, but
+       browsers compute its wrap-decision size from the plain text input's
+       own intrinsic width (~170px), not from `flex:1;min-width:0`'s much
+       lower minimum — so on a narrow phone it was landing squeezed down to
+       almost nothing alongside the strength/remove controls rather than
+       actually wrapping onto its own line. flex-basis:100% forces it onto a
+       full-width line of its own regardless of that intrinsic-size
+       computation (whatever's before/after it wraps around it), leaving
+       strength+remove to share the next line, which does fit them fine. */
+    .synthdat-lora-row input[type="text"]{ flex: 1 1 100%; }
+    #synthDatTab input[type="number"],
+    #synthDatTab input[type="text"],
+    #synthDatTab select,
+    #synthDatTab textarea{
+      max-width: 100%; box-sizing: border-box;
+    }
   }

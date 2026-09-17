@@ -44,7 +44,7 @@
 // - synthdat-overseer.ts's own independent buildMergeHistoryMap() (now reads
 //   from this module's canonicalRules instead of its own prevTags/newTags
 //   diffing reconstruction — one shared source of truth, not two).
-// @ts-nocheck
+import type { CanonicalRule, Entry, EditLogEntry, EditLogAffected, DirHandle } from './types';
 import { canonicalTagsList, btnAddCanonicalRule } from './dom';
 import { editLog, pushLogEntry } from './edit-log';
 
@@ -57,48 +57,41 @@ import { editLog, pushLogEntry } from './edit-log';
 // merged "black dress"/"frilly dress"/"dress" into "black frilly dress" but
 // now want to stop folding plain "dress" in (not every dress is black),
 // without forgetting it was ever part of this rule.
-export let canonicalRules = [];
+export let canonicalRules: CanonicalRule[] = [];
 let ruleIdCounter = 1;
 
-let getDirHandle = () => null;
-let getEntries = () => [];
-let markDirtyRef = () => {};
-let refreshAllUIRef = () => {};
+let getDirHandle: () => DirHandle | null = () => null;
+let getEntries: () => Entry[] = () => [];
+let markDirtyRef: (e: Entry) => void = () => {};
+let refreshAllUIRef: () => void = () => {};
 // Rule edits are a dirty/saveable action now, same as a tag edit — this
 // module can't import tags-edit.ts's markRulesDirty()/saveAllDirty() back
 // (it already imports FROM here), so it's injected the same way markDirty
 // is. Every user-initiated rule change calls this instead of writing to
 // disk immediately; tags-edit.ts's saveAllDirty() (manual Save or autosave)
 // is what actually calls saveCanonicalRules() below.
-let markRulesDirtyRef = () => {};
-// The per-image tag restorations unmergeChildren() makes need to go through
-// the SAME log+undo mechanism merge/void already use (tags-edit.ts's
-// recordChange(), which both pushes a log entry AND the global Undo/Redo
-// stack) — injected for the same reason markRulesDirtyRef is. Pure rule-
-// CONFIG changes (pause/resume, add/remove/toggle a child, delete) have no
-// tag-level undo to offer, so those go straight through the plain
-// pushLogEntry() imported above instead — see logRuleChange() below.
-let recordChangeRef = () => {};
+let markRulesDirtyRef: () => void = () => {};
+let recordChangeRef: (type: string, summary: string, affected: EditLogAffected[], extra?: Record<string, unknown>) => void = () => {};
 
 const RULES_FILE_NAME = '_dts_canonical_tags.json';
 
-function nextRuleId(){
+function nextRuleId(): string {
   return `r${ruleIdCounter++}`;
 }
 
-function activeChildren(rule){
+function activeChildren(rule: CanonicalRule): string[] {
   const off = rule.disabledChildren || [];
-  return rule.children.filter(t => !off.includes(t));
+  return rule.children.filter((t: string) => !off.includes(t));
 }
 
 // A rule created any which way (dock "+ New rule", Tag Pruner Unify/Void,
 // the editLog bootstrap) always starts fully enabled with nothing toggled
 // off — callers just fill in id/canonical/children on top of this.
-function newRuleDefaults(){
+function newRuleDefaults(): { enabled: boolean; disabledChildren: string[] } {
   return { enabled: true, disabledChildren: [] };
 }
 
-export async function saveCanonicalRules(){
+export async function saveCanonicalRules(): Promise<void> {
   const dirHandle = getDirHandle();
   if (!dirHandle) return;
   try {
@@ -116,10 +109,10 @@ export async function saveCanonicalRules(){
 // tag to key separate void rules by) while merges get one rule per distinct
 // unifiedTag, gaining children across however many past merge actions
 // targeted that same name.
-function reconstructFromEditLog(){
-  const rules = [];
-  const byCanonical = new Map();
-  let voidRule = null;
+function reconstructFromEditLog(): CanonicalRule[] {
+  const rules: CanonicalRule[] = [];
+  const byCanonical = new Map<string, CanonicalRule>();
+  let voidRule: CanonicalRule | null = null;
   for (const le of editLog){
     if (le.type === 'merge' && le.mergedTags && le.unifiedTag){
       let rule = byCanonical.get(le.unifiedTag);
@@ -144,7 +137,7 @@ function reconstructFromEditLog(){
   return rules;
 }
 
-export async function loadCanonicalRulesForFolder(){
+export async function loadCanonicalRulesForFolder(): Promise<void> {
   canonicalRules = [];
   ruleIdCounter = 1;
   const dirHandle = getDirHandle();
@@ -176,7 +169,7 @@ export async function loadCanonicalRulesForFolder(){
 // corrected once it's back in Gallery, via this same function running
 // through markDirty()/moveEntry() at that point — see CLAUDE.md's
 // Retroactive Merge/Void entry).
-function ruleAppliesToEntry(rule, entry){
+function ruleAppliesToEntry(rule: CanonicalRule, entry: Entry): boolean {
   if (!rule.enabled) return false;
   const meta = entry.meta || {};
   if (rule.canonical && meta.mergeImmune) return false;
@@ -189,15 +182,15 @@ function ruleAppliesToEntry(rule, entry){
 // off) is a no-op, same as a disabled rule. Returns whether anything
 // actually changed, so callers can skip a pointless markDirty() when nothing
 // matched.
-export function applyCanonicalRules(entry){
+export function applyCanonicalRules(entry: Entry): boolean {
   if (entry.disabled) return false;
   let changed = false;
   for (const rule of canonicalRules){
     if (!ruleAppliesToEntry(rule, entry)) continue;
     const active = activeChildren(rule);
     if (active.length === 0) continue;
-    if (!entry.tags.some(t => active.includes(t))) continue;
-    const newTags = entry.tags.filter(t => !active.includes(t));
+    if (!entry.tags.some((t: string) => active.includes(t))) continue;
+    const newTags = entry.tags.filter((t: string) => !active.includes(t));
     if (rule.canonical && !newTags.includes(rule.canonical)) newTags.push(rule.canonical);
     entry.tags = newTags;
     changed = true;
@@ -215,7 +208,7 @@ export function applyCanonicalRules(entry){
 // own canonical form as a child, e.g. "black dress, dress -> black dress" —
 // see canonical-tags.ts's header) — that's the correct/target spelling, not
 // a variant needing correction.
-export function findBlockingRule(tag, entry){
+export function findBlockingRule(tag: string, entry: Entry): CanonicalRule | null {
   for (const rule of canonicalRules){
     if (rule.canonical && tag === rule.canonical) continue;
     if (!ruleAppliesToEntry(rule, entry)) continue;
@@ -229,8 +222,8 @@ export function findBlockingRule(tag, entry){
 // preview which tags would be silently stripped once this image is actually
 // added to the Gallery, without needing a real entry (no per-image immunity
 // applies yet, since the image isn't an entry until Accept).
-export function activeVoidTagSet(){
-  const set = new Set();
+export function activeVoidTagSet(): Set<string> {
+  const set = new Set<string>();
   for (const rule of canonicalRules){
     if (!rule.enabled || rule.canonical) continue;
     for (const t of activeChildren(rule)) set.add(t);
@@ -246,7 +239,7 @@ export function activeVoidTagSet(){
 // enabled state, or a child's enabled state) changes, so an image that
 // missed a correction gets caught up the moment the rule exists, not on some
 // later manual trigger.
-export function resweepAllEntries(){
+export function resweepAllEntries(): number {
   let touched = 0;
   for (const e of getEntries()){
     if (e.meta && e.meta.locked) continue;
@@ -275,15 +268,15 @@ export function resweepAllEntries(){
 // the rule has "dress" as a child but this particular image only ever had
 // "black dress" — restoring "dress" onto it would be inventing a tag it
 // never had).
-function buildMergeEvidenceIndex(canonical, tags){
-  const index = new Map(tags.map(t => [t, new Set()]));
+function buildMergeEvidenceIndex(canonical: string, tags: string[]): Map<string, Set<string>> {
+  const index = new Map<string, Set<string>>(tags.map(t => [t, new Set<string>()]));
   for (const le of editLog){
     if (le.type !== 'merge' || le.unifiedTag !== canonical) continue;
     const merged = le.mergedTags || [];
     for (const a of (le.affected || [])){
       const prev = a.prevTags || [];
       for (const t of tags){
-        if (merged.includes(t) && prev.includes(t)) index.get(t).add(a.base);
+        if (merged.includes(t) && prev.includes(t)) index.get(t)!.add(a.base);
       }
     }
   }
@@ -292,15 +285,15 @@ function buildMergeEvidenceIndex(canonical, tags){
 
 // Same idea for void: tag -> Set of bases editLog proves had that exact tag
 // before some void action removed it.
-function buildVoidEvidenceIndex(tags){
-  const index = new Map(tags.map(t => [t, new Set()]));
+function buildVoidEvidenceIndex(tags: string[]): Map<string, Set<string>> {
+  const index = new Map<string, Set<string>>(tags.map(t => [t, new Set<string>()]));
   for (const le of editLog){
     if (le.type !== 'void') continue;
     const voided = le.voidedTags || [];
     for (const a of (le.affected || [])){
       const prev = a.prevTags || [];
       for (const t of tags){
-        if (voided.includes(t) && prev.includes(t)) index.get(t).add(a.base);
+        if (voided.includes(t) && prev.includes(t)) index.get(t)!.add(a.base);
       }
     }
   }
@@ -316,9 +309,9 @@ function buildVoidEvidenceIndex(tags){
 // there. Locked entries and Disabled/Unsaved-Approved entries are skipped,
 // same convention as resweepAllEntries(). Returns the number of entries
 // touched (and refreshes the UI if any were).
-export function unmergeChildren(rule, childrenBeingTurnedOff){
+export function unmergeChildren(rule: CanonicalRule, childrenBeingTurnedOff: string[]): number {
   let touched = 0;
-  const affected = [];
+  const affected: EditLogAffected[] = [];
   if (!rule.canonical){
     // Void rule: reviving a tag is independent per child — no canonical to
     // reconsider.
@@ -330,7 +323,7 @@ export function unmergeChildren(rule, childrenBeingTurnedOff){
       let changed = false;
       for (const child of childrenBeingTurnedOff){
         if (e.tags.includes(child)) continue;
-        if (!index.get(child).has(e.base)) continue;
+        if (!index.get(child)!.has(e.base)) continue;
         e.tags = [...e.tags, child];
         changed = true;
       }
@@ -355,7 +348,7 @@ export function unmergeChildren(rule, childrenBeingTurnedOff){
       let changed = false;
       let stillJustified = false;
       for (const child of rule.children){
-        const hadIt = index.get(child).has(e.base);
+        const hadIt = index.get(child)!.has(e.base);
         if (childrenBeingTurnedOff.includes(child)){
           if (hadIt && !e.tags.includes(child)){ e.tags = [...e.tags, child]; changed = true; }
         } else if (rule.enabled && !disabledChildren.includes(child) && hadIt){
@@ -387,10 +380,10 @@ export function unmergeChildren(rule, childrenBeingTurnedOff){
 // whatever tags actually got restored, if any). Logged directly via
 // pushLogEntry() rather than recordChangeRef() since there's nothing here
 // for the global Undo/Redo stack to act on.
-function ruleLabel(rule){
+function ruleLabel(rule: CanonicalRule): string {
   return rule.canonical ? `merge rule → "${rule.canonical}"` : 'void rule';
 }
-function logRuleChange(summary){
+function logRuleChange(summary: string): void {
   pushLogEntry({ type: 'rule-update', summary, affected: [] });
 }
 
@@ -399,7 +392,7 @@ function logRuleChange(summary){
 // creates one, then resweeps so any entry the immediate action's own loop
 // didn't reach (e.g. Disabled images, if "Also apply to Disabled images
 // right now" was left unchecked) gets caught up right away regardless.
-export function registerMergeRule(children, canonical){
+export function registerMergeRule(children: string[], canonical: string): void {
   let rule = canonicalRules.find(r => r.canonical === canonical);
   if (!rule){
     rule = { id: nextRuleId(), canonical, children: [], ...newRuleDefaults() };
@@ -415,7 +408,7 @@ export function registerMergeRule(children, canonical){
 
 // Called by Tag Pruner's own Void action — all voids share ONE rule (no
 // canonical tag to key separate ones by).
-export function registerVoidRule(children){
+export function registerVoidRule(children: string[]): void {
   let rule = canonicalRules.find(r => r.canonical === null);
   if (!rule){
     rule = { id: nextRuleId(), canonical: null, children: [], ...newRuleDefaults() };
@@ -431,7 +424,7 @@ export function registerVoidRule(children){
 
 // ---------------- Dock UI ----------------
 
-function commitRuleChange(){
+function commitRuleChange(): void {
   markRulesDirtyRef();
   resweepAllEntries();
   renderCanonicalTagsList();
@@ -441,7 +434,7 @@ function commitRuleChange(){
 // applied) is separate from removing the chip entirely (the × button, which
 // forgets the tag was ever part of this rule). Clicking the chip's own label
 // toggles active/inactive; the × always deletes outright.
-function buildChip(text, active, onToggleActive, onRemove){
+function buildChip(text: string, active: boolean, onToggleActive: (on: boolean) => void, onRemove: () => void): HTMLElement {
   const chip = document.createElement('span');
   chip.className = 'chip' + (active ? '' : ' canonical-chip-disabled');
   const cb = document.createElement('input');
@@ -461,7 +454,7 @@ function buildChip(text, active, onToggleActive, onRemove){
   return chip;
 }
 
-function buildRuleRow(rule){
+function buildRuleRow(rule: CanonicalRule): HTMLElement {
   const row = document.createElement('div');
   row.className = 'canonical-rule-row';
   row.dataset.ruleId = String(rule.id);
@@ -643,7 +636,16 @@ export function renderCanonicalTagsList(){
   }
 }
 
-export function initCanonicalTags(deps){
+interface CanonicalTagsDeps {
+  getDirHandle: () => DirHandle | null;
+  getEntries: () => Entry[];
+  markDirty: (e: Entry) => void;
+  refreshAllUI: () => void;
+  markRulesDirty: () => void;
+  recordChange: (type: string, summary: string, affected: EditLogAffected[], extra?: Record<string, unknown>) => void;
+}
+
+export function initCanonicalTags(deps: CanonicalTagsDeps): void {
   getDirHandle = deps.getDirHandle;
   getEntries = deps.getEntries;
   markDirtyRef = deps.markDirty;
@@ -671,6 +673,7 @@ export function initCanonicalTags(deps){
     const head = newRow && newRow.querySelector('.canonical-rule-head');
     if (!head) return;
     const label = head.querySelector('.canonical-rule-label');
+    if (!label) return;
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.placeholder = 'Canonical tag name (leave blank for a void rule)';

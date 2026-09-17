@@ -4,6 +4,7 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const WS = require('ws');
+const { registerWd14LocalHandlers } = require('./wd14-local');
 
 // ---- Portable mode ----
 // A packaged build stores everything (the renderer's live "tool" copy, plus
@@ -169,6 +170,11 @@ function ensureRendererFiles() {
 }
 
 function createWindow() {
+  // electron-builder's own `build.win/mac/linux.icon` (package.json) bakes the icon into a
+  // PACKAGED exe automatically — this is what makes it show up in dev (`npm start`, unpackaged)
+  // and on Linux, where there's no single exe resource to bake it into. .ico on Windows (multi-
+  // resolution, what the taskbar/titlebar actually want), .png everywhere else.
+  const windowIcon = path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -177,6 +183,7 @@ function createWindow() {
     backgroundColor: '#16151c',
     autoHideMenuBar: true,
     show: false,
+    icon: windowIcon,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -338,6 +345,10 @@ function buildMultipart(fields, fileField, fileName, fileBuffer) {
 // scraped live from ComfyUI's /object_info, never hardcoded here, so the
 // dropdown always matches whatever that node (and its config) actually
 // offers on the user's machine.
+// On-device WD14 tagging — no ComfyUI instance needed at all. See
+// wd14-local.ts's own top comment; this mirrors mobile's DtsWd14Plugin.kt.
+registerWd14LocalHandlers(ipcMain);
+
 ipcMain.handle('wd14-get-models', async (event, host) => {
   try {
     const res = await comfyRequest(host, '/object_info/WD14Tagger%7Cpysssss', { timeoutMs: 6000 });

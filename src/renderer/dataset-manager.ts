@@ -6,7 +6,7 @@
 // convention favorites.ts already uses. See CLAUDE.md's Critical
 // Constraints / Known Pitfalls for why the folder icon's outline color is a
 // plain CSS var (`--accent-flair`) rather than anything computed in JS.
-// @ts-nocheck
+import type { DirHandle } from './types';
 import {
   datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown,
   achievementsPanel, favoritesPanel, themeCustomPanel, logPanel, tagDetailsPanel, shopPanel
@@ -14,6 +14,18 @@ import {
 import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown } from './shared-ui';
 import { renderAchievementsPanel, trackStat, checkAchievements } from './achievements';
 import { addFavoriteHandle, removeFavoriteByHandle, isFavorited } from './favorites';
+
+interface DMRecord {
+  id: number;
+  name: string;
+  handle: DirHandle & { toJSON?(): unknown; requestPermission?(opts: { mode: string }): Promise<string>; entries?(): AsyncIterable<[string, { kind: string; getFile(): Promise<File> }]> };
+  addedAt: number;
+  lastOpenedAt: number;
+  pinned: boolean;
+  iconMode: string;
+  iconImageBase: string | null;
+  iconImageDataUrl: string | null;
+}
 
 const DB_NAME = 'dts-dataset-manager-db';
 const STORE = 'folders';
@@ -23,23 +35,23 @@ const VIEW_KEY = 'dts-dataset-manager-view';
 const SUPPRESS_KEY = 'dts-dataset-tab-prompt-suppressed';
 
 const DM_IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'];
-function isImageFile(name){
+function isImageFile(name: string): boolean {
   const lower = name.toLowerCase();
   return DM_IMAGE_EXT.some(ext => lower.endsWith(ext));
 }
 
-let getDirHandle = () => null;
-let openFolderHandle = async () => {};
-let switchTab = () => {};
+let getDirHandle: () => DirHandle | null = () => null;
+let openFolderHandle: (h: DirHandle) => Promise<void> = async () => {};
+let switchTab: (tab: string) => void = () => {};
 
-let folderOrder = [];       // array of record ids, manual sort only
-let sortMode = 'manual';    // manual | filename | opened | added
-let viewMode = 'grid';      // grid | list
+let folderOrder: number[] = [];
+let sortMode = 'manual';
+let viewMode = 'grid';
 
 // ---------------- IndexedDB ----------------
 
-function openDMDB(){
-  return new Promise((resolve, reject) => {
+function openDMDB(): Promise<IDBDatabase> {
+  return new Promise<IDBDatabase>((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -52,16 +64,25 @@ function openDMDB(){
   });
 }
 
-async function addDatasetFolder(handle){
+async function addDatasetFolder(handle: DMRecord['handle']): Promise<IDBValidKey> {
   // If this folder was already favorited via the header ★ Favorites button
   // before ever being tracked here, it should show up already pinned —
   // sync-on-arrival, the other half of syncPinFromFavoriteChange() below.
   let alreadyFavorited = false;
-  try { alreadyFavorited = await isFavorited(handle); } catch(e){}
-  const result = await openDMDB().then(db => new Promise((resolve, reject) => {
+  try { alreadyFavorited = await isFavorited(handle as unknown as FileSystemDirectoryHandle); } catch(e){}
+  // On mobile, `handle` is mobile-shim.js's polyfill object — full of
+  // closures (native-plugin calls), which IndexedDB's structured clone
+  // can't store at all (a real browser FileSystemDirectoryHandle has
+  // special structured-clone support; this plain object doesn't). Its own
+  // toJSON() (present only there, real handles have no such method) gives
+  // back a small serializable shape instead — see
+  // window.__dtsReviveDirHandle's use in listDatasetFolders() below for
+  // the other half of this round-trip.
+  const storedHandle = handle.toJSON ? handle.toJSON() : handle;
+  const result = await openDMDB().then(db => new Promise<IDBValidKey>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
     const record = {
-      name: handle.name, handle, addedAt: Date.now(), lastOpenedAt: Date.now(),
+      name: handle.name, handle: storedHandle, addedAt: Date.now(), lastOpenedAt: Date.now(),
       pinned: alreadyFavorited, iconMode: 'generic', iconImageBase: null, iconImageDataUrl: null
     };
     const req = tx.objectStore(STORE).add(record);
@@ -77,24 +98,39 @@ async function addDatasetFolder(handle){
 // the header ★ Favorites button favorites/unfavorites the currently-open
 // folder — keeps a tracked Dataset-tab record's `pinned` field in sync
 // without dataset-manager.ts and favorites.ts importing each other.
-export async function syncPinFromFavoriteChange(handle, isNowFavorited){
+export async function syncPinFromFavoriteChange(handle: DMRecord['handle'], isNowFavorited: boolean): Promise<void> {
   const record = await findTrackedRecord(handle);
   if (!record) return;
   await updateDatasetFolder(record.id, { pinned: isNowFavorited });
   if (datasetManagerTab.style.display !== 'none') renderDatasetManagerTab();
 }
 
-function listDatasetFolders(){
-  return openDMDB().then(db => new Promise((resolve, reject) => {
+function listDatasetFolders(): Promise<DMRecord[]> {
+  return openDMDB().then(db => new Promise<DMRecord[]>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readonly');
     const req = tx.objectStore(STORE).getAll();
-    req.onsuccess = () => resolve(req.result || []);
+    req.onsuccess = () => {
+      const records = req.result || [];
+      // The one place every other function in this file gets records from
+      // — reviving a mobile-shim-serialized `handle` back into a live one
+      // here means nothing downstream (findTrackedRecord/openDataset/etc.)
+      // needs to know serialization happened at all. See addDatasetFolder()
+      // for the other half.
+      if (window.__dtsReviveDirHandle){
+        for (const rec of records){
+          if (rec.handle && rec.handle.__dtsMobileHandle){
+            rec.handle = window.__dtsReviveDirHandle(rec.handle);
+          }
+        }
+      }
+      resolve(records);
+    };
     req.onerror = () => reject(req.error);
   }));
 }
 
-function removeDatasetFolder(id){
-  return openDMDB().then(db => new Promise((resolve, reject) => {
+function removeDatasetFolder(id: number): Promise<void> {
+  return openDMDB().then(db => new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
     tx.objectStore(STORE).delete(id);
     tx.oncomplete = () => resolve();
@@ -102,8 +138,8 @@ function removeDatasetFolder(id){
   }));
 }
 
-function updateDatasetFolder(id, patch){
-  return openDMDB().then(db => new Promise((resolve, reject) => {
+function updateDatasetFolder(id: number, patch: Partial<DMRecord>): Promise<void> {
+  return openDMDB().then(db => new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
     const store = tx.objectStore(STORE);
     const getReq = store.get(id);
@@ -118,8 +154,8 @@ function updateDatasetFolder(id, patch){
   }));
 }
 
-async function findTrackedRecord(handle){
-  let records = [];
+async function findTrackedRecord(handle: DMRecord['handle']): Promise<DMRecord | null> {
+  let records: DMRecord[] = [];
   try { records = await listDatasetFolders(); } catch(e){ return null; }
   for (const rec of records){
     let same = false;
@@ -133,8 +169,8 @@ async function findTrackedRecord(handle){
 
 // ---------------- Order / sort / view persistence ----------------
 
-function loadPrefs(){
-  try { folderOrder = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]') || []; } catch(e){ folderOrder = []; }
+function loadPrefs(): void {
+  try { folderOrder = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]') as number[] || []; } catch(e){ folderOrder = []; }
   try { sortMode = localStorage.getItem(SORT_KEY) || 'manual'; } catch(e){ sortMode = 'manual'; }
   try { viewMode = localStorage.getItem(VIEW_KEY) || 'grid'; } catch(e){ viewMode = 'grid'; }
 }
@@ -142,7 +178,7 @@ function saveOrder(){ try { localStorage.setItem(ORDER_KEY, JSON.stringify(folde
 function saveSortMode(){ try { localStorage.setItem(SORT_KEY, sortMode); } catch(e){} }
 function saveViewMode(){ try { localStorage.setItem(VIEW_KEY, viewMode); } catch(e){} }
 
-function reorderFolders(draggedId, targetId, after){
+function reorderFolders(draggedId: number, targetId: number, after: boolean): void {
   folderOrder = folderOrder.filter(x => x !== draggedId);
   let idx = folderOrder.indexOf(targetId);
   if (idx === -1) idx = folderOrder.length;
@@ -152,10 +188,10 @@ function reorderFolders(draggedId, targetId, after){
   renderDatasetManagerTab();
 }
 
-function sortRecords(records){
+function sortRecords(records: DMRecord[]): DMRecord[] {
   const pinned = records.filter(r => r.pinned);
   const rest = records.filter(r => !r.pinned);
-  function applySort(list){
+  function applySort(list: DMRecord[]): DMRecord[] {
     if (sortMode === 'filename') return [...list].sort((a,b) => a.name.localeCompare(b.name));
     if (sortMode === 'opened') return [...list].sort((a,b) => (b.lastOpenedAt||0) - (a.lastOpenedAt||0));
     if (sortMode === 'added') return [...list].sort((a,b) => (b.addedAt||0) - (a.addedAt||0));
@@ -180,7 +216,7 @@ const FOLDER_BACK_PATH = 'M6,10 L24,10 L28,16 L60,16 L60,42 L4,42 L4,14 Z';
 // for a bigger icon-mode image to occupy/poke out into.
 const FOLDER_FRONT_PATH = 'M4,44 L4,30 L14,26 L60,26 L60,44 Z';
 
-function svgEl(pathD){
+function svgEl(pathD: string): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', '0 0 64 48');
@@ -190,7 +226,7 @@ function svgEl(pathD){
   return svg;
 }
 
-function buildFolderIcon(record){
+function buildFolderIcon(record: DMRecord): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'dm-folder-icon';
   const back = svgEl(FOLDER_BACK_PATH);
@@ -211,23 +247,23 @@ function buildFolderIcon(record){
 
 // ---------------- Context menu (mirrors view.ts's ctx-menu pattern) ----------------
 
-let dmCtxMenuEl = null;
+let dmCtxMenuEl: HTMLElement | null = null;
 
-function closeDmCtxMenu(){
+function closeDmCtxMenu(): void {
   if (dmCtxMenuEl){ dmCtxMenuEl.remove(); dmCtxMenuEl = null; }
   document.removeEventListener('click', onDmCtxOutsideClick);
   document.removeEventListener('keydown', onDmCtxEscape);
 }
-function onDmCtxOutsideClick(ev){
+function onDmCtxOutsideClick(ev: MouseEvent): void {
   if (!dmCtxMenuEl) return;
   const path = ev.composedPath ? ev.composedPath() : [];
   if (path.includes(dmCtxMenuEl)) return;
   closeDmCtxMenu();
 }
-function onDmCtxEscape(ev){
+function onDmCtxEscape(ev: KeyboardEvent): void {
   if (ev.key === 'Escape') closeDmCtxMenu();
 }
-function addDmCtxItem(menu, label, onClick){
+function addDmCtxItem(menu: HTMLElement, label: string, onClick: () => void): void {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'ctx-item';
@@ -239,7 +275,7 @@ function addDmCtxItem(menu, label, onClick){
   menu.appendChild(btn);
 }
 
-function openDmContextMenu(record, x, y){
+function openDmContextMenu(record: DMRecord, x: number, y: number): void {
   closeDmCtxMenu();
   const menu = document.createElement('div');
   menu.className = 'ctx-menu';
@@ -265,8 +301,8 @@ function openDmContextMenu(record, x, y){
     const nowPinned = !record.pinned;
     await updateDatasetFolder(record.id, { pinned: nowPinned });
     try {
-      if (nowPinned) await addFavoriteHandle(record.handle);
-      else await removeFavoriteByHandle(record.handle);
+      if (nowPinned) await addFavoriteHandle(record.handle as unknown as FileSystemDirectoryHandle);
+      else await removeFavoriteByHandle(record.handle as unknown as FileSystemDirectoryHandle);
     } catch(e){}
     if (nowPinned){ trackStat('favorited'); checkAchievements(); }
     renderDatasetManagerTab();
@@ -275,16 +311,6 @@ function openDmContextMenu(record, x, y){
   addDmCtxItem(menu, 'View achievements', async () => {
     closeDmCtxMenu();
     await openReadOnlyAchievements(record);
-  });
-
-  addDmCtxItem(menu, record.iconMode === 'image' ? 'Icon: switch to Generic' : 'Icon: switch to Image', async () => {
-    closeDmCtxMenu();
-    if (record.iconMode === 'image'){
-      await updateDatasetFolder(record.id, { iconMode: 'generic' });
-      renderDatasetManagerTab();
-    } else {
-      await openIconPicker(record);
-    }
   });
 
   addDmCtxItem(menu, 'Select image for icon…', async () => {
@@ -303,11 +329,11 @@ function openDmContextMenu(record, x, y){
 
 // ---------------- Read-only achievements view ----------------
 
-async function openReadOnlyAchievements(record){
+async function openReadOnlyAchievements(record: DMRecord): Promise<void> {
   try {
-    const perm = await record.handle.requestPermission({ mode: 'read' });
+    const perm = await record.handle.requestPermission!({ mode: 'read' });
     if (perm !== 'granted'){ toast('Permission was not granted for that folder.'); return; }
-    let unlocked = [];
+    let unlocked: string[] = [];
     try {
       const fh = await record.handle.getFileHandle('_dts_achievements.json', { create: false });
       const file = await fh.getFile();
@@ -329,10 +355,10 @@ async function openReadOnlyAchievements(record){
 
 // ---------------- Icon picker (lazy thumbnail scan) ----------------
 
-async function openIconPicker(record){
-  let perm;
+async function openIconPicker(record: DMRecord): Promise<void> {
+  let perm: string;
   try {
-    perm = await record.handle.requestPermission({ mode: 'read' });
+    perm = await record.handle.requestPermission!({ mode: 'read' });
   } catch(e){ perm = 'denied'; }
   if (perm !== 'granted'){ toast('Permission was not granted for that folder.'); return; }
 
@@ -359,22 +385,32 @@ async function openIconPicker(record){
   cancelBtn.addEventListener('click', close);
   backdrop.addEventListener('click', (ev) => { if (ev.target === backdrop) close(); });
 
-  grid.textContent = 'Scanning…';
+  const noImageCell = document.createElement('button');
+  noImageCell.type = 'button';
+  noImageCell.className = 'dm-icon-picker-cell dm-icon-picker-noimage';
+  noImageCell.textContent = '(No image)';
+  noImageCell.addEventListener('click', async () => {
+    await updateDatasetFolder(record.id, { iconMode: 'generic' });
+    close();
+    renderDatasetManagerTab();
+  });
+  grid.appendChild(noImageCell);
+
+  const scanning = document.createElement('div');
+  scanning.className = 'dm-icon-picker-scanning';
+  scanning.textContent = 'Scanning…';
+  grid.appendChild(scanning);
   const thumbs = [];
   try {
     let count = 0;
-    for await (const [name, h] of record.handle.entries()){
+    for await (const [name, h] of record.handle.entries!()){
       if (h.kind !== 'file' || !isImageFile(name)) continue;
       thumbs.push({ base: name, handle: h });
       count++;
       if (count >= 60) break;
     }
   } catch(e){}
-  grid.textContent = '';
-  if (thumbs.length === 0){
-    grid.textContent = 'No images found in that folder.';
-    return;
-  }
+  scanning.remove();
   for (const t of thumbs){
     const cell = document.createElement('button');
     cell.type = 'button';
@@ -401,9 +437,9 @@ async function openIconPicker(record){
   }
 }
 
-function downscaleToDataUrl(imgEl){
-  return new Promise((resolve, reject) => {
-    function draw(){
+function downscaleToDataUrl(imgEl: HTMLImageElement): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    function draw(): void {
       try {
         const canvas = document.createElement('canvas');
         const size = 120;
@@ -412,7 +448,7 @@ function downscaleToDataUrl(imgEl){
         const iw = imgEl.naturalWidth || size, ih = imgEl.naturalHeight || size;
         const scale = Math.max(size/iw, size/ih);
         const dw = iw*scale, dh = ih*scale;
-        ctx.drawImage(imgEl, (size-dw)/2, (size-dh)/2, dw, dh);
+        ctx!.drawImage(imgEl, (size-dw)/2, (size-dh)/2, dw, dh);
         resolve(canvas.toDataURL('image/jpeg', 0.7));
       } catch(err){ reject(err); }
     }
@@ -423,12 +459,12 @@ function downscaleToDataUrl(imgEl){
 
 // ---------------- Drag-to-reorder (mirrors docks.ts's reorderDock idiom) ----------------
 
-function wireTileDrag(tile, record){
+function wireTileDrag(tile: HTMLElement, record: DMRecord): void {
   if (sortMode !== 'manual') return;
   tile.draggable = true;
   tile.addEventListener('dragstart', (ev) => {
-    ev.dataTransfer.setData('text/plain', String(record.id));
-    ev.dataTransfer.effectAllowed = 'move';
+    ev.dataTransfer!.setData('text/plain', String(record.id));
+    ev.dataTransfer!.effectAllowed = 'move';
     tile.classList.add('dm-dragging');
   });
   tile.addEventListener('dragend', () => tile.classList.remove('dm-dragging'));
@@ -437,7 +473,7 @@ function wireTileDrag(tile, record){
   tile.addEventListener('drop', (ev) => {
     ev.preventDefault();
     tile.classList.remove('dm-drop-target');
-    const draggedId = Number(ev.dataTransfer.getData('text/plain'));
+    const draggedId = Number(ev.dataTransfer!.getData('text/plain'));
     if (!draggedId || draggedId === record.id) return;
     const rect = tile.getBoundingClientRect();
     const dropAfter = (ev.clientX - rect.left) > rect.width / 2;
@@ -447,9 +483,9 @@ function wireTileDrag(tile, record){
 
 // ---------------- Opening a tracked folder ----------------
 
-async function openTrackedFolder(record){
+async function openTrackedFolder(record: DMRecord): Promise<void> {
   try {
-    const perm = await record.handle.requestPermission({ mode: 'readwrite' });
+    const perm = await record.handle.requestPermission!({ mode: 'readwrite' });
     if (perm !== 'granted'){ toast('Permission was not granted for that folder.'); return; }
     await updateDatasetFolder(record.id, { lastOpenedAt: Date.now() });
     await openFolderHandle(record.handle);
@@ -464,7 +500,7 @@ async function openTrackedFolder(record){
 // Called after opening a brand-new folder via the generic File > Open path.
 // Never called for the dashed add-tile's own flow (that always adds
 // unconditionally, no prompt — see addFolderViaAddTile below).
-export async function maybePromptAddDataset(handle){
+export async function maybePromptAddDataset(handle: DMRecord['handle']): Promise<void> {
   const existing = await findTrackedRecord(handle);
   if (existing) return;
   let suppressed = false;
@@ -483,12 +519,12 @@ export async function maybePromptAddDataset(handle){
 }
 
 async function addFolderViaAddTile(){
-  if (!window.showDirectoryPicker){
+  if (!(window as unknown as Record<string, unknown>).showDirectoryPicker){
     toast('Your browser does not support folder access. Use Chrome or Edge, opened as a normal tab (not an embedded preview).', 5000);
     return;
   }
-  let picked = null;
-  try { picked = await window.showDirectoryPicker({ mode: 'readwrite' }); }
+  let picked: DirHandle | null = null;
+  try { picked = await (window as unknown as { showDirectoryPicker(opts: { mode: string }): Promise<DirHandle> }).showDirectoryPicker({ mode: 'readwrite' }); }
   catch(e){ return; }
   if (!picked) return;
   const existing = await findTrackedRecord(picked);
@@ -499,7 +535,7 @@ async function addFolderViaAddTile(){
 
 // ---------------- Rendering ----------------
 
-function buildAddTile(){
+function buildAddTile(): HTMLElement {
   const tile = document.createElement('button');
   tile.type = 'button';
   tile.className = 'dm-tile dm-add-tile';
@@ -509,7 +545,7 @@ function buildAddTile(){
   return tile;
 }
 
-function buildFolderTile(record){
+function buildFolderTile(record: DMRecord): HTMLElement {
   const tile = document.createElement('div');
   tile.className = 'dm-tile' + (record.pinned ? ' dm-pinned' : '');
   tile.tabIndex = 0;
@@ -554,12 +590,12 @@ function buildFolderTile(record){
   return tile;
 }
 
-export async function renderDatasetManagerTab(){
+export async function renderDatasetManagerTab(): Promise<void> {
   dmGrid.classList.toggle('dm-list-view', viewMode === 'list');
   dmGridBtn.classList.toggle('active', viewMode === 'grid');
   dmListBtn.classList.toggle('active', viewMode === 'list');
 
-  let records = [];
+  let records: DMRecord[] = [];
   try { records = await listDatasetFolders(); } catch(e){ records = []; }
   const sorted = sortRecords(records);
 
@@ -575,7 +611,13 @@ export async function renderDatasetManagerTab(){
 
 // ---------------- Init ----------------
 
-export function initDatasetManager(deps){
+interface DatasetManagerDeps {
+  getDirHandle: () => DirHandle | null;
+  openFolderHandle: (h: DirHandle) => Promise<void>;
+  switchTab: (tab: string) => void;
+}
+
+export function initDatasetManager(deps: DatasetManagerDeps): void {
   getDirHandle = deps.getDirHandle;
   openFolderHandle = deps.openFolderHandle;
   switchTab = deps.switchTab;

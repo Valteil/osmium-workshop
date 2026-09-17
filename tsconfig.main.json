@@ -14,5 +14,5 @@
     "resolveJsonModule": true,
     "sourceMap": false
   },
-  "files": ["src/main.ts", "src/preload.ts"]
+  "files": ["src/main.ts", "src/preload.ts", "src/wd14-local.ts"]
 }

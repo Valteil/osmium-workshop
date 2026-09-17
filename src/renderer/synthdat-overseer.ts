@@ -12,30 +12,33 @@
 // generated/accepted images into the loaded dataset folder happens directly
 // here in the renderer via the File System Access API (dirHandle), exactly
 // like every other file write in this app — no IPC needed for that part.
-// @ts-nocheck
+import type { DirHandle, Entry, ComfyResult, SynthDatPrompt } from './types';
 import {
   synthDatHost, synthDatRefPreviewWrap, synthDatRefPreview, synthDatRefEmpty, synthDatResizedPreviewWrap,
   synthDatResizedPreview, synthDatResizedPreviewLabel, btnSynthDatPickImage, btnSynthDatInterrogate,
   synthDatWd14Result, synthDatTagAssign, btnSynthDatMigratePose, synthDatDiffModel, synthDatUnetDatalist,
   synthDatClip, synthDatClipDatalist, synthDatVae, synthDatVaeDatalist,
   synthDatMainLora, synthDatMainLoraDatalist, synthDatLoraDatalist,
-  synthDatLoraStackRows, btnSynthDatAddLora, btnSynthDatRefreshModels,
+  synthDatLoraStackRows, btnSynthDatAddLora, btnSynthDatRefreshModels, btnSynthDatConnect, synthDatConnStatus,
   synthDatLLLiteStrength, synthDatLLLiteStartPercent, synthDatLLLiteEndPercent, synthDatLLLitePreserveWrapper,
   synthDatResizeFit, synthDatResizeMethod, synthDatSampler, synthDatScheduler,
   synthDatSteps1, synthDatCfg1, synthDatSteps2,
+  synthDatPromptFieldsDock, btnSynthDatPromptPanelToggle, btnSynthDatPromptPanelClose,
+  synthDatUnifiedPromptMode, synthDatUnifiedPromptRow, synthDatUnifiedPrompt, synthDatSplitFieldsGroup, synthDatStripHairFaceRow,
   synthDatGlobal, synthDatCharacter, synthDatCharacterTrigger,
   synthDatRating, synthDatHair, synthDatFace, synthDatChest, synthDatBody, synthDatClothes,
   synthDatLimbs, synthDatSexual, synthDatPose, synthDatScene, synthDatEffects, synthDatExtra,
-  synthDatNegative, synthDatWidth, synthDatHeight, synthDatResoWarning, synthDatUse2Pass,
+  synthDatNegative, synthDatWidth, btnSynthDatSwapReso, synthDatHeight, synthDatResoWarning, synthDatUse2Pass,
   synthDatSeed1, synthDatSeed2, synthDatDenoise2, btnSynthDatGenerate, btnSynthDatStop, synthDatGenStatus,
   synthDatLivePreviewWrap, synthDatLivePreview,
   synthDatPreviewWrap, synthDatPreview, synthDatPreviewEmpty,
   btnSynthDatReinterrogateOutput, synthDatReinterrogateResult, synthDatReinterrogateOverwrite,
   synthDatPassPickerRow, synthDatPickPass1, synthDatPickPass2, synthDatPass1Thumb, synthDatPass2Thumb,
-  synthDatStripHairFace, synthDatTagPreview, btnSynthDatAccept, btnSynthDatReject,
+  synthDatStripHairFace, synthDatTagPreview, synthDatRenameOnAccept, btnSynthDatAccept, btnSynthDatReject,
   synthDatMigrateClearFirst, synthDatSkipRefImage, synthDatRefImageSection, synthDatCol1
 } from './dom';
 import { toast, showImageLightbox, positionMenu } from './shared-ui';
+import { attachListAutocomplete } from './tags-autocomplete';
 import { parseWd14Tags } from './wd14-tagger';
 import { moveEntry, markDirty } from './tags-edit';
 import { canonicalRules, activeVoidTagSet, registerVoidRule } from './canonical-tags';
@@ -71,12 +74,12 @@ function getHost(){ return (synthDatHost.value || '').trim() || 'http://127.0.0.
 // this): the character you're generating for is tied to a specific dataset,
 // so its prompt belongs to that dataset, not to the app as a whole.
 const SETTINGS_FILE_NAME = '_dts_synthdat_settings.json';
-let saveTimer = null;
-function scheduleSave(){
-  clearTimeout(saveTimer);
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSave(): void {
+  if (saveTimer !== null) clearTimeout(saveTimer);
   saveTimer = setTimeout(saveSettings, 400);
 }
-async function saveSettings(){
+async function saveSettings(): Promise<void> {
   const dirHandle = getDirHandle();
   if (!dirHandle) return; // nothing to save into with no dataset open
   try {
@@ -84,6 +87,7 @@ async function saveSettings(){
     const writable = await handle.createWritable();
     await writable.write(JSON.stringify({
       host: synthDatHost.value,
+      unifiedPromptMode: synthDatUnifiedPromptMode.checked, unifiedPrompt: synthDatUnifiedPrompt.value,
       global: synthDatGlobal.value, character: synthDatCharacter.value, characterTrigger: synthDatCharacterTrigger.value,
       rating: synthDatRating.value, hair: synthDatHair.value, face: synthDatFace.value, chest: synthDatChest.value,
       body: synthDatBody.value, clothes: synthDatClothes.value, limbs: synthDatLimbs.value, sexual: synthDatSexual.value,
@@ -110,21 +114,23 @@ async function saveSettings(){
 // instead of stale data from session state.
 function resetSettingsToDefault(){
   synthDatHost.value = '';
+  synthDatUnifiedPromptMode.checked = false; synthDatUnifiedPrompt.value = '';
   synthDatGlobal.value = ''; synthDatCharacter.value = ''; synthDatCharacterTrigger.value = '';
   synthDatRating.value = ''; synthDatHair.value = ''; synthDatFace.value = ''; synthDatChest.value = '';
   synthDatBody.value = ''; synthDatClothes.value = ''; synthDatLimbs.value = ''; synthDatSexual.value = '';
   synthDatScene.value = ''; synthDatEffects.value = ''; synthDatExtra.value = ''; synthDatNegative.value = '';
   synthDatDiffModel.value = ''; synthDatClip.value = ''; synthDatVae.value = ''; synthDatMainLora.value = '';
   synthDatLoraStackRows.innerHTML = ''; loraRows = [];
-  synthDatLLLiteStrength.value = 1; synthDatLLLiteStartPercent.value = 0; synthDatLLLiteEndPercent.value = 0.3;
+  synthDatLLLiteStrength.value = '1'; synthDatLLLiteStartPercent.value = '0'; synthDatLLLiteEndPercent.value = '0.3';
   synthDatLLLitePreserveWrapper.checked = true;
   synthDatResizeFit.value = 'pad'; synthDatResizeMethod.value = 'lanczos';
   synthDatSampler.value = 'res_multistep'; synthDatScheduler.value = 'beta';
-  synthDatSteps1.value = 25; synthDatCfg1.value = 4.04; synthDatSteps2.value = 15;
-  synthDatWidth.value = 920; synthDatHeight.value = 1244; synthDatUse2Pass.checked = false;
-  synthDatSeed1.value = 15; synthDatSeed2.value = 15; synthDatDenoise2.value = 0.6;
+  synthDatSteps1.value = '25'; synthDatCfg1.value = '4.04'; synthDatSteps2.value = '15';
+  synthDatWidth.value = '920'; synthDatHeight.value = '1244'; synthDatUse2Pass.checked = false;
+  synthDatSeed1.value = '15'; synthDatSeed2.value = '15'; synthDatDenoise2.value = '0.6';
   synthDatStripHairFace.checked = true; synthDatSkipRefImage.checked = false;
   applySkipRefImageUI();
+  applyUnifiedPromptModeUI();
 }
 async function loadSettingsFromFile(){
   const dirHandle = getDirHandle();
@@ -137,6 +143,7 @@ async function loadSettingsFromFile(){
   } catch(e){ return null; } // no settings file for this dataset yet — not an error
   if (!saved) return null;
   synthDatHost.value = saved.host || '';
+  synthDatUnifiedPromptMode.checked = !!saved.unifiedPromptMode; synthDatUnifiedPrompt.value = saved.unifiedPrompt || '';
   synthDatGlobal.value = saved.global || ''; synthDatCharacter.value = saved.character || '';
   synthDatCharacterTrigger.value = saved.characterTrigger || ''; synthDatRating.value = saved.rating || '';
   synthDatHair.value = saved.hair || ''; synthDatFace.value = saved.face || ''; synthDatChest.value = saved.chest || '';
@@ -162,6 +169,7 @@ async function loadSettingsFromFile(){
   synthDatStripHairFace.checked = saved.stripHairFace !== false;
   synthDatSkipRefImage.checked = !!saved.skipRefImage;
   applySkipRefImageUI();
+  applyUnifiedPromptModeUI();
   return saved;
 }
 
@@ -273,27 +281,28 @@ const SEXUAL_ACTION_TAGS = new Set([
   'double footjob', 'cooperative footjob', 'implied footjob', 'foot pussy'
 ]);
 
-function normalizeTag(t){
+function normalizeTag(t: string): string {
   return String(t).toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-let template = null;
-let getDirHandle = () => null;
-let addEntryFromNewFile = async () => null;
-let refreshAllUIRef = () => {};
+let template: SynthDatPrompt | null = null;
+let getDirHandle: () => DirHandle | null = () => null;
+let addEntryFromNewFile: (...args: unknown[]) => Promise<Entry | null> = async () => null;
+let refreshAllUIRef: () => void = () => {};
 
-let refFile = null;           // the picked reference File
-let refFilename = '';         // name used both for WD14 upload and generation upload
-let refImageEl = null;        // an actual <img> once loaded, for its natural size + the resized-preview canvas
+let refFile: File | null = null;
+let refFilename = '';
+let refImageEl: HTMLImageElement | null = null;
 let lastWd14TagsCsv = '';
-let previewBytes = null;      // Uint8Array of the last generated image, or null
-let loraCombo = null;         // cached lora_01 combo list, shared by every dynamic LoRA row
+let previewBytes: Uint8Array | null = null;
+let loraCombo: string[] | null = null;
 
 // ---------------- Textarea auto-grow (no manual resize handle) ----------------
 
-function growTextarea(el){
-  el.style.height = 'auto';
-  el.style.height = `${el.scrollHeight}px`;
+function growTextarea(el: Element): void {
+  const he = el as HTMLElement;
+  he.style.height = 'auto';
+  he.style.height = `${he.scrollHeight}px`;
 }
 
 async function loadTemplate(){
@@ -303,13 +312,13 @@ async function loadTemplate(){
   return template;
 }
 
-function setWd14ResultText(text){
+function setWd14ResultText(text: string): void {
   if (!text){ synthDatWd14Result.style.display = 'none'; synthDatWd14Result.textContent = ''; return; }
   synthDatWd14Result.style.display = 'block';
   synthDatWd14Result.textContent = text;
 }
 
-function setGenStatus(text){
+function setGenStatus(text: string): void {
   if (!text){ synthDatGenStatus.style.display = 'none'; synthDatGenStatus.textContent = ''; return; }
   synthDatGenStatus.style.display = 'block';
   synthDatGenStatus.textContent = text;
@@ -318,13 +327,13 @@ function setGenStatus(text){
 // ---------------- Reference image: pick, resized/padded preview, aspect warning ----------------
 
 async function pickReferenceImage(){
-  if (!window.showOpenFilePicker){
+  if (!(window as unknown as Record<string, unknown>).showOpenFilePicker){
     toast('Your browser does not support file picking here.', 4000);
     return;
   }
-  let handles;
+  let handles: FileSystemFileHandle[];
   try {
-    handles = await window.showOpenFilePicker({
+    handles = await (window as unknown as { showOpenFilePicker(opts: unknown): Promise<FileSystemFileHandle[]> }).showOpenFilePicker({
       types: [{ description: 'Images', accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp'] } }],
       multiple: false
     });
@@ -366,15 +375,15 @@ async function pickReferenceImage(){
 // image_resize.py) using canvas's own resampling rather than exactly
 // replicating its resample method choice — close enough to judge composition
 // before spending a generation on it, not meant to be pixel-identical.
-function updateResizedPreview(){
+function updateResizedPreview(): void {
   if (!refImageEl || !refImageEl.naturalWidth){ synthDatResizedPreviewWrap.style.display = 'none'; synthDatResizedPreviewLabel.style.display = 'none'; return; }
   const targetW = parseInt(synthDatWidth.value, 10) || 920;
   const targetH = parseInt(synthDatHeight.value, 10) || 1244;
   const fit = synthDatResizeFit.value || 'pad';
   const w = refImageEl.naturalWidth, h = refImageEl.naturalHeight;
   const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  let label;
+  const ctx = canvas.getContext('2d')!;
+  let label: string;
   if (fit === 'crop'){
     // Scale to COVER the target box, then center-crop the overhang — canvas
     // clips anything drawn outside its own bounds, so an over-sized draw at
@@ -410,7 +419,7 @@ function updateResizedPreview(){
   synthDatResizedPreviewLabel.style.display = 'block';
 }
 
-function updateResoWarning(){
+function updateResoWarning(): void {
   if (!refImageEl || !refImageEl.naturalWidth){ synthDatResoWarning.style.display = 'none'; return; }
   const targetW = parseInt(synthDatWidth.value, 10) || 0;
   const targetH = parseInt(synthDatHeight.value, 10) || 0;
@@ -429,11 +438,61 @@ function updateResoWarning(){
 // button's own `disabled` property, so unchecking the box just removes the
 // class and every button's actual disabled state (e.g. Interrogate staying
 // disabled until a file is picked) is exactly what it already was.
-function applySkipRefImageUI(){
+function applySkipRefImageUI(): void {
   synthDatRefImageSection.classList.toggle('synthdat-section-disabled', synthDatSkipRefImage.checked);
 }
 
-async function interrogateReference(){
+// Splitting the prompt into a dozen fields is the default because it maps
+// 1:1 onto the template's own Merger groups (see buildPromptFromFields()),
+// but someone who already has a full prompt written out shouldn't have to
+// paste it apart by hand — this just points the whole thing at the Character
+// field's own node instead, verbatim, no auto-splitting/analysis of any
+// kind. Global (Main LoRA trigger), Character Trigger, and Negative stay
+// visible either way — they're fixed technical parameters, not prompt
+// content a "already have a prompt" user would be switching out.
+function applyUnifiedPromptModeUI(): void {
+  const unified = synthDatUnifiedPromptMode.checked;
+  synthDatUnifiedPromptRow.style.display = unified ? '' : 'none';
+  synthDatSplitFieldsGroup.style.display = unified ? 'none' : '';
+  // Strip Hair/Face has nothing to selectively strip once Hair/Face aren't
+  // their own fields anymore — hidden rather than left showing an inert
+  // checkbox.
+  synthDatStripHairFaceRow.style.display = unified ? 'none' : '';
+}
+
+// The prompt-fields overlay itself — see styles.css's comment on
+// #synthDatPromptFieldsDock for why this is position:fixed rather than a
+// real column: it overlaps whatever's underneath instead of resizing the
+// tab around itself. Not persisted across sessions/tab switches — always
+// starts closed, same as any other transient UI (e.g. a context menu).
+function onDocClickOutsidePromptPanel(ev: MouseEvent): void {
+  const target = ev.target as Node;
+  if (synthDatPromptFieldsDock.contains(target) || btnSynthDatPromptPanelToggle.contains(target)) return;
+  closeSynthDatPromptPanel();
+}
+function openSynthDatPromptPanel(): void {
+  synthDatPromptFieldsDock.style.display = 'block';
+  btnSynthDatPromptPanelToggle.style.display = 'none';
+  // Every growTextarea() call that happened while this panel was
+  // display:none (settings loading on folder open, resetSettingsToDefault(),
+  // etc.) measured a hidden element's scrollHeight, which reads as 0/default
+  // rather than the real content height — leaving fields stuck at that wrong
+  // (usually too-short) height until the user typed and re-triggered it.
+  // Recomputing every field's height right as the panel actually becomes
+  // visible fixes that regardless of what happened while it was hidden.
+  synthDatPromptFieldsDock.querySelectorAll('textarea').forEach(el => growTextarea(el));
+  // Deferred a tick so the same click that just opened the panel (via
+  // btnSynthDatPromptPanelToggle's own 'click' handler) doesn't also count
+  // as the first "outside" mousedown once this listener attaches.
+  setTimeout(() => document.addEventListener('mousedown', onDocClickOutsidePromptPanel), 0);
+}
+function closeSynthDatPromptPanel(): void {
+  synthDatPromptFieldsDock.style.display = 'none';
+  btnSynthDatPromptPanelToggle.style.display = '';
+  document.removeEventListener('mousedown', onDocClickOutsidePromptPanel);
+}
+
+async function interrogateReference(): Promise<void> {
   if (!refFile) return;
   setWd14ResultText('Interrogating…');
   const settings = getWd14Settings();
@@ -447,9 +506,10 @@ async function interrogateReference(){
     setWd14ResultText(res.error || 'WD14 interrogation failed.');
     return;
   }
-  lastWd14TagsCsv = res.tagsCsv;
-  setWd14ResultText(parseWd14Tags(res.tagsCsv).join(', ') || '(no tags returned)');
-  renderTagAssignPicker(parseWd14Tags(res.tagsCsv));
+  const tagsCsv = res.tagsCsv || '';
+  lastWd14TagsCsv = tagsCsv;
+  setWd14ResultText(parseWd14Tags(tagsCsv).join(', ') || '(no tags returned)');
+  renderTagAssignPicker(parseWd14Tags(tagsCsv));
 }
 
 // Interrogates the actual GENERATED image (whichever pass is currently
@@ -464,7 +524,7 @@ async function interrogateReference(){
 // - Overwrite: replaces the tag card entirely with WD14's own output tags,
 //   discarding whatever was there before — including prior prune/merge
 //   decisions, since there's nothing left for them to apply to.
-async function reinterrogateOutput(){
+async function reinterrogateOutput(): Promise<void> {
   if (!previewBytes || !pendingTagSnapshot) return;
   synthDatReinterrogateResult.style.display = 'block';
   synthDatReinterrogateResult.textContent = 'Interrogating output…';
@@ -478,7 +538,7 @@ async function reinterrogateOutput(){
     synthDatReinterrogateResult.textContent = res.error || 'WD14 interrogation failed.';
     return;
   }
-  const outputTags = parseWd14Tags(res.tagsCsv);
+  const outputTags = parseWd14Tags(res.tagsCsv || '');
   if (synthDatReinterrogateOverwrite.checked){
     pendingTagSnapshot = outputTags;
     excludedTags = new Set();
@@ -514,9 +574,10 @@ async function reinterrogateOutput(){
 // SEXUAL_ACTION_TAGS (seeded from Danbooru's own tag_group wiki pages) only
 // pre-select a SUGGESTED destination — the user can reassign or skip any row
 // before hitting Apply.
-let tagAssignments = new Map(); // tag -> 'pose' | 'limbs' | 'sexual' | null
+type TagDestination = 'pose' | 'limbs' | 'sexual';
+let tagAssignments = new Map<string, TagDestination | null>();
 
-function suggestDestination(tag){
+function suggestDestination(tag: string): TagDestination | null {
   const norm = normalizeTag(tag);
   if (POSE_TAGS.has(norm)) return 'pose';
   if (LIMB_ACTION_TAGS.has(norm)) return 'limbs';
@@ -533,7 +594,7 @@ function suggestDestination(tag){
 // classified, each defaults to that suggested destination (never Skip) —
 // the user only has to touch a row to override a wrong guess, not to
 // affirmatively assign every single one.
-function renderTagAssignPicker(tags){
+function renderTagAssignPicker(tags: string[]): void {
   tagAssignments = new Map();
   synthDatTagAssign.innerHTML = '';
   const relevant = tags.filter(t => suggestDestination(t) !== null);
@@ -545,7 +606,7 @@ function renderTagAssignPicker(tags){
     btnSynthDatMigratePose.disabled = true;
     return;
   }
-  const DESTS = [['pose', 'Pose'], ['limbs', 'Limbs'], ['sexual', 'Sexual'], [null, 'Skip']];
+  const DESTS: [TagDestination | null, string][] = [['pose', 'Pose'], ['limbs', 'Limbs'], ['sexual', 'Sexual'], [null, 'Skip']];
   for (const tag of relevant){
     tagAssignments.set(tag, suggestDestination(tag));
     const row = document.createElement('div');
@@ -573,13 +634,13 @@ function renderTagAssignPicker(tags){
   btnSynthDatMigratePose.disabled = false;
 }
 
-function applyTagAssignment(){
+function applyTagAssignment(): void {
   if (tagAssignments.size === 0){ toast('Interrogate a reference image first.'); return; }
-  const byDest = { pose: [], limbs: [], sexual: [] };
+  const byDest: Record<TagDestination, string[]> = { pose: [], limbs: [], sexual: [] };
   for (const [tag, dest] of tagAssignments){
     if (dest && byDest[dest]) byDest[dest].push(tag);
   }
-  const fieldByDest = { pose: synthDatPose, limbs: synthDatLimbs, sexual: synthDatSexual };
+  const fieldByDest: Record<TagDestination, HTMLTextAreaElement> = { pose: synthDatPose, limbs: synthDatLimbs, sexual: synthDatSexual };
   const clearFirst = synthDatMigrateClearFirst.checked;
   // "Clear first" wipes all three fields regardless of whether this round
   // actually assigned a new tag to each one — the point is starting this
@@ -588,7 +649,7 @@ function applyTagAssignment(){
     for (const field of Object.values(fieldByDest)){ field.value = ''; growTextarea(field); }
   }
   let total = 0;
-  for (const dest of Object.keys(byDest)){
+  for (const dest of Object.keys(byDest) as TagDestination[]){
     if (byDest[dest].length === 0) continue;
     const field = fieldByDest[dest];
     const existing = clearFirst ? [] : field.value.split(',').map(t => t.trim()).filter(Boolean);
@@ -603,13 +664,13 @@ function applyTagAssignment(){
 
 // ---------------- Model / LoRA dropdowns ----------------
 
-async function fetchComboValues(classType, inputName){
+async function fetchComboValues(classType: string, inputName: string): Promise<string[] | null> {
   const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType, inputName });
   if (!res.ok){
     toast(res.error || `Could not load ${classType}'s ${inputName} list from ComfyUI.`, 3600);
     return null;
   }
-  return res.values;
+  return res.values || [];
 }
 
 // Model/LoRA pickers are plain text inputs backed by a <datalist> (native
@@ -619,7 +680,7 @@ async function fetchComboValues(classType, inputName){
 // repopulates the <datalist>'s options; it never touches the input's own
 // typed value, so there's no "preserve the current selection" bookkeeping
 // needed the way a <select> would require.
-function fillDatalist(datalistEl, values){
+function fillDatalist(datalistEl: HTMLElement, values: string[]): void {
   datalistEl.innerHTML = '';
   for (const v of values){
     const opt = document.createElement('option');
@@ -636,20 +697,26 @@ function fillDatalist(datalistEl, values){
 // and repoints whichever nodes consumed 237's output at the last one in the
 // chain. All rgthree stack slots share the exact same combo list regardless
 // of index, so one shared fetch (loraCombo) backs every row's datalist.
-let loraRows = []; // [{ row, input, strength }]
+interface LoraRow {
+  row: HTMLElement;
+  input: HTMLInputElement;
+  strength: HTMLInputElement;
+}
 
-function addLoraRow(defaultLora, defaultStrength){
+let loraRows: LoraRow[] = [];
+
+function addLoraRow(defaultLora: string, defaultStrength: number): void {
   const row = document.createElement('div');
   row.className = 'synthdat-lora-row';
   const input = document.createElement('input');
   input.type = 'text';
-  input.setAttribute('list', 'synthDatLoraDatalist');
   input.placeholder = 'Start typing to search…';
   input.value = defaultLora || '';
+  attachListAutocomplete(input, () => loraCombo || []);
   const strength = document.createElement('input');
   strength.type = 'number';
   strength.step = '0.05';
-  strength.value = defaultStrength != null ? defaultStrength : 1;
+  strength.value = String(defaultStrength != null ? defaultStrength : 1);
   const removeBtn = document.createElement('button');
   removeBtn.textContent = '×';
   removeBtn.title = 'Remove this LoRA slot';
@@ -667,7 +734,25 @@ function addLoraRow(defaultLora, defaultStrength){
   loraRows.push({ row, input, strength });
 }
 
-async function refreshModelLists(){
+// Reuses the same synthdatGetObjectInfo bridge refreshModelLists() already
+// relies on (real fetch on mobile via comfy-client.ts, real IPC on desktop)
+// instead of adding a dedicated ping endpoint — one lightweight combo lookup
+// is enough to prove the host is reachable and speaking ComfyUI's API.
+async function testSynthdatConnection(): Promise<void> {
+  synthDatConnStatus.style.display = 'block';
+  synthDatConnStatus.style.color = '';
+  synthDatConnStatus.textContent = 'Connecting…';
+  const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'UNETLoader', inputName: 'unet_name' });
+  if (res.ok){
+    synthDatConnStatus.style.color = 'var(--accent-ok, #3a9)';
+    synthDatConnStatus.textContent = `✓ Connected to ${getHost()}`;
+  } else {
+    synthDatConnStatus.style.color = '';
+    synthDatConnStatus.textContent = res.error || 'Could not connect.';
+  }
+}
+
+async function refreshModelLists(): Promise<void> {
   const [unetValues, clipValues, vaeValues, mainLoraValues, loraValues] = await Promise.all([
     fetchComboValues('UNETLoader', 'unet_name'),
     fetchComboValues('CLIPLoader', 'clip_name'),
@@ -692,7 +777,7 @@ async function refreshModelLists(){
 // concatenate into node 11's single value. Character Count no longer has
 // its own box — the user is expected to type counts (e.g. "1girl, solo")
 // directly into Character, in order, so node 19 always gets an empty string.
-function fieldValue(el){ return (el.value || '').trim(); }
+function fieldValue(el: HTMLInputElement | HTMLTextAreaElement): string { return (el.value || '').trim(); }
 
 // This is what actually gets written to the accepted image's .txt — NOT
 // necessarily identical to the generation prompt. Hair/Face can optionally
@@ -700,20 +785,23 @@ function fieldValue(el){ return (el.value || '').trim(); }
 // own trigger word already implies its fixed appearance, so captions for
 // its training images conventionally omit descriptive hair/face tags that
 // would otherwise fight the trigger word during training.
-function buildPositiveTagList(){
-  const character = [fieldValue(synthDatCharacter), fieldValue(synthDatCharacterTrigger)].filter(Boolean).join(', ');
-  const stripHairFace = synthDatStripHairFace.checked;
-  const parts = [
-    fieldValue(synthDatGlobal), fieldValue(synthDatRating), character,
-    stripHairFace ? '' : fieldValue(synthDatHair), stripHairFace ? '' : fieldValue(synthDatFace),
-    fieldValue(synthDatChest), fieldValue(synthDatBody),
-    fieldValue(synthDatClothes), fieldValue(synthDatLimbs), fieldValue(synthDatSexual), fieldValue(synthDatPose),
-    fieldValue(synthDatExtra), fieldValue(synthDatEffects), fieldValue(synthDatScene)
-  ];
+function buildPositiveTagList(): string[] {
+  const unified = synthDatUnifiedPromptMode.checked;
+  const character = [unified ? fieldValue(synthDatUnifiedPrompt) : fieldValue(synthDatCharacter), fieldValue(synthDatCharacterTrigger)].filter(Boolean).join(', ');
+  const stripHairFace = !unified && synthDatStripHairFace.checked;
+  const parts = unified
+    ? [fieldValue(synthDatGlobal), character]
+    : [
+        fieldValue(synthDatGlobal), fieldValue(synthDatRating), character,
+        stripHairFace ? '' : fieldValue(synthDatHair), stripHairFace ? '' : fieldValue(synthDatFace),
+        fieldValue(synthDatChest), fieldValue(synthDatBody),
+        fieldValue(synthDatClothes), fieldValue(synthDatLimbs), fieldValue(synthDatSexual), fieldValue(synthDatPose),
+        fieldValue(synthDatExtra), fieldValue(synthDatEffects), fieldValue(synthDatScene)
+      ];
   return parts.filter(Boolean);
 }
 
-function baseTagList(){
+function baseTagList(): string[] {
   const tags = buildPositiveTagList().flatMap(part => part.split(',').map(t => t.trim())).filter(Boolean);
   return Array.from(new Set(tags.map(t => t.replace(/_/g, ' ').replace(/\s+/g, ' ').trim())));
 }
@@ -728,8 +816,8 @@ function baseTagList(){
 // from editLog on first run for datasets that predate it, once, then persists
 // its own file). Void rules (canonical === null) are skipped: there's no "X
 // was merged into Y" suggestion to make for a tag that was just deleted.
-function buildMergeHistoryMap(){
-  const map = new Map();
+function buildMergeHistoryMap(): Map<string, string> {
+  const map = new Map<string, string>();
   for (const rule of canonicalRules){
     if (!rule.canonical) continue;
     for (const child of rule.children || []){
@@ -742,14 +830,14 @@ function buildMergeHistoryMap(){
 // Per-tag pruning/merge decisions the user makes in the tag card below,
 // keyed by tag string so they survive re-renders triggered by further chip
 // clicks (see renderTagCard()'s own comment for why that's safe).
-let excludedTags = new Set();
-let mergedTagOverrides = new Map(); // tag (as computed) -> canonical replacement the user accepted
+let excludedTags = new Set<string>();
+let mergedTagOverrides = new Map<string, string>();
 // Tags the user has explicitly marked "void" in the pending card (its own
 // little context menu, see openPendingTagMenu()) — excluded from what gets
 // saved on THIS image same as excludedTags, but also registered as a real
 // Retroactive Merge/Void rule on Accept (registerVoidRule()), so the same
 // tag never needs manually removing again on a future image either.
-let markedVoidTags = new Set();
+let markedVoidTags = new Set<string>();
 
 // The tag card shows exactly one thing: what the currently pending
 // generation will be saved with. It is NOT a live preview of the prompt
@@ -768,18 +856,18 @@ let pendingTagSnapshot: string[] | null = null;
 // review/rename don't apply, and merge-pool selection/gallery filters make
 // little sense against a card that isn't in the Gallery to filter. Reusing
 // tag-details.ts's openTagDetails() directly rather than reimplementing it.
-let pendingTagMenuEl = null;
-function closePendingTagMenu(){
+let pendingTagMenuEl: HTMLElement | null = null;
+function closePendingTagMenu(): void {
   if (pendingTagMenuEl){ pendingTagMenuEl.remove(); pendingTagMenuEl = null; }
   document.removeEventListener('click', onDocClickClosePendingTagMenu);
 }
-function onDocClickClosePendingTagMenu(ev){
+function onDocClickClosePendingTagMenu(ev: MouseEvent): void {
   if (!pendingTagMenuEl) return;
   const path = typeof ev.composedPath === 'function' ? ev.composedPath() : [];
   if (path.includes(pendingTagMenuEl)) return;
   closePendingTagMenu();
 }
-function openPendingTagMenu(tag, x, y){
+function openPendingTagMenu(tag: string, x: number, y: number): void {
   closePendingTagMenu();
   const menu = document.createElement('div');
   menu.className = 'ctx-menu';
@@ -909,29 +997,34 @@ function finalTagList(){
   return Array.from(new Set(tags));
 }
 
-function buildPromptFromFields(){
-  const prompt = JSON.parse(JSON.stringify(template));
-  const character = [fieldValue(synthDatCharacter), fieldValue(synthDatCharacterTrigger)].filter(Boolean).join(', ');
+function buildPromptFromFields(): SynthDatPrompt {
+  const prompt: SynthDatPrompt = JSON.parse(JSON.stringify(template));
+  const unified = synthDatUnifiedPromptMode.checked;
+  const character = [unified ? fieldValue(synthDatUnifiedPrompt) : fieldValue(synthDatCharacter), fieldValue(synthDatCharacterTrigger)].filter(Boolean).join(', ');
 
   prompt['21'].inputs.value = fieldValue(synthDatGlobal);
-  prompt['8'].inputs.value = fieldValue(synthDatRating);
+  prompt['8'].inputs.value = unified ? '' : fieldValue(synthDatRating);
   prompt['19'].inputs.value = ''; // Character Count folded into Character (see above)
   prompt['11'].inputs.value = character;
-  prompt['12'].inputs.value = fieldValue(synthDatHair);
-  prompt['15'].inputs.value = fieldValue(synthDatFace);
-  prompt['18'].inputs.value = fieldValue(synthDatChest);
-  prompt['9'].inputs.value = fieldValue(synthDatBody);
-  prompt['6'].inputs.value = fieldValue(synthDatClothes);
-  prompt['20'].inputs.value = fieldValue(synthDatLimbs);
-  prompt['14'].inputs.value = fieldValue(synthDatSexual);
-  prompt['7'].inputs.value = fieldValue(synthDatPose);
-  prompt['10'].inputs.value = fieldValue(synthDatExtra);
-  prompt['13'].inputs.value = fieldValue(synthDatEffects);
-  prompt['17'].inputs.value = fieldValue(synthDatScene);
+  prompt['12'].inputs.value = unified ? '' : fieldValue(synthDatHair);
+  prompt['15'].inputs.value = unified ? '' : fieldValue(synthDatFace);
+  prompt['18'].inputs.value = unified ? '' : fieldValue(synthDatChest);
+  prompt['9'].inputs.value = unified ? '' : fieldValue(synthDatBody);
+  prompt['6'].inputs.value = unified ? '' : fieldValue(synthDatClothes);
+  prompt['20'].inputs.value = unified ? '' : fieldValue(synthDatLimbs);
+  prompt['14'].inputs.value = unified ? '' : fieldValue(synthDatSexual);
+  prompt['7'].inputs.value = unified ? '' : fieldValue(synthDatPose);
+  prompt['10'].inputs.value = unified ? '' : fieldValue(synthDatExtra);
+  prompt['13'].inputs.value = unified ? '' : fieldValue(synthDatEffects);
+  prompt['17'].inputs.value = unified ? '' : fieldValue(synthDatScene);
   prompt['16'].inputs.text = fieldValue(synthDatNegative);
 
   prompt['41'].inputs.unet_name = synthDatDiffModel.value;
-  prompt['51'].inputs.lora_name = synthDatMainLora.value;
+  // 'None' (not '') is this node pack's convention for "no LoRA here" — see
+  // node 237's own lora_03/04 defaults below. An empty string isn't a valid
+  // value for this combo input, so leaving Main LoRA blank to mean "skip it"
+  // was actually sending ComfyUI something it would reject outright.
+  prompt['51'].inputs.lora_name = synthDatMainLora.value.trim() || 'None';
   // The template has two CLIPLoader nodes (249, 47:45) both loading the same
   // file — kept in sync here rather than exposed as two separate fields,
   // since there's no reason for them to ever differ in this workflow.
@@ -941,9 +1034,9 @@ function buildPromptFromFields(){
   // First 4 LoRA rows fill the template's own stack node (237) directly.
   // Any rows beyond that chain additional stack node clones, each one's
   // model input wired to the previous stack's output.
-  const chunks = [];
+  const chunks: LoraRow[][] = [];
   for (let i = 0; i < loraRows.length; i += 4) chunks.push(loraRows.slice(i, i + 4));
-  function fillStackInputs(inputs, chunk){
+  function fillStackInputs(inputs: Record<string, unknown>, chunk: LoraRow[]): void {
     for (let i = 0; i < 4; i++){
       const slot = String(i + 1).padStart(2, '0');
       const r = chunk[i];
@@ -951,8 +1044,13 @@ function buildPromptFromFields(){
       inputs[`strength_${slot}`] = r ? (parseFloat(r.strength.value) || 0) : 0;
     }
   }
+  // Always filled, even with zero rows — node 237 otherwise keeps whatever
+  // LoRAs happened to be baked into the captured template's own JSON, since
+  // nothing else in the graph ever clears them. That meant deleting every
+  // row in the LoRA stack UI didn't actually generate with no LoRA at all;
+  // it silently generated with the template's original ones.
   let lastStackId = '237';
-  if (chunks.length > 0) fillStackInputs(prompt['237'].inputs, chunks[0]);
+  fillStackInputs(prompt['237'].inputs, chunks[0] || []);
   for (let c = 1; c < chunks.length; c++){
     const newId = `237_extra_${c}`;
     const newInputs = { model: [lastStackId, 0], clip: ['47:45', 0] };
@@ -1064,19 +1162,19 @@ let pendingImgName = '';
 // Only populated when a 2-Pass generation actually returned both images
 // (see main.ts's synthdat-queue-and-fetch) — lets the user pick Pass 1 over
 // the refined Pass 2 result after the fact, without regenerating.
-let pass1Bytes = null;
-let pass2Bytes = null;
+let pass1Bytes: Uint8Array | null = null;
+let pass2Bytes: Uint8Array | null = null;
 
-function selectPass(which){
+function selectPass(which: number): void {
   const bytes = which === 1 ? pass1Bytes : pass2Bytes;
   if (!bytes) return;
   previewBytes = bytes;
-  synthDatPreview.src = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
+  synthDatPreview.src = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'image/png' }));
   synthDatPickPass1.classList.toggle('active', which === 1);
   synthDatPickPass2.classList.toggle('active', which === 2);
 }
 
-async function generate(){
+async function generate(): Promise<void> {
   const skipRefImage = synthDatSkipRefImage.checked;
   if (!skipRefImage && !refFile){ toast('Pick a reference image first (or check "I don\'t want to use a reference image").'); return; }
   const dirHandle = getDirHandle();
@@ -1085,7 +1183,7 @@ async function generate(){
   await loadTemplate();
   const host = getHost();
   const prompt = buildPromptFromFields();
-  const bytes = skipRefImage ? null : new Uint8Array(await refFile.arrayBuffer());
+  const bytes = skipRefImage ? null : new Uint8Array(await refFile!.arrayBuffer());
   // Snapshot the tag list from the same field values buildPromptFromFields()
   // just read — this becomes the tag card's frozen contents if generation
   // succeeds, independent of any further field edits made while it's running.
@@ -1122,17 +1220,17 @@ async function generate(){
     return;
   }
   setGenStatus('');
-  previewBytes = res.imageBytes;
+  previewBytes = res.imageBytes || null;
   pendingBase = `synth_${Date.now().toString(36)}`;
   pendingImgName = `${pendingBase}.png`;
   pendingTagSnapshot = tagSnapshot;
   renderTagCard();
 
-  pass2Bytes = res.imageBytes;
+  pass2Bytes = res.imageBytes || null;
   pass1Bytes = res.pass1ImageBytes || null;
   if (pass1Bytes){
-    synthDatPass1Thumb.src = URL.createObjectURL(new Blob([pass1Bytes], { type: 'image/png' }));
-    synthDatPass2Thumb.src = URL.createObjectURL(new Blob([pass2Bytes], { type: 'image/png' }));
+    synthDatPass1Thumb.src = URL.createObjectURL(new Blob([pass1Bytes as BlobPart], { type: 'image/png' }));
+    synthDatPass2Thumb.src = URL.createObjectURL(new Blob([pass2Bytes as BlobPart], { type: 'image/png' }));
     synthDatPassPickerRow.style.display = 'flex';
     synthDatPickPass1.classList.remove('active');
     synthDatPickPass2.classList.add('active');
@@ -1140,7 +1238,7 @@ async function generate(){
     synthDatPassPickerRow.style.display = 'none';
   }
 
-  const blob = new Blob([previewBytes], { type: 'image/png' });
+  const blob = new Blob([previewBytes as BlobPart], { type: 'image/png' });
   synthDatPreview.src = URL.createObjectURL(blob);
   synthDatPreview.style.display = 'block';
   synthDatPreviewEmpty.style.display = 'none';
@@ -1154,7 +1252,28 @@ async function generate(){
 // (Accept). Returns the new entry, or null if the write failed (toasting its
 // own error either way). Shared by every path that commits a generated
 // image to disk.
-async function writeImageEntry(bytes, base, imgName, tags, disable){
+// Scans the dataset root for existing plain-integer filenames (e.g. "07.png")
+// and returns the next number in that sequence, zero-padded to match
+// whatever width the existing sequence already uses — so accepting one
+// synth-generated image into an already-renamed (see tags-edit.ts's
+// renameAllEntriesSequentially()) dataset slots in with the same "01".."NN"
+// convention instead of a mismatched width. Defaults to {next:1, width:1}
+// for a dataset that isn't using this convention at all yet.
+async function computeNextSequentialBase(dirHandle: DirHandle): Promise<{ next: number; width: number }> {
+  let maxNum = 0;
+  let width = 1;
+  for await (const h of dirHandle.values()){
+    if (h.kind !== 'file') continue;
+    const dot = h.name.lastIndexOf('.');
+    const base = dot === -1 ? h.name : h.name.slice(0, dot);
+    if (!/^\d+$/.test(base)) continue;
+    const n = parseInt(base, 10);
+    if (n >= maxNum){ maxNum = n; width = Math.max(width, base.length); }
+  }
+  return { next: maxNum + 1, width: Math.max(width, String(maxNum + 1).length) };
+}
+
+async function writeImageEntry(bytes: Uint8Array, base: string, imgName: string, tags: string[], disable: boolean): Promise<Entry | null> {
   const dirHandle = getDirHandle();
   if (!dirHandle) return null;
   try {
@@ -1166,13 +1285,13 @@ async function writeImageEntry(bytes, base, imgName, tags, disable){
       // into Disabled/ the same way any other disable action does.
       const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
       const imgWritable = await imgHandle.createWritable();
-      await imgWritable.write(bytes);
+      await imgWritable.write(bytes as BufferSource);
       await imgWritable.close();
       const txtHandle = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
       const txtWritable = await txtHandle.createWritable();
       await txtWritable.write(tags.map(t => t.replace(/ /g, '_')).join(', '));
       await txtWritable.close();
-      const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false);
+      const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false) as Entry | null;
       if (entry) await moveEntry(entry, true);
       return entry;
     }
@@ -1186,17 +1305,17 @@ async function writeImageEntry(bytes, base, imgName, tags, disable){
     // dirty/save lifecycle every other entry goes through.
     const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
     const imgWritable = await imgHandle.createWritable();
-    await imgWritable.write(bytes);
+    await imgWritable.write(bytes as BufferSource);
     await imgWritable.close();
     const txtHandle = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
     const txtWritable = await txtHandle.createWritable();
     await txtWritable.write(tags.map(t => t.replace(/ /g, '_')).join(', '));
     await txtWritable.close();
-    const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false);
+    const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false) as Entry | null;
     if (entry) markDirty(entry);
     return entry;
   } catch(err){
-    toast(`Could not save an image: ${err.message || err}`, 4200);
+    toast(`Could not save an image: ${(err as Error)?.message || err}`, 4200);
     return null;
   }
 }
@@ -1223,7 +1342,13 @@ async function acceptImage(){
   // registerVoidRule() also resweeps every other loaded Gallery entry, so
   // any past image already carrying one of these tags gets cleaned up too.
   if (markedVoidTags.size > 0) registerVoidRule(Array.from(markedVoidTags));
-  const entry = await writeImageEntry(previewBytes, pendingBase, pendingImgName, tags, false);
+  let base = pendingBase, imgName = pendingImgName;
+  if (synthDatRenameOnAccept.checked){
+    const { next, width } = await computeNextSequentialBase(dirHandle);
+    base = String(next).padStart(width, '0');
+    imgName = `${base}.png`;
+  }
+  const entry = await writeImageEntry(previewBytes, base, imgName, tags, false);
   if (!entry) return;
   const alt = otherPassBytes();
   if (alt) await writeImageEntry(alt, `${pendingBase}_altpass`, `${pendingBase}_altpass.png`, tags, true);
@@ -1301,7 +1426,7 @@ const SAMPLERS = [
 ];
 const SCHEDULERS = ['beta', 'normal', 'karras', 'exponential', 'sgm_uniform', 'simple', 'ddim_uniform', 'linear_quadratic'];
 
-function fillStaticOptions(selectEl, values, def){
+function fillStaticOptions(selectEl: HTMLInputElement, values: string[], def: string): void {
   selectEl.innerHTML = '';
   for (const v of values){
     const opt = document.createElement('option');
@@ -1312,7 +1437,7 @@ function fillStaticOptions(selectEl, values, def){
   if (def) selectEl.value = def;
 }
 
-function clickToZoom(wrap, img){
+function clickToZoom(wrap: HTMLElement, img: HTMLImageElement): void {
   // naturalWidth is the robust check here (rather than the wrap's or img's
   // own `display` style) — it's 0 whenever there's genuinely no loaded
   // image, regardless of which of the two toggles a given preview box
@@ -1320,7 +1445,13 @@ function clickToZoom(wrap, img){
   wrap.addEventListener('click', () => { if (img.naturalWidth > 0) showImageLightbox(img.src); });
 }
 
-export function initSynthDatOverseer(deps){
+interface SynthDatOverseerDeps {
+  getDirHandle: () => DirHandle | null;
+  addEntryFromNewFile: (...args: unknown[]) => Promise<Entry | null>;
+  refreshAllUI: () => void;
+}
+
+export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   getDirHandle = deps.getDirHandle;
   addEntryFromNewFile = deps.addEntryFromNewFile;
   refreshAllUIRef = deps.refreshAllUI;
@@ -1338,13 +1469,18 @@ export function initSynthDatOverseer(deps){
   // list schedules a persistence save; the prompt-field ones also refresh
   // the live "tags this will save" preview immediately.
   const promptFields = [
-    synthDatGlobal, synthDatCharacter, synthDatCharacterTrigger, synthDatRating, synthDatHair, synthDatFace,
+    synthDatUnifiedPrompt, synthDatGlobal, synthDatCharacter, synthDatCharacterTrigger, synthDatRating, synthDatHair, synthDatFace,
     synthDatChest, synthDatBody, synthDatClothes, synthDatLimbs, synthDatSexual, synthDatPose, synthDatScene,
     synthDatEffects, synthDatExtra
   ];
   promptFields.forEach(el => el.addEventListener('input', () => { growTextarea(el); scheduleSave(); }));
   synthDatNegative.addEventListener('input', () => { growTextarea(synthDatNegative); scheduleSave(); });
   synthDatStripHairFace.addEventListener('change', () => { scheduleSave(); });
+  synthDatUnifiedPromptMode.addEventListener('change', () => { applyUnifiedPromptModeUI(); scheduleSave(); });
+  applyUnifiedPromptModeUI();
+
+  btnSynthDatPromptPanelToggle.addEventListener('click', openSynthDatPromptPanel);
+  btnSynthDatPromptPanelClose.addEventListener('click', closeSynthDatPromptPanel);
 
   [
     synthDatHost, synthDatDiffModel, synthDatClip, synthDatVae, synthDatMainLora, synthDatLLLiteStrength,
@@ -1363,6 +1499,14 @@ export function initSynthDatOverseer(deps){
 
   synthDatWidth.addEventListener('input', () => { updateResizedPreview(); updateResoWarning(); scheduleSave(); });
   synthDatHeight.addEventListener('input', () => { updateResizedPreview(); updateResoWarning(); scheduleSave(); });
+  btnSynthDatSwapReso.addEventListener('click', () => {
+    const w = synthDatWidth.value;
+    synthDatWidth.value = synthDatHeight.value;
+    synthDatHeight.value = w;
+    updateResizedPreview();
+    updateResoWarning();
+    scheduleSave();
+  });
 
   // "Allow zooming in on all images on this page" — reference, its padded
   // preview, the live TAESD preview, and the final output all open the same
@@ -1378,9 +1522,14 @@ export function initSynthDatOverseer(deps){
   // rather than per-generate(), since only one generation ever runs at a
   // time in this app.
   window.electronAPI.onSynthdatPreviewFrame((_event, { mime, bytes }) => {
-    const blob = new Blob([bytes], { type: mime });
+    const blob = new Blob([bytes as BlobPart], { type: mime });
     synthDatLivePreview.src = URL.createObjectURL(blob);
-    synthDatLivePreviewWrap.style.display = 'block';
+    // Not 'block' — this wrap shares .synthdat-ref-preview/its own
+    // #synthDatLivePreviewWrap rule, both of which center their image via
+    // display:flex; an inline display:block here was overriding that (inline
+    // style always beats a stylesheet rule), leaving the live preview
+    // flush against the box's left edge instead of centered.
+    synthDatLivePreviewWrap.style.display = 'flex';
   });
   window.electronAPI.onSynthdatProgress((_event, { value, max }) => {
     setGenStatus(`Generating… step ${value}/${max}`);
@@ -1391,6 +1540,16 @@ export function initSynthDatOverseer(deps){
   btnSynthDatMigratePose.addEventListener('click', applyTagAssignment);
   btnSynthDatAddLora.addEventListener('click', () => { addLoraRow('None', 1); scheduleSave(); });
   btnSynthDatRefreshModels.addEventListener('click', refreshModelLists);
+  btnSynthDatConnect.addEventListener('click', testSynthdatConnection);
+  // Replaces these fields' old native `<datalist>` dropdown (see
+  // attachListAutocomplete's own comment) — the `<datalist>` elements
+  // themselves stay in the DOM purely as the options source refreshModelLists()
+  // already populates via fillDatalist(), just no longer wired to an input.
+  const datalistOptions = (el: HTMLElement) => Array.from((el as unknown as HTMLSelectElement).options).map((o: HTMLOptionElement) => o.value);
+  attachListAutocomplete(synthDatDiffModel, () => datalistOptions(synthDatUnetDatalist));
+  attachListAutocomplete(synthDatClip, () => datalistOptions(synthDatClipDatalist));
+  attachListAutocomplete(synthDatVae, () => datalistOptions(synthDatVaeDatalist));
+  attachListAutocomplete(synthDatMainLora, () => datalistOptions(synthDatMainLoraDatalist));
   btnSynthDatGenerate.addEventListener('click', generate);
   btnSynthDatStop.addEventListener('click', () => window.electronAPI.synthdatStopGeneration(getHost()));
   btnSynthDatAccept.addEventListener('click', acceptImage);

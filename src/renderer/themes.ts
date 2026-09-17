@@ -1,14 +1,4 @@
-// Phase B module 3/N: theme application, day/night HSL inversion, theme data.
-// @ts-nocheck — real types land once index.ts itself is typed.
-//
-// Deliberately NOT included here: the achievement-tracking side effect of
-// turning night mode on (folderStats.night_mode_used / saveFolderStats() /
-// checkAchievements()). Those live inside index.ts's still-unextracted
-// achievements code, which is private to its own IIFE and can't be imported
-// from here without either (a) a premature achievements.ts extraction or
-// (b) a real circular-import risk. Instead toggleDayNightMode() returns
-// whether it just turned ON, and index.ts's caller does the tracking —
-// see toggleDayNightModeAndTrack() there. Revisit once achievements.ts exists.
+import type { ThemeName } from './types';
 import {
   favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel,
   themeVarRows, themeCustomPanel, themeSelect
@@ -65,26 +55,27 @@ export const PREMIUM_THEMES = [
   { id:'celestial-gold', name:'Celestial Gold', rarity:'legendary', price:750, swatches:['#0a0810','#e8c468','#ffd166'] }
 ];
 
-export function toHex6(colorStr){
-  const ctx = toHex6._ctx || (toHex6._ctx = document.createElement('canvas').getContext('2d'));
+let _toHex6Ctx: CanvasRenderingContext2D | null = null;
+export function toHex6(colorStr: string): string {
+  const ctx = _toHex6Ctx || (_toHex6Ctx = document.createElement('canvas').getContext('2d')!);
   ctx.fillStyle = '#000000';
   ctx.fillStyle = colorStr;
   const norm = ctx.fillStyle;
   if (norm[0] === '#') return norm.length >= 7 ? norm.slice(0,7) : norm;
   const m = norm.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
   if (m){
-    const toH = n => Number(n).toString(16).padStart(2,'0');
+    const toH = (n: string) => Number(n).toString(16).padStart(2,'0');
     return '#' + toH(m[1]) + toH(m[2]) + toH(m[3]);
   }
   return '#000000';
 }
 
-export function getCurrentVarHex(key){
+export function getCurrentVarHex(key: string): string {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(key).trim();
   return toHex6(raw || '#000000');
 }
 
-export function clearCustomOverrides(){
+export function clearCustomOverrides(): void {
   for (const [key] of THEME_VARS) document.documentElement.style.removeProperty(key);
 }
 
@@ -97,11 +88,11 @@ export let dayNightOn = false;
 // e.g. clicking the toggle afterward turns it OFF, not inverts an
 // already-inverted display right back to day colors), but must NOT redo the
 // actual inversion — that would double-invert. This syncs just the flag.
-export function syncNightModeFromPrePaint(){
+export function syncNightModeFromPrePaint(): void {
   dayNightOn = true;
 }
 
-export function applyTheme(theme){
+export function applyTheme(theme: string): void {
   if (dayNightOn){
     dayNightOn = false;
     document.documentElement.classList.remove('night-mode');
@@ -132,44 +123,44 @@ export function applyTheme(theme){
   try { localStorage.setItem('dts-theme', theme); } catch(e){}
 }
 
-export let refinedThemes = [];
-try { refinedThemes = JSON.parse(localStorage.getItem('dts-refined-themes') || '[]') || []; } catch(e){ refinedThemes = []; }
+export let refinedThemes: string[] = [];
+try { refinedThemes = JSON.parse(localStorage.getItem('dts-refined-themes') || '[]') || []; } catch { refinedThemes = []; }
 
-export function saveRefinedThemes(){
+export function saveRefinedThemes(): void {
   try { localStorage.setItem('dts-refined-themes', JSON.stringify(refinedThemes)); } catch(e){}
 }
 
 // A theme already at epic/legendary rarity (or already individually
 // refined) has these effects for free — Refine Theme has nothing to sell it.
-export function themeAlreadyHasPremiumEffects(themeId){
+export function themeAlreadyHasPremiumEffects(themeId: string): boolean {
   const premium = PREMIUM_THEMES.find(t => t.id === themeId);
   const rarity = premium ? premium.rarity : 'free';
   return rarity === 'epic' || rarity === 'legendary' || refinedThemes.includes(themeId);
 }
 
-export function themeOriginalPrice(themeId){
+export function themeOriginalPrice(themeId: string): number {
   const premium = PREMIUM_THEMES.find(t => t.id === themeId);
   return premium ? premium.price : 0; // free built-in themes (and Custom) cost 0
 }
 
 // Derived from PREMIUM_THEMES rather than hardcoded, so a future price
 // rebalance only needs to change one place.
-export function epicThemePrice(){
+export function epicThemePrice(): number {
   const epic = PREMIUM_THEMES.find(t => t.rarity === 'epic');
   return epic ? epic.price : 360;
 }
 
-export function refineThemeCost(themeId){
+export function refineThemeCost(themeId: string): number {
   return epicThemePrice() - themeOriginalPrice(themeId);
 }
 
-export function markThemeRefined(themeId){
+export function markThemeRefined(themeId: string): void {
   if (!refinedThemes.includes(themeId)) refinedThemes.push(themeId);
   saveRefinedThemes();
   document.documentElement.classList.add('theme-refined');
 }
 
-export function openThemeCustomPanel(){
+export function openThemeCustomPanel(): void {
   hidePanel(favoritesPanel);
   hidePanel(logPanel);
   hidePanel(achievementsPanel);
@@ -196,7 +187,7 @@ export function openThemeCustomPanel(){
   showPanel(themeCustomPanel);
 }
 
-export function hexToHsl(hex){
+export function hexToHsl(hex: string): [number, number, number] {
   const r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
   const max = Math.max(r,g,b), min = Math.min(r,g,b);
   let h, s, l = (max+min)/2;
@@ -214,12 +205,12 @@ export function hexToHsl(hex){
   return [h*360, s*100, l*100];
 }
 
-export function hslToHex(h, s, l){
+export function hslToHex(h: number, s: number, l: number): string {
   h/=360; s/=100; l/=100;
-  let r, g, b;
+  let r: number, g: number, b: number;
   if (s === 0){ r = g = b = l; }
   else {
-    const hue2rgb = (p, q, t) => {
+    const hue2rgb = (p: number, q: number, t: number) => {
       if (t < 0) t += 1;
       if (t > 1) t -= 1;
       if (t < 1/6) return p + (q-p)*6*t;
@@ -233,11 +224,11 @@ export function hslToHex(h, s, l){
     g = hue2rgb(p, q, h);
     b = hue2rgb(p, q, h-1/3);
   }
-  const toHex = x => Math.round(x*255).toString(16).padStart(2,'0');
+  const toHex = (x: number) => Math.round(x*255).toString(16).padStart(2,'0');
   return '#' + toHex(r) + toHex(g) + toHex(b);
 }
 
-export function invertLightness(hex){
+export function invertLightness(hex: string): string {
   const [h, s, l] = hexToHsl(hex);
   return hslToHex(h, s, 100 - l);
 }
@@ -257,34 +248,34 @@ export function invertLightness(hex){
 // themeSelect.options on every open, so achievements.ts's lock-icon edits
 // to those <option> elements (updateThemeSelectLocks()) show up next open
 // with no extra wiring.
-export function initThemeDropdown(container){
+export function initThemeDropdown(container: HTMLElement): { refreshLabel: () => void } {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'pdrop-btn';
-  function currentLabel(){
+  function currentLabel(): string {
     const opt = themeSelect.options[themeSelect.selectedIndex];
     return (opt ? opt.textContent : themeSelect.value) + ' ▾';
   }
-  function setLabel(){
+  function setLabel(): void {
     btn.textContent = currentLabel();
     shrinkTextToFit(btn);
   }
   btn.textContent = currentLabel();
-  let menuEl = null;
-  function onOutsideMouseDown(ev){
+  let menuEl: HTMLElement | null = null;
+  function onOutsideMouseDown(ev: MouseEvent): void {
     // Same html/body exclusion as the header-cat-flyout guard: a select's
     // own OS popup can resolve its click outside the page's element tree.
     if (ev.target === document.documentElement || ev.target === document.body) return;
-    if (container.contains(ev.target)) return;
+    if (container.contains(ev.target as Node)) return;
     closeMenu();
   }
-  function closeMenu(){
+  function closeMenu(): void {
     if (!menuEl) return;
     menuEl.remove();
     menuEl = null;
     document.removeEventListener('mousedown', onOutsideMouseDown);
   }
-  function openMenu(){
+  function openMenu(): void {
     menuEl = document.createElement('div');
     menuEl.className = 'pdrop-menu theme-pdrop-menu';
     for (const opt of Array.from(themeSelect.options)){
@@ -297,7 +288,7 @@ export function initThemeDropdown(container){
         themeSelect.value = opt.value;
         themeSelect.dispatchEvent(new Event('change'));
         setLabel();
-        menuEl.querySelectorAll('.pdrop-item').forEach(i => i.classList.remove('active'));
+        menuEl!.querySelectorAll('.pdrop-item').forEach(i => i.classList.remove('active'));
         item.classList.add('active');
         // Deliberately stays open, matching this app's other persistent
         // dropdowns — only the toggle button or an outside click closes it.
@@ -306,7 +297,7 @@ export function initThemeDropdown(container){
     }
     container.appendChild(menuEl);
     document.addEventListener('mousedown', onOutsideMouseDown);
-    requestAnimationFrame(() => requestAnimationFrame(() => menuEl.classList.add('menu-in')));
+    requestAnimationFrame(() => requestAnimationFrame(() => menuEl!.classList.add('menu-in')));
   }
   btn.addEventListener('click', (ev) => {
     ev.stopPropagation();
@@ -320,7 +311,7 @@ export function initThemeDropdown(container){
 
 // Returns true iff this call just turned night mode ON — the caller is
 // responsible for any achievement tracking (see the file-header comment).
-export function toggleDayNightMode(){
+export function toggleDayNightMode(): boolean {
   if (themeSelect.value === 'custom'){
     toast('Day/Night inversion isn\'t available for the Custom theme — its colors are already fully in your control.');
     return false;

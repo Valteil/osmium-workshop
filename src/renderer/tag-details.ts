@@ -1,8 +1,4 @@
-// Phase B module: the Tag Details panel and its Danbooru wiki/all-tags data
-// loaders (also used by ./tags-autocomplete.ts's inline definition flash card,
-// injected there via initTagAutocomplete rather than imported, to avoid a
-// circular import).
-// @ts-nocheck
+import type { FolderStats } from './types';
 import {
   tagDetailsTitle, tagDetailsBody, tagDetailsCloseBtn, tagDetailsPanel,
   themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel
@@ -10,54 +6,69 @@ import {
 import { toast, showPanel, hidePanel } from './shared-ui';
 import { folderStats, saveFolderStats, checkAchievements } from './achievements';
 
-let wikiData = null;      // lazy-loaded tag -> definition
-let allTagsMap = null;    // lazy-loaded tag -> {category, count}
+let wikiData: Record<string, string> | null = null;
+let allTagsMap: Map<string, { category: number; count: number }> | null = null;
 
-// Both bundled data files ship gzip-compressed (wiki.json.gz/all_tags.json.gz
-// are ~63% smaller than the raw JSON — a meaningful chunk of the app's
-// total install size) and are decompressed here at load time using the
-// browser-native DecompressionStream, so no extra dependency is needed.
-async function fetchGzipJson(url){
+// Both bundled data files ship gzip-compressed (~63% smaller than the raw
+// JSON — a meaningful chunk of the app's total install size) and are
+// decompressed here at load time using the browser-native
+// DecompressionStream, so no extra dependency is needed.
+//
+// Filenames deliberately do NOT end in `.gz` (they're `.gzdat`, still raw
+// gzip bytes) — the Android Gradle Plugin's asset merge step silently
+// DECOMPRESSES and renames any `*.gz` asset it finds (`all_tags.json.gz`
+// became a 25MB `all_tags.json` in the packaged APK, `.gz` stripped
+// entirely), presumably an AGP optimization assuming a pre-compressed web
+// asset wants normal APK compression instead of double-gzip. The renderer
+// then fetched a URL that no longer existed — silently caught, so mobile's
+// tag definitions/autocomplete vocabulary were just permanently empty with
+// no visible error until logging was added here. A `.gzdat` extension
+// isn't a pattern AGP's asset pipeline recognizes, so the file passes
+// through untouched; found via `unzip -lv` on the built APK, comparing the
+// packaged entry's name/size against the source file.
+async function fetchGzipJson(url: string): Promise<unknown> {
   const res = await fetch(url);
-  const decompressed = res.body.pipeThrough(new DecompressionStream('gzip'));
+  const decompressed = res.body!.pipeThrough(new DecompressionStream('gzip'));
   const text = await new Response(decompressed).text();
   return JSON.parse(text);
 }
 
-export async function ensureWikiDataLoaded(){
+export async function ensureWikiDataLoaded(): Promise<Record<string, string>> {
   if (wikiData) return wikiData;
   try {
-    wikiData = await fetchGzipJson('./data/wiki.json.gz');
+    wikiData = await fetchGzipJson('./data/wiki.json.gzdat') as Record<string, string>;
   } catch(err){
+    console.error('wiki.json.gzdat load failed:', err);
     wikiData = {};
   }
   return wikiData;
 }
 
-export async function ensureAllTagsLoaded(){
+export async function ensureAllTagsLoaded(): Promise<Map<string, { category: number; count: number }>> {
   if (allTagsMap) return allTagsMap;
   try {
-    const list = await fetchGzipJson('./data/all_tags.json.gz');
+    const list = await fetchGzipJson('./data/all_tags.json.gzdat') as unknown[];
     allTagsMap = new Map();
     for (const row of list){
-      if (Array.isArray(row)) allTagsMap.set(row[0], { category: row[1], count: row[2] });
+      if (Array.isArray(row)) allTagsMap.set(row[0] as string, { category: row[1] as number, count: row[2] as number });
     }
   } catch(err){
+    console.error('all_tags.json.gzdat load failed:', err);
     allTagsMap = new Map();
   }
   return allTagsMap;
 }
 
-const CATEGORY_NAMES = { 0: 'General', 1: 'Artist', 3: 'Copyright', 4: 'Character', 5: 'Meta' };
+const CATEGORY_NAMES: Record<number, string> = { 0: 'General', 1: 'Artist', 3: 'Copyright', 4: 'Character', 5: 'Meta' };
 const CUSTOM_NOTES_KEY = 'dts-custom-tag-notes';
 
-export function getCustomTagNote(tag){
+export function getCustomTagNote(tag: string): string {
   try {
     const notes = JSON.parse(localStorage.getItem(CUSTOM_NOTES_KEY) || '{}');
     return notes[tag] || '';
   } catch(e){ return ''; }
 }
-export function setCustomTagNote(tag, text){
+export function setCustomTagNote(tag: string, text: string): void {
   try {
     const notes = JSON.parse(localStorage.getItem(CUSTOM_NOTES_KEY) || '{}');
     notes[tag] = text;
@@ -65,7 +76,7 @@ export function setCustomTagNote(tag, text){
   } catch(e){}
 }
 
-export async function openTagDetails(tag){
+export async function openTagDetails(tag: string): Promise<void> {
   tagDetailsTitle.textContent = tag;
   tagDetailsBody.innerHTML = '<div class="stats-empty">Loading…</div>';
   hidePanel(themeCustomPanel); hidePanel(favoritesPanel); hidePanel(logPanel); hidePanel(achievementsPanel); hidePanel(shopPanel);
@@ -119,6 +130,6 @@ export async function openTagDetails(tag){
   }
 }
 
-export function initTagDetails(){
+export function initTagDetails(): void {
   tagDetailsCloseBtn.addEventListener('click', () => hidePanel(tagDetailsPanel));
 }

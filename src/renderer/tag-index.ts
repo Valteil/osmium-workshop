@@ -1,45 +1,38 @@
-// Phase B module: tag frequency index/left panel + gallery filtering.
-// `galleryFilter`/`gallerySortMode`/`gallerySortDir` stay owned by index.ts
-// (reassigned wholesale on folder load / from the view-mode dropdowns, which
-// aren't part of this extraction) and are injected once via initTagIndex(),
-// since index.ts's IIFE can't export them.
-// @ts-nocheck
+import type { Entry, GalleryFilter, GallerySortMode, GallerySortDir, LeftSortMode, LeftSortDir } from './types';
 import {
   $, tagFrequencyList, leftSortDropdown, leftSortDirBtn, btnResetFamilyOrder,
   filterInput, filterSuggestions, filterExactToggle, filterAllBtn, filterUntaggedBtn, filterDirtyBtn,
-  excludeBadge, excludeBadgeText, excludeBadgeClear, btnClearFilter, allTagsDatalist
+  excludeBadge, excludeBadgeText, excludeBadgeClear, btnClearFilter
 } from './dom';
 import { toast, escapeHtml, buildPersistentDropdown } from './shared-ui';
 import { folderStats, saveFolderStats, checkAchievements } from './achievements';
 
-export let leftSortMode = 'family';
-export let leftSortDir = 'desc';
-export let familyOrder = []; // manual drag order of keyword families, persists across sort-mode switches
+export let leftSortMode: LeftSortMode = 'family';
+export let leftSortDir: LeftSortDir = 'desc';
+export let familyOrder: string[] = [];
 
-let getEntries = () => [];
-let getGalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false });
-let getGallerySortMode = () => 'filename';
-let getGallerySortDir = () => 'asc';
-let resetSingleIndex = () => {};
-let renderCurrentViewRef = () => {};
+let getEntries: () => Entry[] = () => [];
+let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false });
+let getGallerySortMode: () => GallerySortMode = () => 'filename';
+let getGallerySortDir: () => GallerySortDir = () => 'asc';
+let resetSingleIndex: () => void = () => {};
+let renderCurrentViewRef: () => void = () => {};
 
-// Kept in sync by refreshStats() so the filter-suggestions dropdown doesn't
-// need to rebuild the tag index itself on every keystroke.
-let lastTagIndex = new Map();
+let lastTagIndex: Map<string, Set<string>> = new Map();
 
-export function buildTagIndex(){
-  const index = new Map(); // tag -> Set(base)
+export function buildTagIndex(): Map<string, Set<string>> {
+  const index = new Map<string, Set<string>>();
   for (const e of getEntries()){
     if (e.disabled) continue;
     for (const t of e.tags){
-      if (!index.has(t)) index.set(t, new Set());
-      index.get(t).add(e.base);
+      if (!index.has(t)) index.set(t, new Set<string>());
+      index.get(t)!.add(e.base);
     }
   }
   return index;
 }
 
-function wordsOf(tag){
+function wordsOf(tag: string): string[] {
   return Array.from(new Set(tag.split(' ').filter(Boolean)));
 }
 
@@ -49,7 +42,7 @@ function wordsOf(tag){
 // word (same grouping used by the TAGS panel's "family" sort mode) with the
 // closest direct matches, so typing "dr" surfaces "dress" as a direct match
 // and e.g. "black dress"/"dress shoes" as family suggestions.
-function buildFilterSuggestions(query){
+function buildFilterSuggestions(query: string): { direct: string[]; family: string[] } {
   const q = query.trim().toLowerCase();
   if (!q) return { direct: [], family: [] };
   const allTags = Array.from(lastTagIndex.keys());
@@ -69,14 +62,14 @@ function buildFilterSuggestions(query){
   return { direct, family };
 }
 
-function currentFilterTermSpan(value){
+function currentFilterTermSpan(value: string): { prefix: string; partial: string } {
   const lastComma = value.lastIndexOf(',');
   const prefix = lastComma === -1 ? '' : value.slice(0, lastComma + 1) + ' ';
   const partial = lastComma === -1 ? value : value.slice(lastComma + 1);
   return { prefix, partial: partial.trim() };
 }
 
-function pickFilterSuggestion(tag){
+function pickFilterSuggestion(tag: string): void {
   const { prefix } = currentFilterTermSpan(filterInput.value);
   filterInput.value = prefix + tag;
   getGalleryFilter().terms = parseFilterTerms(filterInput.value);
@@ -89,12 +82,12 @@ function pickFilterSuggestion(tag){
   filterInput.focus();
 }
 
-function hideFilterSuggestions(){
+function hideFilterSuggestions(): void {
   filterSuggestions.style.display = 'none';
   filterSuggestions.innerHTML = '';
 }
 
-function buildSuggestionRow(tag){
+function buildSuggestionRow(tag: string): HTMLElement {
   const row = document.createElement('div');
   row.className = 'ac-row';
   row.innerHTML = `<span class="ac-row-name">${escapeHtml(tag)}</span>`;
@@ -108,7 +101,7 @@ function buildSuggestionRow(tag){
   return row;
 }
 
-function updateFilterSuggestions(){
+function updateFilterSuggestions(): void {
   const { partial } = currentFilterTermSpan(filterInput.value);
   if (partial.length < 2){ hideFilterSuggestions(); return; }
   const { direct, family } = buildFilterSuggestions(partial);
@@ -129,20 +122,20 @@ function updateFilterSuggestions(){
   filterSuggestions.style.display = '';
 }
 
-export function renderTagFrequencyList(index){
+export function renderTagFrequencyList(index: Map<string, Set<string>>): void {
   const dir = leftSortDir === 'asc' ? 1 : -1;
   tagFrequencyList.innerHTML = '';
 
   if (leftSortMode === 'family'){
-    const families = new Map(); // word -> [tag,...]
+    const families = new Map<string, string[]>();
     for (const [tag] of index){
       const words = Array.from(new Set(tag.split(' ').filter(Boolean)));
       for (const w of words){
         if (!families.has(w)) families.set(w, []);
-        if (!families.get(w).includes(tag)) families.get(w).push(tag);
+        if (!families.get(w)!.includes(tag)) families.get(w)!.push(tag);
       }
     }
-    let familyList = Array.from(families.entries()).filter(([,tags]) => tags.length >= 2);
+    let familyList: [string, string[]][] = Array.from(families.entries()).filter(([,tags]) => tags.length >= 2);
     familyList.sort((a,b) => (b[1].length - a[1].length) * dir);
     familyList = applyFamilyOrder(familyList);
 
@@ -170,8 +163,8 @@ export function renderTagFrequencyList(index){
       header.appendChild(labelSpan);
 
       header.addEventListener('dragstart', (ev) => {
-        ev.dataTransfer.setData('text/plain', word);
-        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer!.setData('text/plain', word);
+        ev.dataTransfer!.effectAllowed = 'move';
         header.classList.add('family-dragging');
       });
       header.addEventListener('dragend', () => header.classList.remove('family-dragging'));
@@ -180,14 +173,14 @@ export function renderTagFrequencyList(index){
       header.addEventListener('drop', (ev) => {
         ev.preventDefault();
         header.classList.remove('family-drop-target');
-        const draggedWord = ev.dataTransfer.getData('text/plain');
+        const draggedWord = ev.dataTransfer!.getData('text/plain');
         if (draggedWord && draggedWord !== word) reorderFamilyBefore(draggedWord, word, familyList.map(f => f[0]));
       });
 
       tagFrequencyList.appendChild(header);
       tags.sort((a,b) => a.localeCompare(b));
       for (const tag of tags){
-        tagFrequencyList.appendChild(buildFreqRow(tag, index.get(tag).size));
+        tagFrequencyList.appendChild(buildFreqRow(tag, index.get(tag)!.size));
       }
     }
     return;
@@ -204,7 +197,7 @@ export function renderTagFrequencyList(index){
   }
 }
 
-function buildFreqRow(tag, count){
+function buildFreqRow(tag: string, count: number): HTMLElement {
   const row = document.createElement('div');
   row.className = 'freq-row';
   row.innerHTML = `<span>${escapeHtml(tag)}</span><span class="n">${count}</span>`;
@@ -212,15 +205,15 @@ function buildFreqRow(tag, count){
   return row;
 }
 
-function applyFamilyOrder(familyList){
-  const words = familyList.map(([w]) => w);
+function applyFamilyOrder(familyList: [string, string[]][]): [string, string[]][] {
+  const words = familyList.map(([w]: [string, string[]]) => w);
   const known = familyOrder.filter(w => words.includes(w));
   const unknown = words.filter(w => !known.includes(w));
   const finalOrder = [...known, ...unknown];
-  return finalOrder.map(w => familyList.find(([fw]) => fw === w));
+  return finalOrder.map(w => familyList.find(([fw]: [string, string[]]) => fw === w)!);
 }
 
-function saveFamilyOrder(){
+function saveFamilyOrder(): void {
   try { localStorage.setItem('dts-family-order', JSON.stringify(familyOrder)); } catch(e){}
 }
 (function loadFamilyOrder(){
@@ -241,7 +234,7 @@ function saveFamilyOrder(){
 // landed one short). Fix: insert after the target instead, whenever the
 // dragged family started out ABOVE it — same asymmetry fix as docks.ts's
 // reorderDock().
-function reorderFamilyBefore(draggedWord, targetWord, currentOrder){
+function reorderFamilyBefore(draggedWord: string, targetWord: string, currentOrder: string[]): void {
   const draggedIdx = currentOrder.indexOf(draggedWord);
   const targetIdxOriginal = currentOrder.indexOf(targetWord);
   const movingDown = draggedIdx !== -1 && targetIdxOriginal !== -1 && draggedIdx < targetIdxOriginal;
@@ -255,35 +248,27 @@ function reorderFamilyBefore(draggedWord, targetWord, currentOrder){
   refreshStats();
 }
 
-export function refreshStats(){
+export function refreshStats(): Map<string, Set<string>> {
   const index = buildTagIndex();
   lastTagIndex = index;
   const entries = getEntries();
   const activeEntries = entries.filter(e => !e.disabled);
-  $('cardImages').textContent = activeEntries.length;
-  $('cardTags').textContent = index.size;
+  $('cardImages').textContent = String(activeEntries.length);
+  $('cardTags').textContent = String(index.size);
 
   renderTagFrequencyList(index);
-
-  allTagsDatalist.innerHTML = '';
-  const allTagNames = Array.from(index.keys()).sort((a,b)=> a.localeCompare(b));
-  for (const tag of allTagNames){
-    const opt = document.createElement('option');
-    opt.value = tag;
-    allTagsDatalist.appendChild(opt);
-  }
 
   return index;
 }
 
-export function sortEntries(list){
+export function sortEntries(list: Entry[]): Entry[] {
   const gallerySortMode = getGallerySortMode();
   const dir = getGallerySortDir() === 'asc' ? 1 : -1;
   const arr = list.slice();
   arr.sort((a, b) => {
     let cmp = 0;
     if (gallerySortMode === 'filename'){
-      cmp = a.imgName.localeCompare(b.imgName, undefined, { numeric: true });
+      cmp = (a.imgName || '').localeCompare(b.imgName || '', undefined, { numeric: true });
     } else if (gallerySortMode === 'resolution'){
       const ra = (a.width || 0) * (a.height || 0);
       const rb = (b.width || 0) * (b.height || 0);
@@ -292,17 +277,19 @@ export function sortEntries(list){
       cmp = a.tags.length - b.tags.length;
     } else if (gallerySortMode === 'dirty'){
       cmp = (a.dirty ? 1 : 0) - (b.dirty ? 1 : 0);
+    } else if (gallerySortMode === 'dateadded'){
+      cmp = ((a.meta && a.meta.dateAdded) || 0) - ((b.meta && b.meta.dateAdded) || 0);
     }
     return cmp * dir;
   });
   return arr;
 }
 
-export function filteredEntries(){
+export function filteredEntries(): Entry[] {
   return sortEntries(getEntries().filter(passesFilter));
 }
 
-export function passesFilter(e){
+export function passesFilter(e: Entry): boolean {
   const galleryFilter = getGalleryFilter();
   if (galleryFilter.disabledView){
     if (!e.disabled) return false;
@@ -313,8 +300,8 @@ export function passesFilter(e){
   }
   if (galleryFilter.terms && galleryFilter.terms.length){
     const tagMatches = galleryFilter.exactMatch
-      ? (t, term) => t.toLowerCase() === term
-      : (t, term) => t.toLowerCase().includes(term);
+      ? (t: string, term: string) => t.toLowerCase() === term
+      : (t: string, term: string) => t.toLowerCase().includes(term);
     const matchCount = galleryFilter.terms.filter(term => e.tags.some(t => tagMatches(t, term))).length;
     const mode = galleryFilter.mode || 'AND';
     if (mode === 'AND' && matchCount !== galleryFilter.terms.length) return false;
@@ -326,19 +313,19 @@ export function passesFilter(e){
   return true;
 }
 
-export function setBaseFilter(kind){
+export function setBaseFilter(kind: string): void {
   getGalleryFilter().base = kind;
   [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach(b=>b.classList.remove('active'));
-  ({all: filterAllBtn, untagged: filterUntaggedBtn, dirty: filterDirtyBtn})[kind].classList.add('active');
+  ({all: filterAllBtn, untagged: filterUntaggedBtn, dirty: filterDirtyBtn} as Record<string, HTMLElement>)[kind].classList.add('active');
   resetSingleIndex();
   renderCurrentViewRef();
 }
 
-export function parseFilterTerms(raw){
+export function parseFilterTerms(raw: string): string[] {
   return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 }
 
-export function setContainsFilter(value){
+export function setContainsFilter(value: string): void {
   const galleryFilter = getGalleryFilter();
   galleryFilter.terms = [value.toLowerCase()];
   galleryFilter.mode = 'AND';
@@ -354,10 +341,10 @@ export function setContainsFilter(value){
 // shows exactly the overlap a merge/void action is about to touch. An empty
 // selection clears the filter terms back to "show everything" rather than
 // leaving stale terms behind.
-export function setMirroredSelectionFilter(tags){
+export function setMirroredSelectionFilter(tags: Iterable<string>): void {
   const galleryFilter = getGalleryFilter();
   const list = Array.from(tags);
-  galleryFilter.terms = list.map(t => t.toLowerCase());
+  galleryFilter.terms = list.map((t: string) => t.toLowerCase());
   galleryFilter.mode = 'AND';
   filterInput.value = list.join(', ');
   hideFilterSuggestions();
@@ -365,7 +352,7 @@ export function setMirroredSelectionFilter(tags){
   renderCurrentViewRef();
 }
 
-export function setExcludesFilter(value){
+export function setExcludesFilter(value: string): void {
   getGalleryFilter().excludes = value.toLowerCase();
   excludeBadgeText.textContent = value;
   excludeBadge.style.display = 'flex';
@@ -373,7 +360,16 @@ export function setExcludesFilter(value){
   renderCurrentViewRef();
 }
 
-export function initTagIndex(deps){
+interface TagIndexDeps {
+  getEntries: () => Entry[];
+  getGalleryFilter: () => GalleryFilter;
+  getGallerySortMode: () => GallerySortMode;
+  getGallerySortDir: () => GallerySortDir;
+  resetSingleIndex: () => void;
+  renderCurrentView: () => void;
+}
+
+export function initTagIndex(deps: TagIndexDeps): void {
   getEntries = deps.getEntries;
   getGalleryFilter = deps.getGalleryFilter;
   getGallerySortMode = deps.getGallerySortMode;
@@ -400,7 +396,7 @@ export function initTagIndex(deps){
       { value: 'alphabetical', label: 'Alphabetical' }
     ],
     () => leftSortMode,
-    (val) => { leftSortMode = val; refreshStats(); }
+    (val: string) => { leftSortMode = val as LeftSortMode; refreshStats(); }
   );
 
   filterInput.addEventListener('input', () => {
@@ -414,7 +410,7 @@ export function initTagIndex(deps){
     if (ev.key === 'Escape') hideFilterSuggestions();
   });
   document.addEventListener('click', (ev) => {
-    if (ev.target !== filterInput && !filterSuggestions.contains(ev.target)) hideFilterSuggestions();
+    if (ev.target !== filterInput && !filterSuggestions.contains(ev.target as Node)) hideFilterSuggestions();
   }, true);
   filterExactToggle.addEventListener('change', () => {
     getGalleryFilter().exactMatch = filterExactToggle.checked;

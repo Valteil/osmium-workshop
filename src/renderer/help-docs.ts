@@ -4,9 +4,17 @@
 // Content is adapted from USER_GUIDE.md (the maintainer-facing full guide) —
 // when a feature changes, update BOTH; they cover the same ground but this
 // one is trimmed for reading inside a small panel rather than a full doc.
-// @ts-nocheck
+export interface HelpSection {
+  id: string;
+  title: string;
+  html: string;
+}
 
-export const HELP_SECTIONS = [
+const isTouchDevice: boolean = (() => {
+  try { return matchMedia('(hover: none) and (pointer: coarse)').matches; } catch { return false; }
+})();
+
+export const HELP_SECTIONS: HelpSection[] = [
   {
     id: 'opening',
     title: 'Opening a dataset',
@@ -32,18 +40,22 @@ export const HELP_SECTIONS = [
     title: 'The Gallery tab',
     html: `
       <p>This is the tag editor itself — everything else in the app exists to support what happens
-      here. The toolbar at the top of the gallery switches between four views:</p>
+      here. The toolbar at the top of the gallery switches between ${isTouchDevice ? 'two views' : 'four views'}:</p>
       <ul>
         <li><b>Grid</b> (the default) — each card shows the image, its tags as editable chips, and
         a 3-dot menu for per-image actions.</li>
-        <li><b>Compact</b> — smaller thumbnails, tags appear on hover. Shift-click two images to
+        ${isTouchDevice ? '' : `<li><b>Compact</b> — smaller thumbnails, tags appear on hover. Shift-click two images to
         pin them side by side in a comparison table.</li>
-        <li><b>Single</b> — one image at a time, zoomable up to 400%, drag to pan.</li>
+        <li><b>Single</b> — one image at a time, zoomable up to 400%, drag to pan.</li>`}
         <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
+        <li><b>🔢 Rename all</b> — renames every loaded image (+ its .txt) to a simple zero-padded
+        1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
+        first; logged and undoable from the Log panel.</li>
       </ul>
-      <p>To edit tags: click a chip to open its menu (filter by it, look up its wiki definition,
+      ${isTouchDevice ? '<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>' : ''}
+      <p>To edit tags: ${isTouchDevice ? 'tap' : 'click'} a chip to open its menu (filter by it, look up its wiki definition,
       flag it for review, explore its keyword family), type into a card's "+ add tag" box and
-      press Enter to add one, or click a chip's × to remove it.</p>
+      press Enter to add one, or ${isTouchDevice ? 'tap' : 'click'} a chip's × to remove it.</p>
       <p><b>Filtering</b> — the search box on the left supports multiple tags combined with AND /
       OR / XOR / NOT. Type 2 or more characters and a suggestions list appears below the box:
       direct matches first, then other tags that share a word with them (searching "dr" suggests
@@ -61,8 +73,9 @@ export const HELP_SECTIONS = [
     id: 'image-menu',
     title: 'The 3-dot image menu',
     html: `
-      <p>Every card has a "⋯" button (or right-click the card) with actions for that one image.
-      Labels are kept short on purpose — hover any of them for the full explanation.</p>
+      <p>Every card has a "⋯" button (${isTouchDevice ? 'or long-press the card' : 'or right-click the card'}) with actions for
+      that one image.${isTouchDevice ? '' : ` Labels are kept short on purpose — hover any of them for the full
+      explanation.`}</p>
       <ul>
         <li><b>❌ Disable / ↩ Restore</b> — move the image to/from Disabled.</li>
         <li><b>❌ Delete permanently</b> — unlike Disable, removes the image and its tags from
@@ -76,6 +89,8 @@ export const HELP_SECTIONS = [
         skips mass tools, these specifically block the standing-rule system even when you
         deliberately re-trigger it (e.g. by editing a rule).</li>
         <li><b>⏮ Reset edits</b> — revert this image back to its earliest known tag state.</li>
+        <li><b>🗑️ Remove all tags</b> — clears every tag on this image at once (confirmed first)
+        instead of ${isTouchDevice ? 'tapping' : 'clicking'} each chip's own ×. Undoable from the main Undo button.</li>
         <li><b>🐍 WD14 Tag</b> — run the autotagger on just this one image.</li>
         <li>Text/language, comic/koma, review flags, blur, and notes — all write immediately as
         you change them, no separate "Apply" step needed.</li>
@@ -83,8 +98,17 @@ export const HELP_SECTIONS = [
   },
   {
     id: 'power-tools',
-    title: 'Power tools (right sidebar)',
-    html: `
+    title: isTouchDevice ? 'Power tools (bottom panel)' : 'Power tools (right sidebar)',
+    html: (isTouchDevice ? `
+      <p>Docked panels in the bottom panel — swipe left/right to switch between them, tap a dock's
+      header to collapse/expand it. Drag-to-reorder and drag-to-resize are both mouse-only, so
+      those aren't available here.</p>
+      <p><b>✂️ Prune tags</b> opens a full-screen browse/select list (this also covers what's a
+      separate "Tags" dock and a separate Unify/Void dock on desktop — folded in here since mobile
+      only ever has one Tag Pruner going at once). Check any tags you want, then either Apply/Void
+      them right there, or <b>💾 Save as task</b> to stash that selection and start browsing the
+      next unrelated group without losing it — each saved task keeps its own selection and its own
+      Apply/Void, same as several independent Tag Pruner boxes would on desktop.</p>` : `
       <p>These are the docked panels in the Gallery's right sidebar. Drag a dock's header to
       reorder it relative to the others, click the header to collapse/expand it, or drag its
       bottom edge to resize (Retroactive Merge/Void sizes itself to its content and skips this).
@@ -101,7 +125,7 @@ export const HELP_SECTIONS = [
       its own tag summary and its own Apply/Void. Apply merges that box's selected tags into the
       name you type in; Void permanently deletes them (confirmed first, fully undoable). Both
       actions automatically create or extend a standing rule in Retroactive Merge/Void below, so
-      the same correction keeps applying to future tags without you repeating it by hand.</p>
+      the same correction keeps applying to future tags without you repeating it by hand.</p>`) + `
       <p><b>Retroactive Merge/Void</b> — standing rules: "these tags → this one canonical tag" (a
       merge) or "these tags → nothing" (a void). Whenever a rule's tags show up on a Gallery image
       afterward — by WD14, Master Tags, an accepted SynthDat image, or typing it in — they're
@@ -169,10 +193,11 @@ export const HELP_SECTIONS = [
     html: `
       <p>Two tools live here: Master Tag Control and the WD14 Autotagger. Clicking this tab again
       while it's already open takes you back to the Gallery.</p>
-      <p><b>Master Tag Control</b> — select images by clicking thumbnails in the mini-grid here, or
+      <p><b>Master Tag Control</b> — select images by ${isTouchDevice ? 'tapping' : 'clicking'} thumbnails in the mini-grid here, or
       by selecting them in the main Gallery first (selection stays in sync either way). From there
       you can apply or remove a tag across the whole selection, conditionally apply one tag based
-      on another already being present, or run a dataset-wide rename or find-and-replace. The
+      on another already being present (or its own separate row for the inverse — based on it
+      being ABSENT), or run a dataset-wide rename or find-and-replace. The
       Lock/Unlock and Merge Immunize/Antivoid/Antimmunize buttons here apply the same per-image
       flags described in the 3-dot menu section, but to your entire selection at once. <b>❌ Delete
       selected permanently</b> removes every selected image and its tags from disk outright
@@ -180,18 +205,24 @@ export const HELP_SECTIONS = [
       <p><b>🐍 WD14 Autotagger</b> — sends selected images (or a single one, via its 3-dot menu) to
       a WD14 Tagger node on your own ComfyUI instance and merges the tags it returns onto each
       card. Expand "⚙ WD14 settings" to set the ComfyUI host, model, confidence thresholds, and
-      whether results apply automatically or go through a review step first. This app holds no
-      model itself — your ComfyUI instance does the actual tagging.</p>`
+      whether results apply automatically or go through a review step first.
+      ${isTouchDevice
+        ? `"Tagging source" picks between that (ComfyUI) and <b>on-device tagging</b> — a model
+        runs directly on your phone (hardware-accelerated where the phone supports it, falling
+        back to CPU otherwise), no ComfyUI instance needed at all. Models aren't bundled with the
+        app; pick one from the built-in catalog for a one-tap download, or paste a HuggingFace repo
+        manually. Either mode uses the exact same review step and settings below.`
+        : 'This app holds no model itself — your ComfyUI instance does the actual tagging.'}</p>`
   },
   {
     id: 'datasets-tab',
     title: 'Datasets tab',
     html: `
       <p>A folder manager separate from the Gallery — every dataset folder you've opened shows up
-      here as a themed folder icon. Sort manually by dragging, or by name/time. Right-click a
-      folder for more options: remove it from this list, pin it as a favorite, view its
-      achievements read-only, or change its icon. Opening a folder that isn't tracked here yet
-      prompts you once to add it.</p>`
+      here as a themed folder icon. Sort by name/time,${isTouchDevice ? '' : ' or manually by dragging,'} and
+      ${isTouchDevice ? 'tap a folder\'s ⋯ button' : 'right-click a folder (or tap its ⋯ button)'} for more options: remove it from
+      this list, pin it as a favorite, view its achievements read-only, or change its icon. Opening
+      a folder that isn't tracked here yet prompts you once to add it.</p>`
   },
   {
     id: 'stats-tab',
@@ -209,9 +240,14 @@ export const HELP_SECTIONS = [
       on. The idea: your dataset is thin, so instead of hand-posing or hand-drawing more source
       material, you strong-arm that LoRA into new reference poses via
       <span style="white-space:nowrap;"><b>ControlNet</b> <button type="button" class="info-btn" id="infoGlossaryControlnet" title="What ControlNet is doing here">ⓘ</button></span>.
-      Requires ComfyUI with a few extra custom nodes installed — see
-      <code>ComfyUI-dependencies/README.md</code> in the app's own folder for exactly what and
-      why.</p>
+      Requires ComfyUI with a few extra custom nodes installed —
+      ${isTouchDevice
+        ? `this ComfyUI instance is the one running on your PC (SynthDat still runs generation
+        there; only the tagging half can run on-device), so grab the node bundle from this
+        project's own GitHub repository — the <code>ComfyUI-dependencies</code> folder there has a
+        README covering exactly what's needed and why.`
+        : `see <code>ComfyUI-dependencies/README.md</code> in the app's own folder for exactly what
+        and why.`}</p>
       <template id="infoGlossaryCharacterLora2Content">
         <p>A <b>LoRA</b> (Low-Rank Adaptation) is a small add-on file trained on top of a base
         image-generation model to teach it something new without retraining the whole model.</p>
@@ -248,33 +284,42 @@ export const HELP_SECTIONS = [
         <li>Pick a reference pose image, or skip this entirely (check "I don't want to use a
         reference image") for an ordinary prompted generation with no ControlNet.</li>
         <li>WD14-interrogate it to pull tags from the reference, then hand-assign the ones that
-        matter (pose, limbs, etc.) into their prompt fields below.</li>
-        <li>Fill in the rest of the prompt fields, set your generation parameters in the Generation
+        matter (pose, limbs, etc.) into their prompt fields — open them via the "‹ 📝 Prompt fields"
+        edge tab (docked to the right, reachable regardless of scroll); close it with its own ›
+        arrow or by clicking outside it.</li>
+        <li>Fill in the rest of the prompt fields — Global (Main LoRA trigger word), Character
+        Trigger, and Negative always stay visible; check "Use a single unified prompt box" to paste
+        one ready-made prompt instead of splitting it across the rest. A ⇄ button next to
+        Width/Height swaps the two instantly. Set your generation parameters in the Generation
         section (sampler, seeds, steps, CFG — "Enable 2nd pass" runs an optional refinement pass
-        and lets you pick between both results before deciding), then click ▶ Generate. ⏹ Stop
+        and lets you pick between both results before deciding), then ${isTouchDevice ? 'tap' : 'click'} ▶ Generate. ⏹ Stop
         interrupts a run in progress.</li>
         <li>Review the result — "🐍 Re-interrogate output with WD14" checks what the model actually
-        drew, since it sometimes adds details nobody prompted for. Prune anything you don't want
-        from the "pending" tag card; it also suggests merges based on your existing Retroactive
-        Merge/Void rules. Right-click a tag for <b>📖 Definition</b> or <b>🚫 Mark as void</b> —
-        voiding drops it from this image AND adds a Retroactive Void rule for it on Accept, so
-        import tags (artist, rating, trigger words) get stripped without re-running WD14. A tag
-        already covered by an existing void rule shows struck through automatically, previewing
-        what Accept will drop.</li>
+        drew, since it sometimes adds details nobody prompted for. ${isTouchDevice
+          ? 'Tap a tag\'s × on the "pending" tag card to drop it from just this image, and tap a merge suggestion to fold it into your dataset\'s existing canonical spelling.'
+          : `Prune anything you don't want from the "pending" tag card; it also suggests merges based
+        on your existing Retroactive Merge/Void rules. Right-click a tag for <b>📖 Definition</b> or
+        <b>🚫 Mark as void</b> — voiding drops it from this image AND adds a Retroactive Void rule
+        for it on Accept, so import tags (artist, rating, trigger words) get stripped without
+        re-running WD14.`}
+        A tag already covered by an existing void rule shows struck through automatically,
+        previewing what Accept will drop.</li>
         <li>✅ Accept writes the image and its tags straight into the dataset as a normal unsaved
         edit (tags are written to disk immediately too, so a crash before your next Save can't lose
-        them). ❌ Reject sends it straight to Disabled instead. Either way, nothing generated is
-        ever silently thrown away — even the pass you didn't pick, if you ran 2-Pass, is saved to
-        Disabled rather than discarded.</li>
+        them) — check "Rename this image to match dataset conventions?" first if this dataset
+        already uses simple numbered filenames, to pick up the next number instead of the default
+        synth_&lt;timestamp&gt; name. ❌ Reject sends it straight to Disabled instead. Either way,
+        nothing generated is ever silently thrown away — even the pass you didn't pick, if you ran
+        2-Pass, is saved to Disabled rather than discarded.</li>
       </ol>
-      <p>Every preview image in this tab opens in a zoomable, pannable lightbox on click.</p>`
+      <p>Every preview image in this tab opens in a zoomable, pannable lightbox on ${isTouchDevice ? 'tap' : 'click'}.</p>`
   },
   {
     id: 'settings',
     title: 'Settings',
     html: `
-      <p>Click the ⚙ Settings button (next to File in the top bar) to open it. Each section below
-      expands on click:</p>
+      <p>${isTouchDevice ? 'Tap' : 'Click'} the ⚙ Settings button (next to File in the top bar) to open it. Each section below
+      expands on ${isTouchDevice ? 'tap' : 'click'}:</p>
       <ul>
         <li><b>Appearance</b> — theme picker, night/day mode, the font-size slider (the whole
         gallery and panels reflow live as you drag it), and "Gallery columns" to lock the gallery's
@@ -284,7 +329,7 @@ export const HELP_SECTIONS = [
         <li><b>Tagging</b> — tag-input behavior, e.g. whether typing a new language auto-selects
         it.</li>
         <li><b>Saving</b> — Autosave (off by default): when on, edits save to disk automatically
-        about 1.2 seconds after you stop typing, instead of only on a manual Save click. Safe to
+        about 1.2 seconds after you stop typing, instead of only on a manual ${isTouchDevice ? 'tap on' : 'click on'} Save. Safe to
         turn on — every edit is already in the Edit Log with its own undo regardless of whether
         it's been physically written to disk yet.</li>
         <li><b>Performance</b> — Hardware acceleration (on by default) steers this app's own UI
@@ -292,7 +337,7 @@ export const HELP_SECTIONS = [
         your discrete one. Turning it off forces pure CPU rendering. Takes effect on your next
         launch.</li>
         <li><b>Layout & Panels</b> — UI animation mode (Fade/Swipe/Off), and "Reset panel layout" if
-        a dock's drag-reorder or collapse state ever gets into a bad state.</li>
+        a dock's ${isTouchDevice ? 'collapse state ever gets stuck' : 'drag-reorder or collapse state ever gets into a bad state'}.</li>
         <li><b>Updates & Sharing</b> — "Restart app" reloads the latest files instantly, no manual
         quit/reopen needed. "🩺 Export app state" isn't something you'd normally need — it's a
         troubleshooting aid that writes a text file next to the app with your current settings,
@@ -321,7 +366,7 @@ export const HELP_SECTIONS = [
   {
     id: 'favorites',
     title: 'Favorites',
-    html: `<p>★ Favorites saves frequently-used dataset folders for one-click reopening — separate
+    html: `<p>★ Favorites saves frequently-used dataset folders for ${isTouchDevice ? 'one-tap' : 'one-click'} reopening — separate
       from the Datasets tab's own folder list, though pinning a folder there syncs it into
       Favorites too.</p>`
   },
@@ -329,7 +374,7 @@ export const HELP_SECTIONS = [
     id: 'edit-log',
     title: 'The Edit Log',
     html: `
-      <p>Click 📜 Log to see every logged action for the current dataset, most recent first.
+      <p>${isTouchDevice ? 'Tap' : 'Click'} 📜 Log to see every logged action for the current dataset, most recent first.
       Actions with real tag data (add/remove, merge/void, rename, find-replace, and the Retroactive
       Merge/Void dock's own unmerge/unvoid corrections) get their own ↩ Undo this / ↪ Redo this
       buttons, independent of the toolbar's main linear Undo/Redo. Disable/Restore actions get a
@@ -343,17 +388,22 @@ export const HELP_SECTIONS = [
     id: 'saving',
     title: 'Saving your work',
     html: `<p>The toolbar's dirty counter shows how many images (and, separately, whether
-      Retroactive Merge/Void has unsaved rule changes) are waiting to be written to disk — click
-      Save to write them all. Closing the app, switching datasets, or reloading with unsaved
-      changes always asks first; nothing is silently discarded.</p>`
+      Retroactive Merge/Void has unsaved rule changes) are waiting to be written to disk —
+      ${isTouchDevice ? 'tap' : 'click'} Save to write them all. Closing the app, switching datasets, or reloading with unsaved
+      changes always asks first; nothing is silently discarded.</p>
+      ${isTouchDevice ? `<p><b>⚠ Except force-closing the app</b> — swiping it away in Android's
+      recent-apps view kills the app outright, with no chance for that warning (or anything else)
+      to run first. Unsaved changes from that session are lost exactly like an unplugged desktop
+      would lose them; there's no way around this on mobile. Save (or turn on Autosave, Settings ▸
+      Saving) before switching away if you're not sure you'll come back to this same session.</p>` : ''}`
   },
   {
     id: 'tips',
     title: 'Tips & troubleshooting',
     html: `
       <ul>
-        <li>Drag a card straight onto the Disabled tab to disable it quickly (hover a card to see
-        this hint appear).</li>
+        ${isTouchDevice ? '' : `<li>Drag a card straight onto the Disabled tab to disable it quickly (hover a card to see
+        this hint appear).</li>`}
         <li>Underscore-to-space conversion only goes one way — a tag that ends up with an
         underscore while you're editing in-app is treated as containing a literal space, by
         design.</li>
@@ -363,7 +413,7 @@ export const HELP_SECTIONS = [
         Panels ▸ "Reset panel layout."</li>
         <li>If Tag Details says "no definition found" for everything, the bundled Danbooru wiki
         data files are missing from your install — redownload the release zip.</li>
-        <li>The window hides Electron's default menu bar — tap Alt to reveal it temporarily.</li>
+        ${isTouchDevice ? '' : `<li>The window hides Electron's default menu bar — tap Alt to reveal it temporarily.</li>`}
       </ul>`
   }
 ];

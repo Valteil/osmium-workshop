@@ -1,11 +1,6 @@
-// Phase B module: the "no folder loaded" empty state's random useless-fact
-// button. Fully self-contained (no shared app state needed), so unlike most
-// other modules it doesn't take an init(deps) object — just wires its own
-// button on import.
-// @ts-nocheck
 import { btnRandomFact, randomFactDisplay } from './dom';
 
-const USELESS_FACTS = [
+const USELESS_FACTS: readonly string[] = [
   'A group of flamingos is called a "flamboyance."',
   'Bananas are berries, but strawberries aren\'t.',
   'Honey never spoils — archaeologists have eaten 3,000-year-old honey found in Egyptian tombs.',
@@ -58,7 +53,7 @@ const USELESS_FACTS = [
   'The first VHS tape ever rented was "Behind the Green Door" — nobody asked, but now you know.'
 ];
 
-export function initRandomFacts(){
+export function initRandomFacts(): void {
   btnRandomFact.addEventListener('click', () => {
     const fact = USELESS_FACTS[Math.floor(Math.random() * USELESS_FACTS.length)];
     randomFactDisplay.textContent = fact;

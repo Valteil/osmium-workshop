@@ -1,19 +1,16 @@
-// @ts-nocheck
-// Phase A (mechanical TS port): type-checking is off for this file because it's
-// still the original untyped single-file renderer, just renamed .ts so esbuild
-// can bundle it. Phase B splits this into the modules listed in CLAUDE.md and
-// adds real types to each as it's extracted — remove this pragma module-by-module
-// as that happens, never all at once (that's how you get inaccurate casts).
+import type { Entry, DirHandle, FileHandle, EntryMeta, GalleryFilter, GallerySortMode, GallerySortDir, CardTagSortMode, FolderStats } from './types';
 import {
   $, btnOpen, btnSave, btnUndo, btnRedo, btnUnloadDataset, btnReloadDataset, dirtyCountEl, galleryToolbar, galleryGrid,
   compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, imageCardModal, modalCardInner, dropHint, dropHintWrap, filterInput, filterExactToggle,
   filterAllBtn, filterUntaggedBtn, filterDirtyBtn, excludeBadge, excludeBadgeText,
-  excludeBadgeClear, tagFrequencyList, leftSortDropdown, leftSortDirBtn,
-  btnResetFamilyOrder, btnClearFilter, filterModeDropdown, btnFlagIsolated,
-  tagPrunerList, btnAddTagPruner, allTagsDatalist, toastEl,
+  excludeBadgeClear,
+  btnClearFilter, filterModeDropdown, btnFlagIsolated,
+  tagPrunerList, btnAddTagPruner, toastEl,
+  btnOpenTagPrunerList, btnOpenUnifyVoidList, unifyVoidRows, btnOpenCanonicalTagsList, canonicalTagsList, btnOpenMasterMiniGrid,
+  btnOpenTagFrequencyList, tagFamilyListArea,
   themeSelect, themeDropdown, btnThemeCustomize, themeCustomPanel, themeVarRows, themeResetBtn,
-  themeApplyBtn, themeCloseBtn, btnQuit, btnLeftDrawerToggle, btnRightDrawerToggle,
+  themeApplyBtn, themeCloseBtn, btnQuit, btnLeftDrawerToggle, btnRightDrawerToggle, btnOverseerDrawerToggle,
   drawerBackdrop, leftAside, rightAside,
   topbarActions, fileCatBtn, fileCatFlyout,
   personalizationCatBtn, personalizationCatFlyout, flyoutOutsideCloseToggle,
@@ -36,9 +33,10 @@ import {
   tagDetailsTitle, tagDetailsBody, tagDetailsCloseBtn, langMenuPanel,
   btnNightMode, viewGridBtn, viewCompactBtn, viewSingleBtn,
   viewDisabledBtn, gallerySortDropdown, gallerySortDirBtn, singleNav, singlePrevBtn,
-  singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle
+  singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle,
+  settingsPanel, fontSizeSlider, fontSizeVal
 } from './dom';
-import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons } from './shared-ui';
+import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal } from './shared-ui';
 import {
   PREMIUM_THEMES, STUDIO_DEFAULTS, applyTheme, openThemeCustomPanel, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes
@@ -68,9 +66,9 @@ import {
 } from './edit-log';
 import { initCanonicalTags, loadCanonicalRulesForFolder } from './canonical-tags';
 import {
-  markDirty, updateDirtyUI, recordChange, applyTagDirection, updateUndoRedoButtons,
+  markDirty, updateDirtyUI, recordChange, applyTagDirection, applyRenameDirection, updateUndoRedoButtons,
   resetUndoRedo, moveEntry, initTagsEdit, undoStack, redoStack, addTagToEntry,
-  markRulesDirty, rulesDirty, resetRulesDirty
+  markRulesDirty, rulesDirty, resetRulesDirty, renameAllEntriesSequentially
 } from './tags-edit';
 import {
   masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid, initMasterTagControl
@@ -92,31 +90,43 @@ import {
 import { initRandomFacts } from './random-facts';
 (function(){
 
+  // ---------------- Touch-device detection (mobile port) ----------------
+  // A capability check (not a width/breakpoint check) — gates behavior that's
+  // wrong on ANY touch device regardless of window size, like the
+  // mouseover/mouseout-driven tooltip system below, which has no real
+  // "mouse left the element" event on touch and would otherwise get stuck
+  // permanently visible after a tap (seen on-device during the mobile port —
+  // see notes/Mobile-Port.md). Layout breakpoints (narrow-viewport CSS) are
+  // separate and width-based, not gated on this.
+  let isTouchDevice = false;
+  try { isTouchDevice = matchMedia('(hover: none) and (pointer: coarse)').matches; } catch(e){}
+  document.documentElement.classList.toggle('touch-device', isTouchDevice);
+
   // ---------------- State ----------------
-  let dirHandle = null;
-  let disabledDirHandle = null;
-  let entries = [];            // [{base, imgHandle, txtHandle, txtExisted, objectUrl, tags:[], dirty:bool, disabled:bool}]
-  let entryByBase = new Map();
-  let galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false };
+  let dirHandle: DirHandle | null = null;
+  let disabledDirHandle: DirHandle | null = null;
+  let entries: Entry[] = [];
+  let entryByBase = new Map<string, Entry>();
+  let galleryFilter: GalleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false };
   // undoStack/redoStack moved to ./tags-edit.ts
   // viewMode/singleIndex/ctxMenuEl/commonLanguages moved to ./view.ts
   // editLog/logIdCounter moved to ./edit-log.ts
   // folderStats/folderUnlocked/wallet/ownedThemes/achievementPopupsEnabled moved to ./achievements.ts
-  let gallerySortMode = 'filename';
-  let gallerySortDir = 'asc';
+  let gallerySortMode: GallerySortMode = 'filename';
+  let gallerySortDir: GallerySortDir = 'asc';
   // leftSortMode/leftSortDir/familyOrder moved to ./tag-index.ts
   // dayNightOn moved to ./themes.ts
   let isolatedFlagActive = false;
-  let cardTagSortMode = 'default'; // 'default' | 'alphabetical' | 'frequency'
+  let cardTagSortMode: CardTagSortMode = 'default';
   let masterTagModeActive = false;
   // masterSelectedImages moved to ./master-tag-control.ts
   // stickyCompareImages moved to ./view.ts
   // dockOrder/dockCollapsed/dockHeights moved to ./docks.ts
   // tagPruners/tagPrunerIdCounter moved to ./tag-pruner.ts
   let compactModeOn = false;
-  let entryMeta = {};          // base -> {reviewColor, flaggedTags:[], note:'', noteAlwaysVisible:false}
+  let entryMeta: Record<string, EntryMeta> = {};
   // wikiData/allTagsMap moved to ./tag-details.ts
-  let activeLangMenuBase = null;
+  let activeLangMenuBase: string | null = null;
   // tagAutocompleteEnabled/autocompleteEl moved to ./tags-autocomplete.ts
   // customPowerTools/powerToolPickerActive moved to ./power-tools.ts
 
@@ -165,14 +175,21 @@ import { initRandomFacts } from './random-facts';
 
   // attachPinchZoom/attachLongPress moved to ./shared-ui.ts
 
-  // ---------------- Mobile drawer toggles (narrow-viewport layout) ----------------
+  // ---------------- Mobile bottom panel: Left / Tools / Overseer ----------------
+  // Below 900px, #left and #right (still the same real DOM containers other
+  // code already references — see styles.css) become one-at-a-time bottom
+  // sheets instead of side-by-side columns. "Overseer" isn't a third
+  // container of its own — per switchTab() above, Tag Overseer is just
+  // #right showing #masterTagPanel instead of #normalRightTools — so the
+  // three-way switch is really "which of #left/#right is open" plus, for
+  // #right, "which of its two internal panels switchTab() has selected."
 
   function closeDrawers(){
     leftAside.classList.remove('drawer-open');
     rightAside.classList.remove('drawer-open');
     drawerBackdrop.classList.remove('drawer-visible');
   }
-  function openDrawer(which){
+  function openDrawer(which: string): void {
     closeDrawers();
     (which === 'left' ? leftAside : rightAside).classList.add('drawer-open');
     drawerBackdrop.classList.add('drawer-visible');
@@ -182,10 +199,31 @@ import { initRandomFacts } from './random-facts';
     else openDrawer('left');
   });
   btnRightDrawerToggle.addEventListener('click', () => {
-    if (rightAside.classList.contains('drawer-open')) closeDrawers();
-    else openDrawer('right');
+    if (rightAside.classList.contains('drawer-open') && !masterTagModeActive) closeDrawers();
+    else {
+      if (masterTagModeActive) switchTab('gallery', { skipDrawerSync: true });
+      openDrawer('right');
+    }
+  });
+  btnOverseerDrawerToggle.addEventListener('click', () => {
+    if (rightAside.classList.contains('drawer-open') && masterTagModeActive) closeDrawers();
+    else {
+      if (!masterTagModeActive) switchTab('master', { skipDrawerSync: true });
+      openDrawer('right');
+    }
   });
   drawerBackdrop.addEventListener('click', closeDrawers);
+
+  // ---------------- Dock list-in-modal triggers (mobile) ----------------
+  // Buttons themselves are mobile-only (styles.css) — harmless to wire up
+  // unconditionally here either way, since openDockListModal() just moves
+  // the real element (already working fine inline on desktop) into a
+  // modal and back; nothing about wiring the click depends on breakpoint.
+  btnOpenTagPrunerList.addEventListener('click', () => openDockListModal('Tag Pruner', tagPrunerList));
+  btnOpenUnifyVoidList.addEventListener('click', () => openDockListModal('Unify or void selected tags', unifyVoidRows));
+  btnOpenCanonicalTagsList.addEventListener('click', () => openDockListModal('Retroactive Merge/Void rules', canonicalTagsList));
+  btnOpenMasterMiniGrid.addEventListener('click', () => openDockListModal('Select images', masterMiniGrid));
+  btnOpenTagFrequencyList.addEventListener('click', () => openDockListModal('Tags', tagFamilyListArea));
 
   // buildPersistentDropdown moved to ./shared-ui.ts
 
@@ -247,19 +285,19 @@ import { initRandomFacts } from './random-facts';
   themeCloseBtn.addEventListener('click', () => hidePanel(themeCustomPanel));
 
   themeResetBtn.addEventListener('click', () => {
-    themeVarRows.querySelectorAll('input[type="color"]').forEach(inp => {
-      const key = inp.dataset.varKey;
-      const hex = STUDIO_DEFAULTS[key] || '#000000';
+    themeVarRows.querySelectorAll<HTMLInputElement>('input[type="color"]').forEach(inp => {
+      const key = inp.dataset.varKey!;
+      const hex = (STUDIO_DEFAULTS as Record<string, string>)[key] || '#000000';
       inp.value = hex;
       document.documentElement.style.setProperty(key, hex);
     });
   });
 
   themeApplyBtn.addEventListener('click', () => {
-    const custom = {};
-    themeVarRows.querySelectorAll('input[type="color"]').forEach(inp => {
-      custom[inp.dataset.varKey] = inp.value;
-      document.documentElement.style.setProperty(inp.dataset.varKey, inp.value);
+    const custom: Record<string, string> = {};
+    themeVarRows.querySelectorAll<HTMLInputElement>('input[type="color"]').forEach(inp => {
+      custom[inp.dataset.varKey!] = inp.value;
+      document.documentElement.style.setProperty(inp.dataset.varKey!, inp.value);
     });
     try { localStorage.setItem('dts-custom-theme', JSON.stringify(custom)); } catch(e){}
     document.documentElement.setAttribute('data-theme', 'custom');
@@ -307,7 +345,8 @@ import { initRandomFacts } from './random-facts';
   // shift the display swap itself causes. Respects the "Smooth transitions"
   // Settings toggle (`html.motion-off`) by skipping straight to the final
   // state with no delay when it's off.
-  function switchTab(tab){
+  function switchTab(tab: string, opts?: { skipDrawerSync?: boolean }): void {
+    const skipDrawerSync = !!(opts && opts.skipDrawerSync);
     const fadePanes = [datasetManagerTab, statsTab, synthDatTab, normalRightTools, masterTagPanel];
     const applyState = () => {
       tabDatasetManager.classList.toggle('active', tab === 'datasets');
@@ -320,8 +359,38 @@ import { initRandomFacts } from './random-facts';
       statsTab.style.display = (tab === 'stats') ? 'block' : 'none';
       synthDatTab.style.display = (tab === 'synthdat') ? 'block' : 'none';
       masterTagModeActive = (tab === 'master');
-      normalRightTools.style.display = masterTagModeActive ? 'none' : 'block';
-      masterTagPanel.style.display = masterTagModeActive ? 'block' : 'none';
+      // Keeps the mobile bottom-panel sheet (#left/#right) in sync with
+      // whatever switchTab() itself just decided — there are several ways
+      // to reach 'master' besides the panel's own 🔭 toggle button
+      // (the top tab bar's "Tag Overseer" tab, btnGoToTagOverseer, the
+      // various *Back buttons returning to 'gallery'), and none of THOSE
+      // touch the drawer-open state on their own. Without this, tapping
+      // the top tab bar's Tag Overseer left #right's mobile sheet exactly
+      // where it already was (closed, or stuck open showing stale content)
+      // instead of opening to show Master Tag Control — confirmed
+      // on-device. No-op on desktop (`.drawer-open` isn't referenced
+      // outside the mobile breakpoint's CSS).
+      // skipDrawerSync: callers that are about to manage drawer state
+      // themselves right after calling switchTab() (btnRightDrawerToggle/
+      // btnOverseerDrawerToggle below, using switchTab('gallery') purely to
+      // reset masterTagModeActive before opening the OTHER drawer) opt out
+      // of this. Without it, this deferred applyState() (it runs after the
+      // fade's setTimeout, so AFTER the caller's own synchronous
+      // openDrawer() call below) would closeDrawers() right on top of the
+      // drawer the caller just opened — on-device this showed as the sheet
+      // sliding up and immediately snapping shut on the first tap.
+      if (!skipDrawerSync){ if (tab === 'master') openDrawer('right'); else closeDrawers(); }
+      // Class-based (not an inline style) specifically so the mobile
+      // breakpoint's own display rule (styles.css, `display:flex` for the
+      // horizontal dock layout) can win normally through the cascade —
+      // an inline style here would beat that regardless of selector
+      // specificity short of !important, and forcing !important on BOTH
+      // elements to cover both states ended up making the hidden one
+      // "display:flex" too instead of actually hidden, leaking its content
+      // in underneath the visible one. `.rt-hidden` is a plain class, so
+      // ordinary cascade rules apply everywhere, mobile included.
+      normalRightTools.classList.toggle('rt-hidden', masterTagModeActive);
+      masterTagPanel.classList.toggle('rt-hidden', !masterTagModeActive);
       // Sits in the right panel's own header row (next to the collapse
       // arrow), swapping which of the two shows depending on which side
       // of the dock/Master-Tag-Control split is currently visible — fills
@@ -416,8 +485,18 @@ import { initRandomFacts } from './random-facts';
   // zoom changes the row's effective CSS-px size the same way a real resize
   // would.
   const TOPBAR_MIN_SCALE = 0.6;
+  // Below this width, styles.css's own @media (max-width:900px) block gives
+  // .actions `overflow-x:auto` instead — a horizontal scroll, not a shrink.
+  // Skipping the transform here isn't just redundant with that, it actively
+  // matters: a `transform` on an ancestor creates a new containing block for
+  // any `position:fixed` descendant (e.g. the File/Personalization dropdown
+  // flyouts, before they were re-parented to document.body — see that fix
+  // earlier in the mobile port), so avoiding the transform at this width
+  // removes that whole risk class rather than leaving it latent.
+  const topbarNarrowQuery = matchMedia('(max-width: 900px)');
   function updateTopbarScale(){
     topbarActions.style.transform = '';
+    if (topbarNarrowQuery.matches) return;
     const natural = topbarActions.scrollWidth;
     const available = topbarActions.clientWidth;
     if (natural <= 0 || available <= 0) return;
@@ -450,7 +529,7 @@ import { initRandomFacts } from './random-facts';
   // the default fade/scale — so this dropdown only ever needs to set those
   // two classes, never touch any animation code directly. See styles.css's
   // "Motion timing" block.
-  function applyUiAnimationMode(mode){
+  function applyUiAnimationMode(mode: string): void {
     document.documentElement.classList.toggle('motion-off', mode === 'off');
     document.documentElement.classList.toggle('motion-swipe', mode === 'swipe');
   }
@@ -494,11 +573,28 @@ import { initRandomFacts } from './random-facts';
     if (restart) window.electronAPI.restartApp();
   });
 
-  function setupHeaderCategory(btn, flyout){
+  function setupHeaderCategory(btn: HTMLElement, flyout: HTMLElement & { _headerCatBtn?: HTMLElement }): void {
+    // Re-parented to document.body (matching pdrop-menu/ctx-menu's own
+    // pattern — see shared-ui.ts) instead of staying nested inside
+    // #topbar .actions, its original DOM position. That container gets a
+    // JS-driven `transform: scale(n)` on narrow viewports
+    // (updateTopbarScale()) to keep the topbar buttons from overflowing —
+    // and per the CSS spec, a `transform` on an ancestor creates a new
+    // containing block for any `position: fixed` descendant, so this
+    // flyout's fixed positioning was being computed relative to the
+    // scaled/shrunk topbar box instead of the real viewport. Invisible on
+    // desktop (the scale rarely triggers at normal window widths) but
+    // silently broke the whole menu on mobile's narrow viewport, where it
+    // always triggers — found during the mobile port, see notes/Mobile-Port.md.
+    document.body.appendChild(flyout);
+    // Outside-click-close (below) needs a way back to the trigger button
+    // now that flyout lives under document.body instead of inside `wrap` —
+    // stash it here rather than re-deriving it there.
+    flyout._headerCatBtn = btn;
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       const isOpen = flyout.style.display === 'flex';
-      document.querySelectorAll('.header-cat-flyout').forEach(f => { f.style.display = 'none'; f.classList.remove('menu-in'); });
+      document.querySelectorAll<HTMLElement>('.header-cat-flyout').forEach(f => { f.style.display = 'none'; f.classList.remove('menu-in'); });
       if (isOpen) return;
       const rect = btn.getBoundingClientRect();
       flyout.style.display = 'flex';
@@ -514,7 +610,12 @@ import { initRandomFacts } from './random-facts';
       // Pop-in, same treatment as every ctx-menu (see positionMenu()) — the
       // flyout stays in the DOM between opens (display-toggled, not
       // recreated), so `.menu-in` has to be explicitly removed on close too.
-      requestAnimationFrame(() => requestAnimationFrame(() => flyout.classList.add('menu-in')));
+      // Forced reflow (not double-rAF) so the opacity:0 -> .menu-in
+      // transition reliably fires even on WebViews that throttle/skip
+      // rAF right after an activity resume (seen on a Samsung Capacitor
+      // build during the mobile port — see notes/Mobile-Port.md).
+      void flyout.offsetHeight;
+      flyout.classList.add('menu-in');
     });
   }
   setupHeaderCategory(fileCatBtn, fileCatFlyout);
@@ -535,9 +636,17 @@ import { initRandomFacts } from './random-facts';
     // a deliberate click always lands on some real page element.
     if (ev.target === document.documentElement || ev.target === document.body) return;
     let closedAny = false;
-    document.querySelectorAll('.header-cat').forEach(wrap => {
-      const flyout = wrap.querySelector('.header-cat-flyout');
-      if (flyout && flyout.style.display === 'flex' && !wrap.contains(ev.target)){
+    // Iterate the flyouts directly (not via `.header-cat wrap.querySelector`)
+    // — setupHeaderCategory() reparents each flyout to document.body so its
+    // fixed positioning isn't computed relative to a scaled/transformed
+    // ancestor (see that function's comment), which means it's no longer a
+    // DOM descendant of its original `.header-cat` wrapper at all. A
+    // wrap-based lookup silently finds nothing and this whole close-on-
+    // outside-click behavior never fires. flyout._headerCatBtn (stashed in
+    // setupHeaderCategory) is the way back to its trigger button now.
+    document.querySelectorAll<HTMLElement & { _headerCatBtn?: HTMLElement }>('.header-cat-flyout').forEach(flyout => {
+      const btn = flyout._headerCatBtn;
+      if (flyout.style.display === 'flex' && !flyout.contains(ev.target as Node) && !(btn && btn.contains(ev.target as Node))){
         flyout.style.display = 'none';
         flyout.classList.remove('menu-in');
         closedAny = true;
@@ -573,7 +682,7 @@ import { initRandomFacts } from './random-facts';
     if (!panelsCloseOnOutsideClick) return;
     let closedAny = false;
     getOutsideClosablePanels().forEach(panel => {
-      if (panel.style.display === 'flex' && !panel.contains(ev.target) && !isClickInsideOwnedPdrop(panel, ev.target)){
+      if (panel.style.display === 'flex' && !panel.contains(ev.target as Node) && !isClickInsideOwnedPdrop(panel, ev.target)){
         hidePanel(panel);
         closedAny = true;
       }
@@ -588,17 +697,17 @@ import { initRandomFacts } from './random-facts';
   // ---------------- Settings panel ----------------
 
   // fontSizeSlider/fontSizeVal/settingsPanel moved to ./dom.ts
-  const tooltipsToggle = $('tooltipsToggle');
-  const tagCountBadgeToggle = $('tagCountBadgeToggle');
+  const tooltipsToggle = $<HTMLInputElement>('tooltipsToggle');
+  const tagCountBadgeToggle = $<HTMLInputElement>('tagCountBadgeToggle');
   const cardTagSortDropdown = $('cardTagSortDropdown');
   const galleryColumnsDropdown = $('galleryColumnsDropdown');
-  const dynamicCardsToggle = $('dynamicCardsToggle');
+  const dynamicCardsToggle = $<HTMLInputElement>('dynamicCardsToggle');
   const btnDiscreteToggle = $('btnDiscreteToggle');
   const btnDiscreteOff = $('btnDiscreteOff');
   const btnPurgeAllTags = $('btnPurgeAllTags');
   const settingsCloseBtn = $('settingsCloseBtn');
   const tooltipBubble = $('tooltipBubble');
-  const tooltipDelaySlider = $('tooltipDelaySlider');
+  const tooltipDelaySlider = $<HTMLInputElement>('tooltipDelaySlider');
   const tooltipDelayVal = $('tooltipDelayVal');
   let tooltipsEnabled = true;
   let tooltipDelayMs = 1000;
@@ -618,11 +727,23 @@ import { initRandomFacts } from './random-facts';
     tagCountBadgeToggle.checked = on;
   })();
 
+  // Masonry-style dynamic card heights is redundant on mobile (the grid is
+  // a fixed-height single row there, not a multi-column layout it would
+  // meaningfully affect) and was the source of a recurring CSS-specificity
+  // fight against the mobile row layout — dropped outright on touch devices
+  // rather than fought with !important. The Settings row itself is also
+  // hidden on mobile (styles.css).
   dynamicCardsToggle.addEventListener('change', () => {
+    if (document.documentElement.classList.contains('touch-device')) return;
     document.documentElement.classList.toggle('dynamic-cards', dynamicCardsToggle.checked);
     try { localStorage.setItem('dts-dynamic-cards', dynamicCardsToggle.checked ? '1' : '0'); } catch(e){}
   });
   (function initDynamicCardsPref(){
+    if (document.documentElement.classList.contains('touch-device')){
+      dynamicCardsToggle.checked = false;
+      document.documentElement.classList.remove('dynamic-cards');
+      return;
+    }
     let on = false;
     try { on = localStorage.getItem('dts-dynamic-cards') === '1'; } catch(e){}
     dynamicCardsToggle.checked = on;
@@ -631,9 +752,9 @@ import { initRandomFacts } from './random-facts';
 
   // ---------------- Hover tooltips (1s delay, disableable) ----------------
 
-  let tooltipTimer = null;
-  let tooltipTarget = null;
-  let tooltipMeasureCtx = null;
+  let tooltipTimer: ReturnType<typeof setTimeout> | null = null;
+  let tooltipTarget: HTMLElement | null = null;
+  let tooltipMeasureCtx: CanvasRenderingContext2D | null = null;
 
   // Reliable placeholder-overflow check: an EMPTY input's `scrollWidth`
   // doesn't necessarily reflect its placeholder's rendered width (Chromium
@@ -641,16 +762,16 @@ import { initRandomFacts } from './random-facts';
   // this measures the placeholder text directly via a throwaway canvas
   // context using the input's own computed font, the standard reliable way
   // to measure text width without touching the DOM.
-  function placeholderOverflowWidth(el){
+  function placeholderOverflowWidth(el: HTMLInputElement): boolean {
     if (!tooltipMeasureCtx) tooltipMeasureCtx = document.createElement('canvas').getContext('2d');
     const cs = getComputedStyle(el);
-    tooltipMeasureCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-    const textWidth = tooltipMeasureCtx.measureText(el.placeholder).width;
+    tooltipMeasureCtx!.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const textWidth = tooltipMeasureCtx!.measureText(el.placeholder).width;
     const availWidth = el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
     return textWidth > availWidth;
   }
 
-  function showTooltipBubble(el, tipText){
+  function showTooltipBubble(el: HTMLElement, tipText: string): void {
     tooltipTimer = setTimeout(() => {
       if (tooltipTarget !== el) return;
       const rect = el.getBoundingClientRect();
@@ -684,23 +805,24 @@ import { initRandomFacts } from './random-facts';
   }
 
   document.addEventListener('mouseover', (ev) => {
-    if (!tooltipsEnabled) return;
+    if (!tooltipsEnabled || isTouchDevice) return;
     // Ghost/placeholder text tooltip: an empty field's placeholder can run
     // past the field's own visible width with no way to read the rest
     // short of widening the sidebar — show the full placeholder the same
     // way a title-attribute tooltip works, reusing the same bubble/timer/
     // positioning below.
-    const placeholderEl = ev.target.closest ? ev.target.closest('input[placeholder]') : null;
+    const target = ev.target as HTMLElement;
+    const placeholderEl = target.closest ? target.closest('input[placeholder]') as HTMLInputElement | null : null;
     if (placeholderEl && !placeholderEl.value && placeholderOverflowWidth(placeholderEl)){
       if (placeholderEl === tooltipTarget) return;
-      clearTimeout(tooltipTimer);
+      if (tooltipTimer !== null) clearTimeout(tooltipTimer);
       tooltipTarget = placeholderEl;
       showTooltipBubble(placeholderEl, placeholderEl.placeholder);
       return;
     }
-    const el = ev.target.closest('[title]');
+    const el = target.closest('[title]') as HTMLElement | null;
     if (!el || el === tooltipTarget) return;
-    clearTimeout(tooltipTimer);
+    if (tooltipTimer !== null) clearTimeout(tooltipTimer);
     tooltipTarget = el;
     const tipText = el.getAttribute('title');
     if (!tipText) return;
@@ -713,9 +835,10 @@ import { initRandomFacts } from './random-facts';
   });
 
   document.addEventListener('mouseout', (ev) => {
-    const el = ev.target.closest('[title], [data-tip-stash], input[placeholder]');
+    if (isTouchDevice) return;
+    const el = (ev.target as HTMLElement).closest('[title], [data-tip-stash], input[placeholder]') as HTMLElement | null;
     if (!el) return;
-    clearTimeout(tooltipTimer);
+    if (tooltipTimer !== null) clearTimeout(tooltipTimer);
     if (el.dataset.tipStash){
       el.setAttribute('title', el.dataset.tipStash);
       delete el.dataset.tipStash;
@@ -746,18 +869,18 @@ import { initRandomFacts } from './random-facts';
 
   // SETTINGS_SECTIONS_KEY/saveSettingsSectionState moved to ./settings.ts
   (function initSettingsSections(){
-    let saved = {};
+    let saved: Record<string, boolean> = {};
     try { saved = JSON.parse(localStorage.getItem(SETTINGS_SECTIONS_KEY) || '{}') || {}; } catch(e){}
-    document.querySelectorAll('#settingsPanel .settings-section').forEach(section => {
-      const id = section.dataset.section;
+    document.querySelectorAll<HTMLElement>('#settingsPanel .settings-section').forEach(section => {
+      const id = section.dataset.section!;
       const defaultExpanded = id !== 'danger'; // everything starts open except Danger Zone
       const expanded = Object.prototype.hasOwnProperty.call(saved, id) ? !!saved[id] : defaultExpanded;
       section.classList.toggle('expanded', expanded);
-      const header = section.querySelector('.settings-section-header');
-      header.addEventListener('click', () => {
+      const header = section.querySelector('.settings-section-header') as HTMLElement | null;
+      header!.addEventListener('click', () => {
         const nowExpanded = !section.classList.contains('expanded');
         section.classList.toggle('expanded', nowExpanded);
-        let state = {};
+        let state: Record<string, boolean> = {};
         try { state = JSON.parse(localStorage.getItem(SETTINGS_SECTIONS_KEY) || '{}') || {}; } catch(e){}
         state[id] = nowExpanded;
         saveSettingsSectionState(state);
@@ -874,11 +997,11 @@ import { initRandomFacts } from './random-facts';
       toast('Export isn\'t available in this build.');
       return;
     }
-    const localStorageDump = {};
+    const localStorageDump: Record<string, string | null> = {};
     try {
       for (let i = 0; i < localStorage.length; i++){
         const key = localStorage.key(i);
-        localStorageDump[key] = localStorage.getItem(key);
+        if (key !== null) localStorageDump[key] = localStorage.getItem(key);
       }
     } catch(e){}
     const state = {
@@ -899,7 +1022,7 @@ import { initRandomFacts } from './random-facts';
       const result = await window.electronAPI.exportAppState(JSON.stringify(state, null, 2));
       toast(result.ok ? `Exported app state to ${result.path}` : (result.message || 'Export failed.'), result.ok ? 5000 : 4000);
     } catch(err){
-      toast('Failed to export app state: ' + err.message);
+      toast('Failed to export app state: ' + (err as Error).message);
     }
   });
 
@@ -921,7 +1044,7 @@ import { initRandomFacts } from './random-facts';
   });
   (function initTooltipDelayPref(){
     let ms = 1000;
-    try { ms = parseInt(localStorage.getItem('dts-tooltip-delay'), 10) || 1000; } catch(e){}
+    try { ms = parseInt(localStorage.getItem('dts-tooltip-delay') || '1000', 10) || 1000; } catch(e){}
     ms = Math.max(100, Math.min(2000, ms));
     tooltipDelayMs = ms;
     tooltipDelaySlider.value = String(ms);
@@ -974,9 +1097,9 @@ import { initRandomFacts } from './random-facts';
   // Merge/Void dock's own rule changes (rulesDirty, tags-edit.ts) now that
   // rule edits are a dirty/saveable action instead of writing to disk
   // immediately on every toggle.
-  function unsavedChangesDescription(){
+  function unsavedChangesDescription(): string | null {
     const dirtyCount = entries.filter(e => e.dirty).length;
-    const parts = [];
+    const parts: string[] = [];
     if (dirtyCount > 0) parts.push(`${dirtyCount} unsaved caption change(s)`);
     if (rulesDirty) parts.push('unsaved Retroactive Merge/Void rule change(s)');
     return parts.length ? parts.join(' and ') : null;
@@ -986,7 +1109,7 @@ import { initRandomFacts } from './random-facts';
   // switched away from (File > Open, Favorites reopen, Dataset tab reopen) —
   // same pattern as Quit/Restart/Unload, just phrased for "switching" instead
   // of "closing".
-  async function confirmDatasetSwitch(message){
+  async function confirmDatasetSwitch(message: string): Promise<boolean> {
     const unsaved = unsavedChangesDescription();
     if (!unsaved) return true;
     return showConfirmModal(`You have ${unsaved}. ${message}`, { okLabel: 'Switch anyway', danger: true });
@@ -994,7 +1117,7 @@ import { initRandomFacts } from './random-facts';
 
   // Shared by favorites.ts and dataset-manager.ts — both reopen a saved
   // FileSystemDirectoryHandle the same way the initial folder-open flow does.
-  async function openFolderHandle(handle){
+  async function openFolderHandle(handle: DirHandle): Promise<void> {
     if (!(await confirmDatasetSwitch('Switch datasets anyway without saving?'))) return;
     dirHandle = handle;
     await loadFolder();
@@ -1004,7 +1127,7 @@ import { initRandomFacts } from './random-facts';
   initFavorites({
     getDirHandle: () => dirHandle,
     openFolderHandle,
-    onFavoriteChanged: syncPinFromFavoriteChange
+    onFavoriteChanged: syncPinFromFavoriteChange as unknown as (handle: FileSystemDirectoryHandle, isFav: boolean) => void
   });
 
   // Dataset folder manager moved to ./dataset-manager.ts
@@ -1021,6 +1144,11 @@ import { initRandomFacts } from './random-facts';
     getDirHandle: () => dirHandle,
     getDisabledDirHandle: () => disabledDirHandle,
     setDisabledDirHandle: (h) => { disabledDirHandle = h; },
+    reindexEntry: (oldBase, newBase) => {
+      const entry = entryByBase.get(oldBase);
+      if (entry){ entryByBase.delete(oldBase); entryByBase.set(newBase, entry); }
+      if (entryMeta[oldBase] !== undefined){ entryMeta[newBase] = entryMeta[oldBase]; delete entryMeta[oldBase]; }
+    },
     resetSingleIndex: () => resetSingleIndex(),
     refreshStats: () => refreshStats(),
     refreshAllUI: () => refreshAllUI(),
@@ -1064,8 +1192,8 @@ import { initRandomFacts } from './random-facts';
   // same way a folder rescan would have built it.
   initSynthDatOverseer({
     getDirHandle: () => dirHandle,
-    addEntryFromNewFile: (base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled) =>
-      buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled),
+    addEntryFromNewFile: (...args: unknown[]) =>
+      buildEntry(args[0] as string, args[1] as FileHandle, args[2] as string, args[3] as FileHandle | null, args[4] as boolean, args[5] as string[], args[6] as boolean),
     refreshAllUI: () => refreshAllUI()
   });
 
@@ -1074,6 +1202,7 @@ import { initRandomFacts } from './random-facts';
     getDirHandle: () => dirHandle,
     getEntryByBase: (base) => entryByBase.get(base),
     applyTagDirection: (affected, direction) => applyTagDirection(affected, direction),
+    applyRenameDirection: (affected, direction) => applyRenameDirection(affected, direction),
     moveEntry: (entry, toDisabled) => moveEntry(entry, toDisabled),
     trackStat: (key, amount) => trackStat(key, amount),
     checkAchievements: () => checkAchievements(),
@@ -1111,25 +1240,25 @@ import { initRandomFacts } from './random-facts';
 
   // Achievements/stats/wallet/shop moved to ./achievements.ts
 
-  function baseName(name){
+  function baseName(name: string): string {
     const i = name.lastIndexOf('.');
     return i === -1 ? name : name.slice(0, i);
   }
-  function isImageFile(name){
+  function isImageFile(name: string): boolean {
     const lower = name.toLowerCase();
     return IMAGE_EXT.some(ext => lower.endsWith(ext));
   }
   // ---------------- Folder loading ----------------
 
   btnOpen.addEventListener('click', async () => {
-    if (!window.showDirectoryPicker){
+    if (!(window as unknown as Record<string, unknown>).showDirectoryPicker){
       toast('Your browser does not support folder access. Use Chrome or Edge, opened as a normal tab (not an embedded preview).', 5000);
       return;
     }
     if (!(await confirmDatasetSwitch('Open a different folder anyway without saving?'))) return;
-    let picked = null;
+    let picked: DirHandle | null = null;
     try {
-      picked = await window.showDirectoryPicker({ mode: 'readwrite' });
+      picked = await (window as unknown as { showDirectoryPicker(opts: { mode: string }): Promise<DirHandle> }).showDirectoryPicker({ mode: 'readwrite' });
     } catch(e){
       toast('No folder was chosen.', 2400);
       return;
@@ -1138,6 +1267,13 @@ import { initRandomFacts } from './random-facts';
       toast('No folder was chosen.', 2400);
       return;
     }
+    // Direct feedback: on mobile especially, the File flyout was left open
+    // covering the screen for the whole scan — a folder was already chosen
+    // at this point, so there's nothing left for the flyout to do. Closing
+    // here (before the scan, not after) means the user isn't stuck staring
+    // at the dropdown while loadFolder() runs.
+    fileCatFlyout.style.display = 'none';
+    fileCatFlyout.classList.remove('menu-in');
     dirHandle = picked;
     try {
       await loadFolder();
@@ -1152,11 +1288,12 @@ import { initRandomFacts } from './random-facts';
     maybePromptAddDataset(picked);
   });
 
-  async function scanDirInto(handle, disabled){
-    const imageHandles = new Map();
-    const txtHandles = new Map();
-    for await (const [name, h] of handle.entries()){
+  async function scanDirInto(handle: DirHandle, disabled: boolean): Promise<void> {
+    const imageHandles = new Map<string, { handle: FileHandle; name: string }>();
+    const txtHandles = new Map<string, { handle: FileHandle; name: string }>();
+    for await (const h of handle.values()){
       if (h.kind !== 'file') continue;
+      const name = h.name;
       if (isImageFile(name)){
         imageHandles.set(baseName(name), { handle: h, name });
       } else if (name.toLowerCase().endsWith('.txt')){
@@ -1165,10 +1302,10 @@ import { initRandomFacts } from './random-facts';
     }
     const bases = Array.from(imageHandles.keys()).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
     for (const base of bases){
-      const img = imageHandles.get(base);
+      const img = imageHandles.get(base)!;
       const txtEntry = txtHandles.get(base);
-      let tags = [];
-      let txtHandle = null;
+      let tags: string[] = [];
+      let txtHandle: FileHandle | null = null;
       let txtExisted = false;
 
       if (txtEntry){
@@ -1190,11 +1327,11 @@ import { initRandomFacts } from './random-facts';
   // image+.txt into dirHandle without a full folder rescan) can be appended
   // to `entries` the exact same way a folder-open scan would have built it,
   // rather than a second, divergent entry-shape constructor.
-  async function buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled){
+  async function buildEntry(base: string, imgHandle: FileHandle, imgName: string, txtHandle: FileHandle | null, txtExisted: boolean, tags: string[], disabled: boolean): Promise<Entry> {
     const file = await imgHandle.getFile();
     const objectUrl = URL.createObjectURL(file);
 
-    const entry = {
+    const entry: Entry = {
       base,
       imgName,
       imgHandle,
@@ -1205,9 +1342,14 @@ import { initRandomFacts } from './random-facts';
       tags,
       dirty: false,
       disabled,
-      width: null,
-      height: null,
-      meta: { reviewColor: null, flaggedTags: [], note: '', noteAlwaysVisible: false, locked: false, mergeImmune: false, antivoid: false }
+      // Default meta for an entry created OUTSIDE the normal folder-scan path
+      // (e.g. SynthDat's addEntryFromNewFile) — loadFolder()'s own post-scan
+      // loop overwrites this from the persisted _dts_meta.json (or stamps a
+      // fresh one) for every entry built by scanDirInto(), so this default
+      // only actually sticks for entries built afterward. dateAdded here is
+      // "the moment this entry was actually created," which is exactly right
+      // for that path (a SynthDat image didn't exist a moment before this).
+      meta: { flaggedTags: [], note: '', noteAlwaysVisible: false, locked: false, mergeImmune: false, antivoid: false, dateAdded: Date.now() }
     };
     entries.push(entry);
     entryByBase.set(base, entry);
@@ -1215,7 +1357,7 @@ import { initRandomFacts } from './random-facts';
     return entry;
   }
 
-  function loadImageDimensions(entry){
+  function loadImageDimensions(entry: Entry): void {
     const probe = new Image();
     probe.onload = () => { entry.width = probe.naturalWidth; entry.height = probe.naturalHeight; };
     probe.src = entry.objectUrl;
@@ -1234,12 +1376,12 @@ import { initRandomFacts } from './random-facts';
   // between the single-image path (deleteEntryPermanently) and the mass one
   // (deleteEntriesPermanently), which collapses them into ONE toast/log
   // entry instead of one per image.
-  async function deleteEntryFilesAndState(entry){
+  async function deleteEntryFilesAndState(entry: Entry): Promise<boolean> {
     if (!dirHandle) return false;
     const sourceDir = entry.disabled ? disabledDirHandle : dirHandle;
     if (!sourceDir) return false;
-    try { await sourceDir.removeEntry(entry.imgName); } catch(e){}
-    try { await sourceDir.removeEntry(entry.txtName); } catch(e){}
+    try { await sourceDir.removeEntry(entry.imgName!); } catch(e){}
+    try { await sourceDir.removeEntry(entry.txtName!); } catch(e){}
 
     const idx = entries.indexOf(entry);
     if (idx !== -1) entries.splice(idx, 1);
@@ -1251,7 +1393,7 @@ import { initRandomFacts } from './random-facts';
   }
 
   // Single-image path — view.ts's 3-dot menu "Delete permanently".
-  async function deleteEntryPermanently(entry){
+  async function deleteEntryPermanently(entry: Entry): Promise<void> {
     if (!dirHandle) return;
     try {
       const ok = await deleteEntryFilesAndState(entry);
@@ -1278,7 +1420,7 @@ import { initRandomFacts } from './random-facts';
   // selection, and that protection matters MOST for an irreversible action
   // like this one. Returns how many were actually deleted, so the caller can
   // report skipped-vs-deleted counts accurately.
-  async function deleteEntriesPermanently(entriesList){
+  async function deleteEntriesPermanently(entriesList: Entry[]): Promise<number> {
     if (!dirHandle) return 0;
     let deleted = 0;
     for (const entry of entriesList){
@@ -1327,6 +1469,7 @@ import { initRandomFacts } from './random-facts';
   }
 
   async function loadFolder(){
+    if (!dirHandle) return;
     toast('Scanning folder…');
     entries = [];
     entryByBase.clear();
@@ -1362,9 +1505,23 @@ import { initRandomFacts } from './random-facts';
     } catch(e){}
 
     await loadEntryMeta();
+    // dateAdded is "the first time this app ever saw this file in this
+    // dataset" — real and accurate for a genuinely new file (no persisted
+    // meta entry yet at all), and the best honest answer for a dataset that
+    // predates this field entirely (an old _dts_meta.json with no dateAdded
+    // recorded) — there's no reliable "date added to THIS dataset" signal on
+    // disk to recover for that case, so it gets stamped now and stays fixed
+    // from here on, rather than silently drifting to "now" on every reload.
+    let metaNeedsDateAddedSave = false;
     for (const e of entries){
       e.meta = entryMeta[e.base] || { reviewColor: null, flaggedTags: [], note: '', noteAlwaysVisible: false, locked: false, mergeImmune: false, antivoid: false };
+      if (!e.meta.dateAdded){
+        e.meta.dateAdded = Date.now();
+        entryMeta[e.base] = e.meta;
+        metaNeedsDateAddedSave = true;
+      }
     }
+    if (metaNeedsDateAddedSave) saveEntryMeta();
 
     dropHint.style.display = entries.length ? 'none' : 'flex';
     dropHintWrap.style.display = entries.length ? 'none' : 'block';
@@ -1461,6 +1618,11 @@ import { initRandomFacts } from './random-facts';
       const ok = await showConfirmModal(`You have ${unsavedReload}. Reload the dataset from disk anyway, discarding them?`, { okLabel: 'Reload anyway', danger: true });
       if (!ok) return;
     }
+    // Same reasoning as Open's own flyout-close above: nothing left for the
+    // File flyout to do once the reload is committed to, so don't leave it
+    // sitting open over the screen for the whole rescan (mobile especially).
+    fileCatFlyout.style.display = 'none';
+    fileCatFlyout.classList.remove('menu-in');
     await loadFolder();
   }
   btnReloadDataset.addEventListener('click', reloadDataset);
@@ -1475,7 +1637,7 @@ import { initRandomFacts } from './random-facts';
       { value: 'NOT', label: 'NOT', title: 'Show images containing NONE of the searched tags' }
     ],
     () => galleryFilter.mode,
-    (val) => { galleryFilter.mode = val; renderCurrentView(); }
+    (val) => { galleryFilter.mode = val as 'AND' | 'OR' | 'XOR' | 'NOT'; renderCurrentView(); }
   );
 
   btnFlagIsolated.addEventListener('click', () => {
@@ -1492,12 +1654,13 @@ import { initRandomFacts } from './random-facts';
   buildPersistentDropdown(gallerySortDropdown,
     [
       { value: 'filename', label: 'Filename' },
+      { value: 'dateadded', label: 'Date added' },
       { value: 'resolution', label: 'Resolution' },
       { value: 'tagcount', label: 'Tag count' },
       { value: 'dirty', label: 'Unsaved first' }
     ],
     () => gallerySortMode,
-    onGallerySortChange
+    (val) => onGallerySortChange(val as GallerySortMode)
   );
 
   // leftSortDropdown wiring moved to ./tag-index.ts (initTagIndex)
@@ -1509,7 +1672,7 @@ import { initRandomFacts } from './random-facts';
       { value: 'frequency', label: 'By frequency' }
     ],
     () => cardTagSortMode,
-    (val) => { cardTagSortMode = val; renderCurrentView(); }
+    (val) => { cardTagSortMode = val as CardTagSortMode; renderCurrentView(); }
   );
 
   // Forces the gallery's column count instead of letting it auto-fit —
@@ -1582,7 +1745,7 @@ import { initRandomFacts } from './random-facts';
   const RIGHT_RESIZE_HANDLE_GAP = 6;
 
   let panelLayout = 'standard';
-  function applyPanelLayout(val){
+  function applyPanelLayout(val: string): void {
     shellEl.classList.remove('layout-gallery-left', 'layout-gallery-right');
     if (val === 'gallery-left') shellEl.classList.add('layout-gallery-left');
     else if (val === 'gallery-right') shellEl.classList.add('layout-gallery-right');
@@ -1610,7 +1773,7 @@ import { initRandomFacts } from './random-facts';
     btnRightPanelCollapse.textContent = collapsed ? (flipped ? '›' : '‹') : (flipped ? '‹' : '›');
     btnRightPanelCollapse.title = collapsed ? 'Show this panel' : 'Hide this panel';
   }
-  function applyRightPanelCollapsed(collapsed){
+  function applyRightPanelCollapsed(collapsed: boolean): void {
     shellEl.classList.toggle('right-panel-collapsed', collapsed);
     rightAside.classList.toggle('right-panel-collapsed', collapsed);
     applyRightPanelCollapsedArrow();
@@ -1645,7 +1808,7 @@ import { initRandomFacts } from './random-facts';
     // rather than letting the drag swallow the whole window.
     return Math.max(RIGHT_PANEL_MIN_WIDTH, window.innerWidth - 270 - 200);
   }
-  function applyRightPanelWidth(px){
+  function applyRightPanelWidth(px: number): void {
     rightPanelWidth = Math.min(rightPanelMaxWidth(), Math.max(RIGHT_PANEL_MIN_WIDTH, px));
     shellEl.style.setProperty('--right-w', rightPanelWidth + 'px');
   }
@@ -1685,7 +1848,7 @@ import { initRandomFacts } from './random-facts';
   }
   (function initRightPanelWidth(){
     let saved = NaN;
-    try { saved = parseInt(localStorage.getItem(RIGHT_PANEL_WIDTH_KEY), 10); } catch(e){}
+    try { saved = parseInt(localStorage.getItem(RIGHT_PANEL_WIDTH_KEY) || '', 10); } catch(e){}
     applyRightPanelWidth(isNaN(saved) ? rightPanelWidth : saved);
     repositionRightResizeHandle();
   })();
@@ -1698,7 +1861,7 @@ import { initRandomFacts } from './random-facts';
     const flipped = rightPanelIsFlipped();
     shellEl.style.transition = 'none';
     rightPanelResizeHandle.classList.add('resizing');
-    function onMove(mv){
+    function onMove(mv: MouseEvent): void {
       const dx = mv.clientX - startX;
       applyRightPanelWidth(startWidth + (flipped ? dx : -dx));
       repositionRightResizeHandle();
@@ -1716,7 +1879,7 @@ import { initRandomFacts } from './random-facts';
 
   // renderCurrentView/switchView + view-mode button/drag wiring moved to ./view.ts
 
-  function onGallerySortChange(mode){
+  function onGallerySortChange(mode: GallerySortMode): void {
     gallerySortMode = mode;
     folderStats.sort_modes_used = Array.from(new Set([...(folderStats.sort_modes_used||[]), gallerySortMode]));
     saveFolderStats();
@@ -1807,6 +1970,30 @@ import { initRandomFacts } from './random-facts';
       }
       window.electronAPI.confirmClose();
     });
+  }
+
+  // Moves the tag frequency/keyword-family sort controls + list out of the
+  // Left sheet and INTO the Tag Pruner dock (its own tool-section, already
+  // inside #normalRightTools) — direct feedback: an independent 4th dock
+  // for this turned out to be unreachable by swipe whenever an earlier
+  // dock (e.g. Retroactive Merge/Void) was expanded, a nested-scroll-axis
+  // conflict not worth actually fixing when folding into Tag Pruner (the
+  // FIRST dock, always reachable without scrolling past anything) avoids
+  // it outright. Runs before initDockSystem() purely for consistency with
+  // other mobile-only DOM setup here, though timing doesn't matter for
+  // this move specifically (unlike the old dock version, nothing here
+  // needs to be dockified). No-op on desktop: these elements simply stay
+  // inside #left's own TAGS field-block, unmoved, exactly as always.
+  if (isTouchDevice){
+    const tagPrunerDock = document.querySelector('.tool-section[data-dock-id="tagPruner"]');
+    const controlsArea = tagPrunerDock && tagPrunerDock.querySelector('.dock-controls-area');
+    const scrollBody = tagPrunerDock && tagPrunerDock.querySelector('.dock-scroll-body');
+    // tagFamilyListArea carries the sort row (dropdown/direction/reset) AND
+    // the list together — both need to be inside the SAME element passed
+    // to openDockListModal() above, otherwise the sort controls are stuck
+    // sitting outside the modal where the list they control isn't visible.
+    if (controlsArea) controlsArea.appendChild(btnOpenTagFrequencyList);
+    if (scrollBody) scrollBody.appendChild(tagFamilyListArea);
   }
 
   renderTagPruners();

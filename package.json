@@ -1,6 +1,6 @@
 {
   "name": "dataset-tag-studio",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Local dataset tag editor for AI training images, packaged as a desktop app.",
   "main": "main.js",
   "author": "",
@@ -34,37 +34,49 @@
     "files": [
       "main.js",
       "preload.js",
+      "wd14-local.js",
       "renderer/**/*",
       "src/**/*",
       "scripts/**/*",
       "tsconfig.main.json",
       "tsconfig.renderer.json",
-      "node_modules/ws/**/*"
+      "node_modules/ws/**/*",
+      "node_modules/onnxruntime-node/**/*",
+      "build/icon.ico",
+      "build/icon.png"
     ],
     "directories": {
       "output": "dist"
     },
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/**/*"
+    ],
     "afterPack": "scripts/after-pack.js",
     "compression": "normal",
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.graphics-design"
+      "category": "public.app-category.graphics-design",
+      "icon": "build/icon.icns"
     },
     "win": {
       "target": [
         "zip"
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "linux": {
       "target": "AppImage",
-      "category": "Graphics"
+      "category": "Graphics",
+      "icon": "build/icon.png"
     }
   },
   "allowScripts": {
     "electron@31.7.7": true,
-    "esbuild@0.23.1": true
+    "esbuild@0.23.1": true,
+    "onnxruntime-node@1.30.0": true
   },
   "dependencies": {
+    "onnxruntime-node": "^1.30.0",
     "ws": "^8.21.3"
   }
 }

@@ -61,6 +61,9 @@ This is the tag editor itself — everything else in the app supports what happe
 - **Single** — one image at a time, up to 400% zoom, drag-to-pan, arrow-key navigation. Select 2+
   images in Tag Overseer first and switch here for a multi-image tag-alignment table.
 - **❌ Disabled** — images you've moved out of the active set.
+- **🔢 Rename all** — renames every loaded image (+ its `.txt`) to a simple zero-padded `1`-`N`
+  sequence (active dataset first, then `Disabled/`, continuing the same count), confirmed first.
+  Logged and undoable from the Log panel like any other bulk action.
 
 The gallery's own column count normally shrinks as font-size zoom or an open side panel eats into
 the available width — Settings ▸ Appearance ▸ "Gallery columns" forces a fixed count instead, if
@@ -101,6 +104,8 @@ Each item's label is short on purpose — hover any of them for the full explana
   This is a stronger, always-on version of Lock: Lock only skips mass *tools*, these specifically
   block the standing rule system even when you deliberately re-trigger it.
 - **⏮ Reset edits** — revert this image to its earliest known tag state.
+- **🗑️ Remove all tags** — clears every tag on this image in one click (confirmed first) instead
+  of clicking each chip's own ×. Undoable from the main Undo button like any other tag edit.
 - **🐍 WD14 Tag** — run the WD14 Autotagger on just this one image (settings live in Tag
   Overseer — see below).
 - **Text/language, comic/koma, review flags, blur, notes** — additional per-image metadata, all
@@ -181,7 +186,8 @@ Two things live here: **Master Tag Control** and the **WD14 Autotagger**.
 1. Select images — click thumbnails in the mini-grid here, or select in the main Gallery first
    (selection stays in sync both ways).
 2. Apply or remove a tag across the whole selection, conditionally apply one tag based on another
-   being present, or run a dataset-wide rename / find-and-replace.
+   being present — or the inverse, based on it being ABSENT (its own separate row, right below the
+   first) — or run a dataset-wide rename / find-and-replace.
 3. Mass **Lock/Unlock**, **Merge Immunize/Antivoid/Antimmunize** buttons apply the same per-image
    flags described above to your entire selection at once.
 4. **❌ Delete selected permanently** — removes every selected image and its tags from disk
@@ -227,8 +233,14 @@ this repo for exactly what and why (some of it is bundled there directly).
    image" for an ordinary prompted generation with no ControlNet).
 2. Click to **WD14-interrogate** it — this pulls tags from the reference image so you can
    hand-assign the ones that matter (pose, limbs, etc.) to their prompt fields below.
-3. Fill in the rest of the prompt fields — Global, Character, Rating, Hair/Face/Chest/Body,
-   Clothes/Limbs/Sexual, Extra/Effects/Scene, Negative.
+3. Fill in the rest of the prompt fields — click **"‹ 📝 Prompt fields"** (docked to the right
+   edge, always reachable regardless of scroll position) to open them as an overlay panel; click
+   its own **›** arrow, or click anywhere outside it, to close it again. Global (Main LoRA trigger
+   word), Character Trigger, and Negative always stay visible; the rest — Character, Rating,
+   Hair/Face/Chest/Body, Clothes/Limbs/Sexual, Extra/Effects/Scene — can be filled in individually,
+   or check **"Use a single unified prompt box"** to paste one ready-made prompt into a single
+   field instead (useful if you already have a prompt written and don't want to split it apart).
+   A small **⇄** button next to Width/Height instantly swaps the two.
 4. Set your generation parameters (sampler, seeds, steps, CFG — all live in the Generation section
    now, alongside Generate/Stop) and click **▶ Generate**.
    - **1-Pass** is the default (fast). Check "Enable 2nd pass" for an optional refinement pass —
@@ -244,6 +256,9 @@ this repo for exactly what and why (some of it is bundled there directly).
    automatically, previewing what Accept will drop even without marking anything new.
 6. **✅ Accept** writes the image + tags straight into the dataset root (tags are written to disk
    right away too, so a crash before your next Save doesn't lose them) as a normal unsaved edit.
+   Check **"Rename this image to match dataset conventions?"** first if this dataset already uses
+   simple numbered filenames — it'll pick up the next number (matching the existing zero-padding
+   width) instead of the default `synth_<timestamp>` name.
    **❌ Reject** sends it straight to `Disabled/` instead. Either way, nothing generated is ever
    silently thrown away — even the pass you didn't pick, if you ran 2-Pass, gets saved to
    `Disabled/` rather than discarded.

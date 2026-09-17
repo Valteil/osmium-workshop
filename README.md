@@ -89,8 +89,9 @@ place in the grid.
   its own Log entry with Undo/Redo, correctly time-ordered (void → unvoid → void shows as three
   separate rows, not one entry overwritten in place).
 - **Master Tag Control** (its own tab) — checkbox-select images in the gallery, then apply/remove
-  a tag, conditionally apply one tag based on another being present, mass apply/remove across the
-  whole dataset, rename/find-and-replace, or **permanently delete the selection** (confirmed,
+  a tag, conditionally apply one tag based on another being present (or absent — both directions
+  are available), mass apply/remove across the whole dataset, rename/find-and-replace, or
+  **permanently delete the selection** (confirmed,
   locked images skipped, one summary log entry). Select 2+ images and switch to Single view for an
   editable tag-comparison table across the selection.
 - **Delete permanently** (3-dot menu, single image, or Master Tag Control for a batch) — unlike
@@ -316,5 +317,11 @@ intended replacement for a growing prose changelog.
   `all_tags.json` are missing; they're required for that feature and not optional.
 - **The app hides Electron's default menu bar.** Tap `Alt` (Windows/Linux) to reveal it
   temporarily — e.g. to open DevTools after uncommenting `openDevTools()` in `src/main.ts`.
-- **Changing the app icon** — add an `.icns`/`.ico`/`.png` and reference it via
-  `build.mac.icon`/`build.win.icon`/`build.linux.icon` in `package.json`.
+- **Changing the app icon** — the app icon lives at `build/icon.ico`/`.png`/`.icns` (referenced via
+  `build.win.icon`/`build.linux.icon`/`build.mac.icon` in `package.json`, and separately via
+  `BrowserWindow`'s own `icon` option in `main.ts` for the dev/unpackaged window). To swap it,
+  regenerate all three formats from a new source PNG (electron-builder's Windows `.ico` needs
+  multiple embedded resolutions, not just a renamed `.png`) and drop them in `build/` under the
+  same names. `build/icon.ico`/`build/icon.png` must also stay listed in `build.files` — like any
+  new runtime-needed file, electron-builder's packaged build won't include them otherwise (its
+  `files` list is an explicit whitelist, not `**/*`).

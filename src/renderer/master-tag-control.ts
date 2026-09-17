@@ -3,7 +3,7 @@
 // `filteredEntries` and `renderCurrentView` stay owned by index.ts's core
 // filtering/view code and are injected once via initMasterTagControl(),
 // since index.ts's IIFE can't export them.
-// @ts-nocheck
+import type { Entry, EntryMeta } from './types';
 import {
   masterSelectionSummary, masterMiniGrid, btnMasterSelectAll, btnMasterClearSelection,
   btnMasterLockSelected, btnMasterUnlockSelected, btnMasterDeleteSelected,
@@ -11,26 +11,29 @@ import {
   btnMasterAntivoidSelected, btnMasterUnAntivoidSelected,
   btnMasterAntimmunizeSelected, btnMasterUnAntimmunizeSelected,
   masterApplyTagInput, btnMasterApplyToSelected, masterRemoveTagInput, btnMasterRemoveFromSelected,
-  condSourceTag, condAddTag, btnCondApply, massApplyInput, btnMassApply,
+  condSourceTag, condAddTag, btnCondApply,
+  condWithoutSourceTag, condWithoutAddTag, btnCondApplyWithout,
+  massApplyInput, btnMassApply,
   massRemoveInput, btnMassRemove, masterRenameFrom, masterRenameTo, btnMasterRename,
   masterFRFind, masterFRReplace, btnMasterFR
 } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
 import { markDirty, recordChange } from './tags-edit';
+import { attachFillAutocomplete } from './tags-autocomplete';
 
-export let masterSelectedImages = new Set();
+export let masterSelectedImages = new Set<string>();
 
-let getEntries = () => [];
-let getEntryByBase = () => undefined;
-let filteredEntriesRef = () => [];
-let renderCurrentViewRef = () => {};
-let refreshAllUIRef = () => {};
-let getEntryMeta = () => ({});
-let saveEntryMetaRef = () => {};
-let deleteEntriesPermanentlyRef = async () => 0;
+let getEntries: () => Entry[] = () => [];
+let getEntryByBase: (base: string) => Entry | undefined = () => undefined;
+let filteredEntriesRef: () => Entry[] = () => [];
+let renderCurrentViewRef: () => void = () => {};
+let refreshAllUIRef: () => void = () => {};
+let getEntryMeta: () => Record<string, EntryMeta> = () => ({});
+let saveEntryMetaRef: () => void = () => {};
+let deleteEntriesPermanentlyRef: (entries: Entry[]) => Promise<number> = async () => 0;
 
-export function updateMasterSelectionText(){
+export function updateMasterSelectionText(): void {
   if (masterSelectedImages.size === 0){
     masterSelectionSummary.textContent = 'No images selected yet.';
     return;
@@ -38,7 +41,7 @@ export function updateMasterSelectionText(){
   masterSelectionSummary.textContent = `${masterSelectedImages.size} image(s) selected.`;
 }
 
-export function renderMasterMiniGrid(){
+export function renderMasterMiniGrid(): void {
   masterMiniGrid.innerHTML = '';
   const list = filteredEntriesRef();
   list.forEach(e => {
@@ -70,22 +73,33 @@ export function renderMasterMiniGrid(){
   });
 }
 
-export function syncMasterMiniGrid(){
-  masterMiniGrid.querySelectorAll('.master-mini-cell').forEach(cell => {
-    const base = cell.dataset.base;
+export function syncMasterMiniGrid(): void {
+  masterMiniGrid.querySelectorAll<HTMLElement>('.master-mini-cell').forEach(cell => {
+    const base = cell.dataset.base!;
     const selected = masterSelectedImages.has(base);
     cell.classList.toggle('selected', selected);
-    const cb = cell.querySelector('.master-mini-cb');
+    const cb = cell.querySelector('.master-mini-cb') as HTMLInputElement | null;
     if (cb) cb.checked = selected;
   });
 }
 
-export function renderMasterSelectionSummary(){
+export function renderMasterSelectionSummary(): void {
   updateMasterSelectionText();
   syncMasterMiniGrid();
 }
 
-export function initMasterTagControl(deps){
+interface MasterTagControlDeps {
+  getEntries: () => Entry[];
+  getEntryByBase: (base: string) => Entry | undefined;
+  filteredEntries: () => Entry[];
+  renderCurrentView: () => void;
+  refreshAllUI: () => void;
+  getEntryMeta: () => Record<string, EntryMeta>;
+  saveEntryMeta: () => void;
+  deleteEntriesPermanently: (entries: Entry[]) => Promise<number>;
+}
+
+export function initMasterTagControl(deps: MasterTagControlDeps): void {
   getEntries = deps.getEntries;
   getEntryByBase = deps.getEntryByBase;
   filteredEntriesRef = deps.filteredEntries;
@@ -94,6 +108,16 @@ export function initMasterTagControl(deps){
   getEntryMeta = deps.getEntryMeta;
   saveEntryMetaRef = deps.saveEntryMeta;
   deleteEntriesPermanentlyRef = deps.deleteEntriesPermanently;
+
+  // These 9 plain "type a tag name" fields used to rely on a native
+  // <datalist> (dataset-scoped only — no global vocabulary, no
+  // definitions, and this WebView's own rendering of it was reported
+  // covering the field on mobile) — see notes/Mobile-Port.md. Same styled,
+  // global-vocabulary autocomplete every other tag input in the app uses.
+  for (const inp of [
+    masterApplyTagInput, masterRemoveTagInput, condSourceTag, condAddTag,
+    condWithoutSourceTag, condWithoutAddTag, massApplyInput, massRemoveInput, masterRenameFrom
+  ]) attachFillAutocomplete(inp);
 
   btnMasterSelectAll.addEventListener('click', () => {
     for (const e of filteredEntriesRef()) masterSelectedImages.add(e.base);
@@ -111,14 +135,15 @@ export function initMasterTagControl(deps){
   // selection is exactly how you'd want to lock a batch in the first place,
   // so this doesn't skip already-locked (or, for unlock, already-unlocked)
   // entries the way every other mass tool skips locked ones.
-  function setLockedForSelection(locked){
+  function setLockedForSelection(locked: boolean): void {
     if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
     const meta = getEntryMeta();
     let changed = 0;
     for (const base of masterSelectedImages){
       const e = getEntryByBase(base);
       if (!e) continue;
-      if (!!e.meta.locked === locked) continue;
+      if (!e.meta) e.meta = {};
+      if (!!e.meta?.locked === locked) continue;
       e.meta.locked = locked;
       meta[e.base] = e.meta;
       changed++;
@@ -144,7 +169,7 @@ export function initMasterTagControl(deps){
       { okLabel: `Delete ${total} permanently`, danger: true }
     );
     if (!ok) return;
-    const entriesList = Array.from(masterSelectedImages).map(base => getEntryByBase(base)).filter(Boolean);
+    const entriesList = Array.from(masterSelectedImages).map(base => getEntryByBase(base)).filter((e): e is Entry => !!e);
     const deleted = await deleteEntriesPermanentlyRef(entriesList);
     if (deleted === 0){ toast('Nothing deleted — every selected image is locked.'); return; }
     const skipped = total - deleted;
@@ -161,16 +186,17 @@ export function initMasterTagControl(deps){
   // convenience shortcut that sets/clears both flags together, not a third
   // independent flag — see canonical-tags.ts's applyCanonicalRules() for
   // where these are actually checked.
-  function setEntryFlagsForSelection(flags, actionLabel){
+  function setEntryFlagsForSelection(flags: Record<string, boolean>, actionLabel: string): void {
     if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
     const meta = getEntryMeta();
     let changed = 0;
     for (const base of masterSelectedImages){
       const e = getEntryByBase(base);
       if (!e) continue;
+      if (!e.meta) e.meta = {};
       const keys = Object.keys(flags);
-      if (keys.every(k => !!e.meta[k] === flags[k])) continue;
-      for (const k of keys) e.meta[k] = flags[k];
+      if (keys.every(k => !!(e.meta as Record<string, unknown>)[k] === flags[k])) continue;
+      for (const k of keys) (e.meta as Record<string, unknown>)[k] = flags[k];
       meta[e.base] = e.meta;
       changed++;
     }
@@ -193,7 +219,7 @@ export function initMasterTagControl(deps){
     const affected = [];
     for (const base of masterSelectedImages){
       const e = getEntryByBase(base);
-      if (!e || e.meta.locked || e.tags.includes(tag)) continue;
+      if (!e || e.meta?.locked || e.tags.includes(tag)) continue;
       const prevTags = e.tags.slice();
       e.tags.push(tag);
       markDirty(e);
@@ -217,7 +243,7 @@ export function initMasterTagControl(deps){
     const affected = [];
     for (const base of masterSelectedImages){
       const e = getEntryByBase(base);
-      if (!e || e.meta.locked || !e.tags.includes(tag)) continue;
+      if (!e || e.meta?.locked || !e.tags.includes(tag)) continue;
       const prevTags = e.tags.slice();
       e.tags = e.tags.filter(t => t !== tag);
       markDirty(e);
@@ -240,7 +266,7 @@ export function initMasterTagControl(deps){
     if (!sourceTag || !addTag){ toast('Fill in both tags.'); return; }
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled || e.meta.locked) continue;
+      if (e.disabled || e.meta?.locked) continue;
       if (!e.tags.includes(sourceTag) || e.tags.includes(addTag)) continue;
       const prevTags = e.tags.slice();
       e.tags.push(addTag);
@@ -258,6 +284,30 @@ export function initMasterTagControl(deps){
     checkAchievements();
   });
 
+  btnCondApplyWithout.addEventListener('click', () => {
+    const sourceTag = condWithoutSourceTag.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+    const addTag = condWithoutAddTag.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+    if (!sourceTag || !addTag){ toast('Fill in both tags.'); return; }
+    const affected = [];
+    for (const e of getEntries()){
+      if (e.disabled || e.meta?.locked) continue;
+      if (e.tags.includes(sourceTag) || e.tags.includes(addTag)) continue;
+      const prevTags = e.tags.slice();
+      e.tags.push(addTag);
+      markDirty(e);
+      affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
+    }
+    if (affected.length === 0){ toast(`No images without "${sourceTag}" are missing "${addTag}".`); return; }
+    const summary = `Added "${addTag}" to every image WITHOUT "${sourceTag}" (${affected.length} image(s)).`;
+    toast(summary);
+    recordChange('add-tag', summary, affected);
+    folderStats.master_ops = (folderStats.master_ops || 0) + 1;
+    saveFolderStats();
+    condWithoutSourceTag.value = ''; condWithoutAddTag.value = '';
+    refreshAllUIRef();
+    checkAchievements();
+  });
+
   btnMassApply.addEventListener('click', async () => {
     const tag = massApplyInput.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
     if (!tag){ toast('Enter a tag to apply.'); return; }
@@ -265,7 +315,7 @@ export function initMasterTagControl(deps){
     if (!ok) return;
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled || e.meta.locked || e.tags.includes(tag)) continue;
+      if (e.disabled || e.meta?.locked || e.tags.includes(tag)) continue;
       const prevTags = e.tags.slice();
       e.tags.push(tag);
       markDirty(e);
@@ -289,7 +339,7 @@ export function initMasterTagControl(deps){
     if (!ok) return;
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled || e.meta.locked || !e.tags.includes(tag)) continue;
+      if (e.disabled || e.meta?.locked || !e.tags.includes(tag)) continue;
       const prevTags = e.tags.slice();
       e.tags = e.tags.filter(t => t !== tag);
       markDirty(e);
@@ -313,7 +363,7 @@ export function initMasterTagControl(deps){
     if (from === to){ toast('New name is the same as the old one.'); return; }
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled || e.meta.locked || !e.tags.includes(from)) continue;
+      if (e.disabled || e.meta?.locked || !e.tags.includes(from)) continue;
       const prevTags = e.tags.slice();
       let newTags = e.tags.map(t => t === from ? to : t);
       newTags = Array.from(new Set(newTags));
@@ -339,7 +389,7 @@ export function initMasterTagControl(deps){
     if (!find){ toast('Enter a substring to find.'); return; }
     const affected = [];
     for (const e of getEntries()){
-      if (e.disabled || e.meta.locked || !e.tags.some(t => t.includes(find))) continue;
+      if (e.disabled || e.meta?.locked || !e.tags.some(t => t.includes(find))) continue;
       const prevTags = e.tags.slice();
       let newTags = e.tags.map(t => t.includes(find) ? t.split(find).join(repl) : t);
       newTags = newTags.map(t => t.trim()).filter(Boolean);

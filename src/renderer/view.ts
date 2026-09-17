@@ -6,16 +6,16 @@
 // toggles, galleryFilter/cardTagSortMode/masterTagModeActive which are
 // mutated from dropdowns/tabs that live in index.ts) are injected once via
 // initView(), since index.ts's IIFE can't export them.
-// @ts-nocheck
+import type { Entry, EntryMeta, GalleryFilter, CardTagSortMode } from './types';
 import {
-  viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, btnUnlockAll, singlePrevBtn, singleNextBtn,
+  viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, btnUnlockAll, btnRenameAllImages, singlePrevBtn, singleNextBtn,
   galleryGrid, compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
   langAutoSelectToggle, filterMatchCount
 } from './dom';
-import { toast, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom } from './shared-ui';
+import { toast, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
-import { markDirty, recordChange, addTagToEntry, removeTagFromEntry, resetImageEdits, moveEntry } from './tags-edit';
+import { markDirty, recordChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially } from './tags-edit';
 import { openTagDetails } from './tag-details';
 import { attachTagAutocomplete, closeAutocomplete } from './tags-autocomplete';
 import { buildTagIndex, refreshStats, filteredEntries } from './tag-index';
@@ -23,24 +23,25 @@ import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGri
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
 
-export let viewMode = 'grid'; // 'grid' | 'compact' | 'single' | 'disabled'
-export let stickyCompareImages = [];
+export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled';
+export let viewMode: ViewMode = 'grid';
+export let stickyCompareImages: string[] = [];
 
 let singleIndex = 0;
-let ctxMenuEl = null;
+let ctxMenuEl: HTMLElement | null = null;
 let commonLanguages = ['English'];
 let autoSelectNewLanguage = true;
 
-let getEntries = () => [];
-let getEntryByBase = () => undefined;
-let getMasterTagModeActive = () => false;
-let getCardTagSortMode = () => 'default';
-let getGalleryFilter = () => ({ terms: [] });
-let getIsolatedFlagActive = () => false;
-let getShowTagCountBadges = () => false;
-let getEntryMeta = () => ({});
-let saveEntryMetaRef = () => {};
-let refreshAllUIRef = () => {};
+let getEntries: () => Entry[] = () => [];
+let getEntryByBase: (base: string) => Entry | undefined = () => undefined;
+let getMasterTagModeActive: () => boolean = () => false;
+let getCardTagSortMode: () => CardTagSortMode = () => 'default';
+let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false });
+let getIsolatedFlagActive: () => boolean = () => false;
+let getShowTagCountBadges: () => boolean = () => false;
+let getEntryMeta: () => Record<string, EntryMeta> = () => ({});
+let saveEntryMetaRef: () => void = () => {};
+let refreshAllUIRef: () => void = () => {};
 
 export function resetSingleIndex(){
   singleIndex = 0;
@@ -79,13 +80,13 @@ function updateFilterMatchCount(){
 // what actually distinguishes them), so a switch between the two never needs
 // a transition — the container never disappears/reappears.
 const VIEW_TRANSITION_ORDER = ['grid', 'compact', 'single', 'disabled'];
-function viewContainerFor(mode){
+function viewContainerFor(mode: ViewMode): HTMLElement {
   if (mode === 'compact') return compactGrid;
   if (mode === 'single') return singleViewEl;
   return galleryGrid;
 }
 
-export function switchView(mode){
+export function switchView(mode: ViewMode): void {
   const prevMode = viewMode;
   const applyState = () => {
     viewMode = mode;
@@ -151,8 +152,8 @@ function renderCompactGrid(){
     if (!e.disabled){
       card.draggable = true;
       card.addEventListener('dragstart', (ev) => {
-        ev.dataTransfer.setData('text/plain', e.base);
-        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer!.setData('text/plain', e.base);
+        ev.dataTransfer!.effectAllowed = 'move';
       });
     }
     const img = document.createElement('img');
@@ -184,23 +185,23 @@ function renderCompactGrid(){
   renderCompactCompareArea();
 }
 
-function toggleStickyCompare(base){
+function toggleStickyCompare(base: string): void {
   const idx = stickyCompareImages.indexOf(base);
   if (idx === -1) stickyCompareImages.push(base);
   else stickyCompareImages.splice(idx, 1);
   renderCompactGrid();
 }
 
-function renderCompactCompareArea(){
-  const stickyEntries = stickyCompareImages.map(b => getEntryByBase(b)).filter(Boolean);
+function renderCompactCompareArea(): void {
+  const stickyEntries = stickyCompareImages.map(b => getEntryByBase(b)).filter((e): e is Entry => !!e);
   if (stickyEntries.length === 0){
     compactCompareArea.style.display = 'none';
     return;
   }
   compactCompareArea.style.display = 'block';
-  compareCount.textContent = stickyEntries.length;
+  compareCount.textContent = String(stickyEntries.length);
 
-  const allTags = new Set();
+  const allTags = new Set<string>();
   stickyEntries.forEach(e => e.tags.forEach(t => allTags.add(t)));
   const tagList = Array.from(allTags).sort((a,b) => a.localeCompare(b));
 
@@ -255,7 +256,10 @@ function renderCompactCompareArea(){
   }
 }
 
-function buildCard(e, tagIndex){
+type TagIndex = Map<string, Set<string>>;
+
+function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
+  const isTouchDevice = document.documentElement.classList.contains('touch-device');
   const card = document.createElement('div');
   card.className = 'card' + (e.dirty ? ' dirty' : '') + (e.tags.length===0 ? ' untagged' : '') + (e.disabled ? ' disabled-card' : '') + (e.meta && e.meta.reviewColor ? ' flagged' : '') + (e.meta && e.meta.blurred ? ' manually-blurred' : '');
   card.dataset.base = e.base;
@@ -263,8 +267,8 @@ function buildCard(e, tagIndex){
   if (!e.disabled){
     card.draggable = true;
     card.addEventListener('dragstart', (ev) => {
-      ev.dataTransfer.setData('text/plain', e.base);
-      ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer!.setData('text/plain', e.base);
+      ev.dataTransfer!.effectAllowed = 'move';
     });
   }
 
@@ -295,7 +299,12 @@ function buildCard(e, tagIndex){
   menuBtn.title = 'More options';
   menuBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openImageOptionsMenu(e, ev.clientX, ev.clientY); });
   thumbwrap.appendChild(menuBtn);
-  thumbwrap.appendChild(buildStatusIconsEl(e));
+  // Touch only: these badges are appended to `card` itself further below
+  // (before thumbwrap, so they render as a compact strip above the image
+  // instead of overlaid on top of it — see the mobile CSS override) rather
+  // than absolute-positioned inside thumbwrap the way desktop keeps them.
+  const statusIconsEl = buildStatusIconsEl(e);
+  if (!isTouchDevice) thumbwrap.appendChild(statusIconsEl);
 
   if (e.meta && e.meta.reviewColor){
     const badge = document.createElement('div');
@@ -315,7 +324,7 @@ function buildCard(e, tagIndex){
   if (getShowTagCountBadges()){
     const countBadge = document.createElement('div');
     countBadge.className = 'tagcount-badge';
-    countBadge.textContent = e.tags.length;
+    countBadge.textContent = String(e.tags.length);
     thumbwrap.appendChild(countBadge);
   }
   if (e.meta && e.meta.note){
@@ -329,7 +338,7 @@ function buildCard(e, tagIndex){
 
   const fn = document.createElement('div');
   fn.className = 'filename';
-  fn.textContent = e.imgName;
+  fn.textContent = e.imgName || e.base;
   thumbwrap.appendChild(fn);
 
   if (e.dirty){
@@ -365,28 +374,54 @@ function buildCard(e, tagIndex){
   }
   tagbox.appendChild(chiprow);
 
-  const addInput = document.createElement('input');
-  addInput.type = 'text';
-  addInput.className = 'addtag-input';
-  addInput.placeholder = '+ Add tag';
-  addInput.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && addInput.value.trim()){
-      addTagToEntry(e, addInput.value.trim());
-      addInput.value = '';
-      closeAutocomplete();
-      renderGallery();
-      refreshRightPanels();
-    }
-  });
-  // The card itself is draggable=true (for reordering into Disabled, etc.),
-  // which otherwise hijacks any click-drag over this input into a native
-  // HTML5 drag instead of a text selection. Suspending it while the input
-  // is focused fixes that without affecting the card's own drag behavior.
-  addInput.addEventListener('focus', () => { card.draggable = false; });
-  addInput.addEventListener('blur', () => { card.draggable = !e.disabled; });
-  attachTagAutocomplete(addInput, () => e, () => { renderGallery(); refreshRightPanels(); });
-  tagbox.appendChild(addInput);
+  if (isTouchDevice){
+    // A real (but non-functional — CSS makes it non-interactive, see below)
+    // `<input>` here read as a broken control: it looks tappable/typeable
+    // but does nothing, since editing on touch always redirects to the
+    // image-card modal instead (tagbox's own click handler below). A plain
+    // ghost label says what actually happens without implying a text field
+    // that isn't really there.
+    const ghost = document.createElement('div');
+    ghost.className = 'addtag-ghost';
+    ghost.textContent = 'Tap to edit';
+    tagbox.appendChild(ghost);
+  } else {
+    const addInput = document.createElement('input');
+    addInput.type = 'text';
+    addInput.className = 'addtag-input';
+    addInput.placeholder = '+ Add tag';
+    addInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' && addInput.value.trim()){
+        addTagToEntry(e, addInput.value.trim());
+        addInput.value = '';
+        closeAutocomplete();
+        renderGallery();
+        refreshRightPanels();
+      }
+    });
+    // The card itself is draggable=true (for reordering into Disabled,
+    // etc.), which otherwise hijacks any click-drag over this input into a
+    // native HTML5 drag instead of a text selection. Suspending it while
+    // the input is focused fixes that without affecting the card's own
+    // drag behavior.
+    addInput.addEventListener('focus', () => { card.draggable = false; });
+    addInput.addEventListener('blur', () => { card.draggable = !e.disabled; });
+    attachTagAutocomplete(addInput, () => e, () => { renderGallery(); refreshRightPanels(); });
+    tagbox.appendChild(addInput);
+  }
 
+  // Touch only: a grid card's own inline tag chips/input (CSS makes them
+  // non-interactive there, `.touch-device .card .tagbox`) redirect to the
+  // same modal tapping the image already opens, instead of trying to hit a
+  // tiny inline chip-delete button or focus a cramped input on a card
+  // that's a fraction of the screen wide. Desktop keeps normal inline
+  // editing — this only fires the modal on touch devices.
+  tagbox.addEventListener('click', () => {
+    if (ctxMenuEl) return;
+    if (isTouchDevice) openImageCardModal(e);
+  });
+
+  if (isTouchDevice) card.appendChild(statusIconsEl);
   card.appendChild(thumbwrap);
   card.appendChild(tagbox);
   return card;
@@ -396,16 +431,16 @@ function buildCard(e, tagIndex){
 
 let singleZoom = 100;
 let singlePanX = 0, singlePanY = 0;
-let lastSingleBase = null;
+let lastSingleBase: string | null = null;
 
-function renderMultiCompareView(){
+function renderMultiCompareView(): void {
   singleViewEl.innerHTML = '';
   singlePos.textContent = `${masterSelectedImages.size} selected`;
   singlePrevBtn.disabled = true;
   singleNextBtn.disabled = true;
 
-  const selectedEntries = Array.from(masterSelectedImages).map(b => getEntryByBase(b)).filter(Boolean);
-  const allTags = new Set();
+  const selectedEntries = Array.from(masterSelectedImages).map(b => getEntryByBase(b)).filter((e): e is Entry => !!e);
+  const allTags = new Set<string>();
   selectedEntries.forEach(e => e.tags.forEach(t => allTags.add(t)));
   const tagList = Array.from(allTags).sort((a,b) => a.localeCompare(b));
 
@@ -475,7 +510,7 @@ function renderMultiCompareView(){
     owners.forEach(e => {
       const ownerRow = document.createElement('div');
       ownerRow.className = 'mc-owner-row';
-      ownerRow.textContent = e.imgName;
+      ownerRow.textContent = e.imgName || e.base;
       ownerRow.title = 'Click to remove or replace this tag on this image';
       ownerRow.addEventListener('click', (ev) => {
         openMultiCompareTagMenu(e, tag, ev.clientX, ev.clientY);
@@ -502,8 +537,8 @@ function renderMultiCompareView(){
   singleViewEl.appendChild(wrap);
 }
 
-function renameTagAcrossEntries(oldTag, newTag, entriesList){
-  const affected = [];
+function renameTagAcrossEntries(oldTag: string, newTag: string, entriesList: Entry[]): void {
+  const affected: { base: string; prevTags: string[]; newTags: string[] }[] = [];
   for (const e of entriesList){
     if (!e.tags.includes(oldTag)) continue;
     const prevTags = e.tags.slice();
@@ -523,13 +558,13 @@ function renameTagAcrossEntries(oldTag, newTag, entriesList){
   checkAchievements();
 }
 
-function openMultiCompareTagMenu(entry, tag, x, y){
+function openMultiCompareTagMenu(entry: Entry, tag: string, x: number, y: number): void {
   closeTagContextMenu();
   const menu = document.createElement('div');
   menu.className = 'ctx-menu';
   const header = document.createElement('div');
   header.className = 'ctx-header';
-  header.textContent = entry.imgName;
+  header.textContent = entry.imgName || entry.base;
   menu.appendChild(header);
   addCtxItem(menu, `Remove "${tag}" from this image`, () => {
     removeTagFromEntry(entry, tag);
@@ -631,7 +666,7 @@ function renderSingleView(){
     img.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom/100})`;
   }
 
-  function zoomBy(delta, clientX, clientY){
+  function zoomBy(delta: number, clientX?: number, clientY?: number): void {
     const prevZoom = singleZoom;
     singleZoom = Math.max(100, Math.min(400, singleZoom + delta));
     if (singleZoom === prevZoom) return;
@@ -684,6 +719,7 @@ function renderSingleView(){
   panel.appendChild(nameEl);
 
   const zoomRow = document.createElement('div');
+  zoomRow.className = 'modal-zoom-row';
   zoomRow.style.cssText = 'display:flex; gap:8px; align-items:center;';
   const zoomLabel = document.createElement('span');
   zoomLabel.style.cssText = 'font-size:11px; color:var(--text-faint);';
@@ -781,27 +817,27 @@ function renderSingleView(){
 
 // ---------------- Chips + tag context menu ----------------
 
-function computeIsolatedTagSet(tagIndex){
-  const set = new Set();
+function computeIsolatedTagSet(tagIndex: TagIndex): Set<string> {
+  const set = new Set<string>();
   for (const [tag, imgs] of tagIndex){
     if (imgs.size <= 2) set.add(tag);
   }
   return set;
 }
 
-function orderedTagsForDisplay(entry, tagIndex){
+function orderedTagsForDisplay(entry: Entry, tagIndex: TagIndex): string[] {
   let tags = entry.tags.slice();
   const cardTagSortMode = getCardTagSortMode();
   if (cardTagSortMode === 'alphabetical'){
     tags.sort((a,b) => a.localeCompare(b));
   } else if (cardTagSortMode === 'frequency' && tagIndex){
-    tags.sort((a,b) => (tagIndex.get(b) ? tagIndex.get(b).size : 0) - (tagIndex.get(a) ? tagIndex.get(a).size : 0));
+    tags.sort((a,b) => (tagIndex.get(b) ? tagIndex.get(b)!.size : 0) - (tagIndex.get(a) ? tagIndex.get(a)!.size : 0));
   }
 
   const searchTerms = (getGalleryFilter().terms || []);
   const isolatedSet = (getIsolatedFlagActive() && tagIndex) ? computeIsolatedTagSet(tagIndex) : null;
   if (searchTerms.length || isolatedSet){
-    const matched = [], isolated = [], rest = [];
+    const matched: string[] = [], isolated: string[] = [], rest: string[] = [];
     for (const t of tags){
       const lower = t.toLowerCase();
       // Exact tag equality, not substring — searching "dress" should only
@@ -819,15 +855,15 @@ function orderedTagsForDisplay(entry, tagIndex){
   return tags;
 }
 
-function tagDisplayFlags(tag, tagIndex){
+function tagDisplayFlags(tag: string, tagIndex: TagIndex): { isMatch: boolean; isIsolated: boolean } {
   const searchTerms = (getGalleryFilter().terms || []);
   const lower = tag.toLowerCase();
   const isMatch = searchTerms.some(term => lower === term);
-  const isIsolated = getIsolatedFlagActive() && tagIndex && (tagIndex.get(tag) ? tagIndex.get(tag).size <= 2 : false);
+  const isIsolated = !!(getIsolatedFlagActive() && tagIndex && (tagIndex.get(tag) ? tagIndex.get(tag)!.size <= 2 : false));
   return { isMatch, isIsolated };
 }
 
-function buildChip(entry, tag, onChange, tagIndex){
+function buildChip(entry: Entry, tag: string, onChange: () => void, tagIndex: TagIndex | null): HTMLElement {
   const chip = document.createElement('span');
   chip.className = 'chip';
   const isFlaggedForReview = entry.meta && entry.meta.flaggedTags && entry.meta.flaggedTags.includes(tag);
@@ -847,7 +883,7 @@ function buildChip(entry, tag, onChange, tagIndex){
   // still fires on top of two already-handled single clicks (each of which
   // opens the context menu, so the menu would flicker open/closed right
   // before the rename input replaced the label).
-  let clickTimer = null;
+  let clickTimer: ReturnType<typeof setTimeout> | null = null;
   label.addEventListener('click', (ev) => {
     ev.stopPropagation();
     const x = ev.clientX, y = ev.clientY;
@@ -887,7 +923,7 @@ function buildChip(entry, tag, onChange, tagIndex){
 // or Quick Merge (which both intentionally touch every image sharing that
 // tag), this is scoped to the single entry the chip belongs to, since tags
 // on other images may be correct as-is.
-function renameTagOnEntry(entry, oldTag, newTag){
+function renameTagOnEntry(entry: Entry, oldTag: string, newTag: string): boolean {
   if (!entry.tags.includes(oldTag) || oldTag === newTag) return false;
   const prevTags = entry.tags.slice();
   let newTags = entry.tags.map(t => t === oldTag ? newTag : t);
@@ -901,7 +937,7 @@ function renameTagOnEntry(entry, oldTag, newTag){
   return true;
 }
 
-function startInlineTagRename(chip, label, entry, tag, onChange){
+function startInlineTagRename(chip: HTMLElement, label: HTMLElement, entry: Entry, tag: string, onChange: () => void): void {
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'chip-rename-input';
@@ -930,10 +966,10 @@ function startInlineTagRename(chip, label, entry, tag, onChange){
 
 let modalZoom = 100, modalPanX = 0, modalPanY = 0;
 
-let modalCloseTimer = null;
-let currentModalBase = null;
+let modalCloseTimer: ReturnType<typeof setTimeout> | null = null;
+let currentModalBase: string | null = null;
 
-export function openImageCardModal(entry, opts){
+export function openImageCardModal(entry: Entry, opts?: { hover?: boolean }): void {
   const isHoverPreview = !!(opts && opts.hover);
   if (modalCloseTimer){ clearTimeout(modalCloseTimer); modalCloseTimer = null; }
   closeTagContextMenu();
@@ -962,7 +998,7 @@ export function closeImageCardModal(){
   }, 180);
 }
 
-function renderImageCardModal(entry){
+function renderImageCardModal(entry: Entry): void {
   modalCardInner.innerHTML = '';
 
   const imgSide = document.createElement('div');
@@ -982,39 +1018,52 @@ function renderImageCardModal(entry){
   applyModalTransform();
   imgSide.appendChild(img);
 
-  let panning = false, sx = 0, sy = 0, ox = 0, oy = 0;
-  imgSide.addEventListener('contextmenu', ev => ev.preventDefault());
-  imgSide.addEventListener('pointerdown', ev => {
-    if (ev.button === 0 || ev.button === 2){
-      panning = true; sx = ev.clientX; sy = ev.clientY; ox = modalPanX; oy = modalPanY;
-      imgSide.setPointerCapture(ev.pointerId);
-      img.style.cursor = 'grabbing';
+  const isTouchDevice = document.documentElement.classList.contains('touch-device');
+  if (isTouchDevice){
+    // Mobile: the inline pan/zoom below needs real screen space to be
+    // usable, which this modal's ~30%-height image strip doesn't have
+    // (styles.css). Tapping the image instead brings it up full-foreground
+    // in the same zoomable lightbox every other "expand image" entry point
+    // in the app uses (showImageLightbox, shared-ui.ts — now pointer-event/
+    // pinch-zoom capable, not mouse-only) — tapping outside the image
+    // there returns to this modal.
+    imgSide.style.cursor = 'zoom-in';
+    imgSide.addEventListener('click', () => showImageLightbox(entry.objectUrl));
+  } else {
+    let panning = false, sx = 0, sy = 0, ox = 0, oy = 0;
+    imgSide.addEventListener('contextmenu', ev => ev.preventDefault());
+    imgSide.addEventListener('pointerdown', ev => {
+      if (ev.button === 0 || ev.button === 2){
+        panning = true; sx = ev.clientX; sy = ev.clientY; ox = modalPanX; oy = modalPanY;
+        imgSide.setPointerCapture(ev.pointerId);
+        img.style.cursor = 'grabbing';
+        ev.preventDefault();
+      }
+    });
+    imgSide.addEventListener('pointermove', ev => {
+      if (panning){
+        modalPanX = ox + (ev.clientX - sx);
+        modalPanY = oy + (ev.clientY - sy);
+        applyModalTransform();
+      }
+    });
+    imgSide.addEventListener('pointerup', ev => {
+      if (panning){ panning = false; img.style.cursor = 'grab'; try { imgSide.releasePointerCapture(ev.pointerId); } catch(err){} }
+    });
+    imgSide.addEventListener('wheel', ev => {
       ev.preventDefault();
-    }
-  });
-  imgSide.addEventListener('pointermove', ev => {
-    if (panning){
-      modalPanX = ox + (ev.clientX - sx);
-      modalPanY = oy + (ev.clientY - sy);
+      modalZoom = Math.max(100, Math.min(400, modalZoom + (ev.deltaY < 0 ? 20 : -20)));
+      zoomSlider.value = String(modalZoom);
+      zoomVal.textContent = modalZoom + '%';
       applyModalTransform();
-    }
-  });
-  imgSide.addEventListener('pointerup', ev => {
-    if (panning){ panning = false; img.style.cursor = 'grab'; try { imgSide.releasePointerCapture(ev.pointerId); } catch(err){} }
-  });
-  imgSide.addEventListener('wheel', ev => {
-    ev.preventDefault();
-    modalZoom = Math.max(100, Math.min(400, modalZoom + (ev.deltaY < 0 ? 20 : -20)));
-    zoomSlider.value = String(modalZoom);
-    zoomVal.textContent = modalZoom + '%';
-    applyModalTransform();
-  }, { passive: false });
-  attachPinchZoom(imgSide, (delta) => {
-    modalZoom = Math.max(100, Math.min(400, modalZoom + delta));
-    zoomSlider.value = String(modalZoom);
-    zoomVal.textContent = modalZoom + '%';
-    applyModalTransform();
-  });
+    }, { passive: false });
+    attachPinchZoom(imgSide, (delta) => {
+      modalZoom = Math.max(100, Math.min(400, modalZoom + delta));
+      zoomSlider.value = String(modalZoom);
+      zoomVal.textContent = modalZoom + '%';
+      applyModalTransform();
+    });
+  }
 
   const panel = document.createElement('div');
   panel.className = 'single-panel';
@@ -1026,12 +1075,76 @@ function renderImageCardModal(entry){
   closeBtn.addEventListener('click', closeImageCardModal);
   panel.appendChild(closeBtn);
 
+  const nameText = entry.imgName + (entry.width ? ` · ${entry.width}×${entry.height}` : '') + ` · ${entry.tags.length} tags`;
+
+  // Mobile only: a long filename/resolution string here would overlap
+  // modal-close-btn (absolutely positioned at top-right — text doesn't
+  // wrap around an absolutely positioned sibling on its own). Rather than
+  // fighting for clearance with padding, the info moves behind an ⓘ
+  // button on the opposite side of the panel from Close, shown via the
+  // same showInfoModal() every dock's header ⓘ already uses. Desktop keeps
+  // the plain inline text (CSS hides one or the other per breakpoint).
+  const infoBtn = document.createElement('button');
+  infoBtn.className = 'modal-info-btn ghost-close';
+  infoBtn.textContent = 'ⓘ';
+  infoBtn.title = 'Image info';
+  infoBtn.addEventListener('click', () => showInfoModal(`<p>${escapeHtml(nameText)}</p>`, 'Image info'));
+  panel.appendChild(infoBtn);
+
   const nameEl = document.createElement('div');
   nameEl.className = 'single-name';
-  nameEl.textContent = entry.imgName + (entry.width ? ` · ${entry.width}×${entry.height}` : '') + ` · ${entry.tags.length} tags`;
+  nameEl.textContent = nameText;
   panel.appendChild(nameEl);
 
+  // Censored/Has-text/Perspective, spelled out directly in the modal rather
+  // than behind the 3-dot context menu's "ⓘ Status details" item — that
+  // path cost a tap into the menu AND a tap on the item just to see
+  // something worth showing the moment the card opens. The context-menu
+  // entry stays too (openImageOptionsMenu, below) for whoever reaches it
+  // from the grid without opening this modal at all.
+  const statusRow = document.createElement('div');
+  statusRow.className = 'modal-status-row';
+  for (const { emoji, state, label, matchedTags } of getEntryStatusIndicators(entry)){
+    const stateText = state === null ? 'Not indicated' : (state ? 'Yes' : 'No');
+    const badge = document.createElement('span');
+    badge.className = 'modal-status-badge';
+    badge.textContent = `${emoji} ${label}: ${stateText}`;
+    badge.title = matchedTags.length ? matchedTags.join(', ') : '';
+    statusRow.appendChild(badge);
+  }
+  panel.appendChild(statusRow);
+
+  // Prev/Next through the same filtered list Single view's own nav uses —
+  // added here (not just Single view) since mobile drops Single view
+  // entirely (its own tag-editing side panel duplicated what this modal
+  // already does) in favor of always editing through this modal instead;
+  // these buttons are what replace Single view's own prev/next for that
+  // case. Harmless/useful on desktop too — previously the only way to move
+  // to another image without closing this modal was none at all.
+  const modalNavList = filteredEntries();
+  const modalNavIdx = modalNavList.findIndex(x => x.base === entry.base);
+  if (modalNavList.length > 1 && modalNavIdx !== -1){
+    const navRow = document.createElement('div');
+    navRow.className = 'modal-card-nav';
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '‹ Prev';
+    prevBtn.disabled = modalNavIdx <= 0;
+    prevBtn.addEventListener('click', () => openImageCardModal(modalNavList[modalNavIdx - 1]));
+    const posEl = document.createElement('span');
+    posEl.className = 'single-pos';
+    posEl.textContent = `${modalNavIdx + 1} / ${modalNavList.length}`;
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = 'Next ›';
+    nextBtn.disabled = modalNavIdx >= modalNavList.length - 1;
+    nextBtn.addEventListener('click', () => openImageCardModal(modalNavList[modalNavIdx + 1]));
+    navRow.appendChild(prevBtn);
+    navRow.appendChild(posEl);
+    navRow.appendChild(nextBtn);
+    panel.appendChild(navRow);
+  }
+
   const zoomRow = document.createElement('div');
+  zoomRow.className = 'modal-zoom-row';
   zoomRow.style.cssText = 'display:flex; gap:8px; align-items:center;';
   const zoomSlider = document.createElement('input');
   zoomSlider.type = 'range'; zoomSlider.min = '100'; zoomSlider.max = '400'; zoomSlider.step = '10';
@@ -1057,41 +1170,56 @@ function renderImageCardModal(entry){
   zoomRow.appendChild(resetBtn);
   panel.appendChild(zoomRow);
 
+  // Input comes BEFORE the chip list now (not after) — direct feedback:
+  // with tag editing moved into this modal as the primary way to edit tags
+  // on mobile, having to scroll past a potentially-long chip list just to
+  // reach the input every time was the wrong default. Same order on
+  // desktop too rather than forking the layout — reaching the input
+  // immediately isn't worse there either.
   const modalTagIndex = buildTagIndex();
-  const chiprow = document.createElement('div');
-  chiprow.className = 'chiprow';
-  for (const tag of orderedTagsForDisplay(entry, modalTagIndex)){
-    chiprow.appendChild(buildChip(entry, tag, () => { renderImageCardModal(entry); refreshRightPanels(); refreshStats(); }, modalTagIndex));
-  }
-  panel.appendChild(chiprow);
-
   const addInput = document.createElement('input');
   addInput.type = 'text';
   addInput.className = 'addtag-input';
   addInput.placeholder = '+ Add tag, press Enter';
+  // The grid card behind this modal was already fully built (its chips are
+  // plain rendered text, not live-bound to `entry.tags`) before this modal
+  // ever opened — mutating entry.tags here doesn't touch that DOM on its
+  // own. Every one of this modal's own tag-mutation callbacks needs its own
+  // renderCurrentView() to keep that card in sync, same as buildCard()'s
+  // own chip-removal callback already does for itself; previously nothing
+  // here called it at all, so the card only ever caught up once autosave
+  // (or a manual Save) triggered its own unrelated re-render.
   addInput.addEventListener('keydown', ev => {
     if (ev.key === 'Enter' && addInput.value.trim()){
       addTagToEntry(entry, addInput.value.trim());
       addInput.value = '';
       closeAutocomplete();
       renderImageCardModal(entry);
+      renderCurrentView();
       refreshRightPanels();
     }
   });
-  attachTagAutocomplete(addInput, () => entry, () => renderImageCardModal(entry));
+  attachTagAutocomplete(addInput, () => entry, () => { renderImageCardModal(entry); renderCurrentView(); });
   panel.appendChild(addInput);
+
+  const chiprow = document.createElement('div');
+  chiprow.className = 'chiprow';
+  for (const tag of orderedTagsForDisplay(entry, modalTagIndex)){
+    chiprow.appendChild(buildChip(entry, tag, () => { renderImageCardModal(entry); renderCurrentView(); refreshRightPanels(); refreshStats(); }, modalTagIndex));
+  }
+  panel.appendChild(chiprow);
 
   modalCardInner.appendChild(imgSide);
   modalCardInner.appendChild(panel);
 }
 
-function tokenizeTag(tag){
+function tokenizeTag(tag: string): string[] {
   const parts = tag.split(/[\s_\-]+/).map(p => p.trim()).filter(Boolean);
   const uniq = Array.from(new Set(parts));
   return uniq.length > 1 ? uniq : [];
 }
 
-function addCtxItem(menu, label, onClick){
+function addCtxItem(menu: HTMLElement, label: string, onClick: (ev?: MouseEvent) => void): void {
   const btn = document.createElement('button');
   btn.className = 'ctx-item';
   btn.textContent = label;
@@ -1106,7 +1234,7 @@ function addCtxItem(menu, label, onClick){
   menu.appendChild(btn);
 }
 
-function openTagContextMenu(entry, tag, x, y){
+function openTagContextMenu(entry: Entry, tag: string, x: number, y: number): void {
   closeTagContextMenu();
   const index = buildTagIndex();
   const set = index.get(tag) || new Set();
@@ -1157,8 +1285,9 @@ function openTagContextMenu(entry, tag, x, y){
 
     const flagged = entry.meta && entry.meta.flaggedTags && entry.meta.flaggedTags.includes(tag);
     addCtxItem(menu, flagged ? '🚩 Unflag this tag on this image' : '🚩 Flag this tag for review (this image)', () => {
+      if (!entry.meta) entry.meta = {};
       if (!entry.meta.flaggedTags) entry.meta.flaggedTags = [];
-      if (flagged) entry.meta.flaggedTags = entry.meta.flaggedTags.filter(t => t !== tag);
+      if (flagged) entry.meta.flaggedTags = entry.meta.flaggedTags.filter((t: string) => t !== tag);
       else entry.meta.flaggedTags.push(tag);
       getEntryMeta()[entry.base] = entry.meta;
       saveEntryMetaRef();
@@ -1193,7 +1322,7 @@ function openTagContextMenu(entry, tag, x, y){
   setTimeout(() => document.addEventListener('click', onDocClickCloseMenu), 0);
 }
 
-function onDocClickCloseMenu(ev){
+function onDocClickCloseMenu(ev: MouseEvent): void {
   if (!ctxMenuEl) return;
   const path = typeof ev.composedPath === 'function' ? ev.composedPath() : [];
   if (path.includes(ctxMenuEl)) return; // click landed inside the menu, even if that node was rebuilt mid-click
@@ -1207,7 +1336,7 @@ function closeTagContextMenu(){
 
 // ---------------- Image options menu (3-dot): text/language, review flag, notes ----------------
 
-function getForeignLangTags(entry){
+function getForeignLangTags(entry: Entry): string[] {
   return entry.tags.filter(t => / text$/.test(t) && t !== 'text');
 }
 
@@ -1220,7 +1349,7 @@ function getForeignLangTags(entry){
 // confident "no" once an explicit "uncensored" tag says so. Has Text has
 // no such counter-tag (there's no "no text" tag), so its absence really
 // does mean no — it stays a plain boolean.
-function getEntryStatusIndicators(e){
+function getEntryStatusIndicators(e: Entry): { emoji: string; state: boolean | null; label: string; matchedTags: string[] }[] {
   const uncensoredTags = e.tags.filter(t => /uncensor/i.test(t));
   const censoredTags = e.tags.filter(t => /censor/i.test(t) && !/uncensor/i.test(t));
   const censored = censoredTags.length ? true : (uncensoredTags.length ? false : null);
@@ -1230,7 +1359,7 @@ function getEntryStatusIndicators(e){
   // either, and unlike Censored there isn't even a plausible opposite tag
   // to infer one from — so this indicator never shows a red X, only a
   // check (a camera angle was called out) or "not indicated" (it wasn't).
-  const perspectiveTags = e.tags.filter(t => t === 'from front' || t === 'from side' || t === 'from below' || t === 'from above');
+  const perspectiveTags = e.tags.filter(t => t === 'from front' || t === 'from side' || t === 'from below' || t === 'from above' || t === 'from behind');
   const perspective = perspectiveTags.length > 0 ? true : null;
   return [
     { emoji: '👁️', state: censored, label: 'Censored', matchedTags: censored ? censoredTags : (censored === false ? uncensoredTags : []) },
@@ -1249,7 +1378,7 @@ function getEntryStatusIndicators(e){
 // Void dock's standing rules is visible without opening the 3-dot menu (see
 // canonical-tags.ts). Returns null when neither flag is set, so callers can
 // skip appending an empty wrapper.
-function buildMergeVoidBadgesEl(e){
+function buildMergeVoidBadgesEl(e: Entry): HTMLElement | null {
   const meta = e.meta || {};
   if (!meta.mergeImmune && !meta.antivoid) return null;
   const wrap = document.createElement('div');
@@ -1276,7 +1405,7 @@ function buildMergeVoidBadgesEl(e){
   return wrap;
 }
 
-function buildStatusIconsEl(e){
+function buildStatusIconsEl(e: Entry): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'card-status-icons';
   for (const { emoji, state, label, matchedTags } of getEntryStatusIndicators(e)){
@@ -1304,7 +1433,8 @@ function saveCommonLanguages(){
 const FLAG_COLORS = ['#e8a33d', '#e2637a', '#6fb8d1', '#7fbf8f', '#a683e0'];
 const KOMA_OPTIONS = ['1koma', '2koma', '3koma', '4koma'];
 
-function openNoteEditor(entry){
+function openNoteEditor(entry: Entry): void {
+  if (!entry.meta) entry.meta = {};
   closeTagContextMenu();
   const menu = document.createElement('div');
   menu.className = 'ctx-menu';
@@ -1316,7 +1446,7 @@ function openNoteEditor(entry){
 
   const noteArea = document.createElement('textarea');
   noteArea.style.cssText = 'width:calc(100% - 16px); margin:0 8px; min-height:80px; background:var(--bg-elevated); color:var(--text-primary); border:1px solid var(--border-strong); border-radius:var(--radius); font-family:var(--sans); font-size:12px; padding:6px;';
-  noteArea.value = entry.meta.note || '';
+  noteArea.value = entry.meta!.note || '';
   menu.appendChild(noteArea);
 
   const visRow = document.createElement('label');
@@ -1324,7 +1454,7 @@ function openNoteEditor(entry){
   visRow.style.padding = '6px 8px';
   const visCb = document.createElement('input');
   visCb.type = 'checkbox';
-  visCb.checked = !!entry.meta.noteAlwaysVisible;
+  visCb.checked = !!entry.meta!.noteAlwaysVisible;
   visRow.appendChild(visCb);
   visRow.appendChild(document.createTextNode(' Always show on card'));
   menu.appendChild(visRow);
@@ -1333,10 +1463,10 @@ function openNoteEditor(entry){
   saveBtn.className = 'primary ctx-item';
   saveBtn.textContent = 'Save note';
   saveBtn.addEventListener('click', () => {
-    const wasEmpty = !entry.meta.note;
-    entry.meta.note = noteArea.value;
-    entry.meta.noteAlwaysVisible = visCb.checked;
-    getEntryMeta()[entry.base] = entry.meta;
+    const wasEmpty = !entry.meta!.note;
+    entry.meta!.note = noteArea.value;
+    entry.meta!.noteAlwaysVisible = visCb.checked;
+    getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
     if (wasEmpty && noteArea.value.trim()){
       folderStats.notes_written = (folderStats.notes_written || 0) + 1;
@@ -1355,7 +1485,8 @@ function openNoteEditor(entry){
   setTimeout(() => document.addEventListener('click', onDocClickCloseMenu), 0);
 }
 
-function openImageOptionsMenu(entry, x, y){
+function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
+  if (!entry.meta) entry.meta = {};
   closeTagContextMenu();
   const menu = document.createElement('div');
   menu.className = 'ctx-menu';
@@ -1370,6 +1501,17 @@ function openImageOptionsMenu(entry, x, y){
   // explanation lives in `title` (native hover tooltip) instead of being
   // crammed into the visible button text, which was making this menu read
   // as a wall of text.
+  const wd14Btn = document.createElement('button');
+  wd14Btn.className = 'ctx-item';
+  wd14Btn.textContent = '🐍 WD14 Tag';
+  wd14Btn.title = 'Tag this image with WD14 (via ComfyUI)';
+  wd14Btn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    closeTagContextMenu();
+    tagSingleImageWithWd14(entry);
+  });
+  menu.appendChild(wd14Btn);
+
   const toggleDisableBtn = document.createElement('button');
   toggleDisableBtn.className = 'ctx-item';
   toggleDisableBtn.textContent = entry.disabled ? '↩ Restore' : '🗑 Disable';
@@ -1404,107 +1546,6 @@ function openImageOptionsMenu(entry, x, y){
     await deleteEntryPermanentlyRef(entry);
   });
   menu.appendChild(deleteBtn);
-
-  // Locked images are skipped by every mass/automatic tool (Quick Merge,
-  // Master Tags, bulk WD14, retroactive catch-up, etc.) — manual per-image
-  // actions like this menu's own items are unaffected, since a lock is
-  // about protecting an image from being swept up by something the user
-  // didn't specifically aim at it.
-  const toggleLockBtn = document.createElement('button');
-  toggleLockBtn.className = 'ctx-item';
-  function lockLabel(){ return entry.meta.locked ? '🔓 Unlock' : '🔒 Lock'; }
-  toggleLockBtn.textContent = lockLabel();
-  toggleLockBtn.title = 'Skip mass tools (Quick Merge, Master Tags, bulk WD14, etc.) for this image';
-  toggleLockBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    entry.meta.locked = !entry.meta.locked;
-    getEntryMeta()[entry.base] = entry.meta;
-    saveEntryMetaRef();
-    toggleLockBtn.textContent = lockLabel();
-    renderCurrentView();
-  });
-  menu.appendChild(toggleLockBtn);
-
-  // Merge Immunize / Antivoid — a PERMANENT per-image exception to the
-  // Retroactive Merge/Void dock's standing rules (canonical-tags.ts), unlike
-  // Lock (above) which only skips mass/automatic tools in general. These
-  // stay in effect 24/7 regardless of what mass tool (if any) touches the
-  // image. "Antimmunize" is a convenience shortcut toggling both together,
-  // not a third independent flag. Icons: 🚫 for Merge Immunize (blocking a
-  // merge from applying reads like a "no entry" sign), 🟢 for Antivoid (a
-  // safe/protected green, deliberately not reusing void's own danger-red
-  // styling), ✋ for Antimmunize (an open hand — "stop, both ways").
-  const toggleMergeImmuneBtn = document.createElement('button');
-  toggleMergeImmuneBtn.className = 'ctx-item';
-  function mergeImmuneLabel(){ return entry.meta.mergeImmune ? '🚫 Un-Merge-Immunize' : '🚫 Merge Immunize'; }
-  toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
-  toggleMergeImmuneBtn.title = 'Merge rules will never rewrite this image\'s tags';
-  toggleMergeImmuneBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    entry.meta.mergeImmune = !entry.meta.mergeImmune;
-    getEntryMeta()[entry.base] = entry.meta;
-    saveEntryMetaRef();
-    toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
-    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
-    renderCurrentView();
-  });
-  menu.appendChild(toggleMergeImmuneBtn);
-
-  const toggleAntivoidBtn = document.createElement('button');
-  toggleAntivoidBtn.className = 'ctx-item';
-  function antivoidLabel(){ return entry.meta.antivoid ? '🟢 Un-Antivoid' : '🟢 Antivoid'; }
-  toggleAntivoidBtn.textContent = antivoidLabel();
-  toggleAntivoidBtn.title = 'Void rules will never remove tags from this image';
-  toggleAntivoidBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    entry.meta.antivoid = !entry.meta.antivoid;
-    getEntryMeta()[entry.base] = entry.meta;
-    saveEntryMetaRef();
-    toggleAntivoidBtn.textContent = antivoidLabel();
-    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
-    renderCurrentView();
-  });
-  menu.appendChild(toggleAntivoidBtn);
-
-  const toggleAntimmunizeBtn = document.createElement('button');
-  toggleAntimmunizeBtn.className = 'ctx-item';
-  function antimmunizeLabel(){ return (entry.meta.mergeImmune && entry.meta.antivoid) ? '✋ Un-Antimmunize' : '✋ Antimmunize'; }
-  toggleAntimmunizeBtn.title = 'Shortcut for toggling Merge Immunize and Antivoid together';
-  toggleAntimmunizeBtn.textContent = antimmunizeLabel();
-  toggleAntimmunizeBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    const bothOn = entry.meta.mergeImmune && entry.meta.antivoid;
-    entry.meta.mergeImmune = !bothOn;
-    entry.meta.antivoid = !bothOn;
-    getEntryMeta()[entry.base] = entry.meta;
-    saveEntryMetaRef();
-    toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
-    toggleAntivoidBtn.textContent = antivoidLabel();
-    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
-    renderCurrentView();
-  });
-  menu.appendChild(toggleAntimmunizeBtn);
-
-  const resetEditsBtn = document.createElement('button');
-  resetEditsBtn.className = 'ctx-item';
-  resetEditsBtn.textContent = '⏮ Reset edits';
-  resetEditsBtn.title = 'Reset this image to its earliest known tag state';
-  resetEditsBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    resetImageEdits(entry);
-  });
-  menu.appendChild(resetEditsBtn);
-
-  const wd14Btn = document.createElement('button');
-  wd14Btn.className = 'ctx-item';
-  wd14Btn.textContent = '🐍 WD14 Tag';
-  wd14Btn.title = 'Tag this image with WD14 (via ComfyUI)';
-  wd14Btn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    closeTagContextMenu();
-    tagSingleImageWithWd14(entry);
-  });
-  menu.appendChild(wd14Btn);
 
   // --- Text / language / comic / koma / speech bubble (draft, applied on demand) ---
   // Japanese and any number of foreign languages are independent, non-exclusive
@@ -1686,13 +1727,13 @@ function openImageOptionsMenu(entry, x, y){
   const noneBtn = document.createElement('button');
   noneBtn.textContent = 'None';
   noneBtn.style.fontWeight = draft.koma === '' ? '700' : '400';
-  noneBtn.addEventListener('click', (ev) => { ev.stopPropagation(); draft.koma = ''; Array.from(komaRow.children).forEach(b=>b.style.fontWeight='400'); noneBtn.style.fontWeight='700'; syncTextPanelTags(); });
+  noneBtn.addEventListener('click', (ev) => { ev.stopPropagation(); draft.koma = ''; Array.from(komaRow.children).forEach(b=>(b as HTMLElement).style.fontWeight='400'); noneBtn.style.fontWeight='700'; syncTextPanelTags(); });
   komaRow.appendChild(noneBtn);
   for (const k of KOMA_OPTIONS){
     const b = document.createElement('button');
     b.textContent = k;
     b.style.fontWeight = draft.koma === k ? '700' : '400';
-    b.addEventListener('click', (ev) => { ev.stopPropagation(); draft.koma = k; Array.from(komaRow.children).forEach(x=>x.style.fontWeight='400'); b.style.fontWeight='700'; syncTextPanelTags(); });
+    b.addEventListener('click', (ev) => { ev.stopPropagation(); draft.koma = k; Array.from(komaRow.children).forEach(x=>(x as HTMLElement).style.fontWeight='400'); b.style.fontWeight='700'; syncTextPanelTags(); });
     komaRow.appendChild(b);
   }
   menu.appendChild(komaRow);
@@ -1708,6 +1749,144 @@ function openImageOptionsMenu(entry, x, y){
   bubbleLabel.appendChild(document.createTextNode(' Speech bubble'));
   menu.appendChild(bubbleLabel);
 
+  // Merge Immunize / Antivoid — a PERMANENT per-image exception to the
+  // Retroactive Merge/Void dock's standing rules (canonical-tags.ts), unlike
+  // Lock (below) which only skips mass/automatic tools in general. These
+  // stay in effect 24/7 regardless of what mass tool (if any) touches the
+  // image. "Antimmunize" is a convenience shortcut toggling both together,
+  // not a third independent flag. Icons: 🚫 for Merge Immunize (blocking a
+  // merge from applying reads like a "no entry" sign), 🟢 for Antivoid (a
+  // safe/protected green, deliberately not reusing void's own danger-red
+  // styling), ✋ for Antimmunize (an open hand — "stop, both ways").
+  const sepAntimmunize = document.createElement('div');
+  sepAntimmunize.className = 'ctx-sep';
+  sepAntimmunize.textContent = 'Antimmunize options';
+  menu.appendChild(sepAntimmunize);
+
+  const toggleMergeImmuneBtn = document.createElement('button');
+  toggleMergeImmuneBtn.className = 'ctx-item';
+  function mergeImmuneLabel(){ return entry.meta!.mergeImmune ? '🚫 Un-Merge-Immunize' : '🚫 Merge Immunize'; }
+  toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
+  toggleMergeImmuneBtn.title = 'Merge rules will never rewrite this image\'s tags';
+  toggleMergeImmuneBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    entry.meta!.mergeImmune = !entry.meta!.mergeImmune;
+    getEntryMeta()[entry.base] = entry.meta!;
+    saveEntryMetaRef();
+    toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
+    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+    renderCurrentView();
+  });
+  menu.appendChild(toggleMergeImmuneBtn);
+
+  const toggleAntivoidBtn = document.createElement('button');
+  toggleAntivoidBtn.className = 'ctx-item';
+  function antivoidLabel(){ return entry.meta!.antivoid ? '🟢 Un-Antivoid' : '🟢 Antivoid'; }
+  toggleAntivoidBtn.textContent = antivoidLabel();
+  toggleAntivoidBtn.title = 'Void rules will never remove tags from this image';
+  toggleAntivoidBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    entry.meta!.antivoid = !entry.meta!.antivoid;
+    getEntryMeta()[entry.base] = entry.meta!;
+    saveEntryMetaRef();
+    toggleAntivoidBtn.textContent = antivoidLabel();
+    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+    renderCurrentView();
+  });
+  menu.appendChild(toggleAntivoidBtn);
+
+  const toggleAntimmunizeBtn = document.createElement('button');
+  toggleAntimmunizeBtn.className = 'ctx-item';
+  function antimmunizeLabel(){ return (entry.meta!.mergeImmune && entry.meta!.antivoid) ? '✋ Un-Antimmunize' : '✋ Antimmunize'; }
+  toggleAntimmunizeBtn.title = 'Shortcut for toggling Merge Immunize and Antivoid together';
+  toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+  toggleAntimmunizeBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const bothOn = entry.meta!.mergeImmune && entry.meta!.antivoid;
+    entry.meta!.mergeImmune = !bothOn;
+    entry.meta!.antivoid = !bothOn;
+    getEntryMeta()[entry.base] = entry.meta!;
+    saveEntryMetaRef();
+    toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
+    toggleAntivoidBtn.textContent = antivoidLabel();
+    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+    renderCurrentView();
+  });
+  menu.appendChild(toggleAntimmunizeBtn);
+
+  // Removes every tag on this image in one click — unlike the chip list's
+  // own × buttons (one click per tag), this is the bulk equivalent, gated
+  // behind a confirm since it's otherwise a single misclick away from
+  // wiping an image's whole tag set. Grouped next to Reset edits below —
+  // both are whole-image tag-state actions.
+  const removeAllTagsBtn = document.createElement('button');
+  removeAllTagsBtn.className = 'ctx-item ctx-item-danger';
+  removeAllTagsBtn.textContent = '🗑️ Remove all tags';
+  removeAllTagsBtn.title = 'Remove every tag from this image at once';
+  removeAllTagsBtn.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    if (entry.tags.length === 0){ toast('This image has no tags to remove.'); return; }
+    const ok = await showConfirmModal(
+      `Remove all ${entry.tags.length} tag(s) from "${entry.imgName}"?`,
+      { okLabel: 'Remove all tags', danger: true }
+    );
+    if (!ok) return;
+    removeAllTagsFromEntry(entry);
+    header.textContent = `${entry.imgName} · ${entry.tags.length} tag${entry.tags.length===1?'':'s'}`;
+    renderCurrentView();
+  });
+  menu.appendChild(removeAllTagsBtn);
+
+  const resetEditsBtn = document.createElement('button');
+  resetEditsBtn.className = 'ctx-item';
+  resetEditsBtn.textContent = '⏮ Reset edits';
+  resetEditsBtn.title = 'Reset this image to its earliest known tag state';
+  resetEditsBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    resetImageEdits(entry);
+  });
+  menu.appendChild(resetEditsBtn);
+
+  // Censored/Has-text/Perspective — the same 3 quick-glance badges the
+  // card itself shows (buildStatusIconsEl above), just spelled out with
+  // which tags matched. Exists here specifically because mobile's badges
+  // aren't hoverable — a long-press/tap can't show a native `title`
+  // tooltip the way a mouse hover does on desktop.
+  const statusBtn = document.createElement('button');
+  statusBtn.className = 'ctx-item';
+  statusBtn.textContent = 'ⓘ Status details';
+  statusBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    closeTagContextMenu();
+    const rows = getEntryStatusIndicators(entry).map(({ emoji, state, label, matchedTags }) => {
+      const stateText = state === null ? 'Not indicated' : (state ? 'Yes' : 'No');
+      const matched = matchedTags.length ? ` — ${matchedTags.map(escapeHtml).join(', ')}` : '';
+      return `<p>${emoji} <b>${label}:</b> ${stateText}${matched}</p>`;
+    }).join('');
+    showInfoModal(rows, 'Image status');
+  });
+  menu.appendChild(statusBtn);
+
+  // Locked images are skipped by every mass/automatic tool (Quick Merge,
+  // Master Tags, bulk WD14, retroactive catch-up, etc.) — manual per-image
+  // actions like this menu's own items are unaffected, since a lock is
+  // about protecting an image from being swept up by something the user
+  // didn't specifically aim at it.
+  const toggleLockBtn = document.createElement('button');
+  toggleLockBtn.className = 'ctx-item';
+  function lockLabel(){ return entry.meta!.locked ? '🔓 Unlock' : '🔒 Lock'; }
+  toggleLockBtn.textContent = lockLabel();
+  toggleLockBtn.title = 'Skip mass tools (Quick Merge, Master Tags, bulk WD14, etc.) for this image';
+  toggleLockBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    entry.meta!.locked = !entry.meta!.locked;
+    getEntryMeta()[entry.base] = entry.meta!;
+    saveEntryMetaRef();
+    toggleLockBtn.textContent = lockLabel();
+    renderCurrentView();
+  });
+  menu.appendChild(toggleLockBtn);
+
   // --- Review flag (limited palette) ---
   const sep2 = document.createElement('div');
   sep2.className = 'ctx-sep';
@@ -1715,14 +1894,14 @@ function openImageOptionsMenu(entry, x, y){
   menu.appendChild(sep2);
   const flagRow = document.createElement('div');
   flagRow.style.cssText = 'display:flex; gap:6px; padding:4px 8px 8px; align-items:center; flex-wrap:wrap;';
-  const swatchEls = [];
+  const swatchEls: HTMLButtonElement[] = [];
   for (const color of FLAG_COLORS){
     const sw = document.createElement('button');
-    sw.style.cssText = `width:22px; height:22px; border-radius:5px; padding:0; background:${color}; border:2px solid ${entry.meta.reviewColor === color ? 'var(--text-primary)' : 'transparent'};`;
+    sw.style.cssText = `width:22px; height:22px; border-radius:5px; padding:0; background:${color}; border:2px solid ${entry.meta!.reviewColor === color ? 'var(--text-primary)' : 'transparent'};`;
     sw.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      entry.meta.reviewColor = color;
-      getEntryMeta()[entry.base] = entry.meta;
+      entry.meta!.reviewColor = color;
+      getEntryMeta()[entry.base] = entry.meta!;
       saveEntryMetaRef();
       folderStats.review_flags = (folderStats.review_flags || 0) + 1;
       saveFolderStats();
@@ -1738,8 +1917,8 @@ function openImageOptionsMenu(entry, x, y){
   clearFlagBtn.textContent = 'Clear';
   clearFlagBtn.addEventListener('click', (ev) => {
     ev.stopPropagation();
-    entry.meta.reviewColor = null;
-    getEntryMeta()[entry.base] = entry.meta;
+    entry.meta!.reviewColor = undefined;
+    getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
     renderCurrentView();
     swatchEls.forEach(s => { s.style.borderColor = 'transparent'; });
@@ -1753,10 +1932,10 @@ function openImageOptionsMenu(entry, x, y){
   blurLabel.style.padding = '6px 8px';
   const blurCb = document.createElement('input');
   blurCb.type = 'checkbox';
-  blurCb.checked = !!entry.meta.blurred;
+  blurCb.checked = !!entry.meta!.blurred;
   blurCb.addEventListener('change', () => {
-    entry.meta.blurred = blurCb.checked;
-    getEntryMeta()[entry.base] = entry.meta;
+    entry.meta!.blurred = blurCb.checked;
+    getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
     renderCurrentView();
   });
@@ -1780,7 +1959,7 @@ function openImageOptionsMenu(entry, x, y){
   noteArea.style.fontFamily = 'var(--sans)';
   noteArea.style.fontSize = '12px';
   noteArea.style.padding = '6px';
-  noteArea.value = entry.meta.note || '';
+  noteArea.value = entry.meta!.note || '';
   menu.appendChild(noteArea);
 
   const visRow = document.createElement('label');
@@ -1788,7 +1967,7 @@ function openImageOptionsMenu(entry, x, y){
   visRow.style.padding = '6px 8px';
   const visCb = document.createElement('input');
   visCb.type = 'checkbox';
-  visCb.checked = !!entry.meta.noteAlwaysVisible;
+  visCb.checked = !!entry.meta!.noteAlwaysVisible;
   visRow.appendChild(visCb);
   visRow.appendChild(document.createTextNode(' Always show on card'));
   menu.appendChild(visRow);
@@ -1797,10 +1976,10 @@ function openImageOptionsMenu(entry, x, y){
   saveNoteBtn.className = 'primary ctx-item';
   saveNoteBtn.textContent = 'Save note';
   saveNoteBtn.addEventListener('click', () => {
-    const wasEmpty = !entry.meta.note;
-    entry.meta.note = noteArea.value;
-    entry.meta.noteAlwaysVisible = visCb.checked;
-    getEntryMeta()[entry.base] = entry.meta;
+    const wasEmpty = !entry.meta!.note;
+    entry.meta!.note = noteArea.value;
+    entry.meta!.noteAlwaysVisible = visCb.checked;
+    getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
     if (wasEmpty && noteArea.value.trim()){
       folderStats.notes_written = (folderStats.notes_written || 0) + 1;
@@ -1835,13 +2014,29 @@ export function refreshRightPanels(){
 // ./tag-index.ts) since importing them directly here would be fine too, but
 // they're threaded through initView for consistency with the rest of this
 // module's dependency injection.
-let setContainsFilterRef = () => {};
-let setExcludesFilterRef = () => {};
-function setContainsFilter(tag){ setContainsFilterRef(tag); }
-function setExcludesFilter(tag){ setExcludesFilterRef(tag); }
-let deleteEntryPermanentlyRef = () => {};
+let setContainsFilterRef: (tag: string) => void = () => {};
+let setExcludesFilterRef: (tag: string) => void = () => {};
+function setContainsFilter(tag: string): void { setContainsFilterRef(tag); }
+function setExcludesFilter(tag: string): void { setExcludesFilterRef(tag); }
+let deleteEntryPermanentlyRef: (entry: Entry) => Promise<void> = async () => {};
 
-export function initView(deps){
+interface ViewDeps {
+  getEntries: () => Entry[];
+  getEntryByBase: (base: string) => Entry | undefined;
+  getMasterTagModeActive: () => boolean;
+  getCardTagSortMode: () => CardTagSortMode;
+  getGalleryFilter: () => GalleryFilter;
+  getIsolatedFlagActive: () => boolean;
+  getShowTagCountBadges: () => boolean;
+  getEntryMeta: () => Record<string, EntryMeta>;
+  saveEntryMeta: () => void;
+  refreshAllUI: () => void;
+  setContainsFilter: (tag: string) => void;
+  setExcludesFilter: (tag: string) => void;
+  deleteEntryPermanently: (entry: Entry) => Promise<void>;
+}
+
+export function initView(deps: ViewDeps): void {
   getEntries = deps.getEntries;
   getEntryByBase = deps.getEntryByBase;
   getMasterTagModeActive = deps.getMasterTagModeActive;
@@ -1889,13 +2084,23 @@ export function initView(deps){
     toast(`Unlocked ${count} image(s).`);
     renderCurrentView();
   });
+  btnRenameAllImages.addEventListener('click', async () => {
+    const count = getEntries().length;
+    if (count === 0){ toast('No images loaded.'); return; }
+    const ok = await showConfirmModal(
+      `Rename all ${count} loaded image(s) (+ their .txt files) to a simple zero-padded 1-${count} sequence? Active dataset images are numbered first, then Disabled/ continues the same count. This can be undone from the Log panel.`,
+      { okLabel: 'Rename all', danger: true }
+    );
+    if (!ok) return;
+    await renameAllEntriesSequentially();
+  });
   viewDisabledBtn.addEventListener('click', () => switchView('disabled'));
   viewDisabledBtn.addEventListener('dragover', (ev) => { ev.preventDefault(); viewDisabledBtn.classList.add('drag-over'); });
   viewDisabledBtn.addEventListener('dragleave', () => viewDisabledBtn.classList.remove('drag-over'));
   viewDisabledBtn.addEventListener('drop', (ev) => {
     ev.preventDefault();
     viewDisabledBtn.classList.remove('drag-over');
-    const base = ev.dataTransfer.getData('text/plain');
+    const base = ev.dataTransfer!.getData('text/plain');
     const target = getEntryByBase(base);
     if (target && !target.disabled){
       moveEntry(target, true);
@@ -1906,7 +2111,7 @@ export function initView(deps){
   });
   // Swipe mode only — paging in Grid/Compact/Fade mode stays instant, same
   // as before this feature existed; only Swipe gets the physical slide.
-  function pageSingle(delta){
+  function pageSingle(delta: number): void {
     const html = document.documentElement;
     if (!html.classList.contains('motion-swipe') || html.classList.contains('motion-off')){
       singleIndex += delta;

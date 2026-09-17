@@ -3,13 +3,21 @@
 // the manual picker (click any input/button to mark it). Self-contained:
 // only touches its own customPowerTools/powerToolPickerActive state, DOM
 // refs, and generic shared-ui helpers.
-// @ts-nocheck — real types land once index.ts itself is typed.
 import {
   $, powerToolList, btnStartPowerToolPicker, btnResetCustomPowerTools, settingsPanel
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, positionMenu } from './shared-ui';
 
-export let customPowerTools = [];
+interface PowerToolEntry {
+  id: string;
+  label: string;
+  field?: string | string[];
+  button?: string;
+  mode?: string;
+  infoOnly?: boolean;
+}
+
+export let customPowerTools: PowerToolEntry[] = [];
 export let powerToolPickerActive = false;
 
 // The highlight itself is a single `.power-tool` class (styled in CSS, gated
@@ -23,6 +31,7 @@ export const BUILTIN_POWER_TOOLS = [
   { id:'builtin-master-apply', field:['masterApplyTagInput'], button:'btnMasterApplyToSelected', mode:'both', label:'Master Tags: apply to selected' },
   { id:'builtin-master-remove', field:['masterRemoveTagInput'], button:'btnMasterRemoveFromSelected', mode:'both', label:'Master Tags: remove from selected' },
   { id:'builtin-cond-apply', field:['condSourceTag','condAddTag'], button:'btnCondApply', mode:'both', label:'Master Tags: conditional apply' },
+  { id:'builtin-cond-apply-without', field:['condWithoutSourceTag','condWithoutAddTag'], button:'btnCondApplyWithout', mode:'both', label:'Master Tags: conditional apply (without)' },
   { id:'builtin-mass-apply', field:['massApplyInput'], button:'btnMassApply', mode:'both', label:'Master Tags: mass apply' },
   { id:'builtin-mass-remove', field:['massRemoveInput'], button:'btnMassRemove', mode:'both', label:'Master Tags: mass remove' },
   { id:'builtin-purge', button:'btnPurgeAllTags', mode:'button', label:'Purge all tags' },
@@ -38,17 +47,17 @@ export const OPTIONAL_POWER_TOOL_CANDIDATES = [
   { id:'candidate-flag-isolated', button:'btnFlagIsolated', mode:'button', label:'Flag isolated tags' }
 ];
 
-export function powerToolIdsFor(entry){
+export function powerToolIdsFor(entry: PowerToolEntry): { fieldIds: string[]; buttonIds: string[] } {
   const fieldIds = entry.field ? (Array.isArray(entry.field) ? entry.field : [entry.field]) : [];
   const buttonIds = entry.button ? [entry.button] : [];
   return { fieldIds, buttonIds };
 }
 
-export function applyPowerToolMarks(){
+export function applyPowerToolMarks(): void {
   document.querySelectorAll('.power-tool').forEach(el => {
     if (!el.classList.contains('pt-dynamic')) el.classList.remove('power-tool');
   });
-  for (const entry of BUILTIN_POWER_TOOLS.concat(customPowerTools)){
+  for (const entry of (BUILTIN_POWER_TOOLS as PowerToolEntry[]).concat(customPowerTools)){
     if (entry.infoOnly) continue;
     const { fieldIds, buttonIds } = powerToolIdsFor(entry);
     if (entry.mode === 'field' || entry.mode === 'both'){
@@ -60,10 +69,10 @@ export function applyPowerToolMarks(){
   }
 }
 
-export function saveCustomPowerTools(){
+export function saveCustomPowerTools(): void {
   try { localStorage.setItem('dts-custom-power-tools', JSON.stringify(customPowerTools)); } catch(e){}
 }
-export function loadCustomPowerTools(){
+export function loadCustomPowerTools(): void {
   try {
     const saved = JSON.parse(localStorage.getItem('dts-custom-power-tools') || 'null');
     if (Array.isArray(saved)) customPowerTools = saved;
@@ -73,7 +82,7 @@ export function loadCustomPowerTools(){
 // Finds whether an element id already belongs to a power tool, and where —
 // used both by the picker (to toggle off on a second click) and to decide
 // what a settings-list checkbox should do.
-export function findPowerToolMatch(elId){
+export function findPowerToolMatch(elId: string): { scope: string; entry: PowerToolEntry } | null {
   for (const entry of BUILTIN_POWER_TOOLS){
     if (entry.infoOnly) continue;
     const { fieldIds, buttonIds } = powerToolIdsFor(entry);
@@ -86,7 +95,7 @@ export function findPowerToolMatch(elId){
   return null;
 }
 
-export function setCustomPowerToolActive(entrySpec, active){
+export function setCustomPowerToolActive(entrySpec: PowerToolEntry, active: boolean): void {
   if (active){
     if (!customPowerTools.some(c => c.id === entrySpec.id)){
       customPowerTools.push({ id: entrySpec.id, field: entrySpec.field, button: entrySpec.button, mode: entrySpec.mode, label: entrySpec.label });
@@ -99,7 +108,7 @@ export function setCustomPowerToolActive(entrySpec, active){
   renderPowerToolList();
 }
 
-function buildPowerToolRow(entry, opts){
+function buildPowerToolRow(entry: PowerToolEntry, opts: { checked: boolean; locked: boolean }): HTMLElement {
   const row = document.createElement('div');
   row.className = 'pt-list-row';
   const cb = document.createElement('input');
@@ -113,7 +122,7 @@ function buildPowerToolRow(entry, opts){
   row.appendChild(label);
   const tagEl = document.createElement('span');
   tagEl.className = 'pt-list-tag';
-  tagEl.textContent = entry.infoOnly ? '' : (entry.mode === 'both' ? 'field + button' : entry.mode);
+  tagEl.textContent = entry.infoOnly ? '' : (entry.mode === 'both' ? 'field + button' : entry.mode || '');
   row.appendChild(tagEl);
   if (!opts.locked && !entry.infoOnly){
     cb.addEventListener('change', () => {
@@ -124,7 +133,7 @@ function buildPowerToolRow(entry, opts){
   return row;
 }
 
-export function renderPowerToolList(){
+export function renderPowerToolList(): void {
   powerToolList.innerHTML = '';
   for (const entry of BUILTIN_POWER_TOOLS){
     powerToolList.appendChild(buildPowerToolRow(entry, { checked:true, locked:true }));
@@ -139,7 +148,7 @@ export function renderPowerToolList(){
   }
 }
 
-function addCustomPowerTool(fieldIds, buttonIds, mode, label){
+function addCustomPowerTool(fieldIds: string[], buttonIds: string[], mode: string, label: string): void {
   const entry = {
     id: 'custom-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
     field: fieldIds, button: buttonIds[0], mode, label
@@ -159,11 +168,11 @@ let pickerBrowsingSuspended = false;
 // cancelled, or the click didn't land on anything markable. While the
 // field/button mode-choice submenu is open, that "genuinely over" point is
 // deferred until the submenu itself resolves (see openPowerToolModeChoice).
-function finishPowerToolPicking(){
+function finishPowerToolPicking(): void {
   showPanel(settingsPanel);
 }
 
-function exitPowerToolPicker(){
+function exitPowerToolPicker(): void {
   powerToolPickerActive = false;
   pickerBrowsingSuspended = false;
   document.body.classList.remove('pt-picking');
@@ -176,7 +185,7 @@ function exitPowerToolPicker(){
 // panels, scroll) to go find where a field actually lives, without that
 // click being swallowed as a mark attempt or ending the picker session —
 // release Shift and the next click resumes normal picking behavior.
-function onPowerToolPickerKeydown(ev){
+function onPowerToolPickerKeydown(ev: KeyboardEvent): void {
   if (ev.key === 'Escape'){
     exitPowerToolPicker();
     toast('Cancelled.');
@@ -191,7 +200,7 @@ function onPowerToolPickerKeydown(ev){
   }
 }
 
-function onPowerToolPickerKeyup(ev){
+function onPowerToolPickerKeyup(ev: KeyboardEvent): void {
   if (ev.key === 'Shift' && pickerBrowsingSuspended){
     pickerBrowsingSuspended = false;
     document.body.classList.add('pt-picking');
@@ -199,8 +208,8 @@ function onPowerToolPickerKeyup(ev){
   }
 }
 
-function onPowerToolPickerClick(ev){
-  const el = ev.target.closest('input, textarea, select, button');
+function onPowerToolPickerClick(ev: MouseEvent): void {
+  const el = (ev.target as HTMLElement).closest('input, textarea, select, button') as HTMLElement | null;
   exitPowerToolPicker();
   if (!el || !el.id || el.classList.contains('tab-btn')){
     ev.preventDefault();
@@ -228,10 +237,10 @@ function onPowerToolPickerClick(ev){
   }
 
   const container = el.closest('.apply-row, .gtt-row');
-  let fields = [], buttons = [];
+  let fields: HTMLElement[] = [], buttons: HTMLElement[] = [];
   if (container){
-    fields = Array.from(container.querySelectorAll('input, textarea, select')).filter(x => x.id);
-    buttons = Array.from(container.querySelectorAll('button')).filter(x => x.id);
+    fields = (Array.from(container.querySelectorAll('input, textarea, select')) as HTMLElement[]).filter(x => x.id);
+    buttons = (Array.from(container.querySelectorAll('button')) as HTMLElement[]).filter(x => x.id);
   }
   const isField = el.matches('input, textarea, select');
   if (fields.length === 0) fields = isField ? [el] : [];
@@ -243,8 +252,8 @@ function onPowerToolPickerClick(ev){
   // on by its fixed id instead of creating a redundant ad-hoc duplicate.
   const matchedCandidate = OPTIONAL_POWER_TOOL_CANDIDATES.find(cand => {
     const ids = powerToolIdsFor(cand);
-    return ids.fieldIds.length === fieldIds.length && ids.fieldIds.every(id => fieldIds.includes(id)) &&
-           ids.buttonIds.length === buttonIds.length && ids.buttonIds.every(id => buttonIds.includes(id));
+    return ids.fieldIds.length === fieldIds.length && ids.fieldIds.every((id: string) => fieldIds.includes(id)) &&
+           ids.buttonIds.length === buttonIds.length && ids.buttonIds.every((id: string) => buttonIds.includes(id));
   });
   if (matchedCandidate){
     setCustomPowerToolActive(matchedCandidate, true);
@@ -257,13 +266,13 @@ function onPowerToolPickerClick(ev){
     openPowerToolModeChoice(el, fields, buttons, ev.clientX, ev.clientY);
   } else {
     const mode = fieldIds.length ? 'field' : 'button';
-    const label = (buttons[0] && buttons[0].textContent.trim()) || (fields[0] && (fields[0].placeholder || fields[0].id)) || el.id;
+    const label = (buttons[0] && buttons[0].textContent!.trim()) || (fields[0] && ((fields[0] as HTMLInputElement).placeholder || fields[0].id)) || el.id;
     addCustomPowerTool(fieldIds, buttonIds, mode, label.slice(0, 60));
     finishPowerToolPicking();
   }
 }
 
-function openPowerToolModeChoice(el, fields, buttons, x, y){
+function openPowerToolModeChoice(el: HTMLElement, fields: HTMLElement[], buttons: HTMLElement[], x: number, y: number): void {
   const menu = document.createElement('div');
   menu.className = 'pt-choice-menu';
   const header = document.createElement('div');
@@ -272,7 +281,7 @@ function openPowerToolModeChoice(el, fields, buttons, x, y){
   menu.appendChild(header);
   const fieldIds = fields.map(f => f.id);
   const buttonIds = buttons.map(b => b.id);
-  const label = ((buttons[0] && buttons[0].textContent.trim()) || (fields[0] && (fields[0].placeholder || fields[0].id)) || el.id).slice(0, 60);
+  const label = ((buttons[0] && buttons[0].textContent!.trim()) || (fields[0] && ((fields[0] as HTMLInputElement).placeholder || fields[0].id)) || el.id).slice(0, 60);
   const choices = [
     ['field', 'Highlight the field' + (fields.length > 1 ? 's' : '')],
     ['button', 'Highlight the button'],
@@ -291,8 +300,8 @@ function openPowerToolModeChoice(el, fields, buttons, x, y){
   }
   document.body.appendChild(menu);
   positionMenu(menu, x, y);
-  function onOutsideCloseChoiceMenu(ev){
-    if (!menu.contains(ev.target)){
+  function onOutsideCloseChoiceMenu(ev: MouseEvent): void {
+    if (!menu.contains(ev.target as Node)){
       menu.remove();
       document.removeEventListener('click', onOutsideCloseChoiceMenu, true);
       finishPowerToolPicking();
@@ -324,7 +333,7 @@ btnResetCustomPowerTools.addEventListener('click', async () => {
   toast('Custom power tool marks reset.');
 });
 
-export function initPowerTools(){
+export function initPowerTools(): void {
   loadCustomPowerTools();
   applyPowerToolMarks();
   renderPowerToolList();

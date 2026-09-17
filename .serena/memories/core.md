@@ -2,14 +2,23 @@
 
 Local Electron desktop app for managing AI training dataset tags (image/caption pairs). No
 network calls. `README.md` (this dir) is the comprehensive, current entry point for humans —
-features, quick start, dev workflow, project structure. `CLAUDE.md` (this dir) is the deeper
-architecture/decisions doc, kept current by policy — read it for anything non-trivial; it's more
-detailed than these memories should try to duplicate.
+features, quick start, dev workflow, project structure.
+
+**Real architecture/decisions detail now lives in a Claude-maintained Obsidian vault at `notes/`**
+(gitignored, local-only — not shared via git). `CLAUDE.md` (this dir, git-tracked) used to hold
+that bulk directly but was migrated to be just a short pointer into `notes/` (commit "Migrate
+CLAUDE.md's bulk into a local Obsidian vault", 2026-09-14) — don't expect real content in
+`CLAUDE.md` itself anymore; start at `notes/Index.md` and follow links from there for anything
+non-trivial. `notes/Maintenance-Policy.md` is the doc-maintenance policy now (see `mem:conventions`
+and `mem:task_completion` for how that interacts with these Serena memories). If `notes/` doesn't
+exist in a fresh clone (gitignored), don't silently regenerate it — ask the user first.
 
 `_archive/DEVELOPMENT_LOG.txt` is a **retired, frozen** chronological changelog (no new entries
-going forward) — still cited by item number from `CLAUDE.md` for historical root-causes, but this
-project now relies on Serena (these memories) for ongoing codebase understanding instead of
-appending to it. Prefer updating/adding a memory here over writing a new changelog entry.
+going forward) — items from it are still cited by number from `notes/` where relevant for
+historical root-causes (that citation habit moved along with the rest of `CLAUDE.md`'s old bulk),
+but this project now relies on Serena (these memories) + `notes/` for ongoing codebase
+understanding instead of appending to it. Prefer updating/adding a memory here (or a `notes/` note)
+over writing a new changelog entry.
 
 No project-local `.mcp.json` — this project relies entirely on the global Claude Desktop MCP
 config. Don't add a local `.mcp.json` back without a specific reason; it would shadow/duplicate
@@ -37,6 +46,13 @@ from `dist/win-unpacked`.
 
 **A second build target, `tauri-port/` (added 2026-09-11), was discontinued and deleted from the
 repo on 2026-09-13** — the dual-maintenance cost of hand-porting every Electron change to Rust
-outweighed its value at this project's stage. This app is Electron-only now; no Tauri-parity work
-applies to any change going forward. See `mem:conventions` and `CLAUDE.md`'s "Tauri Port —
-DISCONTINUED" section if the old approach is ever worth referencing from git history.
+outweighed its value at this project's stage. See `mem:conventions` and
+`notes/Tauri-Port-Discontinued.md` if the old approach is ever worth referencing from git history.
+
+**A third build target, `mobile/` (Android via Capacitor, added 2026-09-15), is active and NOT a
+repeat of the Tauri mistake** — it reuses the desktop `renderer/` build output completely
+unmodified (via `mobile/sync-web.js` + a JS shim polyfilling `window.showDirectoryPicker`/
+`window.electronAPI`), rather than hand-porting `main.ts`/`preload.ts` logic to a second language
+per change. See `notes/Mobile-Port.md` for the full architecture. The desktop app itself remains
+untouched by this — "Electron-only" above refers specifically to not reviving the old
+hand-translated-Rust-backend approach, not a blanket rule against any cross-platform work.

@@ -5,25 +5,33 @@
 // disabledDirHandle, singleIndex, refreshStats/refreshAllUI/renderCurrentView)
 // are injected once via initTagsEdit() rather than imported, since index.ts's
 // IIFE can't export them.
-// @ts-nocheck
+import type { Entry, EditLogAffected, DirHandle } from './types';
 import { btnUndo, btnRedo, btnSave, dirtyCountEl, includeDisabledToggle, autosaveToggle } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, checkVoidThemeAchievements, folderStats, saveFolderStats } from './achievements';
 import { pushLogEntry, editLog } from './edit-log';
 import { applyCanonicalRules, registerMergeRule, registerVoidRule, findBlockingRule, saveCanonicalRules } from './canonical-tags';
 
-export let undoStack = []; // [{type, summary, affected:[{base,prevTags,newTags}]}]
-export let redoStack = [];
+interface ChangeRecord {
+  type: string;
+  summary: string;
+  affected: EditLogAffected[];
+  [key: string]: unknown;
+}
 
-let getEntries = () => [];
-let getEntryByBase = () => undefined;
-let getDirHandle = () => null;
-let getDisabledDirHandle = () => null;
-let setDisabledDirHandle = () => {};
-let resetSingleIndex = () => {};
-let refreshStatsRef = () => {};
-let refreshAllUIRef = () => {};
-let renderCurrentViewRef = () => {};
+export let undoStack: ChangeRecord[] = [];
+export let redoStack: ChangeRecord[] = [];
+
+let getEntries: () => Entry[] = () => [];
+let getEntryByBase: (base: string) => Entry | undefined = () => undefined;
+let getDirHandle: () => DirHandle | null = () => null;
+let getDisabledDirHandle: () => DirHandle | null = () => null;
+let setDisabledDirHandle: (h: DirHandle) => void = () => {};
+let reindexEntry: (oldBase: string, newBase: string) => void = () => {};
+let resetSingleIndex: () => void = () => {};
+let refreshStatsRef: () => void = () => {};
+let refreshAllUIRef: () => void = () => {};
+let renderCurrentViewRef: () => void = () => {};
 
 // ---------------- Autosave ----------------
 // Off by default. When on, every markDirty() schedules a debounced
@@ -41,15 +49,15 @@ const AUTOSAVE_KEY = 'dts-autosave';
 autosaveToggle.addEventListener('change', () => {
   try { localStorage.setItem(AUTOSAVE_KEY, autosaveToggle.checked ? '1' : '0'); } catch(e){}
 });
-let autosaveTimer = null;
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 const AUTOSAVE_DEBOUNCE_MS = 1200;
-function scheduleAutosave(){
+function scheduleAutosave(): void {
   if (!autosaveToggle.checked) return;
-  clearTimeout(autosaveTimer);
+  if (autosaveTimer !== null) clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => { saveAllDirty(true); }, AUTOSAVE_DEBOUNCE_MS);
 }
 
-export function markDirty(entry){
+export function markDirty(entry: Entry): void {
   // Every tag-mutating action in the app — add/remove, Quick Merge, Unify/
   // Void, Master Tags, WD14, undo/redo — calls markDirty() right after
   // changing entry.tags, making this THE single funnel point where the
@@ -72,7 +80,7 @@ export function markDirty(entry){
 // autosave debounce as everything else, actually persisted by saveAllDirty()
 // below.
 export let rulesDirty = false;
-export function markRulesDirty(){
+export function markRulesDirty(): void {
   rulesDirty = true;
   updateDirtyUI();
   scheduleAutosave();
@@ -82,12 +90,12 @@ export function markRulesDirty(){
 // dataset's own (already-saved) rules, so any pending rulesDirty from the
 // PREVIOUS dataset (e.g. the user chose "switch anyway" and discarded it)
 // must not linger and misrepresent the new dataset's actual save state.
-export function resetRulesDirty(){
+export function resetRulesDirty(): void {
   rulesDirty = false;
   updateDirtyUI();
 }
 
-export function updateDirtyUI(){
+export function updateDirtyUI(): void {
   const dirtyCount = getEntries().filter(e=>e.dirty).length;
   let label;
   if (rulesDirty && dirtyCount > 0) label = `(${dirtyCount} + rules)`;
@@ -97,7 +105,7 @@ export function updateDirtyUI(){
   btnSave.disabled = dirtyCount === 0 && !rulesDirty;
 }
 
-export function resetImageEdits(entry){
+export function resetImageEdits(entry: Entry): void {
   const relevant = editLog.filter(le =>
     le.affected && le.affected.some(a => a.base === entry.base && a.prevTags) &&
     le.type !== 'restore' && le.type !== 'disable' && le.type !== 'undo' && le.type !== 'redo' && le.type !== 'reset-edits'
@@ -106,7 +114,7 @@ export function resetImageEdits(entry){
   const first = relevant[0];
   const affectedItem = first.affected.find(a => a.base === entry.base);
   const prevTags = entry.tags.slice();
-  entry.tags = affectedItem.prevTags.slice();
+  entry.tags = affectedItem!.prevTags!.slice();
   markDirty(entry);
   recordChange('reset-edits', `Reset ${entry.imgName} to its earliest known tag state.`,
     [{ base: entry.base, prevTags, newTags: entry.tags.slice() }]);
@@ -114,7 +122,7 @@ export function resetImageEdits(entry){
   toast('Reverted this image to its earliest known state.');
 }
 
-export function addTagToEntry(entry, tag){
+export function addTagToEntry(entry: Entry, tag: string): void {
   tag = tag.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
   if (!tag) return;
   // A standing Retroactive Merge/Void rule affecting this exact tag on this
@@ -140,7 +148,7 @@ export function addTagToEntry(entry, tag){
   }
 }
 
-export function removeTagFromEntry(entry, tag){
+export function removeTagFromEntry(entry: Entry, tag: string): void {
   const i = entry.tags.indexOf(tag);
   if (i !== -1){
     const prevTags = entry.tags.slice();
@@ -154,7 +162,20 @@ export function removeTagFromEntry(entry, tag){
   }
 }
 
-export function recordChange(type, summary, affected, extra = {}){
+export function removeAllTagsFromEntry(entry: Entry): void {
+  if (entry.tags.length === 0){ toast('This image has no tags to remove.'); return; }
+  const prevTags = entry.tags.slice();
+  const count = prevTags.length;
+  entry.tags = [];
+  markDirty(entry);
+  refreshStatsRef();
+  recordChange('remove-tag', `Removed all ${count} tag(s) from ${entry.imgName}`,
+    [{ base: entry.base, prevTags, newTags: [] }]);
+  trackStat('tags_removed', count);
+  checkAchievements();
+}
+
+export function recordChange(type: string, summary: string, affected: EditLogAffected[], extra: Record<string, unknown> = {}): ChangeRecord {
   const record = { type, summary, affected, ...extra };
   undoStack.push(record);
   redoStack = [];
@@ -163,7 +184,7 @@ export function recordChange(type, summary, affected, extra = {}){
   return record;
 }
 
-export function applyTagDirection(affected, direction){
+export function applyTagDirection(affected: EditLogAffected[], direction: string): number {
   let count = 0;
   for (const a of affected){
     const e = getEntryByBase(a.base);
@@ -177,26 +198,26 @@ export function applyTagDirection(affected, direction){
   return count;
 }
 
-export function updateUndoRedoButtons(){
+export function updateUndoRedoButtons(): void {
   btnUndo.disabled = undoStack.length === 0;
   btnRedo.disabled = redoStack.length === 0;
 }
 
-export function resetUndoRedo(){
+export function resetUndoRedo(): void {
   undoStack = [];
   redoStack = [];
 }
 
-async function ensureDisabledDir(){
+async function ensureDisabledDir(): Promise<DirHandle> {
   let disabledDirHandle = getDisabledDirHandle();
   if (!disabledDirHandle){
-    disabledDirHandle = await getDirHandle().getDirectoryHandle('Disabled', { create: true });
+    disabledDirHandle = await getDirHandle()!.getDirectoryHandle('Disabled', { create: true });
     setDisabledDirHandle(disabledDirHandle);
   }
   return disabledDirHandle;
 }
 
-export async function moveEntry(entry, toDisabled){
+export async function moveEntry(entry: Entry, toDisabled: boolean): Promise<void> {
   const dirHandle = getDirHandle();
   if (!dirHandle) return;
   try {
@@ -204,19 +225,19 @@ export async function moveEntry(entry, toDisabled){
     const sourceDir = toDisabled ? dirHandle : getDisabledDirHandle();
 
     const file = await entry.imgHandle.getFile();
-    const newImgHandle = await targetDir.getFileHandle(entry.imgName, { create: true });
+    const newImgHandle = await targetDir.getFileHandle(entry.imgName!, { create: true });
     const iw = await newImgHandle.createWritable();
     await iw.write(file);
     await iw.close();
 
     if (sourceDir){
-      try { await sourceDir.removeEntry(entry.imgName); } catch(e){}
-      try { await sourceDir.removeEntry(entry.txtName); } catch(e){}
+      try { await sourceDir.removeEntry(entry.imgName!); } catch(e){}
+      try { await sourceDir.removeEntry(entry.txtName!); } catch(e){}
     }
     entry.imgHandle = newImgHandle;
 
     if (entry.tags.length > 0){
-      const newTxtHandle = await targetDir.getFileHandle(entry.txtName, { create: true });
+      const newTxtHandle = await targetDir.getFileHandle(entry.txtName!, { create: true });
       const tw = await newTxtHandle.createWritable();
       await tw.write(entry.tags.join(', '));
       await tw.close();
@@ -239,9 +260,10 @@ export async function moveEntry(entry, toDisabled){
       affected: [{ base: entry.base }]
     });
     trackStat(toDisabled ? 'disables' : 'restores');
-    folderStats.moveCounts = folderStats.moveCounts || {};
-    folderStats.moveCounts[entry.base] = (folderStats.moveCounts[entry.base] || 0) + 1;
-    if (folderStats.moveCounts[entry.base] >= 6) folderStats.flag_indecisive = true;
+    const mc = (folderStats.moveCounts || {}) as Record<string, number>;
+    mc[entry.base] = (mc[entry.base] || 0) + 1;
+    folderStats.moveCounts = mc;
+    if (mc[entry.base] >= 6) folderStats.flag_indecisive = true;
     saveFolderStats();
 
     resetSingleIndex();
@@ -252,18 +274,176 @@ export async function moveEntry(entry, toDisabled){
   }
 }
 
+async function renameFileInPlace(dir: DirHandle, oldName: string, newName: string): Promise<import('./types').FileHandle> {
+  const oldHandle = await dir.getFileHandle(oldName, { create: false });
+  const file = await oldHandle.getFile();
+  const newHandle = await dir.getFileHandle(newName, { create: true });
+  const writable = await newHandle.createWritable();
+  await writable.write(file);
+  await writable.close();
+  await dir.removeEntry(oldName);
+  return newHandle;
+}
+
+// Renames every currently-loaded image (+ its .txt, if any) to a simple
+// zero-padded sequence — one continuous count across the active dataset
+// root and Disabled/ (active first, each ordered by current filename,
+// numeric-aware, matching the same comparator scanDirInto() (index.ts)
+// already sorts a folder scan with) rather than two independently-numbered
+// sequences, since "1" meaning two different things depending on which
+// folder it's in would be confusing. Two-phase (real name -> a throwaway
+// __dts_rename_tmp_N__ name -> final zero-padded name) so a target name
+// can never collide with a not-yet-renamed original name or another
+// entry's own target — the standard safe technique for a bulk in-place
+// rename, and simpler than reasoning case-by-case about which collisions
+// are actually possible.
+export async function renameAllEntriesSequentially(): Promise<void> {
+  const dirHandle = getDirHandle();
+  if (!dirHandle){ toast('Open a dataset folder first.'); return; }
+  const disabledDirHandle = getDisabledDirHandle();
+  const byFilename = (a: Entry, b: Entry) => a.base.localeCompare(b.base, undefined, { numeric: true });
+  const active = getEntries().filter(e => !e.disabled).sort(byFilename);
+  const disabled = getEntries().filter(e => e.disabled).sort(byFilename);
+  const ordered = [...active, ...disabled];
+  if (ordered.length === 0){ toast('No images to rename.'); return; }
+
+  const width = String(ordered.length).length;
+  const extOf = (name: string): string => {
+    const i = name.lastIndexOf('.');
+    return i === -1 ? '' : name.slice(i);
+  };
+
+  interface RenamePlanItem {
+    entry: Entry;
+    dir: DirHandle;
+    oldBase: string;
+    oldImgName: string;
+    oldTxtName: string | null;
+    newBase: string;
+    newImgName: string;
+    newTxtName: string | null;
+  }
+  const plan: RenamePlanItem[] = ordered.map((entry, i) => {
+    const newBase = String(i + 1).padStart(width, '0');
+    return {
+      entry,
+      dir: entry.disabled ? disabledDirHandle! : dirHandle,
+      oldBase: entry.base,
+      oldImgName: entry.imgName || entry.base,
+      oldTxtName: entry.txtHandle ? (entry.txtName || `${entry.base}.txt`) : null,
+      newBase,
+      newImgName: newBase + extOf(entry.imgName || entry.base),
+      newTxtName: entry.txtHandle ? `${newBase}.txt` : null
+    };
+  });
+
+  try {
+    // Phase 1: every file to a unique temp name.
+    for (let i = 0; i < plan.length; i++){
+      const p = plan[i];
+      p.entry.imgHandle = await renameFileInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__${extOf(p.oldImgName)}`);
+      if (p.entry.txtHandle && p.oldTxtName){
+        p.entry.txtHandle = await renameFileInPlace(p.dir, p.oldTxtName, `__dts_rename_tmp_${i}__.txt`);
+      }
+    }
+    // Phase 2: every temp name to its real final name.
+    const affected: EditLogAffected[] = [];
+    for (const p of plan){
+      p.entry.imgHandle = await renameFileInPlace(p.dir, p.entry.imgHandle.name, p.newImgName);
+      if (p.entry.txtHandle){
+        p.entry.txtHandle = await renameFileInPlace(p.dir, p.entry.txtHandle.name, p.newTxtName!);
+      }
+      reindexEntry(p.oldBase, p.newBase);
+      p.entry.base = p.newBase;
+      p.entry.imgName = p.newImgName;
+      p.entry.txtName = `${p.newBase}.txt`;
+      affected.push({
+        base: p.newBase, prevBase: p.oldBase,
+        prevImgName: p.oldImgName, newImgName: p.newImgName,
+        prevTxtName: p.oldTxtName || undefined, newTxtName: p.newTxtName || undefined
+      });
+    }
+    pushLogEntry({
+      type: 'rename-files',
+      summary: `Renamed ${affected.length} image(s) to a simple 1-${ordered.length} sequence.`,
+      affected
+    });
+    toast(`Renamed ${affected.length} image(s).`, 3200);
+    resetSingleIndex();
+    refreshAllUIRef();
+  } catch(err){
+    toast('Something went wrong partway through — check folder permissions. Some files may already be renamed; check the Log panel for what completed.', 4600);
+    refreshAllUIRef();
+  }
+}
+
+// Batch undo/redo for a 'rename-files' log entry (edit-log.ts, injected the
+// same way applyTagDirection/moveEntry already are there — this file can't
+// be imported back from edit-log.ts, which this file itself imports
+// pushLogEntry/editLog from). Unlike the forward rename, no two-phase temp
+// names are needed: every target name on either direction is one that was
+// already proven unique at the time renameAllEntriesSequentially() ran (the
+// original filenames going into 'undo', the "01".."NN" sequence going into
+// 'redo'), so a plain one-at-a-time rename can't collide with another
+// affected entry's own target.
+export async function applyRenameDirection(affected: EditLogAffected[], direction: 'undo' | 'redo'): Promise<number> {
+  const dirHandle = getDirHandle();
+  if (!dirHandle) return 0;
+  const disabledDirHandle = getDisabledDirHandle();
+  let count = 0;
+  for (const a of affected){
+    if (!a.prevBase || !a.prevImgName || !a.newImgName) continue;
+    const fromBase = direction === 'undo' ? a.base : a.prevBase;
+    const toBase = direction === 'undo' ? a.prevBase : a.base;
+    const entry = getEntryByBase(fromBase);
+    if (!entry) continue;
+    const dir = entry.disabled ? disabledDirHandle : dirHandle;
+    if (!dir) continue;
+    const fromImgName = direction === 'undo' ? a.newImgName : a.prevImgName;
+    const toImgName = direction === 'undo' ? a.prevImgName : a.newImgName;
+    try {
+      entry.imgHandle = await renameFileInPlace(dir, fromImgName, toImgName);
+      if (entry.txtHandle && a.prevTxtName && a.newTxtName){
+        const fromTxtName = direction === 'undo' ? a.newTxtName : a.prevTxtName;
+        const toTxtName = direction === 'undo' ? a.prevTxtName : a.newTxtName;
+        entry.txtHandle = await renameFileInPlace(dir, fromTxtName, toTxtName);
+        entry.txtName = toTxtName;
+      }
+      reindexEntry(fromBase, toBase);
+      entry.base = toBase;
+      entry.imgName = toImgName;
+      count++;
+    } catch(err){ /* skip this one, keep going with the rest of the batch */ }
+  }
+  return count;
+}
+
 // Retroactive merge/void catch-up (checkbox-driven, per-log-entry replay)
 // was replaced by canonical-tags.ts's standing-rules dock — see its own
 // header comment for why (this old system gave no visibility into what it
 // was actually doing, and only caught up Disabled images retroactively at
 // all if the user remembered to go find and click a replay button).
 
-export function initTagsEdit(deps){
+interface TagsEditDeps {
+  getEntries: () => Entry[];
+  getEntryByBase: (base: string) => Entry | undefined;
+  getDirHandle: () => DirHandle | null;
+  getDisabledDirHandle: () => DirHandle | null;
+  setDisabledDirHandle: (h: DirHandle) => void;
+  reindexEntry: (oldBase: string, newBase: string) => void;
+  resetSingleIndex: () => void;
+  refreshStats: () => void;
+  refreshAllUI: () => void;
+  renderCurrentView: () => void;
+}
+
+export function initTagsEdit(deps: TagsEditDeps): void {
   getEntries = deps.getEntries;
   getEntryByBase = deps.getEntryByBase;
   getDirHandle = deps.getDirHandle;
   getDisabledDirHandle = deps.getDisabledDirHandle;
   setDisabledDirHandle = deps.setDisabledDirHandle;
+  reindexEntry = deps.reindexEntry;
   resetSingleIndex = deps.resetSingleIndex;
   refreshStatsRef = deps.refreshStats;
   refreshAllUIRef = deps.refreshAllUI;
@@ -307,14 +487,14 @@ export function initTagsEdit(deps){
 // now the caller passes in whichever Set + name apply to its own row, and
 // clears/re-renders on success. Logic itself is unchanged from before the
 // per-pruner split.
-export function applyUnifyToTags(tagsSet, unified){
+export function applyUnifyToTags(tagsSet: Set<string>, unified: string): boolean {
   unified = (unified || '').trim();
   if (!unified){ toast('Enter a name for the unified tag first.'); return false; }
   if (tagsSet.size === 0){ toast('Select at least one tag to merge.'); return false; }
 
   const affected = [];
   for (const e of getEntries()){
-    if (e.meta.locked || (e.disabled && !includeDisabledToggle.checked)) continue;
+    if (e.meta?.locked || (e.disabled && !includeDisabledToggle.checked)) continue;
     const hasAny = e.tags.some(t => tagsSet.has(t));
     if (!hasAny) continue;
     const prevTags = e.tags.slice();
@@ -340,7 +520,7 @@ export function applyUnifyToTags(tagsSet, unified){
   return true;
 }
 
-export async function applyVoidToTags(tagsSet){
+export async function applyVoidToTags(tagsSet: Set<string>): Promise<boolean> {
   if (tagsSet.size === 0){ toast('Select at least one tag to void.'); return false; }
   const tagList = Array.from(tagsSet);
   const preview = tagList.length > 4
@@ -356,7 +536,7 @@ export async function applyVoidToTags(tagsSet){
   const affected = [];
   let voidedTagInstances = 0;
   for (const e of getEntries()){
-    if (e.meta.locked || (e.disabled && !includeDisabledToggle.checked)) continue;
+    if (e.meta?.locked || (e.disabled && !includeDisabledToggle.checked)) continue;
     const hasAny = e.tags.some(t => tagsSet.has(t));
     if (!hasAny) continue;
     const prevTags = e.tags.slice();
@@ -401,7 +581,7 @@ export async function saveAllDirty(silent = false){
       const targetDir = e.disabled ? disabledDirHandle : dirHandle;
       if (!targetDir) { fail++; continue; }
       if (!e.txtHandle){
-        e.txtHandle = await targetDir.getFileHandle(e.txtName, { create: true });
+        e.txtHandle = await targetDir.getFileHandle(e.txtName!, { create: true });
       }
       const writable = await e.txtHandle.createWritable();
       await writable.write(e.tags.join(', '));

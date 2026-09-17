@@ -163,8 +163,9 @@ initial_prompt: >
   find_referencing_symbols on the moved/renamed symbol to catch stale call
   sites before considering the change done. Read the core/conventions memory
   pair before relying on assumptions about this codebase's non-obvious
-  conventions, and update them (not just CLAUDE.md) when a change establishes
-  a new durable convention, per CLAUDE.md's Maintenance Policy.
+  conventions, and update them (not just the `notes/` vault) when a change
+  establishes a new durable convention, per `notes/Maintenance-Policy.md`
+  (CLAUDE.md itself is just a pointer into `notes/` now, not the real doc).
   Strong preference: use Serena's own search_for_pattern (or find_symbol /
   find_referencing_symbols when the target is a named symbol) instead of a
   generic text-search tool for ANY code lookup in this repo — plain grep-style

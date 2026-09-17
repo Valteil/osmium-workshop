@@ -1,29 +1,31 @@
-// Phase B module: tag autocomplete dropdown (settings-gated) attached to
-// "+ add tag" inputs, plus its inline wiki-definition flash card. Several
-// things it needs (the wiki/all-tags loaders, per-tag custom notes,
-// addTagToEntry, refreshRightPanels) are core index.ts internals shared with
-// the separate Tag Details panel and tag-mutation system — those aren't part
-// of this extraction, so they're injected once via initTagAutocomplete()
-// instead of imported, avoiding a circular import with index.ts.
-// @ts-nocheck
-import { toast } from './shared-ui';
+import type { Entry } from './types';
+import { toast, attachLongPress } from './shared-ui';
 
 export let tagAutocompleteEnabled = false;
-export function setTagAutocompleteEnabled(on){
+export function setTagAutocompleteEnabled(on: boolean): void {
   tagAutocompleteEnabled = on;
   if (!tagAutocompleteEnabled) closeAutocomplete();
 }
 
-let autocompleteEl = null;
+let autocompleteEl: HTMLElement | null = null;
 
-let ensureWikiDataLoadedRef = null;
-let getCustomTagNoteRef = null;
-let setCustomTagNoteRef = null;
-let ensureAllTagsLoadedRef = null;
-let addTagToEntryRef = null;
-let refreshRightPanelsRef = null;
+interface TagAutocompleteDeps {
+  ensureWikiDataLoaded: () => Promise<Record<string, string>>;
+  getCustomTagNote: (tag: string) => string;
+  setCustomTagNote: (tag: string, note: string) => void;
+  ensureAllTagsLoaded: () => Promise<Map<string, { count?: number }>>;
+  addTagToEntry: (entry: Entry, tag: string) => void;
+  refreshRightPanels: () => void;
+}
 
-export function initTagAutocomplete(deps){
+let ensureWikiDataLoadedRef: TagAutocompleteDeps['ensureWikiDataLoaded'] | null = null;
+let getCustomTagNoteRef: TagAutocompleteDeps['getCustomTagNote'] | null = null;
+let setCustomTagNoteRef: TagAutocompleteDeps['setCustomTagNote'] | null = null;
+let ensureAllTagsLoadedRef: TagAutocompleteDeps['ensureAllTagsLoaded'] | null = null;
+let addTagToEntryRef: TagAutocompleteDeps['addTagToEntry'] | null = null;
+let refreshRightPanelsRef: TagAutocompleteDeps['refreshRightPanels'] | null = null;
+
+export function initTagAutocomplete(deps: TagAutocompleteDeps): void {
   ensureWikiDataLoadedRef = deps.ensureWikiDataLoaded;
   getCustomTagNoteRef = deps.getCustomTagNote;
   setCustomTagNoteRef = deps.setCustomTagNote;
@@ -32,54 +34,50 @@ export function initTagAutocomplete(deps){
   refreshRightPanelsRef = deps.refreshRightPanels;
 }
 
-export function closeAutocomplete(){
+export function closeAutocomplete(): void {
   hideInlineDefinition();
-  if (autocompleteEl){ autocompleteEl.remove(); autocompleteEl = null; }
+  if (autocompleteEl) { autocompleteEl.remove(); autocompleteEl = null; }
   document.removeEventListener('click', onDocClickCloseAutocomplete, true);
 }
 
-function onDocClickCloseAutocomplete(ev){
+function onDocClickCloseAutocomplete(ev: MouseEvent): void {
   if (!autocompleteEl) return;
   const path = typeof ev.composedPath === 'function' ? ev.composedPath() : [];
   if (path.includes(autocompleteEl)) return;
   closeAutocomplete();
 }
 
-function positionAutocomplete(rect){
+function positionAutocomplete(rect: DOMRect): void {
   if (!autocompleteEl) return;
   autocompleteEl.style.width = Math.max(220, rect.width) + 'px';
   autocompleteEl.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - autocompleteEl.offsetWidth - 8)) + 'px';
-  let top = rect.bottom + 4;
-  if (top + autocompleteEl.offsetHeight + 8 > window.innerHeight) top = rect.top - autocompleteEl.offsetHeight - 4;
+  const top = rect.top - autocompleteEl.offsetHeight - 4;
   autocompleteEl.style.top = Math.max(8, top) + 'px';
 }
 
-// Shows a small definition card nested under a hovered suggestion row —
-// falls back to a "write your own" prompt (reusing the same per-tag notes
-// store as the full Tag Details panel) when the bundled wiki has nothing.
-let acDefinitionHost = null; // the nested card currently shown, if any
-let acDefinitionTag = null;
-let acHideTimer = null;
+let acDefinitionHost: HTMLElement | null = null;
+let acDefinitionTag: string | null = null;
+let acHideTimer: ReturnType<typeof setTimeout> | null = null;
 
-function hideInlineDefinition(){
-  clearTimeout(acHideTimer);
-  if (acDefinitionHost){ acDefinitionHost.remove(); acDefinitionHost = null; acDefinitionTag = null; }
+function hideInlineDefinition(): void {
+  if (acHideTimer) clearTimeout(acHideTimer);
+  if (acDefinitionHost) { acDefinitionHost.remove(); acDefinitionHost = null; acDefinitionTag = null; }
 }
 
-function scheduleHideInlineDefinition(tag){
-  clearTimeout(acHideTimer);
+function scheduleHideInlineDefinition(tag: string): void {
+  if (acHideTimer) clearTimeout(acHideTimer);
   acHideTimer = setTimeout(() => {
     if (acDefinitionTag === tag) hideInlineDefinition();
   }, 150);
 }
 
-function showInlineDefinition(afterRow, tag){
-  clearTimeout(acHideTimer);
-  if (acDefinitionTag === tag) return; // already showing this one
+function showInlineDefinition(afterRow: HTMLElement, tag: string): void {
+  if (acHideTimer) clearTimeout(acHideTimer);
+  if (acDefinitionTag === tag) return;
   hideInlineDefinition();
   const card = document.createElement('div');
   card.className = 'ac-flash-card';
-  card.addEventListener('mouseenter', () => clearTimeout(acHideTimer));
+  card.addEventListener('mouseenter', () => { if (acHideTimer) clearTimeout(acHideTimer); });
   card.addEventListener('mouseleave', () => scheduleHideInlineDefinition(tag));
   afterRow.insertAdjacentElement('afterend', card);
   acDefinitionHost = card;
@@ -92,13 +90,13 @@ function showInlineDefinition(afterRow, tag){
 
   requestAnimationFrame(() => card.classList.add('show'));
 
-  ensureWikiDataLoadedRef().then(wiki => {
-    if (acDefinitionHost !== card) return; // hovered away (or dropdown closed) before this resolved
+  ensureWikiDataLoadedRef!().then(wiki => {
+    if (acDefinitionHost !== card) return;
     const wikiKey = tag.replace(/ /g, '_');
     const def = wiki[wikiKey];
-    const custom = !def ? getCustomTagNoteRef(tag) : '';
+    const custom = !def ? getCustomTagNoteRef!(tag) : '';
     body.innerHTML = '';
-    if (def || custom){
+    if (def || custom) {
       const defEl = document.createElement('div');
       defEl.className = 'ac-flash-def';
       defEl.textContent = def || custom;
@@ -111,16 +109,16 @@ function showInlineDefinition(afterRow, tag){
       const ta = document.createElement('textarea');
       ta.placeholder = 'Describe this tag…';
       ta.rows = 2;
-      ta.addEventListener('click', ev => ev.stopPropagation());
+      ta.addEventListener('click', (ev: Event) => ev.stopPropagation());
       body.appendChild(ta);
       const saveBtn = document.createElement('button');
       saveBtn.className = 'primary';
       saveBtn.textContent = 'Save definition';
-      saveBtn.addEventListener('click', (ev) => {
+      saveBtn.addEventListener('click', (ev: MouseEvent) => {
         ev.stopPropagation();
-        setCustomTagNoteRef(tag, ta.value);
+        setCustomTagNoteRef!(tag, ta.value);
         toast(`Saved your description for "${tag}".`);
-        acDefinitionTag = null; // force showInlineDefinition to redraw with the saved note
+        acDefinitionTag = null;
         showInlineDefinition(afterRow, tag);
       });
       body.appendChild(saveBtn);
@@ -128,35 +126,101 @@ function showInlineDefinition(afterRow, tag){
   });
 }
 
-// Wires a "+ add tag" input to the autocomplete panel. Typing filters the
-// bundled 1M+ tag vocabulary (all_tags.json is pre-sorted by post count,
-// so an early-exit scan surfaces the most relevant matches first without
-// needing to index the whole file). Hovering a suggestion for a second
-// previews its definition; clicking one adds it to the entry and closes
-// the panel, same as pressing Enter on typed text.
-export function attachTagAutocomplete(inputEl, getEntry, rerender){
-  let debounceTimer = null;
-  inputEl.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
-    if (!tagAutocompleteEnabled){ closeAutocomplete(); return; }
-    const raw = inputEl.value.trim();
-    if (!raw){ closeAutocomplete(); return; }
-    debounceTimer = setTimeout(() => runAutocompleteSearch(inputEl, getEntry, rerender, raw), 150);
+export function attachTagAutocomplete(inputEl: HTMLInputElement, getEntry: () => Entry | null, rerender: () => void): void {
+  attachAutocompleteCore(inputEl, (tag: string) => {
+    const entry = getEntry();
+    closeAutocomplete();
+    if (!entry) return;
+    addTagToEntryRef!(entry, tag);
+    inputEl.value = '';
+    rerender();
+    refreshRightPanelsRef!();
   });
-  inputEl.addEventListener('keydown', (ev) => {
+}
+
+export function attachFillAutocomplete(inputEl: HTMLInputElement): void {
+  attachAutocompleteCore(inputEl, (tag: string) => {
+    closeAutocomplete();
+    inputEl.value = tag;
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+export function attachListAutocomplete(inputEl: HTMLInputElement, getOptions: () => string[]): void {
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  inputEl.addEventListener('input', () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    const raw = inputEl.value.trim().toLowerCase();
+    if (!raw) { closeAutocomplete(); return; }
+    debounceTimer = setTimeout(() => {
+      if (inputEl.value.trim().toLowerCase() !== raw) return;
+      const options = getOptions() || [];
+      const results = options.filter(o => o.toLowerCase().includes(raw)).slice(0, 30);
+      renderListAutocompleteResults(inputEl, results, (val: string) => {
+        closeAutocomplete();
+        inputEl.value = val;
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }, 100);
+  });
+  inputEl.addEventListener('keydown', (ev: KeyboardEvent) => { if (ev.key === 'Escape') closeAutocomplete(); });
+}
+
+function renderListAutocompleteResults(inputEl: HTMLInputElement, results: string[], onPick: (val: string) => void): void {
+  if (!autocompleteEl) {
+    autocompleteEl = document.createElement('div');
+    autocompleteEl.className = 'ac-panel';
+    document.body.appendChild(autocompleteEl);
+    document.addEventListener('click', onDocClickCloseAutocomplete, true);
+  }
+  autocompleteEl.innerHTML = '';
+  if (results.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'ac-empty';
+    empty.textContent = 'No matches.';
+    autocompleteEl.appendChild(empty);
+  } else {
+    const list = document.createElement('div');
+    list.className = 'ac-list';
+    for (const val of results) {
+      const row = document.createElement('div');
+      row.className = 'ac-row';
+      const name = document.createElement('span');
+      name.className = 'ac-row-name';
+      name.textContent = val;
+      row.appendChild(name);
+      row.addEventListener('click', () => onPick(val));
+      list.appendChild(row);
+    }
+    autocompleteEl.appendChild(list);
+  }
+  positionAutocomplete(inputEl.getBoundingClientRect());
+}
+
+function attachAutocompleteCore(inputEl: HTMLInputElement, onPick: (tag: string) => void): void {
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  inputEl.addEventListener('input', () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    if (!tagAutocompleteEnabled) { closeAutocomplete(); return; }
+    const raw = inputEl.value.trim();
+    if (!raw) { closeAutocomplete(); return; }
+    debounceTimer = setTimeout(() => runAutocompleteSearch(inputEl, onPick, raw), 150);
+  });
+  inputEl.addEventListener('keydown', (ev: KeyboardEvent) => {
     if (ev.key === 'Escape') closeAutocomplete();
   });
 }
 
-function runAutocompleteSearch(inputEl, getEntry, rerender, query){
-  if (inputEl.value.trim() !== query) return; // stale by the time we're called
-  ensureAllTagsLoadedRef().then(allTags => {
-    if (inputEl.value.trim() !== query) return; // stale after the async load
+function runAutocompleteSearch(inputEl: HTMLInputElement, onPick: (tag: string) => void, query: string): void {
+  if (inputEl.value.trim() !== query) return;
+  ensureAllTagsLoadedRef!().then(allTags => {
+    if (inputEl.value.trim() !== query) return;
     const qNorm = query.toLowerCase().replace(/_/g, ' ');
-    const starts = [];
-    const contains = [];
+    const starts: [string, { count?: number }][] = [];
+    const contains: [string, { count?: number }][] = [];
     let scanned = 0;
-    for (const [key, meta] of allTags){
+    for (const [key, meta] of allTags) {
       const spaced = key.replace(/_/g, ' ');
       if (spaced.startsWith(qNorm)) starts.push([spaced, meta]);
       else if (spaced.includes(qNorm)) contains.push([spaced, meta]);
@@ -164,19 +228,19 @@ function runAutocompleteSearch(inputEl, getEntry, rerender, query){
       if (starts.length >= 30 || scanned >= 250000) break;
     }
     const results = starts.concat(contains).slice(0, 25);
-    renderAutocompleteResults(inputEl, getEntry, rerender, results);
+    renderAutocompleteResults(inputEl, onPick, results);
   });
 }
 
-function renderAutocompleteResults(inputEl, getEntry, rerender, results){
-  if (!autocompleteEl){
+function renderAutocompleteResults(inputEl: HTMLInputElement, onPick: (tag: string) => void, results: [string, { count?: number }][]): void {
+  if (!autocompleteEl) {
     autocompleteEl = document.createElement('div');
     autocompleteEl.className = 'ac-panel';
     document.body.appendChild(autocompleteEl);
     document.addEventListener('click', onDocClickCloseAutocomplete, true);
   }
   autocompleteEl.innerHTML = '';
-  if (results.length === 0){
+  if (results.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'ac-empty';
     empty.textContent = 'No matching tags in the vocabulary.';
@@ -184,36 +248,33 @@ function renderAutocompleteResults(inputEl, getEntry, rerender, results){
   } else {
     const list = document.createElement('div');
     list.className = 'ac-list';
-    for (const [tag, meta] of results){
+    for (const [tag, meta] of results) {
       const row = document.createElement('div');
       row.className = 'ac-row';
       const name = document.createElement('span');
       name.className = 'ac-row-name';
       name.textContent = tag;
       row.appendChild(name);
-      if (meta && typeof meta.count === 'number'){
+      if (meta && typeof meta.count === 'number') {
         const cnt = document.createElement('span');
         cnt.className = 'ac-row-count';
-        cnt.textContent = meta.count >= 1000 ? Math.round(meta.count/1000) + 'k' : String(meta.count);
+        cnt.textContent = meta.count >= 1000 ? Math.round(meta.count / 1000) + 'k' : String(meta.count);
         row.appendChild(cnt);
       }
-      let hoverTimer = null;
+      let hoverTimer: ReturnType<typeof setTimeout> | null = null;
       row.addEventListener('mouseenter', () => {
-        clearTimeout(hoverTimer);
+        if (hoverTimer) clearTimeout(hoverTimer);
         hoverTimer = setTimeout(() => showInlineDefinition(row, tag), 1000);
       });
       row.addEventListener('mouseleave', () => {
-        clearTimeout(hoverTimer);
+        if (hoverTimer) clearTimeout(hoverTimer);
         scheduleHideInlineDefinition(tag);
       });
+      let suppressNextClick = false;
+      attachLongPress(row, () => { suppressNextClick = true; showInlineDefinition(row, tag); });
       row.addEventListener('click', () => {
-        const entry = getEntry();
-        closeAutocomplete();
-        if (!entry) return;
-        addTagToEntryRef(entry, tag);
-        inputEl.value = '';
-        rerender();
-        refreshRightPanelsRef();
+        if (suppressNextClick) { suppressNextClick = false; return; }
+        onPick(tag);
       });
       list.appendChild(row);
     }

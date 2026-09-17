@@ -1,22 +1,16 @@
-// Phase B module: the in-app Help & Documentation panel (❓ Help, far right
-// of the top bar). A table-of-contents on the left picks which section is
-// shown, one at a time, in the content pane on the right — the actual
-// documentation text lives in help-docs.ts, this module is only the viewer
-// (render TOC, swap content, remember the last section, open/close).
-// @ts-nocheck
-import { btnHelp, helpModal, helpToc, helpContent, helpCloseBtn } from './dom';
+import { btnHelp, helpModal, helpToc, helpTocToggle, helpContent, helpCloseBtn } from './dom';
 import { HELP_SECTIONS } from './help-docs';
-import { initInfoButtons } from './shared-ui';
+import { initInfoButtons, positionMenu } from './shared-ui';
 
 const HELP_LAST_SECTION_KEY = 'dts-help-last-section';
 
-function renderToc(activeId){
+function renderToc(activeId: string): void {
   helpToc.innerHTML = '';
   const heading = document.createElement('div');
   heading.className = 'help-toc-title';
   heading.textContent = 'Contents';
   helpToc.appendChild(heading);
-  for (const sec of HELP_SECTIONS){
+  for (const sec of HELP_SECTIONS) {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'help-toc-item' + (sec.id === activeId ? ' active' : '');
@@ -26,34 +20,71 @@ function renderToc(activeId){
   }
 }
 
-function showSection(id){
+function showSection(id: string): void {
   const sec = HELP_SECTIONS.find(s => s.id === id) || HELP_SECTIONS[0];
   helpContent.innerHTML = `<h2>${sec.title}</h2>${sec.html}`;
   helpContent.scrollTop = 0;
   initInfoButtons(helpContent);
   renderToc(sec.id);
-  try { localStorage.setItem(HELP_LAST_SECTION_KEY, sec.id); } catch(e){}
+  try { localStorage.setItem(HELP_LAST_SECTION_KEY, sec.id); } catch {}
 }
 
-function openHelp(){
+function openHelp(): void {
   let last = HELP_SECTIONS[0].id;
-  try { last = localStorage.getItem(HELP_LAST_SECTION_KEY) || last; } catch(e){}
+  try { last = localStorage.getItem(HELP_LAST_SECTION_KEY) || last; } catch {}
   if (!HELP_SECTIONS.some(s => s.id === last)) last = HELP_SECTIONS[0].id;
   showSection(last);
   helpModal.style.display = 'flex';
   requestAnimationFrame(() => requestAnimationFrame(() => helpModal.classList.add('modal-visible')));
 }
 
-function closeHelp(){
+function closeHelp(): void {
   helpModal.classList.remove('modal-visible');
   setTimeout(() => { helpModal.style.display = 'none'; }, 160);
 }
 
-export function initHelp(){
+let tocMenuEl: HTMLElement | null = null;
+function closeTocMenu(): void {
+  if (tocMenuEl) { tocMenuEl.remove(); tocMenuEl = null; }
+  document.removeEventListener('click', onTocMenuOutsideClick, true);
+}
+function onTocMenuOutsideClick(ev: MouseEvent): void {
+  if (tocMenuEl && !tocMenuEl.contains(ev.target as Node) && ev.target !== helpTocToggle) closeTocMenu();
+}
+function openTocMenu(activeId: string): void {
+  closeTocMenu();
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  for (const sec of HELP_SECTIONS) {
+    const item = document.createElement('button');
+    item.className = 'ctx-item' + (sec.id === activeId ? ' active' : '');
+    item.textContent = sec.title;
+    item.addEventListener('click', (ev: MouseEvent) => {
+      ev.stopPropagation();
+      closeTocMenu();
+      showSection(sec.id);
+    });
+    menu.appendChild(item);
+  }
+  document.body.appendChild(menu);
+  tocMenuEl = menu;
+  const rect = helpTocToggle.getBoundingClientRect();
+  positionMenu(menu, rect.left, rect.bottom + 4);
+  setTimeout(() => document.addEventListener('click', onTocMenuOutsideClick, true), 0);
+}
+
+export function initHelp(): void {
   btnHelp.addEventListener('click', openHelp);
   helpCloseBtn.addEventListener('click', closeHelp);
-  helpModal.addEventListener('click', (ev) => { if (ev.target === helpModal) closeHelp(); });
-  document.addEventListener('keydown', (ev) => {
+  helpTocToggle.addEventListener('click', (ev: MouseEvent) => {
+    ev.stopPropagation();
+    if (tocMenuEl) { closeTocMenu(); return; }
+    let last = HELP_SECTIONS[0].id;
+    try { last = localStorage.getItem(HELP_LAST_SECTION_KEY) || last; } catch {}
+    openTocMenu(last);
+  });
+  helpModal.addEventListener('click', (ev: MouseEvent) => { if (ev.target === helpModal) closeHelp(); });
+  document.addEventListener('keydown', (ev: KeyboardEvent) => {
     if (ev.key === 'Escape' && helpModal.style.display !== 'none') closeHelp();
   });
 }

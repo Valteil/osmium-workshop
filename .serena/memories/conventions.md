@@ -218,9 +218,8 @@ ComfyUI instance and pulling the real submitted graph back out of `GET /history/
 resolves packed subgraphs and mute/bypass state exactly like ComfyUI's own compiler would (hand-
 converting the UI-format export would have meant reimplementing that compiler). 1-Pass vs 2-Pass
 is presence/absence of nodes in the submitted dict, not a mode flag — there's no such concept in
-the API format. See `CLAUDE.md`'s own SynthDat Overseer entries (Critical Constraints, Key Code
-Locations) for the full node-id map rather than duplicating it here; keep both in sync if the
-template ever changes.
+the API format. See `notes/SynthDat-Node-Map.md` and `notes/SynthDat-Overseer.md` for the full node-id map rather
+than duplicating it here; keep both in sync if the template ever changes.
 
 Two durable, broadly-reusable techniques from building it:
 1. **Reconstructing "tag X was merged into tag Y" from the edit log, with no schema change —
@@ -310,7 +309,7 @@ Disabled images too, per an earlier "it should autosweep all existing since it i
 instruction) — a later request in the same overall feature's lifecycle explicitly asked for
 Gallery-only scope instead, confirmed via a clarifying question before implementing. If a future
 session sees "retroactive" in the dock's name and assumes it should sweep Disabled entries, check
-`canonical-tags.ts`'s header comment and CLAUDE.md's own pitfall entry first — this was a
+`canonical-tags.ts`'s header comment and `notes/Retroactive-Merge-Void.md` first — this was a
 confirmed decision, not an oversight.
 
 Three "full control" additions layered onto the base rule shape (`{id, canonical, children,
@@ -450,9 +449,13 @@ one-time backward-compat scan of a leftover `Unsaved Approved/` folder from an o
 (if present) and folds its contents into the active set as ordinary entries, so nobody upgrading
 loses images that were stuck there — but nothing writes into that folder anymore going forward.
 
-**Doc maintenance policy** (`CLAUDE.md`'s own "Maintenance Policy" section): after any
-feature/bugfix judged "major" (user-requested feature, a bug that took real investigation, or
-anything changing what `CLAUDE.md` currently asserts), update `CLAUDE.md` (Critical Decisions,
-feature lists, footer "Latest state") in the same session. `DEVELOPMENT_LOG.txt` is retired/frozen
-(see `mem:core`) — a Serena memory update is the replacement for what used to be a new changelog
-entry, not required in addition to one.
+**Doc maintenance policy** (`notes/Maintenance-Policy.md` — `CLAUDE.md` itself is now just a
+pointer into `notes/`, see `mem:core`): after any feature/bugfix judged "major" (user-requested
+feature, a bug that took real investigation, or anything changing what a `notes/` note currently
+asserts), update the relevant `notes/` note(s) — new pitfall → `notes/Pitfalls/`, linked from
+`Pitfalls/Index.md` and the feature note it relates to; a moved/renamed function → update that
+feature note's code pointers — in the same session. `DEVELOPMENT_LOG.txt` is retired/frozen (see
+`mem:core`). These two maintenance surfaces are NOT redundant with each other: `notes/` is
+project context/documentation (what a human, or Claude starting a fresh session, wants to read);
+this Serena memory graph is for code-navigation conventions. Update BOTH when a change is both —
+durable enough to explain in prose AND a convention worth Serena surfacing on its own.

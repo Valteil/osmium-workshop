@@ -15,8 +15,12 @@ All run from this directory (the project root).
   sufficient): after `refresh-app`, launch with
   `ELECTRON_ENABLE_LOGGING=1 "./Dataset Tag Studio.exe" --enable-logging=stderr` (Bash tool;
   redirect to a log file and background it), wait a few seconds, grep the log for
-  `error|uncaught|exception`, then `taskkill //IM "Dataset Tag Studio.exe" //F` to close every
-  spawned instance (electron-builder unpacked builds spawn multiple processes).
+  `error|uncaught|exception`. **Do NOT `taskkill` the launched instance(s) afterward, and don't
+  kill a pre-existing running instance before launching either** — per explicit user instruction,
+  the user handles process lifecycle themselves; leave whatever's running alone once the log looks
+  clean. (If `refresh-app` itself fails with an EBUSY-style lock error because the app is already
+  running, report that rather than killing it — see the rcedit-retry note below for the difference
+  between a transient retry and a real lock.)
 - No test suite, linter, or formatter is configured in this repo — don't look for one.
 
 **Windows/PowerShell-vs-Bash-tool notes:**

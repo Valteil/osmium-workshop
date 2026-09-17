@@ -7,7 +7,6 @@
 // see CLAUDE.md's Known Pitfalls) instead of a second, divergent copy.
 // Self-contained: only touches its own dock* state (owned here now) plus DOM
 // refs and the generic toast() helper.
-// @ts-nocheck — real types land once index.ts itself is typed.
 import { normalRightTools, rightAside, btnResetDockLayout } from './dom';
 import { toast } from './shared-ui';
 
@@ -20,6 +19,14 @@ function dockMotionEnabled(){
   return !document.documentElement.classList.contains('motion-off');
 }
 
+// Matches renderer/styles.css's own `@media (max-width: 900px)` breakpoint
+// (the mobile/narrow-viewport layout switch) — checked live, not captured
+// once, because #normalRightTools is the SAME container element on desktop
+// and in the mobile bottom panel (repositioned by CSS, not duplicated), so
+// its dock manager has to decide vertical-vs-horizontal fresh on every
+// collapse/resize rather than being locked into one mode at creation time.
+const mobileDockLayoutQuery = matchMedia('(max-width: 900px)');
+
 // One manager = one independent reorder/collapse/resize domain: a single
 // container element whose direct `.tool-section[data-dock-id]` children can
 // be dragged relative to EACH OTHER (not across managers), plus its own
@@ -27,12 +34,31 @@ function dockMotionEnabled(){
 // system is just one instance of this; SynthDat Overseer's two columns are
 // two more, each scoped to its own column so a drag never moves a section
 // out of the column it started in.
-export function createDockManager({ container, storageOrderKey, storageCollapsedKey, storageHeightsKey, defaultOrder, scrollContainer }){
-  let dockOrder = defaultOrder.slice();
-  let dockCollapsed = {};
-  let dockHeights = {};
+//
+// `horizontalOnMobile: true` (only ever set for the right-sidebar manager
+// below) makes collapse/resize switch from height to width whenever
+// `mobileDockLayoutQuery` matches — see the mobile bottom panel design in
+// notes/Mobile-Port.md. Every other manager (SynthDat's columns) ignores it
+// and always collapses by height, regardless of viewport width.
+interface DockManagerConfig {
+  container: HTMLElement;
+  storageOrderKey: string;
+  storageCollapsedKey: string;
+  storageHeightsKey: string;
+  defaultOrder: string[];
+  scrollContainer: HTMLElement | null;
+  horizontalOnMobile?: boolean;
+}
 
-  function saveDockPrefs(){
+export function createDockManager({ container, storageOrderKey, storageCollapsedKey, storageHeightsKey, defaultOrder, scrollContainer, horizontalOnMobile }: DockManagerConfig): { init: () => void; reset: () => void } {
+  function isHorizontal(): boolean {
+    return !!horizontalOnMobile && mobileDockLayoutQuery.matches;
+  }
+  let dockOrder = defaultOrder.slice();
+  let dockCollapsed: Record<string, boolean> = {};
+  let dockHeights: Record<string, string> = {};
+
+  function saveDockPrefs(): void {
     try {
       localStorage.setItem(storageOrderKey, JSON.stringify(dockOrder));
       localStorage.setItem(storageCollapsedKey, JSON.stringify(dockCollapsed));
@@ -40,7 +66,7 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
     } catch(e){}
   }
 
-  function loadDockPrefs(){
+  function loadDockPrefs(): void {
     try {
       const o = JSON.parse(localStorage.getItem(storageOrderKey) || 'null');
       if (Array.isArray(o) && o.length) dockOrder = o;
@@ -49,15 +75,14 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
     } catch(e){}
   }
 
-  function applyDockOrder(){
-    const sections = Array.from(container.querySelectorAll('.tool-section[data-dock-id]'));
+  function applyDockOrder(): void {
+    const sections = Array.from(container.querySelectorAll<HTMLElement>('.tool-section[data-dock-id]'));
     for (const id of dockOrder){
       const sec = sections.find(s => s.dataset.dockId === id);
       if (sec) container.appendChild(sec);
     }
-    // append any dock ids not yet known (future-proofing)
     for (const sec of sections){
-      if (!dockOrder.includes(sec.dataset.dockId)) container.appendChild(sec);
+      if (!dockOrder.includes(sec.dataset.dockId!)) container.appendChild(sec);
     }
   }
 
@@ -70,34 +95,65 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
   // looks the same as animating one combined wrapper would, without needing
   // to introduce a synthetic wrapper div around content another part of this
   // module also reaches into.
-  function applyDockCollapse(sec, id, animate){
-    const scrollBody = sec.querySelector('.dock-scroll-body');
-    const bodyEls = scrollBody ? [scrollBody] : Array.from(sec.children).filter(el =>
+  // `horizontal` (per-manager, set only for the mobile bottom panel's
+  // instance — see index.ts) swaps every height-axis property for its
+  // width-axis equivalent below: same structure/timing/cleanup as the
+  // vertical case, just collapsing width instead of height so a dock
+  // shrinks sideways rather than vertically. Built from `dim`/`axis`
+  // rather than duplicating the function, so the two stay in sync.
+  function applyDockCollapse(sec: HTMLElement, id: string, animate = false): void {
+    const horizontal = isHorizontal();
+    const maxProp = horizontal ? 'maxWidth' : 'maxHeight';
+    const scrollProp = horizontal ? 'scrollWidth' : 'scrollHeight';
+    const overflowProp = horizontal ? 'overflowX' : 'overflowY';
+    const cssProp = horizontal ? 'max-width' : 'max-height';
+
+    const scrollBody = sec.querySelector('.dock-scroll-body') as HTMLElement | null;
+    const bodyEls: HTMLElement[] = scrollBody ? [scrollBody] : (Array.from(sec.children) as HTMLElement[]).filter(el =>
       !el.classList.contains('sec-head') && !el.classList.contains('dock-resize-handle')
     );
-    const resizeHandle = sec.querySelector('.dock-resize-handle');
+    const resizeHandle = sec.querySelector('.dock-resize-handle') as HTMLElement | null;
     const resizeTarget = scrollBody || sec;
     const collapsing = !!dockCollapsed[id];
-    const finalMaxHeight = collapsing ? '' : (dockHeights[id] || '');
-    const finalOverflowY = collapsing ? '' : (dockHeights[id] ? 'auto' : '');
+    const finalMaxDim = collapsing ? '' : (dockHeights[id] || '');
+    const finalOverflow = collapsing ? '' : (dockHeights[id] ? 'auto' : '');
+
+    // Horizontal mode's outer dock box (`sec`) has a fixed CSS `width`
+    // (styles.css) independent of its content — unlike vertical mode,
+    // where the box's height is purely content-driven, so collapsing
+    // `resizeTarget` (the content body, below) naturally shrinks the whole
+    // box for free. Horizontally, that same content-only collapse just
+    // hid the list while the box stayed at its full fixed width — this
+    // animates `sec`'s own width down to its header strip's width too, in
+    // parallel with (not instead of) the existing content fade below, so
+    // the dock actually "slims out" rather than just emptying out in place.
+    const headEl = horizontal ? sec.querySelector('.sec-head') : null;
+    const outerCollapsedWidth = headEl ? (headEl.getBoundingClientRect().width + 24) + 'px' : '100px';
 
     if (!animate || !dockMotionEnabled()){
       bodyEls.forEach(el => { el.style.display = collapsing ? 'none' : ''; });
       if (resizeHandle) resizeHandle.style.display = collapsing ? 'none' : '';
-      resizeTarget.style.maxHeight = finalMaxHeight;
-      resizeTarget.style.overflowY = finalOverflowY;
+      resizeTarget.style[maxProp] = finalMaxDim;
+      resizeTarget.style[overflowProp] = finalOverflow;
+      if (horizontal) sec.style.maxWidth = collapsing ? outerCollapsedWidth : '';
       return;
     }
 
-    const trans = `max-height ${DOCK_ANIM_MS}ms ease, opacity ${DOCK_ANIM_MS}ms ease`;
+    if (horizontal){
+      sec.style.transition = `max-width ${DOCK_ANIM_MS}ms ease`;
+      requestAnimationFrame(() => { sec.style.maxWidth = collapsing ? outerCollapsedWidth : ''; });
+      setTimeout(() => { sec.style.transition = ''; }, DOCK_ANIM_MS);
+    }
+
+    const trans = `${cssProp} ${DOCK_ANIM_MS}ms ease, opacity ${DOCK_ANIM_MS}ms ease`;
     if (collapsing){
       bodyEls.forEach(el => {
         el.style.overflow = 'hidden';
-        el.style.maxHeight = el.scrollHeight + 'px';
+        el.style[maxProp] = el[scrollProp] + 'px';
         el.style.opacity = '1';
         el.style.transition = trans;
         void el.offsetHeight; // force the browser to register the start state before we change it
-        requestAnimationFrame(() => { el.style.maxHeight = '0px'; el.style.opacity = '0'; });
+        requestAnimationFrame(() => { el.style[maxProp] = '0px'; el.style.opacity = '0'; });
       });
       if (resizeHandle) resizeHandle.style.display = 'none';
       setTimeout(() => {
@@ -105,17 +161,17 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
           el.style.display = 'none';
           el.style.transition = '';
           el.style.overflow = '';
-          el.style.maxHeight = '';
+          el.style[maxProp] = '';
           el.style.opacity = '';
         });
-        resizeTarget.style.maxHeight = '';
-        resizeTarget.style.overflowY = '';
+        resizeTarget.style[maxProp] = '';
+        resizeTarget.style[overflowProp] = '';
       }, DOCK_ANIM_MS);
     } else {
       bodyEls.forEach(el => {
         el.style.display = '';
         el.style.overflow = 'hidden';
-        el.style.maxHeight = '0px';
+        el.style[maxProp] = '0px';
         el.style.opacity = '0';
         el.style.transition = trans;
       });
@@ -123,31 +179,31 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
       void sec.offsetHeight;
       requestAnimationFrame(() => {
         bodyEls.forEach(el => {
-          el.style.maxHeight = (el === scrollBody && dockHeights[id]) ? dockHeights[id] : el.scrollHeight + 'px';
+          el.style[maxProp] = (el === scrollBody && dockHeights[id]) ? dockHeights[id] : el[scrollProp] + 'px';
           el.style.opacity = '1';
         });
       });
       setTimeout(() => {
-        // Each bodyEl's own max-height/opacity were only ever set to drive
+        // Each bodyEl's own max-dim/opacity were only ever set to drive
         // this transition — left in place afterward, they never went back to
-        // `''` (auto), permanently pinning that row to whatever scrollHeight
-        // happened to be measured mid-animation. That stale max-height still
+        // `''` (auto), permanently pinning that row to whatever scroll size
+        // happened to be measured mid-animation. That stale max-dim still
         // let content overflow visibly rather than resizing anything, but it's
         // wrong either way and this is the actual fix for it, not just a
         // resizeTarget concern.
         bodyEls.forEach(el => {
           el.style.transition = '';
-          el.style.overflow = (el === scrollBody) ? (finalOverflowY || '') : '';
-          el.style.maxHeight = (el === scrollBody) ? finalMaxHeight : '';
+          el.style.overflow = (el === scrollBody) ? (finalOverflow || '') : '';
+          el.style[maxProp] = (el === scrollBody) ? finalMaxDim : '';
           el.style.opacity = '';
         });
-        resizeTarget.style.maxHeight = finalMaxHeight;
-        resizeTarget.style.overflowY = finalOverflowY;
+        resizeTarget.style[maxProp] = finalMaxDim;
+        resizeTarget.style[overflowProp] = finalOverflow;
       }, DOCK_ANIM_MS);
     }
   }
 
-  function reorderDock(draggedId, targetId, after){
+  function reorderDock(draggedId: string, targetId: string, after: boolean): void {
     dockOrder = dockOrder.filter(x => x !== draggedId);
     let idx = dockOrder.indexOf(targetId);
     if (idx === -1) idx = dockOrder.length;
@@ -157,15 +213,15 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
     applyDockOrder();
   }
 
-  function setupDockSection(sec){
+  function setupDockSection(sec: HTMLElement): void {
     const id = sec.dataset.dockId;
     if (!id || sec.dataset.dockified) return;
     sec.dataset.dockified = '1';
     const resizable = sec.dataset.resizable === 'true';
-    const scrollBody = sec.querySelector('.dock-scroll-body');
+    const scrollBody = sec.querySelector('.dock-scroll-body') as HTMLElement | null;
     const resizeTarget = scrollBody || sec;
 
-    const head = sec.querySelector('.sec-head');
+    const head = sec.querySelector('.sec-head') as HTMLElement | null;
     if (head){
       head.style.display = 'flex';
       head.style.alignItems = 'center';
@@ -178,8 +234,8 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
       dragHandle.title = 'Drag to reorder this panel';
       dragHandle.draggable = true;
       dragHandle.addEventListener('dragstart', (ev) => {
-        ev.dataTransfer.setData('text/plain', id);
-        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer!.setData('text/plain', id!);
+        ev.dataTransfer!.effectAllowed = 'move';
         sec.classList.add('dock-dragging');
       });
       dragHandle.addEventListener('dragend', () => sec.classList.remove('dock-dragging'));
@@ -187,12 +243,18 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
       const collapseBtn = document.createElement('button');
       collapseBtn.className = 'dock-collapse-btn';
       collapseBtn.title = 'Collapse / expand this panel';
-      collapseBtn.textContent = dockCollapsed[id] ? '▶' : '▼';
+      // Collapsed always points ▶ (the direction the dock would expand
+      // back into) — but which way EXPANDED points depends on axis: ▼
+      // (collapses downward) vertically, ◀ (collapses back to the right,
+      // toward the edge the width shrinks from) horizontally, matching the
+      // usual disclosure-triangle convention rotated for a sideways dock.
+      const collapseGlyph = () => dockCollapsed[id] ? '▶' : (isHorizontal() ? '◀' : '▼');
+      collapseBtn.textContent = collapseGlyph();
       collapseBtn.addEventListener('click', () => {
         dockCollapsed[id] = !dockCollapsed[id];
         saveDockPrefs();
         applyDockCollapse(sec, id, true);
-        collapseBtn.textContent = dockCollapsed[id] ? '▶' : '▼';
+        collapseBtn.textContent = collapseGlyph();
       });
 
       controls.appendChild(dragHandle);
@@ -200,12 +262,12 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
       head.appendChild(controls);
     }
 
-    sec.addEventListener('dragover', (ev) => { ev.preventDefault(); sec.classList.add('dock-drop-target'); });
+    sec.addEventListener('dragover', (ev: DragEvent) => { ev.preventDefault(); sec.classList.add('dock-drop-target'); });
     sec.addEventListener('dragleave', () => sec.classList.remove('dock-drop-target'));
-    sec.addEventListener('drop', (ev) => {
+    sec.addEventListener('drop', (ev: DragEvent) => {
       ev.preventDefault();
       sec.classList.remove('dock-drop-target');
-      const draggedId = ev.dataTransfer.getData('text/plain');
+      const draggedId = ev.dataTransfer!.getData('text/plain');
       // Validated against an actual dock currently in the DOM, NOT against
       // `dockOrder.includes(draggedId)` — that used to silently no-op the
       // drop for any dock missing from a stale PERSISTED order (e.g. a
@@ -234,58 +296,78 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
       resizeHandle.className = 'dock-resize-handle';
       resizeHandle.title = 'Drag to resize this panel';
       sec.appendChild(resizeHandle);
-      resizeHandle.addEventListener('mousedown', (ev) => {
-        if (dockCollapsed[id]) return;
+      // Pointer events (not mousedown-only) so this is touch-draggable too —
+      // matters on the mobile bottom panel, which is the only place
+      // `horizontalOnMobile` ever actually goes horizontal, but there's no
+      // reason to keep the desktop vertical handle mouse-only either.
+      resizeHandle.addEventListener('pointerdown', (ev) => {
+        if (dockCollapsed[id!]) return;
         ev.preventDefault();
-        const startY = ev.clientY;
-        const startHeight = resizeTarget.getBoundingClientRect().height;
-        function onMove(mv){
-          const newHeight = Math.max(90, startHeight + (mv.clientY - startY));
-          resizeTarget.style.maxHeight = newHeight + 'px';
-          resizeTarget.style.overflowY = 'auto';
+        const horizontal = isHorizontal();
+        const maxProp = horizontal ? 'maxWidth' : 'maxHeight' as const;
+        const overflowProp = horizontal ? 'overflowX' : 'overflowY' as const;
+        resizeHandle.setPointerCapture(ev.pointerId);
+        const startPos = horizontal ? ev.clientX : ev.clientY;
+        const startDim = horizontal ? resizeTarget.getBoundingClientRect().width : resizeTarget.getBoundingClientRect().height;
+        function onMove(mv: PointerEvent): void {
+          const pos = horizontal ? mv.clientX : mv.clientY;
+          const newDim = Math.max(90, startDim + (pos - startPos));
+          resizeTarget.style[maxProp] = newDim + 'px';
+          resizeTarget.style[overflowProp] = 'auto';
 
-          // Auto-scroll the containing scroll area so the cursor never drifts off-screen mid-drag
           if (scrollContainer){
             const rect = scrollContainer.getBoundingClientRect();
             const edgeMargin = 50;
-            if (mv.clientY < rect.top + edgeMargin){
-              scrollContainer.scrollTop -= Math.max(4, (rect.top + edgeMargin - mv.clientY));
-            } else if (mv.clientY > rect.bottom - edgeMargin){
-              scrollContainer.scrollTop += Math.max(4, (mv.clientY - (rect.bottom - edgeMargin)));
+            if (horizontal){
+              if (mv.clientX < rect.left + edgeMargin){
+                scrollContainer.scrollLeft -= Math.max(4, (rect.left + edgeMargin - mv.clientX));
+              } else if (mv.clientX > rect.right - edgeMargin){
+                scrollContainer.scrollLeft += Math.max(4, (mv.clientX - (rect.right - edgeMargin)));
+              }
+            } else {
+              if (mv.clientY < rect.top + edgeMargin){
+                scrollContainer.scrollTop -= Math.max(4, (rect.top + edgeMargin - mv.clientY));
+              } else if (mv.clientY > rect.bottom - edgeMargin){
+                scrollContainer.scrollTop += Math.max(4, (mv.clientY - (rect.bottom - edgeMargin)));
+              }
             }
           }
         }
-        function onUp(){
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-          dockHeights[id] = resizeTarget.style.maxHeight;
+        function onUp(): void {
+          resizeHandle.removeEventListener('pointermove', onMove);
+          resizeHandle.removeEventListener('pointerup', onUp);
+          resizeHandle.removeEventListener('pointercancel', onUp);
+          dockHeights[id!] = resizeTarget.style[maxProp];
           saveDockPrefs();
         }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
+        resizeHandle.addEventListener('pointermove', onMove);
+        resizeHandle.addEventListener('pointerup', onUp);
+        resizeHandle.addEventListener('pointercancel', onUp);
       });
     }
   }
 
-  function init(){
+  function init(): void {
     loadDockPrefs();
     applyDockOrder();
-    container.querySelectorAll('.tool-section[data-dock-id]').forEach(setupDockSection);
+    container.querySelectorAll<HTMLElement>('.tool-section[data-dock-id]').forEach(setupDockSection);
   }
 
-  function reset(){
+  function reset(): void {
     dockOrder = defaultOrder.slice();
     dockCollapsed = {};
     dockHeights = {};
     saveDockPrefs();
     applyDockOrder();
-    container.querySelectorAll('.tool-section[data-dock-id]').forEach(sec => {
-      const resizeTarget = sec.querySelector('.dock-scroll-body') || sec;
-      resizeTarget.style.maxHeight = '';
-      resizeTarget.style.overflowY = '';
-      applyDockCollapse(sec, sec.dataset.dockId);
+    const horizontal = isHorizontal();
+    container.querySelectorAll<HTMLElement>('.tool-section[data-dock-id]').forEach(sec => {
+      const resizeTarget = (sec.querySelector('.dock-scroll-body') || sec) as HTMLElement;
+      resizeTarget.style[horizontal ? 'maxWidth' : 'maxHeight'] = '';
+      resizeTarget.style[horizontal ? 'overflowX' : 'overflowY'] = '';
+      if (horizontal) sec.style.maxWidth = '';
+      applyDockCollapse(sec, sec.dataset.dockId!);
       const collapseBtn = sec.querySelector('.dock-collapse-btn');
-      if (collapseBtn) collapseBtn.textContent = '▼';
+      if (collapseBtn) collapseBtn.textContent = horizontal ? '◀' : '▼';
     });
   }
 
@@ -299,14 +381,15 @@ const rightToolsDockManager = createDockManager({
   storageCollapsedKey: 'dts-dock-collapsed',
   storageHeightsKey: 'dts-dock-heights',
   defaultOrder: ['tagPruner', 'unifyVoid', 'canonicalTags'],
-  scrollContainer: rightAside
+  scrollContainer: rightAside,
+  horizontalOnMobile: true
 });
 
-export function initDockSystem(){
+export function initDockSystem(): void {
   rightToolsDockManager.init();
 }
 
-export function resetDockLayout(){
+export function resetDockLayout(): void {
   rightToolsDockManager.reset();
   toast('Panel layout reset to default.');
 }
@@ -321,15 +404,15 @@ btnResetDockLayout.addEventListener('click', resetDockLayout);
 // collapsing/reordering them would just get in the way. No resize handles
 // here (not asked for, and there's no dedicated scroll container analogous
 // to `rightAside` to auto-scroll during a drag).
-let synthDatDockManager = null;
+let synthDatDockManager: { init: () => void; reset: () => void } | null = null;
 
-export function initSynthDatSectionDocks(container){
+export function initSynthDatSectionDocks(container: HTMLElement): void {
   synthDatDockManager = createDockManager({
     container,
     storageOrderKey: 'dts-synthdat-dock-order',
     storageCollapsedKey: 'dts-synthdat-dock-collapsed',
     storageHeightsKey: 'dts-synthdat-dock-heights',
-    defaultOrder: Array.from(container.querySelectorAll('.tool-section[data-dock-id]')).map(sec => sec.dataset.dockId),
+    defaultOrder: Array.from(container.querySelectorAll<HTMLElement>('.tool-section[data-dock-id]')).map(sec => sec.dataset.dockId!),
     scrollContainer: null
   });
   synthDatDockManager.init();

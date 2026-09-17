@@ -1,9 +1,4 @@
-// Phase B module: the per-folder edit log (undo/redo history persisted to
-// disk) and the Stats tab charts built from it. A handful of core index.ts
-// internals (dirHandle, entryByBase, applyTagDirection, moveEntry, trackStat,
-// checkAchievements, refreshAllUI, the undo/redo stacks) are injected once via
-// initEditLog() since index.ts's IIFE can't export them.
-// @ts-nocheck
+import type { EditLogEntry, EditLogAffected, Entry, DirHandle } from './types';
 import {
   btnLog, logPanel, logPanelTitle, logList, btnExportLog, btnClearLog, logCloseBtn,
   themeCustomPanel, favoritesPanel, achievementsPanel, shopPanel, tagDetailsPanel,
@@ -12,24 +7,38 @@ import {
 import { toast, showPanel, hidePanel, showConfirmModal } from './shared-ui';
 import { folderUnlocked } from './achievements';
 
-export let editLog = [];       // [{id, ts, type, summary, affected:[{base, prevTags, newTags}]}]
+export let editLog: EditLogEntry[] = [];
 export let logIdCounter = 1;
-let statsChartMode = 'pie';
+let statsChartMode: 'pie' | 'bar' = 'pie';
 
 const LOG_FILE_NAME = '_tag_edit_log.json';
 
-let getDirHandle = () => null;
-let getEntryByBase = () => undefined;
-let applyTagDirectionRef = () => 0;
-let moveEntryRef = async () => {};
-let trackStatRef = () => {};
-let checkAchievementsRef = () => {};
-let refreshAllUIRef = () => {};
-let getUndoStack = () => [];
-let getRedoStack = () => [];
+interface EditLogDeps {
+  getDirHandle: () => DirHandle | null;
+  getEntryByBase: (base: string) => Entry | undefined;
+  applyTagDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => number;
+  applyRenameDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
+  moveEntry: (entry: Entry, toDisabled: boolean) => Promise<void>;
+  trackStat: (key: string, amount?: number) => void;
+  checkAchievements: () => void;
+  refreshAllUI: () => void;
+  getUndoStack: () => unknown[];
+  getRedoStack: () => unknown[];
+}
 
-export function pushLogEntry(partial){
-  const entry = {
+let getDirHandle: () => DirHandle | null = () => null;
+let getEntryByBase: (base: string) => Entry | undefined = () => undefined;
+let applyTagDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => number = () => 0;
+let applyRenameDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
+let moveEntryRef: (entry: Entry, toDisabled: boolean) => Promise<void> = async () => {};
+let trackStatRef: (key: string, amount?: number) => void = () => {};
+let checkAchievementsRef: () => void = () => {};
+let refreshAllUIRef: () => void = () => {};
+let getUndoStack: () => unknown[] = () => [];
+let getRedoStack: () => unknown[] = () => [];
+
+export function pushLogEntry(partial: { type: string; summary: string; affected?: EditLogAffected[] }): EditLogEntry {
+  const entry: EditLogEntry = {
     ...partial,
     id: logIdCounter++,
     ts: Date.now(),
@@ -39,12 +48,12 @@ export function pushLogEntry(partial){
   };
   editLog.push(entry);
   updateLogButton();
-  saveEditLog(); // fire-and-forget; dataset folder is the source of truth on disk
+  saveEditLog();
   if (logPanel.style.display === 'flex') renderLogPanel();
   return entry;
 }
 
-export async function saveEditLog(){
+export async function saveEditLog(): Promise<void> {
   const dirHandle = getDirHandle();
   if (!dirHandle) return;
   try {
@@ -52,20 +61,16 @@ export async function saveEditLog(){
     const writable = await handle.createWritable();
     await writable.write(JSON.stringify(editLog, null, 2));
     await writable.close();
-  } catch(err){
-    // best-effort autosave; don't interrupt the user's edit flow
+  } catch {
+    // best-effort autosave
   }
 }
 
-export async function loadEditLogForFolder(){
+export async function loadEditLogForFolder(): Promise<void> {
   editLog = [];
   logIdCounter = 1;
   const dirHandle = getDirHandle();
-  if (!dirHandle){
-    // Unloading a dataset (dataset-manager.ts / index.ts's unloadDataset())
-    // routes through here with dirHandle already null specifically to reset
-    // editLog — it must still refresh the topbar button, not just bail
-    // before ever calling updateLogButton().
+  if (!dirHandle) {
     updateLogButton();
     return;
   }
@@ -75,77 +80,74 @@ export async function loadEditLogForFolder(){
     const parsed = JSON.parse((await file.text()).trim() || '[]');
     if (Array.isArray(parsed)) editLog = parsed;
     logIdCounter = editLog.reduce((max, e) => Math.max(max, e.id || 0), 0) + 1;
-  } catch(err){
+  } catch {
     editLog = [];
     logIdCounter = 1;
   }
   updateLogButton();
 }
 
-// No dataset loaded -> plain "Log", no count at all (not even "(0)") —
-// distinct from an actively loaded folder that just happens to have zero
-// edits yet, which still shows "(0)".
-export function updateLogButton(){
+export function updateLogButton(): void {
   btnLog.textContent = getDirHandle() ? `📜 Log (${editLog.length})` : '📜 Log';
 }
 
-function formatLogTime(ts){
-  try { return new Date(ts).toLocaleString(); } catch(e){ return ''; }
+function formatLogTime(ts: number): string {
+  try { return new Date(ts).toLocaleString(); } catch { return ''; }
 }
 
 // ---------------- Editing Stats tab (charts) ----------------
 
-const STAT_CHART_COLORS = {
+const STAT_CHART_COLORS: Record<string, string> = {
   'add-tag': '#6fb8d1', 'remove-tag': '#e2637a', 'merge': '#e8a33d', 'void': '#c1443c',
   'rename': '#7fbf8f', 'find-replace': '#a683e0', 'disable': '#8a6f57', 'restore': '#4fae7a',
   'undo': '#9791a6', 'redo': '#6b6578', 'unmerge': '#d9b35c', 'unvoid': '#5cb9a8', 'rule-update': '#8a8fd9',
-  'delete': '#c1443c'
+  'delete': '#c1443c', 'rename-files': '#4a9fd1'
 };
-const STAT_TYPE_LABEL = {
+const STAT_TYPE_LABEL: Record<string, string> = {
   'add-tag': 'Tags added', 'remove-tag': 'Tags removed', 'merge': 'Merges', 'void': 'Voids',
   'rename': 'Renames', 'find-replace': 'Find & replace', 'disable': 'Disabled', 'restore': 'Restored',
   'undo': 'Undos', 'redo': 'Redos', 'unmerge': 'Unmerges', 'unvoid': 'Unvoids', 'rule-update': 'Rule changes',
-  'delete': 'Deleted permanently'
+  'delete': 'Deleted permanently', 'rename-files': 'Files renamed'
 };
 
-function computeStatsBreakdown(){
-  const counts = {};
-  for (const entry of editLog){
+function computeStatsBreakdown(): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const entry of editLog) {
     if (!(entry.type in STAT_TYPE_LABEL)) continue;
     counts[entry.type] = (counts[entry.type] || 0) + 1;
   }
   return counts;
 }
 
-function animateCountUp(el, target, duration = 600){
+function animateCountUp(el: HTMLElement, target: number, duration = 600): void {
   const start = 0;
   const startTime = performance.now();
-  function tick(now){
+  function tick(now: number): void {
     const p = Math.min(1, (now - startTime) / duration);
-    el.textContent = Math.round(start + (target - start) * p);
+    el.textContent = String(Math.round(start + (target - start) * p));
     if (p < 1) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
 }
 
-export function renderStatsTab(){
+export function renderStatsTab(): void {
   const counts = computeStatsBreakdown();
-  const entriesArr = Object.entries(counts).filter(([,v]) => v > 0);
-  const total = entriesArr.reduce((s,[,v]) => s+v, 0);
+  const entriesArr = Object.entries(counts).filter(([, v]) => v > 0);
+  const total = entriesArr.reduce((s, [, v]) => s + v, 0);
 
   statsChartWrap.innerHTML = '';
   statsLegend.innerHTML = '';
   statsTotals.innerHTML = '';
 
-  if (total === 0){
+  if (total === 0) {
     statsChartWrap.innerHTML = '<div class="stats-empty">No edits logged yet in this folder — make some changes, then check back here.</div>';
     return;
   }
 
-  entriesArr.sort((a,b) => b[1] - a[1]);
+  entriesArr.sort((a, b) => b[1] - a[1]);
 
-  if (statsChartMode === 'pie'){
-    const size = 240, r = 100, cx = size/2, cy = size/2;
+  if (statsChartMode === 'pie') {
+    const size = 240, r = 100, cx = size / 2, cy = size / 2;
     const circumference = 2 * Math.PI * r;
     let offset = 0;
     let svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
@@ -156,12 +158,12 @@ export function renderStatsTab(){
       const color = STAT_CHART_COLORS[type] || '#888';
       svg += `<circle class="pie-slice" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="34"
         stroke-dasharray="${dash} ${circumference - dash}" stroke-dashoffset="${-offset}"
-        transform="rotate(-90 ${cx} ${cy})" style="animation: pieReveal 0.8s ease ${i*0.08}s both;"/>`;
+        transform="rotate(-90 ${cx} ${cy})" style="animation: pieReveal 0.8s ease ${i * 0.08}s both;"/>`;
       offset += dash;
     });
-    svg += `<circle cx="${cx}" cy="${cy}" r="${r-34}" fill="var(--bg-panel)"/>`;
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r - 34}" fill="var(--bg-panel)"/>`;
     svg += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="var(--text-primary)" font-size="22" font-weight="600" font-family="var(--mono)">${total}</text>`;
-    svg += `<text x="${cx}" y="${cy+20}" text-anchor="middle" fill="var(--text-faint)" font-size="10">edits</text>`;
+    svg += `<text x="${cx}" y="${cy + 20}" text-anchor="middle" fill="var(--text-faint)" font-size="10">edits</text>`;
     svg += `</svg>`;
     statsChartWrap.innerHTML = svg;
   } else {
@@ -169,14 +171,14 @@ export function renderStatsTab(){
     wrap.style.minWidth = '360px';
     const maxCount = entriesArr[0][1];
     entriesArr.forEach(([type, count], i) => {
-      const pct = ((count/total)*100).toFixed(1);
+      const pct = ((count / total) * 100).toFixed(1);
       const barWidthPct = (count / maxCount) * 100;
       const color = STAT_CHART_COLORS[type] || '#888';
       const row = document.createElement('div');
       row.className = 'stat-bar-row';
       row.innerHTML = `
         <div class="stat-bar-label">${STAT_TYPE_LABEL[type] || type}</div>
-        <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${barWidthPct}%; background:${color}; animation-delay:${i*0.06}s;"></div></div>
+        <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${barWidthPct}%; background:${color}; animation-delay:${i * 0.06}s;"></div></div>
         <div class="stat-bar-value">${count} (${pct}%)</div>
       `;
       wrap.appendChild(row);
@@ -184,8 +186,8 @@ export function renderStatsTab(){
     statsChartWrap.appendChild(wrap);
   }
 
-  for (const [type, count] of entriesArr){
-    const pct = ((count/total)*100).toFixed(1);
+  for (const [type, count] of entriesArr) {
+    const pct = ((count / total) * 100).toFixed(1);
     const row = document.createElement('div');
     row.className = 'stats-legend-row';
     const swatch = document.createElement('span');
@@ -201,13 +203,13 @@ export function renderStatsTab(){
     statsLegend.appendChild(row);
   }
 
-  const totalCards = [
+  const totalCards: [string, number][] = [
     ['Total logged edits', total],
     ['Undo stack depth', getUndoStack().length],
     ['Redo stack depth', getRedoStack().length],
     ['Achievements unlocked', folderUnlocked.length]
   ];
-  for (const [label, value] of totalCards){
+  for (const [label, value] of totalCards) {
     const card = document.createElement('div');
     card.className = 'stats-total-card';
     const num = document.createElement('div');
@@ -222,18 +224,19 @@ export function renderStatsTab(){
   }
 }
 
-export function renderLogPanel(){
+export function renderLogPanel(): void {
   const dirHandle = getDirHandle();
   logPanelTitle.textContent = dirHandle ? `Edit log — ${dirHandle.name}` : 'Edit log';
   logList.innerHTML = '';
-  if (editLog.length === 0){
+  if (editLog.length === 0) {
     logList.innerHTML = '<div class="log-empty">No edits logged yet for this folder.</div>';
     return;
   }
-  const TAG_TYPES = new Set(['add-tag','remove-tag','merge','void','rename','find-replace','reset-edits','unmerge','unvoid']);
-  const MOVE_TYPES = new Set(['disable','restore']);
+  const TAG_TYPES = new Set(['add-tag', 'remove-tag', 'merge', 'void', 'rename', 'find-replace', 'reset-edits', 'unmerge', 'unvoid']);
+  const MOVE_TYPES = new Set(['disable', 'restore']);
+  const RENAME_TYPES = new Set(['rename-files']);
   const recent = editLog.slice(-150).reverse();
-  for (const logEntry of recent){
+  for (const logEntry of recent) {
     const row = document.createElement('div');
     row.className = 'log-row';
 
@@ -255,7 +258,7 @@ export function renderLogPanel(){
     row.appendChild(meta);
     row.appendChild(summary);
 
-    if (TAG_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length){
+    if (TAG_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
       const actions = document.createElement('div');
       actions.className = 'log-actions';
       const undoBtn = document.createElement('button');
@@ -268,7 +271,7 @@ export function renderLogPanel(){
       actions.appendChild(undoBtn);
       actions.appendChild(redoBtn);
       row.appendChild(actions);
-    } else if (MOVE_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length){
+    } else if (MOVE_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
       const actions = document.createElement('div');
       actions.className = 'log-actions';
       const toggleBtn = document.createElement('button');
@@ -277,11 +280,24 @@ export function renderLogPanel(){
       toggleBtn.addEventListener('click', () => toggleMoveLogEntry(logEntry));
       actions.appendChild(toggleBtn);
       row.appendChild(actions);
+    } else if (RENAME_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
+      const actions = document.createElement('div');
+      actions.className = 'log-actions';
+      const undoBtn = document.createElement('button');
+      undoBtn.textContent = '↩ Undo this';
+      undoBtn.addEventListener('click', () => applyRenameLogEntryDirection(logEntry, 'undo'));
+      const redoBtn = document.createElement('button');
+      redoBtn.textContent = '↪ Redo this';
+      redoBtn.className = 'primary';
+      redoBtn.addEventListener('click', () => applyRenameLogEntryDirection(logEntry, 'redo'));
+      actions.appendChild(undoBtn);
+      actions.appendChild(redoBtn);
+      row.appendChild(actions);
     }
 
     logList.appendChild(row);
   }
-  if (editLog.length > 150){
+  if (editLog.length > 150) {
     const note = document.createElement('div');
     note.className = 'log-empty';
     note.textContent = `Showing the latest 150 of ${editLog.length} entries — the rest are still in ${LOG_FILE_NAME}.`;
@@ -289,9 +305,9 @@ export function renderLogPanel(){
   }
 }
 
-function applyLogEntryDirection(logEntry, direction){
+function applyLogEntryDirection(logEntry: EditLogEntry, direction: 'undo' | 'redo'): void {
   const count = applyTagDirectionRef(logEntry.affected, direction);
-  if (count === 0){ toast('None of the affected images are in the loaded dataset anymore.'); return; }
+  if (count === 0) { toast('None of the affected images are in the loaded dataset anymore.'); return; }
   const verb = direction === 'undo' ? 'Undid' : 'Redid';
   pushLogEntry({
     type: direction,
@@ -305,20 +321,37 @@ function applyLogEntryDirection(logEntry, direction){
   checkAchievementsRef();
 }
 
-async function toggleMoveLogEntry(logEntry){
-  const base = logEntry.affected[0] && logEntry.affected[0].base;
+async function applyRenameLogEntryDirection(logEntry: EditLogEntry, direction: 'undo' | 'redo'): Promise<void> {
+  const count = await applyRenameDirectionRef(logEntry.affected, direction);
+  if (count === 0) { toast('None of the affected images are in the loaded dataset anymore.'); return; }
+  const verb = direction === 'undo' ? 'Undid' : 'Redid';
+  pushLogEntry({
+    type: direction,
+    summary: `${verb} (from log): ${logEntry.summary}`,
+    affected: logEntry.affected
+  });
+  trackStatRef(direction === 'undo' ? 'undos' : 'redos');
+  toast(`${verb} ${count} of ${logEntry.affected.length} rename(s).`);
+  refreshAllUIRef();
+  renderLogPanel();
+  checkAchievementsRef();
+}
+
+async function toggleMoveLogEntry(logEntry: EditLogEntry): Promise<void> {
+  const base = logEntry.affected[0]?.base;
   const e = base ? getEntryByBase(base) : null;
-  if (!e){ toast('That image is no longer in the loaded dataset.'); return; }
-  const shouldBeDisabled = logEntry.type === 'disable' ? false : true;
-  if (e.disabled === shouldBeDisabled){ toast('Already in that state.'); return; }
+  if (!e) { toast('That image is no longer in the loaded dataset.'); return; }
+  const shouldBeDisabled = logEntry.type !== 'disable';
+  if (e.disabled === shouldBeDisabled) { toast('Already in that state.'); return; }
   await moveEntryRef(e, shouldBeDisabled);
   renderLogPanel();
 }
 
-export function initEditLog(deps){
+export function initEditLog(deps: EditLogDeps): void {
   getDirHandle = deps.getDirHandle;
   getEntryByBase = deps.getEntryByBase;
   applyTagDirectionRef = deps.applyTagDirection;
+  applyRenameDirectionRef = deps.applyRenameDirection;
   moveEntryRef = deps.moveEntry;
   trackStatRef = deps.trackStat;
   checkAchievementsRef = deps.checkAchievements;
@@ -328,9 +361,9 @@ export function initEditLog(deps){
   statsViewPie.addEventListener('click', () => { statsChartMode = 'pie'; statsViewPie.classList.add('active'); statsViewBar.classList.remove('active'); renderStatsTab(); });
   statsViewBar.addEventListener('click', () => { statsChartMode = 'bar'; statsViewBar.classList.add('active'); statsViewPie.classList.remove('active'); renderStatsTab(); });
 
-  btnLog.addEventListener('click', (ev) => {
+  btnLog.addEventListener('click', (ev: MouseEvent) => {
     ev.stopPropagation();
-    if (logPanel.style.display === 'flex'){ hidePanel(logPanel); return; }
+    if (logPanel.style.display === 'flex') { hidePanel(logPanel); return; }
     hidePanel(themeCustomPanel); hidePanel(favoritesPanel); hidePanel(achievementsPanel); hidePanel(shopPanel); hidePanel(tagDetailsPanel);
     renderLogPanel();
     showPanel(logPanel);
@@ -338,12 +371,12 @@ export function initEditLog(deps){
   logCloseBtn.addEventListener('click', () => hidePanel(logPanel));
 
   btnExportLog.addEventListener('click', async () => {
-    if (editLog.length === 0){ toast('Nothing to export yet.'); return; }
-    if (!window.showSaveFilePicker){ toast('File export needs Chrome/Edge/Electron.'); return; }
+    if (editLog.length === 0) { toast('Nothing to export yet.'); return; }
+    if (!(window as unknown as Record<string, unknown>).showSaveFilePicker) { toast('File export needs Chrome/Edge/Electron.'); return; }
     try {
       const dirHandle = getDirHandle();
-      const suggestedName = `tag-edit-log-${(dirHandle && dirHandle.name) || 'dataset'}-${new Date().toISOString().slice(0,10)}.json`;
-      const handle = await window.showSaveFilePicker({
+      const suggestedName = `tag-edit-log-${(dirHandle?.name) || 'dataset'}-${new Date().toISOString().slice(0, 10)}.json`;
+      const handle = await (window as unknown as { showSaveFilePicker(opts: unknown): Promise<FileSystemFileHandle> }).showSaveFilePicker({
         suggestedName,
         types: [{ description: 'JSON log', accept: { 'application/json': ['.json'] } }]
       });
@@ -351,8 +384,8 @@ export function initEditLog(deps){
       await writable.write(JSON.stringify(editLog, null, 2));
       await writable.close();
       toast('Log exported.');
-    } catch(err){
-      // user cancelled the save dialog — no toast needed
+    } catch {
+      // user cancelled the save dialog
     }
   });
 

@@ -1,10 +1,4 @@
-// Phase B module: Achievements, per-folder stats, wallet, and the theme shop.
-// `dirHandle` (for stat file I/O) and `editLog` (for the log-count achievement)
-// stay owned by index.ts's core folder/log state — injected once via
-// initAchievements() rather than imported, since index.ts's IIFE can't export
-// them. Everything else achievement/wallet-related (folderStats, folderUnlocked,
-// wallet, ownedThemes, achievementPopupsEnabled) is owned by this module.
-// @ts-nocheck
+import type { FolderStats, EditLogEntry, DirHandle } from './types';
 import {
   walletDisplay, achWallet, shopWallet, achievementsPanel, achList, achPopupsToggle,
   btnAchievements, achCloseBtn, shopPanel, shopList, btnShop, shopCloseBtn,
@@ -18,28 +12,43 @@ import {
   refinedThemes
 } from './themes';
 
-export let folderStats = {};        // per-folder achievement stats, persisted in _dts_achievements.json
-export let folderUnlocked = [];     // achievement ids unlocked in the current folder
-export let wallet = 0;              // global Edibits balance
-export let ownedThemes = ['studio','cyberpunk','oriental','subway']; // global, always includes free themes
+export let folderStats: FolderStats = {};
+export let folderUnlocked: string[] = [];
+export let wallet = 0;
+export let ownedThemes: string[] = ['studio','cyberpunk','oriental','subway'];
 export let achievementPopupsEnabled = true;
 
-let getDirHandle = () => null;
-let getEditLog = () => [];
-let refreshThemeDropdownLabel = () => {};
+interface AchievementsDeps {
+  getDirHandle: () => DirHandle | null;
+  getEditLog: () => EditLogEntry[];
+  refreshThemeDropdownLabel: () => void;
+}
 
-export function initAchievements(deps){
+let getDirHandle: () => DirHandle | null = () => null;
+let getEditLog: () => EditLogEntry[] = () => [];
+let refreshThemeDropdownLabel: () => void = () => {};
+
+export function initAchievements(deps: AchievementsDeps): void {
   getDirHandle = deps.getDirHandle;
   getEditLog = deps.getEditLog;
   refreshThemeDropdownLabel = deps.refreshThemeDropdownLabel;
 }
 
-const RARITY_VALUE = { common: 10, uncommon: 25, rare: 60, epic: 120, legendary: 250 };
-const RARITY_ICON = { common: '⚪', uncommon: '🟢', rare: '🔷', epic: '🟣', legendary: '⭐' };
+type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+const RARITY_VALUE: Record<Rarity, number> = { common: 10, uncommon: 25, rare: 60, epic: 120, legendary: 250 };
+const RARITY_ICON: Record<Rarity, string> = { common: '⚪', uncommon: '🟢', rare: '🔷', epic: '🟣', legendary: '⭐' };
 
-const ACHIEVEMENTS = [
+interface AchievementDef {
+  id: string;
+  title: string;
+  desc: string;
+  rarity: Rarity;
+  check: (s: FolderStats) => boolean;
+}
+
+const ACHIEVEMENTS: AchievementDef[] = [
   { id:'first-edit', title:'Baby Steps', desc:'Make your first tag edit in this folder.', rarity:'common',
-    check: s => (s.tags_added||0)+(s.tags_removed||0)+(s.merges||0)+(s.voids||0)+(s.renames||0)+(s.find_replaces||0) >= 1 },
+    check: s => ((s.tags_added||0)+(s.tags_removed||0)+(s.merges||0)+(s.voids||0)+(s.renames||0)+(s.find_replaces||0)) >= 1 },
   { id:'eye-hater', title:"You really hate seeing, don't you?", desc:'Void 5+ tags containing "eye" in a single void action.', rarity:'uncommon',
     check: s => !!s.flag_eye_hater },
   { id:'hair-raiser', title:'Follicly Judgmental', desc:'Void 5+ tags containing "hair" in a single void action.', rarity:'uncommon',
@@ -105,15 +114,15 @@ const ACHIEVEMENTS = [
   { id:'completionist-25', title:'Living Legend', desc:'Unlock 25 other achievements in this folder.', rarity:'legendary', check: s => (s.achievements_unlocked||0) >= 25 }
 ];
 
-export function trackStat(key, amount = 1){
-  folderStats[key] = (folderStats[key] || 0) + amount;
+export function trackStat(key: string, amount = 1): void {
+  folderStats[key] = ((folderStats[key] as number) || 0) + amount;
   saveFolderStats();
 }
 
 const META_FILE_NAME = '_dts_meta.json';
 const ACH_FILE_NAME = '_dts_achievements.json';
 
-export async function saveFolderStats(){
+export async function saveFolderStats(): Promise<void> {
   const dirHandle = getDirHandle();
   if (!dirHandle) return;
   try {
@@ -124,7 +133,7 @@ export async function saveFolderStats(){
   } catch(err){}
 }
 
-export async function loadFolderStats(){
+export async function loadFolderStats(): Promise<void> {
   folderStats = {};
   folderUnlocked = [];
   const dirHandle = getDirHandle();
@@ -141,17 +150,17 @@ export async function loadFolderStats(){
   }
 }
 
-export function saveWallet(){
+export function saveWallet(): void {
   try {
     localStorage.setItem('dts-wallet', String(wallet));
     localStorage.setItem('dts-owned-themes', JSON.stringify(ownedThemes));
   } catch(e){}
-  walletDisplay.textContent = wallet;
-  achWallet.textContent = wallet;
-  shopWallet.textContent = wallet;
+  walletDisplay.textContent = String(wallet);
+  achWallet.textContent = String(wallet);
+  shopWallet.textContent = String(wallet);
 }
 
-export function loadWallet(){
+export function loadWallet(): void {
   try {
     wallet = parseInt(localStorage.getItem('dts-wallet') || '0', 10) || 0;
     const owned = JSON.parse(localStorage.getItem('dts-owned-themes') || 'null');
@@ -160,18 +169,18 @@ export function loadWallet(){
   saveWallet();
 }
 
-export function resetWallet(){
+export function resetWallet(): void {
   wallet = 0;
   saveWallet();
 }
 
-export function resetFolderAchievements(){
+export function resetFolderAchievements(): void {
   folderUnlocked = [];
   folderStats = {};
   saveFolderStats();
 }
 
-export function checkAchievements(){
+export function checkAchievements(): void {
   // Achievements/Edibits are per-dataset (see saveFolderStats()/
   // loadFolderStats()), but folderStats itself is a plain module-level
   // object — with no dataset loaded it should already be {} (reset on
@@ -207,8 +216,8 @@ export function checkAchievements(){
   }
 }
 
-export function checkVoidThemeAchievements(tagList, voidedTagInstances){
-  const lower = tagList.map(t => t.toLowerCase());
+export function checkVoidThemeAchievements(tagList: string[], _voidedTagInstances: number): void {
+  const lower = tagList.map((t: string) => t.toLowerCase());
   const eyeCount = lower.filter(t => t.includes('eye')).length;
   const hairCount = lower.filter(t => t.includes('hair')).length;
   if (eyeCount >= 5) folderStats.flag_eye_hater = true;
@@ -216,7 +225,7 @@ export function checkVoidThemeAchievements(tagList, voidedTagInstances){
   saveFolderStats();
 }
 
-function showAchievementPopup(ach, reward){
+function showAchievementPopup(ach: AchievementDef, reward: number): void {
   const popup = document.createElement('div');
   popup.className = 'ach-popup';
   popup.innerHTML = `
@@ -242,9 +251,9 @@ function showAchievementPopup(ach, reward){
 // mutating that would corrupt whichever folder is actually open. Every
 // existing call site calls this with no args, which keeps rendering the
 // live, currently-open folder exactly as before.
-export function renderAchievementsPanel(unlockedOverride){
+export function renderAchievementsPanel(unlockedOverride?: string[]): void {
   const unlockedList = unlockedOverride || folderUnlocked;
-  achWallet.textContent = wallet;
+  achWallet.textContent = String(wallet);
   achList.innerHTML = '';
   for (const ach of ACHIEVEMENTS){
     const unlocked = unlockedList.includes(ach.id);
@@ -262,7 +271,7 @@ export function renderAchievementsPanel(unlockedOverride){
   }
 }
 
-export function updateThemeSelectLocks(){
+export function updateThemeSelectLocks(): void {
   for (const t of PREMIUM_THEMES){
     const opt = themeSelect.querySelector(`option[value="${t.id}"]`);
     if (opt) opt.textContent = ownedThemes.includes(t.id) ? t.name : `🔒 ${t.name}`;
@@ -270,8 +279,8 @@ export function updateThemeSelectLocks(){
   refreshThemeDropdownLabel();
 }
 
-export function renderShopPanel(){
-  shopWallet.textContent = wallet;
+export function renderShopPanel(): void {
+  shopWallet.textContent = String(wallet);
   shopList.innerHTML = '';
   // Cheapest first — PREMIUM_THEMES' own order is just whatever order
   // themes were added over time, not a meaningful browsing order.
@@ -316,7 +325,8 @@ export function renderShopPanel(){
 // already applies the theme it just sold, but before this there was no way
 // to switch BACK to a previously-bought theme from here; you had to leave
 // the shop and use the Settings theme dropdown instead.
-function useOwnedTheme(t){
+interface PremiumThemeDef { id: string; name: string; rarity: string; price: number; swatches: string[] }
+function useOwnedTheme(t: PremiumThemeDef): void {
   themeSelect.value = t.id;
   applyTheme(t.id);
   toast(`Switched to "${t.name}".`);
@@ -324,7 +334,7 @@ function useOwnedTheme(t){
   updateRefineThemeButton();
 }
 
-function buyTheme(t){
+function buyTheme(t: PremiumThemeDef): void {
   if (ownedThemes.includes(t.id)) return;
   if (wallet < t.price){ toast('Not enough Edibits for that yet.'); return; }
   wallet -= t.price;
@@ -350,7 +360,7 @@ function buyTheme(t){
 // Custom cost 0, so they cost the full epic price) — see refineThemeCost()/
 // themeAlreadyHasPremiumEffects() in themes.ts, which also owns the
 // `refinedThemes` list and the `html.theme-refined` class the CSS keys off.
-export function updateRefineThemeButton(){
+export function updateRefineThemeButton(): void {
   if (suppressThemeFlourishesToggle.checked){
     btnRefineTheme.style.display = 'none';
     return;
@@ -369,7 +379,7 @@ export function updateRefineThemeButton(){
   btnRefineTheme.title = 'Upgrade the current theme to epic/legendary-tier button effects.';
 }
 
-function refineCurrentTheme(){
+function refineCurrentTheme(): void {
   const currentTheme = themeSelect.value;
   if (themeAlreadyHasPremiumEffects(currentTheme)) return;
   const cost = refineThemeCost(currentTheme);
@@ -384,7 +394,7 @@ function refineCurrentTheme(){
   checkAchievements();
 }
 
-export function initAchievementPanels(){
+export function initAchievementPanels(): void {
   btnAchievements.addEventListener('click', (ev) => {
     ev.stopPropagation();
     if (achievementsPanel.style.display === 'flex'){ hidePanel(achievementsPanel); return; }
@@ -439,7 +449,7 @@ export function initAchievementPanels(){
   // Three independent "visual flourish" toggles — hover-fill, card-tilt,
   // and ambient animations can each be turned off on their own, instead of
   // one blanket switch (see styles.css's "Visual flourishes" comment).
-  function wireFlourishToggle(toggleEl, storageKey, className){
+  function wireFlourishToggle(toggleEl: HTMLInputElement, storageKey: string, className: string): void {
     toggleEl.addEventListener('change', () => {
       const on = toggleEl.checked;
       try { localStorage.setItem(storageKey, on ? '1' : '0'); } catch(e){}
