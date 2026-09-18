@@ -18,7 +18,7 @@ another module and was never re-imported). Because `index.ts` is one IIFE, a sin
 runtime, with no build error and no visible symptom beyond "these buttons just don't do
 anything." After any module-boundary change, grep for the moved symbol's old call sites, and to
 verify at runtime launch the packaged exe as
-`ELECTRON_ENABLE_LOGGING=1 "./Dataset Tag Studio.exe" --enable-logging=stderr` and grep the
+`ELECTRON_ENABLE_LOGGING=1 "./Dataset Manager Studio.exe" --enable-logging=stderr` and grep the
 captured stderr for "Uncaught" (Electron does not forward renderer console output to the terminal
 by default).
 

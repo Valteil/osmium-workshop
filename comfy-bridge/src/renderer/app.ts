@@ -1,4 +1,4 @@
-// Comfy Bridge renderer — the generation half of Dataset Tag Studio's
+// Comfy Bridge renderer — the generation half of Dataset Manager Studio's
 // SynthDat Overseer, without the dataset: no tag card, no Accept/Reject,
 // every finished generation (both passes, if 2-Pass ran) is written
 // straight to a user-picked output folder, optionally upscaled by model

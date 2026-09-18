@@ -1,6 +1,6 @@
 # ComfyUI-DataSetManagerNodes
 
-Most of the non-core nodes (and the one ControlNet weights file) Dataset Tag Studio's **SynthDat
+Most of the non-core nodes (and the one ControlNet weights file) Dataset Manager Studio's **SynthDat
 Overseer** needs from your ComfyUI instance, bundled into one self-contained node pack. Copy this
 whole folder into `ComfyUI/custom_nodes/` and restart ComfyUI — that's the entire install. No
 hunting down several separate third-party packs by hand, no separate ControlNet weights download.

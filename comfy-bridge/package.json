@@ -1,7 +1,7 @@
 {
   "name": "comfy-bridge",
   "version": "1.0.0",
-  "description": "Standalone desktop interface for a ComfyUI instance, built on Dataset Tag Studio's SynthDat Overseer generation workflow — no dataset, no accept/reject, just Generate.",
+  "description": "Standalone desktop interface for a ComfyUI instance, built on Dataset Manager Studio's SynthDat Overseer generation workflow — no dataset, no accept/reject, just Generate.",
   "main": "main.js",
   "author": "",
   "license": "MIT",

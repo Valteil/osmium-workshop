@@ -1,8 +1,8 @@
 # ComfyUI dependencies for SynthDat Overseer
 
-SynthDat Overseer (the Dataset Tag Studio tab that drives ComfyUI to generate synthetic dataset
+SynthDat Overseer (the Dataset Manager Studio tab that drives ComfyUI to generate synthetic dataset
 images) needs a few things installed on your ComfyUI instance that don't ship with ComfyUI core.
-None of this is required for the rest of Dataset Tag Studio.
+None of this is required for the rest of Dataset Manager Studio.
 
 ## Install
 

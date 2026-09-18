@@ -66,7 +66,7 @@ comfy-bridge/mobile/android/local.properties
 # see scripts/refresh-portable-dev.js). Tied to Electron's currently-bundled
 # runtime files; if a future Electron upgrade adds/removes one, check
 # `git status` after the next refresh-app and add it here if needed.
-/Dataset Tag Studio.exe
+/Dataset Manager Studio.exe
 /LICENSE.electron.txt
 /LICENSES.chromium.html
 /README.txt

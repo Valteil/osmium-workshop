@@ -1,4 +1,4 @@
-# Dataset Tag Studio — User Guide
+# Dataset Manager Studio — User Guide
 
 A practical walkthrough of everything in the app, organized by tab. If you just want a feature
 list, see [README.md](README.md#features) instead — this document is the "how do I actually do X"
@@ -364,7 +364,7 @@ prompts you first; nothing is silently discarded.
 
 This guide covers the desktop app. Two siblings share this repo:
 
-- **Dataset Tag Studio for Android** (`mobile/`) — the same editor in a touch layout: panels
+- **Dataset Manager Studio for Android** (`mobile/`) — the same editor in a touch layout: panels
   become bottom sheets, tag editing happens in the image modal (tap a card), Compact and Single
   views are removed, and the folder picker uses Android's own storage access with a persisted
   grant. WD14 tagging runs either on-device (models download on first use) or through your own

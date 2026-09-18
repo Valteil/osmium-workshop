@@ -1,6 +1,6 @@
 // Comfy Bridge — a standalone desktop window onto a single user-configured
 // ComfyUI instance, built on the exact same generation workflow as Dataset
-// Tag Studio's SynthDat Overseer (same bundled `renderer/data/synthdat-
+// Manager Studio's SynthDat Overseer (same bundled `renderer/data/synthdat-
 // workflow.json`, same fixed graph). Unlike SynthDat, this app has no
 // dataset and no Accept/Reject step — every generation just gets saved to a
 // user-picked output folder, both passes when 2-Pass runs, with an optional
@@ -142,7 +142,7 @@ ipcMain.handle('list-upscale-models', () => {
 });
 
 // ---------------- ComfyUI bridge ----------------
-// Copied verbatim from Dataset Tag Studio's src/main.ts (SynthDat Overseer
+// Copied verbatim from Dataset Manager Studio's src/main.ts (SynthDat Overseer
 // section) — the renderer can't talk to ComfyUI directly (its server.py
 // rejects cross-origin POSTs whose Origin doesn't match Host, and Chromium's
 // own CORS would block reading the response anyway), so a plain Node HTTP

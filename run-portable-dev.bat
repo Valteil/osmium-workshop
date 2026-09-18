@@ -8,9 +8,9 @@ REM "npm run refresh-app" first to (re)build it.
 REM For renderer-only changes: run "npm run push-update" instead, then use
 REM Apply update bundle inside the running app - no rebuild needed at all.
 cd /d "%~dp0"
-if not exist "Dataset Tag Studio.exe" (
+if not exist "Dataset Manager Studio.exe" (
   echo The root build doesn't exist yet. Run: npm run refresh-app
   pause
   exit /b 1
 )
-start "" "Dataset Tag Studio.exe"
+start "" "Dataset Manager Studio.exe"

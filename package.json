@@ -1,5 +1,5 @@
 {
-  "name": "dataset-tag-studio",
+  "name": "dataset-manager-studio",
   "version": "1.5.0",
   "description": "Local dataset tag editor for AI training images, packaged as a desktop app.",
   "main": "main.js",
@@ -29,8 +29,8 @@
     "typescript": "^5.5.0"
   },
   "build": {
-    "appId": "com.local.datasettagstudio",
-    "productName": "Dataset Tag Studio",
+    "appId": "com.local.datasetmanagerstudio",
+    "productName": "Dataset Manager Studio",
     "files": [
       "main.js",
       "preload.js",

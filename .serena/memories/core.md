@@ -1,4 +1,4 @@
-# dataset-tag-studio-electron — entry point
+# dataset-manager-studio-electron — entry point
 
 Local Electron desktop app for managing AI training dataset tags (image/caption pairs). No
 network calls. `README.md` (this dir) is the comprehensive, current entry point for humans —
@@ -39,7 +39,7 @@ Further memories:
 - `mem:task_completion` — what "done" means for a change here before reporting it finished.
 
 Non-obvious top-level fact: **this directory IS both the source tree and the portable test
-build.** `Dataset Tag Studio.exe`, `resources/`, `locales/`, the Chromium runtime files, and
+build.** `Dataset Manager Studio.exe`, `resources/`, `locales/`, the Chromium runtime files, and
 `data/` all sit loose at this directory's top level, gitignored, alongside `src/`,
 `package.json`, etc. This is deliberate, not clutter — `npm run refresh-app` regenerates them
 from `dist/win-unpacked`.

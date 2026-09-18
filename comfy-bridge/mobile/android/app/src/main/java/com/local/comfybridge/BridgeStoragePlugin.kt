@@ -17,7 +17,7 @@ import com.getcapacitor.annotation.CapacitorPlugin
 // Storage Access Framework backing for Comfy Bridge's save location: lets
 // the user pick ANY folder on the device (not just a subfolder of
 // Documents) for generations, with the grant persisted across restarts.
-// Ported from the parent Dataset Tag Studio mobile app's DtsStoragePlugin
+// Ported from the parent Dataset Manager Studio mobile app's DtsStoragePlugin
 // (same method surface, renamed) — see notes/Mobile-Port.md there for the
 // full rationale. All paths are relative to the picked root ("" = root
 // itself, "sub/file.png" = a file in a subfolder), resolved fresh via

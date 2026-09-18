@@ -1,7 +1,7 @@
 // Shared image lightbox for Comfy Bridge (desktop + mobile).
 // Screen-dimming backdrop; pinch/wheel zoom from 1× to 6×; drag pans only
 // while zoomed, clamped so an image edge can never be dragged past the
-// viewport edge. Ported from the parent Dataset Tag Studio app's
+// viewport edge. Ported from the parent Dataset Manager Studio app's
 // showImageLightbox() — same math, plain framework-free DOM.
 function attachLightboxPinch(img: HTMLImageElement, onZoomDelta: (delta: number) => void): void {
   let startDist: number | null = null;
