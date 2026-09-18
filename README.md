@@ -18,6 +18,7 @@ on your system.
 ## Contents
 
 - [Quick start (using the app)](#quick-start-using-the-app)
+- [Apps in this repo](#apps-in-this-repo)
 - [Full user guide](USER_GUIDE.md) — a walkthrough of every tab and feature
 - [Features](#features)
 - [Themes & the shop economy](#themes--the-shop-economy)
@@ -46,146 +47,128 @@ it to reset the app to defaults, or copy it to another machine to carry your set
 
 ---
 
+## Apps in this repo
+
+Three related apps share this repository (and much of their renderer code):
+
+1. **Dataset Tag Studio (desktop)** — this app: the full dataset tag editor described below.
+   Portable Electron app — unzip, run, done.
+2. **Dataset Tag Studio (mobile)** — an Android app for tagging training datasets on the go:
+   touch layout with bottom-sheet panels, tag editing via the image modal, storage through
+   Android's Storage Access Framework (a picked folder stays accessible across restarts),
+   on-device WD14 tagging (models download on first use) as well as tagging and generation
+   through your own ComfyUI instance over the network. Distributed as a sideloadable APK via
+   GitHub Releases, not the Play Store.
+3. **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
+   featuring a built-in workflow. In exchange for customizability, it removes the issue of
+   navigating a complex node graph for generation — preferable for users who just want their
+   image without seeing a mess of nodes. Ships as both a portable desktop app (extract anywhere
+   and launch) and an Android app (`comfy-bridge/mobile/`). Requires the custom node bundle
+   (see the release assets). The mobile build drives ComfyUI over LAN/Tailscale/hotspot —
+   start ComfyUI with `--listen 0.0.0.0 --enable-cors-header --port 8188` and allow inbound
+   TCP 8188 through the firewall.
+
+The rest of this document describes the desktop dataset manager. On mobile, read the in-app ❓
+Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
+`comfy-bridge/mobile/README.md`.
+
+---
+
 ## Features
 
-### Views
-- **Grid** — the default view: image, editable tag chips, dirty/untagged indicators, a 3-dot menu
-  per image. A **Dynamic card heights** toggle switches to a masonry layout.
-- **Compact** — dense thumbnails with hover tag previews. Shift-click two thumbnails for **sticky
-  comparison**: their tags line up side-by-side in an aligned table.
-- **Single** — one image at a time, zoom up to 400%, click-drag panning, scroll-wheel zoom,
-  arrow-key navigation.
-- **Disabled** — its own tab for images you've moved out of the active set (drag a card onto it,
-  or use the 3-dot menu). Tags on disabled images are preserved and still editable.
+### Views (Gallery tab toolbar)
+- **Grid** — the default editing view: image, editable tag chips, dirty/untagged markers, 3-dot
+  menu per image. Use it for everyday tagging; **Dynamic card heights** switches to masonry on
+  mixed-size sets.
+- **Compact** — dense thumbnails for scanning large folders fast. Hover previews tags;
+  Shift-click two cards for a side-by-side tag comparison.
+- **Single** — one image at a time up to 400% zoom with drag-pan and arrow keys. Use it to
+  inspect fine details (text, hands, artifacts) before training.
+- **Disabled** — quarantine tab for images out of the active set (drag a card onto it). Tags are
+  preserved and editable; restore anytime. Use it for maybes you don't want to delete.
 
-Clicking any image opens a floating **image card modal** (zoomable/pannable) without losing your
-place in the grid.
+Clicking any image opens a floating zoomable/pannable card modal that keeps your grid position.
 
 ### Tagging
-- Click a chip for its context menu: filter by presence/absence, open Tag Details, flag for
-  review, explore its keyword family.
-- Type into a card's "+ add tag" field and press Enter to add.
-- **Filter sidebar**: multi-tag search combined with AND/OR/XOR/NOT, quick filters
-  (All/Untagged/Unsaved), **Flag isolated tags** (highlights tags appearing in ≤2 images — good
-  for catching typos), a draggable keyword-family sort order.
-- **Tag Pruner** (right sidebar, supports multiple independent instances) — search/browse all
-  tags, hand-pick any combination to feed into **Unify/Void**: merge selected tags into one name,
-  or permanently delete them (confirmed, fully undoable/logged). Each instance has its own
-  selection — a tag picked in one is hidden from the others, so you can browse several unrelated
-  keyword families side by side without them colliding — and its own "🔍 Mirror to gallery search"
-  (radio-exclusive across instances: only one drives the left-hand gallery filter at a time, so
-  you can see exactly which images a merge/void is about to touch) and its own Clear button. An
-  "Also apply to Disabled images" checkbox covers already-disabled images in the same action.
-- **Retroactive Merge/Void** (its own dock, gallery right sidebar) — standing rules of the shape
-  "these tags → this canonical tag" (or "→ nothing" for a void rule). Any matching tag that shows
-  up on a Gallery image afterward, by any automatic means (WD14, Master Tags, an accepted SynthDat
-  image), gets auto-corrected; typing one in by hand is blocked instead, with a
-  toast pointing back at the dock. Full control over what's subject to a rule: pause a whole rule
-  or toggle one of its tags off without deleting anything — doing so actively unmerges/unvoids
-  every affected image using the edit log to restore exactly what it originally had, not just
-  stopping future correction. Per-image **Merge Immunize** / **Antivoid** / **Antimmunize**
-  (3-dot menu or Master Tag Control) permanently exempt one image from merge and/or void rules
-  regardless of the dock's own settings. Every rule change and every resulting unmerge/unvoid is
-  its own Log entry with Undo/Redo, correctly time-ordered (void → unvoid → void shows as three
-  separate rows, not one entry overwritten in place).
-- **Master Tag Control** (its own tab) — checkbox-select images in the gallery, then apply/remove
-  a tag, conditionally apply one tag based on another being present (or absent — both directions
-  are available), mass apply/remove across the whole dataset, rename/find-and-replace, or
-  **permanently delete the selection** (confirmed,
-  locked images skipped, one summary log entry). Select 2+ images and switch to Single view for an
-  editable tag-comparison table across the selection.
-- **Delete permanently** (3-dot menu, single image, or Master Tag Control for a batch) — unlike
-  Disable, which relocates an image + its tags into `Disabled/` and keeps it fully restorable, this
-  removes the files from disk outright. No undo; confirm-modal gated. Only removes the copy inside
+- **Chips** (on every card) — click for filter-by-presence, Tag Details wiki lookup, review flag,
+  keyword family. Type in "+ add tag", Enter to add; × removes.
+- **Filter sidebar** (left) — multi-tag AND/OR/XOR/NOT search plus All/Untagged/Unsaved quick
+  filters, **Flag isolated tags** (tags on ≤2 images), draggable family sort. Use it to find
+  images and hunt typos.
+- **Tag Pruner** (right sidebar) — hand-pick tag sets, then **Unify** (merge into one name) or
+  **Void** (delete). Confirmed, undoable, logged. Run several independent instances for
+  unrelated families; 🔍 Mirror previews the affected images in the gallery. Use it to collapse
+  spelling variants and junk tags dataset-wide.
+- **Retroactive Merge/Void** (right sidebar) — standing "these tags → this tag (or nothing)"
+  rules that auto-correct matching tags from any future source; hand-typing a ruled tag is
+  blocked with a pointer back. Pause rules or single tags to actively restore originals;
+  per-image Immunize/Antivoid exemptions. Use it so a cleanup never needs repeating.
+- **Master Tag Control** (tab) — checkbox-select images, then apply/remove/conditionally-apply
+  tags, dataset-wide rename/find-replace, or delete the selection. Use it for bulk passes (e.g.
+  tag everything containing X).
+- **Delete permanently** (3-dot menu for one image, Master Tag Control for a batch) — removes
+  the files from disk outright. No undo; confirm-modal gated. Only removes the copy inside
   your dataset folder — a SynthDat-generated image's separate original in ComfyUI's own `output/`
-  folder is untouched.
-- **Text & panel tagging** (3-dot menu) — every control applies to the image's real tags the
-  instant you toggle it, no separate confirm step:
-  - **Has text** → **Japanese** (the assumed default, plain `text` tag) and/or any number of
-    **foreign languages** (each gets its own `{language} text` tag) — independently selectable,
-    not mutually exclusive, since a page can genuinely have Japanese *and* English *and* Russian
-    text on it. Common-language chips are click-to-toggle; a Settings toggle controls whether
-    typing a new language auto-selects it or just adds it to the list.
-  - **Comic**, **koma** (1–4koma), **speech bubble** toggles.
-- **Review flags** (fixed color palette, per-image or per-tag) and **notes** (optionally
-  always-visible on the card).
-- **Undo/redo** for every tag-mutating action, plus a full **📜 Edit Log** per dataset folder
-  (`_tag_edit_log.json`) — every entry has its own undo/redo, independent of the linear stack.
-  **Reset image edits** reverts one image to its earliest known tag state.
+  folder is untouched. Use it for rejects you never want back.
+- **Text & panel tagging** (3-dot menu) — instant toggles writing straight to tags:
+  Japanese/foreign-language text tags, Comic, koma count, speech bubble. Use it on manga/page
+  datasets where panel metadata matters.
+- **Review flags + notes** — color flags per image or tag, sticky notes on cards. Use them to
+  mark fix-later images.
+- **Undo/redo + 📜 Edit Log** — every mutation is undoable globally and per log entry
+  (`_tag_edit_log.json` per folder). **Reset image edits** restores one image. Use the log to
+  audit a session or roll back a single change.
 
-### WD14 Autotagger
-Sends selected image(s) — or a single image via its 3-dot menu — to a WD14 Tagger node on your own
-locally-run ComfyUI instance and merges the returned tags onto each card. Settings (host, model —
-scraped live from ComfyUI, thresholds, underscore/comma handling, exclude list) live in one
-expandable section on the Master Tag Control tab. "Apply automatically" toggles between committing
-immediately and a review modal (editable per-image tag list, skip checkbox) before anything is
-written; either way the whole batch is one undoable, logged action. The app holds no model
-itself — ComfyUI does the actual inference, over your own network only (see Security below).
+### WD14 Autotagger (Tag Overseer tab)
+Sends selected images (or one via its 3-dot menu) to a WD14 node on your ComfyUI and merges the
+returned tags. Host/model/thresholds in one settings section; review-before-apply optional; the
+whole batch is one undoable action. ComfyUI does the inference. Use it to bootstrap tags onto
+untagged imports.
 
-### SynthDat Overseer
-A dedicated tab that drives your own ComfyUI instance to generate MORE images of a character
-you've already started training a LoRA on, strong-armed into arbitrary reference poses via
-ControlNet — a way to grow a thin dataset rather than only clean up an existing one. Pick a
-reference pose image (optional — skippable for an ordinary prompted generation), WD14-interrogates
-it so you can copy just the pose tags across, fill in the rest of the prompt fields, then Generate
-(1-Pass or a 2nd refinement pass, with live preview and a Stop button). A final editable "pending"
-tag card shows exactly what will be saved, with per-tag pruning, a merge-history suggestion pulled
-from this dataset's own Retroactive Merge/Void rules, and a right-click "Mark as void" per tag
-(drops it from this image AND adds a Retroactive Void rule for it on Accept — handy for import
-tags like artist/rating that don't belong in the dataset, without needing to re-run WD14 just to
-strip them). Any tag already covered by an existing void rule shows the same strikethrough
-automatically, previewing what Accept would drop even without marking anything new. **Accept**
-writes the image + tags straight into
-the dataset root immediately (tags are written to disk right away too, not left purely in-memory,
-so a crash before your next Save doesn't lose them) as a normal unsaved edit; **Reject** sends it
-straight to `Disabled/` like any other disabled image — nothing generated is ever silently
-discarded. Electron-only feature; see
-`ComfyUI-dependencies/` in this repo for what your ComfyUI instance needs to run its workflow.
+### SynthDat Overseer (tab)
+Grows a thin dataset by generating MORE images of a character you're training a LoRA on —
+ControlNet-posed from a reference image, or plain prompted generation without one. WD14-interrogate
+the reference to steal pose tags, Generate (1-Pass or 2nd refinement pass, live preview, Stop),
+then review the pending tag card: prune tags, void-mark junk (e.g. artist/rating tags — voiding
+also adds a Retroactive Void rule on Accept). **Accept** writes image + tags into the dataset
+(crash-safe: written to disk immediately); **Reject** parks it in `Disabled/`. Nothing generated
+is silently discarded. Use it when 5 good images need to become 50. (Needs the ComfyUI node
+pack — see `ComfyUI-dependencies/`.)
 
 ### Wiki lookup, stats, favorites
-- **Tag Details** — Danbooru wiki definition, category, and post count for any tag (bundled data,
-  lazy-loaded); write and save your own note for tags without an official entry.
-- **Editing Stats tab** — animated pie/bar charts of logged actions by type, plus summary cards.
-- **★ Favorites** — save frequently-used dataset folders, reopen with one click.
+- **Tag Details** (chip menu) — Danbooru wiki definition, category, post count per tag (bundled,
+  lazy-loaded), plus your own notes. Use it to disambiguate similar tags.
+- **Editing Stats tab** — charts of your logged actions by type, plus summary cards. Use it to
+  see where cleanup time goes.
+- **★ Favorites** — one-click reopen for frequent dataset folders.
 
 ### Quality of life
-- **❓ Help** (topbar) — a condensed in-app copy of the user guide, including the beginner-friendly
-  glossary entries, for when you don't want to leave the app to look something up.
-- **🩺 Export app state** (Settings ▸ Updates & Sharing) — a troubleshooting aid that writes a text
-  file next to the app with your settings/theme/panel layout and whether a dataset's loaded, useful
-  for reporting a bug.
-- Themed confirm dialogs everywhere (no native OS popups).
-- Hover tooltips (toggleable, adjustable delay) on most controls.
-- Dockable right-sidebar panels — drag-reorder, collapse, resize; resettable to defaults.
-- Three overall layouts (standard / gallery-left / gallery-right).
-- Discrete mode (blur all images, or just one) — instantly reversible.
-- Native-zoom font scaling (not CSS zoom, so it never breaks layout math).
-- Closing the app with unsaved changes prompts you properly — it will not hang.
-- **Hardware acceleration toggle** (Settings ▸ Performance) — steers this app's own UI rendering
-  onto your integrated GPU by default (still hardware-accelerated, just off the discrete one your
-  actual generation work needs), or lets you turn GPU acceleration off entirely. Takes effect on
+- **❓ Help** (topbar) — in-app guide + glossary for when you don't want to leave the app.
+- **🩺 Export app state** (Settings ▸ Updates & Sharing) — one file with your setup, for bug
+  reports.
+- Hover tooltips (toggleable, adjustable delay).
+- Dockable right-sidebar panels — drag-reorder, collapse, resize, resettable.
+- Discrete mode — blur all images (or one) instantly; reversible.
+- Native-zoom font scaling (never breaks layouts).
+- Closing the app with unsaved changes prompts you to save first.
+- **Hardware acceleration toggle** (Settings ▸ Performance) — render on the integrated GPU by
+  default to keep your discrete GPU free for generation; or turn acceleration off. Applies on
   next launch.
 
 ---
 
 ## Themes & the shop economy
 
-25 themes total: 4 free (Studio, Neon Cyberpunk, Oriental, Subway Fresh) and 21 purchasable in the
-**💰 Shop**, sorted cheapest-first, spanning common → legendary rarity (40–750 Edibits). Every
-theme has its own accent set and at least one real visual flourish beyond just its color palette
-(a texture, an animation, a distinct button/card shape) — the epic and legendary tiers
-additionally get a hover/click "fill" effect on buttons as a purchase-worthy touch.
+25 themes total: 4 free and 21 in the **💰 Shop** (common → legendary, 40–750 Edibits).
+Every theme pairs a palette with a real flourish (texture, animation, button shape); epic and
+legendary add a hover/click button-fill effect.
 
-- **🏆 Achievements** (55+, comedic, unlocked per-folder — opening a different dataset starts
-  fresh) pay out **Edibits**, a small currency with rarity tiers. A "beg for free Edibits" button
-  exists if you're short.
-- **Motion-sensitivity controls** (Settings ▸ Appearance) — Suppress Theme Flourishes (hides Refine
-  Theme, turns off epic/legendary-tier hover-fill/card-tilt everywhere) plus three independent
-  toggles for hover-fill, card hover-tilt, and ambient animations, if you'd rather turn off just
-  one motion effect instead of all of them.
-- **🎨 Colors** — customize any theme's palette live via color pickers, save as your own "Custom"
-  theme.
-- **🌙 Night mode** — a genuine HSL lightness-inversion per theme, not a screen filter.
+- **🏆 Achievements** (55+, per-folder) pay out **Edibits** to spend in the Shop — a "beg for
+  free Edibits" button covers shortfalls. Use them to unlock themes by using the app.
+- **Motion-sensitivity controls** (Settings ▸ Appearance) — kill all motion or just hover-fill,
+  card tilt, or ambient animation. Use them if effects distract or discomfort you.
+- **🎨 Colors** — recolor any theme live, save as your own "Custom" theme.
+- **🌙 Night mode** — inverts each theme's colors directly.
 
 ---
 
@@ -193,7 +176,9 @@ additionally get a hover/click "fill" effect on buttons as a purchase-worthy tou
 
 This app has no auto-updater. To update: download a fresh build, then move your `data/` folder
 (settings, themes, achievements — everything that isn't the app code itself) from your old copy
-into the new one. Delete the old copy once you've confirmed the new one works.
+into the new one. Delete the old copy once you've confirmed the new one works. Same for Comfy
+Bridge desktop (its `data/` holds presets and the remembered output folder); Android builds
+update by sideloading the new APK over the old one (`adb install -r`), which preserves app data.
 
 ---
 
@@ -215,7 +200,7 @@ npm start          # builds, then launches the app pointing at renderer/ in this
 ```bash
 npm run build        # tsc (main) + type-check + esbuild bundle (renderer) — fast compile check
 npm run refresh-app   # build, then regenerate the portable test build at THIS directory's root
-                       # (Dataset Tag Studio.exe, resources/, data/, etc. — see Project structure)
+                        # (Dataset Tag Studio.exe, resources/, data/, etc. — see Project structure)
 ```
 
 `npm run refresh-app` is the routine verification loop: edit `src/`, run it, relaunch the exe.
@@ -223,6 +208,19 @@ Never hand-edit `main.js`, `preload.js`, or `renderer/app.js` directly — they'
 
 Main-process changes (`src/main.ts`) require a full quit + relaunch of the exe to take effect
 (no hot-reload). Renderer changes are picked up the same way.
+
+### The other two apps
+
+- **Comfy Bridge desktop** — `cd comfy-bridge`, `npm install`, then the same loop (`npm start`
+  to run, `npm run refresh-app` for its portable test build at its own root).
+- **Shared Bridge UI** (gallery sidebar, model picker modals, image lightbox) lives once in
+  `comfy-bridge/src/renderer/shared/` — `npm run build:shared` (from `comfy-bridge/`) bundles it
+  for mobile (`mobile/www/shared.js`) and copies the stylesheet to both shells
+  (`renderer/shared.css`, `mobile/www/shared.css`). Never hand-edit those three copies.
+- **Dataset-manager mobile** — `cd mobile`, `node sync-web.js`, `npx cap sync android`, then
+  `./gradlew assembleDebug` in `android/` (needs the Android SDK and JDK 21).
+- **Comfy Bridge mobile** — same Android steps from `comfy-bridge/mobile/`, running
+  `npm run build:shared` (from `comfy-bridge/`) first so `www/shared.js` is current.
 
 ### Release build
 
@@ -280,6 +278,12 @@ opening DevTools by hand.
   # The portable test build — regenerated by `npm run refresh-app`, gitignored, coexists with
   # source at this same directory root by design (not a stray leftover):
   Dataset Tag Studio.exe, resources/, locales/, data/, chrome_*.pak, *.dll, ...
+
+  mobile/             — Android port of the dataset manager (Capacitor wrapper around the same
+                        renderer; own package.json/node_modules, android/ native project)
+  comfy-bridge/       — standalone ComfyUI generation UI: Electron desktop (src/, same
+                        build/refresh loop as above) + Android port (mobile/, sharing
+                        src/renderer/shared/ with desktop)
 
   Shippable/            — release zip output of `npm run dist:zip` (gitignored)
 ```

@@ -78,8 +78,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       explanation.`}</p>
       <ul>
         <li><b>❌ Disable / ↩ Restore</b> — move the image to/from Disabled.</li>
-        <li><b>❌ Delete permanently</b> — unlike Disable, removes the image and its tags from
-        disk outright, not just to Disabled. Confirmed first; no undo. Also available as a mass
+        <li><b>❌ Delete permanently</b> — removes the image and its tags from
+        disk outright, with no way back. Confirmed first; no undo. Also available as a mass
         action in Master Tag Control. Only removes the copy inside your DATASET folder — if the
         image came from SynthDat Overseer, ComfyUI's own <code>output/</code> folder keeps its own
         separate copy from when it was generated, untouched by this.</li>
@@ -103,12 +103,10 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>Docked panels in the bottom panel — swipe left/right to switch between them, tap a dock's
       header to collapse/expand it. Drag-to-reorder and drag-to-resize are both mouse-only, so
       those aren't available here.</p>
-      <p><b>✂️ Prune tags</b> opens a full-screen browse/select list (this also covers what's a
-      separate "Tags" dock and a separate Unify/Void dock on desktop — folded in here since mobile
-      only ever has one Tag Pruner going at once). Check any tags you want, then either Apply/Void
-      them right there, or <b>💾 Save as task</b> to stash that selection and start browsing the
-      next unrelated group without losing it — each saved task keeps its own selection and its own
-      Apply/Void, same as several independent Tag Pruner boxes would on desktop.</p>` : `
+      <p><b>✂️ Prune tags</b> opens a full-screen browse/select list. Check any tags you want,
+      then either Apply/Void them right there, or <b>💾 Save as task</b> to stash that selection
+      and start browsing the next unrelated group without losing it — each saved task keeps its
+      own selection and its own Apply/Void, so several unrelated groups stay separate.</p>` : `
       <p>These are the docked panels in the Gallery's right sidebar. Drag a dock's header to
       reorder it relative to the others, click the header to collapse/expand it, or drag its
       bottom edge to resize (Retroactive Merge/Void sizes itself to its content and skips this).
@@ -132,7 +130,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       corrected automatically (typing a blocked tag by hand is refused with a toast, not silently
       rewritten). This only affects Gallery images; Disabled ones are frozen until restored. A rule
       can be paused, or one of its tags turned off individually, without losing anything — both
-      actively undo whatever correction they'd already made, not just stop future ones. Void rules
+      actively restore whatever each affected image originally had. Void rules
       show in their own collapsible group (they all share one rule, since there's no separate
       canonical tag to key them by); merge rules list one row per canonical tag.</p>
       <p>Merge and Void tend to matter a lot more for a
@@ -329,9 +327,8 @@ export const HELP_SECTIONS: HelpSection[] = [
         <li><b>Tagging</b> — tag-input behavior, e.g. whether typing a new language auto-selects
         it.</li>
         <li><b>Saving</b> — Autosave (off by default): when on, edits save to disk automatically
-        about 1.2 seconds after you stop typing, instead of only on a manual ${isTouchDevice ? 'tap on' : 'click on'} Save. Safe to
-        turn on — every edit is already in the Edit Log with its own undo regardless of whether
-        it's been physically written to disk yet.</li>
+        about 1.2 seconds after you stop typing. Every edit stays undoable either way — each one
+        is already in the Edit Log with its own undo.</li>
         <li><b>Performance</b> — Hardware acceleration (on by default) steers this app's own UI
         rendering onto your integrated GPU instead of competing with ComfyUI's real workload on
         your discrete one. Turning it off forces pure CPU rendering. Takes effect on your next
@@ -350,12 +347,12 @@ export const HELP_SECTIONS: HelpSection[] = [
     html: `
       <p>25 themes in total — 4 free, 21 in the 💰 Shop (common through legendary, priced in
       Edibits, a small in-app currency you earn from achievements). Every theme has its own accent
-      color and at least one real visual flourish, not just a palette swap. Epic/legendary themes
+      color and at least one real visual flourish beyond its palette. Epic/legendary themes
       get an extra hover-fill effect on buttons; any cheaper theme can buy that same effect
       individually via the Shop's "🔨 Refine Theme" button, for the price difference.</p>
       <p>🏆 Achievements (55+, unlocked per dataset folder — a fresh dataset starts with none
       unlocked) pay out Edibits as you use the app's features. 🌙 Night mode is a genuine per-theme
-      color inversion, not a screen filter laid on top.</p>
+      color inversion.</p>
       <p>Settings ▸ Appearance has motion-sensitivity controls: <b>Suppress Theme Flourishes</b>
       hides the Refine Theme button and turns off epic/legendary-tier hover-fill/card-tilt
       everywhere — whether a theme has it natively or you bought it via Refine Theme. Three
@@ -393,8 +390,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       changes always asks first; nothing is silently discarded.</p>
       ${isTouchDevice ? `<p><b>⚠ Except force-closing the app</b> — swiping it away in Android's
       recent-apps view kills the app outright, with no chance for that warning (or anything else)
-      to run first. Unsaved changes from that session are lost exactly like an unplugged desktop
-      would lose them; there's no way around this on mobile. Save (or turn on Autosave, Settings ▸
+      to run first. Unsaved changes from that session are lost with no way to recover them.
+      Save (or turn on Autosave, Settings ▸
       Saving) before switching away if you're not sure you'll come back to this same session.</p>` : ''}`
   },
   {

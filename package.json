@@ -42,6 +42,9 @@
       "tsconfig.renderer.json",
       "node_modules/ws/**/*",
       "node_modules/onnxruntime-node/**/*",
+      "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**/*",
+      "!node_modules/onnxruntime-node/bin/napi-v6/linux/**/*",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**/*",
       "build/icon.ico",
       "build/icon.png"
     ],

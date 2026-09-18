@@ -25,6 +25,7 @@ app to look something up.
 - [Favorites](#favorites)
 - [The Edit Log](#the-edit-log)
 - [Saving your work](#saving-your-work)
+- [The mobile app & Comfy Bridge](#the-mobile-app--comfy-bridge)
 - [Tips & troubleshooting](#tips--troubleshooting)
 
 ---
@@ -57,13 +58,16 @@ This is the tag editor itself — everything else in the app supports what happe
 - **Grid** — the default. Each card shows the image, its tags as editable chips, a dirty/untagged
   indicator, and a 3-dot menu. Toggle "Dynamic card heights" for a masonry layout.
 - **Compact** — dense thumbnails with tags on hover. Shift-click two images to pin them side by
-  side in an aligned comparison table.
+  side in an aligned comparison table. Use it to triage large folders quickly.
 - **Single** — one image at a time, up to 400% zoom, drag-to-pan, arrow-key navigation. Select 2+
-  images in Tag Overseer first and switch here for a multi-image tag-alignment table.
-- **❌ Disabled** — images you've moved out of the active set.
+  images in Tag Overseer first and switch here for a multi-image tag-alignment table. Use it to
+  inspect fine details (text, hands, artifacts) before training.
+- **❌ Disabled** — images you've moved out of the active set. Use it for maybes you don't want
+  to delete.
 - **🔢 Rename all** — renames every loaded image (+ its `.txt`) to a simple zero-padded `1`-`N`
   sequence (active dataset first, then `Disabled/`, continuing the same count), confirmed first.
-  Logged and undoable from the Log panel like any other bulk action.
+  Logged and undoable from the Log panel like any other bulk action. Use it to normalize a folder
+  to `1`–`N` before training.
 
 The gallery's own column count normally shrinks as font-size zoom or an open side panel eats into
 the available width — Settings ▸ Appearance ▸ "Gallery columns" forces a fixed count instead, if
@@ -93,21 +97,24 @@ Every image card has a "⋯" button (or right-click the card) opening a menu of 
 Each item's label is short on purpose — hover any of them for the full explanation.
 
 - **❌ Disable / ↩ Restore** — move the image to/from `Disabled/`.
-- **❌ Delete permanently** — unlike Disable, this removes the image and its `.txt` from disk
-  outright, not just to `Disabled/` — fully confirmed, and there's no undo. Also available as a
+- **❌ Delete permanently** — removes the image and its `.txt` from disk outright, with no way
+  back. Fully confirmed first. Also available as a
   mass action for your whole selection in Master Tag Control (see below). Only removes the copy
   inside your dataset folder — a SynthDat-generated image's separate original in ComfyUI's own
   `output/` folder is untouched.
-- **🔒 Lock / 🔓 Unlock** — see above.
+- **🔒 Lock / 🔓 Unlock** — see above. Use it to protect finished images from batch tools.
 - **🚫 Merge Immunize**, **🟢 Antivoid**, **✋ Antimmunize** — permanently exempt this one image
   from the Retroactive Merge/Void dock's rules (see below) — merge rules, void rules, or both.
   This is a stronger, always-on version of Lock: Lock only skips mass *tools*, these specifically
-  block the standing rule system even when you deliberately re-trigger it.
-- **⏮ Reset edits** — revert this image to its earliest known tag state.
+  block the standing rule system even when you deliberately re-trigger it. Use it for images that
+  must keep an exception permanently.
+- **⏮ Reset edits** — revert this image to its earliest known tag state. Use it to undo a bad
+  autotag run on one image.
 - **🗑️ Remove all tags** — clears every tag on this image in one click (confirmed first) instead
   of clicking each chip's own ×. Undoable from the main Undo button like any other tag edit.
+  Use it to start an image's tags from scratch.
 - **🐍 WD14 Tag** — run the WD14 Autotagger on just this one image (settings live in Tag
-  Overseer — see below).
+  Overseer — see below). Use it to tag a single new image.
 - **Text/language, comic/koma, review flags, blur, notes** — additional per-image metadata, all
   written immediately as you toggle them (no separate "Apply" step).
 
@@ -123,7 +130,8 @@ top. Settings has a "Reset panel layout" button if things ever get into a bad st
 
 ### Tag Pruner
 Search/browse every tag in the dataset, hand-pick any combination, then feed them into Unify/Void
-below. **+ Add another Tag Pruner** opens as many independent boxes as you want — each has its own
+below. Use it to collapse spelling variants and junk tags dataset-wide. **+ Add another Tag
+Pruner** opens as many independent boxes as you want — each has its own
 selection, so a tag picked in one box is hidden from every other box's results (it can't be
 double-picked), letting you browse and select several unrelated keyword families side by side
 without them interfering.
@@ -174,7 +182,8 @@ correctly-ordered log rows.
 
 Void rules and merge rules are shown as two separate groups in this dock — Void is collapsible
 (all your voided tags actually live under one shared rule, so there's normally just one to
-expand), Merge lists each canonical-tag rule on its own.
+expand), Merge lists each canonical-tag rule on its own. Use standing rules so a cleanup never
+needs repeating.
 
 ---
 
@@ -187,7 +196,8 @@ Two things live here: **Master Tag Control** and the **WD14 Autotagger**.
    (selection stays in sync both ways).
 2. Apply or remove a tag across the whole selection, conditionally apply one tag based on another
    being present — or the inverse, based on it being ABSENT (its own separate row, right below the
-   first) — or run a dataset-wide rename / find-and-replace.
+   first) — or run a dataset-wide rename / find-and-replace. Use it for bulk passes (e.g. tag
+   everything containing X).
 3. Mass **Lock/Unlock**, **Merge Immunize/Antivoid/Antimmunize** buttons apply the same per-image
    flags described above to your entire selection at once.
 4. **❌ Delete selected permanently** — removes every selected image and its tags from disk
@@ -199,7 +209,8 @@ Sends selected images (or one image via its 3-dot menu) to a WD14 Tagger node on
 ComfyUI instance and merges the returned tags onto each card. Expand "⚙ WD14 settings" here to set
 the ComfyUI host, model (scraped live from your ComfyUI instance), confidence thresholds, and
 whether results apply automatically or go through a review step first. The app holds no model
-itself — your ComfyUI instance does the actual tagging.
+itself — your ComfyUI instance does the actual tagging. Use it to bootstrap tags onto untagged
+imports.
 
 ---
 
@@ -208,14 +219,15 @@ itself — your ComfyUI instance does the actual tagging.
 A folder manager separate from the Gallery — shows every dataset folder you've ever opened as a
 themed folder icon. Sort manually (drag) or by name/time. Right-click a folder for options:
 remove from this list, pin as a favorite, view its achievements read-only, or change its icon.
-Opening an untracked folder prompts once to add it here.
+Opening an untracked folder prompts once to add it here. Use it to switch between
+characters/projects without reopening folders.
 
 ---
 
 ## Editing Stats tab
 
 Animated charts (pie or bar) of every logged action by type, plus summary cards — total edits,
-undo/redo stack depth, achievements unlocked.
+undo/redo stack depth, achievements unlocked. Use it to see where cleanup time goes.
 
 ---
 
@@ -279,9 +291,8 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
 - **Power Tools** — options for the right-sidebar docks.
 - **Tagging** — tag-input behavior (e.g. whether typing a new language auto-selects it).
 - **Saving** — **Autosave** toggle (off by default): when on, edits save to disk automatically
-  ~1.2 seconds after you stop typing, instead of only on a manual Save click. Safe to enable —
-  every edit is already in the Edit Log with its own undo regardless of whether the file's been
-  physically written yet.
+  ~1.2 seconds after you stop typing. Every edit stays undoable either way — each one is
+  already in the Edit Log with its own undo.
 - **Performance** — **Hardware acceleration** toggle: on by default, steering this app's own UI
   rendering onto your integrated GPU instead of competing with ComfyUI's real workload on your
   discrete one. Turn it off for pure CPU rendering, or if you'd rather this app use your discrete
@@ -301,12 +312,12 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
 
 25 themes total — 4 free, 21 in the **💰 Shop** (common → legendary, 40–750 Edibits, a small
 in-app currency earned from achievements). Every theme has its own accent color and at least one
-real visual flourish, not just a palette swap. Epic/legendary themes get an extra hover-fill
+real visual flourish beyond its palette. Epic/legendary themes get an extra hover-fill
 button effect; any cheaper theme can buy that same effect individually via the Shop's
 **🔨 Refine Theme** button for the price difference.
 
 **🏆 Achievements** (55+, unlocked per-dataset-folder — a fresh dataset starts with none unlocked)
-pay out Edibits. **🌙 Night mode** is a genuine per-theme color inversion, not a screen filter.
+pay out Edibits. Use them to unlock Shop themes by using the app. **🌙 Night mode** is a genuine per-theme color inversion.
 
 Settings ▸ Appearance has motion-sensitivity controls for all of this: **Suppress Theme
 Flourishes** hides the Refine Theme button and turns off the epic/legendary hover-fill/card-tilt
@@ -320,7 +331,8 @@ a theme's static colors, textures, or glows.
 ## Favorites
 
 **★ Favorites** saves frequently-used dataset folders for one-click reopening — separate from the
-Datasets tab's own folder list, though pinning a folder there syncs it into Favorites too.
+Datasets tab's own folder list, though pinning a folder there syncs it into Favorites too. Use it
+for daily-driver folders.
 
 ---
 
@@ -335,7 +347,7 @@ too, just without an Undo button of their own, since there's no tag-level change
 pure setting flip.
 
 **Export log…** saves the full log as JSON. **Clear log** permanently deletes it for this dataset
-(confirmed first).
+(confirmed first). Use the log to audit a session or roll back a single change.
 
 ---
 
@@ -345,6 +357,26 @@ The toolbar's dirty counter shows how many images (and, separately, whether the 
 Merge/Void dock has unsaved rule changes) are waiting to be written to disk — click **Save** to
 write them all. Closing the app, switching datasets, or reloading with unsaved changes always
 prompts you first; nothing is silently discarded.
+
+---
+
+## The mobile app & Comfy Bridge
+
+This guide covers the desktop app. Two siblings share this repo:
+
+- **Dataset Tag Studio for Android** (`mobile/`) — the same editor in a touch layout: panels
+  become bottom sheets, tag editing happens in the image modal (tap a card), Compact and Single
+  views are removed, and the folder picker uses Android's own storage access with a persisted
+  grant. WD14 tagging runs either on-device (models download on first use) or through your own
+  ComfyUI instance like desktop. The in-app ❓ Help is rewritten for touch — read that instead
+  of this guide on mobile.
+- **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
+  featuring a built-in workflow: no node graph to navigate, every generation saves straight to
+  disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
+  `Documents/`). Both builds share the gallery sidebar (browse subfolders, sort by name/date,
+  pin favorites), model picker modals, and the zoomable image lightbox. Mobile details live in
+  `comfy-bridge/mobile/README.md`; to reach ComfyUI from a phone, start it with `--listen
+  0.0.0.0 --enable-cors-header --port 8188` and allow inbound TCP 8188 through the firewall.
 
 ---
 
