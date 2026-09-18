@@ -1,0 +1,64 @@
+/* Shared Comfy Bridge styles (gallery sidebar, model picker modal, image
+   lightbox). Single source at src/renderer/shared/shared.css — copied to
+   renderer/shared.css and mobile/www/shared.css at build time, linked from
+   both shells. Do not hand-edit the copies. */
+
+/* Gallery sidebar — off-canvas panel sliding in horizontally from the
+   right; the FAB opens it, the × button or the backdrop closes it. */
+#galleryFab{position:fixed;right:14px;bottom:18px;z-index:500;width:56px;height:56px;border-radius:50%;background:var(--accent);border-color:var(--accent);font-size:24px;padding:0;min-height:0;box-shadow:0 4px 16px rgba(0,0,0,.5);}
+#galleryBackdrop{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.55);display:none;}
+#galleryBackdrop.show{display:block;}
+#gallerySidebar{position:fixed;top:0;right:0;bottom:0;z-index:601;width:min(88vw,380px);background:var(--panel);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .22s ease-out;display:flex;flex-direction:column;padding:12px 14px;}
+#gallerySidebar.open{transform:translateX(0);}
+.gallery-side-head{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;margin-bottom:8px;}
+.gallery-side-head .d{flex:1;}
+#galleryCloseBtn{background:none;border:none;color:var(--text);font-size:22px;min-height:0;padding:4px 10px;}
+#gallerySidebar .gallery-grid{flex:1;overflow-y:auto;}
+.gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-content:start;}
+/* Uniform 1:1 cells with a placeholder background: every slot reserves its
+   exact space before its image arrives, so progressive thumbnail loading
+   never reflows the grid (the old "jiggle"). content-visibility keeps large
+   grids cheap to scroll. */
+.gallery-thumb{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:6px;border:1px solid var(--border);background:var(--panel2);content-visibility:auto;contain-intrinsic-size:120px;}
+.gallery-group-head{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:6px;}
+.gallery-group-head:first-child{margin-top:0;}
+/* Browser-mode navigation (desktop): breadcrumb + sort toggle + folder rows. */
+.gallery-nav-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.gallery-crumb{flex:1;display:flex;flex-wrap:wrap;gap:2px;align-items:center;font-size:13px;min-width:0;}
+.gallery-crumb-btn{background:none;border:none;color:var(--text);font-size:13px;min-height:0;padding:4px 6px;cursor:pointer;overflow-wrap:anywhere;text-align:left;}
+.gallery-crumb-btn:hover{text-decoration:underline;}
+.gallery-crumb-sep{color:var(--muted);}
+.gallery-sort-btn{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:13px;min-height:0;padding:6px 10px;white-space:nowrap;}
+/* Do NOT add overflow:hidden here: on a flex row inside this grid it
+   collapses the row and clips its buttons into unreadable slits. */
+.gallery-folder-row{grid-column:1/-1;display:flex;gap:4px;align-items:center;width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:0;}
+.gallery-folder-open{flex:1;display:block;text-align:left;background:none;border:none;color:var(--text);font-size:14px;min-height:0;padding:10px 12px;overflow-wrap:anywhere;}
+.gallery-pin-btn{background:none;border:none;font-size:16px;min-height:0;padding:10px 12px;color:var(--muted);}
+.gallery-pin-btn.pinned{color:var(--accent);}
+.gallery-more-btn{grid-column:1/-1;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:13px;padding:10px 12px;}
+
+/* Model picker modal — a dedicated full modal (not an attached dropdown),
+   so option lists never compete with the keyboard or detach like the native
+   datalist popup did. */
+.picker-backdrop{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .16s ease;}
+.picker-backdrop.modal-visible{opacity:1;}
+.picker-box{background:var(--panel);border:1px solid var(--border);border-radius:10px;width:min(480px,94vw);max-height:84vh;display:flex;flex-direction:column;padding:12px 14px;}
+.picker-head{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;margin-bottom:8px;}
+.picker-head .d{flex:1;}
+.picker-close{background:none;border:none;color:var(--text);font-size:24px;min-height:0;padding:4px 10px;}
+.picker-search{margin-bottom:8px;}
+.picker-list{overflow-y:auto;}
+.picker-row{padding:11px 10px;font-size:14px;border-bottom:1px solid var(--border);overflow-wrap:anywhere;}
+.picker-row:last-child{border-bottom:none;}
+.picker-row.picked{color:var(--accent);font-weight:600;}
+.picker-clear{color:var(--muted);}
+.picker-empty{padding:11px 10px;font-size:13px;color:var(--muted);}
+
+/* Generic image lightbox — screen-dimming backdrop, image pannable/zoomable
+   with clamped pan (see clampPan() in lightbox.ts). touch-action:none hands
+   all touch behavior to our own handlers instead of the WebView's competing
+   gesture recognizer. */
+.lightbox-backdrop{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out;opacity:0;transition:opacity .16s ease;}
+.lightbox-backdrop.modal-visible{opacity:1;}
+.lightbox-backdrop img{max-width:94vw;max-height:92vh;object-fit:contain;box-shadow:0 30px 80px rgba(0,0,0,.6);border-radius:4px;touch-action:none;}
+.lightbox-close{position:fixed;top:10px;right:10px;z-index:701;background:none;border:none;color:var(--text);font-size:28px;min-height:0;padding:8px 14px;}

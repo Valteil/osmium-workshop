@@ -1,0 +1,16 @@
+{
+  "name": "comfy-bridge-mobile",
+  "version": "1.0.0",
+  "description": "Comfy Bridge for Android — same ComfyUI generation interface as the desktop app, ported to a Capacitor WebView (fetch/WebSocket instead of Electron IPC, one vertical scrollable page instead of the 3-column desktop layout).",
+  "private": true,
+  "scripts": {
+    "sync": "npx cap sync android",
+    "open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^7.1.4"
+  }
+}

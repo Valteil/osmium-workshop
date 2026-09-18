@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android's Network Security Config blocks plain HTTP for apps targeting
+  API 28+ regardless of the WebView's own mixed-content setting (see
+  MainActivity.java's MIXED_CONTENT_ALWAYS_ALLOW, which only covers the
+  WebView layer — this covers the OS layer underneath it). This app
+  deliberately talks to a user-configured remote ComfyUI instance (a LAN,
+  hotspot, or Tailscale IP such as http://100.x.y.z:8188), which is normally
+  a bare address with no TLS of its own, so cleartext is allowed app-wide
+  rather than enumerating every possible host the user might type in.
+  Same fix as the parent Dataset Tag Studio mobile app.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

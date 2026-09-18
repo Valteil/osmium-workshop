@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Comfy Bridge</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <h1>Comfy Bridge</h1>
+  </header>
+
+  <div id="col">
+
+    <section class="sec">
+      <div class="sec-head"><span class="d">Connection</span></div>
+      <div class="row">
+        <input id="host" type="text" placeholder=http://192.168.1.x:8188 or http://100.x.y.z:8188 (Tailscale)" value="http://192.168.1.1:8188">
+      </div>
+      <div class="row">
+        <button id="btnConnect">Test connection</button>
+      </div>
+      <div id="connStatus" class="status-line" style="display:none"></div>
+      <div class="muted small">Enter your PC's reachable address — LAN IP (<code>http://192.168.x.x:8188</code>), hotspot gateway IP, or Tailscale IP/hostname (<code>http://100.x.y.z:8188</code>). Not <code>127.0.0.1</code> — that means "this phone" here. ComfyUI must run with <code>--listen 0.0.0.0 --enable-cors-header --port 8188</code>, and Windows Firewall must allow inbound TCP 8188. Note: the address loading in the phone's browser does NOT prove the app can reach it — the app needs CORS headers + cleartext allowed, the browser navigation needs neither.</div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head"><span class="d">Output</span></div>
+      <div class="sec-body">
+      <div class="muted small">Generations save directly inside the folder below — both passes when 2-Pass runs.</div>
+      <div class="row">
+        <span id="saveLocationLabel" class="muted">Documents</span>
+      </div>
+      <div class="row">
+        <button id="btnPickFolder">Pick folder…</button>
+        <button id="btnDefaultFolder">Use default</button>
+      </div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head"><span class="d">Generate</span></div>
+      <div class="row">
+        <button id="btnGenerate">Generate</button>
+        <button id="btnStop" disabled>Stop</button>
+      </div>
+      <div id="genStatus" class="status-line" style="display:none"></div>
+      <div id="livePreviewWrap" style="display:none" class="preview-wrap">
+        <img id="livePreview">
+      </div>
+      <div id="previewWrap" class="preview-wrap">
+        <img id="preview" style="display:none">
+        <div id="previewEmpty" class="muted">No generation yet.</div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head"><span class="d">Reference image (ControlNet)</span></div>
+      <label class="chk-row"><input id="skipRefImage" type="checkbox"> No reference image (skip ControlNet)</label>
+      <div id="refImageSection">
+        <div class="row">
+          <button id="btnPickImage">Pick reference image…</button>
+          <input id="refFileInput" type="file" accept="image/*" style="display:none">
+        </div>
+        <span id="refFileName" class="muted"></span>
+        <img id="refPreview" style="display:none" class="thumb">
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head"><span class="d">Prompt</span></div>
+      <div class="row">
+        <select id="promptPresetSelect"><option value="">(choose a preset)</option></select>
+      </div>
+      <div class="row">
+        <button id="btnLoadPromptPreset">Load</button>
+        <button id="btnDeletePromptPreset">Delete</button>
+      </div>
+      <div class="row">
+        <input id="promptPresetName" type="text" placeholder="Preset name (e.g. a character)…">
+      </div>
+      <div class="row">
+        <button id="btnSavePromptPreset">Save current prompt as preset</button>
+      </div>
+
+      <label class="chk-row"><input id="unifiedPromptMode" type="checkbox"> Use a single unified prompt box</label>
+      <div id="unifiedPromptRow">
+        <label>Prompt</label>
+        <textarea id="unifiedPrompt" rows="4"></textarea>
+      </div>
+      <div id="splitFieldsGroup">
+        <label>Global</label><textarea id="global" rows="2"></textarea>
+        <label>Character</label><textarea id="character" rows="2"></textarea>
+        <label>Rating</label><textarea id="rating" rows="1"></textarea>
+        <label>Hair</label><textarea id="hair" rows="1"></textarea>
+        <label>Face</label><textarea id="face" rows="1"></textarea>
+        <label>Chest</label><textarea id="chest" rows="1"></textarea>
+        <label>Body</label><textarea id="body" rows="1"></textarea>
+        <label>Clothes</label><textarea id="clothes" rows="2"></textarea>
+        <label>Limbs</label><textarea id="limbs" rows="1"></textarea>
+        <label>Sexual</label><textarea id="sexual" rows="1"></textarea>
+        <label>Pose</label><textarea id="pose" rows="1"></textarea>
+        <label>Scene</label><textarea id="scene" rows="2"></textarea>
+        <label>Effects</label><textarea id="effects" rows="1"></textarea>
+        <label>Extra</label><textarea id="extra" rows="1"></textarea>
+      </div>
+      <label>Character trigger</label>
+      <textarea id="characterTrigger" rows="1"></textarea>
+
+      <label>Negative</label>
+      <textarea id="negative" rows="2"></textarea>
+      <div class="row">
+        <select id="negativePresetSelect"><option value="">(choose a preset)</option></select>
+      </div>
+      <div class="row">
+        <button id="btnLoadNegativePreset">Load</button>
+        <button id="btnDeleteNegativePreset">Delete</button>
+      </div>
+      <div class="row">
+        <input id="negativePresetName" type="text" placeholder="Preset name…">
+      </div>
+      <div class="row">
+        <button id="btnSaveNegativePreset">Save current negative as preset</button>
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head"><span class="d">Models</span></div>
+      <label>Diffusion model (UNET)</label>
+      <input id="diffModel" type="text" readonly placeholder="Tap to choose…">
+      <datalist id="diffModelList"></datalist>
+      <label>CLIP</label>
+      <input id="clip" type="text" readonly placeholder="Tap to choose…">
+      <datalist id="clipList"></datalist>
+      <label>VAE</label>
+      <input id="vae" type="text" readonly placeholder="Tap to choose…">
+      <datalist id="vaeList"></datalist>
+      <label>Main LoRA</label>
+      <input id="mainLora" type="text" readonly placeholder="Tap to choose…">
+      <datalist id="mainLoraList"></datalist>
+      <div class="row">
+        <button id="btnRefreshModels">Refresh model lists</button>
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head"><span class="d">LoRA stack</span></div>
+      <div id="loraStackRows"></div>
+      <datalist id="loraList"></datalist>
+      <button id="btnAddLora">+ Add LoRA</button>
+    </section>
+
+    <section class="sec" id="lliteSection">
+      <div class="sec-head"><span class="d">ControlNet (Anima LLLite)</span></div>
+      <label>Strength</label>
+      <input id="lliteStrength" type="number" step="0.05" value="1">
+      <label>Start percent</label>
+      <input id="lliteStartPercent" type="number" step="0.05" value="0">
+      <label>End percent</label>
+      <input id="lliteEndPercent" type="number" step="0.05" value="0.3">
+      <label class="chk-row"><input id="llitePreserveWrapper" type="checkbox" checked> Preserve wrapper</label>
+      <label>Resize fit</label>
+      <select id="resizeFit">
+        <option value="pad">Pad</option>
+        <option value="crop">Crop</option>
+        <option value="contain">Contain</option>
+      </select>
+      <label>Resize method</label>
+      <select id="resizeMethod">
+        <option value="lanczos">Lanczos</option>
+        <option value="bilinear">Bilinear</option>
+        <option value="nearest">Nearest</option>
+        <option value="bicubic">Bicubic</option>
+      </select>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head"><span class="d">Resolution & sampling</span></div>
+      <div class="row reso-row">
+        <div>
+          <label>Width</label>
+          <input id="width" type="number" value="920">
+        </div>
+        <button id="btnSwapReso" title="Swap width/height">⇄</button>
+        <div>
+          <label>Height</label>
+          <input id="height" type="number" value="1244">
+        </div>
+      </div>
+      <label>Sampler</label>
+      <input id="sampler" type="text" value="res_multistep">
+      <label>Scheduler</label>
+      <input id="scheduler" type="text" value="beta">
+      <label>Steps (pass 1)</label>
+      <input id="steps1" type="number" value="25">
+      <label>CFG (pass 1)</label>
+      <input id="cfg1" type="number" step="0.01" value="4.04">
+      <label>Seed (pass 1)</label>
+      <input id="seed1" type="number" value="15">
+      <label class="chk-row"><input id="use2Pass" type="checkbox"> 2-Pass</label>
+      <div id="pass2Fields">
+        <label>Steps (pass 2)</label>
+        <input id="steps2" type="number" value="15">
+        <label>Denoise (pass 2)</label>
+        <input id="denoise2" type="number" step="0.05" value="0.6">
+        <label>Seed (pass 2)</label>
+        <input id="seed2" type="number" value="15">
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head"><span class="d">Upscale (optional)</span></div>
+      <label class="chk-row"><input id="upscaleEnabled" type="checkbox"> Upscale by model before saving</label>
+      <div id="upscaleModelRow">
+        <label>Upscale model</label>
+        <input id="upscaleModel" type="text" readonly placeholder="Tap to choose…">
+        <datalist id="upscaleModelList"></datalist>
+        <label>Scale by (after model upscale, e.g. 0.5 to bring a 4x model back to 2x)</label>
+        <input id="upscaleScaleBy" type="number" step="0.05" value="0.5">
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head"><span class="d">Log</span></div>
+      <div id="log" class="log-box"></div>
+    </section>
+
+  </div>
+</div>
+<script src="shared.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
