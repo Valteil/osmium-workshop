@@ -1,5 +1,7 @@
 # Dataset Tag Studio
 
+![Dataset Manager Studio](build/banner.jpg)
+
 A local, offline-first desktop app for tagging and cleaning up AI image-training datasets
 (image + `.txt` caption pairs, the format LoRA/Stable-Diffusion-style training expects).
 Everything reads and writes directly to your dataset folder on disk — no uploads, no cloud,
