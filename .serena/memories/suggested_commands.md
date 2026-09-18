@@ -13,7 +13,7 @@ All run from this directory (the project root).
   run when a release is actually wanted, never for routine verification.
 - Verify no silent renderer startup crash (see `mem:conventions` on why a clean build isn't
   sufficient): after `refresh-app`, launch with
-  `ELECTRON_ENABLE_LOGGING=1 "./Dataset Manager Studio.exe" --enable-logging=stderr` (Bash tool;
+  `ELECTRON_ENABLE_LOGGING=1 "./Osmium Workshop.exe" --enable-logging=stderr` (Bash tool;
   redirect to a log file and background it), wait a few seconds, grep the log for
   `error|uncaught|exception`. **Do NOT `taskkill` the launched instance(s) afterward, and don't
   kill a pre-existing running instance before launching either** — per explicit user instruction,

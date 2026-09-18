@@ -10,7 +10,7 @@ LICENSE file inside each of those subfolders for the exact text and original cop
 GPLv3 is compatible with redistributing MIT/Apache-2.0 code alongside it; it does not relicense
 those files, it just describes the terms for the combined pack as distributed here.
 
-danbooru_character_detect/ is bespoke code built for this project (Dataset Manager Studio) with no
+danbooru_character_detect/ is bespoke code built for this project (Osmium Workshop) with no
 upstream license of its own — treat it as covered by this same GPLv3 grant when distributed as
 part of this pack.
 

@@ -46,7 +46,7 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  const exePath = path.join(PERSISTENT_DIR, 'Dataset Manager Studio.exe');
+  const exePath = path.join(PERSISTENT_DIR, 'Osmium Workshop.exe');
   const firstTime = !fs.existsSync(exePath);
   copyDirSyncFiltered(BUILD_DIR, PERSISTENT_DIR, PRESERVE);
 

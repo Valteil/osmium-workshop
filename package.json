@@ -1,5 +1,5 @@
 {
-  "name": "dataset-manager-studio",
+  "name": "osmium-workshop",
   "version": "1.5.0",
   "description": "Local dataset tag editor for AI training images, packaged as a desktop app.",
   "main": "main.js",
@@ -29,8 +29,8 @@
     "typescript": "^5.5.0"
   },
   "build": {
-    "appId": "com.local.datasetmanagerstudio",
-    "productName": "Dataset Manager Studio",
+    "appId": "com.local.osmiumworkshop",
+    "productName": "Osmium Workshop",
     "files": [
       "main.js",
       "preload.js",

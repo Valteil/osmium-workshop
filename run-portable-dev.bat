@@ -8,9 +8,9 @@ REM "npm run refresh-app" first to (re)build it.
 REM For renderer-only changes: run "npm run push-update" instead, then use
 REM Apply update bundle inside the running app - no rebuild needed at all.
 cd /d "%~dp0"
-if not exist "Dataset Manager Studio.exe" (
+if not exist "Osmium Workshop.exe" (
   echo The root build doesn't exist yet. Run: npm run refresh-app
   pause
   exit /b 1
 )
-start "" "Dataset Manager Studio.exe"
+start "" "Osmium Workshop.exe"

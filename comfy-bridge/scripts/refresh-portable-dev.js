@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Copies a fresh `electron-builder --dir` build (dist/win-unpacked) into this
 // app's own root, right next to its source — same "one-file quick launch"
-// convention as the parent Dataset Manager Studio project's own refresh-app
+// convention as the parent Osmium Workshop project's own refresh-app
 // (see its scripts/refresh-portable-dev.js). No settings/userData folder to
 // preserve here (this app keeps nothing between launches), so this is a
 // plain overwrite, not a filtered copy.

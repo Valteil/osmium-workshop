@@ -16,7 +16,7 @@ const { registerWd14LocalHandlers } = require('./wd14-local');
 // on the machine.
 //
 // In dev (`npm start`, unpackaged) this intentionally does nothing — the
-// existing %APPDATA%\dataset-manager-studio\tool workflow (sync-tool-folder.js,
+// existing %APPDATA%\osmium-workshop\tool workflow (sync-tool-folder.js,
 // the Restart app button) keeps working exactly as before.
 function getPortableRoot() {
   // Dev (`npm start`, unpackaged): app.getPath('exe') points at the electron

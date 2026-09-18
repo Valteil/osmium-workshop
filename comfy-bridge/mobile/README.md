@@ -35,7 +35,7 @@ cd android
 - **No Electron IPC** — every ComfyUI call (`/object_info`, `/upload/image`,
   `/prompt`, `/history`, `/view`, the `/ws` preview socket) goes straight
   from the WebView via `fetch()`/`WebSocket`, same approach as the parent
-  Dataset Manager Studio project's `src/renderer/comfy-client.ts`. Enter your
+  Osmium Workshop project's `src/renderer/comfy-client.ts`. Enter your
   PC's LAN address (e.g. `http://192.168.1.50:8188`), not `127.0.0.1` —
   that means "this phone" here, not your PC.
 - **ComfyUI must be reachable as a remote URL**: enter a LAN IP

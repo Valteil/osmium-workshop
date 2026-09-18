@@ -142,7 +142,7 @@ ipcMain.handle('list-upscale-models', () => {
 });
 
 // ---------------- ComfyUI bridge ----------------
-// Copied verbatim from Dataset Manager Studio's src/main.ts (SynthDat Overseer
+// Copied verbatim from Osmium Workshop's src/main.ts (SynthDat Overseer
 // section) — the renderer can't talk to ComfyUI directly (its server.py
 // rejects cross-origin POSTs whose Origin doesn't match Host, and Chromium's
 // own CORS would block reading the response anyway), so a plain Node HTTP

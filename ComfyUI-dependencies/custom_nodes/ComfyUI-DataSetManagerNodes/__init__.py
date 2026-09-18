@@ -1,7 +1,7 @@
 # ComfyUI-DataSetManagerNodes
 #
 # One self-contained node pack bundling every non-core node (and the ControlNet weights file)
-# Dataset Manager Studio's SynthDat Overseer workflow needs, so installing this one folder covers most
+# Osmium Workshop's SynthDat Overseer workflow needs, so installing this one folder covers most
 # of it — no hunting down several separate third-party packs by hand. (WD14 Autotagger's own node
 # is NOT bundled here — see wd14_tagger note in README.md — install
 # pythongosssss/ComfyUI-WD14-Tagger separately for that.) Every node below is either a bespoke node

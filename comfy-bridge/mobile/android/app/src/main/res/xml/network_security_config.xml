@@ -8,7 +8,7 @@
   hotspot, or Tailscale IP such as http://100.x.y.z:8188), which is normally
   a bare address with no TLS of its own, so cleartext is allowed app-wide
   rather than enumerating every possible host the user might type in.
-  Same fix as the parent Dataset Manager Studio mobile app.
+  Same fix as the parent Osmium Workshop mobile app.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true" />

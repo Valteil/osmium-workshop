@@ -1,11 +1,11 @@
-# Dataset Manager Studio — Start Here
+# Osmium Workshop — Start Here
 
 Local-first AI dataset tagger (image + `.txt` pairs). Three apps: desktop manager (`src/`),
 its Android port (`mobile/`), Comfy Bridge (`comfy-bridge/` + its own `mobile/`).
 
 - Docs: `notes/` vault (gitignored) — start at `notes/Index.md`. Checkups live in
   `notes/Pitfalls/Index.md`: read the relevant one before touching that area.
-- Code nav: Serena MCP, project `dataset-manager-studio-electron` — activate it and read
+- Code nav: Serena MCP, project `osmium-workshop-electron` — activate it and read
   `mem:core` onward first session.
 - Builds: `main.js`/`preload.js`/`renderer/app.js` are generated — never hand-edit.
   Dev loop is `npm run refresh-app` (same loop inside `comfy-bridge/`).

@@ -2,7 +2,7 @@
 // Capacitor app, not part of the desktop TS build). Ports comfy-bridge's
 // desktop src/renderer/app.ts to run directly in a Capacitor WebView:
 //   - ComfyUI calls use fetch()/WebSocket directly (same approach as the
-//     parent Dataset Manager Studio project's src/renderer/comfy-client.ts) —
+//     parent Osmium Workshop project's src/renderer/comfy-client.ts) —
 //     no Electron main-process IPC bridge needed at all on mobile.
 //   - Reference image comes from a plain <input type="file"> (no
 //     showOpenFilePicker in a WebView).
