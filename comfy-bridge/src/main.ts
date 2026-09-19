@@ -62,9 +62,90 @@ ipcMain.handle('pick-output-folder', async (event) => {
   return { ok: true, path: res.filePaths[0] };
 });
 
+// ---------------- Import generation (PNG -> settings) ----------------
+// ComfyUI's SaveImage embeds the queued prompt graph as a PNG tEXt/iTXt
+// chunk named "prompt" (plus a UI-shaped "workflow" chunk we don't need).
+// Filenames like "<rating>/<char>/<lora>_00003.png" (the integrated
+// workflow's File Namer scheme) are a hint, but the deciding factor is the
+// payload: recognized when it contains the Bridge's fixed node ids.
+function extractPngTextChunks(buffer: Buffer): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (buffer.length < 8 || !buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return out;
+  let off = 8;
+  while (off + 12 <= buffer.length) {
+    const len = buffer.readUInt32BE(off);
+    const type = buffer.toString('ascii', off + 4, off + 8);
+    const data = buffer.subarray(off + 8, off + 8 + len);
+    if (type === 'tEXt') {
+      const nul = data.indexOf(0);
+      if (nul > 0) out[data.toString('latin1', 0, nul)] = data.toString('latin1', nul + 1);
+    } else if (type === 'iTXt') {
+      const nul = data.indexOf(0);
+      if (nul > 0) {
+        const keyword = data.toString('latin1', 0, nul);
+        let p = nul + 1;
+        const compressionFlag = data[p]; p += 2; // flag + method
+        while (p < data.length && data[p] !== 0) p++; p += 1; // language tag
+        while (p < data.length && data[p] !== 0) p++; p += 1; // translated keyword
+        let text = data.toString('latin1', p);
+        if (compressionFlag === 1) {
+          try { text = require('zlib').inflateSync(data.subarray(p)).toString('utf8'); }
+          catch { text = ''; }
+        }
+        if (text) out[keyword] = text;
+      }
+    }
+    off += 12 + len;
+    if (type === 'IEND') break;
+  }
+  return out;
+}
+
+ipcMain.handle('import-workflow-file', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Import a generation made with the integrated workflow',
+    filters: [{ name: 'PNG image', extensions: ['png'] }],
+    properties: ['openFile']
+  });
+  if (res.canceled || !res.filePaths[0]) return { ok: false, cancelled: true };
+  const file = res.filePaths[0];
+  try {
+    const chunks = extractPngTextChunks(fs.readFileSync(file));
+    const raw = chunks['prompt'];
+    if (!raw) return { ok: false, error: 'No embedded prompt metadata in that PNG — it may have been re-saved or stripped by another tool.' };
+    const prompt = JSON.parse(raw);
+    // The Bridge's fixed template carries these node ids; a workflow made
+    // elsewhere (different template) won't have them, and importing one
+    // would silently mis-map fields.
+    for (const id of ['41', '51', '158:53', '158:54', '165']) {
+      if (!prompt[id] || !prompt[id].inputs) {
+        return { ok: false, error: `That image was not generated with the integrated workflow (missing node "${id}").` };
+      }
+    }
+    return { ok: true, prompt };
+  } catch (err) {
+    return { ok: false, error: `Could not read ${file}: ${err.message}` };
+  }
+});
+
+// A /history image entry's save path -> app-relative path kept inside the
+// chosen output folder. Sanitized defensively: forward-slash only, no `..`
+// segments, no drive/absolute anchors — this string comes over the wire from
+// a remote server, so a rename cannot sneak a traversal through it.
+function saveImageRelPath(image: { filename?: string; subfolder?: string }): string | null {
+  const raw = `${(image.subfolder || '').replace(/\\/g, '/').replace(/\/+/g, '/')}/${(image.filename || '').replace(/\\/g, '/')}`;
+  const parts = raw.split('/').filter(p => p && p !== '.' && p !== '..' && !/^[A-Za-z]:$/.test(p));
+  return parts.length ? parts.join('/') : null;
+}
+
 ipcMain.handle('save-image', async (event, { folder, filename, bytes }) => {
   try {
-    fs.writeFileSync(path.join(folder, filename), Buffer.from(bytes));
+    // filename may now carry the namer's subfolder (e.g. "safe/char/x_01.png")
+    // — create intermediate dirs so the scheme survives as a folder tree too.
+    const dest = path.join(folder, filename);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, Buffer.from(bytes));
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -315,12 +396,17 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
         const viewRes = await comfyRequest(host, `/view?${qs.toString()}`, { timeoutMs: 20000 });
         if (viewRes.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${viewRes.status} fetching the generated image.` };
         const result: any = { ok: true, imageBytes: new Uint8Array(viewRes.body) };
+        // The SaveImage node's own path/subfolder from history — this is the
+        // File Namer's composed scheme (e.g. "explicit/<character>/<lora>"),
+        // which the app-side disk copy mirrors instead of its own flat
+        // numbering so both copies stay in the same folder scheme.
+        result.saveRel = saveImageRelPath(image);
         const pass1Output = record.outputs['192_pass1'];
         const pass1Image = pass1Output && Array.isArray(pass1Output.images) && pass1Output.images[0];
         if (pass1Image) {
           const qs1 = new URLSearchParams({ filename: pass1Image.filename, subfolder: pass1Image.subfolder || '', type: pass1Image.type || 'output' });
           const viewRes1 = await comfyRequest(host, `/view?${qs1.toString()}`, { timeoutMs: 20000 });
-          if (viewRes1.status === 200) result.pass1ImageBytes = new Uint8Array(viewRes1.body);
+          if (viewRes1.status === 200) { result.pass1ImageBytes = new Uint8Array(viewRes1.body); result.pass1SaveRel = saveImageRelPath(pass1Image); }
         }
         return result;
       }

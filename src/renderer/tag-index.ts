@@ -399,10 +399,16 @@ export function initTagIndex(deps: TagIndexDeps): void {
     (val: string) => { leftSortMode = val as LeftSortMode; refreshStats(); }
   );
 
+  // Typing a filter re-runs the full gallery render (filtered card list) on
+  // EVERY keystroke — at thousands of images that lagged between keystrokes.
+  // 120ms debounce: typing still feels instant (suggestions update live),
+  // the heavy render only fires once you've paused.
+  let filterRenderTimer: ReturnType<typeof setTimeout> | null = null;
   filterInput.addEventListener('input', () => {
     getGalleryFilter().terms = parseFilterTerms(filterInput.value);
     resetSingleIndex();
-    renderCurrentViewRef();
+    if (filterRenderTimer) clearTimeout(filterRenderTimer);
+    filterRenderTimer = setTimeout(() => { filterRenderTimer = null; renderCurrentViewRef(); }, 120);
     updateFilterSuggestions();
   });
   filterInput.addEventListener('focus', updateFilterSuggestions);

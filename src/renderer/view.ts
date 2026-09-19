@@ -8,7 +8,7 @@
 // initView(), since index.ts's IIFE can't export them.
 import type { Entry, EntryMeta, GalleryFilter, CardTagSortMode, DirHandle, FileHandle } from './types';
 import {
-  viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, btnUnlockAll, btnRenameAllImages, singlePrevBtn, singleNextBtn,
+  viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, btnUnlockAll, btnHideTags, btnRenameAllImages, singlePrevBtn, singleNextBtn,
   galleryGrid, compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
   langAutoSelectToggle, filterMatchCount
@@ -137,58 +137,236 @@ export function switchView(mode: ViewMode): void {
 
 // ---------------- Gallery (grid) rendering ----------------
 
-function renderGallery(){
-  galleryGrid.innerHTML = '';
-  const frag = document.createDocumentFragment();
-  const tagIndex = buildTagIndex();
-  for (const e of filteredEntries()){
-    frag.appendChild(buildCard(e, tagIndex));
+// Large-dataset rendering: the gallery grid builds cards in CHUNKS — the
+// first paint only constructs the first GALLERY_CHUNK cards' DOM, and an
+// IntersectionObserver on a sentinel appends more as the user scrolls.
+// buildCard() is expensive (per-tag chips + several listeners per card), so
+// building 5,000 detached nodes in one pass lagged every render (filter
+// keystroke, tag click, save). Chunks + full rebuilds only when state
+// changes keep interactivity at any dataset size; `content-visibility`
+// (styles.css) then skips layout/paint for offscreen cards on top.
+let galleryChunkObserver: IntersectionObserver | null = null;
+let compactChunkObserver: IntersectionObserver | null = null;
+const GALLERY_CHUNK = 250;
+const COMPACT_CHUNK = 500;
+
+// Shared progressive-append machinery. cleanUp must disconnect the observer
+// before the host grid's innerHTML is cleared, or a queued IntersectionObserver
+// callback fires into a detached container.
+interface ChunkedList {
+  appendChunk: () => void;
+  // Build chunks until the given entry's card physically exists in the grid
+  // (or everything is built). Note: the ENTRY list and grid children must
+  // agree that filtering never deletes the anchor between capture and
+  // restore. A tag addition keeps filter membership, so this holds.
+  ensureBuilt: (base: string) => boolean;
+}
+function makeChunkedList(
+  host: HTMLElement,
+  list: Entry[],
+  chunkSize: number,
+  buildItem: (e: Entry) => HTMLElement,
+  setObserver: (o: IntersectionObserver | null) => void
+): ChunkedList {
+  let shown = 0;
+  const sentinel = document.createElement('div');
+  sentinel.style.height = '1px';
+  const observer = new IntersectionObserver((entries) => {
+    if (entries.some(en => en.isIntersecting)) appendChunkSet();
+  }, { rootMargin: '600px' });
+  setObserver(observer);
+
+  function appendChunkSet(){
+    if (shown >= list.length) return;
+    const frag = document.createDocumentFragment();
+    for (const e of list.slice(shown, shown + chunkSize)) frag.appendChild(buildItem(e));
+    shown += chunkSize;
+    host.appendChild(frag);
+    if (shown < list.length){
+      host.appendChild(sentinel);
+    } else {
+      sentinel.remove();
+      observer.disconnect();
+      setObserver(null);
+    }
   }
-  galleryGrid.appendChild(frag);
+
+  return {
+    appendChunk: () => appendChunkSet(),
+    ensureBuilt: (base: string): boolean => {
+      // Synchronously keep building chunks until the anchor base is in the
+      // DOM (list order is stable between capture and rebuild, so it IS in
+      // some chunk).
+      while (shown < list.length && !host.querySelector(`.card[data-base="${CSS.escape(base)}"], .compact-card[data-base="${CSS.escape(base)}"]`)){
+        appendChunkSet();
+      }
+      return !!host.querySelector(`.card[data-base="${CSS.escape(base)}"], .compact-card[data-base="${CSS.escape(base)}"]`);
+    }
+  };
+}
+
+// The nearest ancestor with its own vertical scroller (the gallery lives in
+// `main`/`aside`, which styles.css makes the scroll container).
+function findVerticalScroller(el: HTMLElement): HTMLElement | null {
+  let n: HTMLElement | null = el.parentElement;
+  while (n){
+    const oy = getComputedStyle(n).overflowY;
+    if (oy === 'scroll' || oy === 'auto') return n;
+    n = n.parentElement;
+  }
+  return null;
+}
+
+// Anchor-restore: instead of trusting scrollTop (which drifts any time
+// content ABOVE the current viewport changes height — the exact failure of
+// the simpler approach, "11 jumped to 17"), remember which entry straddles
+// the top of the viewport and how far into view it sits, then after the
+// rebuild align on THAT card. Cards above can grow or shrink rows freely;
+// the card you're looking at stays where it is.
+interface ScrollAnchor {
+  base: string;
+  offsetInViewport: number;
+}
+function captureAnchor(hoster: HTMLElement, scroller: HTMLElement | null): ScrollAnchor | null {
+  if (!scroller) return null;
+  const scTop = scroller.getBoundingClientRect().top;
+  const cards = hoster.children;
+  for (const n of Array.from(cards)){
+    const el = n as HTMLElement;
+    if (!(el.classList.contains('card') || el.classList.contains('compact-card'))) continue;
+    const r = el.getBoundingClientRect();
+    if (r.bottom > scTop){
+      return el.dataset.base ? { base: el.dataset.base, offsetInViewport: r.top - scTop } : null;
+    }
+  }
+  return null;
+}
+function restoreAnchor(hoster: HTMLElement, scroller: HTMLElement | null, anchor: ScrollAnchor | null): void {
+  if (!anchor) return;
+  const el = hoster.querySelector<HTMLElement>(`.card[data-base="${CSS.escape(anchor.base)}"], .compact-card[data-base="${CSS.escape(anchor.base)}"]`);
+  if (!el || !scroller) return;
+  // The anchor card's own top, measured within the scrollable content, minus
+  // how far into the viewport it sat before: the rebuilt content puts every
+  // changed height ABOVE the anchor in its new place, and you in exactly the
+  // same visual spot.
+  // content-visibility:auto means offscreen cards sit at placeholder
+  // heights until they approach — so a single measure-and-jump can still be
+  // off if that settle (real heights replacing placeholders above/below the
+  // anchor) lands after the assignment. The self-correcting loop converges
+  // across the settle frames: every frame pushes the scroll until the
+  // anchor card's viewport position matches the captured one exactly.
+  const applyAnchor = () => {
+    const err = el.getBoundingClientRect().top - anchor.offsetInViewport - scroller.getBoundingClientRect().top;
+    if (Math.abs(err) > 1) scroller.scrollTop += err;
+  };
+  applyAnchor();
+  requestAnimationFrame(() => {
+    applyAnchor();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      applyAnchor();
+      hoster.classList.remove('anchor-resolving');
+    }));
+  });
+}
+
+// In-place single-card refresh: for pure per-card tag operations (chip
+// remove, + Add tag on the card itself) a FULL grid rebuild — aside from
+// being ~300 cards of wasted work — recreates every <img>, which flashes all
+// visible thumbnails (blob srcs re-decode) and visibly jumps/flickers. Swap
+// just the changed card's node: scroll untouched, neighbors untouched, no
+// revision flashes. Full renders only when membership/order can change
+// (filters, sorts, disable/restore).
+function patchGridCard(e: Entry): void {
+  if (viewMode === 'compact'){
+    const old = compactGrid.querySelector(`.compact-card[data-base="${CSS.escape(e.base)}"]`);
+    if (old){ old.replaceWith(buildCompactCard(e)); return; }
+  }
+  const old = galleryGrid.querySelector(`.card[data-base="${CSS.escape(e.base)}"]`);
+  if (!old){ renderCurrentView(); return; }
+  old.replaceWith(buildCard(e, buildTagIndex()));
+  updateFilterMatchCount();
+}
+
+function renderGallery(){
+  // Anchor-based scroll preservation (see restoreAnchor for why scrollTop
+  // alone drifted, e.g. "11 jumped to 17"): capture which entry straddles
+  // the top of the viewport, rebuild, build chunks until it exists, then
+  // align on THAT card.
+  const scroller = findVerticalScroller(galleryGrid);
+  const anchor = scroller ? captureAnchor(galleryGrid, scroller) : null;
+  galleryGrid.innerHTML = '';
+  if (galleryChunkObserver){ galleryChunkObserver.disconnect(); galleryChunkObserver = null; }
+  const list = filteredEntries();
+  const tagIndex = buildTagIndex();
+  const lister = makeChunkedList(
+    galleryGrid, list, GALLERY_CHUNK,
+    (e) => buildCard(e, tagIndex),
+    (o) => { galleryChunkObserver = o; }
+  );
+  lister.appendChunk();
+  if (scroller && anchor) lister.ensureBuilt(anchor.base);
+  restoreAnchor(galleryGrid, scroller, anchor);
 }
 
 function renderCompactGrid(){
+  // Same anchor-based scroll preservation as renderGallery.
+  const scroller = findVerticalScroller(compactGrid);
+  const anchor = scroller ? captureAnchor(compactGrid, scroller) : null;
   compactGrid.innerHTML = '';
-  const frag = document.createDocumentFragment();
+  if (compactChunkObserver){ compactChunkObserver.disconnect(); compactChunkObserver = null; }
   const list = filteredEntries().filter(e => !stickyCompareImages.includes(e.base));
-  list.forEach((e, idx) => {
-    const card = document.createElement('div');
-    card.className = 'compact-card' + (e.dirty ? ' dirty' : '') + (e.disabled ? ' disabled-card' : '') + (e.meta && e.meta.blurred ? ' manually-blurred' : '');
-    if (e.meta && e.meta.reviewColor) card.style.setProperty('--card-flag-color', e.meta.reviewColor);
-    if (!e.disabled){
-      card.draggable = true;
-      card.addEventListener('dragstart', (ev) => {
-        ev.dataTransfer!.setData('text/plain', e.base);
-        ev.dataTransfer!.effectAllowed = 'move';
-      });
-    }
-    const img = document.createElement('img');
-    img.src = e.objectUrl;
-    img.loading = 'lazy';
-    card.appendChild(img);
-    if (e.meta && e.meta.reviewColor){
-      const badge = document.createElement('div');
-      badge.className = 'flag-badge';
-      badge.style.background = e.meta.reviewColor;
-      card.appendChild(badge);
-    }
-    card.addEventListener('click', (ev) => {
-      if (ctxMenuEl) return;
-      if (ev.shiftKey){ toggleStickyCompare(e.base); return; }
-      openImageCardModal(e);
-    });
-    card.addEventListener('contextmenu', (ev) => { ev.preventDefault(); openImageOptionsMenu(e, ev.clientX, ev.clientY); });
-    attachLongPress(card, (ev) => openImageOptionsMenu(e, ev.clientX, ev.clientY));
-    if (e.tags.length){
-      const hoverTags = document.createElement('div');
-      hoverTags.className = 'compact-hover-tags';
-      hoverTags.textContent = e.tags.join(', ');
-      card.appendChild(hoverTags);
-    }
-    frag.appendChild(card);
-  });
-  compactGrid.appendChild(frag);
+  // buildCompactCard is small enough per-card that COMPACT_CHUNK is much
+  // bigger than GALLERY_CHUNK's worth of work — a few thousand square thumbs
+  // is the realistic worst case here.
+  const lister = makeChunkedList(
+    compactGrid, list, COMPACT_CHUNK,
+    (e) => buildCompactCard(e),
+    (o) => { compactChunkObserver = o; }
+  );
+  lister.appendChunk();
+  if (scroller && anchor) lister.ensureBuilt(anchor.base);
+  restoreAnchor(compactGrid, scroller, anchor);
   renderCompactCompareArea();
+}
+
+function buildCompactCard(e: Entry): HTMLElement {
+  const card = document.createElement('div');
+  card.className = 'compact-card' + (e.dirty ? ' dirty' : '') + (e.disabled ? ' disabled-card' : '') + (e.meta && e.meta.blurred ? ' manually-blurred' : '');
+  // Anchor-restore reads this (buildCard sets one on grid cards already).
+  card.dataset.base = e.base;
+  if (e.meta && e.meta.reviewColor) card.style.setProperty('--card-flag-color', e.meta.reviewColor);
+  if (!e.disabled){
+    card.draggable = true;
+    card.addEventListener('dragstart', (ev) => {
+      ev.dataTransfer!.setData('text/plain', e.base);
+      ev.dataTransfer!.effectAllowed = 'move';
+    });
+  }
+  const img = document.createElement('img');
+  img.src = e.objectUrl;
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  card.appendChild(img);
+  if (e.meta && e.meta.reviewColor){
+    const badge = document.createElement('div');
+    badge.className = 'flag-badge';
+    badge.style.background = e.meta.reviewColor;
+    card.appendChild(badge);
+  }
+  card.addEventListener('click', (ev) => {
+    if (ctxMenuEl) return;
+    if (ev.shiftKey){ toggleStickyCompare(e.base); return; }
+    openImageCardModal(e);
+  });
+  card.addEventListener('contextmenu', (ev) => { ev.preventDefault(); openImageOptionsMenu(e, ev.clientX, ev.clientY); });
+  attachLongPress(card, (ev) => openImageOptionsMenu(e, ev.clientX, ev.clientY));
+  if (e.tags.length && !getHideTagsRef()){
+    const hoverTags = document.createElement('div');
+    hoverTags.className = 'compact-hover-tags';
+    hoverTags.textContent = e.tags.join(', ');
+    card.appendChild(hoverTags);
+  }
+  return card;
 }
 
 function toggleStickyCompare(base: string): void {
@@ -297,6 +475,7 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
   const img = document.createElement('img');
   img.src = e.objectUrl;
   img.loading = 'lazy';
+  img.decoding = 'async';
   thumbwrap.appendChild(img);
 
   const menuBtn = document.createElement('button');
@@ -373,10 +552,53 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
     tagbox.appendChild(noteVis);
   }
 
+  // "+ Add tag" field ABOVE the chips: the chips list can be arbitrarily
+  // long on a big dataset, so an input at the bottom met it only after
+  // scrolling the whole row — the same top-first order the image-card
+  // modal already uses.
+  let addInput: HTMLInputElement | null = null;
+  if (!isTouchDevice && !getHideTagsRef()){
+    addInput = document.createElement('input');
+    addInput.type = 'text';
+    addInput.className = 'addtag-input';
+    addInput.placeholder = '+ Add tag';
+    addInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' && addInput && addInput.value.trim()){
+        addTagToEntry(e, addInput.value.trim());
+        addInput.value = '';
+        closeAutocomplete();
+        // Replacement refocus: patchGridCard swaps the card node, so the
+        // (top-placed) input that just lost its value gets replaced too.
+        // Re-focus the new card's own input so rapid Enter-tagging stays in
+        // the same place instead of silently dead-ending mid-typing.
+        patchGridCard(e);
+        const freshInput = galleryGrid.querySelector<HTMLInputElement>(
+          `.card[data-base="${CSS.escape(e.base)}"] .addtag-input`
+        );
+        if (freshInput){ freshInput.focus(); }
+        refreshRightPanels();
+      }
+    });
+    // The card itself is draggable=true (for reordering into Disabled,
+    // etc.), which otherwise hijacks any click-drag over this input into a
+    // native HTML5 drag instead of a text selection. Suspending it while
+    // the input is focused fixes that without affecting the card's own
+    // drag behavior.
+    addInput.addEventListener('focus', () => { card.draggable = false; });
+    addInput.addEventListener('blur', () => { card.draggable = !e.disabled; });
+    attachTagAutocomplete(addInput, () => e, () => { renderGallery(); refreshRightPanels(); });
+    tagbox.appendChild(addInput);
+  }
+
   const chiprow = document.createElement('div');
   chiprow.className = 'chiprow';
-  for (const tag of orderedTagsForDisplay(e, tagIndex)){
-    chiprow.appendChild(buildChip(e, tag, () => { renderGallery(); refreshRightPanels(); refreshStats(); }, tagIndex));
+  // Hide-tags mode (user spec): cards render with NO chips so the filter's
+  // have/not-have split reads instantly from the cards themselves. Tags are
+  // untouched — always still reachable through the card modal.
+  if (!getHideTagsRef()){
+    for (const tag of orderedTagsForDisplay(e, tagIndex)){
+      chiprow.appendChild(buildChip(e, tag, () => { patchGridCard(e); refreshRightPanels(); refreshStats(); }, tagIndex));
+    }
   }
   tagbox.appendChild(chiprow);
 
@@ -391,29 +613,6 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
     ghost.className = 'addtag-ghost';
     ghost.textContent = 'Tap to edit';
     tagbox.appendChild(ghost);
-  } else {
-    const addInput = document.createElement('input');
-    addInput.type = 'text';
-    addInput.className = 'addtag-input';
-    addInput.placeholder = '+ Add tag';
-    addInput.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter' && addInput.value.trim()){
-        addTagToEntry(e, addInput.value.trim());
-        addInput.value = '';
-        closeAutocomplete();
-        renderGallery();
-        refreshRightPanels();
-      }
-    });
-    // The card itself is draggable=true (for reordering into Disabled,
-    // etc.), which otherwise hijacks any click-drag over this input into a
-    // native HTML5 drag instead of a text selection. Suspending it while
-    // the input is focused fixes that without affecting the card's own
-    // drag behavior.
-    addInput.addEventListener('focus', () => { card.draggable = false; });
-    addInput.addEventListener('blur', () => { card.draggable = !e.disabled; });
-    attachTagAutocomplete(addInput, () => e, () => { renderGallery(); refreshRightPanels(); });
-    tagbox.appendChild(addInput);
   }
 
   // Touch only: a grid card's own inline tag chips/input (CSS makes them
@@ -618,12 +817,21 @@ let seqQueue: Entry[] = [];
 let seqIdx = 0;
 
 const PERSPECTIVE_OPTIONS = ['from front', 'from side', 'from below', 'from above', 'from behind'];
+// Camera-viewpoint tags the panel can assert that aren't "where is the
+// subject's body pointed" angles — POV (subject's-eyes view) and close-up
+// (framing) are composition choices, but the user asked for them right in
+// the Perspective group, where the checkbox shape already matches.
+const PERSPECTIVE_EXTRA_OPTIONS = ['pov', 'close-up'];
+function perspectiveOptionTags(): string[] {
+  return [...PERSPECTIVE_OPTIONS, ...PERSPECTIVE_EXTRA_OPTIONS];
+}
 const CENSOR_TYPE_OPTIONS = [
-  { tag: 'censored', label: 'Generic (censored)' },
+  { tag: 'censored', label: 'Generic' },
   { tag: 'mosaic censoring', label: 'Mosaic' },
   { tag: 'bar censor', label: 'Bar' },
   { tag: 'blur censor', label: 'Blur' },
-  { tag: 'heart censor', label: 'Heart' }
+  { tag: 'heart censor', label: 'Heart' },
+  { tag: 'light censor', label: 'Light' }
 ];
 
 export function startSequentialDetail(from: 'first' | 'selected'): void {
@@ -638,6 +846,11 @@ export function startSequentialDetail(from: 'first' | 'selected'): void {
   seqQueue = list;
   seqIdx = startIdx;
   seqActive = true;
+  // Collapse the right sidebar for the run so the image + controls own the
+  // full width. Remember the pre-run state (only force-expand on exit what
+  // WE collapsed) so restoring never fights a user's own choice.
+  seqPanelForcedCollapse = !getRightPanelCollapsedRef();
+  setRightPanelCollapsedRef(true);
   switchView('single');
 }
 
@@ -646,6 +859,8 @@ export function exitSequentialDetail(): void {
   seqActive = false;
   seqQueue = [];
   seqIdx = 0;
+  if (seqPanelForcedCollapse) setRightPanelCollapsedRef(false);
+  seqPanelForcedCollapse = false;
   if (viewMode !== 'single') return;
   singleNav.style.display = 'flex';
   renderSingleView();
@@ -677,7 +892,7 @@ function seqDraftFromEntry(entry: Entry): SeqDraft {
     foreignLangs: new Set(getForeignLangTags(entry).map((t) => t.replace(/ text$/, ''))),
     censor: censoredTags.length > 0 ? 'censored' : (uncensored ? 'uncensored' : 'unspecified'),
     censorTypes: new Set(presentTypes.length ? presentTypes : (censoredTags.length > 0 ? ['censored'] : [])),
-    perspectives: new Set(PERSPECTIVE_OPTIONS.filter((p) => entry.tags.includes(p))),
+    perspectives: new Set(perspectiveOptionTags().filter((p) => entry.tags.includes(p))),
     monochrome: entry.tags.includes('monochrome'),
     soundEffects: entry.tags.includes('sound effects'),
     isComic: entry.tags.includes('comic'),
@@ -717,7 +932,8 @@ function applySequentialDraft(entry: Entry, d: SeqDraft): void {
   else if (d.censor === 'uncensored') addTagToEntry(entry, 'uncensored');
   // Perspective — independent checkboxes, not exclusive: one image can
   // legitimately carry several (e.g. a collage with front and side views).
-  for (const p of PERSPECTIVE_OPTIONS){
+  // Covers the extra composition options (pov / close-up) too.
+  for (const p of perspectiveOptionTags()){
     if (d.perspectives.has(p)) { if (!entry.tags.includes(p)) addTagToEntry(entry, p); }
     else if (entry.tags.includes(p)) removeTagFromEntry(entry, p);
   }
@@ -753,7 +969,7 @@ function seqPreviewTags(d: SeqDraft): string[] {
     for (const t of (d.censorTypes.size ? [...d.censorTypes] : ['censored'])) tags.push(t);
   }
   else if (d.censor === 'uncensored') tags.push('uncensored');
-  for (const p of PERSPECTIVE_OPTIONS) if (d.perspectives.has(p)) tags.push(p);
+  for (const p of perspectiveOptionTags()) if (d.perspectives.has(p)) tags.push(p);
   if (d.monochrome) tags.push('monochrome');
   if (d.soundEffects) tags.push('sound effects');
   if (d.isComic) tags.push('comic');
@@ -788,11 +1004,13 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
     label.appendChild(document.createTextNode(' ' + labelText));
     return label;
   }
-  // Two-column grid for checkbox groups — one stacked row per option
-  // forces a long scroll; two across halves the panel height.
-  function checkGrid(): HTMLElement {
+  // N-up grid for checkbox groups — one stacked row per option forces a
+  // long scroll; groups of short one-word options fit narrower cells.
+  function checkGrid(columns?: number): HTMLElement {
     const grid = document.createElement('div');
-    grid.style.cssText = 'display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; margin:4px 0;';
+    grid.style.cssText = columns
+      ? `display:grid; grid-template-columns:repeat(${columns}, minmax(0, 1fr)); gap:4px 6px; margin:2px 0;`
+      : 'display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:4px 6px; margin:2px 0;';
     return grid;
   }
   function cap(s: string): string {
@@ -818,24 +1036,47 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
   }
 
   panel.appendChild(sectionLabel('Text'));
+  // Compact two-up rows: most toggles are 1-2 words, so full-width rows
+  // wasted half the panel and forced scrolling. Pairs share a line
+  // (Has text/Yapanese-class pairs per user spec).
+  function togglePair(a: HTMLElement, b?: HTMLElement): HTMLElement {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:6px; margin:4px 0;';
+    a.style.flex = '1';
+    row.appendChild(a);
+    if (b){ b.style.flex = '1'; row.appendChild(b); }
+    return row;
+  }
   const hasTextRow = toggleRow('Has text', d.hasText, (v) => {
     d.hasText = v;
     panel.querySelectorAll('.seq-text-sub').forEach((el) => { (el as HTMLElement).style.display = v ? '' : 'none'; });
   });
-  panel.appendChild(hasTextRow);
+  // Sound effects sits right beside Has text (per user spec, not buried
+  // further down under its own heading).
+  const soundRow = toggleRow('Sound effects', d.soundEffects, (v) => { d.soundEffects = v; });
+  panel.appendChild(togglePair(hasTextRow, soundRow));
   const textSub = document.createElement('div');
   textSub.className = 'seq-text-sub';
   textSub.style.display = d.hasText ? '' : 'none';
-  textSub.appendChild(toggleRow('Japanese', d.isJapanese, (v) => { d.isJapanese = v; }));
+  const jpRow = toggleRow('Japanese', d.isJapanese, (v) => { d.isJapanese = v; });
+  textSub.appendChild(togglePair(jpRow));
   const langList = checkGrid();
   textSub.appendChild(langList);
   function refreshLangRows(): void {
     langList.innerHTML = '';
-    const langNames = Array.from(new Set([...commonLanguages, ...d.foreignLangs]));
-    for (const lang of langNames){
-      langList.appendChild(toggleRow(lang, d.foreignLangs.has(lang.toLowerCase()), (v) => {
-        if (v) d.foreignLangs.add(lang.toLowerCase());
-        else d.foreignLangs.delete(lang.toLowerCase());
+    // One row per LANGUAGE, not per casing: "English" (common list) and a
+    // stray "english" previously both rendered because the display names
+    // differ while their lowercase keys are the same thing. Dedupe by the
+    // key the checkboxes actually toggle on.
+    const byKey = new Map<string, string>();
+    for (const name of [...commonLanguages, ...d.foreignLangs]){
+      const key = name.toLowerCase();
+      if (!byKey.has(key)) byKey.set(key, name);
+    }
+    for (const [key, display] of byKey){
+      langList.appendChild(toggleRow(display, d.foreignLangs.has(key), (v) => {
+        if (v) d.foreignLangs.add(key);
+        else d.foreignLangs.delete(key);
       }));
     }
   }
@@ -872,11 +1113,24 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
   panel.appendChild(censorWrap);
   // Censor types are independent checkboxes, not a dropdown — an image can
   // carry several at once (mosaic AND bar, etc.).
-  const typeBox = checkGrid();
-  typeBox.style.display = d.censor === 'censored' ? '' : 'none';
+  // Explicit two columns for censor types (user spec): five short labels
+  // fit two-up with room for the longer "Generic (censored)" label.
+  // Types are ALWAYS visible (not gated behind the Censored radio): the
+  // fast path is checking a type directly, which implies the Censored
+  // state — see the auto-set in the toggle handler below.
+  const typeBox = checkGrid(2);
   for (const o of CENSOR_TYPE_OPTIONS){
     typeBox.appendChild(toggleRow(o.label, d.censorTypes.has(o.tag), (v) => {
-      if (v) d.censorTypes.add(o.tag);
+      if (v){
+        d.censorTypes.add(o.tag);
+        // Checking a type asserts the image IS censored (mosaic/bar/... can
+        // only exist on a censored image), so flip the state radio along
+        // with it instead of making the user click Censored separately.
+        if (d.censor !== 'censored'){
+          d.censor = 'censored';
+          renderCensor();
+        }
+      }
       else d.censorTypes.delete(o.tag);
     }));
   }
@@ -888,7 +1142,6 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
       { value: 'uncensored', label: 'Uncensored' }
     ], d.censor, (v) => {
       d.censor = v as SeqDraft['censor'];
-      typeBox.style.display = d.censor === 'censored' ? '' : 'none';
     }));
   }
   renderCensor();
@@ -896,22 +1149,21 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
 
   panel.appendChild(sectionLabel('Perspective'));
   const perspBox = checkGrid();
-  for (const p of PERSPECTIVE_OPTIONS){
-    perspBox.appendChild(toggleRow(cap(p.replace(/^from /, '')), d.perspectives.has(p), (v) => {
+  for (const p of perspectiveOptionTags()){
+    // Angles drop their literal "from " prefix for display; the extras are
+    // already human labels ("POV", "close-up").
+    const label = p === 'close-up' ? 'Close-up' : cap(p.replace(/^from /, ''));
+    perspBox.appendChild(toggleRow(label, d.perspectives.has(p), (v) => {
       if (v) d.perspectives.add(p);
       else d.perspectives.delete(p);
     }));
   }
   panel.appendChild(perspBox);
 
-  panel.appendChild(sectionLabel('Color'));
-  panel.appendChild(toggleRow('Monochrome (untagged implies color)', d.monochrome, (v) => { d.monochrome = v; }));
-
-  panel.appendChild(sectionLabel('Sound'));
-  panel.appendChild(toggleRow('Sound effects', d.soundEffects, (v) => { d.soundEffects = v; }));
-
-  panel.appendChild(sectionLabel('Comic'));
-  panel.appendChild(toggleRow('Comic', d.isComic, (v) => { d.isComic = v; }));
+  panel.appendChild(sectionLabel('Indicator'));
+  const monoRowOuter = toggleRow('Monochrome', d.monochrome, (v) => { d.monochrome = v; });
+  const comicRow = toggleRow('Comic', d.isComic, (v) => { d.isComic = v; });
+  panel.appendChild(togglePair(monoRowOuter, comicRow));
   panel.appendChild(toggleRow('Multiple views', d.multipleViews, (v) => { d.multipleViews = v; }));
   panel.appendChild(radioRow('seq-koma', [
     { value: '', label: 'Not koma' },
@@ -921,6 +1173,9 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
   const confirmBtn = document.createElement('button');
   confirmBtn.className = 'primary';
   confirmBtn.style.cssText = 'width:100%; margin-top:12px; padding:12px; font-size:15px; font-weight:600;';
+  // Sticky footer: always visible without scrolling, however far down the
+  // selections are.
+  confirmBtn.classList.add('seq-confirm');
   confirmBtn.textContent = seqIdx >= seqQueue.length - 1 ? 'Confirm (finish)' : 'Confirm (next →)';
   confirmBtn.addEventListener('click', () => {
     applySequentialDraft(entry, d);
@@ -1084,6 +1339,14 @@ function renderSingleView(){
       const imgCol = document.createElement('div');
       imgCol.style.cssText = 'flex:1; min-width:0; display:flex; flex-direction:column; gap:8px;';
       imgCol.appendChild(seqSide);
+      // Filename + resolution live above the chips preview below the image
+      // (the panel keeps only the counter per user spec — one top-of-panel
+      // position read, file identity where the tags live).
+      const nameEl = document.createElement('div');
+      nameEl.className = 'single-name';
+      nameEl.style.cssText = 'padding:0 2px;';
+      nameEl.textContent = entry.imgName + (entry.width ? ` · ${entry.width}×${entry.height}` : '');
+      imgCol.appendChild(nameEl);
       const previewBox = document.createElement('div');
       previewBox.style.cssText = 'border:1px solid var(--border-soft); border-radius:8px; padding:8px 10px; background:var(--bg-panel);';
       const previewHead = document.createElement('div');
@@ -1108,7 +1371,9 @@ function renderSingleView(){
         });
       }
       const panel = document.createElement('div');
-      panel.className = 'single-panel';
+      // seq-panel: sequential-specific compaction CSS (see styles.css) — the
+      // whole panel is meant to fit without scrolling at normal window sizes.
+      panel.className = 'single-panel seq-panel';
       panel.style.position = 'relative';
       const headRow = document.createElement('div');
       headRow.style.cssText = 'display:flex; align-items:center; gap:8px;';
@@ -1120,13 +1385,23 @@ function renderSingleView(){
       exitBtn.textContent = 'Exit sequential';
       exitBtn.title = 'Leave sequential review (progress is already saved per Confirm)';
       exitBtn.addEventListener('click', () => exitSequentialDetail());
+      // Previous image: navigates without applying anything — Confirm is the
+      // only thing that writes, so zig-zagging re-checks options without
+      // committing.
+      let backBtn: HTMLButtonElement | null = null;
+      if (seqIdx > 0){
+        backBtn = document.createElement('button');
+        backBtn.textContent = '← Back';
+        backBtn.title = 'Go back to the previous image (selections already applied by Confirm are saved)';
+        backBtn.addEventListener('click', () => {
+          seqIdx--;
+          renderSingleView();
+        });
+      }
       headRow.appendChild(posEl);
+      if (backBtn) headRow.appendChild(backBtn);
       headRow.appendChild(exitBtn);
       panel.appendChild(headRow);
-      const nameEl = document.createElement('div');
-      nameEl.className = 'single-name';
-      nameEl.textContent = entry.imgName + (entry.width ? ` · ${entry.width}×${entry.height}` : '') + ` · ${entry.tags.length} tags`;
-      panel.appendChild(nameEl);
       // Same .chip/.chiprow classes the gallery cards use, so the preview
       // looks identical — glowing (chip-match) entries are new tags Confirm
       // is about to add, plain ones are already on the image.
@@ -1143,7 +1418,10 @@ function renderSingleView(){
         }
         for (const t of tags){
           const chip = document.createElement('span');
-          chip.className = 'chip' + (fresh.has(t) ? ' chip-match' : '');
+          // chip-static: same label-centering/read-only modifier the
+          // transfer-list viewer uses — these chips have no × button, so
+          // the base chip's ×-budgeted padding leaves text lopsided.
+          chip.className = 'chip chip-static' + (fresh.has(t) ? ' chip-match' : '');
           const label = document.createElement('span');
           label.textContent = t;
           label.title = fresh.has(t) ? 'New — will be added on Confirm' : 'Already on this image';
@@ -1442,6 +1720,7 @@ function startInlineTagRename(chip: HTMLElement, label: HTMLElement, entry: Entr
 let modalZoom = 100, modalPanX = 0, modalPanY = 0;
 
 let modalCloseTimer: ReturnType<typeof setTimeout> | null = null;
+let modalLayerTimer: ReturnType<typeof setTimeout> | null = null;
 let currentModalBase: string | null = null;
 
 export function openImageCardModal(entry: Entry, opts?: { hover?: boolean }): void {
@@ -1454,6 +1733,18 @@ export function openImageCardModal(entry: Entry, opts?: { hover?: boolean }): vo
     currentModalBase = entry.base;
   }
   imageCardModal.style.display = 'flex';
+  // Swipe-mode slide-up: promote the modal card to its own compositor layer
+  // ONLY for the transition (the CSS side declares the transform itself as
+  // translate3d). This is the "will-change applied at start, reset at end"
+  // discipline — a static rule would keep the large modal resident in GPU
+  // memory even while nobody's looking. Reset uses --panel-dur's own value
+  // plus the same tiny buffer the close path uses.
+  imageCardModal.classList.add('modal-anim-layers');
+  if (modalLayerTimer) clearTimeout(modalLayerTimer);
+  modalLayerTimer = setTimeout(() => {
+    modalLayerTimer = null;
+    imageCardModal.classList.remove('modal-anim-layers');
+  }, 240);
   requestAnimationFrame(() => requestAnimationFrame(() => imageCardModal.classList.add('modal-visible')));
   if (!isHoverPreview){
     folderStats.card_modal_opens = (folderStats.card_modal_opens || 0) + 1;
@@ -2278,6 +2569,28 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
   });
   menu.appendChild(wd14Btn);
 
+  const seqBtn = document.createElement('button');
+  seqBtn.className = 'ctx-item';
+  seqBtn.textContent = '▶ Sequential from here';
+  seqBtn.title = 'Enter sequential mode starting at this image (walks the current filter image by image)';
+  seqBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    closeTagContextMenu();
+    const list = filteredEntries();
+    let startIdx = list.findIndex((e) => e.base === entry.base);
+    // A Disabled image isn't in filteredEntries() — sequential walks the
+    // active gallery, so fall back to the top rather than silently doing
+    // nothing from an unexpected context.
+    if (startIdx < 0){ toast('Sequential walks the current filter — this image is outside it (e.g. Disabled).'); return; }
+    seqQueue = list;
+    seqIdx = startIdx;
+    seqActive = true;
+    seqPanelForcedCollapse = !getRightPanelCollapsedRef();
+    setRightPanelCollapsedRef(true);
+    switchView('single');
+  });
+  menu.appendChild(seqBtn);
+
   const toggleDisableBtn = document.createElement('button');
   toggleDisableBtn.className = 'ctx-item';
   toggleDisableBtn.textContent = entry.disabled ? '↩ Restore' : '🗑 Disable';
@@ -2785,6 +3098,10 @@ let setExcludesFilterRef: (tag: string) => void = () => {};
 function setContainsFilter(tag: string): void { setContainsFilterRef(tag); }
 function setExcludesFilter(tag: string): void { setExcludesFilterRef(tag); }
 let deleteEntryPermanentlyRef: (entry: Entry) => Promise<void> = async () => {};
+let setRightPanelCollapsedRef: (collapsed: boolean) => void = () => {};
+let getRightPanelCollapsedRef: () => boolean = () => false;
+let getHideTagsRef: () => boolean = () => false;
+let seqPanelForcedCollapse = false;
 
 interface ViewDeps {
   getEntries: () => Entry[];
@@ -2802,6 +3119,13 @@ interface ViewDeps {
   setContainsFilter: (tag: string) => void;
   setExcludesFilter: (tag: string) => void;
   deleteEntryPermanently: (entry: Entry) => Promise<void>;
+  // Sequential mode auto-manages the right sidebar: collapse it while the
+  // sequential panel is up (frees the width for the image+controls), restore
+  // on exit. Injected since #right's own collapse state lives in index.ts.
+  setRightPanelCollapsed: (collapsed: boolean) => void;
+  getRightPanelCollapsed: () => boolean;
+  // Hide-tags toolbar mode (buildCard/buildCompactCard skip chips + input).
+  getHideTags: () => boolean;
 }
 
 export function initView(deps: ViewDeps): void {
@@ -2820,6 +3144,9 @@ export function initView(deps: ViewDeps): void {
   setContainsFilterRef = deps.setContainsFilter;
   setExcludesFilterRef = deps.setExcludesFilter;
   deleteEntryPermanentlyRef = deps.deleteEntryPermanently;
+  setRightPanelCollapsedRef = deps.setRightPanelCollapsed;
+  getRightPanelCollapsedRef = deps.getRightPanelCollapsed;
+  getHideTagsRef = deps.getHideTags;
 
   langAutoSelectToggle.addEventListener('change', () => {
     autoSelectNewLanguage = langAutoSelectToggle.checked;
@@ -2831,6 +3158,20 @@ export function initView(deps: ViewDeps): void {
     autoSelectNewLanguage = on;
     langAutoSelectToggle.checked = on;
   })();
+
+  // Hide-tags mode (per user spec): a gallery-toolbar toggle that blanks
+  // the chip row + add-field on every card (persisted app-wide) so a
+  // filter-driven sort like "everything without 1girl" reads have/not-have
+  // at a glance. Tags stay editable through the card modal either way.
+  let hideTags = false;
+  try { hideTags = localStorage.getItem('dts-hide-tags') === '1'; } catch(e){}
+  btnHideTags.textContent = hideTags ? '\ud83d\udc41 Show tags' : '\ud83d\ude48 Hide tags';
+  btnHideTags.addEventListener('click', () => {
+    hideTags = !hideTags;
+    try { localStorage.setItem('dts-hide-tags', hideTags ? '1' : '0'); } catch(e){}
+    btnHideTags.textContent = hideTags ? '\ud83d\udc41 Show tags' : '\ud83d\ude48 Hide tags';
+    renderCurrentView();
+  });
 
   viewGridBtn.addEventListener('click', () => switchView('grid'));
   viewCompactBtn.addEventListener('click', () => {

@@ -100,7 +100,12 @@ export function openPickerModal(
   document.addEventListener('keydown', onKey);
   renderRows();
   document.body.appendChild(backdrop);
-  requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));
+  // Auto-focus the search box once the modal is live: it's open and the
+  // user can type to filter immediately, no extra click into the field.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    backdrop.classList.add('modal-visible');
+    search.focus();
+  }));
 }
 
 export function attachPickerModal(

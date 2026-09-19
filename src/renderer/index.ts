@@ -1264,7 +1264,10 @@ import { pickDatasetFolder } from './folder-picker';
     refreshAllUI: () => refreshAllUI(),
     setContainsFilter: (tag) => setContainsFilter(tag),
     setExcludesFilter: (tag) => setExcludesFilter(tag),
-    deleteEntryPermanently: (entry) => deleteEntryPermanently(entry)
+    deleteEntryPermanently: (entry) => deleteEntryPermanently(entry),
+    setRightPanelCollapsed: (collapsed) => applyRightPanelCollapsed(collapsed),
+    getRightPanelCollapsed: () => rightAside.classList.contains('right-panel-collapsed'),
+    getHideTags: () => localStorage.getItem('dts-hide-tags') === '1'
   });
 
   // Achievements/stats/wallet/shop moved to ./achievements.ts
@@ -2173,5 +2176,41 @@ import { pickDatasetFolder } from './folder-picker';
     });
     fileCatFlyout.appendChild(btnAddImages);
   }
+
+  // -------- Idle GPU suspend ("draw GPU only when needed") --------
+  // With hardware acceleration on, the compositor only keeps ticking when
+  // SOMETHING is animating — any running infinite CSS animation keeps every
+  // layer being redrawn at 60fps forever, which is where the RTX idle usage
+  // was going. So: once no input (pointer/key/wheel/scroll) has happened for
+  // a few seconds, pause every CSS animation app-wide; ambient theme anims
+  // (the only continuous things at rest) freeze mid-keyframe and resume on
+  // the next input, which no human eye can distinguish from the keyframe
+  // loop. Transitions aren't touched (they only run during events anyway).
+  const IDLE_SUSPEND_MS = 3500;
+  let idleSuspendTimer: ReturnType<typeof setTimeout> | null = null;
+  function armIdleSuspend(){
+    if (idleSuspendTimer) clearTimeout(idleSuspendTimer);
+    document.documentElement.classList.remove('gpu-idle');
+    idleSuspendTimer = setTimeout(() => {
+      idleSuspendTimer = null;
+      document.documentElement.classList.add('gpu-idle');
+    }, IDLE_SUSPEND_MS);
+  }
+  for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel', 'scroll'] as const){
+    document.addEventListener(ev, armIdleSuspend, { passive: true });
+  }
+    // A hidden/minimized window would stay composited as long as its
+    // animations run — the same "duplicate GPU work with nobody watching"
+    // problem the idle suspend exists for. Suspend immediately whenever the
+    // window isn't visible; the idle timer re-arms on the next interaction.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden){
+      document.documentElement.classList.add('gpu-idle');
+      if (idleSuspendTimer) { clearTimeout(idleSuspendTimer); idleSuspendTimer = null; }
+    } else {
+      armIdleSuspend();
+    }
+  });
+  armIdleSuspend();
 
 })();

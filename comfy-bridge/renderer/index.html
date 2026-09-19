@@ -11,6 +11,12 @@
   <header id="topbar">
     <h1>Comfy Bridge</h1>
     <span id="appVersion"></span>
+    <div id="themeWrap">
+      <button id="themeBtn" title="Theme colors (Osmium palettes, colors only)">
+        <span id="themeBtnLabel"></span><span class="theme-arrow">▾</span>
+      </button>
+      <div id="themeMenu" hidden></div>
+    </div>
   </header>
 
   <div id="layout">
@@ -204,6 +210,9 @@
         <div class="row">
           <button id="btnGenerate">Generate</button>
           <button id="btnStop" disabled>Stop</button>
+        </div>
+        <div class="row">
+          <button id="btnImportGen" style="flex:1">⤓ Import generation…</button>
         </div>
         <div id="genStatus" class="status-line" style="display:none"></div>
         <div id="livePreviewWrap" style="display:none" class="preview-wrap">

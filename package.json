@@ -1,6 +1,6 @@
 {
   "name": "osmium-workshop",
-  "version": "1.5.5",
+  "version": "1.6.0",
   "description": "Local dataset tag editor for AI training images, packaged as a desktop app.",
   "main": "main.js",
   "author": "",

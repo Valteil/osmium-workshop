@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   pickOutputFolder: () => ipcRenderer.invoke('pick-output-folder'),
+  importWorkflow: () => ipcRenderer.invoke('import-workflow-file'),
   saveImage: (payload) => ipcRenderer.invoke('save-image', payload),
   galleryListDir: (payload) => ipcRenderer.invoke('gallery-list-dir', payload),
   galleryRead: (payload) => ipcRenderer.invoke('gallery-read', payload),

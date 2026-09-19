@@ -7,9 +7,12 @@
 // `../../src/renderer/synthdat-overseer.ts`'s `buildPromptFromFields()` —
 // same fixed workflow template, so the node ids must match exactly.
 
+import { THEME_PALETTES, DEFAULT_THEME, type ThemePalette } from './themes';
+
 interface ElectronAPI {
   getAppVersion(): Promise<string>;
   pickOutputFolder(): Promise<{ ok: boolean; path?: string }>;
+  importWorkflow(): Promise<{ ok: boolean; cancelled?: boolean; error?: string; prompt?: Record<string, any> }>;
   saveImage(payload: { folder: string; filename: string; bytes: Uint8Array }): Promise<{ ok: boolean; error?: string }>;
   listUpscaleModels(): Promise<{ ok: boolean; values?: string[]; error?: string }>;
   listPresets(): Promise<{ ok: boolean; promptPresetNames?: string[]; negativePresetNames?: string[]; error?: string }>;
@@ -17,7 +20,7 @@ interface ElectronAPI {
   loadPreset(payload: { kind: 'prompt' | 'negative'; name: string }): Promise<{ ok: boolean; value?: unknown; error?: string }>;
   deletePreset(payload: { kind: 'prompt' | 'negative'; name: string }): Promise<{ ok: boolean; error?: string }>;
   synthdatGetObjectInfo(payload: { host: string; classType: string; inputName: string }): Promise<{ ok: boolean; values?: string[]; error?: string }>;
-  synthdatQueueAndFetch(payload: { host: string; imageFilename: string | null; imageBytes: Uint8Array | null; prompt: any }): Promise<{ ok: boolean; imageBytes?: Uint8Array; pass1ImageBytes?: Uint8Array; error?: string; interrupted?: boolean }>;
+  synthdatQueueAndFetch(payload: { host: string; imageFilename: string | null; imageBytes: Uint8Array | null; prompt: any }): Promise<{ ok: boolean; imageBytes?: Uint8Array; pass1ImageBytes?: Uint8Array; error?: string; interrupted?: boolean; saveRel?: string; pass1SaveRel?: string }>;
   synthdatStopGeneration(host: string): Promise<{ ok: boolean }>;
   galleryListDir(payload: { folder: string; relDir: string }): Promise<{ ok: boolean; entries?: { name: string; kind: 'file' | 'directory'; mtime?: number }[]; error?: string }>;
   galleryRead(payload: { folder: string; relPath: string }): Promise<{ ok: boolean; base64?: string; mime?: string; error?: string }>;
@@ -114,6 +117,7 @@ const outputFolderLabel = $<HTMLSpanElement>('outputFolderLabel');
 
 const btnGenerate = $<HTMLButtonElement>('btnGenerate');
 const btnStop = $<HTMLButtonElement>('btnStop');
+const btnImportGen = $<HTMLButtonElement>('btnImportGen');
 const genStatus = $<HTMLDivElement>('genStatus');
 const livePreviewWrap = $<HTMLDivElement>('livePreviewWrap');
 const livePreview = $<HTMLImageElement>('livePreview');
@@ -425,6 +429,119 @@ btnAddLora.addEventListener('click', () => addLoraRow('', 1));
 addLoraRow('', 1);
 addLoraRow('', 0.8);
 
+// ---------------- UI state persistence ----------------
+// Every field survives restarts: type the host, pick a model, tune steps —
+// reopening the app returns you exactly where you left off. Snapshot runs
+// debounced on any input/change; restore runs once here, AFTER the default
+// population above (preset defaults / seeded LoRA rows), so user values
+// always win over defaults.
+const UI_STATE_KEY = 'comfybridge-ui-state';
+const UI_EXCLUDED = new Set<string>();
+type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+function captureUiState(): void {
+  const state: Record<string, unknown> = {};
+  document.querySelectorAll<Field>('input,select,textarea').forEach((el) => {
+    if (!el.id || UI_EXCLUDED.has(el.id)) return;
+    if (el instanceof HTMLInputElement && el.type === 'checkbox') state[el.id] = el.checked;
+    else state[el.id] = el.value;
+  });
+  state[':loraRows'] = loraRows.map(r => ({ n: r.input.value, s: r.strength.value }));
+  try { localStorage.setItem(UI_STATE_KEY, JSON.stringify(state)); } catch { /* best effort */ }
+}
+function restoreUiState(): void {
+  let state: Record<string, unknown>;
+  try { state = JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}'); } catch { return; }
+  document.querySelectorAll<Field>('input,select,textarea').forEach((el) => {
+    if (!el.id || UI_EXCLUDED.has(el.id) || !(el.id in state)) return;
+    const v = state[el.id];
+    if (typeof v !== 'string' && typeof v !== 'boolean') return;
+    if (el instanceof HTMLInputElement && el.type === 'checkbox') el.checked = Boolean(v);
+    else if (typeof v === 'string') el.value = v;
+    // Not touching selects that don't have the option yet — they populate
+    // async; missing options just fall back to their current selection.
+  });
+  const loras = state[':loraRows'] as { n: string; s: string }[] | undefined;
+  if (Array.isArray(loras) && loras.length){
+    for (const r of [...loraRows]) { loraRows = loraRows.filter(x => x !== r); r.row.remove(); }
+    for (const l of loras) addLoraRow(String(l.n ?? ''), Number(l.s ?? 1) || 1);
+  }
+}
+let uiSaveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleUiSave(): void {
+  if (uiSaveTimer) clearTimeout(uiSaveTimer);
+  uiSaveTimer = setTimeout(captureUiState, 250);
+}
+document.addEventListener('input', scheduleUiSave, true);
+document.addEventListener('change', scheduleUiSave, true);
+restoreUiState();
+captureUiState();
+
+// ---------------- Theme colors (Osmium palettes, colors only) ----------------
+// Each Osmium palette maps onto the Bridge's own variable set — COLORS
+// ONLY by design: no textures, no ambient animations, no hover-fill
+// flourishes, exactly per user spec.
+const themeKey = 'comfybridge-theme';
+function applyBridgeTheme(name: string): void {
+  const palette = THEME_PALETTES.find((t: ThemePalette) => t.name === name) ||
+    THEME_PALETTES.find((t: ThemePalette) => t.name === DEFAULT_THEME)!;
+  const s = document.documentElement.style;
+  const v = palette.vars;
+  s.setProperty('--bg', v['--bg-base']);
+  s.setProperty('--panel', v['--bg-panel']);
+  s.setProperty('--panel2', v['--bg-elevated']);
+  s.setProperty('--panel3', v['--bg-elevated-2']);
+  s.setProperty('--border', v['--border-soft']);
+  s.setProperty('--border-strong', v['--border-strong']);
+  s.setProperty('--text', v['--text-primary']);
+  s.setProperty('--muted', v['--text-muted']);
+  s.setProperty('--faint', v['--text-faint']);
+  s.setProperty('--accent', v['--accent-manual']);
+  s.setProperty('--accent-auto', v['--accent-auto']);
+  s.setProperty('--accent-danger', v['--accent-danger']);
+  s.setProperty('--accent-ok', v['--accent-success']);
+  document.documentElement.dataset.theme = palette.name;
+  try { localStorage.setItem(themeKey, palette.name); } catch { /* best effort */ }
+}
+let savedTheme = DEFAULT_THEME;
+try { savedTheme = localStorage.getItem(themeKey) || DEFAULT_THEME; } catch { /* best effort */ }
+applyBridgeTheme(savedTheme);
+// Custom dropdown (native <select>'s popup refused to expand in this
+// Electron window): button + absolutely-positioned popover. Closes on
+// outside click / Escape; the current palette is marked in the list.
+const themeBtn = $<HTMLButtonElement>('themeBtn');
+const themeBtnLabel = $<HTMLSpanElement>('themeBtnLabel');
+const themeMenu = $<HTMLDivElement>('themeMenu');
+function refreshThemeButton(): void {
+  const cur = THEME_PALETTES.find((t: ThemePalette) => t.name === (document.documentElement.dataset.theme || DEFAULT_THEME));
+  themeBtnLabel.textContent = cur ? cur.label : savedTheme;
+}
+function buildThemeMenu(): void {
+  themeMenu.innerHTML = '';
+  for (const t of THEME_PALETTES) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'theme-item' + (t.name === document.documentElement.dataset.theme ? ' current' : '');
+    item.textContent = t.label;
+    item.addEventListener('click', () => {
+      savedTheme = t.name;
+      applyBridgeTheme(t.name);
+      themeMenu.hidden = true;
+      refreshThemeButton();
+    });
+    themeMenu.appendChild(item);
+  }
+}
+themeBtn.addEventListener('click', () => {
+  if (!themeMenu.hidden) { themeMenu.hidden = true; return; }
+  buildThemeMenu();
+  themeMenu.hidden = false;
+});
+document.addEventListener('click', (ev) => {
+  if (!themeMenu.hidden && !document.getElementById('themeWrap')!.contains(ev.target as Node)) themeMenu.hidden = true;
+});
+themeMenu.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') themeMenu.hidden = true; });
+refreshThemeButton();
+
 // ---------------- Output folder ----------------
 
 let outputFolder = '';
@@ -679,19 +796,27 @@ async function generate(): Promise<void> {
   }
   genStatus.style.display = 'none';
 
-  // Sequential filenames shared with mobile: N.png (N_pass1.png for the
-  // first pass of a 2-Pass run), counted from the output folder's own files.
-  const n = await nextFileNumber(desktopBackend());
+  // Save with the SAME name/folder scheme ComfyUI's SaveImage used for its
+  // own copy (the File Namer prefix chain: rating folder / character
+  // folder / lora tail, e.g. "explicit/Lumine/mylora_00003.png") — Mirrored
+  // INSIDE the chosen destination folder, per user spec. The app's own
+  // per-folder counter (nextFileNumber) was overwriting that scheme with
+  // plain "N.png" at the destination root — the user's "the naming scheme
+  // gets overwritten when a folder is chosen" bug. ComfyUI's per-folder
+  // counter is the single numbering authority in the scheme, so both
+  // copies share it; the flat fallback numbering below only applies when
+  // history didn't expose a path (older server shapes).
+  const fallbackN = () => nextFileNumber(desktopBackend());
   let saveFailed = false;
   if (res.pass1ImageBytes) {
-    // 2-Pass: save BOTH passes, per this app's whole reason for existing —
+    // 2-Pass: save BOTH passes, per this app's whole reason for existing ?
     // SynthDat only ever keeps one (via Accept), this keeps both always.
-    const s1 = await saveBytes(res.pass1ImageBytes, `${n}_pass1.png`);
-    const s2 = await saveBytes(res.imageBytes!, `${n}.png`);
+    const s1 = await saveBytes(res.pass1ImageBytes, res.pass1SaveRel || `${await fallbackN()}_pass1.png`);
+    const s2 = await saveBytes(res.imageBytes!, res.saveRel || `${await fallbackN()}.png`);
     if (!s1 || !s2) saveFailed = true;
     preview.src = URL.createObjectURL(new Blob([res.imageBytes as BlobPart], { type: 'image/png' }));
   } else if (res.imageBytes) {
-    if (!(await saveBytes(res.imageBytes, `${n}.png`))) saveFailed = true;
+    if (!(await saveBytes(res.imageBytes, res.saveRel || `${await fallbackN()}.png`))) saveFailed = true;
     preview.src = URL.createObjectURL(new Blob([res.imageBytes as BlobPart], { type: 'image/png' }));
   }
   if (saveFailed) {
@@ -703,6 +828,128 @@ async function generate(): Promise<void> {
 }
 
 btnGenerate.addEventListener('click', generate);
+
+// ---------------- Import generation ----------------
+// Reads a PNG saved by the integrated workflow and re-enters its full
+// generation config into the app: models, LoRA stack, prompt fields,
+// resolution, sampler/scheduler/steps/cfg/seeds, 2-Pass, resize and
+// upscale. Node ids mirror buildPrompt()'s fixed template (same file, the
+// template IS the format), so a saved prompt maps back 1:1.
+function applyImportedPrompt(prompt: Record<string, any>): void {
+  const inp = (id: string): Record<string, unknown> => (prompt[id] && prompt[id].inputs) || {};
+  const s = (id: string, key: string): string => { const v = inp(id)[key]; return v == null ? '' : String(v); };
+  function setVal(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, v: string): void {
+    if (v !== '') el.value = v;
+  }
+  if (s('41', 'unet_name')) diffModel.value = s('41', 'unet_name');
+  if (s('51', 'lora_name') && s('51', 'lora_name') !== 'None') mainLora.value = s('51', 'lora_name');
+  if (s('249', 'clip_name')) clip.value = s('249', 'clip_name');
+  if (s('47:46', 'vae_name')) vae.value = s('47:46', 'vae_name');
+
+  // LoRA stack: the chain root '237' plus any 237_extra_N clones, slots 01-04 each.
+  const stackIds: string[] = [];
+  if (prompt['237']) stackIds.push('237');
+  for (const id of Object.keys(prompt)) {
+    if (/^237_extra_\d+$/.test(id)) stackIds.push(id);
+  }
+  stackIds.sort((a, b) => (a === '237' ? -1 : b === '237' ? 1 : parseInt(a.split('_')[2], 10) - parseInt(b.split('_')[2], 10)));
+  const rows: { n: string; s: number }[] = [];
+  for (const id of stackIds) {
+    const inputs = prompt[id].inputs;
+    for (let i = 1; i <= 4; i++) {
+      const slot = String(i).padStart(2, '0');
+      const name = inputs[`lora_${slot}`];
+      const str = inputs[`strength_${slot}`];
+      if (name && name !== 'None') rows.push({ n: String(name), s: typeof str === 'number' ? str : (parseFloat(str) || 0) });
+    }
+  }
+  if (rows.length) {
+    for (const r of [...loraRows]) { loraRows = loraRows.filter(x => x !== r); r.row.remove(); }
+    for (const r of rows) addLoraRow(r.n, r.s);
+  }
+
+  // Reference-image branch: an intact generation has '240' (LLite) and
+  // possibly '238' (resize) unless it was run with the ref image skipped.
+  if (prompt['240']) {
+    skipRefImage.checked = false;
+    lliteStrength.value = String((prompt['240'].inputs.strength as number) ?? 0);
+    lliteStartPercent.value = String((prompt['240'].inputs.start_percent as number) ?? 0);
+    lliteEndPercent.value = String((prompt['240'].inputs.end_percent as number) ?? 0);
+    llitePreserveWrapper.checked = Boolean(prompt['240'].inputs.preserve_wrapper);
+  } else {
+    skipRefImage.checked = true;
+  }
+  if (prompt['238']) {
+    setVal(resizeFit, s('238', 'fit'));
+    setVal(resizeMethod, s('238', 'method'));
+  }
+
+  setVal(global_, s('21', 'value'));
+  const perField: [HTMLTextAreaElement, string][] = [
+    [rating, s('8', 'value')], [hair, s('12', 'value')], [face, s('15', 'value')],
+    [chest, s('18', 'value')], [body_, s('9', 'value')], [clothes, s('6', 'value')],
+    [limbs, s('20', 'value')], [sexual, s('14', 'value')], [pose, s('7', 'value')],
+    [extra, s('10', 'value')], [effects, s('13', 'value')], [scene, s('17', 'value')]
+  ];
+  const charVal = s('11', 'value');
+  const hasPerField = perField.some(([, v]) => v) ;
+  if (!hasPerField && s('21', 'value')){
+    // Unified mode: the template put everything into '21' and left the
+    // per-field nodes ''. '11' held unified + character trigger joined —
+    // the trigger part can't be split back out reliably, so it stays in the
+    // unified text (it generates identically when re-queued).
+    unifiedPromptMode.checked = true;
+    unifiedPrompt.value = s('21', 'value');
+    character.value = charVal;
+  } else {
+    unifiedPromptMode.checked = false;
+    unifiedPrompt.value = '';
+    character.value = charVal;
+    for (const [el, v] of perField) setVal(el, v);
+  }
+  setVal(negative, prompt['16'] && prompt['16'].inputs ? String(prompt['16'].inputs.text ?? '') : '');
+
+  setVal(sampler, s('168:167', 'sampler_name'));
+  setVal(scheduler, s('158:53', 'scheduler') || s('195', 'scheduler'));
+  if (s('158:53', 'steps')) steps1.value = s('158:53', 'steps');
+  setVal(cfg1, s('158:54', 'cfg'));
+  if (s('174:171', 'value')) width.value = s('174:171', 'value');
+  if (s('174:172', 'value')) height.value = s('174:172', 'value');
+  if (s('165', 'noise_seed')) seed1.value = s('165', 'noise_seed');
+
+  if (prompt['195']) {
+    use2Pass.checked = true;
+    if (s('227', 'noise_seed')) seed2.value = s('227', 'noise_seed');
+    if (s('195', 'steps')) steps2.value = s('195', 'steps');
+    denoise2.value = String((prompt['195'].inputs.denoise as number) ?? 0.6);
+  } else {
+    use2Pass.checked = false;
+  }
+  if (prompt['upscale_model_loader']) {
+    upscaleEnabled.checked = true;
+    upscaleModel.value = String(prompt['upscale_model_loader'].inputs.model_name ?? '');
+    if (prompt['upscale_scale_192']) {
+      const sb = prompt['upscale_scale_192'].inputs.scale_by;
+      upscaleScaleBy.value = String(typeof sb === 'number' ? sb : (parseFloat(sb) || 1));
+    }
+  }
+  scheduleUiSave();
+}
+btnImportGen.addEventListener('click', async () => {
+  const res = await window.electronAPI.importWorkflow();
+  if (!res.ok){
+    if (!res.cancelled){ log(res.error || 'Import failed.'); alert(res.error || 'Import failed.'); }
+    return;
+  }
+  if (res.prompt){
+    try {
+      applyImportedPrompt(res.prompt);
+      log('Imported generation settings from PNG.');
+    } catch (err) {
+      log(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+});
 btnStop.addEventListener('click', async () => {
   await window.electronAPI.synthdatStopGeneration(getHost());
 });

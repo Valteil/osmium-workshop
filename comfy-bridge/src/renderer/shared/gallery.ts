@@ -135,7 +135,18 @@ export function mountGallerySidebar(
   const fab = document.createElement('button');
   fab.id = 'galleryFab';
   fab.title = 'Open gallery';
-  fab.textContent = '🖼';
+  // Brand icon instead of the plain emoji: the app's own icon asset, one
+  // folder up from the renderer. Shared gallery also serves the mobile
+  // web shell, where that path doesn't exist — fall back to the emoji.
+  const fabIcon = document.createElement('img');
+  fabIcon.src = '../build/icon.png';
+  fabIcon.alt = 'Open gallery';
+  fabIcon.style.width = '36px';
+  fabIcon.style.height = '36px';
+  fabIcon.style.objectFit = 'contain';
+  fabIcon.style.borderRadius = '8px';
+  fabIcon.addEventListener('error', () => { fab.textContent = '🖼'; fabIcon.remove(); });
+  fab.appendChild(fabIcon);
   const backdrop = document.createElement('div');
   backdrop.id = 'galleryBackdrop';
   const sidebar = document.createElement('aside');

@@ -8,6 +8,32 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/
 #topbar{display:flex;align-items:baseline;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--panel);}
 #topbar h1{font-size:15px;margin:0;}
 #appVersion{color:var(--muted);font-size:11px;}
+/* Custom theme dropdown — the native <select> popup refused to expand in
+   this window config, so this is a hand-rolled popover: a button + an
+   absolutely-positioned list. Opens on click, closes on outside click or
+   Escape, scrollable because the Osmium palette list is 25 entries long. */
+#themeWrap{ position:relative; margin-left:auto; }
+#themeBtn{
+  display:flex; align-items:center; gap:8px;
+  background:var(--panel2); color:var(--text); border:1px solid var(--border);
+  border-radius:4px; padding:4px 8px; font:inherit; font-size:12px; cursor:pointer;
+}
+#themeBtn:focus{ outline:1px solid var(--accent); }
+#themeBtn .theme-arrow{ color:var(--muted); font-size:10px; }
+#themeMenu{
+  position:absolute; top:calc(100% + 4px); right:0; z-index:1000;
+  min-width:180px; max-height:60vh; overflow-y:auto;
+  background:var(--panel); border:1px solid var(--border-strong);
+  border-radius:6px; padding:4px; box-shadow:0 10px 28px rgb(0 0 0 / 55%);
+}
+.theme-item{
+  display:flex; align-items:center; gap:6px; width:100%; text-align:left;
+  background:none; border:none; color:var(--text); font:inherit; font-size:12px;
+  padding:6px 9px; border-radius:4px; cursor:pointer;
+}
+.theme-item:hover{ background:var(--panel2); }
+.theme-item.current{ color:var(--accent); font-weight:600; }
+.theme-item.current::after{ content:' ✓'; color:var(--accent); margin-left:auto; }
 #layout{flex:1;display:grid;grid-template-columns:320px 1fr 340px;gap:12px;padding:12px;overflow:hidden;}
 #left,#mid,#right{overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px;}
 .sec{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
