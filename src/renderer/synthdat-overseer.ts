@@ -203,28 +203,32 @@ export async function loadSynthDatSettingsForFolder(){
   document.querySelectorAll('#synthDatTab textarea').forEach(el => growTextarea(el));
 }
 
-// Three curated sets, not derived ones — Danbooru's real tag categories
+// Four curated sets, not derived ones — Danbooru's real tag categories
 // (all_tags.json.gz: 0 General, 1 Artist, 3 Copyright, 4 Character, 5 Meta —
 // see tag-details.ts's CATEGORY_NAMES) don't distinguish "pose"/"limb
-// action"/"sexual action" as families, and neither does wiki.json's
-// free-text defs. Seeded from Danbooru's own tag_group wiki pages (Posture,
-// Shoulders, Feet, Gestures, Hands, and the "on" disambiguation page — user-
-// supplied), pared down to the actual pose/action tags on those pages
-// (skipping pure attire/anatomy/scene entries like "off-shoulder dress" or
-// "on bed", which belong in Clothes/Scene instead). These only drive the
-// SUGGESTED default in the tag-assignment picker below (migratePoseTags) —
-// the user hand-picks/overrides the final destination per tag, since no
-// fixed list can perfectly separate "pose" from "limb action" from "sexual
-// action" for every image.
+// action"/"gesture"/"camera perspective" as families, and neither does
+// wiki.json's free-text defs. Seeded from Danbooru's own tag_group wiki
+// pages (Posture, Shoulders, Feet, Gestures, Hands, Composition, and the
+// "on" disambiguation page — user-supplied), pared down to the actual
+// pose/action/camera tags on those pages (skipping pure attire/anatomy/
+// scene-setting entries like "off-shoulder dress" or "on bed", which belong
+// in Clothes/Scene instead). These only drive the SUGGESTED default in the
+// tag-assignment picker below (migratePoseTags) — the user hand-picks/
+// overrides the final destination per tag, since no fixed list can
+// perfectly separate "pose" from "limb action" from "gesture" from
+// "camera perspective" for every image. The composition/camera set is
+// deliberately separate from posture: camera angles read into the Scene
+// prompt field, NOT Pose — a perspective is a property of the viewpoint,
+// not something the subject's body is doing.
 const POSE_TAGS = new Set([
   'standing', 'sitting', 'lying', 'kneeling', 'squatting', 'crouching', 'jumping',
   'running', 'walking', 'bent over', 'on back', 'on stomach', 'on side',
   'wariza', 'seiza', 'all fours', 'straddling', 'stretching', 'falling', 'flying',
   'floating', 'dancing', 'fighting stance', 'looking back', 'looking up', 'looking down',
-  'looking at viewer', 'looking away', 'from behind', 'from side', 'from above',
-  'from below', 'from front', 'head tilt', 'reclining', 'curled up', 'yoga', 'split', 'plank',
+  'looking at viewer', 'looking away',
+  'head tilt', 'reclining', 'curled up', 'yoga', 'split', 'plank',
   'on one knee', 'fetal position', 'butterfly sitting', 'figure four sitting', 'indian style',
-  'lotus position', 'hugging own legs', 'sitting on lap', 'human chair', 'thigh straddling',
+  'lotus position', 'hugging own legs', 'hug own legs', 'sitting on lap', 'human chair', 'thigh straddling',
   'upright straddle', 'yokozuwari', 'balancing', 'legs apart', 'standing on one leg',
   'crawling', 'midair', 'hopping', 'pouncing', 'walking on wall', 'top-down bottom-up',
   'prostration', 'bear position', 'bowlegged pose', 'chest stand', 'cowering', 'crucifixion',
@@ -234,7 +238,10 @@ const POSE_TAGS = new Set([
   'twisted torso', 'crossed ankles', 'leg up', 'legs up', 'knees to chest', 'legs over head',
   'leg lift', 'outstretched leg', 'pigeon pose', 'standing split', 'uneven footing',
   'knees apart feet together', 'knees together feet apart', 'knee up', 'knees up',
-  'en pointe', 'foot dangle', 'bowing', 'curtsey'
+  'en pointe', 'foot dangle', 'bowing', 'curtsey',
+  'leaning forward', 'leaning back', 'hunched over', 'hanging',
+  'hanging upside down', 'climbing', 'swimming', 'diving', 'swinging', 'riding',
+  'galloping', 'leaning on object'
 ]);
 const LIMB_ACTION_TAGS = new Set([
   'arms up', 'arms behind back', 'arms behind head', 'arms crossed', 'crossed arms',
@@ -268,7 +275,17 @@ const LIMB_ACTION_TAGS = new Set([
   'hand in pocket', 'hands in pockets', 'headpat', 'hand on another\'s head',
   'hands on another\'s head', 'arm around shoulder', 'hand on another\'s arm',
   'hand on another\'s back', 'hand on another\'s chest', 'hand on another\'s shoulder',
-  'hands on another\'s shoulder'
+  'hands on another\'s shoulder',
+  // Gestures — hand/mouth/body-language expressions common in the reference
+  // poses SynthDat reads, over and above the hand-PLACEMENT tags above.
+  'covering mouth', 'covering face', 'covering eyes', 'covering one eye',
+  'covering nose', 'covering ears',
+  'adjusting glasses', 'adjusting eyewear', 'adjusting headwear', 'adjusting clothes',
+  'hair flip', 'blowing a kiss', 'blowing bubble', 'biting lip', 'clapping',
+  'snapping fingers', 'yawning', 'praying', 'holding hands',
+  'holding phone', 'texting', 'smoking', 'drinking', 'eating',
+  'rolling up sleeves', 'hand in own hair', 'hand in another\'s hair',
+  'grabbing another\'s arm', 'grabbing another\'s hand'
 ]);
 const SEXUAL_ACTION_TAGS = new Set([
   'groping motion', 'groping', 'hand in bra', 'nipple tweak', 'arm between breasts',
@@ -278,11 +295,114 @@ const SEXUAL_ACTION_TAGS = new Set([
   'hand on own ass', 'hand on another\'s ass', 'cunnilingus gesture', 'fellatio gesture',
   'handjob gesture', 'penetration gesture', 'tribadism gesture', 'strangling',
   'foot worship', 'kissing foot', 'licking foot', 'toe sucking', 'footjob',
-  'double footjob', 'cooperative footjob', 'implied footjob', 'foot pussy'
+  'double footjob', 'cooperative footjob', 'implied footjob', 'foot pussy',
+  // Hand/mouth-on-body actions and the physical-interaction tags WD14 returns
+  // most often on explicit reference material — same "what is the body
+  // actively doing" test as the other three sets (states/appearance like
+  // body fluids, arousal markers, or exposure belong in the pending-card
+  // prune instead, since they're content DESCRIPTIONS, not transferable
+  // reference-pose actions).
+  'breast grab', 'breast squeezing', 'breast sucking', 'nipple sucking',
+  'licking nipples', 'ass grab', 'grabbing own ass', 'grabbing another\'s ass',
+  'hand on another\'s breast', 'spanking', 'fingering', 'handjob', 'paizuri',
+  'thighjob', 'armpit job', 'deep throat', 'irrumatio', 'face fuck',
+  'mutual masturbation', 'girl on top', 'boy on top', 'doggystyle',
+  'sex from behind', 'standing sex'
+]);
+// Composition/camera tags (Danbooru's composition tag group) — these read
+// into Scene, not Pose: they describe the camera's relationship to the
+// subject, which the prompt STEERS separately from what the body is doing.
+const SCENE_TAGS = new Set([
+  'from front', 'from side', 'from above', 'from below', 'from behind',
+  'pov', 'close-up', 'cowboy shot', 'dutch angle', 'wide shot',
+  'upper body', 'lower body', 'full body', 'head shot',
+  'selfie', 'mirror selfie'
 ]);
 
 function normalizeTag(t: string): string {
   return String(t).toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Group tags by main keyword family for the transfer-list viewer. Matching
+// is rule-of-thumb word matching (a family keyword anywhere in the tag wins,
+// first family rule listed wins) — it exists to make the list scannable
+// ("ball sucking" sits under the broader genitals family, not in a
+// flat alphabet soup), not to be a taxonomy; anything unmatched lands in
+// "General" rather than being force-fitted.
+type TransferFamilyRule = [RegExp, string];
+const POSE_FAMILIES: TransferFamilyRule[] = [
+  [/standing on one leg|balancing|handstand|headstand|scorpion|chest stand|plank|superhero landing|full scorpion/, 'Acrobatic'],
+  [/stand/, 'Standing'],
+  [/wari|seiza|sitt|lap|thigh straddl|straddl|fetal|butterfly|figure four|indian style|lotus|hug own|hugging own|knees to chest|knees up|knees apart|yokozuwari|curled up/, 'Sitting'],
+  [/kneel|on one knee|prostration|bowing|curtsey|cower/, 'Kneeling & Bowing'],
+  [/lyi|on back|on stomach|on side|reclin|faceplant/, 'Lying'],
+  [/squat|crouch|crawl|all fours|bear position/, 'Crouching & Crawling'],
+  [/jump|hop|pounc|midair|falling|flying|floating|leap/, 'Airborne'],
+  [/run|walk|pacing|en pointe|tiptoe|step|strut/, 'Walking & Stepping'],
+  [/dance|yoga|stretch|split|balancing|pilates|flex/, 'Stretch & Dance'],
+  [/leg|foot|feet|ankle|knee|toe/, 'Legs & Feet'],
+  [/arched|bent|slouch|sway|twist|torso|chest stand/, 'Back & Torso'],
+  [/head tilt|head down|head back|looking face-?plant/, 'Head & Neck'],
+  [/climb|swim|dive|swing|ride|gallop|hanging|cat/, 'Climbing & Sport'],
+];
+const LIMB_FAMILIES: TransferFamilyRule[] = [
+  [/arm|akimbo|elbow|airplane|w arms|x arms|t-pose|a-pose|flex|salute/, 'Arms'],
+  [/hand|finger|thumb|palm|fist|pinky|index|v sign|peace|ok sign|shaka|heart hands|high five|headpat|beckon|shush|clap|snap/, 'Hands & Gestures'],
+  [/leg|feet|foot|toe|ankle|dorsiflexion|plantar|tiptoes/, 'Legs & Feet'],
+  [/hold|carry|hug|piggyback|in pocket|cupping|roll/, 'Holding & Carrying'],
+  [/adjust/, 'Adjusting'],
+  [/coveri|touch|point|reach|twirl|hair flip/, 'Touch & Point'],
+];
+const SCENE_FAMILIES: TransferFamilyRule[] = [
+  [/from |pov|dutch angle|selfie/, 'Camera angle'],
+  [/close-up|cowboy|wide shot|body|head shot/, 'Framing'],
+];
+const SEXUAL_FAMILIES: TransferFamilyRule[] = [
+  [/breast|nipple|tit|paizuri|chest/, 'Breasts & Chest'],
+  [/penis|ball|cock|handjob|mutual masturbation|boy on top|paizuri/, 'Penis'],
+  [/ass|butt|anus|doggystyle|from behind|spanking|anal/, 'Butt & Anal'],
+  [/pussy|vagina|crot|cunni|tribadism|fingeri|girl on top/, 'Vagina & Oral'],
+  [/blow|oral|deep throat|irrumatio|face fuck|suck|lick|toe suck|foot job|footjob|foot worship|kissing foot|foot pussy/, 'Mouth & Oral'],
+  [/foot|feet|toe/, 'Feet'],
+  [/hand|finger/, 'Hands'],
+  [/sex|standing sex|straddling|thighjob|armpit/, 'Positions & Grinding'],
+];
+
+function groupTagsByFamily(tags: string[], rules: TransferFamilyRule[]): { family: string; tags: string[] }[] {
+  const groups = new Map<string, string[]>();
+  for (const raw of tags){
+    const t = normalizeTag(raw);
+    let family = 'Other';
+    for (const [re, name] of rules){ if (re.test(t)){ family = name; break; } }
+    if (!groups.has(family)) groups.set(family, []);
+    groups.get(family)!.push(raw);
+  }
+  return Array.from(groups.entries())
+    .map(([family, list]) => ({ family, tags: list.sort((a, b) => a.localeCompare(b)) }))
+    .sort((a, b) => b.tags.length - a.tags.length);
+}
+
+// Settings' "View WD14 SynthDat transfer list" viewer — a read-only snapshot
+// of exactly which tags each curated set would auto-suggest a destination
+// for, grouped by main keyword family so the lists read as clusters of
+// related actions instead of a flat alphabet soup. Pure data (no live
+// deps), so pairing it to any other module passing through index.ts's
+// init would be ceremony for nothing; import it directly.
+export function getWd14TransferSets(): { name: string; desc: string; groups: { family: string; tags: string[] }[]; total: number }[] {
+  return [
+    { name: 'Pose', desc: 'Body posture/position tags — suggested destination: Pose. Suggested keyword families, not a strict taxonomy.', groups: [] },
+    { name: 'Limbs & Hands', desc: 'Arm/hand actions and gestures — suggested destination: Limbs.', groups: [] },
+    { name: 'Scene (perspective/composition)', desc: 'Camera-angle/composition tags — suggested destination: Scene.', groups: [] },
+    { name: 'Sexual', desc: 'Sexual-content actions — suggested destination: Sexual.', groups: [] },
+  ].map((s, i) => {
+    const groups = [
+      groupTagsByFamily([...POSE_TAGS], POSE_FAMILIES),
+      groupTagsByFamily([...LIMB_ACTION_TAGS], LIMB_FAMILIES),
+      groupTagsByFamily([...SCENE_TAGS], SCENE_FAMILIES),
+      groupTagsByFamily([...SEXUAL_ACTION_TAGS], SEXUAL_FAMILIES),
+    ][i];
+    return { name: s.name, desc: s.desc, groups, total: groups.reduce((n, g) => n + g.tags.length, 0) };
+  });
 }
 
 let template: SynthDatPrompt | null = null;
@@ -566,15 +686,17 @@ async function reinterrogateOutput(): Promise<void> {
 }
 
 // Per-tag hand-picking, not a one-click auto-migrate: no fixed list can
-// perfectly separate "pose" from "limb/hand action" from "sexual action"
-// for every image (per the user, sexual content is a real part of some
+// perfectly separate "pose" from "limb/hand action" from "gesture" from
+// "camera perspective" (or from "sexual action") for every image (per the
+// user, sexual content is a real part of some
 // datasets here, so that destination needs to be a first-class option, not
 // silently dropped). Each WD14 tag gets a row with a small button group
-// (→Pose / →Limbs / →Sexual / skip); POSE_TAGS/LIMB_ACTION_TAGS/
-// SEXUAL_ACTION_TAGS (seeded from Danbooru's own tag_group wiki pages) only
+// (→Pose / →Limbs / →Scene / →Sexual / skip); POSE_TAGS/LIMB_ACTION_TAGS/
+// SCENE_TAGS/SEXUAL_ACTION_TAGS (seeded from Danbooru's own tag_group wiki
+// pages) only
 // pre-select a SUGGESTED destination — the user can reassign or skip any row
 // before hitting Apply.
-type TagDestination = 'pose' | 'limbs' | 'sexual';
+type TagDestination = 'pose' | 'limbs' | 'scene' | 'sexual';
 let tagAssignments = new Map<string, TagDestination | null>();
 
 function suggestDestination(tag: string): TagDestination | null {
@@ -582,6 +704,7 @@ function suggestDestination(tag: string): TagDestination | null {
   if (POSE_TAGS.has(norm)) return 'pose';
   if (LIMB_ACTION_TAGS.has(norm)) return 'limbs';
   if (SEXUAL_ACTION_TAGS.has(norm)) return 'sexual';
+  if (SCENE_TAGS.has(norm)) return 'scene';
   return null;
 }
 
@@ -601,12 +724,12 @@ function renderTagAssignPicker(tags: string[]): void {
   if (relevant.length === 0){
     const empty = document.createElement('div');
     empty.className = 'stats-empty';
-    empty.textContent = 'No pose/gesture/action tags found in this result.';
+    empty.textContent = 'No pose/gesture/perspective tags found in this result.';
     synthDatTagAssign.appendChild(empty);
     btnSynthDatMigratePose.disabled = true;
     return;
   }
-  const DESTS: [TagDestination | null, string][] = [['pose', 'Pose'], ['limbs', 'Limbs'], ['sexual', 'Sexual'], [null, 'Skip']];
+  const DESTS: [TagDestination | null, string][] = [['pose', 'Pose'], ['limbs', 'Limbs'], ['scene', 'Scene'], ['sexual', 'Sexual'], [null, 'Skip']];
   for (const tag of relevant){
     tagAssignments.set(tag, suggestDestination(tag));
     const row = document.createElement('div');
@@ -636,15 +759,16 @@ function renderTagAssignPicker(tags: string[]): void {
 
 function applyTagAssignment(): void {
   if (tagAssignments.size === 0){ toast('Interrogate a reference image first.'); return; }
-  const byDest: Record<TagDestination, string[]> = { pose: [], limbs: [], sexual: [] };
+  const byDest: Record<TagDestination, string[]> = { pose: [], limbs: [], scene: [], sexual: [] };
   for (const [tag, dest] of tagAssignments){
     if (dest && byDest[dest]) byDest[dest].push(tag);
   }
-  const fieldByDest: Record<TagDestination, HTMLTextAreaElement> = { pose: synthDatPose, limbs: synthDatLimbs, sexual: synthDatSexual };
+  const fieldByDest: Record<TagDestination, HTMLTextAreaElement> = { pose: synthDatPose, limbs: synthDatLimbs, scene: synthDatScene, sexual: synthDatSexual };
   const clearFirst = synthDatMigrateClearFirst.checked;
-  // "Clear first" wipes all three fields regardless of whether this round
+  // "Clear first" wipes all four fields regardless of whether this round
   // actually assigned a new tag to each one — the point is starting this
-  // image's Pose/Limbs/Sexual fresh, not just the destinations that got hits.
+  // image's Pose/Limbs/Scene/Sexual fresh, not just the destinations that
+  // got hits.
   if (clearFirst){
     for (const field of Object.values(fieldByDest)){ field.value = ''; growTextarea(field); }
   }
@@ -658,7 +782,7 @@ function applyTagAssignment(): void {
     total += byDest[dest].length;
   }
   if (total === 0){ toast('Nothing assigned — every tag is set to Skip.'); return; }
-  toast(`Applied ${total} tag(s): ${byDest.pose.length} to Pose, ${byDest.limbs.length} to Limbs, ${byDest.sexual.length} to Sexual.`);
+  toast(`Applied ${total} tag(s): ${byDest.pose.length} to Pose, ${byDest.limbs.length} to Limbs, ${byDest.scene.length} to Scene, ${byDest.sexual.length} to Sexual.`);
   scheduleSave();
 }
 

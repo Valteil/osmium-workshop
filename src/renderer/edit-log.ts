@@ -11,6 +11,16 @@ export let editLog: EditLogEntry[] = [];
 export let logIdCounter = 1;
 let statsChartMode: 'pie' | 'bar' = 'pie';
 
+// Pixel-edit log types (crop/rotate). Byte payloads live in tags-edit.ts's
+// session-only pixelStates map keyed by log entry id — the persisted entries
+// carry metadata alone, so the log file never bloats with image data.
+export const PIXEL_TYPES = new Set(['crop-image', 'rotate-image']);
+
+// Isolated-file creations. Same session-bytes pattern as PIXEL_TYPES (see
+// tags-edit.ts's isolateStates), but undo means deleting the created file
+// and redo means re-creating it — a different applier, hence its own set.
+export const ISOLATE_TYPES = new Set(['isolate-image']);
+
 const LOG_FILE_NAME = '_tag_edit_log.json';
 
 interface EditLogDeps {
@@ -18,6 +28,8 @@ interface EditLogDeps {
   getEntryByBase: (base: string) => Entry | undefined;
   applyTagDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => number;
   applyRenameDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
+  applyPixelDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
+  applyIsolateDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
   moveEntry: (entry: Entry, toDisabled: boolean) => Promise<void>;
   trackStat: (key: string, amount?: number) => void;
   checkAchievements: () => void;
@@ -30,6 +42,8 @@ let getDirHandle: () => DirHandle | null = () => null;
 let getEntryByBase: (base: string) => Entry | undefined = () => undefined;
 let applyTagDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => number = () => 0;
 let applyRenameDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
+let applyPixelDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
+let applyIsolateDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
 let moveEntryRef: (entry: Entry, toDisabled: boolean) => Promise<void> = async () => {};
 let trackStatRef: (key: string, amount?: number) => void = () => {};
 let checkAchievementsRef: () => void = () => {};
@@ -101,13 +115,15 @@ const STAT_CHART_COLORS: Record<string, string> = {
   'add-tag': '#6fb8d1', 'remove-tag': '#e2637a', 'merge': '#e8a33d', 'void': '#c1443c',
   'rename': '#7fbf8f', 'find-replace': '#a683e0', 'disable': '#8a6f57', 'restore': '#4fae7a',
   'undo': '#9791a6', 'redo': '#6b6578', 'unmerge': '#d9b35c', 'unvoid': '#5cb9a8', 'rule-update': '#8a8fd9',
-  'delete': '#c1443c', 'rename-files': '#4a9fd1'
+  'delete': '#c1443c', 'rename-files': '#4a9fd1', 'crop-image': '#3aa655', 'rotate-image': '#7a9fd1',
+  'isolate-image': '#b57edc'
 };
 const STAT_TYPE_LABEL: Record<string, string> = {
   'add-tag': 'Tags added', 'remove-tag': 'Tags removed', 'merge': 'Merges', 'void': 'Voids',
   'rename': 'Renames', 'find-replace': 'Find & replace', 'disable': 'Disabled', 'restore': 'Restored',
   'undo': 'Undos', 'redo': 'Redos', 'unmerge': 'Unmerges', 'unvoid': 'Unvoids', 'rule-update': 'Rule changes',
-  'delete': 'Deleted permanently', 'rename-files': 'Files renamed'
+  'delete': 'Deleted permanently', 'rename-files': 'Files renamed',
+  'crop-image': 'Crops', 'rotate-image': 'Rotates', 'isolate-image': 'Isolates'
 };
 
 function computeStatsBreakdown(): Record<string, number> {
@@ -293,6 +309,32 @@ export function renderLogPanel(): void {
       actions.appendChild(undoBtn);
       actions.appendChild(redoBtn);
       row.appendChild(actions);
+    } else if (PIXEL_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
+      const actions = document.createElement('div');
+      actions.className = 'log-actions';
+      const undoBtn = document.createElement('button');
+      undoBtn.textContent = '↩ Undo this';
+      undoBtn.addEventListener('click', () => applyPixelLogEntryDirection(logEntry, 'undo'));
+      const redoBtn = document.createElement('button');
+      redoBtn.textContent = '↪ Redo this';
+      redoBtn.className = 'primary';
+      redoBtn.addEventListener('click', () => applyPixelLogEntryDirection(logEntry, 'redo'));
+      actions.appendChild(undoBtn);
+      actions.appendChild(redoBtn);
+      row.appendChild(actions);
+    } else if (ISOLATE_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
+      const actions = document.createElement('div');
+      actions.className = 'log-actions';
+      const undoBtn = document.createElement('button');
+      undoBtn.textContent = '↩ Undo this';
+      undoBtn.addEventListener('click', () => applyIsolateLogEntryDirection(logEntry, 'undo'));
+      const redoBtn = document.createElement('button');
+      redoBtn.textContent = '↪ Redo this';
+      redoBtn.className = 'primary';
+      redoBtn.addEventListener('click', () => applyIsolateLogEntryDirection(logEntry, 'redo'));
+      actions.appendChild(undoBtn);
+      actions.appendChild(redoBtn);
+      row.appendChild(actions);
     }
 
     logList.appendChild(row);
@@ -337,6 +379,38 @@ async function applyRenameLogEntryDirection(logEntry: EditLogEntry, direction: '
   checkAchievementsRef();
 }
 
+async function applyPixelLogEntryDirection(logEntry: EditLogEntry, direction: 'undo' | 'redo'): Promise<void> {
+  const count = await applyPixelDirectionRef(logEntry.affected, direction);
+  if (count === 0) { toast('That image edit can no longer be restored (it was from an earlier session, or the image is gone).'); return; }
+  const verb = direction === 'undo' ? 'Undid' : 'Redid';
+  pushLogEntry({
+    type: direction,
+    summary: `${verb} (from log): ${logEntry.summary}`,
+    affected: logEntry.affected
+  });
+  trackStatRef(direction === 'undo' ? 'undos' : 'redos');
+  toast(`${verb} that edit.`);
+  refreshAllUIRef();
+  renderLogPanel();
+  checkAchievementsRef();
+}
+
+async function applyIsolateLogEntryDirection(logEntry: EditLogEntry, direction: 'undo' | 'redo'): Promise<void> {
+  const count = await applyIsolateDirectionRef(logEntry.affected, direction);
+  if (count === 0) { toast('That isolated image can no longer be restored (it was from an earlier session, or the file is gone).'); return; }
+  const verb = direction === 'undo' ? 'Undid' : 'Redid';
+  pushLogEntry({
+    type: direction,
+    summary: `${verb} (from log): ${logEntry.summary}`,
+    affected: logEntry.affected
+  });
+  trackStatRef(direction === 'undo' ? 'undos' : 'redos');
+  toast(`${verb} that edit.`);
+  refreshAllUIRef();
+  renderLogPanel();
+  checkAchievementsRef();
+}
+
 async function toggleMoveLogEntry(logEntry: EditLogEntry): Promise<void> {
   const base = logEntry.affected[0]?.base;
   const e = base ? getEntryByBase(base) : null;
@@ -352,6 +426,8 @@ export function initEditLog(deps: EditLogDeps): void {
   getEntryByBase = deps.getEntryByBase;
   applyTagDirectionRef = deps.applyTagDirection;
   applyRenameDirectionRef = deps.applyRenameDirection;
+  applyPixelDirectionRef = deps.applyPixelDirection;
+  applyIsolateDirectionRef = deps.applyIsolateDirection;
   moveEntryRef = deps.moveEntry;
   trackStatRef = deps.trackStat;
   checkAchievementsRef = deps.checkAchievements;

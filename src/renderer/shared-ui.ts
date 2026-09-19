@@ -377,7 +377,7 @@ export function showConfirmModal(message: string, opts: ConfirmModalOpts = {}): 
   });
 }
 
-export function showInfoModal(html: string, title?: string): void {
+export function showInfoModal(html: string, title?: string, onBody?: (body: HTMLElement) => void): void {
   const backdrop = document.createElement('div');
   backdrop.className = 'confirm-backdrop';
   const box = document.createElement('div');
@@ -392,6 +392,7 @@ export function showInfoModal(html: string, title?: string): void {
   body.className = 'info-modal-body';
   body.innerHTML = html;
   box.appendChild(body);
+  if (onBody) onBody(body);
   const btnRow = document.createElement('div');
   btnRow.className = 'confirm-btn-row';
   const closeBtn = document.createElement('button');

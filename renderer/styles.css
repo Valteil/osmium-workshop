@@ -982,12 +982,15 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      transformed/relatively-positioned ancestor intercepts fixed positioning
      per spec) instead of the viewport — so the prompt-panel overlay and its
      edge tab below can anchor with plain top:0/right:0 rather than a guessed
-     pixel offset for the app's own topbar+tab-bar height, AND stay pinned to
-     #synthDatTab's own (unmoving) box rather than scrolling away with its
-     `overflow-y:scroll` content, without needing position:sticky (which
-     can't do "flush against an edge regardless of that edge's own scroll"
-     the way this containing-block trick does). */
-  #synthDatTab{ padding: 24px; overflow-y: scroll; height: 100%; position: relative; transform: translateZ(0); }
+     pixel offset for the app's own topbar+tab-bar height.
+     CRITICAL companion rule: the tab itself does NOT scroll. A transformed
+     element that is also the scroll container makes its fixed descendants
+     behave layout-absolute — anchored to the content origin and scrolling
+     away with it — which is the "edge tab scrolled off-screen" bug. The
+     scrolling lives one level down in .synthdat-scroll, so the tab's own
+     box (and everything pinned to it) never moves. */
+  #synthDatTab{ height: 100%; position: relative; transform: translateZ(0); }
+  .synthdat-scroll{ height: 100%; overflow-y: scroll; padding: 24px; }
   /* Generation (top, full-width, its own internal 2-col settings/preview
      split — see below) above a single column of the setup docks (ComfyUI
      connection/Reference image/Model & LoRA/ControlNet/Reference resize),
@@ -1856,19 +1859,18 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     overflow-x: hidden;
   }
 
-  /* `sticky`, not `absolute` — #right is itself the scrolling element
-     (`aside{ overflow-y: scroll }` above), so an absolutely-positioned
-     child is placed relative to its full scrollable content height, not
-     the visible viewport. With 2+ Tag Pruner boxes (each independently
-     addable) that content height regularly exceeds the panel's visible
-     height, which pushed a vertically-centered absolute button below the
-     fold — sticky keeps it pinned to the top of whatever's currently
-     scrolled into view instead. Sits on the ROW now (was on the arrow
-     button alone), since the row also holds btnGoToTagOverseer/btnMasterBack
-     — those fill what used to be dead space beside a lone 20px-wide arrow
-     in an otherwise-empty full-width strip, rather than leaving it empty. */
+  /* Static, not sticky — sticky was tried here and reverted: a header glued
+     to the viewport follows the user down the panel instead of staying at
+     its top, which reads as a floating control chasing you. Static keeps it
+     docked at the panel's own top edge, scrolling off naturally with
+     everything else. (Absolute is out for the older reason below: #right is
+     itself the scrolling element, so absolute children place against the
+     full content height and land below the fold.)
+     The row also holds btnGoToTagOverseer/btnMasterBack — those fill what
+     used to be dead space beside a lone 20px-wide arrow in an
+     otherwise-empty full-width strip, rather than leaving it empty. */
   #rightPanelHeaderRow{
-    position: sticky; top: 0; left: 0; z-index: 2;
+    position: static;
     display: flex; align-items: center; gap: 8px;
     background: var(--bg-panel);
   }
@@ -2064,7 +2066,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      incidental label-width differences) and would keep reshuffling itself
      as zoom changes. Stacking is zoom-invariant: the same layout at every
      zoom level, not just "narrow enough to force it." */
-  .immunize-row{ display: flex; flex-direction: column; gap: 6px; }
+  .immunize-row{ display: flex; flex-direction: column; gap: 8px; }
   .immunize-row button{ font-size: 11.5px; padding: 5px 9px; }
   .immunize-row .ghost-secondary{ background: transparent; color: var(--text-muted); }
   .immunize-row .ghost-secondary:hover:not(:disabled){ color: var(--text-primary); background: var(--bg-elevated); }
@@ -2389,6 +2391,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   .chiprow { display: flex; flex-wrap: wrap; gap: 5px; }
+  /* Read-only chip (no × button) — e.g. the WD14 transfer-list viewer.
+     The base .chip's asymmetric padding (9px left / 4px right + 5px gap)
+     budgets room for the remove button; without it the label sits visibly
+     off-center, so re-balance and tighten line spacing. */
+  .chip.chip-static{ padding: 3px 9px; gap: 0; line-height: 1.2; cursor: default; }
   .chip {
     display: inline-flex;
     align-items: center;
@@ -2688,11 +2695,23 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     transition: opacity 0.15s ease, transform 0.15s ease;
   }
   .ac-flash-card.show{ opacity: 1; transform: translateY(0); }
+  /* Floating hover variant (tags-autocomplete.ts's attachAcChipHover, used
+     by the WD14 transfer-list modal): position:fixed by inline styles, so
+     strip the in-list flow extras. z-index must clear the info modal's own
+     #confirm-backdrop (600) or the card renders behind it. */
+  .ac-flash-card.ac-flash-floating{ margin: 0; box-shadow: 0 6px 18px rgba(0,0,0,0.35); z-index: 650; }
   .ac-flash-body{ font-size: 12px; color: var(--text-muted); }
   .ac-flash-def{ line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; }
   .ac-flash-empty{ color: var(--text-faint); margin-bottom: 6px; }
   .ac-flash-body textarea{ margin-bottom: 6px; }
 
+  /* Master Tag Control button rows — one consistent 8px rhythm on both
+     axes, in a plain base rule no theme flourish touches (themes restyle
+     button fills/borders, never these row boxes). Replaces three inline
+     flex rows in index.html that had horizontal gap but zero vertical
+     separation, which read as cramped/merged on flat themes. */
+  .mtc-btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 8px; }
+  .immunize-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
   .selection-summary {
     font-size: 11.5px;
     color: var(--text-muted);
@@ -2702,6 +2721,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     line-height: 1.6;
     max-height: 70px;
     overflow-y: auto;
+    margin-bottom: 8px;
   }
   .selection-summary .tk {
     display: inline-block;

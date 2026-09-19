@@ -89,7 +89,10 @@ Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
 - **Disabled** — quarantine tab for images out of the active set (drag a card onto it). Tags are
   preserved and editable; restore anytime. Use it for maybes you don't want to delete.
 
-Clicking any image opens a floating zoomable/pannable card modal that keeps your grid position.
+Clicking any image opens a floating zoomable/pannable card modal
+(keep your grid position); on desktop that modal also has **⟲/⟳ Rotate** and **✂ Crop** — file-
+rewriting pixel edits (PNG/JPG/WebP), each confirmed, logged, and undoable — with Isolate saving
+a cropped region as a *new* image (source untouched).
 
 ### Tagging
 - **Chips** (on every card) — click for filter-by-presence, Tag Details wiki lookup, review flag,
@@ -112,6 +115,11 @@ Clicking any image opens a floating zoomable/pannable card modal that keeps your
   the files from disk outright. No undo; confirm-modal gated. Only removes the copy inside
   your dataset folder — a SynthDat-generated image's separate original in ComfyUI's own `output/`
   folder is untouched. Use it for rejects you never want back.
+- **Sequential tagging** (Tag Overseer tab) — walk the filtered gallery image by image in Single
+  view with a quick-respond panel: text/language, censorship (state + type checkboxes),
+  multiple perspective checkboxes, monochrome, sound effects, comic, multiple views, koma count.
+  A live chip strip under the image previews exactly which tags Confirm will write before it
+  happens. Use it to blast through indicator tagging on a whole filtered batch.
 - **Text & panel tagging** (3-dot menu) — instant toggles writing straight to tags:
   Japanese/foreign-language text tags, Comic, koma count, speech bubble. Use it on manga/page
   datasets where panel metadata matters.

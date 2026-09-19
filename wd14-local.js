@@ -32,7 +32,9 @@ async function listModels() {
     return models;
 }
 function deleteModel(name) {
-    sessionCache.delete(name);
+    sessionCache.delete(name + '|cpu');
+    sessionCache.delete(name + '|dml');
+    sessionCache.delete(name); // pre-provider cache shape, belt and suspenders
     tagsCache.delete(name);
     fs.rmSync(modelDir(name), { recursive: true, force: true });
 }
@@ -61,7 +63,9 @@ async function pickImportFiles(browserWindow) {
     return { canceled: false, name, modelPath, tagsPath };
 }
 function importModel({ name, modelPath, tagsPath }) {
-    sessionCache.delete(name);
+    sessionCache.delete(name + '|cpu');
+    sessionCache.delete(name + '|dml');
+    sessionCache.delete(name); // pre-provider cache shape, belt and suspenders
     tagsCache.delete(name);
     const dir = modelDir(name);
     fs.rmSync(dir, { recursive: true, force: true });
@@ -150,20 +154,36 @@ async function downloadModel({ name, modelUrl, tagsUrl }, onProgress) {
 // shape-parsing added as a follow-up); every built-in catalog entry works
 // correctly with this default as-is.
 const DEFAULT_INPUT_SIZE = 448;
+// GPU via DirectML (runs on the NVIDIA card through DirectX 12 — the stock
+// onnxruntime-node Windows package bundles DirectML.dll but no CUDA EP, and
+// per its own README CUDA is Linux-only, so DirectML is the GPU path here).
+// Sessions are cached per model+provider; a failed GPU bring-up falls back
+// to CPU inside the same call rather than failing the batch.
 const sessionCache = new Map();
-async function loadSession(name) {
-    if (sessionCache.has(name))
-        return sessionCache.get(name);
+async function loadSession(name, preferGpu) {
+    const wantGpu = !!preferGpu;
+    const key = name + '|' + (wantGpu ? 'dml' : 'cpu');
+    if (sessionCache.has(key))
+        return sessionCache.get(key);
     const modelPath = path.join(modelDir(name), 'model.onnx');
     if (!fs.existsSync(modelPath))
         throw new Error(`Model "${name}" is not downloaded.`);
-    // CPU only for now — DirectML/CoreML acceleration is a later polish pass
-    // (needs checking whether the default npm package even bundles those
-    // execution providers before wiring them up); WD14 is light enough that
-    // CPU-only is genuinely fine, same reasoning NNAPI-vs-CPU used on mobile.
-    const session = await InferenceSession.create(modelPath);
-    sessionCache.set(name, session);
-    return session;
+    let session = null;
+    let provider = 'cpu';
+    if (wantGpu) {
+        try {
+            session = await InferenceSession.create(modelPath, { executionProviders: ['dml'] });
+            provider = 'dml';
+        }
+        catch (err) {
+            session = null; // GPU bring-up failed — fall through to CPU below
+        }
+    }
+    if (!session)
+        session = await InferenceSession.create(modelPath);
+    const entry = { session, provider };
+    sessionCache.set(key, entry);
+    return entry;
 }
 const tagsCache = new Map();
 function loadTags(name) {
@@ -218,8 +238,8 @@ function preprocess(imageBuffer, size) {
 function escapeTag(name) {
     return name.replace(/ /g, '_').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 }
-async function tagImage({ name, imageBytes, threshold, characterThreshold }) {
-    const session = await loadSession(name);
+async function tagImage({ name, imageBytes, threshold, characterThreshold, preferGpu }) {
+    const { session, provider } = await loadSession(name, preferGpu);
     const tags = loadTags(name);
     const inputTensor = preprocess(Buffer.from(imageBytes), DEFAULT_INPUT_SIZE);
     const feeds = { [session.inputNames[0]]: inputTensor };
@@ -240,7 +260,7 @@ async function tagImage({ name, imageBytes, threshold, characterThreshold }) {
         if (scores[i] >= cutoff)
             picked.push(escapeTag(tag.name));
     }
-    return { ok: true, tagsCsv: picked.join(', ') };
+    return { ok: true, tagsCsv: picked.join(', '), provider };
 }
 function registerWd14LocalHandlers(ipcMain) {
     ipcMain.handle('wd14-local-list-models', async () => listModels());

@@ -373,15 +373,15 @@
           <div class="sec-head dock-desc-hide-mobile"><span class="d">Or click a thumbnail below to select/deselect it:</span></div>
           <button id="btnOpenMasterMiniGrid" class="dock-list-open-btn primary" title="Browse and select images by thumbnail">🖼 Select images</button>
           <div class="selection-summary" id="masterSelectionSummary">No images selected yet.</div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <div class="mtc-btn-row">
             <button id="btnMasterSelectAll" title="Select every image currently visible in the gallery">Select all visible</button>
             <button id="btnMasterClearSelection" title="Deselect all images">Clear selection</button>
           </div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <div class="mtc-btn-row">
             <button id="btnMasterLockSelected" title="Lock the selected images so mass tools (Master Tags, bulk WD14, etc.) skip them">🔒 Lock selected</button>
             <button id="btnMasterUnlockSelected" title="Unlock the selected images">🔓 Unlock selected</button>
           </div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <div class="mtc-btn-row">
             <button id="btnMasterDeleteSelected" class="danger-ghost" title="Permanently delete the selected images and their tags from disk — cannot be undone. Locked images are skipped.">❌ Delete selected permanently</button>
           </div>
           <div class="sec-head" style="margin-top:4px;"><span class="d">Retroactive Merge/Void exceptions — a permanent per-image setting, unlike Lock (which only skips mass tools):</span></div>
@@ -463,6 +463,10 @@
             <label class="ach-toggle-row">
               <input type="checkbox" id="wd14TrailingComma">
               <span> Trailing comma</span>
+            </label>
+            <label class="ach-toggle-row" title="Run on-device tagging on the GPU via DirectML when available, falling back to CPU automatically">
+              <input type="checkbox" id="wd14Gpu" checked>
+              <span> Prefer GPU</span>
             </label>
             <div class="gtt-label">Exclude tags (comma-separated)</div>
             <input type="text" id="wd14ExcludeTags" placeholder="e.g. rating:safe, general">
@@ -551,6 +555,14 @@
   </div>
 
   <div id="synthDatTab" style="display:none;">
+    <!-- .synthdat-scroll owns the scrolling, NOT #synthDatTab itself: the tab
+         carries the transform that makes position:fixed children anchor to
+         it, and a transformed element that ALSO scrolls swallows its fixed
+         descendants into layout-absolute behavior — the prompt-fields edge
+         tab scrolled away with the content (its whole point is not to).
+         With scrolling one level down, the tab's own box never moves, and
+         the edge tab/dock pinned to it stay put however far you scroll. -->
+    <div class="synthdat-scroll">
     <div class="stats-header">
       <button id="btnSynthDatBack" class="ghost-close" title="Back to Gallery">← Back</button>
       <h2>SynthDat Overseer</h2>
@@ -598,7 +610,7 @@
             <div class="sec-head"><span class="d">Accept adds this image + its tags to the dataset. Reject still saves it, but straight into the dataset's Disabled/ folder — out of the way, but recoverable later like any other disabled image.</span></div>
             <div class="synthdat-lora-row" id="synthDatStripHairFaceRow"><label class="ach-toggle-row" title="Hair and Face tags are usually left out of a character LoRA's own caption, since the trigger word already implies them."><input type="checkbox" id="synthDatStripHairFace" checked><span>Exclude Hair &amp; Face from saved tags</span></label></div>
             <div class="sec-head"><span class="t" style="font-size:11px;">Tags this will save:</span></div>
-            <div class="synthdat-lora-row"><label class="ach-toggle-row" title="Compound keeps every tag already in the list below and only adds ones WD14 catches that aren't already there (a tag both you and WD14 agree on, like 'dress', just stays 'dress' once). Overwrite throws out the whole list below and replaces it with exactly what WD14 returns for the output image."><input type="checkbox" id="synthDatReinterrogateOverwrite"><span>Overwrite instead of compounding (replaces the whole list below with WD14's output tags)</span></label></div>
+            <div class="synthdat-lora-row"><label class="ach-toggle-row" title="Compound keeps every tag already in the list below and only adds ones WD14 catches that aren't already there (a tag both you and WD14 agree on, like 'dress', just stays 'dress' once). Overwrite throws out the whole list below and replaces it with exactly what WD14 returns for the output image."><input type="checkbox" id="synthDatReinterrogateOverwrite"><span>Overwrite instead of compounding (replaces the whole list below with WD14's output tags)</span></label><button id="btnViewWd14TransferList" title="See the tag lists SynthDat's reference-image tag-assignment picker knows — what it auto-suggests as Pose / Limbs / Scene / Sexual and leaves unskipped">📋 Transfer list</button></div>
             <button id="btnSynthDatReinterrogateOutput" disabled title="Run WD14 on the actual generated image (not the reference) — useful since the model sometimes adds details you never prompted for (e.g. it draws a pond and throws in lily pads on its own).">🐍 Re-interrogate output with WD14</button>
             <div id="synthDatReinterrogateResult" class="synthdat-wd14-result" style="display:none;"></div>
             <div id="synthDatTagPreview" class="synthdat-tag-card" title="Click × to drop a tag from what gets saved, or click a merge suggestion to fold it into your dataset's existing canonical spelling"></div>
@@ -720,6 +732,7 @@
           <label class="field-block" title="Tags to actively steer the generation away from."><span>Negative</span><textarea id="synthDatNegative" rows="2"></textarea></label>
         </div>
 
+    </div>
     </div>
   </div>
 </div>

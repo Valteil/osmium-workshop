@@ -81,6 +81,10 @@ export interface EditLogAffected {
   newImgName?: string;
   prevTxtName?: string;
   newTxtName?: string;
+  // Pixel-only (crop-image/rotate-image, see tags-edit.ts's recordPixelChange()): the id of the
+  // log entry that owns this affected row's before/after bytes. Bytes themselves live in a
+  // session-only map keyed by this id — never serialized into _tag_edit_log.json.
+  logId?: number;
 }
 
 export interface EditLogEntry {
@@ -244,6 +248,7 @@ export interface Wd14LocalTagResult {
   ok: boolean;
   tagsCsv?: string;
   error?: string;
+  provider?: string;
 }
 
 export interface Wd14LocalDownloadProgress {
@@ -256,7 +261,7 @@ export interface Wd14LocalInterface {
   listModels(): Promise<Wd14LocalModel[]>;
   deleteModel(name: string): Promise<void>;
   downloadModel(opts: { name: string; modelUrl: string; tagsUrl: string }, onProgress?: (ev: Wd14LocalDownloadProgress) => void): Promise<void>;
-  tagImage(payload: { modelName: string; imageBytes: Uint8Array; threshold: number; characterThreshold: number }): Promise<Wd14LocalTagResult>;
+  tagImage(payload: { name: string; imageBytes: Uint8Array; threshold: number; characterThreshold: number; preferGpu?: boolean }): Promise<Wd14LocalTagResult>;
   pickImportFiles?(): Promise<{ canceled: true } | { canceled?: false; name: string; modelPath: string; tagsPath: string }>;
   importModel?(payload: { name: string; modelPath: string; tagsPath: string }): Promise<void>;
 }

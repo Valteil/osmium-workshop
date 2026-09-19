@@ -47,6 +47,7 @@ interface Wd14Settings {
   autoApply: boolean;
   mode: string;
   localModel: string;
+  gpu: boolean;
 }
 
 interface Wd14ReviewRow {
@@ -81,7 +82,8 @@ const DEFAULT_SETTINGS = {
   excludeTags: '',
   autoApply: false,
   mode: 'comfyui',
-  localModel: ''
+  localModel: '',
+  gpu: true
 };
 
 let settings: Wd14Settings = { ...DEFAULT_SETTINGS };
@@ -89,6 +91,14 @@ let getEntries: () => Entry[] = () => [];
 let refreshAllUIRef: () => void = () => {};
 let cancelRequested = false;
 let running = false;
+let lastProvider: string | null = null;
+
+// The GPU checkbox lives in the desktop settings markup only (mobile's
+// forked panel has no equivalent — its native plugin already manages its own
+// NNAPI/CPU path, and the extra payload field is simply ignored there).
+function gpuCheckbox(): HTMLInputElement | null {
+  return document.getElementById('wd14Gpu') as HTMLInputElement | null;
+}
 
 function loadSettings(){
   // Base defaults depend on whether local WD14 is even possible on this
@@ -123,6 +133,8 @@ function applySettingsToUI(){
   wd14TrailingComma.checked = !!settings.trailingComma;
   wd14ExcludeTags.value = settings.excludeTags;
   wd14AutoApply.checked = !!settings.autoApply;
+  const gpuEl = gpuCheckbox();
+  if (gpuEl) gpuEl.checked = settings.gpu !== false;
   if (settings.model){
     if (![...wd14ModelSelect.options].some(o => o.value === settings.model)){
       const opt = document.createElement('option');
@@ -173,7 +185,8 @@ function readSettingsFromUI(){
     excludeTags: wd14ExcludeTags.value,
     autoApply: wd14AutoApply.checked,
     mode: hasLocalWd14 ? wd14ModeSelect.value : 'comfyui',
-    localModel: hasLocalWd14 ? wd14LocalModelSelect.value : ''
+    localModel: hasLocalWd14 ? wd14LocalModelSelect.value : '',
+    gpu: gpuCheckbox() ? gpuCheckbox()!.checked : settings.gpu !== false
   };
   saveSettings();
   if (hasLocalWd14){
@@ -220,10 +233,11 @@ async function tagOneWithRetry(entry: Entry): Promise<string | null> {
     }
     const res = (hasLocalWd14 && settings.mode === 'local')
       ? await window.Wd14Local!.tagImage({
-          modelName: settings.localModel,
+          name: settings.localModel,
           imageBytes: bytes,
           threshold: settings.threshold,
-          characterThreshold: settings.characterThreshold
+          characterThreshold: settings.characterThreshold,
+          preferGpu: settings.gpu !== false
         })
       : hasElectronComfy
         ? await window.electronAPI.wd14TagImage({
@@ -233,7 +247,11 @@ async function tagOneWithRetry(entry: Entry): Promise<string | null> {
             settings
           })
         : await comfyTagImage({ host: settings.host, filename: entry.imgName || entry.base, imageBytes: bytes, settings });
-    if (res.ok) return res.tagsCsv || null;
+    if (res.ok) {
+      const provider = (res as { provider?: string }).provider;
+      if (provider) lastProvider = provider;
+      return res.tagsCsv || null;
+    }
     const retry = await showConfirmModal(
       `${res.error || 'WD14 tagging failed.'}\n\nImage: ${entry.imgName}`,
       { okLabel: 'Retry', cancelLabel: 'Skip this image', danger: true }
@@ -407,6 +425,7 @@ async function runBatch(entries: Entry[]): Promise<void> {
   }
   running = true;
   cancelRequested = false;
+  lastProvider = null;
   btnWd14TagSelected.textContent = '⏹ Cancel tagging';
   const results: Wd14ReviewRow[] = [];
   let failCount = 0;
@@ -420,6 +439,8 @@ async function runBatch(entries: Entry[]): Promise<void> {
     const mergedTags = entry.tags.concat(fresh.filter(t => !entry.tags.includes(t)));
     results.push({ entry, mergedTags });
   }
+  const failNote = failCount > 0 ? ` (${failCount} skipped)` : '';
+  const engineNote = lastProvider ? ` — on ${lastProvider === 'dml' ? 'GPU' : 'CPU'}` : '';
   setStatus('');
   running = false;
   btnWd14TagSelected.textContent = '🐍 Tag selected images with WD14';
@@ -432,14 +453,14 @@ async function runBatch(entries: Entry[]): Promise<void> {
     toast(`Could not tag any of the ${entries.length} image(s).`);
     return;
   }
-  const failNote = failCount > 0 ? ` (${failCount} skipped)` : '';
   if (settings.autoApply){
     commitTags(results.map(r => ({ entry: r.entry, tags: r.mergedTags })));
-    if (failNote) toast(`Applied WD14 tags to ${results.length} image(s)${failNote}.`);
+    toast(`Applied WD14 tags to ${results.length} image(s)${failNote}${engineNote}.`);
   } else {
     const accepted = await showWd14ReviewModal(results);
     if (!accepted || accepted.length === 0){ toast('WD14 tagging discarded — nothing was applied.'); return; }
     commitTags(accepted);
+    if (engineNote) toast(`Applied WD14 tags to ${accepted.length} image(s)${engineNote}.`);
   }
 }
 

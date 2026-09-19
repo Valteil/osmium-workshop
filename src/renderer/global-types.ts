@@ -58,10 +58,11 @@ declare global {
     wd14LocalDeleteModel(name: string): Promise<void>;
     wd14LocalDownloadModel(payload: { name: string; modelUrl: string; tagsUrl: string }): Promise<void>;
     wd14LocalTagImage(payload: {
-      modelName: string;
+      name: string;
       imageBytes: Uint8Array;
       threshold: number;
       characterThreshold: number;
+      preferGpu?: boolean;
     }): Promise<Wd14LocalTagResult>;
     onWd14LocalDownloadProgress(callback: (event: unknown, ev: Wd14LocalDownloadProgress) => void): void;
     wd14LocalPickImportFiles(): Promise<{ canceled: true } | { canceled?: false; name: string; modelPath: string; tagsPath: string }>;

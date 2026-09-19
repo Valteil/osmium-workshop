@@ -67,7 +67,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       number instead.</p>
       <p><b>Locking</b> an image (🔒, in its 3-dot menu) keeps it out of every mass or automatic
       tool — Unify/Void, Master Tags, bulk WD14 — while leaving it fully editable by hand. Use it
-      to protect one image from an unattended batch operation without disabling it.</p>`
+      to protect one image from an unattended batch operation without disabling it.</p>
+      ${isTouchDevice ? '' : '<p>Opening a card image also offers <b>⟲/⟳ Rotate</b> and <b>✂ Crop</b> — pixel edits that rewrite the image file in place (confirmed first, logged and undoable in the Log), with Crop\u2019s Isolate button saving the selected region as a NEW dataset image instead of touching the source.</p>'}`
   },
   {
     id: 'image-menu',
@@ -200,6 +201,13 @@ export const HELP_SECTIONS: HelpSection[] = [
       flags described in the 3-dot menu section, but to your entire selection at once. <b>❌ Delete
       selected permanently</b> removes every selected image and its tags from disk outright
       (confirmed, locked images skipped) — no undo.</p>
+      ${isTouchDevice ? '' : `
+      <p><b>▶ Sequential from first / from selected</b> — walk your current filter image by
+      image in Single view with a quick-modify panel: text/language (custom languages welcome),
+      censorship state + type checkboxes, multi-select perspective checkboxes, monochrome, sound
+      effects, comic, multiple views, koma count. A live tag preview under the image shows
+      exactly which tags Confirm will apply before you commit; Confirm advances automatically
+      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>`}
       <p><b>🐍 WD14 Autotagger</b> — sends selected images (or a single one, via its 3-dot menu) to
       a WD14 Tagger node on your own ComfyUI instance and merges the tags it returns onto each
       card. Expand "⚙ WD14 settings" to set the ComfyUI host, model, confidence thresholds, and

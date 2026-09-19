@@ -123,6 +123,7 @@ export const layoutDropdown = $('layoutDropdown');
 export const shellEl = $('shell');
 export const btnResetZoom = $<HTMLButtonElement>('btnResetZoom');
 export const btnExportAppState = $<HTMLButtonElement>('btnExportAppState');
+export const btnViewWd14TransferList = $<HTMLButtonElement>('btnViewWd14TransferList');
 export const powerHighlightToggle = $<HTMLInputElement>('powerHighlightToggle');
 export const powerFillToggle = $<HTMLInputElement>('powerFillToggle');
 export const tagAutocompleteToggle = $<HTMLInputElement>('tagAutocompleteToggle');

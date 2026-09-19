@@ -9,7 +9,7 @@ import type { Entry, EditLogAffected, DirHandle } from './types';
 import { btnUndo, btnRedo, btnSave, dirtyCountEl, includeDisabledToggle, autosaveToggle } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, checkVoidThemeAchievements, folderStats, saveFolderStats } from './achievements';
-import { pushLogEntry, editLog } from './edit-log';
+import { pushLogEntry, editLog, PIXEL_TYPES, ISOLATE_TYPES } from './edit-log';
 import { applyCanonicalRules, registerMergeRule, registerVoidRule, findBlockingRule, saveCanonicalRules } from './canonical-tags';
 
 interface ChangeRecord {
@@ -22,6 +22,88 @@ interface ChangeRecord {
 export let undoStack: ChangeRecord[] = [];
 export let redoStack: ChangeRecord[] = [];
 
+// Session-only pixel-edit payloads (crop/rotate), keyed by owning log entry
+// id. multi-MB by nature — deliberately NOT part of any persisted shape
+// (EditLogAffected carries just the logId pointer). Cleared with the stacks
+// on folder load, since log ids restart at 1 per folder.
+interface PixelState {
+  prev: Uint8Array;
+  next: Uint8Array;
+  prevW: number;
+  prevH: number;
+  nextW: number;
+  nextH: number;
+  mime: string;
+}
+
+const pixelStates = new Map<number, PixelState>();
+
+// Session-only isolate payloads (new-file creations), same keying rules as
+// pixelStates above: bytes never touch the persisted log.
+interface IsolateState {
+  bytes: Uint8Array;
+  mime: string;
+  tags: string[];
+  imgName: string;
+  width: number;
+  height: number;
+}
+
+const isolateStates = new Map<number, IsolateState>();
+
+export function getIsolateState(id: number): IsolateState | undefined {
+  return isolateStates.get(id);
+}
+
+export function recordIsolateChange(summary: string, base: string, state: IsolateState): void {
+  const affected: EditLogAffected[] = [{ base }];
+  const logEntry = pushLogEntry({ type: 'isolate-image', summary, affected });
+  affected[0].logId = logEntry.id;
+  isolateStates.set(logEntry.id, state);
+  undoStack.push({ type: 'isolate-image', summary, affected });
+  redoStack = [];
+  updateUndoRedoButtons();
+}
+
+export function recordPixelChange(type: string, summary: string, base: string, state: PixelState): void {
+  const affected: EditLogAffected[] = [{ base }];
+  const logEntry = pushLogEntry({ type, summary, affected });
+  // Same array/object refs the log entry holds (pushLogEntry keeps the
+  // passed affected array), so this tiny pointer persists with it — set
+  // synchronously here, before saveEditLog's awaits serialize anything.
+  affected[0].logId = logEntry.id;
+  pixelStates.set(logEntry.id, state);
+  undoStack.push({ type, summary, affected });
+  redoStack = [];
+  updateUndoRedoButtons();
+}
+
+export async function applyPixelDirection(affected: EditLogAffected[], direction: 'undo' | 'redo'): Promise<number> {
+  let count = 0;
+  for (const a of affected){
+    const e = getEntryByBase(a.base);
+    const st = typeof a.logId === 'number' ? pixelStates.get(a.logId) : undefined;
+    if (!e || !st) continue;
+    const bytes = direction === 'undo' ? st.prev : st.next;
+    try {
+      const writable = await e.imgHandle.createWritable();
+      await writable.write(bytes as BufferSource);
+      await writable.close();
+    } catch {
+      continue;
+    }
+    try { URL.revokeObjectURL(e.objectUrl); } catch { /* best effort */ }
+    e.objectUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: st.mime }));
+    if (direction === 'undo') { e.width = st.prevW; e.height = st.prevH; }
+    else { e.width = st.nextW; e.height = st.nextH; }
+    count++;
+  }
+  // Grid refreshes; an open card modal keeps showing its own copy until it
+  // re-renders — same staleness tag-undo already has there, not a new gap.
+  if (count) renderCurrentViewRef();
+  return count;
+}
+
 let getEntries: () => Entry[] = () => [];
 let getEntryByBase: (base: string) => Entry | undefined = () => undefined;
 let getDirHandle: () => DirHandle | null = () => null;
@@ -32,6 +114,7 @@ let resetSingleIndex: () => void = () => {};
 let refreshStatsRef: () => void = () => {};
 let refreshAllUIRef: () => void = () => {};
 let renderCurrentViewRef: () => void = () => {};
+let applyIsolateDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
 
 // ---------------- Autosave ----------------
 // Off by default. When on, every markDirty() schedules a debounced
@@ -206,6 +289,8 @@ export function updateUndoRedoButtons(): void {
 export function resetUndoRedo(): void {
   undoStack = [];
   redoStack = [];
+  pixelStates.clear();
+  isolateStates.clear();
 }
 
 async function ensureDisabledDir(): Promise<DirHandle> {
@@ -435,6 +520,7 @@ interface TagsEditDeps {
   refreshStats: () => void;
   refreshAllUI: () => void;
   renderCurrentView: () => void;
+  applyIsolateDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
 }
 
 export function initTagsEdit(deps: TagsEditDeps): void {
@@ -448,11 +534,16 @@ export function initTagsEdit(deps: TagsEditDeps): void {
   refreshStatsRef = deps.refreshStats;
   refreshAllUIRef = deps.refreshAllUI;
   renderCurrentViewRef = deps.renderCurrentView;
+  applyIsolateDirectionRef = deps.applyIsolateDirection;
 
-  btnUndo.addEventListener('click', () => {
+  btnUndo.addEventListener('click', async () => {
     const record = undoStack.pop();
     if (!record) return;
-    const count = applyTagDirection(record.affected, 'undo');
+    const count = PIXEL_TYPES.has(record.type)
+      ? await applyPixelDirection(record.affected, 'undo')
+      : ISOLATE_TYPES.has(record.type)
+        ? await applyIsolateDirectionRef(record.affected, 'undo')
+        : applyTagDirection(record.affected, 'undo');
     redoStack.push(record);
     updateUndoRedoButtons();
     const summary = `Undid: ${record.summary}`;
@@ -463,10 +554,14 @@ export function initTagsEdit(deps: TagsEditDeps): void {
     checkAchievements();
   });
 
-  btnRedo.addEventListener('click', () => {
+  btnRedo.addEventListener('click', async () => {
     const record = redoStack.pop();
     if (!record) return;
-    const count = applyTagDirection(record.affected, 'redo');
+    const count = PIXEL_TYPES.has(record.type)
+      ? await applyPixelDirection(record.affected, 'redo')
+      : ISOLATE_TYPES.has(record.type)
+        ? await applyIsolateDirectionRef(record.affected, 'redo')
+        : applyTagDirection(record.affected, 'redo');
     undoStack.push(record);
     updateUndoRedoButtons();
     const summary = `Redid: ${record.summary}`;

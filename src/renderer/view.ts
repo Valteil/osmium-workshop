@@ -6,7 +6,7 @@
 // toggles, galleryFilter/cardTagSortMode/masterTagModeActive which are
 // mutated from dropdowns/tabs that live in index.ts) are injected once via
 // initView(), since index.ts's IIFE can't export them.
-import type { Entry, EntryMeta, GalleryFilter, CardTagSortMode } from './types';
+import type { Entry, EntryMeta, GalleryFilter, CardTagSortMode, DirHandle, FileHandle } from './types';
 import {
   viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, btnUnlockAll, btnRenameAllImages, singlePrevBtn, singleNextBtn,
   galleryGrid, compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
@@ -15,7 +15,7 @@ import {
 } from './dom';
 import { toast, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
-import { markDirty, recordChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially } from './tags-edit';
+import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially } from './tags-edit';
 import { openTagDetails } from './tag-details';
 import { attachTagAutocomplete, closeAutocomplete } from './tags-autocomplete';
 import { buildTagIndex, refreshStats, filteredEntries } from './tag-index';
@@ -34,6 +34,8 @@ let autoSelectNewLanguage = true;
 
 let getEntries: () => Entry[] = () => [];
 let getEntryByBase: (base: string) => Entry | undefined = () => undefined;
+let getDirHandleRef: () => DirHandle | null = () => null;
+let addEntryFromNewFileRef: (base: string, imgHandle: FileHandle, imgName: string, txtHandle: FileHandle | null, txtExisted: boolean, tags: string[], disabled: boolean) => Promise<Entry | null> = async () => null;
 let getMasterTagModeActive: () => boolean = () => false;
 let getCardTagSortMode: () => CardTagSortMode = () => 'default';
 let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false });
@@ -87,6 +89,10 @@ function viewContainerFor(mode: ViewMode): HTMLElement {
 }
 
 export function switchView(mode: ViewMode): void {
+  // Leaving Single view abandons any in-progress sequential detail run —
+  // the queue is order- and filter-dependent, so resuming it elsewhere would
+  // review the wrong images. Re-entering Single later starts clean.
+  if (mode !== 'single' && seqActive) { seqActive = false; seqQueue = []; seqIdx = 0; }
   const prevMode = viewMode;
   const applyState = () => {
     viewMode = mode;
@@ -597,37 +603,355 @@ function openMultiCompareTagMenu(entry: Entry, tag: string, x: number, y: number
   setTimeout(() => document.addEventListener('click', onDocClickCloseMenu), 0);
 }
 
-function renderSingleView(){
-  if (masterSelectedImages.size > 1){
-    renderMultiCompareView();
-    return;
-  }
+// ---------------- Sequential detail editing (desktop) ----------------
+// A guided pass over the gallery in its current sort order (filename, date
+// added, whatever the sort dropdown says — filteredEntries() already encodes
+// both), reviewing one image at a time for the same status facts the 3-dot
+// text panel covers, plus monochrome and censor type. Takes over Single
+// view's interface while active: same zoomable image side, but the panel
+// becomes a quick-modify form with Confirm at the bottom advancing to the
+// next image. Everything already reviewed stays included — this is a review
+// pass, not a filter for undefined states. Desktop-only (touch editing lives
+// in the card modal instead); the entry buttons don't render on touch.
+let seqActive = false;
+let seqQueue: Entry[] = [];
+let seqIdx = 0;
+
+const PERSPECTIVE_OPTIONS = ['from front', 'from side', 'from below', 'from above', 'from behind'];
+const CENSOR_TYPE_OPTIONS = [
+  { tag: 'censored', label: 'Generic (censored)' },
+  { tag: 'mosaic censoring', label: 'Mosaic' },
+  { tag: 'bar censor', label: 'Bar' },
+  { tag: 'blur censor', label: 'Blur' },
+  { tag: 'heart censor', label: 'Heart' }
+];
+
+export function isSequentialActive(): boolean {
+  return seqActive;
+}
+
+export function startSequentialDetail(from: 'first' | 'selected'): void {
   const list = filteredEntries();
-  if (singleIndex >= list.length) singleIndex = list.length - 1;
-  if (singleIndex < 0) singleIndex = 0;
+  if (!list.length) { toast('No images match the current filter.'); return; }
+  let startIdx = 0;
+  if (from === 'selected'){
+    if (masterSelectedImages.size === 0) { toast('Select at least one image first.'); return; }
+    startIdx = list.findIndex((e) => masterSelectedImages.has(e.base));
+    if (startIdx < 0) { toast('No selected images match the current filter.'); return; }
+  }
+  seqQueue = list;
+  seqIdx = startIdx;
+  seqActive = true;
+  switchView('single');
+}
 
-  singlePos.textContent = list.length ? `${singleIndex + 1} / ${list.length}` : '0 / 0';
-  singlePrevBtn.disabled = list.length === 0 || singleIndex <= 0;
-  singleNextBtn.disabled = list.length === 0 || singleIndex >= list.length - 1;
+export function exitSequentialDetail(): void {
+  if (!seqActive) return;
+  seqActive = false;
+  seqQueue = [];
+  seqIdx = 0;
+  if (viewMode !== 'single') return;
+  singleNav.style.display = 'flex';
+  renderSingleView();
+}
 
-  singleViewEl.innerHTML = '';
-  if (list.length === 0){
-    const empty = document.createElement('div');
-    empty.className = 'single-empty';
-    empty.textContent = 'No images match the current filter.';
-    singleViewEl.appendChild(empty);
-    return;
+interface SeqDraft {
+  hasText: boolean;
+  isJapanese: boolean;
+  foreignLangs: Set<string>;
+  censor: 'unspecified' | 'censored' | 'uncensored';
+  censorTypes: Set<string>;
+  perspectives: Set<string>;
+  monochrome: boolean;
+  soundEffects: boolean;
+  isComic: boolean;
+  multipleViews: boolean;
+  koma: string;
+}
+
+function seqDraftFromEntry(entry: Entry): SeqDraft {
+  const censoredTags = entry.tags.filter((t) => /censor/i.test(t) && !/uncensor/i.test(t));
+  const uncensored = entry.tags.some((t) => /uncensor/i.test(t));
+  // Prefill every known type actually present; a censored state with no
+  // known type falls back to generic so nothing silently unchecks.
+  const presentTypes = CENSOR_TYPE_OPTIONS.filter((o) => entry.tags.includes(o.tag)).map((o) => o.tag);
+  return {
+    hasText: entry.tags.includes('text') || getForeignLangTags(entry).length > 0,
+    isJapanese: entry.tags.includes('text'),
+    foreignLangs: new Set(getForeignLangTags(entry).map((t) => t.replace(/ text$/, ''))),
+    censor: censoredTags.length > 0 ? 'censored' : (uncensored ? 'uncensored' : 'unspecified'),
+    censorTypes: new Set(presentTypes.length ? presentTypes : (censoredTags.length > 0 ? ['censored'] : [])),
+    perspectives: new Set(PERSPECTIVE_OPTIONS.filter((p) => entry.tags.includes(p))),
+    monochrome: entry.tags.includes('monochrome'),
+    soundEffects: entry.tags.includes('sound effects'),
+    isComic: entry.tags.includes('comic'),
+    // Independent of comic — a single illustration can show its subject
+    // from several angles at once (the multiple views tag, ~30k posts).
+    multipleViews: entry.tags.includes('multiple views'),
+    koma: entry.tags.find((t) => KOMA_OPTIONS.includes(t)) || ''
+  };
+}
+
+function applySequentialDraft(entry: Entry, d: SeqDraft): void {
+  // Text — same tag shapes as the 3-dot panel: bare "text" for Japanese,
+  // "[language] text" per foreign language, all independent.
+  if (!d.hasText){
+    if (entry.tags.includes('text')) removeTagFromEntry(entry, 'text');
+    for (const tag of getForeignLangTags(entry)) removeTagFromEntry(entry, tag);
+  } else {
+    if (d.isJapanese){ if (!entry.tags.includes('text')) addTagToEntry(entry, 'text'); }
+    else if (entry.tags.includes('text')) removeTagFromEntry(entry, 'text');
+    for (const tag of getForeignLangTags(entry)){
+      if (!d.foreignLangs.has(tag.replace(/ text$/, ''))) removeTagFromEntry(entry, tag);
+    }
+    for (const lang of d.foreignLangs){
+      if (!entry.tags.includes(`${lang} text`)) addTagToEntry(entry, `${lang} text`);
+    }
+  }
+  // Censorship — one regex clears both families ('uncensored' contains
+  // 'censor', so a single pass resets the whole tri-state), then the chosen
+  // state is written back. Types are NOT mutually exclusive: several may be
+  // checked at once; an empty checked set under Censored falls back to the
+  // generic tag so the state can't silently unwrite itself.
+  for (const tag of entry.tags.filter((t) => /censor/i.test(t))) removeTagFromEntry(entry, tag);
+  if (d.censor === 'censored'){
+    const types = d.censorTypes.size ? [...d.censorTypes] : ['censored'];
+    for (const t of types) addTagToEntry(entry, t);
+  }
+  else if (d.censor === 'uncensored') addTagToEntry(entry, 'uncensored');
+  // Perspective — independent checkboxes, not exclusive: one image can
+  // legitimately carry several (e.g. a collage with front and side views).
+  for (const p of PERSPECTIVE_OPTIONS){
+    if (d.perspectives.has(p)) { if (!entry.tags.includes(p)) addTagToEntry(entry, p); }
+    else if (entry.tags.includes(p)) removeTagFromEntry(entry, p);
+  }
+  // Color — untagged implies color; only monochrome is ever written.
+  if (d.monochrome && !entry.tags.includes('monochrome')) addTagToEntry(entry, 'monochrome');
+  if (!d.monochrome && entry.tags.includes('monochrome')) removeTagFromEntry(entry, 'monochrome');
+  // Sound effects (drawn SFX) — same assert-only shape: presence claims it.
+  if (d.soundEffects && !entry.tags.includes('sound effects')) addTagToEntry(entry, 'sound effects');
+  if (!d.soundEffects && entry.tags.includes('sound effects')) removeTagFromEntry(entry, 'sound effects');
+  // Comic / koma — same shapes as the 3-dot panel.
+  if (d.isComic && !entry.tags.includes('comic')) addTagToEntry(entry, 'comic');
+  if (!d.isComic && entry.tags.includes('comic')) removeTagFromEntry(entry, 'comic');
+  if (d.multipleViews && !entry.tags.includes('multiple views')) addTagToEntry(entry, 'multiple views');
+  if (!d.multipleViews && entry.tags.includes('multiple views')) removeTagFromEntry(entry, 'multiple views');
+  const existingKoma = entry.tags.find((t) => KOMA_OPTIONS.includes(t));
+  if (existingKoma && existingKoma !== d.koma) removeTagFromEntry(entry, existingKoma);
+  if (d.koma && !entry.tags.includes(d.koma)) addTagToEntry(entry, d.koma);
+}
+
+// The panel-governed tags Confirm WILL assert — nothing else. (Deliberately
+// NOT the full resulting tag list: the strip answers "what are my selections
+// doing", so the image's other, untouched tags stay out of it.) Pure on
+// purpose: the real apply goes through add/removeTagFromEntry, which record
+// undo entries, mark dirty, and can fire merge-rule toasts — so it can never
+// run speculatively. Keep the tag shapes in sync with applySequentialDraft.
+function seqPreviewTags(d: SeqDraft): string[] {
+  const tags: string[] = [];
+  if (d.hasText){
+    if (d.isJapanese) tags.push('text');
+    for (const lang of d.foreignLangs) tags.push(`${lang} text`);
+  }
+  if (d.censor === 'censored'){
+    for (const t of (d.censorTypes.size ? [...d.censorTypes] : ['censored'])) tags.push(t);
+  }
+  else if (d.censor === 'uncensored') tags.push('uncensored');
+  for (const p of PERSPECTIVE_OPTIONS) if (d.perspectives.has(p)) tags.push(p);
+  if (d.monochrome) tags.push('monochrome');
+  if (d.soundEffects) tags.push('sound effects');
+  if (d.isComic) tags.push('comic');
+  if (d.multipleViews) tags.push('multiple views');
+  if (d.koma) tags.push(d.koma);
+  return tags;
+}
+
+function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tags: string[]) => void): void {
+  const d = seqDraftFromEntry(entry);
+  // Live preview feed: every checkbox/radio change bubbles a 'change' event
+  // to the panel, so one listener keeps the chip strip current (the Add-
+  // language button isn't a checkbox, so it emits explicitly instead).
+  const emitPreview = () => { if (onPreview) onPreview(seqPreviewTags(d)); };
+  panel.addEventListener('change', emitPreview);
+
+  function sectionLabel(text: string): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'single-name';
+    el.style.marginTop = '10px';
+    el.textContent = text;
+    return el;
+  }
+  function toggleRow(labelText: string, checked: boolean, onChange: (v: boolean) => void): HTMLElement {
+    const label = document.createElement('label');
+    label.className = 'ach-toggle-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = checked;
+    cb.addEventListener('change', () => onChange(cb.checked));
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(' ' + labelText));
+    return label;
+  }
+  // Two-column grid for checkbox groups — one stacked row per option
+  // forces a long scroll; two across halves the panel height.
+  function checkGrid(): HTMLElement {
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; margin:4px 0;';
+    return grid;
+  }
+  function cap(s: string): string {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function radioRow(group: string, options: { value: string; label: string }[], current: string, onPick: (v: string) => void): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px 12px; margin:4px 0;';
+    for (const o of options){
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex; align-items:center; gap:4px; font-size:12px;';
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = group + '-' + entry.base;
+      radio.value = o.value;
+      radio.checked = o.value === current;
+      radio.addEventListener('change', () => { if (radio.checked) onPick(o.value); });
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(o.label));
+      wrap.appendChild(label);
+    }
+    return wrap;
   }
 
-  const e = list[singleIndex];
-  if (e.base !== lastSingleBase){
-    singleZoom = 100; singlePanX = 0; singlePanY = 0;
-    lastSingleBase = e.base;
+  panel.appendChild(sectionLabel('Text'));
+  const hasTextRow = toggleRow('Has text', d.hasText, (v) => {
+    d.hasText = v;
+    panel.querySelectorAll('.seq-text-sub').forEach((el) => { (el as HTMLElement).style.display = v ? '' : 'none'; });
+  });
+  panel.appendChild(hasTextRow);
+  const textSub = document.createElement('div');
+  textSub.className = 'seq-text-sub';
+  textSub.style.display = d.hasText ? '' : 'none';
+  textSub.appendChild(toggleRow('Japanese', d.isJapanese, (v) => { d.isJapanese = v; }));
+  const langList = checkGrid();
+  textSub.appendChild(langList);
+  function refreshLangRows(): void {
+    langList.innerHTML = '';
+    const langNames = Array.from(new Set([...commonLanguages, ...d.foreignLangs]));
+    for (const lang of langNames){
+      langList.appendChild(toggleRow(lang, d.foreignLangs.has(lang.toLowerCase()), (v) => {
+        if (v) d.foreignLangs.add(lang.toLowerCase());
+        else d.foreignLangs.delete(lang.toLowerCase());
+      }));
+    }
   }
+  refreshLangRows();
+  const addLangRow = document.createElement('div');
+  addLangRow.style.cssText = 'display:flex; gap:6px; margin-top:4px;';
+  const addLangInput = document.createElement('input');
+  addLangInput.type = 'text';
+  addLangInput.placeholder = 'Add language…';
+  addLangInput.style.flex = '1';
+  const addLangBtn = document.createElement('button');
+  addLangBtn.textContent = 'Add';
+  function commitNewLanguage(): void {
+    const lang = addLangInput.value.trim();
+    if (!lang) return;
+    // Same convention as the 3-dot panel: display case joins the common
+    // list, the lowercase key joins this image's set (always selected here —
+    // adding means wanting it on this image).
+    if (!commonLanguages.includes(lang)){ commonLanguages.push(lang); saveCommonLanguages(); }
+    d.foreignLangs.add(lang.toLowerCase());
+    addLangInput.value = '';
+    refreshLangRows();
+    emitPreview();
+  }
+  addLangInput.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') commitNewLanguage(); });
+  addLangBtn.addEventListener('click', commitNewLanguage);
+  addLangRow.appendChild(addLangInput);
+  addLangRow.appendChild(addLangBtn);
+  textSub.appendChild(addLangRow);
+  panel.appendChild(textSub);
 
-  const wrap = document.createElement('div');
-  wrap.className = 'single-wrap';
+  panel.appendChild(sectionLabel('Censorship'));
+  const censorWrap = document.createElement('div');
+  panel.appendChild(censorWrap);
+  // Censor types are independent checkboxes, not a dropdown — an image can
+  // carry several at once (mosaic AND bar, etc.).
+  const typeBox = checkGrid();
+  typeBox.style.display = d.censor === 'censored' ? '' : 'none';
+  for (const o of CENSOR_TYPE_OPTIONS){
+    typeBox.appendChild(toggleRow(o.label, d.censorTypes.has(o.tag), (v) => {
+      if (v) d.censorTypes.add(o.tag);
+      else d.censorTypes.delete(o.tag);
+    }));
+  }
+  function renderCensor(){
+    censorWrap.innerHTML = '';
+    censorWrap.appendChild(radioRow('seq-censor', [
+      { value: 'unspecified', label: 'Unspecified' },
+      { value: 'censored', label: 'Censored' },
+      { value: 'uncensored', label: 'Uncensored' }
+    ], d.censor, (v) => {
+      d.censor = v as SeqDraft['censor'];
+      typeBox.style.display = d.censor === 'censored' ? '' : 'none';
+    }));
+  }
+  renderCensor();
+  panel.appendChild(typeBox);
 
+  panel.appendChild(sectionLabel('Perspective'));
+  const perspBox = checkGrid();
+  for (const p of PERSPECTIVE_OPTIONS){
+    perspBox.appendChild(toggleRow(cap(p.replace(/^from /, '')), d.perspectives.has(p), (v) => {
+      if (v) d.perspectives.add(p);
+      else d.perspectives.delete(p);
+    }));
+  }
+  panel.appendChild(perspBox);
+
+  panel.appendChild(sectionLabel('Color'));
+  panel.appendChild(toggleRow('Monochrome (untagged implies color)', d.monochrome, (v) => { d.monochrome = v; }));
+
+  panel.appendChild(sectionLabel('Sound'));
+  panel.appendChild(toggleRow('Sound effects', d.soundEffects, (v) => { d.soundEffects = v; }));
+
+  panel.appendChild(sectionLabel('Comic'));
+  panel.appendChild(toggleRow('Comic', d.isComic, (v) => { d.isComic = v; }));
+  panel.appendChild(toggleRow('Multiple views', d.multipleViews, (v) => { d.multipleViews = v; }));
+  panel.appendChild(radioRow('seq-koma', [
+    { value: '', label: 'Not koma' },
+    ...KOMA_OPTIONS.map((k) => ({ value: k, label: k }))
+  ], d.koma, (v) => { d.koma = v; }));
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'primary';
+  confirmBtn.style.cssText = 'width:100%; margin-top:12px; padding:12px; font-size:15px; font-weight:600;';
+  confirmBtn.textContent = seqIdx >= seqQueue.length - 1 ? 'Confirm (finish)' : 'Confirm (next →)';
+  confirmBtn.addEventListener('click', () => {
+    applySequentialDraft(entry, d);
+    renderCurrentView();
+    seqIdx++;
+    if (seqIdx >= seqQueue.length){
+      exitSequentialDetail();
+      toast('Sequential review done.');
+    } else {
+      renderSingleView();
+    }
+  });
+  panel.appendChild(confirmBtn);
+  emitPreview();
+}
+
+// The zoomable/pannable image half of Single view, shared verbatim by the
+// normal and sequential renders (sequential swaps only the panel). Zoom
+// readout updates go through hooks since only the normal render owns a
+// slider for them.
+let singleImgEl: HTMLImageElement | null = null;
+
+function applySingleTransform(): void {
+  if (singleImgEl) singleImgEl.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom/100})`;
+}
+
+function buildSingleImgSide(e: Entry, hooks?: { setZoomUI(z: number): void }, opts?: { clampPan?: boolean }): HTMLElement {
   const imgSide = document.createElement('div');
   imgSide.className = 'single-img-side';
   imgSide.style.position = 'relative';
@@ -664,14 +988,37 @@ function renderSingleView(){
 
   function applyTransform(){
     img.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom/100})`;
+    // Sequential-only clamp: the pan can never push an image edge past the
+    // container border. Measured from live rects (not natural size × zoom)
+    // so CSS fit-sizing is accounted for exactly: undersized axes recenter,
+    // oversized axes stop dead at each edge.
+    if (opts && opts.clampPan){
+      const r = img.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0){
+        const c = imgSide.getBoundingClientRect();
+        let dx = 0, dy = 0;
+        if (r.width <= c.width) dx = (c.left + c.width / 2) - (r.left + r.width / 2);
+        else if (r.left > c.left) dx = c.left - r.left;
+        else if (r.right < c.right) dx = c.right - r.right;
+        if (r.height <= c.height) dy = (c.top + c.height / 2) - (r.top + r.height / 2);
+        else if (r.top > c.top) dy = c.top - r.top;
+        else if (r.bottom < c.bottom) dy = c.bottom - r.bottom;
+        if (dx || dy){
+          singlePanX += dx; singlePanY += dy;
+          img.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom/100})`;
+        }
+      }
+    }
   }
+  // Stale pan carries between sequential images (no per-image reset); clamp
+  // on load so a new image never opens offset out of bounds.
+  if (opts && opts.clampPan) img.addEventListener('load', () => applyTransform());
 
   function zoomBy(delta: number, clientX?: number, clientY?: number): void {
     const prevZoom = singleZoom;
-    singleZoom = Math.max(100, Math.min(400, singleZoom + delta));
+    singleZoom = Math.min(400, Math.max(100, singleZoom + delta));
     if (singleZoom === prevZoom) return;
-    zoomSlider.value = String(singleZoom);
-    zoomVal.textContent = singleZoom + '%';
+    if (hooks) hooks.setZoomUI(singleZoom);
     applyTransform();
     if (singleZoom > (folderStats.zoom_max || 0)){
       folderStats.zoom_max = singleZoom;
@@ -710,6 +1057,139 @@ function renderSingleView(){
   }, { passive: false });
   attachPinchZoom(imgSide, (delta) => zoomBy(delta));
 
+  singleImgEl = img;
+  return imgSide;
+}
+
+function renderSingleView(){
+  if (masterSelectedImages.size > 1 && !seqActive){
+    renderMultiCompareView();
+    return;
+  }
+  if (seqActive){
+    const seqEntry = seqQueue[seqIdx];
+    if (!seqEntry){
+      exitSequentialDetail();
+    } else {
+      // Takeover: the same zoomable image side as normal Single view, but
+      // the panel becomes the sequential quick-modify form. singleNav stays
+      // hidden throughout — Confirm is the only way forward.
+      singleNav.style.display = 'none';
+      singleViewEl.innerHTML = '';
+      const entry = seqEntry;
+      const wrap = document.createElement('div');
+      wrap.className = 'single-wrap';
+      const seqSide = buildSingleImgSide(entry, undefined, { clampPan: true });
+      // Column wrapper: the live "will apply" chip strip docks below the
+      // image instead of inside it (inside would overlay the artwork; beside
+      // it would steal panel width). The side's 60vh floor is lifted so the
+      // column still fits the viewport with the strip attached.
+      seqSide.style.minHeight = '0';
+      const imgCol = document.createElement('div');
+      imgCol.style.cssText = 'flex:1; min-width:0; display:flex; flex-direction:column; gap:8px;';
+      imgCol.appendChild(seqSide);
+      const previewBox = document.createElement('div');
+      previewBox.style.cssText = 'border:1px solid var(--border-soft); border-radius:8px; padding:8px 10px; background:var(--bg-panel);';
+      const previewHead = document.createElement('div');
+      previewHead.style.cssText = 'font-size:12px; color:var(--text-faint); margin-bottom:6px;';
+      const previewChips = document.createElement('div');
+      previewChips.className = 'chiprow';
+      previewChips.style.cssText = 'max-height:110px; overflow-y:auto;';
+      previewBox.appendChild(previewHead);
+      previewBox.appendChild(previewChips);
+      imgCol.appendChild(previewBox);
+      wrap.appendChild(imgCol);
+      // Click (not drag) opens the fullscreen zoomable lightbox for detail
+      // inspection — pan-drag threshold separates the two gestures sharing
+      // this surface.
+      let seqDownX = 0, seqDownY = 0;
+      const seqImg = seqSide.querySelector('img');
+      if (seqImg){
+        seqImg.addEventListener('pointerdown', (ev) => { seqDownX = ev.clientX; seqDownY = ev.clientY; });
+        seqImg.addEventListener('click', (ev) => {
+          if (Math.hypot(ev.clientX - seqDownX, ev.clientY - seqDownY) > 6) return;
+          showImageLightbox(entry.objectUrl);
+        });
+      }
+      const panel = document.createElement('div');
+      panel.className = 'single-panel';
+      panel.style.position = 'relative';
+      const headRow = document.createElement('div');
+      headRow.style.cssText = 'display:flex; align-items:center; gap:8px;';
+      const posEl = document.createElement('span');
+      posEl.className = 'single-pos';
+      posEl.style.flex = '1';
+      posEl.textContent = `${seqIdx + 1} / ${seqQueue.length}`;
+      const exitBtn = document.createElement('button');
+      exitBtn.textContent = 'Exit sequential';
+      exitBtn.title = 'Leave sequential review (progress is already saved per Confirm)';
+      exitBtn.addEventListener('click', () => exitSequentialDetail());
+      headRow.appendChild(posEl);
+      headRow.appendChild(exitBtn);
+      panel.appendChild(headRow);
+      const nameEl = document.createElement('div');
+      nameEl.className = 'single-name';
+      nameEl.textContent = entry.imgName + (entry.width ? ` · ${entry.width}×${entry.height}` : '') + ` · ${entry.tags.length} tags`;
+      panel.appendChild(nameEl);
+      // Same .chip/.chiprow classes the gallery cards use, so the preview
+      // looks identical — glowing (chip-match) entries are new tags Confirm
+      // is about to add, plain ones are already on the image.
+      buildSequentialPanel(panel, entry, (tags) => {
+        const fresh = new Set(tags.filter((t) => !entry.tags.includes(t)));
+        previewHead.textContent = `Will apply on Confirm — ${tags.length} tags${fresh.size ? ` (${fresh.size} new)` : ''}`;
+        previewChips.innerHTML = '';
+        if (!tags.length){
+          const none = document.createElement('span');
+          none.style.cssText = 'font-size:12px; color:var(--text-faint);';
+          none.textContent = 'No indicator tags selected — Confirm will assert none.';
+          previewChips.appendChild(none);
+          return;
+        }
+        for (const t of tags){
+          const chip = document.createElement('span');
+          chip.className = 'chip' + (fresh.has(t) ? ' chip-match' : '');
+          const label = document.createElement('span');
+          label.textContent = t;
+          label.title = fresh.has(t) ? 'New — will be added on Confirm' : 'Already on this image';
+          chip.appendChild(label);
+          previewChips.appendChild(chip);
+        }
+      });
+      wrap.appendChild(panel);
+      singleViewEl.appendChild(wrap);
+      return;
+    }
+  }
+  const list = filteredEntries();
+  if (singleIndex >= list.length) singleIndex = list.length - 1;
+  if (singleIndex < 0) singleIndex = 0;
+
+  singlePos.textContent = list.length ? `${singleIndex + 1} / ${list.length}` : '0 / 0';
+  singlePrevBtn.disabled = list.length === 0 || singleIndex <= 0;
+  singleNextBtn.disabled = list.length === 0 || singleIndex >= list.length - 1;
+
+  singleViewEl.innerHTML = '';
+  if (list.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'single-empty';
+    empty.textContent = 'No images match the current filter.';
+    singleViewEl.appendChild(empty);
+    return;
+  }
+
+  const e = list[singleIndex];
+  if (e.base !== lastSingleBase){
+    singleZoom = 100; singlePanX = 0; singlePanY = 0;
+    lastSingleBase = e.base;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'single-wrap';
+  wrap.appendChild(buildSingleImgSide(e, { setZoomUI: (z) => {
+    zoomSlider.value = String(z);
+    zoomVal.textContent = z + '%';
+  } }));
+
   const panel = document.createElement('div');
   panel.className = 'single-panel';
 
@@ -734,7 +1214,7 @@ function renderSingleView(){
   zoomSlider.addEventListener('input', () => {
     singleZoom = parseInt(zoomSlider.value, 10);
     zoomVal.textContent = singleZoom + '%';
-    applyTransform();
+    applySingleTransform();
     if (singleZoom > (folderStats.zoom_max || 0)){
       folderStats.zoom_max = singleZoom;
       saveFolderStats();
@@ -746,7 +1226,7 @@ function renderSingleView(){
   zoomResetBtn.addEventListener('click', () => {
     singleZoom = 100; singlePanX = 0; singlePanY = 0;
     zoomSlider.value = '100'; zoomVal.textContent = '100%';
-    applyTransform();
+    applySingleTransform();
   });
   zoomRow.appendChild(zoomLabel);
   zoomRow.appendChild(zoomSlider);
@@ -810,7 +1290,6 @@ function renderSingleView(){
   btnRow.appendChild(toggleBtn);
   panel.appendChild(btnRow);
 
-  wrap.appendChild(imgSide);
   wrap.appendChild(panel);
   singleViewEl.appendChild(wrap);
 }
@@ -998,6 +1477,272 @@ export function closeImageCardModal(){
   }, 180);
 }
 
+// ---------------- Pixel editing (rotate/crop, desktop modal) ----------------
+// Pixel edits rewrite the image file in place: immediate disk writes like
+// disable/restore (outside the dirty/save tag lifecycle), confirm-gated, and
+// logged as their own undoable edit-log items (crop-image/rotate-image) —
+// the before/after bytes live session-only in tags-edit.ts, so undo works
+// until the folder is reloaded, while the log row itself persists like any
+// other entry.
+// PNG/JPG/WebP only — the re-encode keeps the same format; BMP/GIF have no
+// canvas round-trip here.
+
+function pixelEditMime(name: string): string | null {
+  const lower = (name || '').toLowerCase();
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  return null;
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, mime: string): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), mime, 0.95));
+}
+
+async function commitPixelEdit(entry: Entry, canvas: HTMLCanvasElement, mime: string, op: 'crop-image' | 'rotate-image', summary: string): Promise<boolean> {
+  const blob = await canvasToBlob(canvas, mime);
+  if (!blob) { toast('Could not encode the edited image.', 3600); return false; }
+  let prevBytes: Uint8Array;
+  try {
+    prevBytes = new Uint8Array(await (await entry.imgHandle.getFile()).arrayBuffer());
+  } catch (err) {
+    toast(`Could not read the image: ${(err as Error)?.message || err}`, 4200);
+    return false;
+  }
+  const prevW = entry.width || 0, prevH = entry.height || 0;
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  try {
+    const writable = await entry.imgHandle.createWritable();
+    await writable.write(bytes as BufferSource);
+    await writable.close();
+  } catch (err) {
+    toast(`Could not save the edited image: ${(err as Error)?.message || err}`, 4200);
+    return false;
+  }
+  try { URL.revokeObjectURL(entry.objectUrl); } catch { /* best effort */ }
+  entry.objectUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }));
+  entry.width = canvas.width;
+  entry.height = canvas.height;
+  recordPixelChange(op, summary, entry.base, {
+    prev: prevBytes, next: bytes, prevW, prevH, nextW: canvas.width, nextH: canvas.height, mime
+  });
+  renderImageCardModal(entry);
+  renderCurrentView();
+  return true;
+}
+
+async function rotateEntryImage(entry: Entry, dir: 1 | -1): Promise<void> {
+  const mime = pixelEditMime(entry.imgName || '');
+  if (!mime) { toast('Rotation is supported for PNG, JPG, and WebP images.', 3600); return; }
+  const ok = await showConfirmModal(
+    `Rotate ${entry.imgName} 90° ${dir === 1 ? 'clockwise' : 'counter-clockwise'}? This rewrites the image file.`,
+    { okLabel: 'Rotate', danger: true }
+  );
+  if (!ok) return;
+  let bmp: ImageBitmap;
+  try {
+    bmp = await createImageBitmap(await entry.imgHandle.getFile());
+  } catch (err) {
+    toast(`Could not read the image: ${(err as Error)?.message || err}`, 4200);
+    return;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = bmp.height;
+  canvas.height = bmp.width;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) { bmp.close(); toast('Could not edit the image on this machine.', 3600); return; }
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((dir * Math.PI) / 2);
+  ctx.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
+  bmp.close();
+  if (await commitPixelEdit(entry, canvas, mime, 'rotate-image', `Rotated ${entry.imgName} 90° ${dir === 1 ? 'clockwise' : 'counter-clockwise'}`)) toast('Rotated. Undo is in the toolbar or Log.', 2600);
+}
+
+function startCropMode(entry: Entry, imgSide: HTMLElement, img: HTMLImageElement, editRow: HTMLElement, zoomRow: HTMLElement): void {
+  const mime = pixelEditMime(entry.imgName || '');
+  if (!mime) { toast('Cropping is supported for PNG, JPG, and WebP images.', 3600); return; }
+  // Crop math maps overlay pixels straight onto natural pixels, so any modal
+  // zoom/pan resets first — and the zoom row hides for the duration, since
+  // dragging it mid-crop would silently shift the kept region.
+  modalZoom = 100; modalPanX = 0; modalPanY = 0;
+  img.style.transform = '';
+  editRow.style.display = 'none';
+  zoomRow.style.display = 'none';
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:absolute; inset:0; cursor:crosshair; touch-action:none; z-index:5;';
+  const sel = document.createElement('div');
+  sel.style.cssText = 'position:absolute; display:none; border:2px solid #7c6bff; box-shadow:0 0 0 9999px rgba(0,0,0,0.55); cursor:move;';
+  const grip = document.createElement('div');
+  grip.style.cssText = 'position:absolute; right:-7px; bottom:-7px; width:14px; height:14px; background:#7c6bff; border-radius:50%; cursor:nwse-resize;';
+  sel.appendChild(grip);
+  overlay.appendChild(sel);
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:absolute; left:8px; bottom:8px; display:flex; gap:8px;';
+  const applyBtn = document.createElement('button');
+  applyBtn.textContent = 'Apply crop';
+  const isolateBtn = document.createElement('button');
+  isolateBtn.textContent = 'Isolate';
+  isolateBtn.title = 'Save the selected region as a new image in this dataset (source untouched)';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  bar.appendChild(applyBtn);
+  bar.appendChild(isolateBtn);
+  bar.appendChild(cancelBtn);
+  overlay.appendChild(bar);
+  imgSide.appendChild(overlay);
+
+  // Selection in img-local display px (unzoomed — see the reset above).
+  let mode: 'idle' | 'draw' | 'move' | 'resize' = 'idle';
+  let startX = 0, startY = 0;
+  let selStart = { x: 0, y: 0, w: 0, h: 0 };
+  let sx = 0, sy = 0, sw = 0, sh = 0;
+
+  function paintSel(): void {
+    const r = img.getBoundingClientRect(), s = imgSide.getBoundingClientRect();
+    if (sw < 2 || sh < 2) { sel.style.display = 'none'; return; }
+    sel.style.display = 'block';
+    sel.style.left = (r.left - s.left + sx) + 'px';
+    sel.style.top = (r.top - s.top + sy) + 'px';
+    sel.style.width = sw + 'px';
+    sel.style.height = sh + 'px';
+  }
+  function toLocal(ev: PointerEvent): { x: number; y: number } {
+    const r = img.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(r.width, ev.clientX - r.left)),
+      y: Math.max(0, Math.min(r.height, ev.clientY - r.top))
+    };
+  }
+  function cleanup(): void {
+    overlay.remove();
+    editRow.style.display = '';
+    zoomRow.style.display = '';
+  }
+  async function renderCropCanvas(): Promise<{ canvas: HTMLCanvasElement; nw: number; nh: number; mime: string } | null> {
+    const r = img.getBoundingClientRect();
+    if (sw < 8 || sh < 8 || !r.width || !r.height) { toast('Draw a region first.', 2600); return null; }
+    const kx = img.naturalWidth / r.width, ky = img.naturalHeight / r.height;
+    const nx = Math.round(sx * kx), ny = Math.round(sy * ky);
+    const nw = Math.round(sw * kx), nh = Math.round(sh * ky);
+    let bmp: ImageBitmap;
+    try {
+      bmp = await createImageBitmap(await entry.imgHandle.getFile());
+    } catch (err) {
+      toast(`Could not read the image: ${(err as Error)?.message || err}`, 4200);
+      return null;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = nw;
+    canvas.height = nh;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { bmp.close(); toast('Could not edit the image on this machine.', 3600); return null; }
+    ctx.drawImage(bmp, nx, ny, nw, nh, 0, 0, nw, nh);
+    bmp.close();
+    const mt = pixelEditMime(entry.imgName || '');
+    if (!mt) { toast('Cropping is supported for PNG, JPG, and WebP images.', 3600); return null; }
+    return { canvas, nw, nh, mime: mt };
+  }
+  async function applyCrop(): Promise<void> {
+    const rendered = await renderCropCanvas();
+    if (!rendered) return;
+    cleanup();
+    if (await commitPixelEdit(entry, rendered.canvas, rendered.mime, 'crop-image', `Cropped ${entry.imgName} to ${rendered.nw}×${rendered.nh}`)) toast('Cropped. Undo is in the toolbar or Log.', 2600);
+  }
+  async function isolateSelection(): Promise<void> {
+    const dir = getDirHandleRef();
+    if (!dir) { toast('Open a dataset folder first.', 2600); return; }
+    const rendered = await renderCropCanvas();
+    if (!rendered) return;
+    const blob = await canvasToBlob(rendered.canvas, rendered.mime);
+    if (!blob) { toast('Could not encode the edited image.', 3600); return; }
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const dot = (entry.imgName || '').lastIndexOf('.');
+    const ext = dot >= 0 ? (entry.imgName || '').slice(dot) : '.png';
+    let base = '', imgName = '';
+    for (let n = 1; ; n++) {
+      base = `${entry.base}_isolate${n}`;
+      imgName = `${base}${ext}`;
+      try {
+        await dir.getFileHandle(imgName);
+      } catch {
+        break; // missing → free to use
+      }
+    }
+    const tags = (entry.tags || []).slice();
+    try {
+      const imgHandle = await dir.getFileHandle(imgName, { create: true });
+      const iw = await imgHandle.createWritable();
+      await iw.write(bytes as BufferSource);
+      await iw.close();
+      const txtHandle = await dir.getFileHandle(`${base}.txt`, { create: true });
+      const tw = await txtHandle.createWritable();
+      await tw.write(tags.map((t) => t.replace(/ /g, '_')).join(','));
+      await tw.close();
+      const created = await addEntryFromNewFileRef(base, imgHandle, imgName, txtHandle, true, tags, false);
+      if (created) markDirty(created);
+    } catch (err) {
+      toast(`Could not save the isolated image: ${(err as Error)?.message || err}`, 4200);
+      return;
+    }
+    recordIsolateChange(`Isolated region of ${entry.imgName} as ${imgName}`, base, {
+      bytes, mime: rendered.mime, tags, imgName, width: rendered.nw, height: rendered.nh
+    });
+    cleanup();
+    renderCurrentView();
+    toast(`Isolated as ${imgName}. Undo is in the toolbar or Log.`, 2600);
+  }
+  overlay.addEventListener('pointerdown', (ev) => {
+    // Stop here FIRST, before the button check below: without this, the press
+    // bubbles to imgSide's own pan handler, which pointer-captures to imgSide
+    // and steals the subsequent click — Apply/Cancel/Isolate silently die.
+    ev.stopPropagation();
+    if ((ev.target as HTMLElement).closest('button')) return;
+    ev.preventDefault();
+    try { overlay.setPointerCapture(ev.pointerId); } catch { /* best effort */ }
+    const p = toLocal(ev);
+    const onGrip = ev.target === grip;
+    const inside = sw > 2 && sh > 2 && p.x >= sx && p.x <= sx + sw && p.y >= sy && p.y <= sy + sh;
+    mode = onGrip ? 'resize' : inside ? 'move' : 'draw';
+    startX = p.x;
+    startY = p.y;
+    selStart = { x: sx, y: sy, w: sw, h: sh };
+    if (mode === 'draw') { sx = p.x; sy = p.y; sw = 0; sh = 0; }
+  });
+  overlay.addEventListener('pointermove', (ev) => {
+    if (mode === 'idle') return;
+    ev.stopPropagation();
+    const p = toLocal(ev);
+    const r = img.getBoundingClientRect();
+    if (mode === 'draw') {
+      sx = Math.min(startX, p.x);
+      sy = Math.min(startY, p.y);
+      sw = Math.abs(p.x - startX);
+      sh = Math.abs(p.y - startY);
+    } else if (mode === 'move') {
+      sx = Math.max(0, Math.min(r.width - selStart.w, selStart.x + (p.x - startX)));
+      sy = Math.max(0, Math.min(r.height - selStart.h, selStart.y + (p.y - startY)));
+      sw = selStart.w;
+      sh = selStart.h;
+    } else {
+      sw = Math.max(0, Math.min(r.width - selStart.x, p.x - selStart.x));
+      sh = Math.max(0, Math.min(r.height - selStart.y, p.y - selStart.y));
+    }
+    paintSel();
+  });
+  function endGesture(ev: PointerEvent): void {
+    if (mode === 'idle') return;
+    mode = 'idle';
+    try { overlay.releasePointerCapture(ev.pointerId); } catch { /* best effort */ }
+  }
+  overlay.addEventListener('pointerup', endGesture);
+  overlay.addEventListener('pointercancel', endGesture);
+  overlay.addEventListener('wheel', (ev) => ev.stopPropagation(), { passive: true });
+  cancelBtn.addEventListener('click', (ev) => { ev.stopPropagation(); cleanup(); });
+  applyBtn.addEventListener('click', (ev) => { ev.stopPropagation(); void applyCrop(); });
+  isolateBtn.addEventListener('click', (ev) => { ev.stopPropagation(); void isolateSelection(); });
+}
+
 function renderImageCardModal(entry: Entry): void {
   modalCardInner.innerHTML = '';
 
@@ -1169,6 +1914,31 @@ function renderImageCardModal(entry: Entry): void {
   zoomRow.appendChild(zoomVal);
   zoomRow.appendChild(resetBtn);
   panel.appendChild(zoomRow);
+
+  // Desktop-only pixel editing (rotate/crop) — the touch modal redirects
+  // image taps to the fullscreen lightbox instead (see above), so these
+  // controls live here only, next to the zoom row they compose with.
+  if (!isTouchDevice){
+    const editRow = document.createElement('div');
+    editRow.className = 'modal-edit-row';
+    editRow.style.cssText = 'display:flex; gap:8px; align-items:center;';
+    const rotLeftBtn = document.createElement('button');
+    rotLeftBtn.textContent = '⟲ Rotate';
+    rotLeftBtn.title = 'Rotate 90° counter-clockwise (rewrites the file)';
+    rotLeftBtn.addEventListener('click', () => { void rotateEntryImage(entry, -1); });
+    const rotRightBtn = document.createElement('button');
+    rotRightBtn.textContent = '⟳ Rotate';
+    rotRightBtn.title = 'Rotate 90° clockwise (rewrites the file)';
+    rotRightBtn.addEventListener('click', () => { void rotateEntryImage(entry, 1); });
+    const cropBtn = document.createElement('button');
+    cropBtn.textContent = '✂ Crop';
+    cropBtn.title = 'Select a region to keep (rewrites the file)';
+    cropBtn.addEventListener('click', () => startCropMode(entry, imgSide, img, editRow, zoomRow));
+    editRow.appendChild(rotLeftBtn);
+    editRow.appendChild(rotRightBtn);
+    editRow.appendChild(cropBtn);
+    panel.appendChild(editRow);
+  }
 
   // Input comes BEFORE the chip list now (not after) — direct feedback:
   // with tag editing moved into this modal as the primary way to edit tags
@@ -2023,6 +2793,8 @@ let deleteEntryPermanentlyRef: (entry: Entry) => Promise<void> = async () => {};
 interface ViewDeps {
   getEntries: () => Entry[];
   getEntryByBase: (base: string) => Entry | undefined;
+  getDirHandle: () => DirHandle | null;
+  addEntryFromNewFile: (base: string, imgHandle: FileHandle, imgName: string, txtHandle: FileHandle | null, txtExisted: boolean, tags: string[], disabled: boolean) => Promise<Entry | null>;
   getMasterTagModeActive: () => boolean;
   getCardTagSortMode: () => CardTagSortMode;
   getGalleryFilter: () => GalleryFilter;
@@ -2039,6 +2811,8 @@ interface ViewDeps {
 export function initView(deps: ViewDeps): void {
   getEntries = deps.getEntries;
   getEntryByBase = deps.getEntryByBase;
+  getDirHandleRef = deps.getDirHandle;
+  addEntryFromNewFileRef = deps.addEntryFromNewFile;
   getMasterTagModeActive = deps.getMasterTagModeActive;
   getCardTagSortMode = deps.getCardTagSortMode;
   getGalleryFilter = deps.getGalleryFilter;

@@ -17,6 +17,7 @@ app to look something up.
 - [The 3-dot image menu](#the-3-dot-image-menu)
 - [Power tools (right sidebar)](#power-tools-right-sidebar)
 - [Tag Overseer tab](#tag-overseer-tab)
+- [Sequential tagging](#sequential-tagging)
 - [Datasets tab](#datasets-tab)
 - [Editing Stats tab](#editing-stats-tab)
 - [SynthDat Overseer tab](#synthdat-overseer-tab)
@@ -72,6 +73,13 @@ This is the tag editor itself — everything else in the app supports what happe
 The gallery's own column count normally shrinks as font-size zoom or an open side panel eats into
 the available width — Settings ▸ Appearance ▸ "Gallery columns" forces a fixed count instead, if
 you'd rather bump the font size for readability without losing columns.
+
+Clicking any image opens a floating zoomable/pannable card modal; on desktop its 3-dot row
+additionally offers **⟲/⟳ Rotate** (90° steps) and **✂ Crop**, both of which rewrite the image
+file in place — confirmed first, logged as their own undoable Edit Log rows, PNG/JPG/WebP only.
+Crop's **Isolate** button instead saves the selected region as a brand-new image
+(`<original>_isolateN`) in the dataset with a copy of the source's tags; the original is
+untouched.
 
 **Editing tags:** click a tag chip to open its context menu (filter by it, open its wiki
 definition, flag it for review, explore its keyword family). Type into a card's "+ add tag" field
@@ -204,13 +212,45 @@ Two things live here: **Master Tag Control** and the **WD14 Autotagger**.
    outright (not to `Disabled/`). Confirmed first, names the count, and skips locked images —
    there's no undo, so Lock anything you want protected from an accidental mass-select first.
 
+The panel's bottom also has two **▶ Sequential** buttons — see [Sequential tagging](#sequential-tagging)
+below.
+
 ### 🐍 WD14 Autotagger
 Sends selected images (or one image via its 3-dot menu) to a WD14 Tagger node on your own
 ComfyUI instance and merges the returned tags onto each card. Expand "⚙ WD14 settings" here to set
 the ComfyUI host, model (scraped live from your ComfyUI instance), confidence thresholds, and
 whether results apply automatically or go through a review step first. The app holds no model
 itself — your ComfyUI instance does the actual tagging. Use it to bootstrap tags onto untagged
-imports.
+imports. In on-device mode, **Prefer GPU** (desktop only) runs inference on your GPU via
+DirectML when available, falling back to CPU automatically — the completion toast names which
+engine ran.
+
+### Sequential tagging
+
+Desktop-only, started from the **▶ Sequential from first / from selected** buttons at the bottom
+of Master Tag Control. It takes over Single view and walks your current filter image by image;
+"from selected" starts at your first selected image instead of the top. Each image shows the
+same quick-modify panel:
+
+- **Text** — has-text toggle plus a Japanese toggle and a list of foreign-language checkboxes
+  (add your own with the built-in "+ Add language…" field; custom entries persist across images).
+- **Censorship** — Unspecified / Censored / Uncensored radios; picking Censored reveals type
+  checkboxes (Generic, Mosaic, Bar, Blur, Heart — several can be checked at once).
+- **Perspective** — independent checkboxes (Front / Side / Below / Above / Behind); an image can
+  carry several at once.
+- **Color, Sound, Comic** — Monochrome, Sound effects, Comic, **Multiple views**, and koma-count
+  checkboxes, all independent of each other.
+
+Every control prefills from the image's existing tags. Below the image, a **live tag-preview
+strip** shows exactly which indicator tags Confirm will apply (tags new to the image glow) —
+it's only these panel selections, not the image's other tags. **Confirm** applies them, marks
+the image, and advances automatically; your progress is saved per image, and "Exit sequential"
+(or leaving Single view) ends the run without losing completed work. The image itself zooms to
+400% with pan locked at the image edges, and clicking it (a plain click, not a drag) opens the
+fullscreen lightbox for close inspection.
+
+Use it when a whole filter batch — a character, a rating, everything missing "monochrome" —
+needs its indicator tags aligned without opening each card by hand.
 
 ---
 

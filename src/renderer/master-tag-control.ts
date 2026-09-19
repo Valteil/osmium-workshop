@@ -97,7 +97,10 @@ interface MasterTagControlDeps {
   getEntryMeta: () => Record<string, EntryMeta>;
   saveEntryMeta: () => void;
   deleteEntriesPermanently: (entries: Entry[]) => Promise<number>;
+  onStartSequential: (from: 'first' | 'selected') => void;
 }
+
+let onStartSequentialRef: (from: 'first' | 'selected') => void = () => {};
 
 export function initMasterTagControl(deps: MasterTagControlDeps): void {
   getEntries = deps.getEntries;
@@ -108,6 +111,26 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   getEntryMeta = deps.getEntryMeta;
   saveEntryMetaRef = deps.saveEntryMeta;
   deleteEntriesPermanentlyRef = deps.deleteEntriesPermanently;
+  onStartSequentialRef = deps.onStartSequential;
+
+  // Sequential detail editing entry points — desktop-only (touch editing
+  // lives in the card modal instead). Built in JS so neither shell's markup
+  // changes; the shared .mtc-btn-row class keeps the spacing consistent.
+  if (!document.documentElement.classList.contains('touch-device')){
+    const seqRow = document.createElement('div');
+    seqRow.className = 'mtc-btn-row';
+    const seqFirstBtn = document.createElement('button');
+    seqFirstBtn.textContent = '▶ Sequential from first';
+    seqFirstBtn.title = 'Review every gallery image in sort order, confirming detail tags one by one';
+    seqFirstBtn.addEventListener('click', () => onStartSequentialRef('first'));
+    const seqSelBtn = document.createElement('button');
+    seqSelBtn.textContent = '▶ Sequential from selected';
+    seqSelBtn.title = 'Review from the first selected image in sort order';
+    seqSelBtn.addEventListener('click', () => onStartSequentialRef('selected'));
+    seqRow.appendChild(seqFirstBtn);
+    seqRow.appendChild(seqSelBtn);
+    masterSelectionSummary.after(seqRow);
+  }
 
   // These 9 plain "type a tag name" fields used to rely on a native
   // <datalist> (dataset-scoped only — no global vocabulary, no

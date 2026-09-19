@@ -27,7 +27,7 @@ if (window.electronAPI && window.electronAPI.wd14LocalListModels) {
         progressCallbacks.delete(opts.name);
       }
     },
-    async tagImage(payload: { modelName: string; imageBytes: Uint8Array; threshold: number; characterThreshold: number }) {
+    async tagImage(payload: { name: string; imageBytes: Uint8Array; threshold: number; characterThreshold: number; preferGpu?: boolean }) {
       return await window.electronAPI.wd14LocalTagImage(payload);
     },
     async pickImportFiles() {

@@ -21,7 +21,13 @@ All run from this directory (the project root).
   clean. (If `refresh-app` itself fails with an EBUSY-style lock error because the app is already
   running, report that rather than killing it — see the rcedit-retry note below for the difference
   between a transient retry and a real lock.)
-- No test suite, linter, or formatter is configured in this repo — don't look for one.
+- **`npm run refresh-app` runs in the FOREGROUND** (per explicit user instruction, 2026-09-21 —
+  supersedes the earlier poll-the-log rule): no background process, no log file, no polling
+  loop. Run it directly from the project root with a ~2-minute timeout (it normally takes
+  10–15s), wait for exit, and decide success/failure by EXIT CODE. On failure show the last 20
+  lines of output; on success tell the user the app needs a full quit + relaunch to pick up the
+  new code. Don't add sleeps or extra verification steps.
+
 
 **Windows/PowerShell-vs-Bash-tool notes:**
 - The Bash tool here runs Git Bash (POSIX sh) — use `/c/Users/...` style paths in Bash commands,

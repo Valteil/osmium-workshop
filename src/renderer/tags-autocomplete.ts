@@ -71,27 +71,10 @@ function scheduleHideInlineDefinition(tag: string): void {
   }, 150);
 }
 
-function showInlineDefinition(afterRow: HTMLElement, tag: string): void {
-  if (acHideTimer) clearTimeout(acHideTimer);
-  if (acDefinitionTag === tag) return;
-  hideInlineDefinition();
-  const card = document.createElement('div');
-  card.className = 'ac-flash-card';
-  card.addEventListener('mouseenter', () => { if (acHideTimer) clearTimeout(acHideTimer); });
-  card.addEventListener('mouseleave', () => scheduleHideInlineDefinition(tag));
-  afterRow.insertAdjacentElement('afterend', card);
-  acDefinitionHost = card;
-  acDefinitionTag = tag;
-
-  const body = document.createElement('div');
-  body.className = 'ac-flash-body';
+function populateAcFlashBody(body: HTMLElement, tag: string, onDone?: () => void): void {
   body.textContent = 'Loading…';
-  card.appendChild(body);
-
-  requestAnimationFrame(() => card.classList.add('show'));
-
   ensureWikiDataLoadedRef!().then(wiki => {
-    if (acDefinitionHost !== card) return;
+    if (acDefinitionHost !== body.parentElement) return;
     const wikiKey = tag.replace(/ /g, '_');
     const def = wiki[wikiKey];
     const custom = !def ? getCustomTagNoteRef!(tag) : '';
@@ -118,12 +101,103 @@ function showInlineDefinition(afterRow: HTMLElement, tag: string): void {
         ev.stopPropagation();
         setCustomTagNoteRef!(tag, ta.value);
         toast(`Saved your description for "${tag}".`);
-        acDefinitionTag = null;
-        showInlineDefinition(afterRow, tag);
+        populateAcFlashBody(body, tag);
       });
       body.appendChild(saveBtn);
     }
+    if (onDone) onDone();
   });
+}
+
+// Floating variant for chips OUTSIDE the autocomplete list (transfer-list
+// modal etc.): same card, same body, but positioned near the hovered chip
+// instead of inserted after a list row.
+let chipHoverTimer: ReturnType<typeof setTimeout> | null = null;
+let chipHoverTag: string | null = null;
+
+function hideChipDefinition(): void {
+  if (chipHoverTimer) clearTimeout(chipHoverTimer);
+  chipHoverTimer = null;
+  document.querySelectorAll('.ac-flash-card.ac-flash-floating').forEach(el => el.remove());
+  chipHoverTag = null;
+}
+
+function scheduleHideChipDefinition(tag: string): void {
+  if (chipHoverTimer) clearTimeout(chipHoverTimer);
+  chipHoverTimer = setTimeout(() => {
+    if (chipHoverTag === tag) hideChipDefinition();
+  }, 150);
+}
+
+export function attachAcChipHover(container: HTMLElement): void {
+  container.addEventListener('mouseover', (ev: MouseEvent) => {
+    const chip = (ev.target as HTMLElement).closest<HTMLElement>('.chip[data-tag]');
+    if (!chip) { if (chipHoverTag) hideChipDefinition(); return; }
+    const tag = chip.dataset.tag!;
+    if (chipHoverTag === tag) return;
+    hideChipDefinition();
+    chipHoverTag = tag;
+    chipHoverTimer = setTimeout(() => {
+      const card = document.createElement('div');
+      card.className = 'ac-flash-card ac-flash-floating show';
+      const body = document.createElement('div');
+      body.className = 'ac-flash-body';
+      card.appendChild(body);
+      document.body.appendChild(card);
+      acDefinitionHost = card;
+      populateAcFlashBody(body, tag, () => {
+        // Re-measure after the real definition replaces the "Loading…"
+        // placeholder — the content changes height, so the position has to.
+        const r = chip.getBoundingClientRect();
+        const w = card.offsetWidth, h = card.offsetHeight;
+        let left = r.left;
+        if (left + w + 8 > window.innerWidth) left = window.innerWidth - w - 8;
+        card.style.left = Math.max(8, left) + 'px';
+        let top = r.top - h - 8;
+        if (top < 8) top = r.bottom + 8;
+        card.style.top = top + 'px';
+      });
+      // Fixed-position like the app's other popovers. The card must keep its
+      // 'show' class (this variant starts visible — there's no insert-
+      // transition to gate it on; 'show' only drives opacity, which doesn't
+      // affect layout), measured after append for its natural size.
+      const r0 = chip.getBoundingClientRect();
+      card.style.position = 'fixed';
+      card.style.left = r0.left + 'px';
+      card.style.top = (r0.bottom + 8) + 'px';
+      card.addEventListener('mouseenter', () => { if (chipHoverTimer) clearTimeout(chipHoverTimer); });
+      card.addEventListener('mouseleave', hideChipDefinition);
+    }, 350);
+  });
+  container.addEventListener('mouseout', (ev: MouseEvent) => {
+    const chip = (ev.target as HTMLElement).closest?.('.chip[data-tag]') as HTMLElement | null;
+    if (!chip) return;
+    const to = ev.relatedTarget as HTMLElement | null;
+    if (to && chip.contains(to as Node)) return;
+    scheduleHideChipDefinition(chip.dataset.tag!);
+  });
+  container.addEventListener('click', hideChipDefinition);
+}
+
+function showInlineDefinition(afterRow: HTMLElement, tag: string): void {
+  if (acHideTimer) clearTimeout(acHideTimer);
+  if (acDefinitionTag === tag) return;
+  hideInlineDefinition();
+  const card = document.createElement('div');
+  card.className = 'ac-flash-card';
+  card.addEventListener('mouseenter', () => { if (acHideTimer) clearTimeout(acHideTimer); });
+  card.addEventListener('mouseleave', () => scheduleHideInlineDefinition(tag));
+  afterRow.insertAdjacentElement('afterend', card);
+  acDefinitionHost = card;
+  acDefinitionTag = tag;
+
+  const body = document.createElement('div');
+  body.className = 'ac-flash-body';
+  card.appendChild(body);
+
+  requestAnimationFrame(() => card.classList.add('show'));
+
+  populateAcFlashBody(body, tag);
 }
 
 export function attachTagAutocomplete(inputEl: HTMLInputElement, getEntry: () => Entry | null, rerender: () => void): void {

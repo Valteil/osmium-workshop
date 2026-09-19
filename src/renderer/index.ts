@@ -1,4 +1,4 @@
-import type { Entry, DirHandle, FileHandle, EntryMeta, GalleryFilter, GallerySortMode, GallerySortDir, CardTagSortMode, FolderStats } from './types';
+import type { Entry, DirHandle, FileHandle, EntryMeta, GalleryFilter, GallerySortMode, GallerySortDir, CardTagSortMode, FolderStats, EditLogAffected } from './types';
 import {
   $, btnOpen, btnSave, btnUndo, btnRedo, btnUnloadDataset, btnReloadDataset, dirtyCountEl, galleryToolbar, galleryGrid,
   compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
@@ -19,7 +19,7 @@ import {
   tabStats, galleryTab, statsTab, btnStatsBack, btnMasterBack, btnGoToTagOverseer, normalRightTools,
   tabSynthDat, synthDatTab, btnSynthDatBack,
   tabDatasetManager, datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown,
-  layoutDropdown, shellEl, btnResetZoom, btnExportAppState, btnRightPanelCollapse, rightPanelResizeHandle,
+  layoutDropdown, shellEl, btnResetZoom, btnExportAppState, btnViewWd14TransferList, btnRightPanelCollapse, rightPanelResizeHandle,
   powerHighlightToggle,
   powerFillToggle,
   tagAutocompleteToggle, btnStartPowerToolPicker, powerToolList,
@@ -36,7 +36,7 @@ import {
   singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle,
   settingsPanel, fontSizeSlider, fontSizeVal
 } from './dom';
-import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal } from './shared-ui';
+import { toast, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal } from './shared-ui';
 import {
   PREMIUM_THEMES, STUDIO_DEFAULTS, applyTheme, openThemeCustomPanel, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes
@@ -66,7 +66,7 @@ import {
 } from './edit-log';
 import { initCanonicalTags, loadCanonicalRulesForFolder } from './canonical-tags';
 import {
-  markDirty, updateDirtyUI, recordChange, applyTagDirection, applyRenameDirection, updateUndoRedoButtons,
+  markDirty, updateDirtyUI, recordChange, applyTagDirection, applyRenameDirection, applyPixelDirection, getIsolateState, updateUndoRedoButtons,
   resetUndoRedo, moveEntry, initTagsEdit, undoStack, redoStack, addTagToEntry,
   markRulesDirty, rulesDirty, resetRulesDirty, renameAllEntriesSequentially
 } from './tags-edit';
@@ -74,7 +74,8 @@ import {
   masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid, initMasterTagControl
 } from './master-tag-control';
 import { initWd14Tagger } from './wd14-tagger';
-import { initSynthDatOverseer, loadSynthDatSettingsForFolder } from './synthdat-overseer';
+import { initSynthDatOverseer, loadSynthDatSettingsForFolder, getWd14TransferSets } from './synthdat-overseer';
+import { attachAcChipHover } from './tags-autocomplete';
 import {
   ensureWikiDataLoaded, ensureAllTagsLoaded, getCustomTagNote, setCustomTagNote,
   openTagDetails, initTagDetails
@@ -85,9 +86,11 @@ import {
 } from './tag-index';
 import {
   viewMode, resetSingleIndex, resetStickyCompare,
-  renderCurrentView, switchView, refreshRightPanels, initView
+  renderCurrentView, switchView, refreshRightPanels, initView,
+  startSequentialDetail, exitSequentialDetail
 } from './view';
 import { initRandomFacts } from './random-facts';
+import { pickDatasetFolder } from './folder-picker';
 (function(){
 
   // ---------------- Touch-device detection (mobile port) ----------------
@@ -992,6 +995,27 @@ import { initRandomFacts } from './random-facts';
   // loaded right now, how many images, current view mode). Written next to
   // the app by main.ts's export-app-state handler, named with the current
   // date/time so a bug report can be matched to exactly this.
+  // Read-only lookup of SynthDat's WD14 transfer-tag vocabulary — what the
+  // reference-image tag-assignment picker will auto-suggest (and where),
+  // grouped by main keyword family and shown as gallery-class chips so the
+  // lists scan as clusters, not a flat alphabet soup.
+  btnViewWd14TransferList.addEventListener('click', () => {
+    const sets = getWd14TransferSets();
+    const html = sets.map(s => `
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:600; margin-bottom:2px;">${s.name} <span style="font-weight:400; color:var(--text-faint);">(${s.total})</span></div>
+        <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:4px;">${s.desc}</div>
+        ${s.groups.map(g => `
+          <div style="margin:8px 0 2px; font-weight:600; font-size:11.5px; color:var(--text-primary);">${g.family} <span style="font-weight:400; color:var(--text-faint);">(${g.tags.length})</span></div>
+          <div class="chiprow">
+            ${g.tags.map(t => `<span class="chip chip-static" data-tag="${t}"><span>${t}</span></span>`).join('')}
+          </div>`).join('')}
+      </div>`).join('');
+    // Chips carry data-tag, so hovering one floats the SAME definition card
+    // the autocomplete suggestions use (tags-autocomplete.ts) — not a bare
+    // title tooltip.
+    showInfoModal(html, 'WD14 SynthDat transfer list', (body) => attachAcChipHover(body));
+  });
   btnExportAppState.addEventListener('click', async () => {
     if (!window.electronAPI || !window.electronAPI.exportAppState){
       toast('Export isn\'t available in this build.');
@@ -1152,7 +1176,8 @@ import { initRandomFacts } from './random-facts';
     resetSingleIndex: () => resetSingleIndex(),
     refreshStats: () => refreshStats(),
     refreshAllUI: () => refreshAllUI(),
-    renderCurrentView: () => renderCurrentView()
+    renderCurrentView: () => renderCurrentView(),
+    applyIsolateDirection: (affected, direction) => applyIsolateDirection(affected, direction)
   });
 
   // Tag index/frequency list + gallery filtering moved to ./tag-index.ts
@@ -1174,7 +1199,8 @@ import { initRandomFacts } from './random-facts';
     refreshAllUI: () => refreshAllUI(),
     getEntryMeta: () => entryMeta,
     saveEntryMeta: () => saveEntryMeta(),
-    deleteEntriesPermanently: (entriesList) => deleteEntriesPermanently(entriesList)
+    deleteEntriesPermanently: (entriesList) => deleteEntriesPermanently(entriesList),
+    onStartSequential: (from) => startSequentialDetail(from)
   });
 
   // WD14 Autotagger (ComfyUI bridge) moved to ./wd14-tagger.ts — settings
@@ -1203,6 +1229,8 @@ import { initRandomFacts } from './random-facts';
     getEntryByBase: (base) => entryByBase.get(base),
     applyTagDirection: (affected, direction) => applyTagDirection(affected, direction),
     applyRenameDirection: (affected, direction) => applyRenameDirection(affected, direction),
+    applyPixelDirection: (affected, direction) => applyPixelDirection(affected, direction),
+    applyIsolateDirection: (affected, direction) => applyIsolateDirection(affected, direction),
     moveEntry: (entry, toDisabled) => moveEntry(entry, toDisabled),
     trackStat: (key, amount) => trackStat(key, amount),
     checkAchievements: () => checkAchievements(),
@@ -1225,6 +1253,9 @@ import { initRandomFacts } from './random-facts';
   initView({
     getEntries: () => entries,
     getEntryByBase: (base) => entryByBase.get(base),
+    getDirHandle: () => dirHandle,
+    addEntryFromNewFile: (base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled) =>
+      buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled),
     getMasterTagModeActive: () => masterTagModeActive,
     getCardTagSortMode: () => cardTagSortMode,
     getGalleryFilter: () => galleryFilter,
@@ -1256,17 +1287,11 @@ import { initRandomFacts } from './random-facts';
       return;
     }
     if (!(await confirmDatasetSwitch('Open a different folder anyway without saving?'))) return;
-    let picked: DirHandle | null = null;
-    try {
-      picked = await (window as unknown as { showDirectoryPicker(opts: { mode: string }): Promise<DirHandle> }).showDirectoryPicker({ mode: 'readwrite' });
-    } catch(e){
-      toast('No folder was chosen.', 2400);
-      return;
-    }
-    if (!picked){
-      toast('No folder was chosen.', 2400);
-      return;
-    }
+    // pickDatasetFolder (folder-picker.ts) owns the picker call itself:
+    // reentry guard, stuck-picker recovery, and the special-folder bounce-
+    // back live there since the Dataset tab's picker shares this session.
+    const picked = await pickDatasetFolder();
+    if (!picked) return;
     // Direct feedback: on mobile especially, the File flyout was left open
     // covering the screen for the whole scan — a folder was already chosen
     // at this point, so there's nothing left for the flyout to do. Closing
@@ -1277,9 +1302,32 @@ import { initRandomFacts } from './random-facts';
     dirHandle = picked;
     try {
       await loadFolder();
+      // Picking OK with nothing selected resolves an (often empty) folder
+      // rather than failing — loading it is honest, but tracking it as a
+      // dataset and prompting about it is nonsense. Say what happened and
+      // leave the empty state usable instead of opening the add-to-tab
+      // prompt over a folder with nothing in it.
+      if (entries.length === 0) {
+        toast(`"${picked.name}" has no images — pick a folder with images to tag.`, 4200);
+        return;
+      }
     } catch(err){
       toast('Could not load that folder — it may be invalid, moved, or missing permission. Try again.', 4200);
+      // Full reset to the empty state, not just dirHandle = null: a mid-scan
+      // throw can leave partial entries/indexes behind, plus an enabled
+      // Reload button pointing at nothing — all of which make the NEXT
+      // attempt behave strangely.
       dirHandle = null;
+      disabledDirHandle = null;
+      entries = [];
+      entryByBase.clear();
+      btnAddFavorite.disabled = true;
+      btnUnloadDataset.disabled = true;
+      btnReloadDataset.disabled = true;
+      resetUndoRedo();
+      masterSelectedImages.clear();
+      resetStickyCompare();
+      updateUndoRedoButtons();
       dropHint.style.display = 'flex';
       dropHintWrap.style.display = 'block';
       galleryToolbar.style.display = 'none';
@@ -1392,6 +1440,53 @@ import { initRandomFacts } from './random-facts';
     return true;
   }
 
+  // Undo/redo applier for isolate-image log items (built in the card modal's
+  // crop flow, view.ts). Undo deletes the isolated file via the same
+  // files+state cleanup permanent-delete uses; redo re-creates it byte-
+  // identical from the session-kept payload. Anything missing (bytes from an
+  // earlier session, a manually deleted file) restores nothing and counts
+  // zero, so callers show the honest toast.
+  async function applyIsolateDirection(affected: EditLogAffected[], direction: 'undo' | 'redo'): Promise<number> {
+    let count = 0;
+    for (const a of affected){
+      const st = typeof a.logId === 'number' ? getIsolateState(a.logId) : undefined;
+      if (!st || !dirHandle) continue;
+      if (direction === 'undo'){
+        const e = entryByBase.get(a.base);
+        if (!e) continue;
+        if (await deleteEntryFilesAndState(e)) count++;
+      } else {
+        try {
+          const imgHandle = await dirHandle.getFileHandle(st.imgName, { create: true });
+          const iw = await imgHandle.createWritable();
+          await iw.write(st.bytes as BufferSource);
+          await iw.close();
+          const txtHandle = await dirHandle.getFileHandle(a.base + '.txt', { create: true });
+          const tw = await txtHandle.createWritable();
+          await tw.write(st.tags.map((t) => t.replace(/ /g, '_')).join(','));
+          await tw.close();
+          const existing = entryByBase.get(a.base);
+          if (existing){
+            try { URL.revokeObjectURL(existing.objectUrl); } catch(e){}
+            existing.objectUrl = URL.createObjectURL(new Blob([st.bytes as BlobPart], { type: st.mime }));
+            existing.tags = st.tags.slice();
+            existing.width = st.width;
+            existing.height = st.height;
+            markDirty(existing);
+          } else {
+            const created = await buildEntry(a.base, imgHandle, st.imgName, txtHandle, true, st.tags.slice(), false);
+            markDirty(created);
+          }
+          count++;
+        } catch {
+          continue;
+        }
+      }
+    }
+    if (count) renderCurrentView();
+    return count;
+  }
+
   // Single-image path — view.ts's 3-dot menu "Delete permanently".
   async function deleteEntryPermanently(entry: Entry): Promise<void> {
     if (!dirHandle) return;
@@ -1470,6 +1565,7 @@ import { initRandomFacts } from './random-facts';
 
   async function loadFolder(){
     if (!dirHandle) return;
+    exitSequentialDetail();
     toast('Scanning folder…');
     entries = [];
     entryByBase.clear();
@@ -1567,6 +1663,7 @@ import { initRandomFacts } from './random-facts';
     }
     trackStat('dataset_unloads');
     checkAchievements();
+    exitSequentialDetail();
     dirHandle = null;
     disabledDirHandle = null;
     entries = [];
@@ -1943,7 +2040,8 @@ import { initRandomFacts } from './random-facts';
   function refreshAllUI(){
     refreshStats();
     renderCurrentView();
-    renderTagPruners();
+  renderTagPruners();
+  renderTagPruners();
     renderMasterSelectionSummary();
     updateDirtyUI();
   }
@@ -2002,5 +2100,81 @@ import { initRandomFacts } from './random-facts';
   updateThemeSelectLocks();
   switchTab('gallery');
   initDockSystem();
+
+
+  // Mobile-only "Add images to dataset" — desktop has the OS file manager for
+  // this, so it needs no in-app importer; mobile has no casual
+  // file-manager-to-folder workflow. Tapping the button opens the system's
+  // own image picker (gallery/camera, no extra permission needed) and writes
+  // each chosen file into the open dataset folder through the same DirHandle
+  // surface everything else uses (backed by the SAF native plugin on mobile —
+  // see mobile-shim.js), with an empty `.txt` sidecar so imports land as
+  // untagged. The final reloadDataset() reuses the guarded rescan exactly
+  // (unsaved-changes confirm included). Built in JS, not markup, so neither
+  // shell's index.html changes — and touch-gated, so desktop is untouched.
+  async function uniqueDatasetFileName(handle: DirHandle, name: string): Promise<string> {
+    const dot = name.lastIndexOf('.');
+    const stem = dot < 0 ? name : name.slice(0, dot);
+    const ext = dot < 0 ? '' : name.slice(dot);
+    let candidate = name;
+    for (let n = 2; n < 10000; n++) {
+      try {
+        await handle.getFileHandle(candidate);
+      } catch {
+        return candidate; // missing → free to use
+      }
+      candidate = `${stem} (${n})${ext}`;
+    }
+    return `${stem} ${Date.now()}${ext}`;
+  }
+
+  async function importImagesToDataset(files: FileList | null): Promise<void> {
+    if (!files || !files.length || !dirHandle) return;
+    const activeHandle = dirHandle;
+    let added = 0, skipped = 0;
+    for (const file of Array.from(files)) {
+      if (!isImageFile(file.name)) { skipped++; continue; }
+      try {
+        const imgName = await uniqueDatasetFileName(activeHandle, file.name);
+        const imgHandle = await activeHandle.getFileHandle(imgName, { create: true });
+        const writable = await imgHandle.createWritable();
+        await writable.write(file);
+        await writable.close();
+        try {
+          const txtHandle = await activeHandle.getFileHandle(imgName.replace(/\.[^.]+$/, '') + '.txt', { create: true });
+          const txtWritable = await txtHandle.createWritable();
+          await txtWritable.write('');
+          await txtWritable.close();
+        } catch {
+          /* image saved; the empty sidecar is best-effort */
+        }
+        added++;
+      } catch {
+        skipped++;
+      }
+    }
+    if (!added) { toast(skipped ? 'No images could be added.' : 'Nothing selected.', 2600); return; }
+    toast(`Added ${added} image${added === 1 ? '' : 's'}${skipped ? ` (${skipped} skipped)` : ''}.`, 2600);
+    await reloadDataset();
+  }
+
+  if (isTouchDevice && !document.getElementById('btnAddImages')){
+    const btnAddImages = document.createElement('button');
+    btnAddImages.id = 'btnAddImages';
+    btnAddImages.textContent = 'Add images…';
+    btnAddImages.title = 'Import images from this device into the open dataset folder';
+    btnAddImages.addEventListener('click', () => {
+      if (!dirHandle) { toast('Open a dataset folder first.', 2600); return; }
+      fileCatFlyout.style.display = 'none';
+      fileCatFlyout.classList.remove('menu-in');
+      const picker = document.createElement('input');
+      picker.type = 'file';
+      picker.accept = 'image/*';
+      picker.multiple = true;
+      picker.addEventListener('change', () => { void importImagesToDataset(picker.files); });
+      picker.click();
+    });
+    fileCatFlyout.appendChild(btnAddImages);
+  }
 
 })();

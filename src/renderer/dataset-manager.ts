@@ -12,6 +12,7 @@ import {
   achievementsPanel, favoritesPanel, themeCustomPanel, logPanel, tagDetailsPanel, shopPanel
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown } from './shared-ui';
+import { pickDatasetFolder } from './folder-picker';
 import { renderAchievementsPanel, trackStat, checkAchievements } from './achievements';
 import { addFavoriteHandle, removeFavoriteByHandle, isFavorited } from './favorites';
 
@@ -523,14 +524,20 @@ async function addFolderViaAddTile(){
     toast('Your browser does not support folder access. Use Chrome or Edge, opened as a normal tab (not an embedded preview).', 5000);
     return;
   }
-  let picked: DirHandle | null = null;
-  try { picked = await (window as unknown as { showDirectoryPicker(opts: { mode: string }): Promise<DirHandle> }).showDirectoryPicker({ mode: 'readwrite' }); }
-  catch(e){ return; }
+  // Shared picker wrapper (folder-picker.ts) — same reentry guard, stuck-
+  // picker recovery, and special-folder bounce-back as File > Load Dataset,
+  // since both calls exercise the renderer's one native picker session.
+  const picked = await pickDatasetFolder();
   if (!picked) return;
-  const existing = await findTrackedRecord(picked);
-  if (!existing) await addDatasetFolder(picked);
-  renderDatasetManagerTab();
-  toast(`Added "${picked.name}" to the Dataset tab.`);
+  try {
+    const existing = await findTrackedRecord(picked);
+    if (!existing) await addDatasetFolder(picked);
+    renderDatasetManagerTab();
+    toast(`Added "${picked.name}" to the Dataset tab.`);
+  } catch(e){
+    console.error('[datasets] add folder failed:', e);
+    toast(`Could not add that folder: ${(e as Error)?.message || 'unknown error'}`, 4200);
+  }
 }
 
 // ---------------- Rendering ----------------
