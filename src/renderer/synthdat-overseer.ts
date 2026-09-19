@@ -464,14 +464,16 @@ async function pickReferenceImage(){
   refFilename = file.name;
 
   const objectUrl = URL.createObjectURL(file);
-  synthDatRefPreview.src = objectUrl;
+  // Swap in one step with revoke (same helper the generation previews use),
+  // since each re-pick previously leaked the last pick's buffer.
+  setObjectUrlOn(synthDatRefPreview, file);
   synthDatRefPreview.style.display = 'block';
   synthDatRefEmpty.style.display = 'none';
   btnSynthDatInterrogate.disabled = false;
 
   refImageEl = new Image();
   refImageEl.onload = () => { updateResizedPreview(); updateResoWarning(); };
-  refImageEl.src = objectUrl;
+  refImageEl.src = synthDatRefPreview.dataset.objectUrl!;
 
   // Picking a new reference image does NOT touch Pose/Limbs/Sexual (or any
   // other field) by itself — those only change when the user edits them
@@ -1293,9 +1295,26 @@ function selectPass(which: number): void {
   const bytes = which === 1 ? pass1Bytes : pass2Bytes;
   if (!bytes) return;
   previewBytes = bytes;
-  synthDatPreview.src = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'image/png' }));
+  setObjectUrlOn(synthDatPreview, new Blob([bytes as BlobPart], { type: 'image/png' }));
   synthDatPickPass1.classList.toggle('active', which === 1);
   synthDatPickPass2.classList.toggle('active', which === 2);
+}
+
+// Swap an <img>'s blob-URL src, revoking the PREVIOUS url first. Object URLs
+// are not garbage-collected while referenced — the per-frame live preview
+// below used to leak a retained image buffer per generation step (and each
+// Generate/Accept cycle here accumulated more) — so every swap in this
+// module must go through this and clear the attribute when resetting.
+function setObjectUrlOn(el: HTMLImageElement, blob: Blob): void {
+  const prev = el.dataset.objectUrl;
+  if (prev) URL.revokeObjectURL(prev);
+  const url = URL.createObjectURL(blob);
+  el.dataset.objectUrl = url;
+  el.src = url;
+}
+function clearObjectUrlOn(el: HTMLImageElement): void {
+  const prev = el.dataset.objectUrl;
+  if (prev){ URL.revokeObjectURL(prev); el.removeAttribute('data-object-url'); el.removeAttribute('src'); }
 }
 
 async function generate(): Promise<void> {
@@ -1319,7 +1338,7 @@ async function generate(): Promise<void> {
   btnSynthDatReject.disabled = true;
   btnSynthDatReinterrogateOutput.disabled = true;
   synthDatReinterrogateResult.style.display = 'none';
-  synthDatLivePreview.src = '';
+  clearObjectUrlOn(synthDatLivePreview);
   synthDatLivePreviewWrap.style.display = 'none';
   pendingTagSnapshot = null;
   excludedTags = new Set();
@@ -1353,8 +1372,8 @@ async function generate(): Promise<void> {
   pass2Bytes = res.imageBytes || null;
   pass1Bytes = res.pass1ImageBytes || null;
   if (pass1Bytes){
-    synthDatPass1Thumb.src = URL.createObjectURL(new Blob([pass1Bytes as BlobPart], { type: 'image/png' }));
-    synthDatPass2Thumb.src = URL.createObjectURL(new Blob([pass2Bytes as BlobPart], { type: 'image/png' }));
+    setObjectUrlOn(synthDatPass1Thumb, new Blob([pass1Bytes as BlobPart], { type: 'image/png' }));
+    setObjectUrlOn(synthDatPass2Thumb, new Blob([pass2Bytes as BlobPart], { type: 'image/png' }));
     synthDatPassPickerRow.style.display = 'flex';
     synthDatPickPass1.classList.remove('active');
     synthDatPickPass2.classList.add('active');
@@ -1362,8 +1381,7 @@ async function generate(): Promise<void> {
     synthDatPassPickerRow.style.display = 'none';
   }
 
-  const blob = new Blob([previewBytes as BlobPart], { type: 'image/png' });
-  synthDatPreview.src = URL.createObjectURL(blob);
+  setObjectUrlOn(synthDatPreview, new Blob([previewBytes as BlobPart], { type: 'image/png' }));
   synthDatPreview.style.display = 'block';
   synthDatPreviewEmpty.style.display = 'none';
   btnSynthDatAccept.disabled = false;
@@ -1520,7 +1538,9 @@ function clearPreview(){
   previewBytes = null;
   pendingBase = '';
   pendingImgName = '';
-  synthDatPreview.src = '';
+  clearObjectUrlOn(synthDatPreview);
+  clearObjectUrlOn(synthDatPass1Thumb);
+  clearObjectUrlOn(synthDatPass2Thumb);
   synthDatPreview.style.display = 'none';
   synthDatPreviewEmpty.style.display = 'block';
   synthDatPassPickerRow.style.display = 'none';
@@ -1646,8 +1666,7 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   // rather than per-generate(), since only one generation ever runs at a
   // time in this app.
   window.electronAPI.onSynthdatPreviewFrame((_event, { mime, bytes }) => {
-    const blob = new Blob([bytes as BlobPart], { type: mime });
-    synthDatLivePreview.src = URL.createObjectURL(blob);
+    setObjectUrlOn(synthDatLivePreview, new Blob([bytes as BlobPart], { type: mime }));
     // Not 'block' — this wrap shares .synthdat-ref-preview/its own
     // #synthDatLivePreviewWrap rule, both of which center their image via
     // display:flex; an inline display:block here was overriding that (inline
@@ -1662,7 +1681,7 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   btnSynthDatPickImage.addEventListener('click', pickReferenceImage);
   btnSynthDatInterrogate.addEventListener('click', interrogateReference);
   btnSynthDatMigratePose.addEventListener('click', applyTagAssignment);
-  btnSynthDatAddLora.addEventListener('click', () => { addLoraRow('None', 1); scheduleSave(); });
+  btnSynthDatAddLora.addEventListener('click', () => { addLoraRow('', 1); scheduleSave(); });
   btnSynthDatRefreshModels.addEventListener('click', refreshModelLists);
   btnSynthDatConnect.addEventListener('click', testSynthdatConnection);
   // Replaces these fields' old native `<datalist>` dropdown (see

@@ -626,10 +626,6 @@ const CENSOR_TYPE_OPTIONS = [
   { tag: 'heart censor', label: 'Heart' }
 ];
 
-export function isSequentialActive(): boolean {
-  return seqActive;
-}
-
 export function startSequentialDetail(from: 'first' | 'selected'): void {
   const list = filteredEntries();
   if (!list.length) { toast('No images match the current filter.'); return; }

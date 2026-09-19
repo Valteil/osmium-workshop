@@ -126,10 +126,8 @@ import { pickDatasetFolder } from './folder-picker';
   // stickyCompareImages moved to ./view.ts
   // dockOrder/dockCollapsed/dockHeights moved to ./docks.ts
   // tagPruners/tagPrunerIdCounter moved to ./tag-pruner.ts
-  let compactModeOn = false;
   let entryMeta: Record<string, EntryMeta> = {};
   // wikiData/allTagsMap moved to ./tag-details.ts
-  let activeLangMenuBase: string | null = null;
   // tagAutocompleteEnabled/autocompleteEl moved to ./tags-autocomplete.ts
   // customPowerTools/powerToolPickerActive moved to ./power-tools.ts
 
@@ -2040,8 +2038,7 @@ import { pickDatasetFolder } from './folder-picker';
   function refreshAllUI(){
     refreshStats();
     renderCurrentView();
-  renderTagPruners();
-  renderTagPruners();
+    renderTagPruners();
     renderMasterSelectionSummary();
     updateDirtyUI();
   }

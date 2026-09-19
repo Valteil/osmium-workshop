@@ -119,6 +119,7 @@ function hideChipDefinition(): void {
   if (chipHoverTimer) clearTimeout(chipHoverTimer);
   chipHoverTimer = null;
   document.querySelectorAll('.ac-flash-card.ac-flash-floating').forEach(el => el.remove());
+  acDefinitionHost = null;
   chipHoverTag = null;
 }
 

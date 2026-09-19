@@ -112,7 +112,7 @@
         <button id="btnRightDrawerToggle" class="drawer-toggle" title="Open tools panel">🔧</button>
         <button id="btnOverseerDrawerToggle" class="drawer-toggle" title="Open Tag Overseer panel">🔭</button>
         <button id="btnLog" title="View the edit history log for this folder">📜 Log</button>
-        <div class="header-cat" id="personalizationCatWrap">
+        <div class="header-cat">
           <button class="header-cat-btn" id="personalizationCatBtn" title="Themes, colors, achievements, shop">🎨 Personalization ▾</button>
           <div class="header-cat-flyout" id="personalizationCatFlyout" style="display:none;">
             <div class="pdrop" id="themeDropdown" title="Theme"></div>
@@ -173,7 +173,7 @@
         <button id="dmListBtn" class="dm-view-btn" title="List view">☰ List</button>
       </div>
       <div class="dm-toolbar-right">
-        <span id="dmSortLabel" class="dm-sort-label">Sort:</span>
+        <span class="dm-sort-label">Sort:</span>
         <div class="pdrop" id="dmSortDropdown"></div>
       </div>
     </div>
@@ -189,11 +189,11 @@
         <input type="text" id="filterInput" placeholder="Show images containing tag(s)… e.g. red hair, blue eyes">
         <div id="filterSuggestions" class="filter-suggestions" style="display:none;"></div>
         <div class="filter-help-row">
-          <span id="filterModeLabel" title="How multiple comma-separated tags combine">AND</span>
+          <span title="How multiple comma-separated tags combine">AND</span>
           <div class="pdrop" id="filterModeDropdown"></div>
           <button id="btnClearFilter" title="Clear all filters">Clear filter</button>
         </div>
-        <label class="ach-toggle-row" id="filterExactWrap" title="When on, a term only matches a tag that equals it exactly — searching &quot;dress&quot; won't also match &quot;black dress&quot; or &quot;frilly dress&quot;">
+        <label class="ach-toggle-row" title="When on, a term only matches a tag that equals it exactly — searching &quot;dress&quot; won't also match &quot;black dress&quot; or &quot;frilly dress&quot;">
           <input type="checkbox" id="filterExactToggle"><span>Exact tag match</span>
         </label>
         <div class="quickfilters">
