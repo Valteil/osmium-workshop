@@ -2,10 +2,7 @@
 
 ![Osmium Workshop](build/banner.jpg)
 
-A local, offline-first desktop app for tagging and cleaning up AI image-training datasets
-(image + `.txt` caption pairs, the format LoRA/Stable-Diffusion-style training expects).
-Everything reads and writes directly to your dataset folder on disk — no uploads, no cloud,
-no accounts, no telemetry.
+A feature-heavy, Comfyui-compatible dataset manager with a large amount of Quality of Life features. Multiple features, with attempts at finetuning UI and UX for an all-in-one image processor for your slopping needs.
 
 Built with Electron + TypeScript. Portable — unzip, run, done; nothing is installed elsewhere
 on your system.
