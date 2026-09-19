@@ -2,7 +2,7 @@
 
 ![Osmium Workshop](build/banner.jpg)
 
-A feature-heavy, Comfyui-compatible dataset manager with a large amount of Quality of Life features. Multiple features, with attempts at finetuning UI and UX for an all-in-one image processor for your slopping needs.
+A feature-heavy, Comfyui-compatible dataset manager with a large amount of Quality of Life features. Multiple features, with attempts at finetuning UI and UX for an all-in-one image processor for all your slopping needs.
 
 Built with Electron + TypeScript. Portable — unzip, run, done; nothing is installed elsewhere
 on your system. And also built with a shitload of Claude and Opencode Go.
