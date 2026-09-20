@@ -1,26 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 250">
   <rect width="250" height="250" rx="30" fill="#f4f4f1"/>
   <g>
-    <line x1="125.0" y1="25.0" x2="183.78" y2="44.1" stroke="#141412" stroke-width="8" stroke-linecap="round"/>
-    <line x1="183.78" y1="44.1" x2="220.11" y2="94.1" stroke="#141412" stroke-width="8" stroke-linecap="round"/>
-    <line x1="220.11" y1="94.1" x2="220.11" y2="155.9" stroke="#141412" stroke-width="8" stroke-linecap="round"/>
-    <line x1="220.11" y1="155.9" x2="183.78" y2="205.9" stroke="#141412" stroke-width="8" stroke-linecap="round"/>
-    <line x1="183.78" y1="205.9" x2="125.0" y2="225.0" stroke="#141412" stroke-width="8" stroke-linecap="round"/>
-    <line x1="125.0" y1="225.0" x2="66.22" y2="205.9" stroke="#141412" stroke-width="8" stroke-linecap="round"/>
-    <line x1="66.22" y1="205.9" x2="29.89" y2="155.9" stroke="#141412" stroke-width="8" stroke-linecap="round"/>
-    <line x1="29.89" y1="155.9" x2="29.89" y2="94.1" stroke="#141412" stroke-width="8" stroke-linecap="round"/>
-    <line x1="29.89" y1="94.1" x2="66.22" y2="44.1" stroke="#141412" stroke-width="8" stroke-linecap="round"/>
-    <line x1="66.22" y1="44.1" x2="125.0" y2="25.0" stroke="#141412" stroke-width="8" stroke-linecap="round"/>
-    <line x1="125" y1="125" x2="125.0" y2="25.0" stroke="#141412" stroke-width="8" stroke-linecap="round" opacity="0.45"/>
-    <line x1="125" y1="125" x2="183.78" y2="44.1" stroke="#141412" stroke-width="8" stroke-linecap="round" opacity="0.95"/>
-    <line x1="125" y1="125" x2="220.11" y2="94.1" stroke="#141412" stroke-width="8" stroke-linecap="round" opacity="0.45"/>
-    <line x1="125" y1="125" x2="220.11" y2="155.9" stroke="#141412" stroke-width="8" stroke-linecap="round" opacity="0.95"/>
-    <line x1="125" y1="125" x2="183.78" y2="205.9" stroke="#141412" stroke-width="8" stroke-linecap="round" opacity="0.45"/>
-    <line x1="125" y1="125" x2="125.0" y2="225.0" stroke="#141412" stroke-width="8" stroke-linecap="round" opacity="0.95"/>
-    <line x1="125" y1="125" x2="66.22" y2="205.9" stroke="#141412" stroke-width="8" stroke-linecap="round" opacity="0.45"/>
-    <line x1="125" y1="125" x2="29.89" y2="155.9" stroke="#141412" stroke-width="8" stroke-linecap="round" opacity="0.95"/>
-    <line x1="125" y1="125" x2="29.89" y2="94.1" stroke="#141412" stroke-width="8" stroke-linecap="round" opacity="0.45"/>
-    <line x1="125" y1="125" x2="66.22" y2="44.1" stroke="#141412" stroke-width="8" stroke-linecap="round" opacity="0.95"/>
+    <line x1="125.0" y1="25.0" x2="183.78" y2="44.1" stroke="#141412" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="183.78" y1="44.1" x2="220.11" y2="94.1" stroke="#141412" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="220.11" y1="94.1" x2="220.11" y2="155.9" stroke="#141412" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="220.11" y1="155.9" x2="183.78" y2="205.9" stroke="#141412" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="183.78" y1="205.9" x2="125.0" y2="225.0" stroke="#141412" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="125.0" y1="225.0" x2="66.22" y2="205.9" stroke="#141412" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="66.22" y1="205.9" x2="29.89" y2="155.9" stroke="#141412" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="29.89" y1="155.9" x2="29.89" y2="94.1" stroke="#141412" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="29.89" y1="94.1" x2="66.22" y2="44.1" stroke="#141412" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="66.22" y1="44.1" x2="125.0" y2="25.0" stroke="#141412" stroke-width="6.5" stroke-linecap="round"/>
+    <line x1="125" y1="125" x2="125.0" y2="25.0" stroke="#141412" stroke-width="6.5" stroke-linecap="round" opacity="0.45"/>
+    <line x1="125" y1="125" x2="183.78" y2="44.1" stroke="#141412" stroke-width="6.5" stroke-linecap="round" opacity="0.95"/>
+    <line x1="125" y1="125" x2="220.11" y2="94.1" stroke="#141412" stroke-width="6.5" stroke-linecap="round" opacity="0.45"/>
+    <line x1="125" y1="125" x2="220.11" y2="155.9" stroke="#141412" stroke-width="6.5" stroke-linecap="round" opacity="0.95"/>
+    <line x1="125" y1="125" x2="183.78" y2="205.9" stroke="#141412" stroke-width="6.5" stroke-linecap="round" opacity="0.45"/>
+    <line x1="125" y1="125" x2="125.0" y2="225.0" stroke="#141412" stroke-width="6.5" stroke-linecap="round" opacity="0.95"/>
+    <line x1="125" y1="125" x2="66.22" y2="205.9" stroke="#141412" stroke-width="6.5" stroke-linecap="round" opacity="0.45"/>
+    <line x1="125" y1="125" x2="29.89" y2="155.9" stroke="#141412" stroke-width="6.5" stroke-linecap="round" opacity="0.95"/>
+    <line x1="125" y1="125" x2="29.89" y2="94.1" stroke="#141412" stroke-width="6.5" stroke-linecap="round" opacity="0.45"/>
+    <line x1="125" y1="125" x2="66.22" y2="44.1" stroke="#141412" stroke-width="6.5" stroke-linecap="round" opacity="0.95"/>
   </g>
-  <circle cx="125" cy="125" r="8" fill="#141412"/>
+  <circle cx="125" cy="125" r="7" fill="#141412"/>
 </svg>

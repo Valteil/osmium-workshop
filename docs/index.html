@@ -60,7 +60,7 @@
     height:72px;
   }
   .brand{display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--ink);}
-  .brand svg{width:30px; height:30px; display:block;}
+  .brand svg{display:block;}
   .brand-name{font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
   .brand-tag{font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--ink-soft); letter-spacing:0.04em; text-transform:uppercase; display:block; margin-top:1px;}
   nav.links{display:flex; align-items:center; gap:28px;}
@@ -112,9 +112,15 @@
 
   /* ---------- the Osmium polygon (exact decagon + twin-pentagon lattice) ---------- */
   .lattice .l-circle{fill:none; stroke:var(--line-strong); stroke-width:1;}
-  .lattice .e-ring{stroke:var(--ink); stroke-width:3.2; opacity:.85; stroke-linecap:round;}
-  .lattice .e-thick{stroke:var(--ink); stroke-width:4; opacity:.92; stroke-linecap:round;}
-  .lattice .e-thin{stroke:var(--ink); stroke-width:1.8; opacity:.4; stroke-linecap:round;}
+  .lattice .e-ring{stroke:var(--ink); stroke-width:1.8; opacity:.85; stroke-linecap:round;}
+  .lattice .e-thick{stroke:var(--ink); stroke-width:2.3; opacity:.92; stroke-linecap:round;}
+  .lattice .e-thin{stroke:var(--ink); stroke-width:1; opacity:.4; stroke-linecap:round;}
+  /* small on-screen instances (nav icon) need proportionally bolder strokes to stay legible */
+  .lattice-sm{width:38px; height:38px;}
+  .lattice-sm .e-ring{stroke-width:7.2;}
+  .lattice-sm .e-thick{stroke-width:9;}
+  .lattice-sm .e-thin{stroke-width:5.6;}
+  .lattice-sm .l-circle{display:none;}
   .lattice .n-lg{fill:var(--ink);}
   .lattice .n-sm{fill:var(--ink); opacity:.65;}
   .lattice .n-center{fill:var(--ink);}
@@ -124,9 +130,9 @@
   .lattice .e-live.b{stroke:var(--blue);}
   @keyframes travel{ to{ stroke-dashoffset:-265; } }
   @media (prefers-reduced-motion: reduce){ .lattice .e-live{animation:none;} }
-  .mark-sm .l-ring{fill:none; stroke:var(--ink); stroke-width:7.5; stroke-linecap:round;}
-  .mark-sm .l-spoke-a{fill:none; stroke:var(--ink); stroke-width:5.5; opacity:.45; stroke-linecap:round;}
-  .mark-sm .l-spoke-b{fill:none; stroke:var(--ink); stroke-width:7.5; opacity:.95; stroke-linecap:round;}
+  .mark-sm .l-ring{fill:none; stroke:var(--ink); stroke-width:6; stroke-linecap:round;}
+  .mark-sm .l-spoke-a{fill:none; stroke:var(--ink); stroke-width:4.4; opacity:.45; stroke-linecap:round;}
+  .mark-sm .l-spoke-b{fill:none; stroke:var(--ink); stroke-width:6; opacity:.95; stroke-linecap:round;}
   .mark-sm .l-node{fill:var(--ink);}
   .mark-sm .l-node-sm{fill:var(--ink); opacity:.6;}
 
@@ -213,38 +219,49 @@
 <header>
   <div class="wrap nav">
     <a class="brand" href="#top">
-      <svg class="mark-sm" viewBox="0 0 250 250" aria-hidden="true">
-        <line x1="125.0" y1="25.0" x2="183.78" y2="44.1" class="l-ring"/>
-        <line x1="183.78" y1="44.1" x2="220.11" y2="94.1" class="l-ring"/>
-        <line x1="220.11" y1="94.1" x2="220.11" y2="155.9" class="l-ring"/>
-        <line x1="220.11" y1="155.9" x2="183.78" y2="205.9" class="l-ring"/>
-        <line x1="183.78" y1="205.9" x2="125.0" y2="225.0" class="l-ring"/>
-        <line x1="125.0" y1="225.0" x2="66.22" y2="205.9" class="l-ring"/>
-        <line x1="66.22" y1="205.9" x2="29.89" y2="155.9" class="l-ring"/>
-        <line x1="29.89" y1="155.9" x2="29.89" y2="94.1" class="l-ring"/>
-        <line x1="29.89" y1="94.1" x2="66.22" y2="44.1" class="l-ring"/>
-        <line x1="66.22" y1="44.1" x2="125.0" y2="25.0" class="l-ring"/>
-        <line x1="125" y1="125" x2="125.0" y2="25.0" class="l-spoke-a"/>
-        <line x1="125" y1="125" x2="183.78" y2="44.1" class="l-spoke-b"/>
-        <line x1="125" y1="125" x2="220.11" y2="94.1" class="l-spoke-a"/>
-        <line x1="125" y1="125" x2="220.11" y2="155.9" class="l-spoke-b"/>
-        <line x1="125" y1="125" x2="183.78" y2="205.9" class="l-spoke-a"/>
-        <line x1="125" y1="125" x2="125.0" y2="225.0" class="l-spoke-b"/>
-        <line x1="125" y1="125" x2="66.22" y2="205.9" class="l-spoke-a"/>
-        <line x1="125" y1="125" x2="29.89" y2="155.9" class="l-spoke-b"/>
-        <line x1="125" y1="125" x2="29.89" y2="94.1" class="l-spoke-a"/>
-        <line x1="125" y1="125" x2="66.22" y2="44.1" class="l-spoke-b"/>
-        <circle class="l-node" cx="125.0" cy="25.0" r="6.2"/>
-        <circle class="l-node" cx="183.78" cy="44.1" r="6.2"/>
-        <circle class="l-node-sm" cx="220.11" cy="94.1" r="4.5"/>
-        <circle class="l-node" cx="220.11" cy="155.9" r="6.2"/>
-        <circle class="l-node" cx="183.78" cy="205.9" r="6.2"/>
-        <circle class="l-node" cx="125.0" cy="225.0" r="6.2"/>
-        <circle class="l-node" cx="66.22" cy="205.9" r="6.2"/>
-        <circle class="l-node" cx="29.89" cy="155.9" r="6.2"/>
-        <circle class="l-node-sm" cx="29.89" cy="94.1" r="4.5"/>
-        <circle class="l-node" cx="66.22" cy="44.1" r="6.2"/>
-        <circle class="l-node" cx="125" cy="125" r="7"/>
+      <svg class="lattice lattice-sm" viewBox="0 0 250 250" aria-hidden="true">
+        <circle class="l-circle" cx="125" cy="125" r="117"/>
+        <line x1="125.0" y1="25.0" x2="183.78" y2="44.1" class="e-ring"/>
+        <line x1="183.78" y1="44.1" x2="220.11" y2="94.1" class="e-ring"/>
+        <line x1="220.11" y1="94.1" x2="220.11" y2="155.9" class="e-ring"/>
+        <line x1="220.11" y1="155.9" x2="183.78" y2="205.9" class="e-ring"/>
+        <line x1="183.78" y1="205.9" x2="125.0" y2="225.0" class="e-ring"/>
+        <line x1="125.0" y1="225.0" x2="66.22" y2="205.9" class="e-ring"/>
+        <line x1="66.22" y1="205.9" x2="29.89" y2="155.9" class="e-ring"/>
+        <line x1="29.89" y1="155.9" x2="29.89" y2="94.1" class="e-ring"/>
+        <line x1="29.89" y1="94.1" x2="66.22" y2="44.1" class="e-ring"/>
+        <line x1="66.22" y1="44.1" x2="125.0" y2="25.0" class="e-ring"/>
+        <line x1="125.0" y1="25.0" x2="220.11" y2="94.1" class="e-thin"/>
+        <line x1="220.11" y1="94.1" x2="183.78" y2="205.9" class="e-thin"/>
+        <line x1="183.78" y1="205.9" x2="66.22" y2="205.9" class="e-thin"/>
+        <line x1="66.22" y1="205.9" x2="29.89" y2="94.1" class="e-thin"/>
+        <line x1="29.89" y1="94.1" x2="125.0" y2="25.0" class="e-thin"/>
+        <line x1="183.78" y1="44.1" x2="220.11" y2="155.9" class="e-thick"/>
+        <line x1="220.11" y1="155.9" x2="125.0" y2="225.0" class="e-thick"/>
+        <line x1="125.0" y1="225.0" x2="29.89" y2="155.9" class="e-thick"/>
+        <line x1="29.89" y1="155.9" x2="66.22" y2="44.1" class="e-thick"/>
+        <line x1="66.22" y1="44.1" x2="183.78" y2="44.1" class="e-thick"/>
+        <line x1="125" y1="125" x2="125.0" y2="25.0" class="e-thin"/>
+        <line x1="125" y1="125" x2="183.78" y2="44.1" class="e-thick"/>
+        <line x1="125" y1="125" x2="220.11" y2="94.1" class="e-thin"/>
+        <line x1="125" y1="125" x2="220.11" y2="155.9" class="e-thick"/>
+        <line x1="125" y1="125" x2="183.78" y2="205.9" class="e-thin"/>
+        <line x1="125" y1="125" x2="125.0" y2="225.0" class="e-thick"/>
+        <line x1="125" y1="125" x2="66.22" y2="205.9" class="e-thin"/>
+        <line x1="125" y1="125" x2="29.89" y2="155.9" class="e-thick"/>
+        <line x1="125" y1="125" x2="29.89" y2="94.1" class="e-thin"/>
+        <line x1="125" y1="125" x2="66.22" y2="44.1" class="e-thick"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(125.0 25.0) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(183.78 44.1) rotate(45)"/>
+        <rect class="n-sm" x="-3.3" y="-3.3" width="6.6" height="6.6" transform="translate(220.11 94.1) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(220.11 155.9) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(183.78 205.9) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(125.0 225.0) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(66.22 205.9) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(29.89 155.9) rotate(45)"/>
+        <rect class="n-sm" x="-3.3" y="-3.3" width="6.6" height="6.6" transform="translate(29.89 94.1) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(66.22 44.1) rotate(45)"/>
+        <rect class="n-center" x="-5.2" y="-5.2" width="10.4" height="10.4" transform="translate(125 125) rotate(45)"/>
       </svg>
       <span>
         <span class="brand-name">Osmium Workshop</span>
