@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Osmium Workshop — local-first dataset tag editor</title>
+<meta name="description" content="A portable, local-first dataset tag editor for AI training images. Undo-able edit logging, retroactive rule-based tag correction, WD14 autotagging, and direct ComfyUI syncing — all offline, in one binary." />
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ground:#f4f4f1;
+    --ground-dim:#ececE7;
+    --ink:#141412;
+    --ink-soft:#4a4a45;
+    --line:#d9d9d3;
+    --line-strong:#b7b7ae;
+    --red:#e14b3a;
+    --green:#3f9d4f;
+    --blue:#3b76d6;
+    --card:#ffffff;
+    --radius:2px;
+    --measure:70ch;
+    --pop-dur:.5s;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    font-size:16px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--ink); color:var(--ground);}
+  a{color:inherit;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 32px;}
+  .display{font-family:'Chakra Petch',sans-serif; letter-spacing:-0.01em;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* ---------- background rings, shared texture ---------- */
+  .rings{
+    position:absolute; inset:0; overflow:hidden; pointer-events:none;
+  }
+  .rings svg{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);}
+
+  /* ---------- nav ---------- */
+  header{
+    position:sticky; top:0; z-index:20;
+    background:rgba(244,244,241,0.86);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    height:72px;
+  }
+  .brand{display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--ink);}
+  .brand svg{width:30px; height:30px; display:block;}
+  .brand-name{font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
+  .brand-tag{font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--ink-soft); letter-spacing:0.04em; text-transform:uppercase; display:block; margin-top:1px;}
+  nav.links{display:flex; align-items:center; gap:28px;}
+  nav.links a{font-size:0.9rem; text-decoration:none; color:var(--ink-soft); transition:color .15s;}
+  nav.links a:hover{color:var(--ink);}
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:0.92rem;
+    padding:11px 20px; border-radius:var(--radius);
+    text-decoration:none; border:1px solid var(--ink); white-space:nowrap;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .btn-primary{background:var(--ink); color:var(--ground);}
+  .btn-primary:hover{transform:translateY(-1px); box-shadow:0 6px 0 -2px var(--line-strong), 0 4px 14px rgba(0,0,0,.18);}
+  .btn-ghost{background:transparent; color:var(--ink); border-color:var(--line-strong);}
+  .btn-ghost:hover{border-color:var(--ink);}
+  .btn-sm{padding:8px 14px; font-size:0.82rem;}
+
+  /* ---------- hero ---------- */
+  .hero{position:relative; padding:96px 0 80px; overflow:hidden;}
+  .hero-grid{
+    position:relative; z-index:2;
+    display:grid; grid-template-columns:1.1fr 0.9fr; gap:40px; align-items:center;
+  }
+  .kicker-chip{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:'JetBrains Mono',monospace; font-size:0.78rem; letter-spacing:0.03em;
+    color:var(--ink-soft); border:1px solid var(--line-strong); border-radius:999px;
+    padding:5px 12px 5px 8px; margin-bottom:26px;
+  }
+  .kicker-chip .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(63,157,79,.18);}
+  h1.hero-title{
+    font-size:clamp(2.6rem, 4.6vw, 4.1rem);
+    line-height:1.03;
+    margin:0 0 22px;
+    font-weight:600;
+  }
+  h1.hero-title em{
+    font-style:normal; color:var(--ink);
+    background:linear-gradient(180deg, transparent 62%, rgba(63,157,79,.28) 62%);
+  }
+  .hero-sub{font-size:1.1rem; color:var(--ink-soft); max-width:46ch; margin:0 0 34px;}
+  .hero-ctas{display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:30px;}
+  .hero-meta{display:flex; gap:22px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft);}
+  .hero-meta strong{color:var(--ink); font-weight:600;}
+
+  .hero-art{position:relative; aspect-ratio:1/1; z-index:2;}
+  .hero-art svg{width:100%; height:100%; display:block;}
+  .node{fill:var(--ink);}
+  .edge{stroke:var(--ink); stroke-width:1; opacity:.28;}
+  .edge-strong{stroke:var(--ink); stroke-width:1.4; opacity:.85;}
+  .edge-live{stroke-dasharray:6 480; stroke-dashoffset:0; animation:travel 5.5s linear infinite;}
+  .edge-live.r{stroke:var(--red);}
+  .edge-live.g{stroke:var(--green);}
+  .edge-live.b{stroke:var(--blue);}
+  @keyframes travel{ to{ stroke-dashoffset:-486; } }
+  @media (prefers-reduced-motion: reduce){ .edge-live{animation:none;} }
+
+  /* ---------- section scaffolding ---------- */
+  section{position:relative; padding:88px 0;}
+  .section-head{max-width:640px; margin-bottom:54px;}
+  .eyebrow-num{font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft); letter-spacing:.03em; display:block; margin-bottom:10px;}
+  h2{font-family:'Chakra Petch',sans-serif; font-size:clamp(1.7rem,2.6vw,2.3rem); font-weight:600; margin:0 0 14px; line-height:1.15;}
+  .section-head p{color:var(--ink-soft); font-size:1.02rem; max-width:60ch; margin:0;}
+  .rule{height:1px; background:var(--line); border:0; margin:0;}
+
+  /* ---------- proof / screenshots ---------- */
+  .proof-frame{
+    position:relative; border:1px solid var(--line-strong); background:var(--card);
+  }
+  .proof-frame img{display:block; width:100%; height:auto;}
+  .proof-frame .node-corner{position:absolute; width:9px; height:9px; background:var(--ink); transform:rotate(45deg); z-index:3;}
+  .nc-tl{top:-5px; left:-5px;} .nc-tr{top:-5px; right:-5px;}
+  .nc-bl{bottom:-5px; left:-5px;} .nc-br{bottom:-5px; right:-5px;}
+  .proof-cap{display:flex; justify-content:space-between; align-items:baseline; margin-top:14px; font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:var(--ink-soft);}
+
+  /* ---------- feature rows (connections) ---------- */
+  .conn-row{
+    display:grid; grid-template-columns:220px 1fr; gap:44px; align-items:center;
+    padding:38px 0; border-top:1px solid var(--line);
+  }
+  .conn-row:last-child{border-bottom:1px solid var(--line);}
+  .conn-row.rev{grid-template-columns:1fr 220px;}
+  .conn-row.rev .conn-diagram{order:2;}
+  .conn-diagram{aspect-ratio:1/1; }
+  .conn-diagram svg{width:100%; height:100%;}
+  .conn-copy h3{font-family:'Chakra Petch',sans-serif; font-size:1.45rem; margin:0 0 10px; font-weight:600;}
+  .conn-copy p{color:var(--ink-soft); margin:0 0 12px; max-width:56ch;}
+  .conn-copy .tags{display:flex; gap:8px; flex-wrap:wrap;}
+  .tag-chip{font-family:'JetBrains Mono',monospace; font-size:0.78rem; border:1px solid var(--line-strong); color:var(--ink-soft); padding:3px 9px; border-radius:999px;}
+
+  /* ---------- hub / apps ---------- */
+  .hub-wrap{display:grid; grid-template-columns:1fr 1fr; gap:50px; align-items:center;}
+  .hub-art{aspect-ratio:1/1;}
+  .hub-art svg{width:100%; height:100%;}
+  .app-list{display:flex; flex-direction:column; gap:0;}
+  .app-item{padding:22px 0; border-top:1px solid var(--line);}
+  .app-item:last-child{border-bottom:1px solid var(--line);}
+  .app-item .head{display:flex; align-items:baseline; gap:12px; margin-bottom:6px;}
+  .app-item .swatch{width:9px; height:9px; border-radius:50%; flex:none;}
+  .app-item h3{font-family:'Chakra Petch',sans-serif; font-size:1.15rem; margin:0; font-weight:600;}
+  .app-item p{margin:0; color:var(--ink-soft); font-size:0.95rem; padding-left:21px;}
+
+  /* ---------- trust strip ---------- */
+  .trust{background:var(--ink); color:var(--ground); border-radius:6px; padding:46px 46px; }
+  .trust-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:28px;}
+  .trust-item .num{font-family:'Chakra Petch',sans-serif; font-size:1.7rem; font-weight:600; margin-bottom:6px; display:block;}
+  .trust-item .lbl{font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:#c9c9c2; letter-spacing:.03em;}
+
+  /* ---------- download band ---------- */
+  .dl-band{border:1px solid var(--line-strong); border-radius:6px; padding:56px 48px; position:relative; overflow:hidden; background:var(--card);}
+  .dl-inner{position:relative; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:32px; flex-wrap:wrap;}
+  .dl-inner h2{margin-bottom:8px;}
+  .dl-inner p{color:var(--ink-soft); margin:0; max-width:44ch;}
+  .dl-ctas{display:flex; gap:14px; flex-wrap:wrap;}
+
+  footer{border-top:1px solid var(--line); padding:44px 0; margin-top:20px;}
+  .footer-row{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;}
+  .footer-brand{display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft);}
+  .footer-links{display:flex; gap:22px; font-size:0.85rem;}
+  .footer-links a{text-decoration:none; color:var(--ink-soft);}
+  .footer-links a:hover{color:var(--ink);}
+
+  @media (max-width:860px){
+    .hero-grid{grid-template-columns:1fr;}
+    .hero-art{max-width:340px; margin:0 auto;}
+    .conn-row, .conn-row.rev{grid-template-columns:1fr; gap:20px;}
+    .conn-diagram{max-width:160px;}
+    .conn-row.rev .conn-diagram{order:0;}
+    .hub-wrap{grid-template-columns:1fr;}
+    .trust-grid{grid-template-columns:repeat(2,1fr); row-gap:26px;}
+    .dl-inner{flex-direction:column; align-items:flex-start;}
+    nav.links{display:none;}
+    .proof-cap{flex-direction:column; gap:4px;}
+    .trust{padding:34px 26px;}
+    .nav{height:auto; padding:14px 0;}
+    .brand-tag{display:none;}
+    .btn-sm{padding:9px 14px; font-size:0.78rem;}
+  }
+  @media (max-width:420px){
+    .brand-name{font-size:1rem;}
+    .btn-sm{padding:8px 11px; font-size:0.72rem;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="20" cy="20" r="19" stroke="var(--line-strong)" stroke-width="1"/>
+        <g stroke="var(--ink)" stroke-width="1.1">
+          <path d="M20 6 L11 14 M20 6 L29 14 M11 14 L8 20 M29 14 L32 20 M8 20 L20 20 M32 20 L20 20 M8 20 L11 27 M32 20 L29 27 M11 27 L20 34 M29 27 L20 34 M20 6 L20 20 M11 14 L20 20 M29 14 L20 20 M11 27 L20 20 M29 27 L20 20"/>
+        </g>
+        <g fill="var(--ink)">
+          <circle cx="20" cy="6" r="1.6"/><circle cx="11" cy="14" r="1.6"/><circle cx="29" cy="14" r="1.6"/>
+          <circle cx="8" cy="20" r="1.6"/><circle cx="32" cy="20" r="1.6"/><circle cx="11" cy="27" r="1.6"/>
+          <circle cx="29" cy="27" r="1.6"/><circle cx="20" cy="34" r="1.6"/><circle cx="20" cy="20" r="2"/>
+        </g>
+      </svg>
+      <span>
+        <span class="brand-name">Osmium Workshop</span>
+        <span class="brand-tag">local · no upload</span>
+      </span>
+    </a>
+    <nav class="links">
+      <a href="#proof">Look inside</a>
+      <a href="#features">Toolset</a>
+      <a href="#apps">Three apps</a>
+      <a href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">Source</a>
+    </nav>
+    <a class="btn btn-primary btn-sm" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download v1.6.0</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="rings" aria-hidden="true">
+      <svg width="1400" height="1400" viewBox="0 0 1400 1400">
+        <g fill="none" stroke="var(--line)" stroke-width="1">
+          <circle cx="700" cy="700" r="260"/><circle cx="700" cy="700" r="380"/>
+          <circle cx="700" cy="700" r="500"/><circle cx="700" cy="700" r="620"/>
+        </g>
+      </svg>
+    </div>
+    <div class="wrap hero-grid">
+      <div>
+        <span class="kicker-chip"><span class="dot"></span>v1.6.0 · Windows portable · Electron</span>
+        <h1 class="hero-title display">Every tag on your<br>dataset, <em>wired together.</em></h1>
+        <p class="hero-sub">A local-first tag editor for AI training images. Bulk tagging, standing correction rules, WD14 autotagging and direct ComfyUI sync — all offline, in one portable binary. Nothing uploads, nothing installs.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download for Windows</a>
+          <a class="btn btn-ghost" href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">View source on GitHub</a>
+        </div>
+        <div class="hero-meta">
+          <span><strong>Unzip → run.</strong> No installer.</span>
+          <span><strong>Every edit</strong> logged &amp; undoable.</span>
+          <span><strong>MIT-style</strong> Electron core.</span>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <svg viewBox="0 0 400 400">
+          <g fill="none" stroke="var(--ink)" stroke-width="1" opacity=".22">
+            <line x1="200" y1="40" x2="90" y2="120"/><line x1="200" y1="40" x2="310" y2="120"/>
+            <line x1="90" y1="120" x2="40" y2="200"/><line x1="310" y1="120" x2="360" y2="200"/>
+            <line x1="40" y1="200" x2="90" y2="280"/><line x1="360" y1="200" x2="310" y2="280"/>
+            <line x1="90" y1="280" x2="200" y2="360"/><line x1="310" y1="280" x2="200" y2="360"/>
+            <line x1="200" y1="40" x2="200" y2="200"/><line x1="90" y1="120" x2="200" y2="200"/>
+            <line x1="310" y1="120" x2="200" y2="200"/><line x1="40" y1="200" x2="200" y2="200"/>
+            <line x1="360" y1="200" x2="200" y2="200"/><line x1="90" y1="280" x2="200" y2="200"/>
+            <line x1="310" y1="280" x2="200" y2="200"/><line x1="200" y1="360" x2="200" y2="200"/>
+          </g>
+          <path class="edge-live r" d="M200 40 L200 200 L90 280" fill="none"/>
+          <path class="edge-live g" d="M40 200 L200 200 L310 120" fill="none" style="animation-delay:-1.8s"/>
+          <path class="edge-live b" d="M360 200 L200 200 L200 360" fill="none" style="animation-delay:-3.6s"/>
+          <g fill="var(--ink)">
+            <circle cx="200" cy="40" r="4"/><circle cx="90" cy="120" r="4"/><circle cx="310" cy="120" r="4"/>
+            <circle cx="40" cy="200" r="4"/><circle cx="360" cy="200" r="4"/><circle cx="90" cy="280" r="4"/>
+            <circle cx="310" cy="280" r="4"/><circle cx="200" cy="360" r="4"/><circle cx="200" cy="200" r="5.5"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROOF ============ -->
+  <section id="proof">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow-num mono">// 01 — the interface</span>
+        <h2>The real app, not a mockup.</h2>
+        <p>Every screen below is captured straight from the running build: dense, keyboard-and-mouse, built for people editing thousands of images in one sitting.</p>
+      </div>
+
+      <div class="proof-frame" style="margin-bottom:20px;">
+        <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+        <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+        <img src="assets/screenshot-gallery.png" alt="Osmium Workshop Gallery tab: tag filter sidebar with AND/OR/XOR search, dataset stats, and keyword-family sort." loading="lazy" />
+      </div>
+      <div class="proof-cap">
+        <span>fig. 01 — Gallery tab, filter sidebar</span>
+        <span>v1.6.0 · dark theme</span>
+      </div>
+
+      <div style="height:36px"></div>
+
+      <div class="proof-frame">
+        <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+        <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+        <img src="assets/screenshot-synthdat.png" alt="Osmium Workshop SynthDat Overseer tab: sampler, scheduler, pass seeds and CFG fields for ComfyUI-driven dataset generation." loading="lazy" />
+      </div>
+      <div class="proof-cap">
+        <span>fig. 02 — SynthDat Overseer, generation panel</span>
+        <span>drives your own ComfyUI</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FEATURES / CONNECTIONS ============ -->
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow-num mono">// 02 — the toolset</span>
+        <h2>Six ways it keeps a dataset honest.</h2>
+        <p>Every tool here writes to the same undo-able edit log, so nothing mutates your files silently.</p>
+      </div>
+
+      <div class="conn-row">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
+            <line x1="30" y1="40" x2="100" y2="100"/><line x1="30" y1="100" x2="100" y2="100"/><line x1="30" y1="160" x2="100" y2="100"/>
+            <line x1="100" y1="100" x2="170" y2="100"/>
+          </g>
+          <g fill="var(--red)"><circle cx="30" cy="40" r="4"/><circle cx="30" cy="100" r="4"/><circle cx="30" cy="160" r="4"/></g>
+          <circle cx="100" cy="100" r="6" fill="var(--ink)"/><circle cx="170" cy="100" r="4" fill="var(--green)"/></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>Tag Pruner — Unify &amp; Void</h3>
+          <p>Hand-pick a set of spelling variants or junk tags, then merge them into one clean name or delete them outright. Confirmed, logged, undoable — run several independent passes for unrelated tag families.</p>
+          <div class="tags"><span class="tag-chip">unify</span><span class="tag-chip">void</span><span class="tag-chip">mirror preview</span></div>
+        </div>
+      </div>
+
+      <div class="conn-row rev">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
+            <line x1="100" y1="100" x2="40" y2="60"/><line x1="100" y1="100" x2="40" y2="140"/>
+            <line x1="100" y1="100" x2="160" y2="60"/><line x1="100" y1="100" x2="160" y2="140"/>
+          </g>
+          <circle cx="100" cy="100" r="6" fill="var(--ink)"/>
+          <g fill="var(--blue)"><circle cx="40" cy="60" r="4"/><circle cx="40" cy="140" r="4"/><circle cx="160" cy="60" r="4"/><circle cx="160" cy="140" r="4"/></g></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>Retroactive Merge / Void rules</h3>
+          <p>Standing "these tags → this tag, or nothing" rules that auto-correct matching tags from any future source, whether it's WD14, hand typing, or imports. Typing a ruled tag by hand is blocked outright with a pointer to the rule, so cleanup never needs repeating.</p>
+          <div class="tags"><span class="tag-chip">standing rules</span><span class="tag-chip">per-image immunize</span><span class="tag-chip">pausable</span></div>
+        </div>
+      </div>
+
+      <div class="conn-row">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
+            <rect x="24" y="76" width="48" height="48" rx="2"/>
+            <line x1="72" y1="100" x2="176" y2="100"/>
+          </g>
+          <circle cx="176" cy="100" r="6" fill="var(--ink)"/>
+          <text x="30" y="105" font-family="JetBrains Mono, monospace" font-size="11" fill="var(--ink-soft)">WD14</text></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>WD14 autotagger, on your own ComfyUI</h3>
+          <p>Send one image or a whole selection to a WD14 node on your own ComfyUI instance and merge the returned tags straight in. Host, model and thresholds live in one settings panel; review-before-apply is optional. ComfyUI does the inference — Osmium ships no model of its own.</p>
+          <div class="tags"><span class="tag-chip">batch or single</span><span class="tag-chip">review modal</span></div>
+        </div>
+      </div>
+
+      <div class="conn-row rev">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200">
+          <circle cx="70" cy="100" r="5" fill="var(--ink)"/>
+          <g fill="none" stroke="var(--ink)" stroke-width="1.1" opacity=".8">
+            <line x1="70" y1="100" x2="130" y2="60"/><line x1="70" y1="100" x2="130" y2="100"/><line x1="70" y1="100" x2="130" y2="140"/>
+          </g>
+          <g fill="var(--green)"><circle cx="130" cy="60" r="3.4"/><circle cx="130" cy="100" r="3.4"/><circle cx="130" cy="140" r="3.4"/></g></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>SynthDat Overseer — grow a thin dataset</h3>
+          <p>Generate more images of a character you're training a LoRA on, ControlNet-posed from one reference. WD14-interrogate the reference for pose tags, generate a 1- or 2-pass image, then review before it's written — <strong>Accept</strong> saves straight into the dataset, <strong>Reject</strong> parks it in Disabled. Nothing is silently thrown away.</p>
+          <div class="tags"><span class="tag-chip">ControlNet pose</span><span class="tag-chip">crash-safe writes</span></div>
+        </div>
+      </div>
+
+      <div class="conn-row">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".7">
+            <line x1="30" y1="100" x2="70" y2="100"/><line x1="70" y1="100" x2="110" y2="100"/><line x1="110" y1="100" x2="150" y2="100"/><line x1="150" y1="100" x2="170" y2="100"/>
+          </g>
+          <g fill="var(--ink)"><circle cx="30" cy="100" r="3.5"/><circle cx="70" cy="100" r="3.5"/><circle cx="110" cy="100" r="3.5"/></g>
+          <circle cx="150" cy="100" r="5" fill="var(--red)"/></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>Undo/redo + a full edit log</h3>
+          <p>Every mutation, one tag, one merge, one mass rename, is undoable globally and individually, written to a per-folder <code class="mono">_tag_edit_log.json</code>. Reset a single image's edits, or audit an entire session after the fact.</p>
+          <div class="tags"><span class="tag-chip">global undo</span><span class="tag-chip">per-entry revert</span></div>
+        </div>
+      </div>
+
+      <div class="conn-row rev">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
+            <line x1="60" y1="60" x2="140" y2="140"/><line x1="140" y1="60" x2="60" y2="140"/>
+          </g>
+          <g fill="var(--blue)"><circle cx="60" cy="60" r="4"/><circle cx="140" cy="60" r="4"/><circle cx="60" cy="140" r="4"/><circle cx="140" cy="140" r="4"/></g></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>Master Tag Control — bulk passes</h3>
+          <p>Checkbox-select any slice of the gallery, then apply, remove, or conditionally-apply tags, dataset-wide rename/find-replace, or delete the selection. Locked and merge-immune images sit out of every mass op automatically.</p>
+          <div class="tags"><span class="tag-chip">conditional apply</span><span class="tag-chip">find &amp; replace</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ THREE APPS ============ -->
+  <section id="apps">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow-num mono">// 03 — one repo, three apps</span>
+        <h2>The dataset graph follows you off desktop.</h2>
+        <p>All three share the same renderer code and file conventions, so a folder tagged on desktop opens the same on mobile.</p>
+      </div>
+      <div class="hub-wrap">
+        <div class="hub-art" aria-hidden="true">
+          <svg viewBox="0 0 300 300">
+            <g fill="none" stroke="var(--ink)" stroke-width="1">
+              <line x1="150" y1="150" x2="150" y2="40" opacity=".9"/>
+              <line x1="150" y1="150" x2="250" y2="205" opacity=".45"/>
+              <line x1="150" y1="150" x2="50" y2="205" opacity=".45"/>
+            </g>
+            <circle cx="150" cy="150" r="7" fill="var(--ink)"/>
+            <circle cx="150" cy="40" r="10" fill="var(--ink)"/>
+            <circle cx="250" cy="205" r="6" fill="var(--green)"/>
+            <circle cx="50" cy="205" r="6" fill="var(--blue)"/>
+          </svg>
+        </div>
+        <div class="app-list">
+          <div class="app-item">
+            <div class="head"><span class="swatch" style="background:var(--ink)"></span><h3>Osmium Workshop — Desktop</h3></div>
+            <p>The full editor above. Portable Electron app for Windows: unzip, run, done.</p>
+          </div>
+          <div class="app-item">
+            <div class="head"><span class="swatch" style="background:var(--green)"></span><h3>Osmium Workshop — Mobile</h3></div>
+            <p>Android port for tagging on the go: touch layout, on-device WD14, ComfyUI generation over LAN/Tailscale. Sideloadable APK via GitHub Releases.</p>
+          </div>
+          <div class="app-item">
+            <div class="head"><span class="swatch" style="background:var(--blue)"></span><h3>Comfy Bridge</h3></div>
+            <p>An alternate, simplified ComfyUI web UI with a built-in workflow, for when you want your image without navigating a node graph. Desktop + Android.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TRUST STRIP ============ -->
+  <section>
+    <div class="wrap">
+      <div class="trust">
+        <div class="trust-grid">
+          <div class="trust-item"><span class="num display">0</span><span class="lbl mono">NETWORK CALLS BY DEFAULT</span></div>
+          <div class="trust-item"><span class="num display">100%</span><span class="lbl mono">EDITS LOGGED &amp; UNDOABLE</span></div>
+          <div class="trust-item"><span class="num display">1</span><span class="lbl mono">BINARY, NO INSTALLER</span></div>
+          <div class="trust-item"><span class="num display">3</span><span class="lbl mono">APPS, ONE FILE FORMAT</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DOWNLOAD ============ -->
+  <section>
+    <div class="wrap">
+      <div class="dl-band">
+        <div class="rings" aria-hidden="true" style="opacity:.5">
+          <svg width="900" height="900" viewBox="0 0 900 900"><g fill="none" stroke="var(--line)" stroke-width="1">
+            <circle cx="750" cy="80" r="180"/><circle cx="750" cy="80" r="280"/></g></svg>
+        </div>
+        <div class="dl-inner">
+          <div>
+            <h2 class="display">Get the current build.</h2>
+            <p>v1.6.0 · portable Windows build · no installer, no account, no upload.</p>
+          </div>
+          <div class="dl-ctas">
+            <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download v1.6.0</a>
+            <a class="btn btn-ghost" href="https://github.com/azozis9182/osmium-workshop#readme" target="_blank" rel="noopener">Read the full guide</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap footer-row">
+    <div class="footer-brand">
+      <svg width="18" height="18" viewBox="0 0 40 40" aria-hidden="true">
+        <g stroke="var(--ink-soft)" stroke-width="1.4"><line x1="20" y1="6" x2="8" y2="20"/><line x1="20" y1="6" x2="32" y2="20"/><line x1="8" y1="20" x2="20" y2="34"/><line x1="32" y1="20" x2="20" y2="34"/></g>
+        <circle cx="20" cy="20" r="2" fill="var(--ink-soft)"/>
+      </svg>
+      <span>osmium-workshop · built by azozis9182</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/azozis9182/osmium-workshop#readme" target="_blank" rel="noopener">README</a>
+      <a href="https://github.com/azozis9182/osmium-workshop/blob/main/USER_GUIDE.md" target="_blank" rel="noopener">User guide</a>
+      <a href="https://github.com/azozis9182/osmium-workshop/issues" target="_blank" rel="noopener">Issues</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
