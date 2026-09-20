@@ -670,16 +670,32 @@
   // varies with viewport width via text wrapping, so a fixed vh-offset
   // formula can't track it). scroll-margin-top on #demo (see CSS) makes the
   // anchor jump land the section exactly navH below the viewport top, which
-  // is the position this math assumes.
+  // is the position this math assumes. 480 is an empirically-checked floor
+  // (the embedded app's default Gallery view, sidebar included, renders
+  // without its own internal scrollbar at 480px) so a short viewport costs
+  // outer-page scrolling to reach the full iframe rather than showing a
+  // half-cut UI inside a correctly-fitted box.
   function sizeFrame(){
     var navH = header ? header.getBoundingClientRect().height : 0;
     var chromeInSection = bar.getBoundingClientRect().bottom - section.getBoundingClientRect().top;
     var safety = 16;
     var available = window.innerHeight - navH - chromeInSection - safety;
-    frame.style.height = Math.max(320, Math.round(available)) + 'px';
+    frame.style.height = Math.max(480, Math.round(available)) + 'px';
   }
   sizeFrame();
   window.addEventListener('resize', sizeFrame);
+  // The nav/heading/paragraph block above the iframe can reflow after this
+  // script's first pass — most commonly a web-font swap (fallback font's
+  // line-wrapping differs from Chakra Petch/IBM Plex Sans's, so the
+  // measured chrome height is briefly wrong until the real font loads) —
+  // and nothing else here would ever re-measure after that. ResizeObserver
+  // catches any such reflow directly rather than guessing at timeouts.
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(sizeFrame).observe(section.querySelector('.section-head'));
+  }
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(sizeFrame);
+  }
 
   // Lazy-load the ~20MB demo bundle only once it actually scrolls into view.
   var loaded = false;
