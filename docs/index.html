@@ -97,6 +97,15 @@
   @media (prefers-reduced-motion: reduce){
     :root{ transition:none; }
   }
+  /* Applied for one frame by JS when a fast/flung scroll already lands well
+     past the threshold before the crossing is even detected (rAF-throttled
+     sampling means a fling can jump straight from "well above" to "well
+     below" with no frame in between) — without this, that fling would still
+     play the full 1s fade from a scroll position the user has already left,
+     reading as "still light" for a second after they've stopped at the
+     bottom. Forces an instant flip instead; ordinary scrolling never
+     triggers it, so the animated fade is untouched. */
+  :root.night-snap{ transition:none; }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
   body{
@@ -809,9 +818,27 @@
   function measure(){
     threshold = featuresSection.getBoundingClientRect().top + window.scrollY;
   }
+  // How far past the threshold a single rAF-throttled sample is allowed to
+  // land before we treat it as a fling that skipped over the crossing
+  // rather than an ordinary scroll caught mid-transition.
+  var SNAP_DISTANCE = 250;
+  var wasNight = false;
   var ticking = false;
   function apply(){
-    document.documentElement.classList.toggle('night', window.scrollY >= threshold);
+    var isNight = window.scrollY >= threshold;
+    if (isNight !== wasNight && Math.abs(window.scrollY - threshold) > SNAP_DISTANCE) {
+      var root = document.documentElement;
+      root.classList.add('night-snap');
+      root.classList.toggle('night', isNight);
+      // Force layout so the transition:none above is actually committed
+      // before the class flips back off, otherwise the browser can coalesce
+      // both class changes into one style recalc and animate anyway.
+      void root.offsetHeight;
+      root.classList.remove('night-snap');
+    } else {
+      document.documentElement.classList.toggle('night', isNight);
+    }
+    wasNight = isNight;
     ticking = false;
   }
   function onScroll(){
