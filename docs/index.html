@@ -64,6 +64,7 @@
   .brand-name{font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
   .brand-tag{font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--ink-soft); letter-spacing:0.04em; text-transform:uppercase; display:block; margin-top:1px;}
   nav.links{display:flex; align-items:center; gap:28px;}
+  .nav-ctas{display:flex; align-items:center; gap:10px;}
   nav.links a{font-size:0.9rem; text-decoration:none; color:var(--ink-soft); transition:color .15s;}
   nav.links a:hover{color:var(--ink);}
   .btn{
@@ -180,6 +181,28 @@
   .app-item h3{font-family:'Chakra Petch',sans-serif; font-size:1.15rem; margin:0; font-weight:600;}
   .app-item p{margin:0; color:var(--ink-soft); font-size:0.95rem; padding-left:21px;}
 
+  /* ---------- live demo ---------- */
+  .demo-frame{border:1px solid var(--line-strong); background:var(--card);}
+  .demo-bar{
+    display:flex; align-items:center; gap:9px;
+    padding:10px 16px; border-bottom:1px solid var(--line-strong);
+    font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:var(--ink-soft);
+  }
+  .demo-bar-dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(63,157,79,.18); flex:none;}
+  .demo-bar a{margin-left:auto; text-decoration:none; color:var(--ink-soft); border-bottom:1px solid var(--line-strong);}
+  .demo-bar a:hover{color:var(--ink); border-color:var(--ink);}
+  #demoFrame{display:block; width:100%; height:760px; border:0; background:var(--ground-dim);}
+  .demo-fallback{
+    border:1px solid var(--line-strong); background:var(--card);
+    padding:32px; text-align:center;
+  }
+  .demo-fallback strong{display:block; font-family:'Chakra Petch',sans-serif; font-size:1.1rem; margin-bottom:8px;}
+  .demo-fallback p{color:var(--ink-soft); margin:0; max-width:52ch; margin-inline:auto;}
+  .demo-fallback a{color:var(--ink);}
+  @media (max-width:640px){
+    #demoFrame{height:560px;}
+  }
+
   /* ---------- download band ---------- */
   .dl-band{border:1px solid var(--line-strong); border-radius:6px; padding:56px 48px; position:relative; overflow:hidden; background:var(--card);}
   .dl-inner{position:relative; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:32px; flex-wrap:wrap;}
@@ -207,6 +230,9 @@
     .nav{height:auto; padding:14px 0;}
     .brand-tag{display:none;}
     .btn-sm{padding:9px 14px; font-size:0.78rem;}
+  }
+  @media (max-width:520px){
+    .nav-ctas .btn-ghost{display:none;}
   }
   @media (max-width:420px){
     .brand-name{font-size:1rem;}
@@ -274,7 +300,10 @@
       <a href="#apps">Three apps</a>
       <a href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">Source</a>
     </nav>
-    <a class="btn btn-primary btn-sm" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download v1.6.0</a>
+    <div class="nav-ctas">
+      <a class="btn btn-ghost btn-sm" href="#demo">Try it right here</a>
+      <a class="btn btn-primary btn-sm" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download v1.6.0</a>
+    </div>
   </div>
 </header>
 
@@ -385,6 +414,30 @@
       <div class="proof-cap">
         <span>SynthDat Overseer — generation panel</span>
         <span>talks to your own ComfyUI</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LIVE DEMO ============ -->
+  <section id="demo">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Try it right here</h2>
+        <p>This is the actual editor running in your browser, opening a folder you pick with your browser's own file access, not ours. No upload, no account, no server in between: your images and captions never leave this device. Works in Chrome and Edge on desktop.</p>
+      </div>
+
+      <div id="demoUnsupported" class="demo-fallback" hidden>
+        <strong>This browser can't run the live demo.</strong>
+        <p>It needs the File System Access API, which Chrome and Edge support and Firefox and Safari don't yet. <a href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download the desktop app</a> instead — it works everywhere.</p>
+      </div>
+
+      <div id="demoWrap" class="demo-frame">
+        <div class="demo-bar">
+          <span class="demo-bar-dot"></span>
+          <span>live · runs locally in this tab</span>
+          <a id="demoOpenTab" href="demo/index.html" target="_blank" rel="noopener">Open in a full tab ↗</a>
+        </div>
+        <iframe id="demoFrame" title="Osmium Workshop live demo" loading="lazy"></iframe>
       </div>
     </div>
   </section>
@@ -592,5 +645,32 @@
   </div>
 </footer>
 
+<script>
+(function(){
+  var wrap = document.getElementById('demoWrap');
+  var fallback = document.getElementById('demoUnsupported');
+  var frame = document.getElementById('demoFrame');
+  if (!('showDirectoryPicker' in window)) {
+    wrap.hidden = true;
+    fallback.hidden = false;
+    return;
+  }
+  // Lazy-load the ~20MB demo bundle only once it actually scrolls into view.
+  var loaded = false;
+  function load(){
+    if (loaded) return;
+    loaded = true;
+    frame.src = 'demo/index.html';
+  }
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if (e.isIntersecting) load(); });
+    }, { rootMargin: '400px' });
+    io.observe(wrap);
+  } else {
+    load();
+  }
+})();
+</script>
 </body>
 </html>
