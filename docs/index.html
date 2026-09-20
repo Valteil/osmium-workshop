@@ -191,9 +191,13 @@
   .demo-bar-dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(63,157,79,.18); flex:none;}
   .demo-bar a{margin-left:auto; text-decoration:none; color:var(--ink-soft); border-bottom:1px solid var(--line-strong);}
   .demo-bar a:hover{color:var(--ink); border-color:var(--ink);}
-  #demo{padding-top:48px; padding-bottom:64px;}
+  #demo{padding-top:48px; padding-bottom:64px; scroll-margin-top:84px;}
   #demo .section-head{margin-bottom:26px;}
-  #demoFrame{display:block; width:100%; height:min(900px, calc(100vh - 300px)); min-height:420px; border:0; background:var(--ground-dim);}
+  /* Real height is set in JS (measures actual rendered chrome, not a guessed
+     vh formula) so the whole section, heading through the iframe's bottom
+     edge, fits in one screen with no scrolling once you land on it. This is
+     just the pre-JS fallback for the instant before that script runs. */
+  #demoFrame{display:block; width:100%; height:600px; min-height:320px; border:0; background:var(--ground-dim);}
   .demo-fallback{
     border:1px solid var(--line-strong); background:var(--card);
     padding:32px; text-align:center;
@@ -203,7 +207,6 @@
   .demo-fallback a{color:var(--ink);}
   @media (max-width:640px){
     #demo{padding-top:32px; padding-bottom:48px;}
-    #demoFrame{height:min(560px, calc(100vh - 260px)); min-height:320px;}
   }
 
   /* ---------- download band ---------- */
@@ -653,11 +656,31 @@
   var wrap = document.getElementById('demoWrap');
   var fallback = document.getElementById('demoUnsupported');
   var frame = document.getElementById('demoFrame');
+  var bar = wrap.querySelector('.demo-bar');
+  var section = document.getElementById('demo');
+  var header = document.querySelector('header');
   if (!('showDirectoryPicker' in window)) {
     wrap.hidden = true;
     fallback.hidden = false;
     return;
   }
+
+  // Measured, not guessed: the sticky nav's real height plus the real
+  // rendered height of everything in this section above the iframe (which
+  // varies with viewport width via text wrapping, so a fixed vh-offset
+  // formula can't track it). scroll-margin-top on #demo (see CSS) makes the
+  // anchor jump land the section exactly navH below the viewport top, which
+  // is the position this math assumes.
+  function sizeFrame(){
+    var navH = header ? header.getBoundingClientRect().height : 0;
+    var chromeInSection = bar.getBoundingClientRect().bottom - section.getBoundingClientRect().top;
+    var safety = 16;
+    var available = window.innerHeight - navH - chromeInSection - safety;
+    frame.style.height = Math.max(320, Math.round(available)) + 'px';
+  }
+  sizeFrame();
+  window.addEventListener('resize', sizeFrame);
+
   // Lazy-load the ~20MB demo bundle only once it actually scrolls into view.
   var loaded = false;
   function load(){
