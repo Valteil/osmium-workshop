@@ -6,3 +6,5 @@ export * from './storage';
 export * from './lightbox';
 export * from './picker-modal';
 export * from './gallery';
+export * from './themes';
+export { THEMES, DEFAULT_THEME } from './theme-data';

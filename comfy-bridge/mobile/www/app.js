@@ -73,6 +73,8 @@
 
   const btnGenerate = $('btnGenerate');
   const btnStop = $('btnStop');
+  const btnImportGen = $('btnImportGen');
+  const importFileInput = $('importFileInput');
   const genStatus = $('genStatus');
   const livePreviewWrap = $('livePreviewWrap');
   const livePreview = $('livePreview');
@@ -285,6 +287,19 @@
 
   function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+  // /history image entry -> relative save path (the File Namer's scheme:
+  // rating folder / character folder / lora tail) kept inside the chosen
+  // save location — mirrors the desktop fix so the naming scheme survives
+  // the mirror copy instead of being flattened to "N.png" at the root.
+  // Same defensive sanitization as the desktop main process: this string
+  // comes from a remote server, so no `..`, no drive anchors.
+  function sanitizeRel(image) {
+    const raw = ((image.subfolder || '').replace(/\\/g, '/').replace(/\/+/g, '/') + '/' +
+      (image.filename || '').replace(/\\/g, '/'));
+    const parts = raw.split('/').filter((p) => p && p !== '.' && p !== '..' && !/^[A-Za-z]:$/.test(p));
+    return parts.length ? parts.join('/') : null;
+  }
+
   async function comfyQueueAndFetch(imageFilename, imageBytes, prompt) {
     let ws = null;
     try {
@@ -383,10 +398,10 @@
         const saveOutput = record.outputs && record.outputs['192'];
         const image = saveOutput && Array.isArray(saveOutput.images) && saveOutput.images[0];
         if (image) {
-          const result = { ok: true, imageBytes: await fetchViewImage(image) };
+          const result = { ok: true, imageBytes: await fetchViewImage(image), saveRel: sanitizeRel(image) };
           const pass1Output = record.outputs['192_pass1'];
           const pass1Image = pass1Output && Array.isArray(pass1Output.images) && pass1Output.images[0];
-          if (pass1Image) { try { result.pass1ImageBytes = await fetchViewImage(pass1Image); } catch (e) { /* optional */ } }
+          if (pass1Image) { try { result.pass1ImageBytes = await fetchViewImage(pass1Image); result.pass1SaveRel = sanitizeRel(pass1Image); } catch (e) { /* optional */ } }
           return result;
         }
         if (record.status && record.status.status_str === 'error') {
@@ -779,14 +794,18 @@
     }
     genStatus.style.display = 'none';
 
-    const n = await BridgeShared.nextFileNumber(mobileBackend());
+    // Save with the SAME name/scheme ComfyUI's SaveImage used (File Namer
+    // prefix chain), mirrored inside the chosen save folder — flat "N.png"
+    // numbering stays only as a fallback for server shapes without paths.
+    // Both copies share ComfyUI's own counter; no second counting pass.
+    const fallbackN = async () => await BridgeShared.nextFileNumber(mobileBackend());
     let saveFailed = false;
     if (res.pass1ImageBytes) {
-      const s1 = await saveBytes(res.pass1ImageBytes, n + '_pass1.png');
-      const s2 = await saveBytes(res.imageBytes, n + '.png');
+      const s1 = await saveBytes(res.pass1ImageBytes, res.pass1SaveRel || (await fallbackN()) + '_pass1.png');
+      const s2 = await saveBytes(res.imageBytes, res.saveRel || (await fallbackN()) + '.png');
       if (!s1 || !s2) saveFailed = true;
     } else if (res.imageBytes) {
-      const s = await saveBytes(res.imageBytes, n + '.png');
+      const s = await saveBytes(res.imageBytes, res.saveRel || (await fallbackN()) + '.png');
       if (!s) saveFailed = true;
     }
     if (saveFailed) {
@@ -803,8 +822,235 @@
   btnGenerate.addEventListener('click', generate);
   btnStop.addEventListener('click', comfyStopGeneration);
 
+  // ---------------- Import generation ----------------
+  // Same feature as the desktop Bridge: read a PNG saved by the integrated
+  // workflow and re-enter its full generation config. WebView file input +
+  // in-JS PNG chunk parser (ComfyUI embeds the queued prompt graph as a
+  // tEXt/iTXt chunk named "prompt"). Field mapping mirrors desktop's
+  // applyImportedPrompt (same template node ids either side).
+  function extractPngPromptChunks(buffer) {
+    const u8 = new Uint8Array(buffer);
+    if (u8.length < 8) return {};
+    for (let i = 0; i < 8; i++) if (u8[i] !== [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a][i]) return {};
+    const out = {};
+    let off = 8;
+    while (off + 12 <= u8.length) {
+      const len = new DataView(u8.buffer, u8.byteOffset + off).getUint32(0, false);
+      const type = String.fromCharCode(u8[off + 4], u8[off + 5], u8[off + 6], u8[off + 7]);
+      const data = u8.subarray(off + 8, off + 8 + len);
+      if (type === 'tEXt') {
+        const nul = data.indexOf(0);
+        if (nul > 0) out[td(latin1(data.subarray(0, nul)))] = td(latin1(data.subarray(nul + 1)));
+      } else if (type === 'iTXt') {
+        const nul = data.indexOf(0);
+        if (nul > 0) {
+          const keyword = td(latin1(data.subarray(0, nul)));
+          let p = nul + 1;
+          const compressionFlag = data[p]; p += 2;
+          while (p < data.length && data[p] !== 0) p++; p += 1;
+          while (p < data.length && data[p] !== 0) p++; p += 1;
+          let text = '';
+          if (compressionFlag === 1) {
+            try { text = pakoInflate(data.subarray(p)); } catch (e) { text = ''; }
+          } else {
+            text = td(latin1(data.subarray(p)));
+          }
+          if (text) out[keyword] = text;
+        }
+      }
+      off += 12 + len;
+      if (type === 'IEND') break;
+    }
+    return out;
+  }
+  const latin1 = (u8) => u8; // TextDecoder handles latin1 via 'latin1' label
+  const td = (u8) => new TextDecoder('latin1').decode(u8);
+  function pakoInflate(u8) { return td(inflateRaw(u8)); }
+  function inflateRaw(u8) {
+    // tEXt/iTXt "prompt" chunks from ComfyUI are plain text (uncompressed);
+    // compressed iTXt is a rare path — tiny raw-deflate fallback via
+    // DecompressionStream when available.
+    throw new Error('compressed iTXt metadata is not supported in this WebView');
+  }
+
+  function applyImportedPrompt(prompt) {
+    const inp = (id) => (prompt[id] && prompt[id].inputs) || {};
+    const s = (id, key) => { const v = inp(id)[key]; return v == null ? '' : String(v); };
+    function setVal(el, v) { if (v !== '') el.value = v; }
+    if (s('41', 'unet_name')) diffModel.value = s('41', 'unet_name');
+    if (s('51', 'lora_name') && s('51', 'lora_name') !== 'None') mainLora.value = s('51', 'lora_name');
+    if (s('249', 'clip_name')) clip.value = s('249', 'clip_name');
+    if (s('47:46', 'vae_name')) vae.value = s('47:46', 'vae_name');
+
+    const stackIds = [];
+    if (prompt['237']) stackIds.push('237');
+    for (const id of Object.keys(prompt)) {
+      if (/^237_extra_\d+$/.test(id)) stackIds.push(id);
+    }
+    stackIds.sort((a, b) => (a === '237' ? -1 : b === '237' ? 1 : parseInt(a.split('_')[2], 10) - parseInt(b.split('_')[2], 10)));
+    const rows = [];
+    for (const id of stackIds) {
+      const inputs = prompt[id].inputs;
+      for (let i = 1; i <= 4; i++) {
+        const slot = String(i).padStart(2, '0');
+        const name = inputs['lora_' + slot];
+        const str = inputs['strength_' + slot];
+        if (name && name !== 'None') rows.push({ n: String(name), s: (typeof str === 'number') ? str : (parseFloat(str) || 0) });
+      }
+    }
+    if (rows.length) {
+      for (const r of loraRows.slice()) {
+        loraRows = loraRows.filter((x) => x !== r);
+        r.row.remove();
+      }
+      for (const r of rows) addLoraRow(r.n, r.s);
+    }
+
+    if (prompt['240']) {
+      skipRefImage.checked = false;
+      lliteStrength.value = String(prompt['240'].inputs.strength != null ? prompt['240'].inputs.strength : 0);
+      lliteStartPercent.value = String(prompt['240'].inputs.start_percent != null ? prompt['240'].inputs.start_percent : 0);
+      lliteEndPercent.value = String(prompt['240'].inputs.end_percent != null ? prompt['240'].inputs.end_percent : 0);
+      llitePreserveWrapper.checked = Boolean(prompt['240'].inputs.preserve_wrapper);
+    } else {
+      skipRefImage.checked = true;
+    }
+    applySkipRefImageUI();
+    if (prompt['238']) {
+      setVal(resizeFit, s('238', 'fit'));
+      setVal(resizeMethod, s('238', 'method'));
+    }
+
+    setVal(global_, s('21', 'value'));
+    const perField = [
+      [rating, s('8', 'value')], [hair, s('12', 'value')], [face, s('15', 'value')],
+      [chest, s('18', 'value')], [body_, s('9', 'value')], [clothes, s('6', 'value')],
+      [limbs, s('20', 'value')], [sexual, s('14', 'value')], [pose, s('7', 'value')],
+      [extra, s('10', 'value')], [effects, s('13', 'value')], [scene, s('17', 'value')]
+    ];
+    const charVal = s('11', 'value');
+    const hasPerField = perField.some(([, v]) => v);
+    if (!hasPerField && s('21', 'value')) {
+      unifiedPromptMode.checked = true;
+      unifiedPrompt.value = s('21', 'value');
+      character.value = charVal;
+    } else {
+      unifiedPromptMode.checked = false;
+      unifiedPrompt.value = '';
+      character.value = charVal;
+      for (const [el, v] of perField) setVal(el, v);
+    }
+    applyUnifiedPromptModeUI();
+    setVal(negative, prompt['16'] && prompt['16'].inputs ? String(prompt['16'].inputs.text != null ? prompt['16'].inputs.text : '') : '');
+
+    setVal(sampler, s('168:167', 'sampler_name'));
+    setVal(scheduler, s('158:53', 'scheduler') || s('195', 'scheduler'));
+    if (s('158:53', 'steps')) steps1.value = s('158:53', 'steps');
+    setVal(cfg1, s('158:54', 'cfg'));
+    if (s('174:171', 'value')) width.value = s('174:171', 'value');
+    if (s('174:172', 'value')) height.value = s('174:172', 'value');
+    if (s('165', 'noise_seed')) seed1.value = s('165', 'noise_seed');
+
+    if (prompt['195']) {
+      use2Pass.checked = true;
+      if (s('227', 'noise_seed')) seed2.value = s('227', 'noise_seed');
+      if (s('195', 'steps')) steps2.value = s('195', 'steps');
+      denoise2.value = String(prompt['195'].inputs.denoise != null ? prompt['195'].inputs.denoise : 0.6);
+    } else {
+      use2Pass.checked = false;
+    }
+    pass2Fields.style.display = use2Pass.checked ? '' : 'none';
+    if (prompt['upscale_model_loader']) {
+      upscaleEnabled.checked = true;
+      upscaleModel.value = String(prompt['upscale_model_loader'].inputs.model_name != null ? prompt['upscale_model_loader'].inputs.model_name : '');
+      if (prompt['upscale_scale_192']) {
+        const sb = prompt['upscale_scale_192'].inputs.scale_by;
+        upscaleScaleBy.value = String((typeof sb === 'number') ? sb : (parseFloat(sb) || 1));
+      }
+    }
+    upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none';
+    scheduleUiSave();
+  }
+
+  btnImportGen.addEventListener('click', () => importFileInput.click());
+  importFileInput.addEventListener('change', async () => {
+    const file = importFileInput.files && importFileInput.files[0];
+    if (!file) return;
+    try {
+      const chunks = extractPngPromptChunks(await file.arrayBuffer());
+      const raw = chunks.prompt;
+      if (!raw) { alert('No embedded prompt metadata in that PNG — it may have been re-saved or stripped by another tool.'); return; }
+      const prompt = JSON.parse(raw);
+      for (const id of ['41', '51', '158:53', '158:54', '165']) {
+        if (!prompt[id] || !prompt[id].inputs) {
+          alert('That image was not generated with the integrated workflow (missing node "' + id + '").');
+          return;
+        }
+      }
+      applyImportedPrompt(prompt);
+      log('Imported generation settings from PNG.');
+    } catch (e) {
+      log('Import failed: ' + (e && e.message));
+    }
+    importFileInput.value = '';
+  });
+
+  // ---------------- UI state persistence ----------------
+  // Every field survives restarts (parity with the desktop Bridge): model
+  // picks, LoRA stack, prompts, resolution, sampling, 2-Pass, upscale —
+  // debounced snapshot on any edit, restored once here after defaults.
+  var UI_STATE_KEY = 'comfybridge-ui-state';
+  function captureUiState() {
+    const state = {};
+    document.querySelectorAll('input,select,textarea').forEach(function (el) {
+      if (!el.id) return;
+      if (el.type === 'checkbox') state[el.id] = el.checked;
+      else state[el.id] = el.value;
+    });
+    state[':loraRows'] = loraRows.map(function (r) { return { n: r.input.value, s: r.strength.value }; });
+    try { localStorage.setItem(UI_STATE_KEY, JSON.stringify(state)); } catch (e) { /* best effort */ }
+  }
+  function restoreUiState() {
+    let state;
+    try { state = JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}'); } catch (e) { return; }
+    document.querySelectorAll('input,select,textarea').forEach(function (el) {
+      if (!el.id || !(el.id in state)) return;
+      const v = state[el.id];
+      if (typeof v !== 'string' && typeof v !== 'boolean') return;
+      if (el.type === 'checkbox') el.checked = Boolean(v);
+      else if (typeof v === 'string') el.value = v;
+    });
+    const loras = state[':loraRows'];
+    if (Array.isArray(loras) && loras.length) {
+      for (const r of loraRows.slice()) {
+        loraRows = loraRows.filter((x) => x !== r);
+        r.row.remove();
+      }
+      for (const l of loras) addLoraRow(String(l.n != null ? l.n : ''), Number(l.s != null ? l.s : 1) || 1);
+    }
+    applySkipRefImageUI();
+    applyUnifiedPromptModeUI();
+    pass2Fields.style.display = use2Pass.checked ? '' : 'none';
+    upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none';
+  }
+  var uiSaveTimer = null;
+  function scheduleUiSave() {
+    if (uiSaveTimer) clearTimeout(uiSaveTimer);
+    uiSaveTimer = setTimeout(captureUiState, 250);
+  }
+  document.addEventListener('input', scheduleUiSave, true);
+  document.addEventListener('change', scheduleUiSave, true);
+  // Note: restoreUiState()/captureUiState() are invoked in the Init section
+  // below, AFTER the preset selects are populated — the selects need their
+  // options present before stored values can be re-applied.
+
   // ---------------- Init ----------------
 
+  // Themes: 25 Osmium palettes ship inside shared.js (single source with
+  // the desktop shell) — colors only, applied as CSS variables, picker
+  // popover in the topbar. Persisted per-device via comfybridge-theme.
+  BridgeShared.initTheme(BridgeShared.THEMES, BridgeShared.DEFAULT_THEME);
+  BridgeShared.mountThemePicker({ wrap: 'themeWrap', btn: 'themeBtn', btnLabel: 'themeBtnLabel', menu: 'themeMenu' });
   BridgeShared.attachPickerModal(diffModel, 'Diffusion model', () => BridgeShared.optionsFromDatalist(diffModelList));
   BridgeShared.attachPickerModal(clip, 'CLIP', () => BridgeShared.optionsFromDatalist(clipList));
   BridgeShared.attachPickerModal(vae, 'VAE', () => BridgeShared.optionsFromDatalist(vaeList));
@@ -813,5 +1059,7 @@
   preview.addEventListener('click', () => { if (preview.src) BridgeShared.showImageLightbox(preview.src); });
   initSafRoot();
   refreshPresetLists();
+  restoreUiState();
+  captureUiState();
   log('Comfy Bridge (mobile) ready. Enter your PC\'s ComfyUI address and Generate.');
 })();

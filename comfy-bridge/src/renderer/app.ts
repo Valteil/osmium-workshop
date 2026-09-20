@@ -7,7 +7,10 @@
 // `../../src/renderer/synthdat-overseer.ts`'s `buildPromptFromFields()` —
 // same fixed workflow template, so the node ids must match exactly.
 
-import { THEME_PALETTES, DEFAULT_THEME, type ThemePalette } from './themes';
+import {
+  initTheme, mountThemePicker, THEMES, DEFAULT_THEME
+} from './shared';
+export {};
 
 interface ElectronAPI {
   getAppVersion(): Promise<string>;
@@ -477,70 +480,14 @@ restoreUiState();
 captureUiState();
 
 // ---------------- Theme colors (Osmium palettes, colors only) ----------------
-// Each Osmium palette maps onto the Bridge's own variable set — COLORS
-// ONLY by design: no textures, no ambient animations, no hover-fill
-// flourishes, exactly per user spec.
-const themeKey = 'comfybridge-theme';
-function applyBridgeTheme(name: string): void {
-  const palette = THEME_PALETTES.find((t: ThemePalette) => t.name === name) ||
-    THEME_PALETTES.find((t: ThemePalette) => t.name === DEFAULT_THEME)!;
-  const s = document.documentElement.style;
-  const v = palette.vars;
-  s.setProperty('--bg', v['--bg-base']);
-  s.setProperty('--panel', v['--bg-panel']);
-  s.setProperty('--panel2', v['--bg-elevated']);
-  s.setProperty('--panel3', v['--bg-elevated-2']);
-  s.setProperty('--border', v['--border-soft']);
-  s.setProperty('--border-strong', v['--border-strong']);
-  s.setProperty('--text', v['--text-primary']);
-  s.setProperty('--muted', v['--text-muted']);
-  s.setProperty('--faint', v['--text-faint']);
-  s.setProperty('--accent', v['--accent-manual']);
-  s.setProperty('--accent-auto', v['--accent-auto']);
-  s.setProperty('--accent-danger', v['--accent-danger']);
-  s.setProperty('--accent-ok', v['--accent-success']);
-  document.documentElement.dataset.theme = palette.name;
-  try { localStorage.setItem(themeKey, palette.name); } catch { /* best effort */ }
-}
-let savedTheme = DEFAULT_THEME;
-try { savedTheme = localStorage.getItem(themeKey) || DEFAULT_THEME; } catch { /* best effort */ }
-applyBridgeTheme(savedTheme);
-// Custom dropdown (native <select>'s popup refused to expand in this
-// Electron window): button + absolutely-positioned popover. Closes on
-// outside click / Escape; the current palette is marked in the list.
-const themeBtn = $<HTMLButtonElement>('themeBtn');
-const themeBtnLabel = $<HTMLSpanElement>('themeBtnLabel');
-const themeMenu = $<HTMLDivElement>('themeMenu');
-function refreshThemeButton(): void {
-  const cur = THEME_PALETTES.find((t: ThemePalette) => t.name === (document.documentElement.dataset.theme || DEFAULT_THEME));
-  themeBtnLabel.textContent = cur ? cur.label : savedTheme;
-}
-function buildThemeMenu(): void {
-  themeMenu.innerHTML = '';
-  for (const t of THEME_PALETTES) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = 'theme-item' + (t.name === document.documentElement.dataset.theme ? ' current' : '');
-    item.textContent = t.label;
-    item.addEventListener('click', () => {
-      savedTheme = t.name;
-      applyBridgeTheme(t.name);
-      themeMenu.hidden = true;
-      refreshThemeButton();
-    });
-    themeMenu.appendChild(item);
-  }
-}
-themeBtn.addEventListener('click', () => {
-  if (!themeMenu.hidden) { themeMenu.hidden = true; return; }
-  buildThemeMenu();
-  themeMenu.hidden = false;
-});
-document.addEventListener('click', (ev) => {
-  if (!themeMenu.hidden && !document.getElementById('themeWrap')!.contains(ev.target as Node)) themeMenu.hidden = true;
-});
-themeMenu.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') themeMenu.hidden = true; });
-refreshThemeButton();
+// The 25 palettes and their CSS-variable mapping live in the shared module
+// (shared/themes.ts + shared/theme-data.ts) so desktop and mobile run the
+// same set — COLORS ONLY by design: no textures, no ambient animations, no
+// hover-fill flourishes, exactly per user spec. initTheme() reads the/
+// writes comfybridge-theme; mountThemePicker() wires the popover (native
+// <select> popup refused to expand in this Electron window).
+initTheme(THEMES, DEFAULT_THEME);
+mountThemePicker({ wrap: 'themeWrap', btn: 'themeBtn', btnLabel: 'themeBtnLabel', menu: 'themeMenu' });
 
 // ---------------- Output folder ----------------
 
