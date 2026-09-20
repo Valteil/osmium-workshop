@@ -15,7 +15,7 @@ import {
 export let folderStats: FolderStats = {};
 export let folderUnlocked: string[] = [];
 export let wallet = 0;
-export let ownedThemes: string[] = ['studio','cyberpunk','oriental','subway'];
+export let ownedThemes: string[] = ['studio','cyberpunk','oriental','subway','osmium'];
 export let achievementPopupsEnabled = true;
 
 interface AchievementsDeps {
@@ -164,7 +164,7 @@ export function loadWallet(): void {
   try {
     wallet = parseInt(localStorage.getItem('dts-wallet') || '0', 10) || 0;
     const owned = JSON.parse(localStorage.getItem('dts-owned-themes') || 'null');
-    if (Array.isArray(owned)) ownedThemes = Array.from(new Set(['studio','cyberpunk','oriental','subway', ...owned]));
+    if (Array.isArray(owned)) ownedThemes = Array.from(new Set(['studio','cyberpunk','oriental','subway','osmium', ...owned]));
   } catch(e){}
   saveWallet();
 }

@@ -22,7 +22,7 @@ verify at runtime launch the packaged exe as
 captured stderr for "Uncaught" (Electron does not forward renderer console output to the terminal
 by default).
 
-**Theme CSS system** (`renderer/styles.css`, 25 `html[data-theme="X"]` blocks — 4 free + 21 shop):
+**Theme CSS system** (`renderer/styles.css`, 26 `html[data-theme="X"]` blocks — 5 free + 21 shop):
 every theme defines the same variable set including `--accent-flair` (a third accent hue beyond
 `--accent-auto`/`--accent-manual`, used for baseline chrome like the active-tab underline so
 themes stay visually distinct even in undecorated UI). Any new/edited CSS var MUST be added to
@@ -500,3 +500,32 @@ fetch into that same handler's `Promise.all`, while keeping a dedicated `btnRefr
 listener for a standalone re-fetch. When wiring two "refresh X" buttons that both touch overlapping
 data, double-check each `addEventListener` target by name — it's easy to attach the wrong
 button's ref by visual proximity in a long wiring block like this one.
+
+**Osmium theme added (5th free theme, `html[data-theme="osmium"]`) — the app's own brand
+palette, reusing the exact token values from the GitHub Pages landing page (off-white
+`#f4f4f1` ground, near-black `#141412` ink, red/blue/green accent triad `#e14b3a`/`#3b76d6`/
+`#3f9d4f`) rather than inventing a new light palette.** Registered in three places, all
+required: the `<option value="osmium">` in `renderer/index.html`'s `#themeSelect` (the custom
+`.pdrop` dropdown reads this list live, no separate registration needed there), and BOTH
+`achievements.ts` `ownedThemes` arrays (`['studio','cyberpunk','oriental','subway','osmium']` —
+the initial default AND the `loadWallet()` load-time union-with-saved-state fallback; miss
+either and existing users either don't get the new free theme or it vanishes on next load).
+Signature detail: a thin hard-edged (not blended) red/green/blue strip under the topbar,
+`html[data-theme="osmium"] #topbar::after`, echoing the landing mark's own stripe rather than
+inventing a new motif — deliberately no shimmer/tilt/glow flourish beyond that, since "sleek"
+was the brief and the shop-tier themes already own the animated-flourish register.
+
+**Adding this theme surfaced a real, pre-existing bug class: several UI elements had their
+background hardcoded to a dark hex value instead of a theme var, invisible until the first
+non-dark theme actually got built.** `subway` (the only other free light theme) had the exact
+same defects and nobody had noticed, since dark themes' own `--bg-elevated`/`--bg-base` happen
+to sit close to the hardcoded values by coincidence. Fixed four spots — `button.danger-ghost`
+and `.ctx-item.ctx-item-danger:hover` (both `#2a1c20`, now `var(--bg-elevated)`), `.card
+.thumbwrap`/`.compact-card`/`.master-mini-cell` (all `#0f0e13`, now `var(--bg-base)`), and
+`button.primary:hover` (`#274653`, now `color-mix(in srgb, var(--accent-manual) 35%,
+var(--bg-panel))` since a flat var swap doesn't read as "hover" the way a mixed-toward-accent
+color does) — all confirmed near-identical to the old hardcoded value when computed against
+`studio`'s own tokens, so this cost dark themes nothing. If a future light theme still looks
+subtly wrong in one spot, grep `renderer/styles.css` for a bare `#` hex in a `background`/
+`border-color` declaration OUTSIDE an `html[data-theme=...]` block before assuming the new
+theme's own tokens are the problem — it's more likely another one of these.

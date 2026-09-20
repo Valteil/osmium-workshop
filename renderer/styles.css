@@ -242,6 +242,54 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="subway"] .chip{ font-weight:600; }
   html[data-theme="subway"] .card .thumbwrap{ border-radius: 10px 10px 0 0; }
 
+  /* Osmium — the app's own brand palette (same tokens as the GitHub Pages
+     landing page: off-white ground, near-black ink, red/green/blue accent
+     triad). Deliberately restrained: no shimmer/tilt/glow flourishes like
+     the shop-tier themes get — "sleek" is the brief, and a quiet flat theme
+     reads more premium here than another animated one would. The one
+     signature touch is the topbar's thin tri-color underline (below),
+     echoing the landing mark's own RGB stripe rather than inventing a new
+     motif. */
+  html[data-theme="osmium"]{
+    --bg-base:#f4f4f1;
+    --bg-panel:#ffffff;
+    --bg-elevated:#ececea;
+    --bg-elevated-2:#e3e3db;
+    --border-soft:#deded5;
+    --border-strong:#b7b7ae;
+    --text-primary:#141412;
+    --text-muted:#4a4a45;
+    --text-faint:#7a7a70;
+    --accent-auto:#e14b3a;
+    --accent-auto-dim:#f8ddd9;
+    --accent-manual:#3b76d6;
+    --accent-manual-dim:#dce8f9;
+    --accent-danger:#c9372a;
+    --accent-success:#3f9d4f;
+    --accent-flair:#3f9d4f;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --radius: 4px;
+  }
+  /* Quiet neutral topbar edge (not the generic accent-flair border every
+     other theme gets) plus a thin red/green/blue strip directly under it —
+     the same three swatches as the landing page's own corner mark, in the
+     same left-to-right order, as a hard-edged tricolor bar rather than a
+     blend so it reads as the mark, not a gradient. */
+  html[data-theme="osmium"] #topbar{
+    border-bottom: 1px solid var(--border-strong);
+    position: relative;
+  }
+  html[data-theme="osmium"] #topbar::after{
+    content:'';
+    position:absolute; left:0; right:0; bottom:-2px; height:2px;
+    background: linear-gradient(90deg,
+      var(--accent-auto) 0%, var(--accent-auto) 33.33%,
+      var(--accent-success) 33.33%, var(--accent-success) 66.66%,
+      var(--accent-manual) 66.66%, var(--accent-manual) 100%);
+    pointer-events: none;
+  }
+
   html[data-theme="terminal"]{
     --bg-base:#050805; --bg-panel:#0a120a; --bg-elevated:#0f1c0f; --bg-elevated-2:#142614;
     --border-soft:#1f4a1f88; --border-strong:#2f6b2f; --text-primary:#ccffcc; --text-muted:#6fbf6f;
@@ -1814,10 +1862,18 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     color: var(--accent-manual);
     font-weight: 600;
   }
-  button.primary:hover:not(:disabled) { background: #274653; }
+  /* Derived from the theme's own accent, not hardcoded — a hardcoded dark
+     teal here read fine as "darker than accent-manual-dim" on every dark
+     theme this shipped with, but inverted into a jarring dark flash against
+     a light theme's pale accent-manual-dim (subway, osmium). */
+  button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-manual) 35%, var(--bg-panel)); }
 
-  button.danger-ghost { color: var(--accent-danger); border-color: #5a2f38; background: #2a1c20; }
-  button.danger-ghost:hover:not(:disabled) { background: #37232a; }
+  /* Theme-aware, not hardcoded dark: a light theme (subway, osmium) needs a
+     light elevated box here too. bg-elevated/border-strong happen to sit
+     very close to the old hardcoded #2a1c20/#5a2f38 on studio (the default),
+     so this is a no-op there and a real fix everywhere lighter. */
+  button.danger-ghost { color: var(--accent-danger); border-color: var(--border-strong); background: var(--bg-elevated); }
+  button.danger-ghost:hover:not(:disabled) { background: var(--bg-elevated-2); }
 
   /* ---------- Shell layout ---------- */
 
@@ -2255,7 +2311,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     gap: 6px;
   }
   .compact-card{
-    position: relative; aspect-ratio: 1/1; background: #0f0e13; border-radius: 5px; overflow: hidden;
+    position: relative; aspect-ratio: 1/1; background: var(--bg-base); border-radius: 5px; overflow: hidden;
     cursor: zoom-in; border: 1px solid var(--border-soft);
     /* Same offscreen-skip the .card grid gets (renderer rationale above). */
     content-visibility: auto;
@@ -2302,7 +2358,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .master-mini-cell{
     position: relative; aspect-ratio: 1/1; border-radius: 4px; overflow: hidden;
-    cursor: pointer; border: 2px solid transparent; background: #0f0e13;
+    cursor: pointer; border: 2px solid transparent; background: var(--bg-base);
   }
   .master-mini-cell.selected{ border-color: var(--accent-manual); }
   .master-mini-cell img{ width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -2410,7 +2466,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     position: relative;
     width: 100%;
     aspect-ratio: 3 / 4;
-    background: #0f0e13;
+    background: var(--bg-base);
     cursor: zoom-in;
   }
   .card img {
@@ -2575,7 +2631,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      `all: unset` means a generic .danger-ghost class can't reliably layer
      color on top of it, so this is its own modifier instead. */
   .ctx-item.ctx-item-danger{ color: var(--accent-danger); }
-  .ctx-item.ctx-item-danger:hover, .ctx-item.ctx-item-danger:focus-visible{ background: #2a1c20; }
+  .ctx-item.ctx-item-danger:hover, .ctx-item.ctx-item-danger:focus-visible{ background: var(--bg-elevated); }
   .ctx-sep{ font-size: 10.5px; color: var(--text-faint); padding: 6px 8px 2px; }
   .ctx-words{ display: flex; flex-wrap: wrap; gap: 5px; padding: 2px 8px 6px; }
   .ctx-words button{ padding: 4px 9px; font-size: 11.5px; }

@@ -166,7 +166,7 @@ pack — see `ComfyUI-dependencies/`.)
 
 ## Themes & the shop economy
 
-25 themes total: 4 free and 21 in the **💰 Shop** (common → legendary, 40–750 Edibits).
+26 themes total: 5 free and 21 in the **💰 Shop** (common → legendary, 40–750 Edibits).
 Every theme pairs a palette with a real flourish (texture, animation, button shape); epic and
 legendary add a hover/click button-fill effect.
 

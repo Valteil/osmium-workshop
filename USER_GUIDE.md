@@ -350,7 +350,7 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
 
 ## Themes, Shop & Achievements
 
-25 themes total — 4 free, 21 in the **💰 Shop** (common → legendary, 40–750 Edibits, a small
+26 themes total — 5 free, 21 in the **💰 Shop** (common → legendary, 40–750 Edibits, a small
 in-app currency earned from achievements). Every theme has its own accent color and at least one
 real visual flourish beyond its palette. Epic/legendary themes get an extra hover-fill
 button effect; any cheaper theme can buy that same effect individually via the Shop's
