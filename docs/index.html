@@ -191,7 +191,9 @@
   .demo-bar-dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(63,157,79,.18); flex:none;}
   .demo-bar a{margin-left:auto; text-decoration:none; color:var(--ink-soft); border-bottom:1px solid var(--line-strong);}
   .demo-bar a:hover{color:var(--ink); border-color:var(--ink);}
-  #demoFrame{display:block; width:100%; height:760px; border:0; background:var(--ground-dim);}
+  #demo{padding-top:48px; padding-bottom:64px;}
+  #demo .section-head{margin-bottom:26px;}
+  #demoFrame{display:block; width:100%; height:min(760px, calc(100vh - 300px)); min-height:380px; border:0; background:var(--ground-dim);}
   .demo-fallback{
     border:1px solid var(--line-strong); background:var(--card);
     padding:32px; text-align:center;
@@ -200,7 +202,8 @@
   .demo-fallback p{color:var(--ink-soft); margin:0; max-width:52ch; margin-inline:auto;}
   .demo-fallback a{color:var(--ink);}
   @media (max-width:640px){
-    #demoFrame{height:560px;}
+    #demo{padding-top:32px; padding-bottom:48px;}
+    #demoFrame{height:min(560px, calc(100vh - 260px)); min-height:320px;}
   }
 
   /* ---------- download band ---------- */
