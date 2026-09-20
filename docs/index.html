@@ -80,15 +80,16 @@
     --pop-dur:.5s;
   }
   html.night{ --night:1; }
-  /* html.night is toggled by JS (see bottom of file) at a fixed scrollY
-     threshold — a physical scroll depth, not a percentage of page height,
-     so the demo iframe's own variable height never retimes it and it
-     always fires at the same point down the hero regardless of how tall
-     the rest of the page ends up. The actual color fade is driven entirely
-     by the --night transition above, not by this class toggle or by
-     scroll position directly — scrolling past the threshold just flips a
-     switch; CSS takes it from there over its own fixed 1s, so the fade's
-     pace never depends on how fast someone scrolls. Gated behind
+  /* html.night is toggled by JS (see bottom of file) the instant scroll
+     reaches #features ("The tools you'll actually use") — a real DOM
+     position, not a percentage of page height or a guessed pixel, so it
+     stays correct however long the hero or demo section end up, and
+     reverts above that point on scroll-up for free (the toggle just checks
+     current position, it isn't a one-shot trigger). The actual color fade
+     is driven entirely by the --night transition above, not by this class
+     toggle or by scroll position directly — crossing the boundary just
+     flips a switch; CSS takes it from there over its own fixed 1s, so the
+     fade's pace never depends on how fast someone scrolls. Gated behind
      reduced-motion: a full-page recolor is the kind of effect vestibular-
      motion-sensitive users flag, so under that preference the class still
      toggles (no dead functionality) but the transition above is skipped,
@@ -795,16 +796,22 @@
 })();
 
 (function(){
-  // Fixed physical scroll depth, not a fraction of page height — see the
-  // CSS comment on html.night. 550px lands partway through the hero, well
-  // before the demo section, matching where the old scroll-timeline window
-  // used to finish. rAF-throttled so this never adds scroll-jank; classList
-  // toggle is a no-op when already in the right state, so re-firing every
-  // frame while scrolling past the threshold costs nothing.
-  var THRESHOLD = 550;
+  // Threshold is #features' own top edge, not a hardcoded pixel — see the
+  // CSS comment on html.night. Night mode starts exactly at "The tools
+  // you'll actually use" and reverts above it on scroll-up. Measured live
+  // (not guessed) so it tracks the section's real position regardless of
+  // hero copy length or viewport width, and re-measured on resize since
+  // reflow moves it. rAF-throttled so this never adds scroll-jank;
+  // classList toggle is a no-op when already in the right state, so
+  // re-firing every frame while scrolling past the threshold costs nothing.
+  var featuresSection = document.getElementById('features');
+  var threshold = 0;
+  function measure(){
+    threshold = featuresSection.getBoundingClientRect().top + window.scrollY;
+  }
   var ticking = false;
   function apply(){
-    document.documentElement.classList.toggle('night', window.scrollY > THRESHOLD);
+    document.documentElement.classList.toggle('night', window.scrollY >= threshold);
     ticking = false;
   }
   function onScroll(){
@@ -813,8 +820,10 @@
       requestAnimationFrame(apply);
     }
   }
+  measure();
   apply();
   window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', function(){ measure(); apply(); });
 })();
 </script>
 </body>
