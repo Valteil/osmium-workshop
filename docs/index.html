@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Osmium Workshop — local-first dataset tag editor</title>
-<meta name="description" content="A portable, local-first dataset tag editor for AI training images. Undo-able edit logging, retroactive rule-based tag correction, WD14 autotagging, and direct ComfyUI syncing — all offline, in one binary." />
+<meta name="description" content="A portable, local-first dataset tag editor for AI training images. Undoable edit logging, retroactive rule-based tag correction, WD14 autotagging, and direct ComfyUI syncing, all offline, in one binary." />
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -122,7 +122,6 @@
   /* ---------- section scaffolding ---------- */
   section{position:relative; padding:88px 0;}
   .section-head{max-width:640px; margin-bottom:54px;}
-  .eyebrow-num{font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft); letter-spacing:.03em; display:block; margin-bottom:10px;}
   h2{font-family:'Chakra Petch',sans-serif; font-size:clamp(1.7rem,2.6vw,2.3rem); font-weight:600; margin:0 0 14px; line-height:1.15;}
   .section-head p{color:var(--ink-soft); font-size:1.02rem; max-width:60ch; margin:0;}
   .rule{height:1px; background:var(--line); border:0; margin:0;}
@@ -164,12 +163,6 @@
   .app-item h3{font-family:'Chakra Petch',sans-serif; font-size:1.15rem; margin:0; font-weight:600;}
   .app-item p{margin:0; color:var(--ink-soft); font-size:0.95rem; padding-left:21px;}
 
-  /* ---------- trust strip ---------- */
-  .trust{background:var(--ink); color:var(--ground); border-radius:6px; padding:46px 46px; }
-  .trust-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:28px;}
-  .trust-item .num{font-family:'Chakra Petch',sans-serif; font-size:1.7rem; font-weight:600; margin-bottom:6px; display:block;}
-  .trust-item .lbl{font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:#c9c9c2; letter-spacing:.03em;}
-
   /* ---------- download band ---------- */
   .dl-band{border:1px solid var(--line-strong); border-radius:6px; padding:56px 48px; position:relative; overflow:hidden; background:var(--card);}
   .dl-inner{position:relative; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:32px; flex-wrap:wrap;}
@@ -191,11 +184,9 @@
     .conn-diagram{max-width:160px;}
     .conn-row.rev .conn-diagram{order:0;}
     .hub-wrap{grid-template-columns:1fr;}
-    .trust-grid{grid-template-columns:repeat(2,1fr); row-gap:26px;}
     .dl-inner{flex-direction:column; align-items:flex-start;}
     nav.links{display:none;}
     .proof-cap{flex-direction:column; gap:4px;}
-    .trust{padding:34px 26px;}
     .nav{height:auto; padding:14px 0;}
     .brand-tag{display:none;}
     .btn-sm{padding:9px 14px; font-size:0.78rem;}
@@ -252,16 +243,16 @@
     <div class="wrap hero-grid">
       <div>
         <span class="kicker-chip"><span class="dot"></span>v1.6.0 · Windows portable · Electron</span>
-        <h1 class="hero-title display">Every tag on your<br>dataset, <em>wired together.</em></h1>
-        <p class="hero-sub">A local-first tag editor for AI training images. Bulk tagging, standing correction rules, WD14 autotagging and direct ComfyUI sync — all offline, in one portable binary. Nothing uploads, nothing installs.</p>
+        <h1 class="hero-title display">Stop hand-editing<br>4,000 <em>.txt files.</em></h1>
+        <p class="hero-sub">Osmium Workshop is a dataset tag editor for people training LoRAs and checkpoints. Bulk tag edits, standing correction rules, WD14 autotagging, ComfyUI sync. It runs on your machine, on your files, and doesn't phone home.</p>
         <div class="hero-ctas">
           <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download for Windows</a>
           <a class="btn btn-ghost" href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">View source on GitHub</a>
         </div>
         <div class="hero-meta">
-          <span><strong>Unzip → run.</strong> No installer.</span>
-          <span><strong>Every edit</strong> logged &amp; undoable.</span>
-          <span><strong>MIT-style</strong> Electron core.</span>
+          <span><strong>Unzip, run.</strong> No installer.</span>
+          <span><strong>Every edit</strong> logged and undoable.</span>
+          <span><strong>Zero</strong> telemetry.</span>
         </div>
       </div>
       <div class="hero-art" aria-hidden="true">
@@ -293,9 +284,8 @@
   <section id="proof">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow-num mono">// 01 — the interface</span>
-        <h2>The real app, not a mockup.</h2>
-        <p>Every screen below is captured straight from the running build: dense, keyboard-and-mouse, built for people editing thousands of images in one sitting.</p>
+        <h2>This is the actual app.</h2>
+        <p>Screenshots, not mockups, pulled straight off a running build. It's dense and keyboard-driven on purpose: you'll be here for thousands of images, not ten.</p>
       </div>
 
       <div class="proof-frame" style="margin-bottom:20px;">
@@ -304,8 +294,8 @@
         <img src="assets/screenshot-gallery.png" alt="Osmium Workshop Gallery tab: tag filter sidebar with AND/OR/XOR search, dataset stats, and keyword-family sort." loading="lazy" />
       </div>
       <div class="proof-cap">
-        <span>fig. 01 — Gallery tab, filter sidebar</span>
-        <span>v1.6.0 · dark theme</span>
+        <span>Gallery tab — filter sidebar, empty dataset</span>
+        <span>v1.6.0</span>
       </div>
 
       <div style="height:36px"></div>
@@ -316,8 +306,8 @@
         <img src="assets/screenshot-synthdat.png" alt="Osmium Workshop SynthDat Overseer tab: sampler, scheduler, pass seeds and CFG fields for ComfyUI-driven dataset generation." loading="lazy" />
       </div>
       <div class="proof-cap">
-        <span>fig. 02 — SynthDat Overseer, generation panel</span>
-        <span>drives your own ComfyUI</span>
+        <span>SynthDat Overseer — generation panel</span>
+        <span>talks to your own ComfyUI</span>
       </div>
     </div>
   </section>
@@ -326,9 +316,8 @@
   <section id="features">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow-num mono">// 02 — the toolset</span>
-        <h2>Six ways it keeps a dataset honest.</h2>
-        <p>Every tool here writes to the same undo-able edit log, so nothing mutates your files silently.</p>
+        <h2>The tools you'll actually use</h2>
+        <p>All six write to the same edit log. Nothing here silently rewrites your files behind your back.</p>
       </div>
 
       <div class="conn-row">
@@ -342,7 +331,7 @@
         </div>
         <div class="conn-copy">
           <h3>Tag Pruner — Unify &amp; Void</h3>
-          <p>Hand-pick a set of spelling variants or junk tags, then merge them into one clean name or delete them outright. Confirmed, logged, undoable — run several independent passes for unrelated tag families.</p>
+          <p>Pick a handful of spelling variants or junk tags. Merge them into one name, or just delete them. Every pass is confirmed and undoable, so run as many as you need without worrying about it.</p>
           <div class="tags"><span class="tag-chip">unify</span><span class="tag-chip">void</span><span class="tag-chip">mirror preview</span></div>
         </div>
       </div>
@@ -358,7 +347,7 @@
         </div>
         <div class="conn-copy">
           <h3>Retroactive Merge / Void rules</h3>
-          <p>Standing "these tags → this tag, or nothing" rules that auto-correct matching tags from any future source, whether it's WD14, hand typing, or imports. Typing a ruled tag by hand is blocked outright with a pointer to the rule, so cleanup never needs repeating.</p>
+          <p>Set a rule once ("these tags become this tag" or "these tags get deleted") and it keeps applying to anything that comes in later, from WD14, hand typing, or imports. Try to type a tag the rule already caught and it's blocked with a note pointing at the rule. You clean something up once.</p>
           <div class="tags"><span class="tag-chip">standing rules</span><span class="tag-chip">per-image immunize</span><span class="tag-chip">pausable</span></div>
         </div>
       </div>
@@ -374,7 +363,7 @@
         </div>
         <div class="conn-copy">
           <h3>WD14 autotagger, on your own ComfyUI</h3>
-          <p>Send one image or a whole selection to a WD14 node on your own ComfyUI instance and merge the returned tags straight in. Host, model and thresholds live in one settings panel; review-before-apply is optional. ComfyUI does the inference — Osmium ships no model of its own.</p>
+          <p>Send one image, or a whole selection, to a WD14 node running on your own ComfyUI. The returned tags get merged straight in. Host, model, and thresholds all live in one settings panel, and you can turn on review-before-apply if you don't trust it yet. Osmium doesn't ship a model of its own; ComfyUI does the actual work.</p>
           <div class="tags"><span class="tag-chip">batch or single</span><span class="tag-chip">review modal</span></div>
         </div>
       </div>
@@ -390,7 +379,7 @@
         </div>
         <div class="conn-copy">
           <h3>SynthDat Overseer — grow a thin dataset</h3>
-          <p>Generate more images of a character you're training a LoRA on, ControlNet-posed from one reference. WD14-interrogate the reference for pose tags, generate a 1- or 2-pass image, then review before it's written — <strong>Accept</strong> saves straight into the dataset, <strong>Reject</strong> parks it in Disabled. Nothing is silently thrown away.</p>
+          <p>Only have five good images of a character? Generate more, ControlNet-posed off one reference. It pulls pose tags from the reference automatically, runs a 1- or 2-pass generation, and shows you the result before anything's written. <strong>Accept</strong> puts it straight in the dataset; <strong>Reject</strong> parks it in Disabled instead of throwing it away.</p>
           <div class="tags"><span class="tag-chip">ControlNet pose</span><span class="tag-chip">crash-safe writes</span></div>
         </div>
       </div>
@@ -404,8 +393,8 @@
           <circle cx="150" cy="100" r="5" fill="var(--red)"/></svg>
         </div>
         <div class="conn-copy">
-          <h3>Undo/redo + a full edit log</h3>
-          <p>Every mutation, one tag, one merge, one mass rename, is undoable globally and individually, written to a per-folder <code class="mono">_tag_edit_log.json</code>. Reset a single image's edits, or audit an entire session after the fact.</p>
+          <h3>Undo/redo, and a real edit log</h3>
+          <p>One tag, one merge, one mass rename: it's all undoable, globally or one entry at a time, and it's all written to a per-folder <code class="mono">_tag_edit_log.json</code>. Reset a single image if you botched it, or go back through the whole session later and see what you actually did.</p>
           <div class="tags"><span class="tag-chip">global undo</span><span class="tag-chip">per-entry revert</span></div>
         </div>
       </div>
@@ -419,7 +408,7 @@
         </div>
         <div class="conn-copy">
           <h3>Master Tag Control — bulk passes</h3>
-          <p>Checkbox-select any slice of the gallery, then apply, remove, or conditionally-apply tags, dataset-wide rename/find-replace, or delete the selection. Locked and merge-immune images sit out of every mass op automatically.</p>
+          <p>Checkbox-select any slice of the gallery and apply, remove, or conditionally apply tags across all of it. Rename or find-and-replace dataset-wide, or delete the selection outright. Anything you've locked or marked merge-immune just sits out, no extra clicks needed.</p>
           <div class="tags"><span class="tag-chip">conditional apply</span><span class="tag-chip">find &amp; replace</span></div>
         </div>
       </div>
@@ -430,9 +419,8 @@
   <section id="apps">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow-num mono">// 03 — one repo, three apps</span>
-        <h2>The dataset graph follows you off desktop.</h2>
-        <p>All three share the same renderer code and file conventions, so a folder tagged on desktop opens the same on mobile.</p>
+        <h2>One repo, three apps</h2>
+        <p>They share the same renderer code and file conventions, so a folder tagged on desktop opens the same way on your phone.</p>
       </div>
       <div class="hub-wrap">
         <div class="hub-art" aria-hidden="true">
@@ -451,30 +439,16 @@
         <div class="app-list">
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--ink)"></span><h3>Osmium Workshop — Desktop</h3></div>
-            <p>The full editor above. Portable Electron app for Windows: unzip, run, done.</p>
+            <p>Everything shown on this page. Portable Electron app for Windows: unzip it, run it, that's it.</p>
           </div>
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--green)"></span><h3>Osmium Workshop — Mobile</h3></div>
-            <p>Android port for tagging on the go: touch layout, on-device WD14, ComfyUI generation over LAN/Tailscale. Sideloadable APK via GitHub Releases.</p>
+            <p>Android port for tagging on the go. Touch layout, on-device WD14, ComfyUI generation over LAN or Tailscale. Sideload the APK from GitHub Releases; it's not on the Play Store.</p>
           </div>
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--blue)"></span><h3>Comfy Bridge</h3></div>
-            <p>An alternate, simplified ComfyUI web UI with a built-in workflow, for when you want your image without navigating a node graph. Desktop + Android.</p>
+            <p>A simpler ComfyUI web UI with one built-in workflow, for when you just want the image without wrangling a node graph. Desktop and Android.</p>
           </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ TRUST STRIP ============ -->
-  <section>
-    <div class="wrap">
-      <div class="trust">
-        <div class="trust-grid">
-          <div class="trust-item"><span class="num display">0</span><span class="lbl mono">NETWORK CALLS BY DEFAULT</span></div>
-          <div class="trust-item"><span class="num display">100%</span><span class="lbl mono">EDITS LOGGED &amp; UNDOABLE</span></div>
-          <div class="trust-item"><span class="num display">1</span><span class="lbl mono">BINARY, NO INSTALLER</span></div>
-          <div class="trust-item"><span class="num display">3</span><span class="lbl mono">APPS, ONE FILE FORMAT</span></div>
         </div>
       </div>
     </div>
@@ -490,8 +464,8 @@
         </div>
         <div class="dl-inner">
           <div>
-            <h2 class="display">Get the current build.</h2>
-            <p>v1.6.0 · portable Windows build · no installer, no account, no upload.</p>
+            <h2 class="display">Get the current build</h2>
+            <p>v1.6.0, portable Windows build. No installer, no account, no data leaving your machine. It doesn't make a single network call unless you point it at your own ComfyUI.</p>
           </div>
           <div class="dl-ctas">
             <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download v1.6.0</a>
