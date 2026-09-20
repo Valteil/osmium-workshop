@@ -62,6 +62,7 @@
         <img id="livePreview">
       </div>
       <div id="previewWrap" class="preview-wrap">
+        <img id="pass1Preview" style="display:none">
         <img id="preview" style="display:none">
         <div id="previewEmpty" class="muted">No generation yet.</div>
       </div>
@@ -226,10 +227,13 @@
       <label class="chk-row"><input id="upscaleEnabled" type="checkbox"> Upscale by model before saving</label>
       <div id="upscaleModelRow">
         <label>Upscale model</label>
-        <input id="upscaleModel" type="text" readonly placeholder="Tap to choose…">
+        <input id="upscaleModel" type="text" readonly placeholder="Tap to choose?">
         <datalist id="upscaleModelList"></datalist>
         <label>Scale by (after model upscale, e.g. 0.5 to bring a 4x model back to 2x)</label>
         <input id="upscaleScaleBy" type="number" step="0.05" value="0.5">
+        <div class="row">
+          <button id="btnRefreshUpscaleModels">Refresh upscale models</button>
+        </div>
       </div>
     </section>
 

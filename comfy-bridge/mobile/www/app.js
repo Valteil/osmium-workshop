@@ -70,6 +70,7 @@
   const upscaleModel = $('upscaleModel');
   const upscaleModelList = $('upscaleModelList');
   const upscaleScaleBy = $('upscaleScaleBy');
+  const btnRefreshUpscaleModels = $('btnRefreshUpscaleModels');
 
   const btnGenerate = $('btnGenerate');
   const btnStop = $('btnStop');
@@ -79,6 +80,7 @@
   const livePreviewWrap = $('livePreviewWrap');
   const livePreview = $('livePreview');
   const preview = $('preview');
+  const pass1Preview = $('pass1Preview');
   const previewEmpty = $('previewEmpty');
   const logBox = $('log');
 
@@ -499,6 +501,20 @@
     log('Model lists refreshed from ComfyUI.');
   });
 
+  // Dedicated upscale refresh (parity with desktop's per-disk refresh
+  // button): the phone has no disk, so this queries the HOST's ComfyUI via
+  // /object_info — an independent, re-runnable refill for just the upscale
+  // list, without re-fetching every other model family.
+  btnRefreshUpscaleModels.addEventListener('click', async () => {
+    const res = await comfyGetObjectInfo('UpscaleModelLoader', 'model_name');
+    if (res.ok) {
+      fillDatalist(upscaleModelList, res.values);
+      log('Found ' + res.values.length + ' upscale model(s) on the host.');
+    } else {
+      log(res.error);
+    }
+  });
+
   // ---------------- LoRA stack rows ----------------
 
   let loraRows = [];
@@ -774,6 +790,7 @@
     btnStop.disabled = false;
     livePreview.src = '';
     livePreviewWrap.style.display = 'none';
+    pass1Preview.style.display = 'none';
     genStatus.style.display = 'block';
     genStatus.textContent = 'Generating… this can take a while.';
 
@@ -813,6 +830,14 @@
       genStatus.textContent = 'Generated, but saving failed — see Log for details.';
     }
     if (res.imageBytes) {
+      // 2-Pass shows BOTH passes in the generation area, pass 1 stacked
+      // above the final image (user spec); single-pass keeps one image.
+      if (res.pass1ImageBytes) {
+        pass1Preview.src = URL.createObjectURL(new Blob([res.pass1ImageBytes], { type: 'image/png' }));
+        pass1Preview.style.display = 'block';
+      } else {
+        pass1Preview.style.display = 'none';
+      }
       preview.src = URL.createObjectURL(new Blob([res.imageBytes], { type: 'image/png' }));
       preview.style.display = 'block';
       previewEmpty.style.display = 'none';
