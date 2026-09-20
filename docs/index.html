@@ -10,20 +10,83 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* Registered so --night is an animatable <number>, not an opaque token —
+     required for the scroll-driven keyframe below to interpolate it frame
+     by frame instead of flipping once at 50%. */
+  @property --night{
+    syntax:'<number>';
+    inherits:true;
+    initial-value:0;
+  }
   :root{
-    --ground:#f4f4f1;
-    --ground-dim:#ececE7;
-    --ink:#141412;
-    --ink-soft:#4a4a45;
-    --line:#d9d9d3;
-    --line-strong:#b7b7ae;
-    --red:#e14b3a;
-    --green:#3f9d4f;
-    --blue:#3b76d6;
-    --card:#ffffff;
+    --night:0;
+    /* Light and dark endpoints per token. Dark values are each token's own
+       light value with HSL lightness inverted (100−L) — the same mechanism
+       Osmium Workshop's own night-mode uses on its themes, not an unrelated
+       palette — then nudged lighter on the three accents only, since a
+       literal invert put red/blue at 3.4–3.5:1 against the inverted ground
+       (fails 4.5:1 body-text contrast); ink/ink-soft/green already cleared
+       it un-nudged. */
+    --ground-l:#f4f4f1;      --ground-d:#0e0e0b;
+    --ground-dim-l:#ececE7;  --ground-dim-d:#151513;
+    --card-l:#ffffff;        --card-d:#1a1a17;
+    --ink-l:#141412;         --ink-d:#ededeb;
+    --ink-soft-l:#4a4a45;    --ink-soft-d:#b0b0a8;
+    --line-l:#d9d9d3;        --line-d:#2c2c26;
+    --line-strong-l:#b7b7ae; --line-strong-d:#4a4a42;
+    --red-l:#e14b3a;         --red-d:#e56557;
+    --green-l:#3f9d4f;       --green-d:#62c072;
+    --blue-l:#3b76d6;        --blue-d:#5f8fdd;
+
+    /* The only things every rule in this file actually reads. Each is the
+       two endpoints above, mixed by --night — one driving number recolors
+       the whole page, nothing downstream needs to know an animation is
+       happening. */
+    --ground:color-mix(in srgb, var(--ground-l), var(--ground-d) calc(var(--night) * 100%));
+    --ground-dim:color-mix(in srgb, var(--ground-dim-l), var(--ground-dim-d) calc(var(--night) * 100%));
+    --card:color-mix(in srgb, var(--card-l), var(--card-d) calc(var(--night) * 100%));
+    --ink:color-mix(in srgb, var(--ink-l), var(--ink-d) calc(var(--night) * 100%));
+    --ink-soft:color-mix(in srgb, var(--ink-soft-l), var(--ink-soft-d) calc(var(--night) * 100%));
+    --line:color-mix(in srgb, var(--line-l), var(--line-d) calc(var(--night) * 100%));
+    --line-strong:color-mix(in srgb, var(--line-strong-l), var(--line-strong-d) calc(var(--night) * 100%));
+    --red:color-mix(in srgb, var(--red-l), var(--red-d) calc(var(--night) * 100%));
+    --green:color-mix(in srgb, var(--green-l), var(--green-d) calc(var(--night) * 100%));
+    --blue:color-mix(in srgb, var(--blue-l), var(--blue-d) calc(var(--night) * 100%));
     --radius:2px;
     --measure:70ch;
     --pop-dur:.5s;
+  }
+  /* Scroll-driven, not scroll-listened: the keyframe's 0→1 is mapped
+     directly onto scroll position by the browser's compositor, so this
+     never touches the main thread or a `scroll` event handler, stays
+     perfectly in sync under fast scrolling, and reverses for free on
+     scroll-up (a timeline scrubs both ways, a one-shot trigger wouldn't).
+     animation-range 0%–75% means fully dark just before the "Three apps"
+     section, holding through the download band and footer — `both` in the
+     shorthand is load-bearing here: without an explicit fill mode, --night
+     snaps back to its un-animated base value (0) the instant scroll passes
+     75%, undoing the whole effect for the last quarter of the page. Linear,
+     not an eased curve: this is scroll progress standing in for time, and the
+     table's own rule for that case ("constant motion, progress") is
+     linear — an eased curve here would make the page color feel like it's
+     lagging behind the scrollbar. Gated behind both reduced-motion (a
+     scroll-linked full-page recolor is the kind of effect vestibular-
+     motion-sensitive users flag, so this goes fully static rather than
+     just gentler) and feature support — no @supports match just leaves
+     --night at its initial 0, the light theme, permanently: a real
+     fallback, not a degraded one. */
+  @media (prefers-reduced-motion: no-preference){
+    @supports (animation-timeline: scroll()){
+      @keyframes nightify{
+        from{ --night:0; }
+        to{ --night:1; }
+      }
+      :root{
+        animation:nightify linear both;
+        animation-timeline:scroll(root);
+        animation-range:0% 75%;
+      }
+    }
   }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
@@ -51,7 +114,7 @@
   /* ---------- nav ---------- */
   header{
     position:sticky; top:0; z-index:20;
-    background:rgba(244,244,241,0.86);
+    background:color-mix(in srgb, var(--ground) 86%, transparent);
     backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line);
   }
@@ -92,7 +155,7 @@
     color:var(--ink-soft); border:1px solid var(--line-strong); border-radius:999px;
     padding:5px 12px 5px 8px; margin-bottom:26px;
   }
-  .kicker-chip .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(63,157,79,.18);}
+  .kicker-chip .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent);}
   h1.hero-title{
     font-size:clamp(2.6rem, 4.6vw, 4.1rem);
     line-height:1.03;
@@ -101,7 +164,7 @@
   }
   h1.hero-title em{
     font-style:normal; color:var(--ink);
-    background:linear-gradient(180deg, transparent 62%, rgba(63,157,79,.28) 62%);
+    background:linear-gradient(180deg, transparent 62%, color-mix(in srgb, var(--green) 28%, transparent) 62%);
   }
   .hero-sub{font-size:1.1rem; color:var(--ink-soft); max-width:46ch; margin:0 0 34px;}
   .hero-ctas{display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:30px;}
@@ -188,7 +251,7 @@
     padding:10px 16px; border-bottom:1px solid var(--line-strong);
     font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:var(--ink-soft);
   }
-  .demo-bar-dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(63,157,79,.18); flex:none;}
+  .demo-bar-dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent); flex:none;}
   .demo-bar a{margin-left:auto; text-decoration:none; color:var(--ink-soft); border-bottom:1px solid var(--line-strong);}
   .demo-bar a:hover{color:var(--ink); border-color:var(--ink);}
   #demo{padding-top:48px; padding-bottom:64px; scroll-margin-top:84px;}
