@@ -38,17 +38,33 @@
     --green-l:#3f9d4f;       --green-d:#62c072;
     --blue-l:#3b76d6;        --blue-d:#5f8fdd;
 
-    /* The only things every rule in this file actually reads. Each is the
-       two endpoints above, mixed by --night — one driving number recolors
-       the whole page, nothing downstream needs to know an animation is
-       happening. */
-    --ground:color-mix(in srgb, var(--ground-l), var(--ground-d) calc(var(--night) * 100%));
-    --ground-dim:color-mix(in srgb, var(--ground-dim-l), var(--ground-dim-d) calc(var(--night) * 100%));
-    --card:color-mix(in srgb, var(--card-l), var(--card-d) calc(var(--night) * 100%));
-    --ink:color-mix(in srgb, var(--ink-l), var(--ink-d) calc(var(--night) * 100%));
-    --ink-soft:color-mix(in srgb, var(--ink-soft-l), var(--ink-soft-d) calc(var(--night) * 100%));
-    --line:color-mix(in srgb, var(--line-l), var(--line-d) calc(var(--night) * 100%));
-    --line-strong:color-mix(in srgb, var(--line-strong-l), var(--line-strong-d) calc(var(--night) * 100%));
+    /* A steep, not linear, curve for background AND text alike. Text
+       committing to its target color quickly isn't enough on its own: a
+       BACKGROUND that still spends real scroll distance at ~50% gray has
+       mediocre contrast against text of *either* color while it's there
+       (measured 3.99:1 against fully-committed light text — still under
+       4.5:1) — the danger zone isn't "which color is text right now", it's
+       "how long does the background itself sit at medium gray". So both
+       move on the same fast curve: a clamp() centered on night=0.5 that
+       saturates within roughly 1/60th of the scroll-timeline's range either
+       side (about 15px of the 900px window below) — still a real
+       transition, not a hard cut, just compressed into a sliver of scroll
+       distance instead of spread across thousands of pixels. Accent colors
+       (red/green/blue) aren't body text and stay on the full smooth --night
+       curve — no contrast floor to protect there. */
+    --night-fast:clamp(0, calc((var(--night) - 0.5) * 60), 1);
+
+    /* The only things every rule in this file actually reads. Background
+       and text both mix on --night-fast; only the accents use the raw,
+       smooth --night. One driving number recolors the whole page, nothing
+       downstream needs to know an animation is happening. */
+    --ground:color-mix(in srgb, var(--ground-l), var(--ground-d) calc(var(--night-fast) * 100%));
+    --ground-dim:color-mix(in srgb, var(--ground-dim-l), var(--ground-dim-d) calc(var(--night-fast) * 100%));
+    --card:color-mix(in srgb, var(--card-l), var(--card-d) calc(var(--night-fast) * 100%));
+    --ink:color-mix(in srgb, var(--ink-l), var(--ink-d) calc(var(--night-fast) * 100%));
+    --ink-soft:color-mix(in srgb, var(--ink-soft-l), var(--ink-soft-d) calc(var(--night-fast) * 100%));
+    --line:color-mix(in srgb, var(--line-l), var(--line-d) calc(var(--night-fast) * 100%));
+    --line-strong:color-mix(in srgb, var(--line-strong-l), var(--line-strong-d) calc(var(--night-fast) * 100%));
     --red:color-mix(in srgb, var(--red-l), var(--red-d) calc(var(--night) * 100%));
     --green:color-mix(in srgb, var(--green-l), var(--green-d) calc(var(--night) * 100%));
     --blue:color-mix(in srgb, var(--blue-l), var(--blue-d) calc(var(--night) * 100%));
@@ -61,11 +77,17 @@
      never touches the main thread or a `scroll` event handler, stays
      perfectly in sync under fast scrolling, and reverses for free on
      scroll-up (a timeline scrubs both ways, a one-shot trigger wouldn't).
-     animation-range 0%–75% means fully dark just before the "Three apps"
-     section, holding through the download band and footer — `both` in the
-     shorthand is load-bearing here: without an explicit fill mode, --night
-     snaps back to its un-animated base value (0) the instant scroll passes
-     75%, undoing the whole effect for the last quarter of the page. Linear,
+     animation-range is in PIXELS (100px to 1000px), not percent — a
+     percentage range means "how far scrolled" and "how tall the page
+     happens to be" are the same input, so the demo iframe's own variable
+     height (420–900px depending on viewport, see its own sizing script)
+     would silently retime this every time that script changes it. A fixed
+     pixel window finishes at the same physical scroll depth — partway
+     through the hero, well before the demo section — no matter how long
+     the rest of the page is. `both` in the shorthand is load-bearing: without an explicit
+     fill mode, --night snaps back to its un-animated base value (0) the
+     instant scroll passes the range's end, undoing the whole effect for
+     the rest of the page. Linear,
      not an eased curve: this is scroll progress standing in for time, and the
      table's own rule for that case ("constant motion, progress") is
      linear — an eased curve here would make the page color feel like it's
@@ -84,7 +106,7 @@
       :root{
         animation:nightify linear both;
         animation-timeline:scroll(root);
-        animation-range:0% 75%;
+        animation-range:100px 1000px;
       }
     }
   }
@@ -114,8 +136,13 @@
   /* ---------- nav ---------- */
   header{
     position:sticky; top:0; z-index:20;
-    background:color-mix(in srgb, var(--ground) 86%, transparent);
-    backdrop-filter:blur(10px);
+    /* Solid, not translucent+blurred: a frosted-glass header sampling
+       whatever's scrolled underneath it, while that same underlying color
+       is being rewritten every scroll frame by the night-mode timeline,
+       is exactly the kind of layered-compositing combination that produces
+       a hazy double-exposure look instead of a clean transition. Opaque
+       var(--ground) sidesteps the interaction entirely. */
+    background:var(--ground);
     border-bottom:1px solid var(--line);
   }
   .nav{
