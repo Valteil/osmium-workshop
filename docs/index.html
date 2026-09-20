@@ -11,8 +11,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* Registered so --night is an animatable <number>, not an opaque token —
-     required for the scroll-driven keyframe below to interpolate it frame
-     by frame instead of flipping once at 50%. */
+     required for the transition below to interpolate it frame by frame
+     instead of flipping once at 50%. */
   @property --night{
     syntax:'<number>';
     inherits:true;
@@ -20,6 +20,12 @@
   }
   :root{
     --night:0;
+    /* Time-based, not scroll-linked: html.night (toggled by JS at a fixed
+       scrollY threshold, see script below) flips this 0→1 and this
+       transition spends a real 1s getting there regardless of scroll
+       speed — matches how every other dark-mode toggle reads, rather than
+       coupling the fade's pace to how fast someone happens to be scrolling. */
+    transition:--night 1s linear;
     /* Light and dark endpoints per token. Dark values are each token's own
        light value with HSL lightness inverted (100−L) — the same mechanism
        Osmium Workshop's own night-mode uses on its themes, not an unrelated
@@ -40,19 +46,20 @@
 
     /* A steep, not linear, curve for background AND text alike. Text
        committing to its target color quickly isn't enough on its own: a
-       BACKGROUND that still spends real scroll distance at ~50% gray has
-       mediocre contrast against text of *either* color while it's there
-       (measured 3.99:1 against fully-committed light text — still under
-       4.5:1) — the danger zone isn't "which color is text right now", it's
-       "how long does the background itself sit at medium gray". So both
-       move on the same fast curve: a clamp() centered on night=0.5 that
-       saturates within roughly 1/60th of the scroll-timeline's range either
-       side (about 15px of the 900px window below) — still a real
-       transition, not a hard cut, just compressed into a sliver of scroll
-       distance instead of spread across thousands of pixels. Accent colors
+       BACKGROUND that still spends real time at ~50% gray has mediocre
+       contrast against text of *either* color while it's there (measured
+       3.99:1 against fully-committed light text — still under 4.5:1) — the
+       danger zone isn't "which color is text right now", it's "how long
+       does the background itself sit at medium gray". So both move on the
+       same fast curve: a clamp() centered on night=0.5 that saturates
+       within roughly 1/6th of the 1s transition either side (about 165ms
+       of the full second, worst-instant contrast ~1:1 but brief — see the
+       Python contrast sweep this was checked against) — still a real
+       crossfade, not a hard cut, just compressed into a fraction of the
+       transition instead of smeared across the whole second. Accent colors
        (red/green/blue) aren't body text and stay on the full smooth --night
        curve — no contrast floor to protect there. */
-    --night-fast:clamp(0, calc((var(--night) - 0.5) * 60), 1);
+    --night-fast:clamp(0, calc((var(--night) - 0.5) * 6), 1);
 
     /* The only things every rule in this file actually reads. Background
        and text both mix on --night-fast; only the accents use the raw,
@@ -72,43 +79,22 @@
     --measure:70ch;
     --pop-dur:.5s;
   }
-  /* Scroll-driven, not scroll-listened: the keyframe's 0→1 is mapped
-     directly onto scroll position by the browser's compositor, so this
-     never touches the main thread or a `scroll` event handler, stays
-     perfectly in sync under fast scrolling, and reverses for free on
-     scroll-up (a timeline scrubs both ways, a one-shot trigger wouldn't).
-     animation-range is in PIXELS (100px to 1000px), not percent — a
-     percentage range means "how far scrolled" and "how tall the page
-     happens to be" are the same input, so the demo iframe's own variable
-     height (420–900px depending on viewport, see its own sizing script)
-     would silently retime this every time that script changes it. A fixed
-     pixel window finishes at the same physical scroll depth — partway
-     through the hero, well before the demo section — no matter how long
-     the rest of the page is. `both` in the shorthand is load-bearing: without an explicit
-     fill mode, --night snaps back to its un-animated base value (0) the
-     instant scroll passes the range's end, undoing the whole effect for
-     the rest of the page. Linear,
-     not an eased curve: this is scroll progress standing in for time, and the
-     table's own rule for that case ("constant motion, progress") is
-     linear — an eased curve here would make the page color feel like it's
-     lagging behind the scrollbar. Gated behind both reduced-motion (a
-     scroll-linked full-page recolor is the kind of effect vestibular-
-     motion-sensitive users flag, so this goes fully static rather than
-     just gentler) and feature support — no @supports match just leaves
-     --night at its initial 0, the light theme, permanently: a real
-     fallback, not a degraded one. */
-  @media (prefers-reduced-motion: no-preference){
-    @supports (animation-timeline: scroll()){
-      @keyframes nightify{
-        from{ --night:0; }
-        to{ --night:1; }
-      }
-      :root{
-        animation:nightify linear both;
-        animation-timeline:scroll(root);
-        animation-range:100px 1000px;
-      }
-    }
+  html.night{ --night:1; }
+  /* html.night is toggled by JS (see bottom of file) at a fixed scrollY
+     threshold — a physical scroll depth, not a percentage of page height,
+     so the demo iframe's own variable height never retimes it and it
+     always fires at the same point down the hero regardless of how tall
+     the rest of the page ends up. The actual color fade is driven entirely
+     by the --night transition above, not by this class toggle or by
+     scroll position directly — scrolling past the threshold just flips a
+     switch; CSS takes it from there over its own fixed 1s, so the fade's
+     pace never depends on how fast someone scrolls. Gated behind
+     reduced-motion: a full-page recolor is the kind of effect vestibular-
+     motion-sensitive users flag, so under that preference the class still
+     toggles (no dead functionality) but the transition above is skipped,
+     making it an instant, motion-free flip instead of a fade. */
+  @media (prefers-reduced-motion: reduce){
+    :root{ transition:none; }
   }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
@@ -806,6 +792,29 @@
   } else {
     load();
   }
+})();
+
+(function(){
+  // Fixed physical scroll depth, not a fraction of page height — see the
+  // CSS comment on html.night. 550px lands partway through the hero, well
+  // before the demo section, matching where the old scroll-timeline window
+  // used to finish. rAF-throttled so this never adds scroll-jank; classList
+  // toggle is a no-op when already in the right state, so re-firing every
+  // frame while scrolling past the threshold costs nothing.
+  var THRESHOLD = 550;
+  var ticking = false;
+  function apply(){
+    document.documentElement.classList.toggle('night', window.scrollY > THRESHOLD);
+    ticking = false;
+  }
+  function onScroll(){
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(apply);
+    }
+  }
+  apply();
+  window.addEventListener('scroll', onScroll, { passive: true });
 })();
 </script>
 </body>
