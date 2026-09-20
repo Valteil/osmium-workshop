@@ -158,9 +158,11 @@
           </div>
         </div>
         <label>Sampler</label>
-        <input id="sampler" type="text" value="res_multistep">
+        <input id="sampler" type="text" value="res_multistep" readonly>
+        <datalist id="samplerList"></datalist>
         <label>Scheduler</label>
-        <input id="scheduler" type="text" value="beta">
+        <input id="scheduler" type="text" value="beta" readonly>
+        <datalist id="schedulerList"></datalist>
         <label>Steps (pass 1)</label>
         <input id="steps1" type="number" value="25">
         <label>CFG (pass 1)</label>

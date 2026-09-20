@@ -499,7 +499,11 @@
     if (loraValues.ok) fillDatalist(loraList, loraValues.values);
     if (upscaleValues.ok) fillDatalist(upscaleModelList, upscaleValues.values);
     log('Model lists refreshed from ComfyUI.');
+    await refreshSamplerLists();
+    log('Sampler/scheduler options refreshed.');
   });
+
+
 
   // Dedicated upscale refresh (parity with desktop's per-disk refresh
   // button): the phone has no disk, so this queries the HOST's ComfyUI via
@@ -1081,8 +1085,23 @@
   BridgeShared.attachPickerModal(vae, 'VAE', () => BridgeShared.optionsFromDatalist(vaeList));
   BridgeShared.attachPickerModal(mainLora, 'Main LoRA', () => BridgeShared.optionsFromDatalist(mainLoraList));
   BridgeShared.attachPickerModal(upscaleModel, 'Upscale model', () => BridgeShared.optionsFromDatalist(upscaleModelList));
+  // Sampler/scheduler pickers: real option stores, same tap-to-pick modal
+  // as the model fields — source is the host's KSampler object_info (the
+  // canonical ComfyUI lists), fetched once at startup and refreshable via
+  // refreshSamplerLists() from the Refresh model lists button.
+  BridgeShared.attachPickerModal(sampler, 'Sampler', () => bridgeSamplerOptions);
+  BridgeShared.attachPickerModal(scheduler, 'Scheduler', () => bridgeSchedulerOptions);
+  let bridgeSamplerOptions = [];
+  let bridgeSchedulerOptions = [];
+  async function refreshSamplerLists() {
+    const res = await comfyGetObjectInfo('KSampler', 'sampler_name');
+    if (res.ok) bridgeSamplerOptions = res.values;
+    const res2 = await comfyGetObjectInfo('KSampler', 'scheduler');
+    if (res2.ok) bridgeSchedulerOptions = res2.values;
+  }
   preview.addEventListener('click', () => { if (preview.src) BridgeShared.showImageLightbox(preview.src); });
   initSafRoot();
+  refreshSamplerLists();
   refreshPresetLists();
   restoreUiState();
   captureUiState();

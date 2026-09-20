@@ -387,6 +387,24 @@ attachPickerModal(clip, 'CLIP', () => optionsFromDatalist(clipList));
 attachPickerModal(vae, 'VAE', () => optionsFromDatalist(vaeList));
 attachPickerModal(mainLora, 'Main LoRA', () => optionsFromDatalist(mainLoraList));
 attachPickerModal(upscaleModel, 'Upscale model', () => optionsFromDatalist(upscaleModelList));
+// Sampler/scheduler pickers — same tap-to-pick modal as the model fields,
+// option source = the host's KSampler object_info (the canonical ComfyUI
+// lists), fetched once at startup and via Refresh model lists. Fields are
+// readonly tap-targets now, so a stray keypress can no longer drift the
+// value off the list ComfyUI actually supports.
+// Desktop note: local disk doesn't hold these lists; they're live node
+// schema, hence the object_info fetch rather than a datalist copy.
+attachPickerModal(sampler, 'Sampler', () => bridgeSamplerOptions);
+attachPickerModal(scheduler, 'Scheduler', () => bridgeSchedulerOptions);
+let bridgeSamplerOptions: string[] = [];
+let bridgeSchedulerOptions: string[] = [];
+async function refreshSamplerLists(): Promise<void> {
+  const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'KSampler', inputName: 'sampler_name' });
+  if (res.ok && res.values) bridgeSamplerOptions = res.values;
+  const res2 = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'KSampler', inputName: 'scheduler' });
+  if (res2.ok && res2.values) bridgeSchedulerOptions = res2.values;
+}
+btnRefreshUpscaleModels.addEventListener('click', refreshSamplerLists);
 
 // Upscale models are read straight off disk (the local ComfyUI install's own
 // upscale_models folder), not via a live ComfyUI connection — refreshable
@@ -904,6 +922,7 @@ btnStop.addEventListener('click', async () => {
 // ---------------- Init ----------------
 
 mountGallerySidebar(desktopBackend, () => outputFolder || 'No folder chosen', { navigable: true });
+refreshSamplerLists();
 preview.addEventListener('click', () => { if (preview.src) showImageLightbox(preview.src); });
 window.electronAPI.getAppVersion().then((v) => { $<HTMLSpanElement>('appVersion').textContent = `v${v}`; }).catch(() => {});
 log('Comfy Bridge ready. Pick an output folder, set your host, and Generate.');
