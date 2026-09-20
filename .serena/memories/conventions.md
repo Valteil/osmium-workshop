@@ -459,3 +459,44 @@ feature note's code pointers — in the same session. `DEVELOPMENT_LOG.txt` is r
 project context/documentation (what a human, or Claude starting a fresh session, wants to read);
 this Serena memory graph is for code-navigation conventions. Update BOTH when a change is both —
 durable enough to explain in prose AND a convention worth Serena surfacing on its own.
+
+**Comfy Bridge: ComfyUI's `/object_info` combo-widget shape is NOT uniform across node
+types — a parser handling only one shape silently returns nothing for nodes using the other,
+on a completely healthy ComfyUI instance.** Found via `UpscaleModelLoader`'s `model_name` combo
+returning zero results while `UNETLoader`/`CLIPLoader`/`VAELoader`/`KSampler` combos on the exact
+same running ComfyUI instance worked fine. Two shapes exist side by side depending on which
+ComfyUI schema version the reporting node was last touched under: classic
+`[[...optionStrings], {meta}]` (element 0 IS the array — most nodes today) vs. the newer typed-
+widget `["COMBO", {options:[...], ...}]` (element 0 is the literal string `"COMBO"`; the real
+list is nested at element 1's `.options`). Both `comfy-bridge/src/main.ts`'s
+`synthdat-get-object-info` IPC handler (desktop) and `comfy-bridge/mobile/www/app.js`'s
+`comfyGetObjectInfo()` (mobile, hand-written JS with no shared TS source) now have their own
+`parseComboValues(nodeInfo, inputName)` helper trying the classic shape first, falling back to
+the typed-widget one — same fix duplicated in both files rather than shared, matching how
+`comfyGetObjectInfo`/`fetchComboValues` were already independently duplicated between desktop and
+mobile before this. If a future model dropdown (any `synthdatGetObjectInfo`/`comfyGetObjectInfo`
+caller) reports empty on a live, reachable ComfyUI, check this parser before assuming a
+connectivity or missing-custom-node problem — dump the raw `/object_info/<ClassType>` response
+and compare shapes.
+
+**Comfy Bridge desktop's upscale-model list used to be read straight off disk from a
+hardcoded personal path — deleted, now a third combo lookup via `fetchComboValues` like every
+other model dropdown.** `UPSCALE_MODELS_DIR = 'C:\\CMF\\ComfyUI_Windows_portable\\...'` in
+`main.ts` only ever pointed at the dev machine's own ComfyUI install; it read fine for local
+testing and would throw ENOENT for literally every other user, who each have ComfyUI installed
+somewhere else. Removed entirely (the `list-upscale-models` IPC handler, its
+`preload.ts` binding, and the renderer's `listUpscaleModels()` call) in favor of
+`fetchComboValues('UpscaleModelLoader', 'model_name')` — the same live-ComfyUI-query pattern
+already used for unet/clip/vae/lora, now made correct by the `parseComboValues` fix above. Mobile
+never had this problem since it was always a live query. Don't reach for "just read the user's
+local ComfyUI folder" for a future feature in this app; the app has no fixed install path to
+assume, on desktop or mobile — always ask the live ComfyUI instance.
+
+**`btnRefreshUpscaleModels` used to carry a second, wrongly-wired click listener
+(`refreshSamplerLists`, meant for `btnRefreshModels`) — a copy-paste bug, not intentional
+double-duty.** Fixed by moving sampler/scheduler refresh into `btnRefreshModels`'s own handler
+(matching mobile's structure, which already did this correctly) and merging the upscale-model
+fetch into that same handler's `Promise.all`, while keeping a dedicated `btnRefreshUpscaleModels`
+listener for a standalone re-fetch. When wiring two "refresh X" buttons that both touch overlapping
+data, double-check each `addEventListener` target by name — it's easy to attach the wrong
+button's ref by visual proximity in a long wiring block like this one.

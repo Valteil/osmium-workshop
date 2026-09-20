@@ -259,13 +259,32 @@
   // three server-side requirements, not just --listen.
   function corsHint() { return ' — could not reach it from inside the app (this can happen even when the same address loads in the phone browser). Make sure: (1) ComfyUI was started with --listen 0.0.0.0 --enable-cors-header --port 8188, (2) Windows Firewall allows inbound TCP 8188 on this network (Private/Domain for LAN, and re-allow if a hotspot flips it to Public), (3) Tailscale is connected on BOTH devices if using a 100.x address.'; }
 
+  // A combo widget's option list sits in one of two shapes depending on
+  // which ComfyUI schema version the node reporting it was last touched
+  // under: classic `[[...options], {meta}]` (element 0 IS the array — most
+  // nodes, including UNETLoader/CLIPLoader/VAELoader/KSampler as of current
+  // ComfyUI) or the newer typed-widget `["COMBO", {options:[...], ...}]`
+  // (element 0 is the literal string "COMBO", the real list is nested at
+  // element 1's `options`). UpscaleModelLoader reports the newer shape even
+  // on a ComfyUI build where every other node here still uses the classic
+  // one, confirmed by querying both from the same running instance — so a
+  // parser that only understood the classic shape silently found nothing
+  // for upscale models specifically while every other dropdown kept
+  // working, on any host, dev machine included.
+  function parseComboValues(nodeInfo, inputName) {
+    const raw = nodeInfo && nodeInfo.input && nodeInfo.input.required && nodeInfo.input.required[inputName];
+    if (!Array.isArray(raw)) return null;
+    if (Array.isArray(raw[0])) return raw[0];
+    if (raw[0] === 'COMBO' && raw[1] && Array.isArray(raw[1].options)) return raw[1].options;
+    return null;
+  }
+
   async function comfyGetObjectInfo(classType, inputName) {
     try {
       const res = await fetch(new URL('/object_info/' + encodeURIComponent(classType), getHost()));
       if (!res.ok) return { ok: false, error: 'ComfyUI returned HTTP ' + res.status + ' looking up ' + classType + '.' };
       const parsed = await res.json();
-      const nodeInfo = parsed[classType];
-      const values = nodeInfo && nodeInfo.input && nodeInfo.input.required && nodeInfo.input.required[inputName] && nodeInfo.input.required[inputName][0];
+      const values = parseComboValues(parsed[classType], inputName);
       if (!Array.isArray(values)) return { ok: false, error: 'Could not find "' + inputName + '" on ' + classType + '.' };
       return { ok: true, values };
     } catch (err) {

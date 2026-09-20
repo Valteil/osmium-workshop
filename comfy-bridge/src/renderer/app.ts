@@ -17,7 +17,6 @@ interface ElectronAPI {
   pickOutputFolder(): Promise<{ ok: boolean; path?: string }>;
   importWorkflow(): Promise<{ ok: boolean; cancelled?: boolean; error?: string; prompt?: Record<string, any> }>;
   saveImage(payload: { folder: string; filename: string; bytes: Uint8Array }): Promise<{ ok: boolean; error?: string }>;
-  listUpscaleModels(): Promise<{ ok: boolean; values?: string[]; error?: string }>;
   listPresets(): Promise<{ ok: boolean; promptPresetNames?: string[]; negativePresetNames?: string[]; error?: string }>;
   savePreset(payload: { kind: 'prompt' | 'negative'; name: string; value: unknown }): Promise<{ ok: boolean; error?: string }>;
   loadPreset(payload: { kind: 'prompt' | 'negative'; name: string }): Promise<{ ok: boolean; value?: unknown; error?: string }>;
@@ -364,19 +363,23 @@ async function fetchComboValues(classType: string, inputName: string): Promise<s
 }
 
 btnRefreshModels.addEventListener('click', async () => {
-  const [unetValues, clipValues, vaeValues, mainLoraValues, loraValues] = await Promise.all([
+  const [unetValues, clipValues, vaeValues, mainLoraValues, loraValues, upscaleValues] = await Promise.all([
     fetchComboValues('UNETLoader', 'unet_name'),
     fetchComboValues('CLIPLoader', 'clip_name'),
     fetchComboValues('VAELoader', 'vae_name'),
     fetchComboValues('DSM Lora Name', 'lora_name'),
-    fetchComboValues('DSM Lora Loader Stack', 'lora_01')
+    fetchComboValues('DSM Lora Loader Stack', 'lora_01'),
+    fetchComboValues('UpscaleModelLoader', 'model_name')
   ]);
   if (unetValues) fillDatalist(diffModelList, unetValues);
   if (clipValues) fillDatalist(clipList, clipValues);
   if (vaeValues) fillDatalist(vaeList, vaeValues);
   if (mainLoraValues) fillDatalist(mainLoraList, mainLoraValues);
   if (loraValues) { loraCombo = loraValues; fillDatalist(loraList, loraValues); }
+  if (upscaleValues) fillDatalist(upscaleModelList, upscaleValues);
   log('Model lists refreshed.');
+  await refreshSamplerLists();
+  log('Sampler/scheduler options refreshed.');
 });
 
 // Model fields are readonly tap-targets opening the shared picker modal
@@ -404,19 +407,16 @@ async function refreshSamplerLists(): Promise<void> {
   const res2 = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'KSampler', inputName: 'scheduler' });
   if (res2.ok && res2.values) bridgeSchedulerOptions = res2.values;
 }
-btnRefreshUpscaleModels.addEventListener('click', refreshSamplerLists);
-
-// Upscale models are read straight off disk (the local ComfyUI install's own
-// upscale_models folder), not via a live ComfyUI connection — refreshable
-// independently of "Refresh model lists" above, and loaded once at startup.
-async function refreshUpscaleModels(): Promise<void> {
-  const res = await window.electronAPI.listUpscaleModels();
-  if (!res.ok) { log(res.error || 'Could not list upscale models.'); return; }
-  fillDatalist(upscaleModelList, res.values || []);
-  log(`Found ${(res.values || []).length} upscale model(s) on disk.`);
-}
-btnRefreshUpscaleModels.addEventListener('click', refreshUpscaleModels);
-refreshUpscaleModels();
+// Dedicated upscale refresh, independent of "Refresh model lists" above —
+// same live ComfyUI query (object_info has no on-disk fallback; this app
+// has no fixed install path to read from, unlike the parent project's own
+// dev machine this used to assume — see fetchComboValues/parseComboValues).
+btnRefreshUpscaleModels.addEventListener('click', async () => {
+  const values = await fetchComboValues('UpscaleModelLoader', 'model_name');
+  if (!values) return;
+  fillDatalist(upscaleModelList, values);
+  log(`Found ${values.length} upscale model(s) on the host.`);
+});
 initPresets();
 
 // ---------------- LoRA stack rows ----------------

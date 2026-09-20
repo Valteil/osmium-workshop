@@ -7,7 +7,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveImage: (payload) => ipcRenderer.invoke('save-image', payload),
   galleryListDir: (payload) => ipcRenderer.invoke('gallery-list-dir', payload),
   galleryRead: (payload) => ipcRenderer.invoke('gallery-read', payload),
-  listUpscaleModels: () => ipcRenderer.invoke('list-upscale-models'),
   listPresets: () => ipcRenderer.invoke('list-presets'),
   savePreset: (payload) => ipcRenderer.invoke('save-preset', payload),
   loadPreset: (payload) => ipcRenderer.invoke('load-preset', payload),

@@ -204,23 +204,6 @@ ipcMain.handle('gallery-read', async (event, { folder, relPath }) => {
   }
 });
 
-// Upscale models are listed straight off disk rather than via ComfyUI's
-// /object_info (every other model/LoRA dropdown's approach) — this list
-// doesn't need a live ComfyUI connection to populate, and the user's actual
-// upscale_models folder is this fixed local ComfyUI portable install.
-const UPSCALE_MODELS_DIR = 'C:\\CMF\\ComfyUI_Windows_portable\\ComfyUI\\models\\upscale_models';
-const UPSCALE_MODEL_EXTENSIONS = new Set(['.pth', '.safetensors', '.pt', '.bin', '.ckpt']);
-
-ipcMain.handle('list-upscale-models', () => {
-  try {
-    const names = fs.readdirSync(UPSCALE_MODELS_DIR)
-      .filter((name) => UPSCALE_MODEL_EXTENSIONS.has(path.extname(name).toLowerCase()))
-      .sort();
-    return { ok: true, values: names };
-  } catch (err) {
-    return { ok: false, error: `Could not read ${UPSCALE_MODELS_DIR}: ${err.message}` };
-  }
-});
 
 // ---------------- ComfyUI bridge ----------------
 // Copied verbatim from Osmium Workshop's src/main.ts (SynthDat Overseer
@@ -258,13 +241,31 @@ function buildMultipart(fields, fileField, fileName, fileBuffer) {
   return { boundary, body: Buffer.concat(parts) };
 }
 
+// A combo widget's option list sits in one of two shapes depending on which
+// ComfyUI schema version the node reporting it was last touched under:
+// classic `[[...options], {meta}]` (element 0 IS the array — most nodes,
+// including UNETLoader/CLIPLoader/VAELoader/KSampler as of this ComfyUI
+// build) or the newer typed-widget `["COMBO", {options:[...], ...}]`
+// (element 0 is the literal string "COMBO", the real list is nested at
+// element 1's `options`). UpscaleModelLoader reports the newer shape even
+// on a ComfyUI build where every other node here still uses the classic
+// one — confirmed by querying both from the same running instance — so a
+// parser that only understood the classic shape silently found nothing for
+// upscale models specifically while every other dropdown kept working.
+function parseComboValues(nodeInfo, inputName) {
+  const raw = nodeInfo && nodeInfo.input && nodeInfo.input.required && nodeInfo.input.required[inputName];
+  if (!Array.isArray(raw)) return null;
+  if (Array.isArray(raw[0])) return raw[0];
+  if (raw[0] === 'COMBO' && raw[1] && Array.isArray(raw[1].options)) return raw[1].options;
+  return null;
+}
+
 ipcMain.handle('synthdat-get-object-info', async (event, { host, classType, inputName }) => {
   try {
     const res = await comfyRequest(host, `/object_info/${encodeURIComponent(classType)}`, { timeoutMs: 6000 });
     if (res.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${res.status} looking up ${classType}.` };
     const parsed = JSON.parse(res.body.toString('utf8'));
-    const nodeInfo = parsed[classType];
-    const values = nodeInfo && nodeInfo.input && nodeInfo.input.required && nodeInfo.input.required[inputName] && nodeInfo.input.required[inputName][0];
+    const values = parseComboValues(parsed[classType], inputName);
     if (!Array.isArray(values)) return { ok: false, error: `Could not find "${inputName}" on ${classType} — is the right custom node installed?` };
     return { ok: true, values };
   } catch (err) {
