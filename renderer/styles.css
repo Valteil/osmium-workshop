@@ -2753,7 +2753,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .ac-row-count{ color: var(--text-faint); font-size: 10.5px; }
   .ac-flash-card{
     margin: 2px 0 4px; padding: 8px; opacity: 0; transform: translateY(-4px);
-    background: var(--bg-base); border-radius: 5px; border-left: 2px solid var(--accent-manual);
+    background: var(--bg-base); border-radius: 5px; border: 1px solid var(--accent-manual);
     transition: opacity 0.15s ease, transform 0.15s ease;
   }
   .ac-flash-card.show{ opacity: 1; transform: translateY(0); }
@@ -2943,6 +2943,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   ::-webkit-scrollbar-track { background: var(--bg-base); }
   ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; border: 2px solid var(--bg-base); }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+  /* Browser-drawn controls that no theme block reaches otherwise: the Settings
+     font-size slider rendered stock Chromium blue (the one control Chromium
+     paints from its own UI palette, not from our vars), and text selection
+     shipped default. accent-color follows the existing checkbox pattern. */
+  input[type="range"]{ accent-color: var(--accent-manual); }
+  ::selection{ background: var(--accent-manual); color: var(--bg-base); }
 
   @media (max-width: 1400px) {
     /* Narrower default left-column width at this breakpoint, but the right
