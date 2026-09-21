@@ -106,7 +106,7 @@
     </nav>
     <div class="nav-ctas">
       <a class="btn btn-ghost btn-sm" href="index.html#demo">Try it right here</a>
-      <a class="btn btn-primary btn-sm" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download v1.6.0</a>
+      <a class="btn btn-primary btn-sm" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download <span data-latest-ver>v1.6.0</span></a>
     </div>
   </div>
 </header>
@@ -168,6 +168,16 @@
       document.getElementById('doc-content').innerHTML =
         '<p>Couldn\'t load the readme content. <a href="https://github.com/Valteil/osmium-workshop#readme" target="_blank" rel="noopener">Read it on GitHub instead</a>.</p>';
     });
+  // Keeps the Download button's version in sync with the latest release,
+  // same fetch index.html uses, so this page never goes stale again.
+  fetch('https://api.github.com/repos/Valteil/osmium-workshop/releases/latest')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(rel){
+      if (rel && rel.tag_name){
+        document.querySelectorAll('[data-latest-ver]').forEach(function(el){ el.textContent = rel.tag_name; });
+      }
+    })
+    .catch(function(){ /* leave the static "v1.6.0" text in place */ });
 })();
 </script>
 </body>
