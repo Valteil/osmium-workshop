@@ -148,7 +148,6 @@
   .brand{display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--ink);}
   .brand svg{display:block;}
   .brand-name{font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
-  .brand-tag{font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--ink-soft); letter-spacing:0.04em; text-transform:uppercase; display:block; margin-top:1px;}
   nav.links{display:flex; align-items:center; gap:28px;}
   .nav-ctas{display:flex; align-items:center; gap:10px;}
   nav.links a{font-size:0.9rem; text-decoration:none; color:var(--ink-soft); transition:color .15s;}
@@ -320,7 +319,6 @@
     nav.links{display:none;}
     .proof-cap{flex-direction:column; gap:4px;}
     .nav{height:auto; padding:14px 0;}
-    .brand-tag{display:none;}
     .btn-sm{padding:9px 14px; font-size:0.78rem;}
   }
   @media (max-width:520px){
@@ -381,10 +379,7 @@
         <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(66.22 44.1) rotate(45)"/>
         <rect class="n-center" x="-5.2" y="-5.2" width="10.4" height="10.4" transform="translate(125 125) rotate(45)"/>
       </svg>
-      <span>
-        <span class="brand-name">Osmium Workshop</span>
-        <span class="brand-tag">local · no upload</span>
-      </span>
+      <span class="brand-name">Osmium Workshop</span>
     </a>
     <nav class="links">
       <a href="#proof">Look inside</a>
@@ -515,7 +510,7 @@
     <div class="wrap">
       <div class="section-head">
         <h2>Try it right here</h2>
-        <p>This is the actual editor running in your browser, opening a folder you pick with your browser's own file access, not ours. No upload, no account, no server in between: your images and captions never leave this device. Works in Chrome and Edge on desktop.</p>
+        <p>This is the actual editor, running right in your browser — open a folder with your browser's own file access and try it for real. Works in Chrome and Edge on desktop.</p>
       </div>
 
       <div id="demoUnsupported" class="demo-fallback" hidden>
@@ -526,7 +521,7 @@
       <div id="demoWrap" class="demo-frame">
         <div class="demo-bar">
           <span class="demo-bar-dot"></span>
-          <span>live · runs locally in this tab</span>
+          <span>live demo</span>
           <a id="demoOpenTab" href="demo/index.html" target="_blank" rel="noopener">Open in a full tab ↗</a>
         </div>
         <iframe id="demoFrame" title="Osmium Workshop live demo" loading="lazy"></iframe>
@@ -687,7 +682,7 @@
         <div class="dl-inner">
           <div>
             <h2 class="display">Get the current build</h2>
-            <p>v1.6.0, portable Windows build. No installer, no account, no data leaving your machine. It doesn't make a single network call unless you point it at your own ComfyUI.</p>
+            <p>v1.6.0, portable Windows build. No installer, no account. It doesn't make a single network call unless you point it at your own ComfyUI.</p>
           </div>
           <div class="dl-ctas">
             <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download v1.6.0</a>
