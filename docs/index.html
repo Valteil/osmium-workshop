@@ -483,7 +483,7 @@
     </nav>
     <div class="nav-ctas">
       <a class="btn btn-ghost btn-sm" href="#demo">Try it right here</a>
-      <a class="btn btn-primary btn-sm" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download <span data-latest-ver>v1.6.0</span></a>
+      <a class="btn btn-primary btn-sm" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download <span data-latest-ver>v1.6.0</span></a>
     </div>
   </div>
 </header>
@@ -507,8 +507,8 @@
         <p class="hero-sub hero-sub-first">You ever see a LoRA out there that looks great, and you wanna make one yourself... but all that comes out is a mess?</p>
         <p class="hero-sub">Datasets are the foundation of good LoRAs, and mistagging or undertagging kills the output. Osmium Workshop is a free, feature-dense dataset manager that gets you from raw images to a clean, tagged dataset in hours instead of days. Hand-edited quality, none of the overwhelm.</p>
         <div class="hero-ctas">
-          <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download for Windows</a>
-          <a class="hero-cta-secondary" href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">View source on GitHub →</a>
+          <a class="btn btn-primary" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download for Windows</a>
+          <a class="hero-cta-secondary" href="https://github.com/Valteil/osmium-workshop" target="_blank" rel="noopener">View source on GitHub →</a>
         </div>
         <div class="hero-meta">
           <span><strong>Portable.</strong> Unzip and use immediately.</span>
@@ -578,7 +578,7 @@
 
       <div id="demoUnsupported" class="demo-fallback" hidden>
         <strong>This browser can't run the live demo.</strong>
-        <p>It needs the File System Access API. Chrome and Edge support it. Firefox and Safari don't, not yet. <a href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download the desktop app</a> instead. It works everywhere.</p>
+        <p>It needs the File System Access API. Chrome and Edge support it. Firefox and Safari don't, not yet. <a href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download the desktop app</a> instead. It works everywhere.</p>
       </div>
 
       <div id="demoWrap" class="demo-frame">
@@ -844,7 +844,7 @@
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--ink)"></span><h3>Osmium Workshop — Desktop</h3></div>
             <p>Everything shown on this page, as a portable Electron app for Windows. Unzip it and run it.</p>
-            <a class="btn btn-ghost btn-sm app-dl" data-dl="osmium-desktop" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download (Windows)</a>
+            <a class="btn btn-ghost btn-sm app-dl" data-dl="osmium-desktop" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download (Windows)</a>
           </div>
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--green)"></span><h3>Osmium Workshop — Mobile</h3></div>
@@ -854,8 +854,8 @@
             <div class="head"><span class="swatch" style="background:var(--blue)"></span><h3>Comfy Bridge</h3></div>
             <p>A simpler ComfyUI web UI with one built-in workflow, for when you just want the image without wrangling a node graph. Desktop and Android.</p>
             <div class="app-item-ctas">
-              <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-desktop" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Windows</a>
-              <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-android" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
+              <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-desktop" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Windows</a>
+              <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-android" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
             </div>
           </div>
         </div>
@@ -891,13 +891,13 @@
         <line x1="125" y1="125" x2="66.22" y2="44.1" class="l-spoke-b"/>
         <circle class="l-node" cx="125" cy="125" r="7"/>
       </svg>
-      <span>osmium-workshop · built by azozis9182</span>
+      <span>osmium-workshop · built by Valteil</span>
     </div>
     <div class="footer-links">
-      <a href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/Valteil/osmium-workshop" target="_blank" rel="noopener">GitHub</a>
       <a href="readme.html">README</a>
       <a href="guide.html">User guide</a>
-      <a href="https://github.com/azozis9182/osmium-workshop/issues" target="_blank" rel="noopener">Issues</a>
+      <a href="https://github.com/Valteil/osmium-workshop/issues" target="_blank" rel="noopener">Issues</a>
     </div>
   </div>
 </footer>
@@ -1095,7 +1095,7 @@
     { attr: 'cbridge-desktop', re: /^Comfy\.Bridge-.*-win\.zip$/ },
     { attr: 'cbridge-android', re: /^ComfyBridge-.*-android\.apk$/ }
   ];
-  fetch('https://api.github.com/repos/azozis9182/osmium-workshop/releases/latest')
+  fetch('https://api.github.com/repos/Valteil/osmium-workshop/releases/latest')
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(rel){
       if (!rel) return;
