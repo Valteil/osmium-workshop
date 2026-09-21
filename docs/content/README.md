@@ -69,13 +69,14 @@ Three related apps share this repository (and much of their renderer code):
    also does on-device WD14 tagging, downloading the model on first use, plus tagging and
    generation against your own ComfyUI instance over the network. Distributed as a sideloadable
    APK through GitHub Releases, not the Play Store.
-3. **Comfy Bridge** (`comfy-bridge/`) — a simpler front end for the ComfyUI backend, built around
-   one workflow instead of an open node graph. You give up some flexibility for that, but you
-   also skip wiring up nodes just to get an image out. Ships as a portable desktop app (extract,
-   launch, done) and as an Android app (`comfy-bridge/mobile/`). Both need the custom node bundle
-   from the release assets. On mobile, ComfyUI has to be reachable over LAN, Tailscale, or a
-   hotspot: start it with `--listen 0.0.0.0 --enable-cors-header --port 8188` and open inbound
-   TCP 8188 in your firewall.
+3. **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
+   featuring a built-in workflow: no node graph to navigate, every generation saves straight to
+   disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
+   Documents/). Both builds share the gallery sidebar (browse subfolders, sort by name/date, pin
+   favorites), model picker modals, and the zoomable image lightbox. Mobile details live in
+   `comfy-bridge/mobile/README.md`; to reach ComfyUI from a phone, start it with `--listen
+   0.0.0.0 --enable-cors-header` (ComfyUI already listens on 8188 by default) and allow inbound
+   TCP 8188 through the firewall.
 
 The rest of this document describes the desktop dataset manager. On mobile, read the in-app ❓
 Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in

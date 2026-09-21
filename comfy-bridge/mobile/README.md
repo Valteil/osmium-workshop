@@ -99,8 +99,8 @@ cd android
 - **ComfyUI must be reachable as a remote URL**: enter a LAN IP
   (`http://192.168.x.x:8188`), hotspot gateway IP, or Tailscale IP/hostname
   (`http://100.x.y.z:8188`) — not `127.0.0.1`, which means "this phone" here.
-  Start it with `--listen 0.0.0.0 --enable-cors-header --port 8188` and make
-  sure Windows Firewall allows inbound TCP 8188 from other devices on your
+  Start it with `--listen 0.0.0.0 --enable-cors-header` (ComfyUI already listens on 8188 by
+  default) and make sure Windows Firewall allows inbound TCP 8188 from other devices on your
   network. Loading the address in the phone's browser does NOT prove the app
   can reach it (top-level navigation needs no CORS/mixed-content allowance;
   the app's `fetch()` from its `https://localhost` WebView needs both) —

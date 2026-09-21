@@ -300,7 +300,7 @@
         <button id="connInfoClose" class="gen-settings-close" title="Close">✕</button>
       </div>
       <div class="info-modal-body">
-        Enter your PC's reachable address — LAN IP (<code>http://192.168.x.x:8188</code>), hotspot gateway IP, or Tailscale IP/hostname (<code>http://100.x.y.z:8188</code>). Not <code>127.0.0.1</code> — that means "this phone" here. ComfyUI must run with <code>--listen 0.0.0.0 --enable-cors-header --port 8188</code>, and Windows Firewall must allow inbound TCP 8188. Note: the address loading in the phone's browser does NOT prove the app can reach it — the app needs CORS headers + cleartext allowed, the browser navigation needs neither.
+        Enter your PC's reachable address — LAN IP (<code>http://192.168.x.x:8188</code>), hotspot gateway IP, or Tailscale IP/hostname (<code>http://100.x.y.z:8188</code>). Not <code>127.0.0.1</code> — that means "this phone" here. ComfyUI must run with <code>--listen 0.0.0.0 --enable-cors-header</code> (it already listens on 8188 by default), and Windows Firewall must allow inbound TCP 8188. Note: the address loading in the phone's browser does NOT prove the app can reach it — the app needs CORS headers + cleartext allowed, the browser navigation needs neither.
       </div>
     </div>
   </div>

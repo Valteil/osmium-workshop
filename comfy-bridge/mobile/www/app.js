@@ -420,7 +420,7 @@
   // CORS headers and no mixed-content allowance, while a fetch() from this
   // app's https://localhost WebView needs both. So the hint has to name all
   // three server-side requirements, not just --listen.
-  function corsHint() { return ' — could not reach it from inside the app (this can happen even when the same address loads in the phone browser). Make sure: (1) ComfyUI was started with --listen 0.0.0.0 --enable-cors-header --port 8188, (2) Windows Firewall allows inbound TCP 8188 on this network (Private/Domain for LAN, and re-allow if a hotspot flips it to Public), (3) Tailscale is connected on BOTH devices if using a 100.x address.'; }
+  function corsHint() { return ' — could not reach it from inside the app (this can happen even when the same address loads in the phone browser). Make sure: (1) ComfyUI was started with --listen 0.0.0.0 --enable-cors-header (it already listens on 8188 by default), (2) Windows Firewall allows inbound TCP 8188 on this network (Private/Domain for LAN, and re-allow if a hotspot flips it to Public), (3) Tailscale is connected on BOTH devices if using a 100.x address.'; }
 
   // A combo widget's option list sits in one of two shapes depending on
   // which ComfyUI schema version the node reporting it was last touched

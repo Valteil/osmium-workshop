@@ -425,7 +425,8 @@ This guide covers the desktop app. Two siblings share this repo:
   `Documents/`). Both builds share the gallery sidebar (browse subfolders, sort by name/date,
   pin favorites), model picker modals, and the zoomable image lightbox. Mobile details live in
   `comfy-bridge/mobile/README.md`; to reach ComfyUI from a phone, start it with `--listen
-  0.0.0.0 --enable-cors-header --port 8188` and allow inbound TCP 8188 through the firewall.
+  0.0.0.0 --enable-cors-header` (ComfyUI already listens on 8188 by default) and allow inbound
+  TCP 8188 through the firewall.
 
 ---
 
