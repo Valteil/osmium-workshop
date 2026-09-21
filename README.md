@@ -7,6 +7,10 @@ A feature-heavy, Comfyui-compatible dataset manager with a large amount of Quali
 Built with Electron + TypeScript. Portable — unzip, run, done; nothing is installed elsewhere
 on your system. And also built with a shitload of Claude and Opencode Go.
 
+Disclaimer: As obviously stated, nearly all of this is AI-built. If for whatever reason that
+somehow makes you grossed out when the whole point of a dataset curator is to train genAI, then
+I don't know go eat a rock or something
+
 > **Note:** a Tauri-based port was attempted as a path toward Mac/Linux support, but has been
 > discontinued. Hand-translating every new Electron feature into an equivalent Rust backend
 > turned out to be too much ongoing maintenance overhead for this project — it was slowing down
