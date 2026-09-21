@@ -992,6 +992,23 @@
   apply();
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', function(){ measure(); apply(); });
+  // window's own 'resize' only fires when the BROWSER WINDOW changes size —
+  // it does NOT fire when page CONTENT above #features grows/shrinks after
+  // this script's first measure() call, which is exactly what the demo
+  // iframe does: its real height is set asynchronously by sizeFrame() (see
+  // that script's own comments — font-load reflow, ResizeObserver, lazy
+  // src load via IntersectionObserver), landing well after this script has
+  // already captured a threshold based on the iframe's small CSS fallback
+  // height. Without this, night mode threshold drifted to wherever the
+  // iframe happened to be sized at THIS script's run time — sometimes
+  // mid-demo, not at #features — instead of consistently at "The tools
+  // you'll actually use". A ResizeObserver on <body> catches that and any
+  // other future source of async reflow above the threshold generically,
+  // rather than wiring this script to know about the demo iframe
+  // specifically.
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(function(){ measure(); apply(); }).observe(document.body);
+  }
 })();
 
 (function(){
