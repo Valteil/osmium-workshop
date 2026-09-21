@@ -279,9 +279,7 @@
   .conn-diagram{aspect-ratio:1/1; }
   .conn-diagram svg{width:100%; height:100%;}
   .conn-copy h3{font-family:'Chakra Petch',sans-serif; font-size:1.45rem; margin:0 0 10px; font-weight:600;}
-  .conn-copy p{color:var(--ink-soft); margin:0 0 12px; max-width:56ch;}
-  .conn-copy .tags{display:flex; gap:8px; flex-wrap:wrap;}
-  .tag-chip{font-family:'JetBrains Mono',monospace; font-size:0.78rem; border:1px solid var(--line-strong); color:var(--ink-soft); padding:3px 9px; border-radius:999px;}
+  .conn-copy p{color:var(--ink-soft); margin:0; max-width:56ch;}
   /* A real screenshot slotted under a feature row that has one to show —
      full width, capped so it doesn't stretch absurdly thin at very wide
      viewports, sitting in the gap between this row's bottom and the next
@@ -580,7 +578,6 @@
         <div class="conn-copy">
           <h3>Tag Pruner — Unify &amp; Void</h3>
           <p>Pick a handful of spelling variants or junk tags. Merge them into one name, or just delete them. Every pass is confirmed and undoable, so run as many as you need without worrying about it.</p>
-          <div class="tags"><span class="tag-chip">unify</span><span class="tag-chip">void</span><span class="tag-chip">mirror preview</span></div>
         </div>
       </div>
 
@@ -596,7 +593,6 @@
         <div class="conn-copy">
           <h3>Retroactive Merge / Void rules</h3>
           <p>Set a rule once ("these tags become this tag" or "these tags get deleted") and it keeps applying to anything that comes in later, from WD14, hand typing, or imports. Try to type a tag the rule already caught and it's blocked with a note pointing at the rule. You clean something up once.</p>
-          <div class="tags"><span class="tag-chip">standing rules</span><span class="tag-chip">per-image immunize</span><span class="tag-chip">pausable</span></div>
         </div>
       </div>
 
@@ -615,9 +611,8 @@
           <text x="30" y="105" font-family="JetBrains Mono, monospace" font-size="11" fill="var(--ink-soft)">WD14</text></svg>
         </div>
         <div class="conn-copy">
-          <h3>WD14 autotagger, on your own ComfyUI</h3>
-          <p>Send one image, or a whole selection, to a WD14 node running on your own ComfyUI. The returned tags get merged straight in. Host, model, and thresholds all live in one settings panel, and you can turn on review-before-apply if you don't trust it yet. Osmium doesn't ship a model of its own; ComfyUI does the actual work.</p>
-          <div class="tags"><span class="tag-chip">batch or single</span><span class="tag-chip">review modal</span></div>
+          <h3>WD14 autotagger — no ComfyUI required</h3>
+          <p>Send one image, or a whole selection, to WD14. Runs fully on-device (the model downloads once, GPU-accelerated if you've got one) or through your own ComfyUI if you'd rather point it there instead. The returned tags get merged straight in. Host, model, and thresholds all live in one settings panel, and you can turn on review-before-apply if you don't trust it yet.</p>
         </div>
       </div>
 
@@ -632,8 +627,7 @@
         </div>
         <div class="conn-copy">
           <h3>SynthDat Overseer — grow a thin dataset</h3>
-          <p>Only have five good images of a character? Generate more, ControlNet-posed off one reference. It pulls pose tags from the reference automatically, runs a 1- or 2-pass generation, and shows you the result before anything's written. <strong>Accept</strong> puts it straight in the dataset; <strong>Reject</strong> parks it in Disabled instead of throwing it away.</p>
-          <div class="tags"><span class="tag-chip">ControlNet pose</span><span class="tag-chip">crash-safe writes</span></div>
+          <p>Only have five good images of a character? Train a quick first-pass LoRA on what you've got, then point SynthDat at it to generate more, ControlNet-posed off one reference — growing the dataset for a stronger second pass. It pulls pose tags from the reference automatically, runs a 1- or 2-pass generation, and shows you the result before anything's written. <strong>Accept</strong> puts it straight in the dataset; <strong>Reject</strong> parks it in Disabled instead of throwing it away.</p>
         </div>
       </div>
       <div class="conn-shot">
@@ -655,7 +649,6 @@
         <div class="conn-copy">
           <h3>Undo/redo, and a real edit log</h3>
           <p>One tag, one merge, one mass rename: it's all undoable, globally or one entry at a time, and it's all written to a per-folder <code class="mono">_tag_edit_log.json</code>. Reset a single image if you botched it, or go back through the whole session later and see what you actually did.</p>
-          <div class="tags"><span class="tag-chip">global undo</span><span class="tag-chip">per-entry revert</span></div>
         </div>
       </div>
 
@@ -669,7 +662,6 @@
         <div class="conn-copy">
           <h3>Master Tag Control — bulk passes</h3>
           <p>Checkbox-select any slice of the gallery and apply, remove, or conditionally apply tags across all of it. Rename or find-and-replace dataset-wide, or delete the selection outright. Anything you've locked or marked merge-immune just sits out, no extra clicks needed.</p>
-          <div class="tags"><span class="tag-chip">conditional apply</span><span class="tag-chip">find &amp; replace</span></div>
         </div>
       </div>
 
