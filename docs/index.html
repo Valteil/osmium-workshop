@@ -189,6 +189,7 @@
     background:linear-gradient(180deg, transparent 62%, color-mix(in srgb, var(--green) 28%, transparent) 62%);
   }
   .hero-sub{font-size:1.1rem; color:var(--ink-soft); max-width:46ch; margin:0 0 34px;}
+  .hero-sub-first{margin-bottom:14px;}
   .hero-ctas{display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:30px;}
   .hero-meta{display:flex; gap:22px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft);}
   .hero-meta strong{color:var(--ink); font-weight:600;}
@@ -238,6 +239,16 @@
   .nc-tl{top:-5px; left:-5px;} .nc-tr{top:-5px; right:-5px;}
   .nc-bl{bottom:-5px; left:-5px;} .nc-br{bottom:-5px; right:-5px;}
   .proof-cap{display:flex; justify-content:space-between; align-items:baseline; margin-top:14px; font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:var(--ink-soft);}
+  .shot-gallery{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:36px 24px;
+    margin-top:64px;
+  }
+  .shot-card{ margin:0; }
+  .shot-card .proof-cap{ justify-content:flex-start; gap:8px; }
+
+  /* ---------- inter-section teaser line ---------- */
+  .transition-line{ padding-top:56px; }
+  .transition-line p{ max-width:640px; margin:0; font-size:1.1rem; font-weight:600; color:var(--ink); }
 
   /* ---------- feature rows (connections) ---------- */
   .conn-row{
@@ -382,7 +393,7 @@
       <span class="brand-name">Osmium Workshop</span>
     </a>
     <nav class="links">
-      <a href="#proof">Look inside</a>
+      <a href="#demo">Look inside</a>
       <a href="#features">Toolset</a>
       <a href="#apps">Three apps</a>
       <a href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">Source</a>
@@ -410,7 +421,8 @@
       <div>
         <span class="kicker-chip"><span class="dot"></span>v1.6.0 · Windows portable · Electron</span>
         <h1 class="hero-title display">The denser,<br><em>the better.</em></h1>
-        <p class="hero-sub">Osmium Workshop is a dataset tag editor for people who'd rather stop hand-editing thousands of <code class="mono" style="font-size:0.85em;">.txt</code> files. Bulk tag edits, standing correction rules, WD14 autotagging, ComfyUI sync, all built dense and keyboard-first for datasets in the thousands, not ten.</p>
+        <p class="hero-sub hero-sub-first">You ever see a LoRA out there that looks great, and you wanna make one yourself... but all that comes out is a mess?</p>
+        <p class="hero-sub">Datasets are the foundation of good LoRAs, and mistagging or undertagging kills the output. Osmium Workshop is a free, feature-dense dataset manager that lets you spit out good LoRAs in hours instead of days — built for people who want the assurance of hand-edited quality, but with none of the annoying overwhelm.</p>
         <div class="hero-ctas">
           <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download for Windows</a>
           <a class="btn btn-ghost" href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">View source on GitHub</a>
@@ -473,44 +485,12 @@
     </div>
   </section>
 
-  <!-- ============ PROOF ============ -->
-  <section id="proof">
-    <div class="wrap">
-      <div class="section-head">
-        <h2>This is the actual app.</h2>
-        <p>Screenshots, not mockups, pulled straight off a running build. It's dense and keyboard-driven on purpose: you'll be here for thousands of images, not ten.</p>
-      </div>
-
-      <div class="proof-frame" style="margin-bottom:20px;">
-        <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-        <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-        <img src="assets/screenshot-gallery.png" alt="Osmium Workshop Gallery tab: tag filter sidebar with AND/OR/XOR search, dataset stats, and keyword-family sort." loading="lazy" />
-      </div>
-      <div class="proof-cap">
-        <span>Gallery tab — filter sidebar, empty dataset</span>
-        <span>v1.6.0</span>
-      </div>
-
-      <div style="height:36px"></div>
-
-      <div class="proof-frame">
-        <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-        <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-        <img src="assets/screenshot-synthdat.png" alt="Osmium Workshop SynthDat Overseer tab: sampler, scheduler, pass seeds and CFG fields for ComfyUI-driven dataset generation." loading="lazy" />
-      </div>
-      <div class="proof-cap">
-        <span>SynthDat Overseer — generation panel</span>
-        <span>talks to your own ComfyUI</span>
-      </div>
-    </div>
-  </section>
-
   <!-- ============ LIVE DEMO ============ -->
   <section id="demo">
     <div class="wrap">
       <div class="section-head">
-        <h2>Try it right here</h2>
-        <p>This is the actual editor, running right in your browser — open a folder with your browser's own file access and try it for real. Works in Chrome and Edge on desktop.</p>
+        <h2>Here's what you're getting</h2>
+        <p>Click around, feel around; I put the damn thing on this page so you don't even need to download it to give it a try. Same running build, not a mockup — open a folder with your browser's own file access. Works in Chrome and Edge on desktop.</p>
       </div>
 
       <div id="demoUnsupported" class="demo-fallback" hidden>
@@ -528,6 +508,10 @@
       </div>
     </div>
   </section>
+
+  <div class="wrap transition-line">
+    <p>Don't have a damn clue on what you're doing? See what you're getting into:</p>
+  </div>
 
   <!-- ============ FEATURES / CONNECTIONS ============ -->
   <section id="features">
@@ -628,6 +612,83 @@
           <p>Checkbox-select any slice of the gallery and apply, remove, or conditionally apply tags across all of it. Rename or find-and-replace dataset-wide, or delete the selection outright. Anything you've locked or marked merge-immune just sits out, no extra clicks needed.</p>
           <div class="tags"><span class="tag-chip">conditional apply</span><span class="tag-chip">find &amp; replace</span></div>
         </div>
+      </div>
+
+      <hr class="rule" style="margin:64px 0 40px;">
+
+      <div class="shot-gallery">
+        <figure class="shot-card">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-gallery.jpg" alt="Osmium Workshop Gallery tab with a loaded dataset: tag filter sidebar, Tag Pruner, and Retroactive Merge/Void panel." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>Gallery tab — loaded dataset</span></figcaption>
+        </figure>
+        <figure class="shot-card">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-synthdat.jpg" alt="Osmium Workshop SynthDat Overseer tab: structured prompt fields driving a ComfyUI generation." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>SynthDat Overseer — generation panel</span></figcaption>
+        </figure>
+        <figure class="shot-card">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-dark-mode.jpg" alt="Osmium Workshop Gallery tab in dark mode." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>Dark mode</span></figcaption>
+        </figure>
+        <figure class="shot-card">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-datasets-tab.png" alt="Osmium Workshop Datasets tab showing several dataset folders." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>Datasets tab — every project in one place</span></figcaption>
+        </figure>
+        <figure class="shot-card">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-help.png" alt="Osmium Workshop's built-in help panel with a table of contents and per-topic documentation." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>Built-in help — every tab explained</span></figcaption>
+        </figure>
+        <figure class="shot-card">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-visual-editing.jpg" alt="Close-up of inline tag editing on a single image card." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>Inline tag editing</span></figcaption>
+        </figure>
+        <figure class="shot-card">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-theme-candy.jpg" alt="Osmium Workshop Gallery tab in the Candy theme." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>One of 26 themes — Candy</span></figcaption>
+        </figure>
+        <figure class="shot-card">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-theme-ocean.jpg" alt="Osmium Workshop Gallery tab in the Ocean theme." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>...and Ocean</span></figcaption>
+        </figure>
+        <figure class="shot-card">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-shop-themes.png" alt="Theme shop list showing rare, epic, and legendary themes with their Edibits price." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>Shop themes — common to legendary</span></figcaption>
+        </figure>
       </div>
     </div>
   </section>
