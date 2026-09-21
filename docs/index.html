@@ -273,7 +273,15 @@
   }
   .shot-carousel::-webkit-scrollbar{ display:none; }
   .shot-slide{ flex:0 0 100%; min-width:0; scroll-snap-align:center; margin:0; text-align:center; }
-  .shot-slide .proof-cap{ justify-content:flex-start; gap:8px; max-width:min(92vw, 1040px); margin-left:auto; margin-right:auto; }
+  /* A block-level flex row (not inline) so it forces its own line under
+     the image instead of sitting beside it — .proof-frame is inline-block
+     now (for the shrink-wrap fix above), and figcaption has no automatic
+     line-break of its own once its display is overridden, so an inline
+     caption here floated right next to the image instead of centering
+     under it. justify-content:center (not the base rule's flex-start)
+     centers the text within this full-width row regardless of how wide
+     the image itself rendered. */
+  .shot-slide .proof-cap{ display:flex; justify-content:center; gap:8px; }
   /* Height-capped, not width-stretched, so the carousel — caption and dots
      included — fits one screen without scrolling: an earlier version forced
      the frame to full container width, which either stretched a 3:2 box to
