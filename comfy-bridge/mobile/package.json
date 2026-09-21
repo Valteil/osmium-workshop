@@ -11,6 +11,7 @@
     "@capacitor/android": "^8.5.2",
     "@capacitor/cli": "^8.5.2",
     "@capacitor/core": "^8.5.2",
-    "@capacitor/filesystem": "^7.1.4"
+    "@capacitor/filesystem": "^7.1.4",
+    "@capacitor/local-notifications": "^8.3.1"
   }
 }

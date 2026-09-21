@@ -29,6 +29,22 @@ toggles) so nothing pokes through. Connection help (the LAN/Tailscale
 address guide) is a centered dim-screen modal behind an (i) button next to
 "Test connection", not the old always-visible paragraph.
 
+## Generation progress notification
+
+A system notification (`@capacitor/local-notifications`) tracks a running
+generation from outside the app — back out to the home screen or another
+app and the notification shade still shows which pass is running and its
+step count, e.g. `1Pass (1/2)` / `15/30`, updating in place (same
+notification id every time) as it progresses into `2Pass (2/2)` / `3/20`,
+then a final `Upscaling (3/3)` phase with no step count if upscale is on
+(the upscale node isn't iterative, so it never reports step progress —
+inferred instead from the last pass reaching 100%). Throttled to at most
+one update per ~700ms regardless of how fast steps actually arrive.
+Requests notification permission (Android 13+) the first time you tap
+Generate; declining it just means no notification, generation still runs
+normally. Finalizes to "Generation complete" / "Generation stopped" /
+"Generation failed" and becomes dismissible.
+
 ## Result preview
 
 Up to 3 images per generation — Pass 1, Pass 2 (or just "Pass 1" again if
