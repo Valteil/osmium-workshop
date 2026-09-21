@@ -354,13 +354,6 @@
     #demo{padding-top:32px; padding-bottom:48px;}
   }
 
-  /* ---------- download band ---------- */
-  .dl-band{border:1px solid var(--line-strong); border-radius:6px; padding:56px 48px; position:relative; overflow:hidden; background:var(--card);}
-  .dl-inner{position:relative; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:32px; flex-wrap:wrap;}
-  .dl-inner h2{margin-bottom:8px;}
-  .dl-inner p{color:var(--ink-soft); margin:0; max-width:44ch;}
-  .dl-ctas{display:flex; gap:14px; flex-wrap:wrap;}
-
   footer{border-top:1px solid var(--line); padding:44px 0; margin-top:20px;}
   .footer-row{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;}
   .footer-brand{display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft);}
@@ -375,7 +368,6 @@
     .conn-diagram{max-width:160px;}
     .conn-row.rev .conn-diagram{order:0;}
     .hub-wrap{grid-template-columns:1fr;}
-    .dl-inner{flex-direction:column; align-items:flex-start;}
     nav.links{display:none;}
     .proof-cap{flex-direction:column; gap:4px;}
     .nav{height:auto; padding:14px 0;}
@@ -819,28 +811,6 @@
               <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-desktop" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Windows</a>
               <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-android" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ DOWNLOAD ============ -->
-  <section>
-    <div class="wrap">
-      <div class="dl-band">
-        <div class="rings" aria-hidden="true" style="opacity:.5">
-          <svg width="900" height="900" viewBox="0 0 900 900"><g fill="none" stroke="var(--line)" stroke-width="1">
-            <circle cx="750" cy="80" r="180"/><circle cx="750" cy="80" r="280"/></g></svg>
-        </div>
-        <div class="dl-inner">
-          <div>
-            <h2 class="display">Get the current build</h2>
-            <p><span data-latest-ver>v1.6.0</span>, portable Windows build — unzip and use immediately, no account needed. It doesn't make a single network call unless you point it at your own ComfyUI.</p>
-          </div>
-          <div class="dl-ctas">
-            <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download <span data-latest-ver>v1.6.0</span></a>
-            <a class="btn btn-ghost" href="guide.html">Read the full guide</a>
           </div>
         </div>
       </div>
