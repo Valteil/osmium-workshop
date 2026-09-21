@@ -1198,6 +1198,7 @@ import { pickDatasetFolder } from './folder-picker';
     getEntryMeta: () => entryMeta,
     saveEntryMeta: () => saveEntryMeta(),
     deleteEntriesPermanently: (entriesList) => deleteEntriesPermanently(entriesList),
+    disableEntries: (entriesList) => disableEntriesForSelection(entriesList),
     onStartSequential: (from) => startSequentialDetail(from)
   });
 
@@ -1537,6 +1538,38 @@ import { pickDatasetFolder } from './folder-picker';
     refreshAllUI();
     checkAchievements();
     return deleted;
+  }
+
+  // Bulk sibling of the single-image "Disable" toggle (view.ts's moveEntry
+  // call) — same underlying move, just with moveEntry's own per-call
+  // toast/log/refresh silenced (silent:true) so N selected images don't
+  // produce N toasts, then one summary toast/log entry/refresh here instead,
+  // same shape as deleteEntriesPermanently just above. Locked images are
+  // skipped, same convention as every other mass tool.
+  async function disableEntriesForSelection(entriesList: Entry[]): Promise<number> {
+    if (!dirHandle) return 0;
+    let moved = 0;
+    const affected: Entry[] = [];
+    for (const entry of entriesList){
+      if (entry.meta && entry.meta.locked) continue;
+      if (entry.disabled) continue;
+      try {
+        await moveEntry(entry, true, { silent: true });
+        moved++;
+        affected.push(entry);
+      } catch(err){ /* keep going — report the partial count either way */ }
+    }
+    if (moved === 0) return 0;
+    saveEntryMeta();
+    pushLogEntry({
+      type: 'disable',
+      summary: `Disabled ${moved} image(s)`,
+      affected: affected.map(e => ({ base: e.base }))
+    });
+    resetSingleIndex();
+    refreshAllUI();
+    checkAchievements();
+    return moved;
   }
 
   const META_FILE_NAME = '_dts_meta.json';

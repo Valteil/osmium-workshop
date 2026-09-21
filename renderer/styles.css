@@ -1150,6 +1150,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .synthdat-lora-row{ display: flex; gap: 8px; align-items: center; }
   .synthdat-lora-row label{ display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+  .synthdat-lora-row input[readonly]{ cursor: pointer; }
   #btnSynthDatSwapReso{ flex-shrink: 0; padding: 6px 9px; font-size: 13px; }
   .synthdat-warning{ font-size: 11px; color: var(--accent-danger); margin-top: 4px; }
   .synthdat-pass-choice{
@@ -1639,6 +1640,37 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .confirm-message{ font-size: 13px; color: var(--text-primary); line-height: 1.5; margin-bottom: 16px; white-space: pre-wrap; }
   .confirm-btn-row{ display: flex; gap: 8px; justify-content: flex-end; }
 
+  /* ---------- Model/option picker modal (attachPickerModal) ---------- */
+  /* Same tap-to-pick UI as Comfy Bridge's model fields, restyled onto this
+     app's own tokens. z-index matches .confirm-backdrop (600) — pickers and
+     confirms never stack on top of each other in practice. */
+  .picker-backdrop{
+    position: fixed; inset: 0; background: rgba(0,0,0,0.62); z-index: 600;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity var(--panel-dur) ease;
+  }
+  .picker-backdrop.modal-visible{ opacity: 1; }
+  .picker-box{
+    width: min(440px, 92vw); max-height: 78vh;
+    background: var(--bg-elevated-2); border: 1px solid var(--border-strong);
+    border-radius: 10px; padding: 14px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column;
+    transform: scale(0.94); transition: transform var(--panel-dur) ease;
+  }
+  .picker-backdrop.modal-visible .picker-box{ transform: scale(1); }
+  .picker-head{ display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; margin-bottom: 10px; color: var(--text-primary); }
+  .picker-head span{ flex: 1; }
+  .picker-close{ background: none; border: none; color: var(--text-muted); font-size: 20px; line-height: 1; padding: 2px 6px; cursor: pointer; }
+  .picker-close:hover{ color: var(--text-primary); }
+  .picker-search{ margin-bottom: 8px; }
+  .picker-list{ overflow-y: auto; border-top: 1px solid var(--border-soft); }
+  .picker-row{ padding: 9px 8px; font-size: 13px; color: var(--text-primary); border-bottom: 1px solid var(--border-soft); cursor: pointer; overflow-wrap: anywhere; }
+  .picker-row:last-child{ border-bottom: none; }
+  .picker-row:hover{ background: var(--bg-elevated); }
+  .picker-row.picked{ color: var(--accent-manual); font-weight: 600; }
+  .picker-clear{ color: var(--text-muted); }
+  .picker-empty{ padding: 9px 8px; font-size: 12.5px; color: var(--text-faint); }
+
   /* A tip's own ⓘ button — sits inline right after the short teaser text,
      opens showInfoModal() with the matching #info<Id>Content <template>'s
      full explanation instead of that text always taking up dock space. */
@@ -2035,6 +2067,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   /* ---------- Left panel: filter + stats ---------- */
 
   .field-block { display: flex; flex-direction: column; gap: 8px; }
+  /* Picker-modal tap-targets (model fields wired to attachPickerModal) are
+     marked readonly to stop the native caret/keyboard editing implying free
+     text entry — cursor:pointer is the only visual cue left that they're
+     still clickable. */
+  .field-block input[readonly] { cursor: pointer; }
 
   .quickfilters { display: flex; flex-wrap: wrap; gap: 6px; }
   .quickfilters button {
@@ -2827,8 +2864,17 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      axes, in a plain base rule no theme flourish touches (themes restyle
      button fills/borders, never these row boxes). Replaces three inline
      flex rows in index.html that had horizontal gap but zero vertical
-     separation, which read as cramped/merged on flat themes. */
-  .mtc-btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 8px; }
+     separation, which read as cramped/merged on flat themes.
+     flex-wrap:nowrap (not wrap) is load-bearing: a paired row (Select
+     all visible/Clear selection, Disable/Delete, Lock/Unlock) must never
+     stack, even in the narrow resized dock — wrapping is exactly what
+     produced that. min-width:0 on the buttons is the other half of the
+     fix: flex items default to min-width:auto, which refuses to shrink
+     below the label's own intrinsic width and was what pushed a long
+     label (e.g. the old "Delete selected permanently") past the dock's
+     right edge instead of actually wrapping its own text. */
+  .mtc-btn-row{ display:flex; gap:8px; flex-wrap:nowrap; margin:0 0 8px; }
+  .mtc-btn-row button{ flex:1 1 0; min-width:0; }
   .immunize-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
   .selection-summary {
     font-size: 11.5px;

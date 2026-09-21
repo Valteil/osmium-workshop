@@ -140,12 +140,10 @@
   var btnMasterClearSelection = $("btnMasterClearSelection");
   var btnMasterLockSelected = $("btnMasterLockSelected");
   var btnMasterUnlockSelected = $("btnMasterUnlockSelected");
-  var btnMasterMergeImmunizeSelected = $("btnMasterMergeImmunizeSelected");
-  var btnMasterUnMergeImmunizeSelected = $("btnMasterUnMergeImmunizeSelected");
-  var btnMasterAntivoidSelected = $("btnMasterAntivoidSelected");
-  var btnMasterUnAntivoidSelected = $("btnMasterUnAntivoidSelected");
-  var btnMasterAntimmunizeSelected = $("btnMasterAntimmunizeSelected");
-  var btnMasterUnAntimmunizeSelected = $("btnMasterUnAntimmunizeSelected");
+  var btnMasterMergeImmunizeToggle = $("btnMasterMergeImmunizeToggle");
+  var btnMasterAntivoidToggle = $("btnMasterAntivoidToggle");
+  var btnMasterAntimmunizeToggle = $("btnMasterAntimmunizeToggle");
+  var btnMasterDisableSelected = $("btnMasterDisableSelected");
   var btnMasterDeleteSelected = $("btnMasterDeleteSelected");
   var masterApplyTagInput = $("masterApplyTagInput");
   var btnMasterApplyToSelected = $("btnMasterApplyToSelected");
@@ -2307,7 +2305,7 @@
   var folderStats = {};
   var folderUnlocked = [];
   var wallet = 0;
-  var ownedThemes = ["studio", "cyberpunk", "oriental", "subway"];
+  var ownedThemes = ["studio", "cyberpunk", "oriental", "subway", "osmium"];
   var achievementPopupsEnabled = true;
   var getDirHandle = () => null;
   var getEditLog = () => [];
@@ -2453,7 +2451,7 @@
     try {
       wallet = parseInt(localStorage.getItem("dts-wallet") || "0", 10) || 0;
       const owned = JSON.parse(localStorage.getItem("dts-owned-themes") || "null");
-      if (Array.isArray(owned)) ownedThemes = Array.from(/* @__PURE__ */ new Set(["studio", "cyberpunk", "oriental", "subway", ...owned]));
+      if (Array.isArray(owned)) ownedThemes = Array.from(/* @__PURE__ */ new Set(["studio", "cyberpunk", "oriental", "subway", "osmium", ...owned]));
     } catch (e) {
     }
     saveWallet();
@@ -3975,9 +3973,10 @@
     }
     return disabledDirHandle;
   }
-  async function moveEntry(entry, toDisabled) {
+  async function moveEntry(entry, toDisabled, opts) {
     const dirHandle = getDirHandle4();
     if (!dirHandle) return;
+    const silent = !!opts?.silent;
     try {
       const targetDir = toDisabled ? await ensureDisabledDir() : dirHandle;
       const sourceDir = toDisabled ? dirHandle : getDisabledDirHandle();
@@ -4010,22 +4009,27 @@
       }
       entry.dirty = false;
       entry.disabled = toDisabled;
-      toast(toDisabled ? `Moved "${entry.imgName}" to Disabled/. Filename kept as-is, so restoring slots it right back in.` : `Restored "${entry.imgName}" to the dataset root.`, 3200);
-      pushLogEntry({
-        type: toDisabled ? "disable" : "restore",
-        summary: toDisabled ? `Disabled ${entry.imgName}` : `Restored ${entry.imgName}`,
-        affected: [{ base: entry.base }]
-      });
+      if (!silent) {
+        toast(toDisabled ? `Moved "${entry.imgName}" to Disabled/. Filename kept as-is, so restoring slots it right back in.` : `Restored "${entry.imgName}" to the dataset root.`, 3200);
+        pushLogEntry({
+          type: toDisabled ? "disable" : "restore",
+          summary: toDisabled ? `Disabled ${entry.imgName}` : `Restored ${entry.imgName}`,
+          affected: [{ base: entry.base }]
+        });
+      }
       trackStat(toDisabled ? "disables" : "restores");
       const mc = folderStats.moveCounts || {};
       mc[entry.base] = (mc[entry.base] || 0) + 1;
       folderStats.moveCounts = mc;
       if (mc[entry.base] >= 6) folderStats.flag_indecisive = true;
       saveFolderStats();
-      resetSingleIndex();
-      refreshAllUIRef3();
-      checkAchievements();
+      if (!silent) {
+        resetSingleIndex();
+        refreshAllUIRef3();
+        checkAchievements();
+      }
     } catch (err) {
+      if (silent) throw err;
       toast("Could not move that file \u2014 check folder permissions.", 3600);
     }
   }
@@ -4832,61 +4836,6 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       inputEl.value = tag;
       inputEl.dispatchEvent(new Event("input", { bubbles: true }));
     });
-  }
-  function attachListAutocomplete(inputEl, getOptions) {
-    let debounceTimer = null;
-    inputEl.addEventListener("input", () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      const raw = inputEl.value.trim().toLowerCase();
-      if (!raw) {
-        closeAutocomplete();
-        return;
-      }
-      debounceTimer = setTimeout(() => {
-        if (inputEl.value.trim().toLowerCase() !== raw) return;
-        const options = getOptions() || [];
-        const results = options.filter((o) => o.toLowerCase().includes(raw)).slice(0, 30);
-        renderListAutocompleteResults(inputEl, results, (val) => {
-          closeAutocomplete();
-          inputEl.value = val;
-          inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-          inputEl.dispatchEvent(new Event("change", { bubbles: true }));
-        });
-      }, 100);
-    });
-    inputEl.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape") closeAutocomplete();
-    });
-  }
-  function renderListAutocompleteResults(inputEl, results, onPick) {
-    if (!autocompleteEl) {
-      autocompleteEl = document.createElement("div");
-      autocompleteEl.className = "ac-panel";
-      document.body.appendChild(autocompleteEl);
-      document.addEventListener("click", onDocClickCloseAutocomplete, true);
-    }
-    autocompleteEl.innerHTML = "";
-    if (results.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "ac-empty";
-      empty.textContent = "No matches.";
-      autocompleteEl.appendChild(empty);
-    } else {
-      const list = document.createElement("div");
-      list.className = "ac-list";
-      for (const val of results) {
-        const row = document.createElement("div");
-        row.className = "ac-row";
-        const name = document.createElement("span");
-        name.className = "ac-row-name";
-        name.textContent = val;
-        row.appendChild(name);
-        row.addEventListener("click", () => onPick(val));
-        list.appendChild(row);
-      }
-      autocompleteEl.appendChild(list);
-    }
-    positionAutocomplete(inputEl.getBoundingClientRect());
   }
   function attachAutocompleteCore(inputEl, onPick) {
     let debounceTimer = null;
@@ -5838,12 +5787,16 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
   var saveEntryMetaRef = () => {
   };
   var deleteEntriesPermanentlyRef = async () => 0;
+  var disableEntriesRef = async () => 0;
+  var refreshImmunizeTogglesRef = () => {
+  };
   function updateMasterSelectionText() {
     if (masterSelectedImages.size === 0) {
       masterSelectionSummary.textContent = "No images selected yet.";
-      return;
+    } else {
+      masterSelectionSummary.textContent = `${masterSelectedImages.size} image(s) selected.`;
     }
-    masterSelectionSummary.textContent = `${masterSelectedImages.size} image(s) selected.`;
+    refreshImmunizeTogglesRef();
   }
   function renderMasterMiniGrid() {
     masterMiniGrid.innerHTML = "";
@@ -5900,6 +5853,7 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     getEntryMeta = deps.getEntryMeta;
     saveEntryMetaRef = deps.saveEntryMeta;
     deleteEntriesPermanentlyRef = deps.deleteEntriesPermanently;
+    disableEntriesRef = deps.disableEntries;
     onStartSequentialRef = deps.onStartSequential;
     if (!document.documentElement.classList.contains("touch-device")) {
       const seqRow = document.createElement("div");
@@ -5963,6 +5917,23 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     }
     btnMasterLockSelected.addEventListener("click", () => setLockedForSelection(true));
     btnMasterUnlockSelected.addEventListener("click", () => setLockedForSelection(false));
+    btnMasterDisableSelected.addEventListener("click", async () => {
+      if (masterSelectedImages.size === 0) {
+        toast("Select at least one image first.");
+        return;
+      }
+      const total = masterSelectedImages.size;
+      const entriesList = Array.from(masterSelectedImages).map((base) => getEntryByBase3(base)).filter((e) => !!e);
+      const moved = await disableEntriesRef(entriesList);
+      if (moved === 0) {
+        toast("Nothing to disable \u2014 every selected image is already disabled or locked.");
+        return;
+      }
+      const skipped = total - moved;
+      toast(skipped > 0 ? `Disabled ${moved} image(s) \u2014 ${skipped} skipped (locked or already disabled).` : `Disabled ${moved} image(s).`, 3600);
+      renderMasterSelectionSummary();
+      renderCurrentViewRef2();
+    });
     btnMasterDeleteSelected.addEventListener("click", async () => {
       if (masterSelectedImages.size === 0) {
         toast("Select at least one image first.");
@@ -6010,12 +5981,68 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
       toast(`${actionLabel[0].toUpperCase()}${actionLabel.slice(1)} ${changed} image(s).`);
       renderCurrentViewRef2();
     }
-    btnMasterMergeImmunizeSelected.addEventListener("click", () => setEntryFlagsForSelection({ mergeImmune: true }, "merge immunized"));
-    btnMasterUnMergeImmunizeSelected.addEventListener("click", () => setEntryFlagsForSelection({ mergeImmune: false }, "un-merge-immunized"));
-    btnMasterAntivoidSelected.addEventListener("click", () => setEntryFlagsForSelection({ antivoid: true }, "antivoided"));
-    btnMasterUnAntivoidSelected.addEventListener("click", () => setEntryFlagsForSelection({ antivoid: false }, "un-antivoided"));
-    btnMasterAntimmunizeSelected.addEventListener("click", () => setEntryFlagsForSelection({ mergeImmune: true, antivoid: true }, "antimmunized"));
-    btnMasterUnAntimmunizeSelected.addEventListener("click", () => setEntryFlagsForSelection({ mergeImmune: false, antivoid: false }, "un-antimmunized"));
+    function computeAllHaveFlags(flags) {
+      if (masterSelectedImages.size === 0) return false;
+      for (const base of masterSelectedImages) {
+        const e = getEntryByBase3(base);
+        if (!e) return false;
+        for (const f of flags) {
+          if (!e.meta?.[f]) return false;
+        }
+      }
+      return true;
+    }
+    const immunizeToggles = [
+      {
+        btn: btnMasterMergeImmunizeToggle,
+        flags: ["mergeImmune"],
+        offLabel: "\u{1F6AB} Merge Immunize",
+        onLabel: "\u21A9 Un-immunize",
+        offTitle: "Merge rules will never rewrite tags on the selected images",
+        onTitle: "Remove Merge Immunize from the selected images",
+        onActionLabel: "merge immunized",
+        offActionLabel: "un-merge-immunized"
+      },
+      {
+        btn: btnMasterAntivoidToggle,
+        flags: ["antivoid"],
+        offLabel: "\u{1F7E2} Antivoid",
+        onLabel: "\u21A9 Un-antivoid",
+        offTitle: "Void rules will never remove tags from the selected images",
+        onTitle: "Remove Antivoid from the selected images",
+        onActionLabel: "antivoided",
+        offActionLabel: "un-antivoided"
+      },
+      {
+        btn: btnMasterAntimmunizeToggle,
+        flags: ["mergeImmune", "antivoid"],
+        offLabel: "\u270B Antimmunize",
+        onLabel: "\u21A9 Un-antimmunize",
+        offTitle: "Shortcut for both Merge Immunize AND Antivoid at once, on the selected images",
+        onTitle: "Clear both Merge Immunize and Antivoid from the selected images",
+        onActionLabel: "antimmunized",
+        offActionLabel: "un-antimmunized"
+      }
+    ];
+    function refreshImmunizeToggles() {
+      for (const t of immunizeToggles) {
+        const allOn = computeAllHaveFlags(t.flags);
+        t.btn.textContent = allOn ? t.onLabel : t.offLabel;
+        t.btn.title = allOn ? t.onTitle : t.offTitle;
+        t.btn.classList.toggle("ghost-secondary", allOn);
+      }
+    }
+    refreshImmunizeTogglesRef = refreshImmunizeToggles;
+    for (const t of immunizeToggles) {
+      t.btn.addEventListener("click", () => {
+        const turnOn = !computeAllHaveFlags(t.flags);
+        const flagsObj = {};
+        for (const f of t.flags) flagsObj[f] = turnOn;
+        setEntryFlagsForSelection(flagsObj, turnOn ? t.onActionLabel : t.offActionLabel);
+        refreshImmunizeToggles();
+      });
+    }
+    refreshImmunizeToggles();
     btnMasterApplyToSelected.addEventListener("click", () => {
       const tag = masterApplyTagInput.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
       if (!tag) {
@@ -7176,6 +7203,106 @@ Image: ${entry.imgName}`,
     });
   }
 
+  // src/renderer/picker-modal.ts
+  function openPickerModal(title, options, current, onPick) {
+    const backdrop = document.createElement("div");
+    backdrop.className = "picker-backdrop";
+    const box = document.createElement("div");
+    box.className = "picker-box";
+    const head = document.createElement("div");
+    head.className = "picker-head";
+    const titleEl = document.createElement("span");
+    titleEl.textContent = title;
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "picker-close";
+    closeBtn.textContent = "\xD7";
+    closeBtn.title = "Close";
+    head.appendChild(titleEl);
+    head.appendChild(closeBtn);
+    const search = document.createElement("input");
+    search.type = "text";
+    search.placeholder = "Search\u2026";
+    search.className = "picker-search";
+    const list = document.createElement("div");
+    list.className = "picker-list";
+    box.appendChild(head);
+    box.appendChild(search);
+    box.appendChild(list);
+    backdrop.appendChild(box);
+    function close() {
+      backdrop.classList.remove("modal-visible");
+      setTimeout(() => backdrop.remove(), 160);
+      document.removeEventListener("keydown", onKey);
+    }
+    function onKey(ev) {
+      if (ev.key === "Escape") close();
+    }
+    function renderRows() {
+      const raw = search.value.trim().toLowerCase();
+      let matches;
+      if (!raw) {
+        matches = options.slice();
+      } else {
+        const starts = [];
+        const subs = [];
+        for (const o of options) {
+          const lower = o.toLowerCase();
+          if (lower.startsWith(raw)) starts.push(o);
+          else if (lower.includes(raw)) subs.push(o);
+        }
+        matches = starts.concat(subs);
+      }
+      list.innerHTML = "";
+      const clearRow = document.createElement("div");
+      clearRow.className = "picker-row picker-clear";
+      clearRow.textContent = "\u2014 Clear \u2014";
+      clearRow.addEventListener("click", () => {
+        onPick("");
+        close();
+      });
+      list.appendChild(clearRow);
+      if (!matches.length) {
+        const empty = document.createElement("div");
+        empty.className = "picker-empty";
+        empty.textContent = raw ? "No matches." : "No options yet \u2014 try refreshing model lists.";
+        list.appendChild(empty);
+      } else {
+        for (const val of matches) {
+          const row = document.createElement("div");
+          row.className = "picker-row" + (val === current ? " picked" : "");
+          row.textContent = val;
+          row.addEventListener("click", () => {
+            onPick(val);
+            close();
+          });
+          list.appendChild(row);
+        }
+      }
+    }
+    search.addEventListener("input", renderRows);
+    backdrop.addEventListener("click", (ev) => {
+      if (ev.target === backdrop) close();
+    });
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    renderRows();
+    document.body.appendChild(backdrop);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      backdrop.classList.add("modal-visible");
+      search.focus();
+    }));
+  }
+  function attachPickerModal(inputEl, title, getOptions) {
+    inputEl.readOnly = true;
+    inputEl.addEventListener("click", () => {
+      openPickerModal(title, getOptions() || [], inputEl.value, (v) => {
+        inputEl.value = v;
+        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    });
+  }
+
   // src/renderer/tag-details.ts
   var wikiData = null;
   var allTagsMap = null;
@@ -8242,9 +8369,9 @@ Image: ${entry.imgName}`,
     row.className = "synthdat-lora-row";
     const input = document.createElement("input");
     input.type = "text";
-    input.placeholder = "Start typing to search\u2026";
+    input.placeholder = "Click to choose\u2026";
     input.value = defaultLora || "";
-    attachListAutocomplete(input, () => loraCombo || []);
+    attachPickerModal(input, "LoRA", () => loraCombo || []);
     const strength = document.createElement("input");
     strength.type = "number";
     strength.step = "0.05";
@@ -8913,10 +9040,10 @@ Image: ${entry.imgName}`,
     btnSynthDatRefreshModels.addEventListener("click", refreshModelLists);
     btnSynthDatConnect.addEventListener("click", testSynthdatConnection);
     const datalistOptions = (el) => Array.from(el.options).map((o) => o.value);
-    attachListAutocomplete(synthDatDiffModel, () => datalistOptions(synthDatUnetDatalist));
-    attachListAutocomplete(synthDatClip, () => datalistOptions(synthDatClipDatalist));
-    attachListAutocomplete(synthDatVae, () => datalistOptions(synthDatVaeDatalist));
-    attachListAutocomplete(synthDatMainLora, () => datalistOptions(synthDatMainLoraDatalist));
+    attachPickerModal(synthDatDiffModel, "Diffusion model", () => datalistOptions(synthDatUnetDatalist));
+    attachPickerModal(synthDatClip, "CLIP / text encoder", () => datalistOptions(synthDatClipDatalist));
+    attachPickerModal(synthDatVae, "VAE", () => datalistOptions(synthDatVaeDatalist));
+    attachPickerModal(synthDatMainLora, "Main LoRA", () => datalistOptions(synthDatMainLoraDatalist));
     btnSynthDatGenerate.addEventListener("click", generate);
     btnSynthDatStop.addEventListener("click", () => window.electronAPI.synthdatStopGeneration(getHost()));
     btnSynthDatAccept.addEventListener("click", acceptImage);
@@ -13137,6 +13264,7 @@ Image: ${entry.imgName}`,
       getEntryMeta: () => entryMeta,
       saveEntryMeta: () => saveEntryMeta(),
       deleteEntriesPermanently: (entriesList) => deleteEntriesPermanently(entriesList),
+      disableEntries: (entriesList) => disableEntriesForSelection(entriesList),
       onStartSequential: (from) => startSequentialDetail(from)
     });
     initWd14Tagger({
@@ -13411,6 +13539,32 @@ Image: ${entry.imgName}`,
       refreshAllUI();
       checkAchievements();
       return deleted;
+    }
+    async function disableEntriesForSelection(entriesList) {
+      if (!dirHandle) return 0;
+      let moved = 0;
+      const affected = [];
+      for (const entry of entriesList) {
+        if (entry.meta && entry.meta.locked) continue;
+        if (entry.disabled) continue;
+        try {
+          await moveEntry(entry, true, { silent: true });
+          moved++;
+          affected.push(entry);
+        } catch (err) {
+        }
+      }
+      if (moved === 0) return 0;
+      saveEntryMeta();
+      pushLogEntry({
+        type: "disable",
+        summary: `Disabled ${moved} image(s)`,
+        affected: affected.map((e) => ({ base: e.base }))
+      });
+      resetSingleIndex3();
+      refreshAllUI();
+      checkAchievements();
+      return moved;
     }
     const META_FILE_NAME = "_dts_meta.json";
     async function loadEntryMeta() {

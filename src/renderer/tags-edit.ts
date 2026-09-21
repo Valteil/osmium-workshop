@@ -302,9 +302,10 @@ async function ensureDisabledDir(): Promise<DirHandle> {
   return disabledDirHandle;
 }
 
-export async function moveEntry(entry: Entry, toDisabled: boolean): Promise<void> {
+export async function moveEntry(entry: Entry, toDisabled: boolean, opts?: { silent?: boolean }): Promise<void> {
   const dirHandle = getDirHandle();
   if (!dirHandle) return;
+  const silent = !!opts?.silent;
   try {
     const targetDir = toDisabled ? await ensureDisabledDir() : dirHandle;
     const sourceDir = toDisabled ? dirHandle : getDisabledDirHandle();
@@ -336,14 +337,16 @@ export async function moveEntry(entry: Entry, toDisabled: boolean): Promise<void
     entry.dirty = false;
     entry.disabled = toDisabled;
 
-    toast(toDisabled
-      ? `Moved "${entry.imgName}" to Disabled/. Filename kept as-is, so restoring slots it right back in.`
-      : `Restored "${entry.imgName}" to the dataset root.`, 3200);
-    pushLogEntry({
-      type: toDisabled ? 'disable' : 'restore',
-      summary: toDisabled ? `Disabled ${entry.imgName}` : `Restored ${entry.imgName}`,
-      affected: [{ base: entry.base }]
-    });
+    if (!silent){
+      toast(toDisabled
+        ? `Moved "${entry.imgName}" to Disabled/. Filename kept as-is, so restoring slots it right back in.`
+        : `Restored "${entry.imgName}" to the dataset root.`, 3200);
+      pushLogEntry({
+        type: toDisabled ? 'disable' : 'restore',
+        summary: toDisabled ? `Disabled ${entry.imgName}` : `Restored ${entry.imgName}`,
+        affected: [{ base: entry.base }]
+      });
+    }
     trackStat(toDisabled ? 'disables' : 'restores');
     const mc = (folderStats.moveCounts || {}) as Record<string, number>;
     mc[entry.base] = (mc[entry.base] || 0) + 1;
@@ -351,10 +354,13 @@ export async function moveEntry(entry: Entry, toDisabled: boolean): Promise<void
     if (mc[entry.base] >= 6) folderStats.flag_indecisive = true;
     saveFolderStats();
 
-    resetSingleIndex();
-    refreshAllUIRef();
-    checkAchievements();
+    if (!silent){
+      resetSingleIndex();
+      refreshAllUIRef();
+      checkAchievements();
+    }
   } catch(err){
+    if (silent) throw err;
     toast('Could not move that file — check folder permissions.', 3600);
   }
 }

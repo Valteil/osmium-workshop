@@ -38,7 +38,7 @@ import {
   synthDatMigrateClearFirst, synthDatSkipRefImage, synthDatRefImageSection, synthDatCol1
 } from './dom';
 import { toast, showImageLightbox, positionMenu } from './shared-ui';
-import { attachListAutocomplete } from './tags-autocomplete';
+import { attachPickerModal } from './picker-modal';
 import { parseWd14Tags } from './wd14-tagger';
 import { moveEntry, markDirty } from './tags-edit';
 import { canonicalRules, activeVoidTagSet, registerVoidRule } from './canonical-tags';
@@ -836,9 +836,9 @@ function addLoraRow(defaultLora: string, defaultStrength: number): void {
   row.className = 'synthdat-lora-row';
   const input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'Start typing to search…';
+  input.placeholder = 'Click to choose…';
   input.value = defaultLora || '';
-  attachListAutocomplete(input, () => loraCombo || []);
+  attachPickerModal(input, 'LoRA', () => loraCombo || []);
   const strength = document.createElement('input');
   strength.type = 'number';
   strength.step = '0.05';
@@ -1684,15 +1684,16 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   btnSynthDatAddLora.addEventListener('click', () => { addLoraRow('', 1); scheduleSave(); });
   btnSynthDatRefreshModels.addEventListener('click', refreshModelLists);
   btnSynthDatConnect.addEventListener('click', testSynthdatConnection);
-  // Replaces these fields' old native `<datalist>` dropdown (see
-  // attachListAutocomplete's own comment) — the `<datalist>` elements
-  // themselves stay in the DOM purely as the options source refreshModelLists()
+  // Tap-to-pick modal, same pattern as Comfy Bridge's model fields — the
+  // old inline attachListAutocomplete dropdown only ever triggered on typed
+  // input, so clicking an empty field showed nothing. The `<datalist>`
+  // elements stay in the DOM purely as the options source refreshModelLists()
   // already populates via fillDatalist(), just no longer wired to an input.
   const datalistOptions = (el: HTMLElement) => Array.from((el as unknown as HTMLSelectElement).options).map((o: HTMLOptionElement) => o.value);
-  attachListAutocomplete(synthDatDiffModel, () => datalistOptions(synthDatUnetDatalist));
-  attachListAutocomplete(synthDatClip, () => datalistOptions(synthDatClipDatalist));
-  attachListAutocomplete(synthDatVae, () => datalistOptions(synthDatVaeDatalist));
-  attachListAutocomplete(synthDatMainLora, () => datalistOptions(synthDatMainLoraDatalist));
+  attachPickerModal(synthDatDiffModel, 'Diffusion model', () => datalistOptions(synthDatUnetDatalist));
+  attachPickerModal(synthDatClip, 'CLIP / text encoder', () => datalistOptions(synthDatClipDatalist));
+  attachPickerModal(synthDatVae, 'VAE', () => datalistOptions(synthDatVaeDatalist));
+  attachPickerModal(synthDatMainLora, 'Main LoRA', () => datalistOptions(synthDatMainLoraDatalist));
   btnSynthDatGenerate.addEventListener('click', generate);
   btnSynthDatStop.addEventListener('click', () => window.electronAPI.synthdatStopGeneration(getHost()));
   btnSynthDatAccept.addEventListener('click', acceptImage);

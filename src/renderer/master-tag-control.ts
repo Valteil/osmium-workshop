@@ -6,10 +6,8 @@
 import type { Entry, EntryMeta } from './types';
 import {
   masterSelectionSummary, masterMiniGrid, btnMasterSelectAll, btnMasterClearSelection,
-  btnMasterLockSelected, btnMasterUnlockSelected, btnMasterDeleteSelected,
-  btnMasterMergeImmunizeSelected, btnMasterUnMergeImmunizeSelected,
-  btnMasterAntivoidSelected, btnMasterUnAntivoidSelected,
-  btnMasterAntimmunizeSelected, btnMasterUnAntimmunizeSelected,
+  btnMasterLockSelected, btnMasterUnlockSelected, btnMasterDeleteSelected, btnMasterDisableSelected,
+  btnMasterMergeImmunizeToggle, btnMasterAntivoidToggle, btnMasterAntimmunizeToggle,
   masterApplyTagInput, btnMasterApplyToSelected, masterRemoveTagInput, btnMasterRemoveFromSelected,
   condSourceTag, condAddTag, btnCondApply,
   condWithoutSourceTag, condWithoutAddTag, btnCondApplyWithout,
@@ -32,13 +30,20 @@ let refreshAllUIRef: () => void = () => {};
 let getEntryMeta: () => Record<string, EntryMeta> = () => ({});
 let saveEntryMetaRef: () => void = () => {};
 let deleteEntriesPermanentlyRef: (entries: Entry[]) => Promise<number> = async () => 0;
+let disableEntriesRef: (entries: Entry[]) => Promise<number> = async () => 0;
+// Set inside initMasterTagControl once the immunize toggle buttons exist —
+// updateMasterSelectionText runs before that on the very first call in some
+// init orders, so this starts as a no-op rather than referencing buttons
+// that aren't wired yet.
+let refreshImmunizeTogglesRef: () => void = () => {};
 
 export function updateMasterSelectionText(): void {
   if (masterSelectedImages.size === 0){
     masterSelectionSummary.textContent = 'No images selected yet.';
-    return;
+  } else {
+    masterSelectionSummary.textContent = `${masterSelectedImages.size} image(s) selected.`;
   }
-  masterSelectionSummary.textContent = `${masterSelectedImages.size} image(s) selected.`;
+  refreshImmunizeTogglesRef();
 }
 
 export function renderMasterMiniGrid(): void {
@@ -97,6 +102,7 @@ interface MasterTagControlDeps {
   getEntryMeta: () => Record<string, EntryMeta>;
   saveEntryMeta: () => void;
   deleteEntriesPermanently: (entries: Entry[]) => Promise<number>;
+  disableEntries: (entries: Entry[]) => Promise<number>;
   onStartSequential: (from: 'first' | 'selected') => void;
 }
 
@@ -111,6 +117,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   getEntryMeta = deps.getEntryMeta;
   saveEntryMetaRef = deps.saveEntryMeta;
   deleteEntriesPermanentlyRef = deps.deleteEntriesPermanently;
+  disableEntriesRef = deps.disableEntries;
   onStartSequentialRef = deps.onStartSequential;
 
   // Sequential detail editing entry points — desktop-only (touch editing
@@ -179,6 +186,25 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   btnMasterLockSelected.addEventListener('click', () => setLockedForSelection(true));
   btnMasterUnlockSelected.addEventListener('click', () => setLockedForSelection(false));
 
+  // Disable moves selected images to Disabled/ (soft, restorable — same
+  // move the single-card 3-dot menu does, view.ts's moveEntry(e, true)).
+  // Paired with Delete below since both are "get this out of my active set"
+  // actions, just at different permanence levels. Locked images are
+  // silently skipped, same convention as every other mass tool.
+  btnMasterDisableSelected.addEventListener('click', async () => {
+    if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
+    const total = masterSelectedImages.size;
+    const entriesList = Array.from(masterSelectedImages).map(base => getEntryByBase(base)).filter((e): e is Entry => !!e);
+    const moved = await disableEntriesRef(entriesList);
+    if (moved === 0){ toast('Nothing to disable — every selected image is already disabled or locked.'); return; }
+    const skipped = total - moved;
+    toast(skipped > 0
+      ? `Disabled ${moved} image(s) — ${skipped} skipped (locked or already disabled).`
+      : `Disabled ${moved} image(s).`, 3600);
+    renderMasterSelectionSummary();
+    renderCurrentViewRef();
+  });
+
   // Permanently deletes every selected image + its tags from disk — unlike
   // every other mass action here, there's no Undo for this one, so the
   // confirm modal names the exact count and is danger-styled. Locked images
@@ -228,12 +254,76 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
     toast(`${actionLabel[0].toUpperCase()}${actionLabel.slice(1)} ${changed} image(s).`);
     renderCurrentViewRef();
   }
-  btnMasterMergeImmunizeSelected.addEventListener('click', () => setEntryFlagsForSelection({ mergeImmune: true }, 'merge immunized'));
-  btnMasterUnMergeImmunizeSelected.addEventListener('click', () => setEntryFlagsForSelection({ mergeImmune: false }, 'un-merge-immunized'));
-  btnMasterAntivoidSelected.addEventListener('click', () => setEntryFlagsForSelection({ antivoid: true }, 'antivoided'));
-  btnMasterUnAntivoidSelected.addEventListener('click', () => setEntryFlagsForSelection({ antivoid: false }, 'un-antivoided'));
-  btnMasterAntimmunizeSelected.addEventListener('click', () => setEntryFlagsForSelection({ mergeImmune: true, antivoid: true }, 'antimmunized'));
-  btnMasterUnAntimmunizeSelected.addEventListener('click', () => setEntryFlagsForSelection({ mergeImmune: false, antivoid: false }, 'un-antimmunized'));
+
+  // Each pair of "Merge Immunize"/"Un-immunize" style buttons collapsed into
+  // one toggle: label and title flip based on whether every CURRENTLY
+  // selected image already carries the flag(s), same tri-state-checkbox
+  // convention as most mass toggles. Mixed selections (some flagged, some
+  // not) read as "off" — clicking sets the flag on all of them, which is the
+  // useful behavior for a mixed batch (a second click then clears it once
+  // they're uniform). refreshImmunizeToggles() re-evaluates the labels on
+  // every selection change (called from updateMasterSelectionText below),
+  // so they stay accurate as the user clicks through the gallery.
+  function computeAllHaveFlags(flags: string[]): boolean {
+    if (masterSelectedImages.size === 0) return false;
+    for (const base of masterSelectedImages){
+      const e = getEntryByBase(base);
+      if (!e) return false;
+      for (const f of flags){
+        if (!(e.meta as Record<string, unknown> | undefined)?.[f]) return false;
+      }
+    }
+    return true;
+  }
+  interface ImmunizeToggle {
+    btn: HTMLButtonElement;
+    flags: string[];
+    offLabel: string; onLabel: string;
+    offTitle: string; onTitle: string;
+    onActionLabel: string; offActionLabel: string;
+  }
+  const immunizeToggles: ImmunizeToggle[] = [
+    {
+      btn: btnMasterMergeImmunizeToggle, flags: ['mergeImmune'],
+      offLabel: '🚫 Merge Immunize', onLabel: '↩ Un-immunize',
+      offTitle: 'Merge rules will never rewrite tags on the selected images',
+      onTitle: 'Remove Merge Immunize from the selected images',
+      onActionLabel: 'merge immunized', offActionLabel: 'un-merge-immunized'
+    },
+    {
+      btn: btnMasterAntivoidToggle, flags: ['antivoid'],
+      offLabel: '🟢 Antivoid', onLabel: '↩ Un-antivoid',
+      offTitle: 'Void rules will never remove tags from the selected images',
+      onTitle: 'Remove Antivoid from the selected images',
+      onActionLabel: 'antivoided', offActionLabel: 'un-antivoided'
+    },
+    {
+      btn: btnMasterAntimmunizeToggle, flags: ['mergeImmune', 'antivoid'],
+      offLabel: '✋ Antimmunize', onLabel: '↩ Un-antimmunize',
+      offTitle: 'Shortcut for both Merge Immunize AND Antivoid at once, on the selected images',
+      onTitle: 'Clear both Merge Immunize and Antivoid from the selected images',
+      onActionLabel: 'antimmunized', offActionLabel: 'un-antimmunized'
+    }
+  ];
+  function refreshImmunizeToggles(): void {
+    for (const t of immunizeToggles){
+      const allOn = computeAllHaveFlags(t.flags);
+      t.btn.textContent = allOn ? t.onLabel : t.offLabel;
+      t.btn.title = allOn ? t.onTitle : t.offTitle;
+      t.btn.classList.toggle('ghost-secondary', allOn);
+    }
+  }
+  refreshImmunizeTogglesRef = refreshImmunizeToggles;
+  for (const t of immunizeToggles){
+    t.btn.addEventListener('click', () => {
+      const turnOn = !computeAllHaveFlags(t.flags);
+      const flagsObj: Record<string, boolean> = {};
+      for (const f of t.flags) flagsObj[f] = turnOn;
+      setEntryFlagsForSelection(flagsObj, turnOn ? t.onActionLabel : t.offActionLabel);
+      refreshImmunizeToggles();
+    });
+  }
+  refreshImmunizeToggles();
 
   btnMasterApplyToSelected.addEventListener('click', () => {
     const tag = masterApplyTagInput.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');

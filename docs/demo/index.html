@@ -122,6 +122,7 @@
               <option value="cyberpunk">Neon Cyberpunk</option>
               <option value="oriental">Oriental</option>
               <option value="subway">Subway Fresh</option>
+              <option value="osmium">Osmium (light)</option>
               <option value="bioluminescent">🔒 Bioluminescent Deep</option>
               <option value="sakura">🔒 Sakura Dusk</option>
               <option value="terminal">🔒 Terminal Green</option>
@@ -379,28 +380,27 @@
             <button id="btnMasterSelectAll" title="Select every image currently visible in the gallery">Select all visible</button>
             <button id="btnMasterClearSelection" title="Deselect all images">Clear selection</button>
           </div>
+          <div class="sec-head" style="margin-bottom:8px;"><span class="d">Everything below applies to the selected images, unless noted otherwise.</span></div>
+          <div id="masterMiniGrid" class="master-mini-grid dock-list-area" style="margin-bottom:8px;"></div>
           <div class="mtc-btn-row">
-            <button id="btnMasterLockSelected" title="Lock the selected images so mass tools (Master Tags, bulk WD14, etc.) skip them">🔒 Lock selected</button>
-            <button id="btnMasterUnlockSelected" title="Unlock the selected images">🔓 Unlock selected</button>
+            <button id="btnMasterDisableSelected" title="Move the selected images to Disabled/ — restorable, unlike Delete below">🗑 Disable</button>
+            <button id="btnMasterDeleteSelected" class="danger-ghost" title="Permanently delete the selected images and their tags from disk — cannot be undone. Locked images are skipped.">❌ Delete</button>
           </div>
           <div class="mtc-btn-row">
-            <button id="btnMasterDeleteSelected" class="danger-ghost" title="Permanently delete the selected images and their tags from disk — cannot be undone. Locked images are skipped.">❌ Delete selected permanently</button>
+            <button id="btnMasterLockSelected" title="Lock the selected images so mass tools (Master Tags, bulk WD14, etc.) skip them">🔒 Lock</button>
+            <button id="btnMasterUnlockSelected" title="Unlock the selected images">🔓 Unlock</button>
           </div>
           <div class="sec-head" style="margin-top:4px;"><span class="d">Retroactive Merge/Void exceptions — a permanent per-image setting, unlike Lock (which only skips mass tools):</span></div>
           <div class="immunize-row">
-            <button id="btnMasterMergeImmunizeSelected" title="Merge rules will never rewrite tags on the selected images">🚫 Merge Immunize</button>
-            <button id="btnMasterUnMergeImmunizeSelected" class="ghost-secondary" title="Remove Merge Immunize from the selected images">↩ Un-immunize</button>
+            <button id="btnMasterMergeImmunizeToggle" title="Merge rules will never rewrite tags on the selected images">🚫 Merge Immunize</button>
           </div>
           <div class="immunize-row">
-            <button id="btnMasterAntivoidSelected" title="Void rules will never remove tags from the selected images">🟢 Antivoid</button>
-            <button id="btnMasterUnAntivoidSelected" class="ghost-secondary" title="Remove Antivoid from the selected images">↩ Un-antivoid</button>
+            <button id="btnMasterAntivoidToggle" title="Void rules will never remove tags from the selected images">🟢 Antivoid</button>
           </div>
           <div class="immunize-row">
-            <button id="btnMasterAntimmunizeSelected" title="Shortcut for both Merge Immunize AND Antivoid at once, on the selected images">✋ Antimmunize</button>
-            <button id="btnMasterUnAntimmunizeSelected" class="ghost-secondary" title="Clear both Merge Immunize and Antivoid from the selected images">↩ Un-antimmunize</button>
+            <button id="btnMasterAntimmunizeToggle" title="Shortcut for both Merge Immunize AND Antivoid at once, on the selected images">✋ Antimmunize</button>
           </div>
           </div>
-          <div id="masterMiniGrid" class="master-mini-grid dock-list-area"></div>
           </div>
         </div>
 
@@ -674,10 +674,10 @@
 
         <div class="tool-section" data-dock-id="synthdatModelLora">
           <div class="sec-head"><span class="t">Model &amp; LoRA setup</span></div>
-          <label class="field-block" title="The base diffusion checkpoint to generate with."><span>Diffusion model</span><input type="text" id="synthDatDiffModel" placeholder="Start typing to search…"><datalist id="synthDatUnetDatalist"></datalist></label>
-          <label class="field-block" title="The text encoder this checkpoint expects — filenames vary a lot between setups, so this is scraped live from your own ComfyUI rather than hardcoded."><span>CLIP / text encoder</span><input type="text" id="synthDatClip" placeholder="Start typing to search…"><datalist id="synthDatClipDatalist"></datalist></label>
-          <label class="field-block" title="The VAE this checkpoint expects — same reasoning as CLIP above, scraped live from ComfyUI instead of hardcoded."><span>VAE</span><input type="text" id="synthDatVae" placeholder="Start typing to search…"><datalist id="synthDatVaeDatalist"></datalist></label>
-          <label class="field-block" title="The style/base LoRA this workflow is built around — its trigger word belongs in the Global field below, not here."><span>Main LoRA (its trigger word goes in the Global field below)</span><input type="text" id="synthDatMainLora" placeholder="Start typing to search…"><datalist id="synthDatMainLoraDatalist"></datalist></label>
+          <label class="field-block" title="The base diffusion checkpoint to generate with."><span>Diffusion model</span><input type="text" id="synthDatDiffModel" readonly placeholder="Click to choose…"><datalist id="synthDatUnetDatalist"></datalist></label>
+          <label class="field-block" title="The text encoder this checkpoint expects — filenames vary a lot between setups, so this is scraped live from your own ComfyUI rather than hardcoded."><span>CLIP / text encoder</span><input type="text" id="synthDatClip" readonly placeholder="Click to choose…"><datalist id="synthDatClipDatalist"></datalist></label>
+          <label class="field-block" title="The VAE this checkpoint expects — same reasoning as CLIP above, scraped live from ComfyUI instead of hardcoded."><span>VAE</span><input type="text" id="synthDatVae" readonly placeholder="Click to choose…"><datalist id="synthDatVaeDatalist"></datalist></label>
+          <label class="field-block" title="The style/base LoRA this workflow is built around — its trigger word belongs in the Global field below, not here."><span>Main LoRA (its trigger word goes in the Global field below)</span><input type="text" id="synthDatMainLora" readonly placeholder="Click to choose…"><datalist id="synthDatMainLoraDatalist"></datalist></label>
           <div class="sec-head" style="margin-top:6px;"><span class="d" title="This is where your character LoRA goes, alongside anything else you want stacked on top.">LoRA stack (the character LoRA and anything else you want applied):</span></div>
           <datalist id="synthDatLoraDatalist"></datalist>
           <div id="synthDatLoraStackRows"></div>
@@ -996,7 +996,7 @@
   <div id="drawerBackdrop" class="drawer-backdrop"></div>
 
 
-<script src="demo-shim.js"></script>
 <script src="app.js"></script>
+<script src="demo-shim.js"></script>
 </body>
 </html>
