@@ -266,21 +266,22 @@
     scrollbar-width:none; gap:0;
   }
   .shot-carousel::-webkit-scrollbar{ display:none; }
-  .shot-slide{ flex:0 0 100%; min-width:0; scroll-snap-align:center; margin:0; }
-  .shot-slide .proof-cap{ justify-content:flex-start; gap:8px; }
-  /* Fixed slot so the carousel's height doesn't jump to whichever slide is
-     tallest — screenshots vary from ultra-wide app captures to a narrow
-     portrait crop. Capped by viewport height (not just an aspect-ratio off
-     the container's width) so the whole carousel — caption and dots
-     included — fits on screen without scrolling on a normal laptop window;
-     a 3:2 box sized purely off a ~1100px-wide container ran to ~740px tall
-     and forced a scroll. Images that don't fill the box letterbox/pillarbox
-     with the card background instead of stretching. */
-  .shot-slide .proof-frame{
-    height:min(50vh, 520px); width:100%;
-    display:flex; align-items:center; justify-content:center; overflow:hidden;
+  .shot-slide{ flex:0 0 100%; min-width:0; scroll-snap-align:center; margin:0; text-align:center; }
+  .shot-slide .proof-cap{ justify-content:flex-start; gap:8px; max-width:min(92vw, 1040px); margin-left:auto; margin-right:auto; }
+  /* Height-capped, not width-stretched, so the carousel — caption and dots
+     included — fits one screen without scrolling: an earlier version forced
+     the frame to full container width, which either stretched a 3:2 box to
+     ~740px tall (scrolling) or, once height-capped, left the portrait
+     "Inline tag editing" shot pillarboxed down to a sliver inside a mostly-
+     empty full-width frame (illegible). Letting the frame shrink-wrap the
+     image instead — width:auto, height capped, centered via the slide's own
+     text-align — means every slide is exactly as big as its own image
+     allows, landscape or portrait, no dead space either side. */
+  .shot-slide .proof-frame{ display:inline-block; width:auto; }
+  .shot-slide .proof-frame img{
+    display:block; width:auto; height:auto; margin:0 auto;
+    max-width:min(92vw, 1040px); max-height:min(58vh, 600px);
   }
-  .shot-slide .proof-frame img{ width:auto; height:100%; max-width:100%; object-fit:contain; }
   .shot-dots{ display:flex; justify-content:center; gap:8px; margin-top:20px; }
   .shot-dot{
     width:8px; height:8px; border-radius:50%; padding:0; border:1px solid var(--line-strong);
