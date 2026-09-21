@@ -322,6 +322,9 @@
   .app-item .swatch{width:9px; height:9px; border-radius:50%; flex:none;}
   .app-item h3{font-family:'Chakra Petch',sans-serif; font-size:1.15rem; margin:0; font-weight:600;}
   .app-item p{margin:0; color:var(--ink-soft); font-size:0.95rem; padding-left:21px;}
+  .app-item .app-dl{margin:14px 0 0 21px;}
+  .app-item-ctas{display:flex; gap:10px; flex-wrap:wrap; margin:14px 0 0 21px;}
+  .app-item-ctas .app-dl{margin:0;}
 
   /* ---------- live demo ---------- */
   .demo-frame{border:1px solid var(--line-strong); background:var(--card);}
@@ -445,7 +448,7 @@
     </nav>
     <div class="nav-ctas">
       <a class="btn btn-ghost btn-sm" href="#demo">Try it right here</a>
-      <a class="btn btn-primary btn-sm" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download v1.6.0</a>
+      <a class="btn btn-primary btn-sm" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download <span data-latest-ver>v1.6.0</span></a>
     </div>
   </div>
 </header>
@@ -464,7 +467,7 @@
     </div>
     <div class="wrap hero-grid">
       <div>
-        <span class="kicker-chip"><span class="dot"></span>v1.6.0 · Windows portable · offline</span>
+        <span class="kicker-chip"><span class="dot"></span><span data-latest-ver>v1.6.0</span> · Windows portable · offline</span>
         <h1 class="hero-title display">The denser,<br><em>the better.</em></h1>
         <p class="hero-sub hero-sub-first">You ever see a LoRA out there that looks great, and you wanna make one yourself... but all that comes out is a mess?</p>
         <p class="hero-sub">Datasets are the foundation of good LoRAs, and mistagging or undertagging kills the output. Osmium Workshop is a free, feature-dense dataset manager that lets you spit out good LoRAs in hours instead of days — built for people who want the assurance of hand-edited quality, but with none of the annoying overwhelm.</p>
@@ -803,6 +806,7 @@
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--ink)"></span><h3>Osmium Workshop — Desktop</h3></div>
             <p>Everything shown on this page. Portable Electron app for Windows: unzip it, run it, that's it.</p>
+            <a class="btn btn-ghost btn-sm app-dl" data-dl="osmium-desktop" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download (Windows)</a>
           </div>
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--green)"></span><h3>Osmium Workshop — Mobile</h3></div>
@@ -811,6 +815,10 @@
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--blue)"></span><h3>Comfy Bridge</h3></div>
             <p>A simpler ComfyUI web UI with one built-in workflow, for when you just want the image without wrangling a node graph. Desktop and Android.</p>
+            <div class="app-item-ctas">
+              <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-desktop" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Windows</a>
+              <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-android" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
+            </div>
           </div>
         </div>
       </div>
@@ -828,10 +836,10 @@
         <div class="dl-inner">
           <div>
             <h2 class="display">Get the current build</h2>
-            <p>v1.6.0, portable Windows build — unzip and use immediately, no account needed. It doesn't make a single network call unless you point it at your own ComfyUI.</p>
+            <p><span data-latest-ver>v1.6.0</span>, portable Windows build — unzip and use immediately, no account needed. It doesn't make a single network call unless you point it at your own ComfyUI.</p>
           </div>
           <div class="dl-ctas">
-            <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download v1.6.0</a>
+            <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download <span data-latest-ver>v1.6.0</span></a>
             <a class="btn btn-ghost" href="guide.html">Read the full guide</a>
           </div>
         </div>
@@ -1027,6 +1035,35 @@
     });
   }, { rootMargin: '-40% 0px -40% 0px' }); // fires around the section that's actually centered in view, not merely scrolled past
   sections.forEach(function(s){ io.observe(s); });
+})();
+
+(function(){
+  // Download buttons point at the releases page by default (works with JS
+  // off or the API unreachable) — this upgrades them to a direct asset link
+  // for whatever the CURRENT latest release actually contains, so this page
+  // never needs a hand-edit when a new version ships. Matched by NAME
+  // PATTERN, not a hardcoded version, since every release embeds its own
+  // version number in the filename (see gh release create's asset names).
+  var targets = [
+    { attr: 'osmium-desktop', re: /^Osmium\.Workshop-.*-win\.zip$/ },
+    { attr: 'cbridge-desktop', re: /^Comfy\.Bridge-.*-win\.zip$/ },
+    { attr: 'cbridge-android', re: /^ComfyBridge-.*-android\.apk$/ }
+  ];
+  fetch('https://api.github.com/repos/azozis9182/osmium-workshop/releases/latest')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(rel){
+      if (!rel) return;
+      if (rel.tag_name){
+        document.querySelectorAll('[data-latest-ver]').forEach(function(el){ el.textContent = rel.tag_name; });
+      }
+      if (!Array.isArray(rel.assets)) return;
+      targets.forEach(function(t){
+        var el = document.querySelector('[data-dl="' + t.attr + '"]');
+        var asset = el && rel.assets.find(function(a){ return t.re.test(a.name); });
+        if (asset) el.href = asset.browser_download_url;
+      });
+    })
+    .catch(function(){ /* leave the releases/latest fallback + static "v1.6.0" text in place */ });
 })();
 </script>
 </body>
