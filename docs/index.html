@@ -209,6 +209,12 @@
   .hero-cta-secondary:hover{color:var(--ink);}
   .hero-meta{display:flex; gap:22px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft);}
   .hero-meta strong{color:var(--ink); font-weight:600;}
+  /* The tagger itself needs nothing beyond this app. Generation (SynthDat
+     Overseer, Comfy Bridge) is the one place that pulls in an external
+     dependency, so that caveat belongs right here at the top rather than
+     buried in a feature-section paragraph someone skims past. */
+  .hero-gen-note{font-size:0.82rem; color:var(--ink-soft); max-width:46ch; margin:16px 0 0;}
+  .hero-gen-note strong{color:var(--ink);}
 
   .hero-art{position:relative; aspect-ratio:1/1; z-index:2;}
   .hero-art svg{width:100%; height:100%; display:block;}
@@ -515,6 +521,7 @@
           <span><strong>Every edit</strong> logged and undoable.</span>
           <span><strong>Zero</strong> telemetry.</span>
         </div>
+        <p class="hero-gen-note">Tagging needs nothing beyond this app. Generation (<strong>SynthDat Overseer</strong>, <strong>Comfy Bridge</strong>) is separate: both run on a bundled workflow built around Anima, a diffusion model by Circlestone Labs, and need a running ComfyUI instance. Other model families will probably load, but expect weird results outside of Anima.</p>
       </div>
       <div class="hero-art" aria-hidden="true">
         <svg class="lattice" viewBox="0 0 250 250">
@@ -679,7 +686,7 @@
           <g fill="var(--green)"><circle cx="130" cy="60" r="3.4"/><circle cx="130" cy="100" r="3.4"/><circle cx="130" cy="140" r="3.4"/></g></svg>
         </div>
         <div class="conn-copy">
-          <h3>SynthDat Overseer — grow a thin dataset</h3>
+          <h3>SynthDat Overseer — grow a thin dataset (needs ComfyUI)</h3>
           <p>Only have five good images of a character? Train a quick first-pass LoRA on what you've got, then point SynthDat at it to generate more, ControlNet-posed off one reference. That's how you grow the dataset for a stronger second pass. It pulls pose tags from the reference automatically, runs a 1- or 2-pass generation, and shows you the result before anything gets written. <strong>Accept</strong> puts it straight in the dataset. <strong>Reject</strong> parks it in Disabled instead of throwing it away.</p>
         </div>
       </div>

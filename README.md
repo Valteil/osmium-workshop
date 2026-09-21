@@ -11,6 +11,13 @@ Disclaimer: As obviously stated, nearly all of this is AI-built. If for whatever
 somehow makes you grossed out when the whole point of a dataset curator is to train genAI, then
 I don't know go eat a rock or something
 
+> **Note:** the two generation-facing pieces of this repo, **SynthDat Overseer** and **Comfy
+> Bridge**, both run on the same bundled workflow, which is built around Anima (a diffusion
+> model by Circlestone Labs) and requires a running ComfyUI instance. ControlNet posing
+> specifically needs Anima; other model families will probably load, but expect weird results
+> since the workflow isn't built with them in mind. This is separate from WD14 tagging, which
+> runs on-device by default and doesn't need ComfyUI at all.
+
 > **Note:** a Tauri-based port was attempted as a path toward Mac/Linux support, but has been
 > discontinued. Hand-translating every new Electron feature into an equivalent Rust backend
 > turned out to be too much ongoing maintenance overhead for this project — it was slowing down
@@ -146,6 +153,7 @@ optional review-before-apply step, and the whole batch still undoes as one actio
 bootstrap tags onto a folder of untagged imports.
 
 ### SynthDat Overseer (tab)
+Needs a running ComfyUI instance — unlike WD14 tagging above, this one isn't optional-ComfyUI.
 Grows a thin dataset by generating more images of the character you're training a LoRA on:
 ControlNet-posed from a reference image, or plain prompted generation without one.
 WD14-interrogate the reference first to steal its pose tags, hit Generate (1-Pass, or a 2nd
@@ -153,7 +161,7 @@ refinement pass, with live preview and a Stop button), then review the pending t
 tags, void-mark junk like artist or rating tags (voiding also adds a Retroactive Void rule on
 Accept). **Accept** writes the image and its tags into the dataset immediately, crash-safe.
 **Reject** parks it in `Disabled/` instead. Nothing generated gets silently thrown away. Use it
-when five good images need to become fifty. (Needs the ComfyUI node pack — see
+when five good images need to become fifty. (Also needs the ComfyUI node pack — see
 `ComfyUI-dependencies/`.)
 
 ### Wiki lookup, stats, favorites
