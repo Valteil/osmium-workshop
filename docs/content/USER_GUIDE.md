@@ -216,14 +216,14 @@ The panel's bottom also has two **▶ Sequential** buttons — see [Sequential t
 below.
 
 ### 🐍 WD14 Autotagger
-Sends selected images (or one image via its 3-dot menu) to a WD14 Tagger node on your own
-ComfyUI instance and merges the returned tags onto each card. Expand "⚙ WD14 settings" here to set
-the ComfyUI host, model (scraped live from your ComfyUI instance), confidence thresholds, and
-whether results apply automatically or go through a review step first. The app holds no model
-itself — your ComfyUI instance does the actual tagging. Use it to bootstrap tags onto untagged
-imports. In on-device mode, **Prefer GPU** (desktop only) runs inference on your GPU via
-DirectML when available, falling back to CPU automatically — the completion toast names which
-engine ran.
+Sends selected images (or one image via its 3-dot menu) through WD14 and merges the returned
+tags onto each card. Expand "⚙ WD14 settings" here to pick a tagging source: **on-device** runs
+the model locally — no ComfyUI needed, it downloads on first use, and **Prefer GPU** (desktop
+only) runs inference via DirectML when available, falling back to CPU automatically, with the
+completion toast naming which engine ran — or **ComfyUI**, which sends images to a WD14 Tagger
+node on your own instance and scrapes its model list live. Either way you also set confidence
+thresholds and whether results apply automatically or go through a review step first. Use it to
+bootstrap tags onto untagged imports.
 
 ### Sequential tagging
 

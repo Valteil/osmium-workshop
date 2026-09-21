@@ -138,11 +138,12 @@ cropped region as a *new* image instead, leaving the source untouched.
   audit a session or roll back a single change.
 
 ### WD14 Autotagger (Tag Overseer tab)
-Sends the selected images (or just one, via its 3-dot menu) to a WD14 node on your ComfyUI
-instance and merges back the tags it returns. Host, model, and thresholds live in one settings
-section, with an optional review-before-apply step, and the whole batch still undoes as one
-action. ComfyUI does the actual inference here, not this app. Use it to bootstrap tags onto a
-folder of untagged imports.
+Sends the selected images (or just one, via its 3-dot menu) through WD14 and merges back the
+tags. Tagging source is a per-setting toggle: on-device (no ComfyUI needed, model downloads on
+first use, GPU acceleration via DirectML where available) or through a WD14 node on your own
+ComfyUI instance. Host, model, and thresholds live in one settings section either way, with an
+optional review-before-apply step, and the whole batch still undoes as one action. Use it to
+bootstrap tags onto a folder of untagged imports.
 
 ### SynthDat Overseer (tab)
 Grows a thin dataset by generating more images of the character you're training a LoRA on:
