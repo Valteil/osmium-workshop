@@ -235,31 +235,42 @@
   // Android replaces it in place) showing which pass is running and its
   // step count — so you can back out of the app during a long generation
   // and still see progress from the notification shade.
-  function notifPlugin() {
+  //
+  // The actual notification is drawn by a small custom native plugin
+  // (GenProgressPlugin.kt) via NotificationCompat.Builder, NOT
+  // @capacitor/local-notifications' own schedule() — that plugin's schema
+  // has no `progress` field at all (no determinate-bar support), and every
+  // schedule() call re-alerts (sound/vibration/heads-up) even for an
+  // in-place update, which read as a fresh notification firing every pass
+  // instead of one continuous bar. @capacitor/local-notifications is still
+  // used for the one thing it's actually good for here: the Android 13+
+  // POST_NOTIFICATIONS permission prompt.
+  function notifPermPlugin() {
     return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
   }
-  const GEN_NOTIF_ID = 20260921;
-  const GEN_NOTIF_CHANNEL = 'gen-progress';
-  // Step progress can arrive many times a second — posting a system
-  // notification on every single one is spam and risks Android's own
-  // per-app notification rate limit. Leading+trailing throttle: the first
-  // update in a burst posts immediately, later ones in the same window
-  // collapse into one trailing post.
+  function genProgressPlugin() {
+    return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.GenProgress;
+  }
+  // Step progress can arrive many times a second — posting a native
+  // notification update on every single one is wasted work and risks
+  // Android's own per-app notification rate limit. Leading+trailing
+  // throttle: the first update in a burst posts immediately, later ones
+  // in the same window collapse into one trailing post.
   const GEN_NOTIF_THROTTLE_MS = 700;
   let genNotifPermissionAsked = false;
-  let genNotifChannelReady = false;
+  let genNotifCancelListenerReady = false;
   let genPassCount = 1;
   let genTotalStages = 1;
   let genStageIndex = 1;
   let genLastStepValue = -1;
   let genNotifLastSentAt = 0;
   let genNotifTrailingTimer = null;
-  let genNotifPendingTitle = null;
-  let genNotifPendingBody = null;
+  let genNotifPendingArgs = null;
 
   async function ensureGenNotifReady() {
-    const LocalNotifications = notifPlugin();
-    if (!LocalNotifications) return false;
+    const LocalNotifications = notifPermPlugin();
+    const GenProgress = genProgressPlugin();
+    if (!LocalNotifications || !GenProgress) return false;
     try {
       if (!genNotifPermissionAsked) {
         genNotifPermissionAsked = true;
@@ -267,13 +278,9 @@
         if (perm.display !== 'granted') perm = await LocalNotifications.requestPermissions();
         if (perm.display !== 'granted') return false;
       }
-      if (!genNotifChannelReady) {
-        genNotifChannelReady = true;
-        await LocalNotifications.createChannel({
-          id: GEN_NOTIF_CHANNEL, name: 'Generation progress',
-          description: 'Live step progress for ComfyUI generations',
-          importance: 2, visibility: 1 // low importance (no sound/heads-up) — an update every ~second shouldn't interrupt
-        });
+      if (!genNotifCancelListenerReady) {
+        genNotifCancelListenerReady = true;
+        GenProgress.addListener('cancelRequested', () => comfyStopGeneration());
       }
       return true;
     } catch (e) { return false; }
@@ -283,30 +290,24 @@
     return idx <= genPassCount ? (idx + 'Pass') : 'Upscaling';
   }
 
-  async function postGenNotification(title, body, ongoing) {
-    const LocalNotifications = notifPlugin();
-    if (!LocalNotifications) return;
-    try {
-      await LocalNotifications.schedule({ notifications: [{
-        id: GEN_NOTIF_ID, title: title, body: body, channelId: GEN_NOTIF_CHANNEL,
-        ongoing: ongoing !== false, autoCancel: ongoing === false
-      }] });
-    } catch (e) { /* best effort — notifications are a nice-to-have, never block generation */ }
+  async function postGenNotification(args) {
+    const GenProgress = genProgressPlugin();
+    if (!GenProgress) return;
+    try { await GenProgress.update(args); } catch (e) { /* best effort — notifications are a nice-to-have, never block generation */ }
   }
 
-  function queueGenNotification(title, body, ongoing) {
-    genNotifPendingTitle = title;
-    genNotifPendingBody = body;
+  function queueGenNotification(args) {
+    genNotifPendingArgs = args;
     const now = Date.now();
     const elapsed = now - genNotifLastSentAt;
     if (elapsed >= GEN_NOTIF_THROTTLE_MS) {
       genNotifLastSentAt = now;
-      postGenNotification(title, body, ongoing);
+      postGenNotification(args);
     } else if (!genNotifTrailingTimer) {
       genNotifTrailingTimer = setTimeout(() => {
         genNotifTrailingTimer = null;
         genNotifLastSentAt = Date.now();
-        postGenNotification(genNotifPendingTitle, genNotifPendingBody, ongoing);
+        postGenNotification(genNotifPendingArgs);
       }, GEN_NOTIF_THROTTLE_MS - elapsed);
     }
   }
@@ -314,9 +315,11 @@
   // Bypasses the throttle (and cancels any pending trailing update) — for
   // the completion/error/stopped states, which must land immediately and
   // must not get overwritten by a stale in-flight progress update.
-  function finalizeGenNotification(title, body) {
+  async function finalizeGenNotification(title, body) {
     if (genNotifTrailingTimer) { clearTimeout(genNotifTrailingTimer); genNotifTrailingTimer = null; }
-    postGenNotification(title, body, false);
+    const GenProgress = genProgressPlugin();
+    if (!GenProgress) return;
+    try { await GenProgress.finish({ title: title, body: body }); } catch (e) { /* best effort */ }
   }
 
   function resetGenNotificationState() {
@@ -338,9 +341,15 @@
     if (genLastStepValue >= 0 && value < genLastStepValue && genStageIndex < genPassCount) genStageIndex++;
     genLastStepValue = value;
     genStatus.textContent = 'Generating… step ' + value + '/' + max;
-    queueGenNotification(genStageLabel(genStageIndex) + ' (' + genStageIndex + '/' + genTotalStages + ')', value + '/' + max, true);
+    queueGenNotification({
+      title: genStageLabel(genStageIndex) + ' (' + genStageIndex + '/' + genTotalStages + ')',
+      body: value + '/' + max, progress: value, max: max, indeterminate: false, showCancel: true
+    });
     if (genStageIndex === genPassCount && value >= max && genTotalStages > genPassCount) {
-      queueGenNotification('Upscaling (' + genTotalStages + '/' + genTotalStages + ')', 'Finishing…', true);
+      queueGenNotification({
+        title: 'Upscaling (' + genTotalStages + '/' + genTotalStages + ')',
+        body: 'Finishing…', progress: 0, max: 0, indeterminate: true, showCancel: true
+      });
     }
   }
 
@@ -1115,7 +1124,7 @@
 
     resetGenNotificationState();
     if (await ensureGenNotifReady()) {
-      postGenNotification(genStageLabel(1) + ' (1/' + genTotalStages + ')', 'Starting…', true);
+      postGenNotification({ title: genStageLabel(1) + ' (1/' + genTotalStages + ')', body: 'Starting…', progress: 0, max: 0, indeterminate: true, showCancel: true });
     }
 
     const prompt = buildPrompt();

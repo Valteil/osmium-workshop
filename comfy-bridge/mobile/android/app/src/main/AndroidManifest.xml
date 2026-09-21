@@ -35,10 +35,26 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- setOngoing(true) alone stopped being enough on Android 14+
+             (targetSdk 36 here) — the OS lets the user swipe away an
+             "ongoing" notification from a regular app regardless. A real
+             foreground service notification is still exempt from that, so
+             the generation-progress notification runs through one while a
+             generation is active (see GenProgressService.kt /
+             GenProgressPlugin.kt). dataSync fits: it's relaying progress
+             from a network call to ComfyUI, not doing local media/location
+             work. -->
+        <service
+            android:name=".GenProgressService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 </manifest>

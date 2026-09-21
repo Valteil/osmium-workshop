@@ -31,19 +31,28 @@ address guide) is a centered dim-screen modal behind an (i) button next to
 
 ## Generation progress notification
 
-A system notification (`@capacitor/local-notifications`) tracks a running
+A live notification with a real determinate progress bar tracks a running
 generation from outside the app — back out to the home screen or another
-app and the notification shade still shows which pass is running and its
-step count, e.g. `1Pass (1/2)` / `15/30`, updating in place (same
-notification id every time) as it progresses into `2Pass (2/2)` / `3/20`,
-then a final `Upscaling (3/3)` phase with no step count if upscale is on
-(the upscale node isn't iterative, so it never reports step progress —
-inferred instead from the last pass reaching 100%). Throttled to at most
-one update per ~700ms regardless of how fast steps actually arrive.
-Requests notification permission (Android 13+) the first time you tap
-Generate; declining it just means no notification, generation still runs
-normally. Finalizes to "Generation complete" / "Generation stopped" /
-"Generation failed" and becomes dismissible.
+app and the shade still shows which pass is running and its step count,
+e.g. `1Pass (1/2)` / `15/30`, advancing into `2Pass (2/2)` / `3/20`, then a
+final indeterminate `Upscaling (3/3)` phase if upscale is on (that node
+isn't iterative, so it never reports step progress — inferred instead from
+the last pass reaching 100%). Has a **Cancel** action that stops the
+generation, same as the in-app Stop button.
+
+Backed by a real Android **foreground service**
+(`GenProgressService.kt`/`GenProgressPlugin.kt`, own custom native plugin —
+`@capacitor/local-notifications` is only used for the Android 13+
+permission prompt), not a plain notification: `setOngoing(true)` alone
+stopped making a notification swipe-proof for regular apps on Android
+14+ (this app targets sdk 36), but a genuine foreground service's
+notification is still exempt from that. `setOnlyAlertOnce(true)` keeps
+every update after the first silent (no repeat sound/vibration/heads-up).
+Throttled to at most one update per ~700ms regardless of how fast steps
+actually arrive. Declining the permission prompt just means no
+notification; generation still runs normally either way. On completion/
+stop/failure the service detaches (not removes) the notification, so it
+stays visible but becomes an ordinary dismissible one.
 
 ## Result preview
 
