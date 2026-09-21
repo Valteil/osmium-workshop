@@ -240,7 +240,7 @@
   .nc-bl{bottom:-5px; left:-5px;} .nc-br{bottom:-5px; right:-5px;}
   .proof-cap{display:flex; justify-content:space-between; align-items:baseline; margin-top:14px; font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:var(--ink-soft);}
   .shot-gallery{
-    display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:36px 24px;
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(420px, 1fr)); gap:40px 32px;
     margin-top:64px;
   }
   .shot-card{ margin:0; }
@@ -248,7 +248,10 @@
 
   /* ---------- inter-section teaser line ---------- */
   .transition-line{ padding-top:56px; }
-  .transition-line p{ max-width:640px; margin:0; font-size:1.1rem; font-weight:600; color:var(--ink); }
+  .transition-line p{
+    max-width:640px; margin:0; font-family:'Chakra Petch',sans-serif; letter-spacing:-0.01em;
+    font-size:1.3rem; font-weight:600; color:var(--ink);
+  }
 
   /* ---------- feature rows (connections) ---------- */
   .conn-row{
@@ -264,6 +267,36 @@
   .conn-copy p{color:var(--ink-soft); margin:0 0 12px; max-width:56ch;}
   .conn-copy .tags{display:flex; gap:8px; flex-wrap:wrap;}
   .tag-chip{font-family:'JetBrains Mono',monospace; font-size:0.78rem; border:1px solid var(--line-strong); color:var(--ink-soft); padding:3px 9px; border-radius:999px;}
+  /* A real screenshot slotted under a feature row that has one to show —
+     full width, capped so it doesn't stretch absurdly thin at very wide
+     viewports, sitting in the gap between this row's bottom and the next
+     row's own border-top (no border of its own needed, the following
+     .conn-row supplies it). */
+  .conn-shot{ padding-bottom:38px; }
+  .conn-shot .proof-frame{ max-width:900px; margin:0 auto; }
+
+  /* ---------- Visual Customizability: overlapping theme staircase ---------- */
+  /* Fixed px offsets, not percentages of the wrap — three images cascading
+     top-left to bottom-right at a predictable, sanity-checked overlap
+     regardless of viewport width (up to the point mobile drops the
+     absolute positioning entirely below). Each shot keeps a small alternating
+     rotation so the stack reads as a fanned deck, not a slipped stack of
+     identical rectangles. */
+  .stair-wrap{ position:relative; height:640px; }
+  .stair-shot{ position:absolute; width:600px; max-width:70%; }
+  .stair-shot .proof-frame{ box-shadow:0 20px 44px rgba(0,0,0,.22); transition:transform var(--panel-dur) ease; }
+  .stair-shot .proof-cap{ margin-top:12px; justify-content:flex-start; gap:8px; }
+  .stair-shot.s1{ top:0;     left:0;   z-index:1; transform:rotate(-2.2deg); }
+  .stair-shot.s2{ top:120px; left:180px; z-index:2; transform:rotate(1.6deg); }
+  .stair-shot.s3{ top:240px; left:360px; z-index:3; transform:rotate(-1.2deg); }
+  @media (hover:hover) and (pointer:fine){
+    .stair-shot:hover{ z-index:4; }
+    .stair-shot:hover .proof-frame{ transform:translateY(-8px); }
+  }
+  @media (max-width:860px){
+    .stair-wrap{ height:auto; display:flex; flex-direction:column; gap:28px; }
+    .stair-shot{ position:static; width:100%; max-width:none; transform:none !important; }
+  }
 
   /* ---------- hub / apps ---------- */
   .hub-wrap{display:grid; grid-template-columns:1fr 1fr; gap:50px; align-items:center;}
@@ -428,7 +461,7 @@
           <a class="btn btn-ghost" href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">View source on GitHub</a>
         </div>
         <div class="hero-meta">
-          <span><strong>Unzip, run.</strong> No installer.</span>
+          <span><strong>Portable.</strong> Unzip and use immediately.</span>
           <span><strong>Every edit</strong> logged and undoable.</span>
           <span><strong>Zero</strong> telemetry.</span>
         </div>
@@ -584,6 +617,13 @@
           <div class="tags"><span class="tag-chip">ControlNet pose</span><span class="tag-chip">crash-safe writes</span></div>
         </div>
       </div>
+      <div class="conn-shot">
+        <div class="proof-frame">
+          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+          <img src="assets/screenshot-synthdat.jpg" alt="Osmium Workshop SynthDat Overseer tab: structured prompt fields driving a ComfyUI generation." loading="lazy" />
+        </div>
+      </div>
 
       <div class="conn-row">
         <div class="conn-diagram" aria-hidden="true">
@@ -621,22 +661,6 @@
           <div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-gallery.jpg" alt="Osmium Workshop Gallery tab with a loaded dataset: tag filter sidebar, Tag Pruner, and Retroactive Merge/Void panel." loading="lazy" />
-          </div>
-          <figcaption class="proof-cap"><span>Gallery tab — loaded dataset</span></figcaption>
-        </figure>
-        <figure class="shot-card">
-          <div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-synthdat.jpg" alt="Osmium Workshop SynthDat Overseer tab: structured prompt fields driving a ComfyUI generation." loading="lazy" />
-          </div>
-          <figcaption class="proof-cap"><span>SynthDat Overseer — generation panel</span></figcaption>
-        </figure>
-        <figure class="shot-card">
-          <div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img src="assets/screenshot-dark-mode.jpg" alt="Osmium Workshop Gallery tab in dark mode." loading="lazy" />
           </div>
           <figcaption class="proof-cap"><span>Dark mode</span></figcaption>
@@ -669,25 +693,45 @@
           <div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-shop-themes.png" alt="Theme shop list showing rare, epic, and legendary themes with their Edibits price." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>Shop themes — common to legendary</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VISUAL CUSTOMIZABILITY ============ -->
+  <section id="customization">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Visual customizability</h2>
+        <p>26 themes, common to legendary, plus a night mode that sits on top of whichever one you're using. Same app, same density, your palette.</p>
+      </div>
+      <div class="stair-wrap">
+        <figure class="stair-shot s1">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img src="assets/screenshot-gallery.jpg" alt="Osmium Workshop Gallery tab in the default Studio theme." loading="lazy" />
+          </div>
+          <figcaption class="proof-cap"><span>Studio — default</span></figcaption>
+        </figure>
+        <figure class="stair-shot s2">
+          <div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img src="assets/screenshot-theme-candy.jpg" alt="Osmium Workshop Gallery tab in the Candy theme." loading="lazy" />
           </div>
-          <figcaption class="proof-cap"><span>One of 26 themes — Candy</span></figcaption>
+          <figcaption class="proof-cap"><span>Candy</span></figcaption>
         </figure>
-        <figure class="shot-card">
+        <figure class="stair-shot s3">
           <div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img src="assets/screenshot-theme-ocean.jpg" alt="Osmium Workshop Gallery tab in the Ocean theme." loading="lazy" />
           </div>
-          <figcaption class="proof-cap"><span>...and Ocean</span></figcaption>
-        </figure>
-        <figure class="shot-card">
-          <div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-shop-themes.png" alt="Theme shop list showing rare, epic, and legendary themes with their Edibits price." loading="lazy" />
-          </div>
-          <figcaption class="proof-cap"><span>Shop themes — common to legendary</span></figcaption>
+          <figcaption class="proof-cap"><span>Ocean</span></figcaption>
         </figure>
       </div>
     </div>
@@ -743,11 +787,11 @@
         <div class="dl-inner">
           <div>
             <h2 class="display">Get the current build</h2>
-            <p>v1.6.0, portable Windows build. No installer, no account. It doesn't make a single network call unless you point it at your own ComfyUI.</p>
+            <p>v1.6.0, portable Windows build — unzip and use immediately, no account needed. It doesn't make a single network call unless you point it at your own ComfyUI.</p>
           </div>
           <div class="dl-ctas">
             <a class="btn btn-primary" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download v1.6.0</a>
-            <a class="btn btn-ghost" href="https://github.com/azozis9182/osmium-workshop#readme" target="_blank" rel="noopener">Read the full guide</a>
+            <a class="btn btn-ghost" href="guide.html">Read the full guide</a>
           </div>
         </div>
       </div>
@@ -786,8 +830,8 @@
     </div>
     <div class="footer-links">
       <a href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://github.com/azozis9182/osmium-workshop#readme" target="_blank" rel="noopener">README</a>
-      <a href="https://github.com/azozis9182/osmium-workshop/blob/main/USER_GUIDE.md" target="_blank" rel="noopener">User guide</a>
+      <a href="readme.html">README</a>
+      <a href="guide.html">User guide</a>
       <a href="https://github.com/azozis9182/osmium-workshop/issues" target="_blank" rel="noopener">Issues</a>
     </div>
   </div>

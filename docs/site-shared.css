@@ -1,0 +1,104 @@
+/* Shared chrome for the sister doc pages (guide.html, readme.html) — same
+   palette, fonts, header/nav, and footer as index.html. This is a
+   deliberate, separately-maintained copy of index.html's own inline chrome
+   CSS, not a shared import into index.html itself: refactoring the
+   already-shipped landing page's inline styles into an external file was
+   more risk than this addition warranted. If the header/nav/footer/palette
+   ever change on index.html, mirror the change here too — low-churn CSS,
+   but real drift risk same as any duplicated file (see docs/demo/'s own
+   sync convention for the same problem elsewhere on this site).
+
+   Deliberately does NOT include the scroll-driven night-mode mechanism:
+   these are long-form text pages with no natural "arrival point" like the
+   landing page's #features section, and a forced color shift mid-read is
+   more likely to be disruptive than a nice touch on a page meant to be
+   read top to bottom. Static light theme only. */
+:root{
+  --ground:#f4f4f1;      --ground-dim:#ececE7;   --card:#ffffff;
+  --ink:#141412;         --ink-soft:#4a4a45;
+  --line:#d9d9d3;        --line-strong:#b7b7ae;
+  --red:#e14b3a; --green:#3f9d4f; --blue:#3b76d6;
+  --radius:2px; --measure:70ch;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--ink); color:var(--ground);}
+a{color:inherit;}
+.wrap{max-width:1180px; margin:0 auto; padding:0 32px;}
+.display{font-family:'Chakra Petch',sans-serif; letter-spacing:-0.01em;}
+.mono{font-family:'JetBrains Mono',monospace;}
+
+/* ---------- nav ---------- */
+header{
+  position:sticky; top:0; z-index:20;
+  background:var(--ground);
+  border-bottom:1px solid var(--line);
+}
+.nav{
+  display:flex; align-items:center; justify-content:space-between;
+  height:72px;
+}
+.brand{display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--ink);}
+.brand svg{display:block;}
+.brand-name{font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
+nav.links{display:flex; align-items:center; gap:28px;}
+.nav-ctas{display:flex; align-items:center; gap:10px;}
+nav.links a{font-size:0.9rem; text-decoration:none; color:var(--ink-soft); transition:color .15s;}
+nav.links a:hover{color:var(--ink);}
+nav.links a.active{color:var(--ink); font-weight:600;}
+.btn{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:0.92rem;
+  padding:11px 20px; border-radius:var(--radius);
+  text-decoration:none; border:1px solid var(--ink); white-space:nowrap;
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.btn-primary{background:var(--ink); color:var(--ground);}
+.btn-primary:hover{transform:translateY(-1px); box-shadow:0 6px 0 -2px var(--line-strong), 0 4px 14px rgba(0,0,0,.18);}
+.btn-ghost{background:transparent; color:var(--ink); border-color:var(--line-strong);}
+.btn-ghost:hover{border-color:var(--ink);}
+.btn-sm{padding:8px 14px; font-size:0.82rem;}
+
+/* ---------- the Osmium polygon (small brand mark, header + footer) ---------- */
+.lattice .l-circle{fill:none; stroke:var(--line-strong); stroke-width:1;}
+.lattice .e-ring{stroke:var(--ink); stroke-width:1.8; opacity:.85; stroke-linecap:round;}
+.lattice .e-thick{stroke:var(--ink); stroke-width:2.3; opacity:.92; stroke-linecap:round;}
+.lattice .e-thin{stroke:var(--ink); stroke-width:1; opacity:.4; stroke-linecap:round;}
+.lattice-sm{width:38px; height:38px;}
+.lattice-sm .e-ring{stroke-width:7.2;}
+.lattice-sm .e-thick{stroke-width:9;}
+.lattice-sm .e-thin{stroke-width:5.6;}
+.lattice-sm .l-circle{display:none;}
+.lattice .n-lg{fill:var(--ink);}
+.lattice .n-sm{fill:var(--ink); opacity:.65;}
+.lattice .n-center{fill:var(--ink);}
+.mark-sm .l-ring{fill:none; stroke:var(--ink); stroke-width:6; stroke-linecap:round;}
+.mark-sm .l-spoke-a{fill:none; stroke:var(--ink); stroke-width:4.4; opacity:.45; stroke-linecap:round;}
+.mark-sm .l-spoke-b{fill:none; stroke:var(--ink); stroke-width:6; opacity:.95; stroke-linecap:round;}
+.mark-sm .l-node{fill:var(--ink);}
+
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--line); padding:44px 0; margin-top:20px;}
+.footer-row{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;}
+.footer-brand{display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft);}
+.footer-links{display:flex; gap:22px; font-size:0.85rem;}
+.footer-links a{text-decoration:none; color:var(--ink-soft);}
+.footer-links a:hover{color:var(--ink);}
+
+@media (max-width:860px){
+  nav.links{display:none;}
+  .nav{height:auto; padding:14px 0;}
+  .btn-sm{padding:9px 14px; font-size:0.78rem;}
+}
+@media (max-width:520px){
+  .nav-ctas .btn-ghost{display:none;}
+}

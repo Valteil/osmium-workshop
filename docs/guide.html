@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>User Guide — Osmium Workshop</title>
+<meta name="description" content="A practical, tab-by-tab walkthrough of Osmium Workshop, the local-first dataset tag editor — rendered straight from the repo's own USER_GUIDE.md." />
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site-shared.css">
+<style>
+  /* ---------- doc content ---------- */
+  .doc-wrap{ padding:56px 0 96px; }
+  .doc-head{ margin-bottom:12px; }
+  .doc-head h1{ font-family:'Chakra Petch',sans-serif; font-size:clamp(1.9rem,3.4vw,2.6rem); font-weight:600; margin:0 0 10px; letter-spacing:-0.01em; }
+  .doc-source-note{ font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft); margin:0 0 40px; }
+  .doc-source-note a{ color:var(--ink-soft); text-decoration:underline; }
+  .doc-source-note a:hover{ color:var(--ink); }
+  #doc-content{ max-width:var(--measure); }
+  #doc-content h1{ display:none; } /* the source's own # H1 duplicates .doc-head above it */
+  #doc-content h2{ font-family:'Chakra Petch',sans-serif; font-size:1.5rem; font-weight:600; margin:48px 0 16px; padding-top:24px; border-top:1px solid var(--line); }
+  #doc-content h2:first-child{ margin-top:0; padding-top:0; border-top:none; }
+  #doc-content h3{ font-size:1.15rem; font-weight:600; margin:28px 0 12px; }
+  #doc-content h4{ font-size:1rem; font-weight:600; margin:20px 0 10px; color:var(--ink-soft); }
+  #doc-content p{ color:var(--ink-soft); margin:0 0 16px; line-height:1.7; }
+  #doc-content strong{ color:var(--ink); font-weight:600; }
+  #doc-content code{ font-family:'JetBrains Mono',monospace; font-size:0.86em; background:var(--ground-dim); border:1px solid var(--line); border-radius:4px; padding:1px 6px; }
+  #doc-content pre{ background:var(--ground-dim); border:1px solid var(--line); border-radius:6px; padding:16px 18px; overflow-x:auto; margin:0 0 20px; }
+  #doc-content pre code{ background:none; border:none; padding:0; font-size:0.84rem; line-height:1.6; }
+  #doc-content ul, #doc-content ol{ color:var(--ink-soft); margin:0 0 18px; padding-left:24px; line-height:1.7; }
+  #doc-content li{ margin-bottom:6px; }
+  #doc-content li strong{ color:var(--ink); }
+  #doc-content a{ color:var(--blue); text-decoration:underline; text-underline-offset:2px; }
+  #doc-content a:hover{ color:var(--ink); }
+  #doc-content hr{ border:0; border-top:1px solid var(--line); margin:36px 0; }
+  #doc-content blockquote{ margin:0 0 20px; padding:2px 20px; border-left:3px solid var(--line-strong); color:var(--ink-soft); }
+  #doc-content blockquote p{ margin:0; }
+  #doc-content table{ width:100%; border-collapse:collapse; margin:0 0 24px; font-size:0.92rem; }
+  #doc-content th, #doc-content td{ text-align:left; padding:9px 12px; border:1px solid var(--line); vertical-align:top; }
+  #doc-content th{ background:var(--ground-dim); font-family:'Chakra Petch',sans-serif; font-weight:600; }
+  #doc-content img{ max-width:100%; border-radius:4px; border:1px solid var(--line); }
+  .doc-loading{ color:var(--ink-soft); font-family:'JetBrains Mono',monospace; font-size:0.85rem; }
+  @media (max-width:640px){
+    .doc-wrap{ padding:36px 0 64px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <svg class="lattice lattice-sm" viewBox="0 0 250 250" aria-hidden="true">
+        <circle class="l-circle" cx="125" cy="125" r="117"/>
+        <line x1="125.0" y1="25.0" x2="183.78" y2="44.1" class="e-ring"/>
+        <line x1="183.78" y1="44.1" x2="220.11" y2="94.1" class="e-ring"/>
+        <line x1="220.11" y1="94.1" x2="220.11" y2="155.9" class="e-ring"/>
+        <line x1="220.11" y1="155.9" x2="183.78" y2="205.9" class="e-ring"/>
+        <line x1="183.78" y1="205.9" x2="125.0" y2="225.0" class="e-ring"/>
+        <line x1="125.0" y1="225.0" x2="66.22" y2="205.9" class="e-ring"/>
+        <line x1="66.22" y1="205.9" x2="29.89" y2="155.9" class="e-ring"/>
+        <line x1="29.89" y1="155.9" x2="29.89" y2="94.1" class="e-ring"/>
+        <line x1="29.89" y1="94.1" x2="66.22" y2="44.1" class="e-ring"/>
+        <line x1="66.22" y1="44.1" x2="125.0" y2="25.0" class="e-ring"/>
+        <line x1="125.0" y1="25.0" x2="220.11" y2="94.1" class="e-thin"/>
+        <line x1="220.11" y1="94.1" x2="183.78" y2="205.9" class="e-thin"/>
+        <line x1="183.78" y1="205.9" x2="66.22" y2="205.9" class="e-thin"/>
+        <line x1="66.22" y1="205.9" x2="29.89" y2="94.1" class="e-thin"/>
+        <line x1="29.89" y1="94.1" x2="125.0" y2="25.0" class="e-thin"/>
+        <line x1="183.78" y1="44.1" x2="220.11" y2="155.9" class="e-thick"/>
+        <line x1="220.11" y1="155.9" x2="125.0" y2="225.0" class="e-thick"/>
+        <line x1="125.0" y1="225.0" x2="29.89" y2="155.9" class="e-thick"/>
+        <line x1="29.89" y1="155.9" x2="66.22" y2="44.1" class="e-thick"/>
+        <line x1="66.22" y1="44.1" x2="183.78" y2="44.1" class="e-thick"/>
+        <line x1="125" y1="125" x2="125.0" y2="25.0" class="e-thin"/>
+        <line x1="125" y1="125" x2="183.78" y2="44.1" class="e-thick"/>
+        <line x1="125" y1="125" x2="220.11" y2="94.1" class="e-thin"/>
+        <line x1="125" y1="125" x2="220.11" y2="155.9" class="e-thick"/>
+        <line x1="125" y1="125" x2="183.78" y2="205.9" class="e-thin"/>
+        <line x1="125" y1="125" x2="125.0" y2="225.0" class="e-thick"/>
+        <line x1="125" y1="125" x2="66.22" y2="205.9" class="e-thin"/>
+        <line x1="125" y1="125" x2="29.89" y2="155.9" class="e-thick"/>
+        <line x1="125" y1="125" x2="29.89" y2="94.1" class="e-thin"/>
+        <line x1="125" y1="125" x2="66.22" y2="44.1" class="e-thick"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(125.0 25.0) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(183.78 44.1) rotate(45)"/>
+        <rect class="n-sm" x="-3.3" y="-3.3" width="6.6" height="6.6" transform="translate(220.11 94.1) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(220.11 155.9) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(183.78 205.9) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(125.0 225.0) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(66.22 205.9) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(29.89 155.9) rotate(45)"/>
+        <rect class="n-sm" x="-3.3" y="-3.3" width="6.6" height="6.6" transform="translate(29.89 94.1) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(66.22 44.1) rotate(45)"/>
+        <rect class="n-center" x="-5.2" y="-5.2" width="10.4" height="10.4" transform="translate(125 125) rotate(45)"/>
+      </svg>
+      <span class="brand-name">Osmium Workshop</span>
+    </a>
+    <nav class="links">
+      <a href="index.html#demo">Look inside</a>
+      <a href="index.html#features">Toolset</a>
+      <a href="readme.html">Readme</a>
+      <a class="active" href="guide.html">User guide</a>
+    </nav>
+    <div class="nav-ctas">
+      <a class="btn btn-ghost btn-sm" href="index.html#demo">Try it right here</a>
+      <a class="btn btn-primary btn-sm" href="https://github.com/azozis9182/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download v1.6.0</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap doc-wrap">
+  <div class="doc-head">
+    <h1>User Guide</h1>
+  </div>
+  <p class="doc-source-note">Rendered directly from the repo's own <a href="https://github.com/azozis9182/osmium-workshop/blob/main/USER_GUIDE.md" target="_blank" rel="noopener">USER_GUIDE.md</a> — see also the <a href="readme.html">Readme</a> for the feature overview.</p>
+  <div id="doc-content"><p class="doc-loading">Loading…</p></div>
+</div>
+
+<footer>
+  <div class="wrap footer-row">
+    <div class="footer-brand">
+      <svg class="mark-sm" width="18" height="18" viewBox="0 0 250 250" aria-hidden="true" style="opacity:.75">
+        <line x1="125.0" y1="25.0" x2="183.78" y2="44.1" class="l-ring"/>
+        <line x1="183.78" y1="44.1" x2="220.11" y2="94.1" class="l-ring"/>
+        <line x1="220.11" y1="94.1" x2="220.11" y2="155.9" class="l-ring"/>
+        <line x1="220.11" y1="155.9" x2="183.78" y2="205.9" class="l-ring"/>
+        <line x1="183.78" y1="205.9" x2="125.0" y2="225.0" class="l-ring"/>
+        <line x1="125.0" y1="225.0" x2="66.22" y2="205.9" class="l-ring"/>
+        <line x1="66.22" y1="205.9" x2="29.89" y2="155.9" class="l-ring"/>
+        <line x1="29.89" y1="155.9" x2="29.89" y2="94.1" class="l-ring"/>
+        <line x1="29.89" y1="94.1" x2="66.22" y2="44.1" class="l-ring"/>
+        <line x1="66.22" y1="44.1" x2="125.0" y2="25.0" class="l-ring"/>
+        <line x1="125" y1="125" x2="125.0" y2="25.0" class="l-spoke-a"/>
+        <line x1="125" y1="125" x2="183.78" y2="44.1" class="l-spoke-b"/>
+        <line x1="125" y1="125" x2="220.11" y2="94.1" class="l-spoke-a"/>
+        <line x1="125" y1="125" x2="220.11" y2="155.9" class="l-spoke-b"/>
+        <line x1="125" y1="125" x2="183.78" y2="205.9" class="l-spoke-a"/>
+        <line x1="125" y1="125" x2="125.0" y2="225.0" class="l-spoke-b"/>
+        <line x1="125" y1="125" x2="66.22" y2="205.9" class="l-spoke-a"/>
+        <line x1="125" y1="125" x2="29.89" y2="155.9" class="l-spoke-b"/>
+        <line x1="125" y1="125" x2="29.89" y2="94.1" class="l-spoke-a"/>
+        <line x1="125" y1="125" x2="66.22" y2="44.1" class="l-spoke-b"/>
+        <circle class="l-node" cx="125" cy="125" r="7"/>
+      </svg>
+      <span>osmium-workshop · built by azozis9182</span>
+    </div>
+    <div class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="readme.html">Readme</a>
+      <a href="https://github.com/azozis9182/osmium-workshop" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/azozis9182/osmium-workshop/issues" target="_blank" rel="noopener">Issues</a>
+    </div>
+  </div>
+</footer>
+
+<script src="md-render.js"></script>
+<script>
+(function(){
+  fetch('content/USER_GUIDE.md')
+    .then(function(r){ return r.text(); })
+    .then(function(md){
+      document.getElementById('doc-content').innerHTML = window.renderMarkdown(md);
+    })
+    .catch(function(){
+      document.getElementById('doc-content').innerHTML =
+        '<p>Couldn\'t load the guide content. <a href="https://github.com/azozis9182/osmium-workshop/blob/main/USER_GUIDE.md" target="_blank" rel="noopener">Read it on GitHub instead</a>.</p>';
+    });
+})();
+</script>
+</body>
+</html>
