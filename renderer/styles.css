@@ -915,6 +915,42 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .dm-sort-label{ font-size: 12px; color: var(--text-muted); }
   .dm-view-btn.active{ color: var(--accent-flair); border-color: var(--accent-flair); }
 
+  /* ---------- Dataset folder tabs (groups), incl. the optional password lock ---------- */
+
+  .dm-tab-bar{ display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 14px; }
+  .dm-tab{
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px; border-radius: 999px; font-size: 12.5px;
+    background: var(--bg-elevated); border: 1px solid var(--border-soft); color: var(--text-muted);
+  }
+  .dm-tab.active{ background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual); font-weight: 600; }
+  .dm-tab-lock{ font-size: 11px; }
+  .dm-tab-menu-btn{
+    padding: 0 2px; min-height: 0; background: transparent; border: none; color: inherit;
+    font-size: 13px; line-height: 1; opacity: .7;
+  }
+  .dm-tab-menu-btn:hover{ opacity: 1; }
+  .dm-tab-add{ padding: 6px 12px; font-weight: 600; }
+
+  .dm-lock-screen{
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 60px 20px; width: 100%; color: var(--text-muted); text-align: center;
+  }
+  .dm-lock-icon{ font-size: 38px; }
+  .dm-lock-msg{ font-size: 13.5px; }
+
+  /* promptText()'s own input (dataset-manager.ts) — reuses .confirm-box's
+     layout, just needs a field between the message and button row. */
+  .dm-prompt-input{
+    width: 100%; margin: 4px 0 4px; padding: 8px 10px; font: inherit; font-size: 13px;
+    background: var(--bg-base); border: 1px solid var(--border-soft); border-radius: 6px; color: var(--text-primary);
+  }
+
+  .dm-move-tab-list{ display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; max-height: 40vh; overflow-y: auto; }
+  .dm-move-tab-row{ text-align: left; padding: 9px 12px; border-radius: 6px; background: var(--bg-base); border: 1px solid var(--border-soft); }
+  .dm-move-tab-row:disabled{ opacity: .5; cursor: default; }
+  .dm-move-tab-row.active{ border-color: var(--accent-manual); color: var(--accent-manual); }
+
   .dm-grid{ display: flex; flex-wrap: wrap; gap: 16px; align-content: flex-start; }
   .dm-grid.dm-list-view{ flex-direction: column; flex-wrap: nowrap; }
 
@@ -1699,6 +1735,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      only, same reasoning .dock-info-btn used to need. Desktop's dock list
      stays inline exactly as before, no trigger needed. */
   .dock-list-open-btn{ display: none; }
+  /* Master Tag Control's own grid-pop-out button is available at every
+     width, not just the mobile/narrow layout the other dock-list-open-btn
+     triggers are scoped to — its thumbnails are genuinely too small to work
+     with in the docked panel even on a full desktop window, unlike Tag
+     Pruner's plain text list or the other list-only triggers this class
+     also covers. */
+  .dock-list-open-btn.always-visible{ display: block; margin-bottom: 8px; }
 
   .info-modal-box{
     width: min(520px, 88vw); max-height: 76vh; overflow-y: auto;
@@ -1974,6 +2017,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     flex-direction: column;
     gap: 20px;
     overflow-x: hidden;
+    /* Query container for .icon-fallback-btn's label swap below — keyed to
+       this element specifically because it's the one whose width the drag
+       handle (index.ts's rightPanelResizeHandle, via --right-w) actually
+       controls, not the viewport. */
+    container-type: inline-size;
   }
 
   /* Static, not sticky — sticky was tried here and reverted: a header glued
@@ -2388,10 +2436,46 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .compare-img-cell button{ position: absolute; top: 2px; right: 2px; font-size: 10px; padding: 2px 5px; }
   .compare-cell button{ font-size: 11px; padding: 3px 8px; }
 
+  /* Fixed 3 columns in the docked panel — the panel's own width varies with
+     the resizable right panel (see #right's container-type), so auto-fill
+     used to silently change the column count depending on how wide the
+     panel happened to be dragged. A fixed count keeps thumbnails a
+     predictable, comparable size regardless of panel width; anyone who
+     wants them bigger has the pop-out button (below) for that instead of
+     this view trying to be both. */
   .master-mini-grid{
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 5px; max-height: 240px; overflow-y: scroll; padding: 4px;
     background: var(--bg-base); border-radius: 6px; border: 1px solid var(--border-soft);
+    user-select: none; /* drag-to-select shouldn't also select stray text as the pointer crosses cells */
+  }
+  /* Popped out into openDockListModal()'s bigger box — same element,
+     reparented, so this just needs its own column/height rules for that
+     context. auto-fill with a min cell width instead of a fixed count: at
+     the modal's own max width (640px, see .dock-list-modal-box) a 56px
+     minimum lands at 10 columns, and it naturally shows fewer on a
+     narrower window instead of an explicit count needing its own
+     responsive breakpoints. */
+  .master-mini-grid.dock-list-modal-content{
+    grid-template-columns: repeat(auto-fill, minmax(calc(56px * var(--mini-grid-size, 1)), 1fr));
+    max-height: 68vh;
+  }
+  /* Size row (1x-4x) — only meaningful once the grid has real room to grow
+     into, so it stays hidden in the docked 3-column panel and only shows
+     once popped into the modal. grid-column spans the full row so it reads
+     as a toolbar strip above the thumbnails, not one more cell competing
+     with them for a column. */
+  .mini-grid-size-row{
+    display: none; grid-column: 1 / -1;
+    align-items: center; gap: 6px; padding: 2px 2px 8px;
+    font-size: 11px; color: var(--text-muted);
+  }
+  .master-mini-grid.dock-list-modal-content .mini-grid-size-row{ display: flex; }
+  .mini-grid-size-row button{
+    padding: 3px 10px; font-size: 11px; min-height: 0;
+  }
+  .mini-grid-size-row button.active{
+    background: var(--accent-manual); color: #fff; border-color: var(--accent-manual);
   }
   .master-mini-cell{
     position: relative; aspect-ratio: 1/1; border-radius: 4px; overflow: hidden;
@@ -2875,6 +2959,19 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      right edge instead of actually wrapping its own text. */
   .mtc-btn-row{ display:flex; gap:8px; flex-wrap:nowrap; margin:0 0 8px; }
   .mtc-btn-row button{ flex:1 1 0; min-width:0; }
+  /* Long button labels ("Sequential from first/selected", "Select all
+     visible", "Clear selection") have no short form that still reads as a
+     sentence — unlike "Disable"/"Delete" etc., min-width:0 alone just lets
+     the label clip or wrap against #right's own overflow-x:hidden once the
+     panel's dragged narrower than the text needs. Below the threshold,
+     swap to an icon-only span instead of letting that happen; aria-label
+     on the button (set in JS) carries the real meaning in both states, so
+     nothing is lost for a screen reader. */
+  .label-icon{ display:none; font-size:1.05rem; }
+  @container (max-width: 380px){
+    .icon-fallback-btn .label-full{ display:none; }
+    .icon-fallback-btn .label-icon{ display:inline; }
+  }
   .immunize-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
   .selection-summary {
     font-size: 11.5px;

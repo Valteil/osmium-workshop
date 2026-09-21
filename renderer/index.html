@@ -168,6 +168,7 @@
   </nav>
 
   <div id="datasetManagerTab" style="display:none;">
+    <div id="dmTabBar" class="dm-tab-bar"></div>
     <div class="dm-toolbar">
       <div class="dm-toolbar-left">
         <button id="dmGridBtn" class="dm-view-btn active" title="Grid view">▦ Grid</button>
@@ -373,7 +374,7 @@
           <div class="dock-controls-area">
           <div class="sec-head dock-desc-hide-mobile" style="margin-top:-8px;"><span class="d">Click images in the gallery to select them (checkboxes appear on cards while this tab is active). Then apply operations here.</span></div>
           <div class="sec-head dock-desc-hide-mobile"><span class="d">Or click a thumbnail below to select/deselect it:</span></div>
-          <button id="btnOpenMasterMiniGrid" class="dock-list-open-btn primary" title="Browse and select images by thumbnail">🖼 Select images</button>
+          <button id="btnOpenMasterMiniGrid" class="dock-list-open-btn always-visible primary" title="Pop the thumbnail grid out into a bigger window">⛶ Pop out grid</button>
           <div class="selection-summary" id="masterSelectionSummary">No images selected yet.</div>
           <div class="mtc-btn-row">
             <button id="btnMasterSelectAll" title="Select every image currently visible in the gallery">Select all visible</button>

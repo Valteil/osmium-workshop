@@ -28,9 +28,12 @@
       </div>
       <div class="row">
         <button id="btnConnect">Test connection</button>
+        <button id="connInfoBtn" class="info-btn" type="button" title="Connection help">ⓘ</button>
+      </div>
+      <div class="row">
+        <button id="btnRefreshModels">Refresh model lists</button>
       </div>
       <div id="connStatus" class="status-line" style="display:none"></div>
-      <div class="muted small">Enter your PC's reachable address — LAN IP (<code>http://192.168.x.x:8188</code>), hotspot gateway IP, or Tailscale IP/hostname (<code>http://100.x.y.z:8188</code>). Not <code>127.0.0.1</code> — that means "this phone" here. ComfyUI must run with <code>--listen 0.0.0.0 --enable-cors-header --port 8188</code>, and Windows Firewall must allow inbound TCP 8188. Note: the address loading in the phone's browser does NOT prove the app can reach it — the app needs CORS headers + cleartext allowed, the browser navigation needs neither.</div>
     </section>
 
     <section class="sec">
@@ -62,8 +65,8 @@
         <img id="livePreview">
       </div>
       <div id="previewWrap" class="preview-wrap">
-        <img id="pass1Preview" style="display:none">
-        <img id="preview" style="display:none">
+        <div id="previewCarousel" class="preview-carousel"></div>
+        <div id="previewThumbs" class="preview-thumbs" style="display:none"></div>
         <div id="previewEmpty" class="muted">No generation yet.</div>
       </div>
     </section>
@@ -152,9 +155,6 @@
       <label>Main LoRA</label>
       <input id="mainLora" type="text" readonly placeholder="Tap to choose…">
       <datalist id="mainLoraList"></datalist>
-      <div class="row">
-        <button id="btnRefreshModels">Refresh model lists</button>
-      </div>
     </section>
 
     <section class="sec">
@@ -188,9 +188,23 @@
       </select>
     </section>
 
-    <section class="sec">
-      <div class="sec-head"><span class="d">Resolution & sampling</span></div>
-      <div class="row reso-row">
+  </div>
+
+  <!-- Generation settings (seed, cfg, resolution, sampler, 2-Pass) live in an
+       off-canvas drawer on mobile instead of inline — reaching them inline
+       would mean scrolling all the way down the column every time, unlike
+       desktop's 3-column layout where they're already on-screen. The
+       hamburger toggle is position:fixed so it stays reachable at any
+       scroll position. -->
+  <button id="genSettingsToggle" class="gen-settings-toggle" title="Generation settings">☰</button>
+  <div id="genSettingsBackdrop" class="gen-settings-backdrop"></div>
+  <aside id="genSettingsDrawer" class="gen-settings-drawer">
+    <div class="gen-settings-drawer-head">
+      <span class="d">Generation settings</span>
+      <button id="genSettingsClose" class="gen-settings-close" title="Close">✕</button>
+    </div>
+    <div class="settings-grid">
+      <div class="row reso-row settings-span2">
         <div>
           <label>Width</label>
           <input id="width" type="number" value="920">
@@ -201,47 +215,94 @@
           <input id="height" type="number" value="1244">
         </div>
       </div>
-      <label>Sampler</label>
-      <input id="sampler" type="text" value="res_multistep">
-      <label>Scheduler</label>
-      <input id="scheduler" type="text" value="beta">
-      <label>Steps (pass 1)</label>
-      <input id="steps1" type="number" value="25">
-      <label>CFG (pass 1)</label>
-      <input id="cfg1" type="number" step="0.01" value="4.04">
-      <label>Seed (pass 1)</label>
-      <input id="seed1" type="number" value="15">
-      <label class="chk-row"><input id="use2Pass" type="checkbox"> 2-Pass</label>
-      <div id="pass2Fields">
-        <label>Steps (pass 2)</label>
-        <input id="steps2" type="number" value="15">
-        <label>Denoise (pass 2)</label>
-        <input id="denoise2" type="number" step="0.05" value="0.6">
-        <label>Seed (pass 2)</label>
-        <input id="seed2" type="number" value="15">
+      <div>
+        <label>Sampler</label>
+        <input id="sampler" type="text" value="res_multistep">
       </div>
-    </section>
-
-    <section class="sec">
-      <div class="sec-head"><span class="d">Upscale (optional)</span></div>
-      <label class="chk-row"><input id="upscaleEnabled" type="checkbox"> Upscale by model before saving</label>
-      <div id="upscaleModelRow">
-        <label>Upscale model</label>
-        <input id="upscaleModel" type="text" readonly placeholder="Tap to choose?">
-        <datalist id="upscaleModelList"></datalist>
-        <label>Scale by (after model upscale, e.g. 0.5 to bring a 4x model back to 2x)</label>
-        <input id="upscaleScaleBy" type="number" step="0.05" value="0.5">
-        <div class="row">
+      <div>
+        <label>Scheduler</label>
+        <input id="scheduler" type="text" value="beta">
+      </div>
+      <div>
+        <label>Steps (pass 1)</label>
+        <input id="steps1" type="number" value="25">
+      </div>
+      <div>
+        <label>CFG (pass 1)</label>
+        <input id="cfg1" type="number" step="0.01" value="4.04">
+      </div>
+      <div class="settings-span2">
+        <label>Seed (pass 1)</label>
+        <input id="seed1" type="number" value="15">
+      </div>
+      <label class="chk-row settings-span2"><input id="use2Pass" type="checkbox"> 2-Pass</label>
+      <div id="pass2Fields" class="settings-span2 settings-grid">
+        <div>
+          <label>Steps (pass 2)</label>
+          <input id="steps2" type="number" value="15">
+        </div>
+        <div>
+          <label>Denoise (pass 2)</label>
+          <input id="denoise2" type="number" step="0.05" value="0.6">
+        </div>
+        <div class="settings-span2">
+          <label>Seed (pass 2)</label>
+          <input id="seed2" type="number" value="15">
+        </div>
+      </div>
+      <label class="chk-row settings-span2"><input id="upscaleEnabled" type="checkbox"> Upscale by model before saving</label>
+      <div id="upscaleModelRow" class="settings-span2 settings-grid">
+        <div class="settings-span2">
+          <label>Upscale model</label>
+          <input id="upscaleModel" type="text" readonly placeholder="Tap to choose…">
+          <datalist id="upscaleModelList"></datalist>
+        </div>
+        <div class="settings-span2">
+          <label>Scale by (after model upscale, e.g. 0.5 to bring a 4x model back to 2x)</label>
+          <input id="upscaleScaleBy" type="number" step="0.05" value="0.5">
+        </div>
+        <div class="row settings-span2">
           <button id="btnRefreshUpscaleModels">Refresh upscale models</button>
         </div>
       </div>
-    </section>
+    </div>
+  </aside>
 
-    <section class="sec">
-      <div class="sec-head"><span class="d">Log</span></div>
-      <div id="log" class="log-box"></div>
-    </section>
+  <!-- Second slideout, stacked directly under the settings toggle — this
+       app's own diagnostic/status log (connection tests, generation
+       progress, save results, errors ComfyUI reported), the closest thing
+       to "terminal output" this app tracks. Not ComfyUI's own server
+       stdout — the app has no channel to that. -->
+  <button id="logDrawerToggle" class="gen-settings-toggle log-drawer-toggle" title="Log">📜</button>
+  <aside id="logDrawer" class="gen-settings-drawer log-drawer">
+    <div class="gen-settings-drawer-head">
+      <span class="d">Log</span>
+      <button id="logDrawerClose" class="gen-settings-close" title="Close">✕</button>
+    </div>
+    <div class="sec-head small-head"><span class="d">App log</span></div>
+    <div id="log" class="log-box"></div>
+    <div class="sec-head small-head">
+      <span class="d">ComfyUI terminal</span>
+      <button id="btnRefreshComfyLog" type="button">Refresh</button>
+    </div>
+    <div class="muted small">Real server stdout/stderr — live during generation, or tap Refresh.</div>
+    <div id="comfyTerminal" class="log-box comfy-terminal"></div>
+  </aside>
 
+  <!-- Connection help — a real centered dim-screen modal (not an anchored
+       popover): the popover version could grow taller than the viewport on
+       a small phone and force the whole PAGE to scroll to read the rest of
+       it. This is self-contained with its own max-height + scroll. -->
+  <div id="connInfoBackdrop" class="info-modal-backdrop" hidden>
+    <div class="info-modal">
+      <div class="gen-settings-drawer-head">
+        <span class="d">Connection help</span>
+        <button id="connInfoClose" class="gen-settings-close" title="Close">✕</button>
+      </div>
+      <div class="info-modal-body">
+        Enter your PC's reachable address — LAN IP (<code>http://192.168.x.x:8188</code>), hotspot gateway IP, or Tailscale IP/hostname (<code>http://100.x.y.z:8188</code>). Not <code>127.0.0.1</code> — that means "this phone" here. ComfyUI must run with <code>--listen 0.0.0.0 --enable-cors-header --port 8188</code>, and Windows Firewall must allow inbound TCP 8188. Note: the address loading in the phone's browser does NOT prove the app can reach it — the app needs CORS headers + cleartext allowed, the browser navigation needs neither.
+      </div>
+    </div>
   </div>
 </div>
 <script src="shared.js"></script>

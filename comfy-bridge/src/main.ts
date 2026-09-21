@@ -281,6 +281,21 @@ ipcMain.handle('synthdat-stop-generation', async (event, host) => {
   return { ok: true };
 });
 
+// One-shot fetch of ComfyUI's buffered terminal output — same internal
+// endpoint its own frontend's Logs panel reads (see the websocket
+// subscription below for the live-streaming half of this).
+ipcMain.handle('comfy-fetch-logs', async (event, { host }) => {
+  try {
+    const res = await comfyRequest(host, '/internal/logs/raw', { timeoutMs: 8000 });
+    if (res.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${res.status} fetching logs.` };
+    let parsed: any = {};
+    try { parsed = JSON.parse(res.body.toString('utf8') || '{}'); } catch (err) { return { ok: false, error: 'ComfyUI returned an unreadable logs response.' }; }
+    return { ok: true, entries: parsed.entries || [] };
+  } catch (err) {
+    return { ok: false, error: `Could not reach ComfyUI at ${host} (${err.message})` };
+  }
+});
+
 ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, imageBytes, prompt }) => {
   let ws: any = null;
   try {
@@ -309,6 +324,18 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
       ws.on('open', () => {
         try { ws.send(JSON.stringify({ type: 'feature_flags', data: { supports_preview_metadata: true } })); }
         catch (err) { /* best effort */ }
+        // ComfyUI's own frontend "Logs" panel uses this exact internal API
+        // (PATCH /internal/logs/subscribe + a "logs" websocket message type)
+        // to stream real stdout/stderr — undocumented/unversioned per its
+        // own server code comment, but it's what the actual terminal output
+        // runs through, not a proxy for it.
+        const subBody = Buffer.from(JSON.stringify({ clientId, enabled: true }), 'utf8');
+        comfyRequest(host, '/internal/logs/subscribe', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': subBody.length },
+          body: subBody,
+          timeoutMs: 5000
+        }).catch(() => { /* best effort — log streaming just won't start */ });
       });
       ws.on('message', (data, isBinary) => {
         if (isBinary) {
@@ -333,7 +360,9 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
         } else {
           try {
             const msg = JSON.parse(data.toString('utf8'));
-            if (msg.type === 'progress' && msg.data) {
+            if (msg.type === 'logs' && msg.data && Array.isArray(msg.data.entries)) {
+              event.sender.send('comfy-log', msg.data.entries);
+            } else if (msg.type === 'progress' && msg.data) {
               event.sender.send('gen-progress', msg.data);
             } else if (msg.type === 'progress_state' && msg.data && msg.data.nodes) {
               const running = Object.values(msg.data.nodes).filter((n: any) => n.state === 'running');
@@ -392,7 +421,15 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
       if (!record) continue;
       const saveOutput = record.outputs && record.outputs['192'];
       const image = saveOutput && Array.isArray(saveOutput.images) && saveOutput.images[0];
-      if (image) {
+      // '192_pass1' and '192_upscaled' are sibling branches off the same
+      // upstream node as '192', not downstream of it — ComfyUI doesn't
+      // guarantee they finish before '192' does. Only treat the job as done
+      // once every branch the submitted prompt actually asked for (nodes
+      // present in `prompt`, not just outputs already computed) has an
+      // output, or a still-running sibling branch's image gets missed.
+      const pass1Ready = !prompt['192_pass1'] || (record.outputs && record.outputs['192_pass1']);
+      const upscaledReady = !prompt['192_upscaled'] || (record.outputs && record.outputs['192_upscaled']);
+      if (image && pass1Ready && upscaledReady) {
         const qs = new URLSearchParams({ filename: image.filename, subfolder: image.subfolder || '', type: image.type || 'output' });
         const viewRes = await comfyRequest(host, `/view?${qs.toString()}`, { timeoutMs: 20000 });
         if (viewRes.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${viewRes.status} fetching the generated image.` };
@@ -408,6 +445,13 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
           const qs1 = new URLSearchParams({ filename: pass1Image.filename, subfolder: pass1Image.subfolder || '', type: pass1Image.type || 'output' });
           const viewRes1 = await comfyRequest(host, `/view?${qs1.toString()}`, { timeoutMs: 20000 });
           if (viewRes1.status === 200) { result.pass1ImageBytes = new Uint8Array(viewRes1.body); result.pass1SaveRel = saveImageRelPath(pass1Image); }
+        }
+        const upscaledOutput = record.outputs['192_upscaled'];
+        const upscaledImage = upscaledOutput && Array.isArray(upscaledOutput.images) && upscaledOutput.images[0];
+        if (upscaledImage) {
+          const qsU = new URLSearchParams({ filename: upscaledImage.filename, subfolder: upscaledImage.subfolder || '', type: upscaledImage.type || 'output' });
+          const viewResU = await comfyRequest(host, `/view?${qsU.toString()}`, { timeoutMs: 20000 });
+          if (viewResU.status === 200) { result.upscaledImageBytes = new Uint8Array(viewResU.body); result.upscaledSaveRel = saveImageRelPath(upscaledImage); }
         }
         return result;
       }

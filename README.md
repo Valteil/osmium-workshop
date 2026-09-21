@@ -65,7 +65,11 @@ Three related apps share this repository (and much of their renderer code):
    and launch) and an Android app (`comfy-bridge/mobile/`). Requires the custom node bundle
    (see the release assets). The mobile build drives ComfyUI over LAN/Tailscale/hotspot —
    start ComfyUI with `--listen 0.0.0.0 --enable-cors-header --port 8188` and allow inbound
-   TCP 8188 through the firewall.
+   TCP 8188 through the firewall. Up to 3 results per generation (Pass 1, Pass 2, Upscaled —
+   each its own saved file) as swipeable preview slides with thumbnails; desktop's preview
+   panel drag-resizes horizontally. A ComfyUI Terminal panel (desktop: collapsible section;
+   mobile: its own slideout) shows real server stdout/stderr via ComfyUI's own internal logs
+   API, live during generation.
 
 The rest of this document describes the desktop dataset manager. On mobile, read the in-app ❓
 Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in

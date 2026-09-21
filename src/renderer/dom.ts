@@ -110,6 +110,7 @@ export const galleryTab = $('galleryTab');
 export const statsTab = $('statsTab');
 export const tabDatasetManager = $<HTMLButtonElement>('tabDatasetManager');
 export const datasetManagerTab = $('datasetManagerTab');
+export const dmTabBar = $('dmTabBar');
 export const dmGrid = $('dmGrid');
 export const dmGridBtn = $<HTMLButtonElement>('dmGridBtn');
 export const dmListBtn = $<HTMLButtonElement>('dmListBtn');

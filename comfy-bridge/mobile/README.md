@@ -3,7 +3,40 @@
 Single vertical scrollable page (no desktop 3-column layout), same generation
 feature set as the desktop app: full prompt fields, prompt/negative presets,
 models/LoRA stack, ControlNet, 1-Pass/2-Pass (both saved), optional
-model-based upscale.
+model-based upscale — each saved as its own distinct file (see "Result
+preview" below), not collapsed into one.
+
+## Off-canvas drawers (mobile only)
+
+Two toggle buttons stack bottom-left (mirroring the gallery FAB's
+bottom-right spot) instead of top-left, which used to sit over the app title
+and the Connection card:
+- **Settings** (upper button, hamburger icon) — resolution, sampler,
+  scheduler, steps/CFG/seed for both passes, 2-Pass toggle, and the Upscale
+  section all live here instead of inline, so reaching them doesn't mean
+  scrolling the whole column every time.
+- **Log** (lower button, scroll icon) — two panels: this app's own
+  diagnostic log (connection tests, generation progress, save results), and
+  a **ComfyUI terminal** panel showing real server stdout/stderr — the same
+  internal API (`/internal/logs/raw` + a websocket `logs` subscription)
+  ComfyUI's own frontend "Logs" panel uses. Live while a generation is
+  running, or tap Refresh for a one-shot snapshot. This is an internal,
+  unversioned ComfyUI API ("should NOT be depended upon" per its own source
+  comment) — it could change on a future ComfyUI update.
+
+Opening either drawer covers both toggle buttons (drawer z-index above the
+toggles) so nothing pokes through. Connection help (the LAN/Tailscale
+address guide) is a centered dim-screen modal behind an (i) button next to
+"Test connection", not the old always-visible paragraph.
+
+## Result preview
+
+Up to 3 images per generation — Pass 1, Pass 2 (or just "Pass 1" again if
+2-Pass is off), Upscaled — as swipeable slides (scroll-snap, native
+momentum) with a labeled chip per slide and a thumbnail strip below to jump
+directly. Upscale now saves to its own file/folder instead of overwriting
+the pass output: same rating/character folder as the un-upscaled image,
+one level deeper in an `Upscaled/` subfolder.
 
 ## Shared code with desktop
 

@@ -227,8 +227,14 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>A folder manager separate from the Gallery — every dataset folder you've opened shows up
       here as a themed folder icon. Sort by name/time,${isTouchDevice ? '' : ' or manually by dragging,'} and
       ${isTouchDevice ? 'tap a folder\'s ⋯ button' : 'right-click a folder (or tap its ⋯ button)'} for more options: remove it from
-      this list, pin it as a favorite, view its achievements read-only, or change its icon. Opening
-      a folder that isn't tracked here yet prompts you once to add it.</p>`
+      this list, pin it as a favorite, view its achievements read-only, change its icon, or move it
+      to a different tab. Opening a folder that isn't tracked here yet prompts you once to add it.</p>
+      <p><b>Tabs</b> split folders into separate groups — the built-in <b>Default</b> tab always
+      shows, and any tab you add with the <b>+</b> button can be given a password (tap its ⋯
+      button). A password-protected tab re-locks every time the app starts; nothing about it
+      (not even folder names) renders until you enter the password. This protects against someone
+      else briefly opening the app on your machine, not a determined attacker with access to your
+      files.</p>`
   },
   {
     id: 'stats-tab',

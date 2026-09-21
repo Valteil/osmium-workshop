@@ -27,6 +27,7 @@
         <div class="row">
           <input id="host" type="text" placeholder="http://127.0.0.1:8188" value="http://127.0.0.1:8188">
           <button id="btnConnect">Test</button>
+          <button id="btnRefreshModels">Refresh model lists</button>
         </div>
         <div id="connStatus" class="status-line" style="display:none"></div>
       </section>
@@ -57,9 +58,6 @@
         <label>Main LoRA</label>
         <input id="mainLora" type="text" readonly placeholder="Tap to choose…">
         <datalist id="mainLoraList"></datalist>
-        <div class="row">
-          <button id="btnRefreshModels">Refresh model lists</button>
-        </div>
       </section>
 
       <section class="sec">
@@ -145,39 +143,57 @@
       </section>
 
       <section class="sec">
-        <div class="sec-head"><span class="d">Resolution & sampling</span></div>
-        <div class="row reso-row">
-          <div>
-            <label>Width</label>
-            <input id="width" type="number" value="920">
+        <details class="settings-panel" open>
+          <summary>Resolution & sampling</summary>
+          <div class="settings-grid">
+            <div class="row reso-row settings-span2">
+              <div>
+                <label>Width</label>
+                <input id="width" type="number" value="920">
+              </div>
+              <button id="btnSwapReso" title="Swap width/height">⇄</button>
+              <div>
+                <label>Height</label>
+                <input id="height" type="number" value="1244">
+              </div>
+            </div>
+            <div>
+              <label>Sampler</label>
+              <input id="sampler" type="text" value="res_multistep" readonly>
+            </div>
+            <div>
+              <label>Scheduler</label>
+              <input id="scheduler" type="text" value="beta" readonly>
+            </div>
+            <div>
+              <label>Steps (pass 1)</label>
+              <input id="steps1" type="number" value="25">
+            </div>
+            <div>
+              <label>CFG (pass 1)</label>
+              <input id="cfg1" type="number" step="0.01" value="4.04">
+            </div>
+            <div class="settings-span2">
+              <label>Seed (pass 1)</label>
+              <input id="seed1" type="number" value="15">
+            </div>
+            <label class="chk-row settings-span2"><input id="use2Pass" type="checkbox"> 2-Pass</label>
+            <div id="pass2Fields" class="settings-span2 settings-grid">
+              <div>
+                <label>Steps (pass 2)</label>
+                <input id="steps2" type="number" value="15">
+              </div>
+              <div>
+                <label>Denoise (pass 2)</label>
+                <input id="denoise2" type="number" step="0.05" value="0.6">
+              </div>
+              <div class="settings-span2">
+                <label>Seed (pass 2)</label>
+                <input id="seed2" type="number" value="15">
+              </div>
+            </div>
           </div>
-          <button id="btnSwapReso" title="Swap width/height">⇄</button>
-          <div>
-            <label>Height</label>
-            <input id="height" type="number" value="1244">
-          </div>
-        </div>
-        <label>Sampler</label>
-        <input id="sampler" type="text" value="res_multistep" readonly>
-        <datalist id="samplerList"></datalist>
-        <label>Scheduler</label>
-        <input id="scheduler" type="text" value="beta" readonly>
-        <datalist id="schedulerList"></datalist>
-        <label>Steps (pass 1)</label>
-        <input id="steps1" type="number" value="25">
-        <label>CFG (pass 1)</label>
-        <input id="cfg1" type="number" step="0.01" value="4.04">
-        <label>Seed (pass 1)</label>
-        <input id="seed1" type="number" value="15">
-        <label class="chk-row"><input id="use2Pass" type="checkbox"> 2-Pass</label>
-        <div id="pass2Fields">
-          <label>Steps (pass 2)</label>
-          <input id="steps2" type="number" value="15">
-          <label>Denoise (pass 2)</label>
-          <input id="denoise2" type="number" step="0.05" value="0.6">
-          <label>Seed (pass 2)</label>
-          <input id="seed2" type="number" value="15">
-        </div>
+        </details>
       </section>
 
       <section class="sec">
@@ -206,6 +222,8 @@
 
     </div>
 
+    <div id="rightResizeHandle" title="Drag to resize"></div>
+
     <div id="right">
       <section class="sec">
         <div class="sec-head"><span class="d">Generate</span></div>
@@ -221,13 +239,24 @@
           <img id="livePreview">
         </div>
         <div id="previewWrap" class="preview-wrap">
-          <img id="preview" style="display:none">
+          <div id="previewCarousel" class="preview-carousel"></div>
+          <div id="previewThumbs" class="preview-thumbs" style="display:none"></div>
           <div id="previewEmpty" class="muted">No generation yet.</div>
         </div>
       </section>
       <section class="sec">
         <div class="sec-head"><span class="d">Log</span></div>
         <div id="log" class="log-box"></div>
+      </section>
+      <section class="sec">
+        <details class="settings-panel">
+          <summary>ComfyUI Terminal</summary>
+          <div class="row">
+            <button id="btnRefreshComfyLog" type="button">Refresh</button>
+            <span class="muted small">Live during generation; Refresh fetches on demand.</span>
+          </div>
+          <div id="comfyTerminal" class="log-box comfy-terminal"></div>
+        </details>
       </section>
     </div>
 

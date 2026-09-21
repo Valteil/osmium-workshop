@@ -17,6 +17,23 @@
 
   function $(id) { return document.getElementById(id); }
 
+  // ---------------- Auto-expanding textareas ----------------
+  // Prompt fields are never manually resizable — they grow with their
+  // content instead. Typed input is caught by the delegated 'input'
+  // listener; anywhere a textarea's .value is set programmatically
+  // (restore, presets, import) must call autoGrowAll() itself since that
+  // doesn't fire 'input'. Ported from desktop's src/renderer/app.ts.
+  function autoGrow(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+  function autoGrowAll() {
+    document.querySelectorAll('textarea').forEach(autoGrow);
+  }
+  document.addEventListener('input', (ev) => {
+    if (ev.target instanceof HTMLTextAreaElement) autoGrow(ev.target);
+  }, true);
+
   const host = $('host');
   const btnConnect = $('btnConnect');
   const connStatus = $('connStatus');
@@ -79,8 +96,8 @@
   const genStatus = $('genStatus');
   const livePreviewWrap = $('livePreviewWrap');
   const livePreview = $('livePreview');
-  const preview = $('preview');
-  const pass1Preview = $('pass1Preview');
+  const previewCarousel = $('previewCarousel');
+  const previewThumbs = $('previewThumbs');
   const previewEmpty = $('previewEmpty');
   const logBox = $('log');
 
@@ -101,6 +118,29 @@
     logBox.appendChild(line);
     logBox.scrollTop = logBox.scrollHeight;
   }
+
+  // ---------------- ComfyUI terminal (real stdout/stderr) ----------------
+  // Not this app's own diagnostic messages (that's logBox above) — this is
+  // the actual server console output, via the same internal API ComfyUI's
+  // own frontend "Logs" panel uses.
+  const comfyTerminal = $('comfyTerminal');
+  const btnRefreshComfyLog = $('btnRefreshComfyLog');
+  const ANSI_ESCAPE_RE = /\x1b\[[0-9;]*m/g;
+  function appendComfyLogEntries(entries) {
+    for (const e of entries) comfyTerminal.appendChild(document.createTextNode(e.m.replace(ANSI_ESCAPE_RE, '')));
+    comfyTerminal.scrollTop = comfyTerminal.scrollHeight;
+  }
+  btnRefreshComfyLog.addEventListener('click', async () => {
+    try {
+      const res = await fetch(new URL('/internal/logs/raw', getHost()));
+      if (!res.ok) { log('Could not fetch ComfyUI logs (HTTP ' + res.status + ').'); return; }
+      const parsed = await res.json();
+      comfyTerminal.textContent = '';
+      appendComfyLogEntries(parsed.entries || []);
+    } catch (e) {
+      log('Could not fetch ComfyUI logs: ' + (e && e.message));
+    }
+  });
 
   // Remote URL: any reachable ComfyUI base URL works as-is — LAN IP
   // (http://192.168.x.x:8188), hotspot gateway IP, or Tailscale IP/hostname
@@ -346,6 +386,14 @@
         ws.binaryType = 'arraybuffer';
         ws.addEventListener('open', () => {
           try { ws.send(JSON.stringify({ type: 'feature_flags', data: { supports_preview_metadata: true } })); } catch (e) { /* best effort */ }
+          // Same internal API ComfyUI's own frontend "Logs" panel uses —
+          // undocumented/unversioned per its own server code comment, but
+          // it's what real terminal output runs through, not a proxy.
+          fetch(new URL('/internal/logs/subscribe', getHost()), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientId, enabled: true })
+          }).catch(() => { /* best effort — log streaming just won't start */ });
         });
         ws.addEventListener('message', (ev) => {
           if (ev.data instanceof ArrayBuffer) {
@@ -369,7 +417,9 @@
           } else {
             try {
               const msg = JSON.parse(ev.data);
-              if (msg.type === 'progress' && msg.data && msg.data.max) {
+              if (msg.type === 'logs' && msg.data && Array.isArray(msg.data.entries)) {
+                appendComfyLogEntries(msg.data.entries);
+              } else if (msg.type === 'progress' && msg.data && msg.data.max) {
                 genStatus.textContent = 'Generating… step ' + msg.data.value + '/' + msg.data.max;
               } else if (msg.type === 'progress_state' && msg.data && msg.data.nodes) {
                 const running = Object.values(msg.data.nodes).filter((n) => n.state === 'running');
@@ -418,11 +468,21 @@
         if (!record) continue;
         const saveOutput = record.outputs && record.outputs['192'];
         const image = saveOutput && Array.isArray(saveOutput.images) && saveOutput.images[0];
-        if (image) {
+        // '192_pass1' and '192_upscaled' are sibling branches off the same
+        // upstream node as '192', not downstream of it — ComfyUI doesn't
+        // guarantee they finish before '192' does. Only treat the job as
+        // done once every branch the submitted prompt actually asked for
+        // has an output, or a still-running sibling branch gets missed.
+        const pass1Ready = !prompt['192_pass1'] || (record.outputs && record.outputs['192_pass1']);
+        const upscaledReady = !prompt['192_upscaled'] || (record.outputs && record.outputs['192_upscaled']);
+        if (image && pass1Ready && upscaledReady) {
           const result = { ok: true, imageBytes: await fetchViewImage(image), saveRel: sanitizeRel(image) };
           const pass1Output = record.outputs['192_pass1'];
           const pass1Image = pass1Output && Array.isArray(pass1Output.images) && pass1Output.images[0];
           if (pass1Image) { try { result.pass1ImageBytes = await fetchViewImage(pass1Image); result.pass1SaveRel = sanitizeRel(pass1Image); } catch (e) { /* optional */ } }
+          const upscaledOutput = record.outputs['192_upscaled'];
+          const upscaledImage = upscaledOutput && Array.isArray(upscaledOutput.images) && upscaledOutput.images[0];
+          if (upscaledImage) { try { result.upscaledImageBytes = await fetchViewImage(upscaledImage); result.upscaledSaveRel = sanitizeRel(upscaledImage); } catch (e) { /* optional */ } }
           return result;
         }
         if (record.status && record.status.status_str === 'error') {
@@ -467,12 +527,58 @@
     const unified = unifiedPromptMode.checked;
     unifiedPromptRow.style.display = unified ? '' : 'none';
     splitFieldsGroup.style.display = unified ? 'none' : '';
+    // A textarea measures scrollHeight 0 while display:none, so whichever
+    // side just became visible needs a fresh autoGrow.
+    autoGrowAll();
   }
   unifiedPromptMode.addEventListener('change', applyUnifiedPromptModeUI);
   applyUnifiedPromptModeUI();
 
   use2Pass.addEventListener('change', () => { pass2Fields.style.display = use2Pass.checked ? '' : 'none'; });
   pass2Fields.style.display = use2Pass.checked ? '' : 'none';
+
+  // ---------------- Off-canvas drawers (settings, log) ----------------
+  // Both slide from the left and share one backdrop — only one open at a
+  // time (opening either closes the other) so they never visually stack.
+  const genSettingsToggle = $('genSettingsToggle');
+  const genSettingsDrawer = $('genSettingsDrawer');
+  const genSettingsBackdrop = $('genSettingsBackdrop');
+  const genSettingsClose = $('genSettingsClose');
+  const logDrawerToggle = $('logDrawerToggle');
+  const logDrawer = $('logDrawer');
+  const logDrawerClose = $('logDrawerClose');
+  const drawers = [genSettingsDrawer, logDrawer];
+  function closeAllDrawers() {
+    for (const d of drawers) d.classList.remove('open');
+    genSettingsBackdrop.classList.remove('open');
+  }
+  function openDrawer(drawer) {
+    closeAllDrawers();
+    drawer.classList.add('open');
+    genSettingsBackdrop.classList.add('open');
+  }
+  function toggleDrawer(drawer) {
+    if (drawer.classList.contains('open')) closeAllDrawers(); else openDrawer(drawer);
+  }
+  genSettingsToggle.addEventListener('click', () => toggleDrawer(genSettingsDrawer));
+  genSettingsClose.addEventListener('click', closeAllDrawers);
+  logDrawerToggle.addEventListener('click', () => toggleDrawer(logDrawer));
+  logDrawerClose.addEventListener('click', closeAllDrawers);
+  genSettingsBackdrop.addEventListener('click', closeAllDrawers);
+
+  // ---------------- Connection help modal ----------------
+  // Centered, dim-screen modal — not an anchored popover. A popover here
+  // could grow taller than the viewport on a small phone and force the
+  // whole PAGE to scroll to read the rest of it.
+  const connInfoBtn = $('connInfoBtn');
+  const connInfoBackdrop = $('connInfoBackdrop');
+  const connInfoClose = $('connInfoClose');
+  function openConnInfo() { connInfoBackdrop.hidden = false; }
+  function closeConnInfo() { connInfoBackdrop.hidden = true; }
+  connInfoBtn.addEventListener('click', openConnInfo);
+  connInfoClose.addEventListener('click', closeConnInfo);
+  connInfoBackdrop.addEventListener('click', (ev) => { if (ev.target === connInfoBackdrop) closeConnInfo(); });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeConnInfo(); });
 
   upscaleEnabled.addEventListener('change', () => { upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none'; });
   upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none';
@@ -663,6 +769,7 @@
     const data = readPresets();
     if (data.negativePresets[name] === undefined) { log('Preset not found.'); return; }
     negative.value = data.negativePresets[name];
+    autoGrow(negative);
     log('Loaded negative preset "' + name + '".');
   });
   btnDeleteNegativePreset.addEventListener('click', () => {
@@ -708,7 +815,11 @@
     prompt['16'].inputs.text = fieldValue(negative);
 
     prompt['41'].inputs.unet_name = diffModel.value;
-    prompt['51'].inputs.lora_name = mainLora.value.trim() || 'None';
+    // 'DSM Lora Name' (node 51) validates against the real lora directory
+    // listing — 'None' isn't an actual file in it, so ComfyUI rejected the
+    // whole prompt whenever no main LoRA was picked. 'Anima-n' is a real
+    // no-op entry, used as the base/no-LoRA stand-in.
+    prompt['51'].inputs.lora_name = mainLora.value.trim() || 'Anima-n';
     if (clip.value) { prompt['249'].inputs.clip_name = clip.value; prompt['47:45'].inputs.clip_name = clip.value; }
     if (vae.value) prompt['47:46'].inputs.vae_name = vae.value;
 
@@ -771,17 +882,29 @@
       prompt['192'].inputs.images = ['176', 0];
     }
 
+    // A separate SaveImage ('192_upscaled'), not a rewire of 192 itself —
+    // 192 (and 192_pass1) always stay the raw, pre-upscale pass output(s),
+    // so a generation with 2-Pass + Upscale on yields up to 3 distinct
+    // saved images: pass 1, the (pre-upscale) final pass, upscaled. Ported
+    // from desktop's buildPrompt() in src/renderer/app.ts.
     if (upscaleEnabled.checked && upscaleModel.value.trim()) {
       prompt['upscale_model_loader'] = { class_type: 'UpscaleModelLoader', inputs: { model_name: upscaleModel.value.trim() }, _meta: { title: 'Upscale Model Loader' } };
       const scaleBy = parseFloat(upscaleScaleBy.value) || 1;
-      for (const saveId of ['192', '192_pass1']) {
-        if (!prompt[saveId]) continue;
-        const upscaleId = 'upscale_model_' + saveId;
-        const scaleId = 'upscale_scale_' + saveId;
-        prompt[upscaleId] = { class_type: 'ImageUpscaleWithModel', inputs: { upscale_model: ['upscale_model_loader', 0], image: prompt[saveId].inputs.images }, _meta: { title: 'Upscale' } };
-        prompt[scaleId] = { class_type: 'ImageScaleBy', inputs: { upscale_method: 'lanczos', scale_by: scaleBy, image: [upscaleId, 0] }, _meta: { title: 'Upscale scale-by' } };
-        prompt[saveId].inputs.images = [scaleId, 0];
-      }
+      prompt['upscale_model_192'] = { class_type: 'ImageUpscaleWithModel', inputs: { upscale_model: ['upscale_model_loader', 0], image: prompt['192'].inputs.images }, _meta: { title: 'Upscale' } };
+      prompt['upscale_scale_192'] = { class_type: 'ImageScaleBy', inputs: { upscale_method: 'lanczos', scale_by: scaleBy, image: ['upscale_model_192', 0] }, _meta: { title: 'Upscale scale-by' } };
+      // filename_prefix was `prompt['192'].inputs.filename_prefix + '_upscaled'`
+      // — but 192's filename_prefix is a LINK (['207',0], the File Namer's
+      // output), not a string, so string-concatenating it produced literal
+      // garbage like "207,0_upscaled". The template already has node '222'
+      // ("File Namer 4 Upscaler") built for exactly this: same rating(a)/
+      // character(b) resolution as the main File Namer, but the LoRA-tail
+      // value sits in slot d instead of c, leaving c free — WAS Text
+      // Concatenate joins connected, non-empty slots in a/b/c/d order, so
+      // filling c with the literal "Upscaled" places it exactly between
+      // character and the filename tail: rating/character/Upscaled/loraTail
+      // (or rating/Upscaled/loraTail when no character was detected).
+      prompt['222'].inputs.text_c = 'Upscaled';
+      prompt['192_upscaled'] = { class_type: 'SaveImage', inputs: { filename_prefix: ['222', 0], images: ['upscale_scale_192', 0] }, _meta: { title: 'Upscaled' } };
     }
 
     return prompt;
@@ -802,6 +925,66 @@
 
   // ---------------- Generate ----------------
 
+  // ---------------- Result preview carousel ----------------
+  // Ported from desktop's src/renderer/app.ts — scroll-snap gives swipe +
+  // momentum for free on a touch WebView, no hand-rolled gesture math.
+  let previewSlideUrls = [];
+
+  function clearPreviewSlides() {
+    for (const u of previewSlideUrls) URL.revokeObjectURL(u);
+    previewSlideUrls = [];
+    previewCarousel.innerHTML = '';
+    previewThumbs.innerHTML = '';
+    previewThumbs.style.display = 'none';
+  }
+
+  function setPreviewSlides(slides) {
+    clearPreviewSlides();
+    if (!slides.length) { previewEmpty.style.display = ''; return; }
+    previewEmpty.style.display = 'none';
+    previewSlideUrls = slides.map((s) => URL.createObjectURL(new Blob([s.bytes], { type: 'image/png' })));
+    slides.forEach((s, i) => {
+      const slide = document.createElement('div');
+      slide.className = 'preview-slide';
+      const label = document.createElement('span');
+      label.className = 'preview-slide-label';
+      label.textContent = s.label;
+      const img = document.createElement('img');
+      img.src = previewSlideUrls[i];
+      img.addEventListener('click', () => BridgeShared.showImageLightbox(img.src));
+      slide.appendChild(label);
+      slide.appendChild(img);
+      previewCarousel.appendChild(slide);
+    });
+    if (slides.length > 1) {
+      previewThumbs.style.display = '';
+      slides.forEach((s, i) => {
+        const thumb = document.createElement('button');
+        thumb.type = 'button';
+        thumb.className = 'preview-thumb' + (i === 0 ? ' active' : '');
+        thumb.title = s.label;
+        const timg = document.createElement('img');
+        timg.src = previewSlideUrls[i];
+        thumb.appendChild(timg);
+        thumb.addEventListener('click', () => {
+          previewCarousel.scrollTo({ left: i * previewCarousel.clientWidth, behavior: 'smooth' });
+        });
+        previewThumbs.appendChild(thumb);
+      });
+    }
+    previewCarousel.scrollLeft = 0;
+  }
+
+  let previewScrollTimer = null;
+  previewCarousel.addEventListener('scroll', () => {
+    if (previewScrollTimer) clearTimeout(previewScrollTimer);
+    previewScrollTimer = setTimeout(() => {
+      const w = previewCarousel.clientWidth || 1;
+      const idx = Math.round(previewCarousel.scrollLeft / w);
+      previewThumbs.querySelectorAll('.preview-thumb').forEach((el, i) => el.classList.toggle('active', i === idx));
+    }, 80);
+  });
+
   let generating = false;
 
   async function generate() {
@@ -813,7 +996,6 @@
     btnStop.disabled = false;
     livePreview.src = '';
     livePreviewWrap.style.display = 'none';
-    pass1Preview.style.display = 'none';
     genStatus.style.display = 'block';
     genStatus.textContent = 'Generating… this can take a while.';
 
@@ -840,31 +1022,24 @@
     // Both copies share ComfyUI's own counter; no second counting pass.
     const fallbackN = async () => await BridgeShared.nextFileNumber(mobileBackend());
     let saveFailed = false;
+    const slides = [];
     if (res.pass1ImageBytes) {
-      const s1 = await saveBytes(res.pass1ImageBytes, res.pass1SaveRel || (await fallbackN()) + '_pass1.png');
-      const s2 = await saveBytes(res.imageBytes, res.saveRel || (await fallbackN()) + '.png');
-      if (!s1 || !s2) saveFailed = true;
-    } else if (res.imageBytes) {
-      const s = await saveBytes(res.imageBytes, res.saveRel || (await fallbackN()) + '.png');
-      if (!s) saveFailed = true;
+      if (!(await saveBytes(res.pass1ImageBytes, res.pass1SaveRel || (await fallbackN()) + '_pass1.png'))) saveFailed = true;
+      slides.push({ label: 'Pass 1', bytes: res.pass1ImageBytes });
+    }
+    if (res.imageBytes) {
+      if (!(await saveBytes(res.imageBytes, res.saveRel || (await fallbackN()) + '.png'))) saveFailed = true;
+      slides.push({ label: res.pass1ImageBytes ? 'Pass 2' : 'Pass 1', bytes: res.imageBytes });
+    }
+    if (res.upscaledImageBytes) {
+      if (!(await saveBytes(res.upscaledImageBytes, res.upscaledSaveRel || (await fallbackN()) + '_upscaled.png'))) saveFailed = true;
+      slides.push({ label: 'Upscaled', bytes: res.upscaledImageBytes });
     }
     if (saveFailed) {
       genStatus.style.display = 'block';
       genStatus.textContent = 'Generated, but saving failed — see Log for details.';
     }
-    if (res.imageBytes) {
-      // 2-Pass shows BOTH passes in the generation area, pass 1 stacked
-      // above the final image (user spec); single-pass keeps one image.
-      if (res.pass1ImageBytes) {
-        pass1Preview.src = URL.createObjectURL(new Blob([res.pass1ImageBytes], { type: 'image/png' }));
-        pass1Preview.style.display = 'block';
-      } else {
-        pass1Preview.style.display = 'none';
-      }
-      preview.src = URL.createObjectURL(new Blob([res.imageBytes], { type: 'image/png' }));
-      preview.style.display = 'block';
-      previewEmpty.style.display = 'none';
-    }
+    setPreviewSlides(slides);
   }
 
   btnGenerate.addEventListener('click', generate);
@@ -926,7 +1101,7 @@
     const s = (id, key) => { const v = inp(id)[key]; return v == null ? '' : String(v); };
     function setVal(el, v) { if (v !== '') el.value = v; }
     if (s('41', 'unet_name')) diffModel.value = s('41', 'unet_name');
-    if (s('51', 'lora_name') && s('51', 'lora_name') !== 'None') mainLora.value = s('51', 'lora_name');
+    if (s('51', 'lora_name') && s('51', 'lora_name') !== 'None' && s('51', 'lora_name') !== 'Anima-n') mainLora.value = s('51', 'lora_name');
     if (s('249', 'clip_name')) clip.value = s('249', 'clip_name');
     if (s('47:46', 'vae_name')) vae.value = s('47:46', 'vae_name');
 
@@ -1118,7 +1293,6 @@
     const res2 = await comfyGetObjectInfo('KSampler', 'scheduler');
     if (res2.ok) bridgeSchedulerOptions = res2.values;
   }
-  preview.addEventListener('click', () => { if (preview.src) BridgeShared.showImageLightbox(preview.src); });
   initSafRoot();
   refreshSamplerLists();
   refreshPresetLists();

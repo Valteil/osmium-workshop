@@ -22,6 +22,79 @@ import { attachFillAutocomplete } from './tags-autocomplete';
 
 export let masterSelectedImages = new Set<string>();
 
+// A button whose label is too long to have a short form that still reads
+// as a sentence ("Select all visible", "Sequential from first", etc.) gets
+// wrapped in a full-text span + an icon-only span; styles.css's
+// .icon-fallback-btn container query (keyed to #right's own resized width,
+// not the viewport) swaps which one shows once the panel's dragged
+// narrower than the full label needs. aria-label carries the real meaning
+// in both states — takes the button's existing text as-is, so this can
+// hydrate either a plain static HTML button or one just built in JS.
+function attachIconFallback(btn: HTMLButtonElement, icon: string): void {
+  const label = btn.textContent!.trim();
+  btn.classList.add('icon-fallback-btn');
+  btn.setAttribute('aria-label', label);
+  btn.textContent = '';
+  const full = document.createElement('span');
+  full.className = 'label-full';
+  full.setAttribute('aria-hidden', 'true');
+  full.textContent = label;
+  const iconEl = document.createElement('span');
+  iconEl.className = 'label-icon';
+  iconEl.setAttribute('aria-hidden', 'true');
+  iconEl.textContent = icon;
+  btn.appendChild(full);
+  btn.appendChild(iconEl);
+}
+
+// ---------------- Mini-grid drag-to-select ----------------
+// Held mouse button "painting" across cells — mousedown on a cell decides
+// the paint mode (select if it was off, deselect if it was on, same as a
+// plain click would have done), then dragging over other cells while still
+// held applies that SAME mode to each one, instead of each cell toggling
+// independently. A single click-no-drag still just toggles that one cell,
+// since paint is applied once on pointerdown regardless of what happens
+// after. The pointerup listener lives at module scope, attached once, not
+// per-render — renderMasterMiniGrid() rebuilds every cell on every call, so
+// anything attached inside it would otherwise pile up a new document-level
+// listener per re-render.
+let miniGridDragging = false;
+let miniGridPaintMode = false;
+document.addEventListener('pointerup', () => { miniGridDragging = false; });
+document.addEventListener('pointercancel', () => { miniGridDragging = false; });
+
+// ---------------- Mini-grid size (modal only — see .mini-grid-size-row's
+// own CSS, hidden in the docked panel) ----------------
+const MINI_GRID_SIZE_KEY = 'dts-mini-grid-size';
+let miniGridSize = 1;
+try {
+  const saved = parseInt(localStorage.getItem(MINI_GRID_SIZE_KEY) || '', 10);
+  if (saved >= 1 && saved <= 4) miniGridSize = saved;
+} catch(e){}
+
+function buildMiniGridSizeRow(): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'mini-grid-size-row';
+  const label = document.createElement('span');
+  label.textContent = 'Size';
+  row.appendChild(label);
+  for (let n = 1; n <= 4; n++){
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = n + 'x';
+    btn.className = n === miniGridSize ? 'active' : '';
+    btn.title = `${n}x thumbnail size`;
+    btn.addEventListener('click', () => {
+      miniGridSize = n;
+      try { localStorage.setItem(MINI_GRID_SIZE_KEY, String(n)); } catch(e){}
+      masterMiniGrid.style.setProperty('--mini-grid-size', String(n));
+      row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+    });
+    row.appendChild(btn);
+  }
+  return row;
+}
+
 let getEntries: () => Entry[] = () => [];
 let getEntryByBase: (base: string) => Entry | undefined = () => undefined;
 let filteredEntriesRef: () => Entry[] = () => [];
@@ -48,6 +121,8 @@ export function updateMasterSelectionText(): void {
 
 export function renderMasterMiniGrid(): void {
   masterMiniGrid.innerHTML = '';
+  masterMiniGrid.style.setProperty('--mini-grid-size', String(miniGridSize));
+  masterMiniGrid.appendChild(buildMiniGridSizeRow());
   const list = filteredEntriesRef();
   list.forEach(e => {
     const cell = document.createElement('div');
@@ -56,12 +131,20 @@ export function renderMasterMiniGrid(): void {
     const img = document.createElement('img');
     img.src = e.objectUrl;
     img.loading = 'lazy';
+    img.draggable = false; // otherwise the browser's own "drag this image" ghost hijacks the drag-select gesture
     cell.appendChild(img);
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.className = 'master-mini-cb';
     cb.checked = masterSelectedImages.has(e.base);
     cb.addEventListener('click', (ev) => ev.stopPropagation());
+    // Also stop pointerdown specifically — the cell's own pointerdown
+    // (below) starts a drag-paint using cb.checked's CURRENT value as its
+    // basis; without this, a direct click on the checkbox would both let
+    // paint() flip it AND let the browser's native checkbox-click toggle
+    // it back, landing on the wrong state and firing two conflicting
+    // 'change' events.
+    cb.addEventListener('pointerdown', (ev) => ev.stopPropagation());
     cb.addEventListener('change', () => {
       if (cb.checked) masterSelectedImages.add(e.base);
       else masterSelectedImages.delete(e.base);
@@ -70,9 +153,21 @@ export function renderMasterMiniGrid(): void {
       renderCurrentViewRef();
     });
     cell.appendChild(cb);
-    cell.addEventListener('click', () => {
-      cb.checked = !cb.checked;
+    function paint(): void {
+      if (cb.checked === miniGridPaintMode) return;
+      cb.checked = miniGridPaintMode;
       cb.dispatchEvent(new Event('change'));
+    }
+    cell.addEventListener('pointerdown', (ev) => {
+      if (ev.button !== 0) return; // left button / primary touch only
+      ev.preventDefault(); // suppress native text/image-drag so it can't hijack the gesture
+      miniGridDragging = true;
+      miniGridPaintMode = !cb.checked;
+      paint();
+    });
+    cell.addEventListener('pointerenter', () => {
+      if (!miniGridDragging) return;
+      paint();
     });
     masterMiniGrid.appendChild(cell);
   });
@@ -120,20 +215,38 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   disableEntriesRef = deps.disableEntries;
   onStartSequentialRef = deps.onStartSequential;
 
+  // Both "Select all visible" and "Clear selection" hit the exact same
+  // clip/wrap-against-#right's-overflow-x:hidden problem the sequential
+  // buttons below were built to avoid from the start — hydrate these two
+  // static HTML buttons with the same full-text/icon-only span pair instead
+  // of leaving them as plain text nodes.
+  attachIconFallback(btnMasterSelectAll, '☑');
+  attachIconFallback(btnMasterClearSelection, '✖');
+
   // Sequential detail editing entry points — desktop-only (touch editing
   // lives in the card modal instead). Built in JS so neither shell's markup
   // changes; the shared .mtc-btn-row class keeps the spacing consistent.
+  // Each button carries both a full-text label and an icon-only fallback —
+  // "Sequential from first/selected" has no short form that still reads as
+  // a sentence, so rather than let it clip against #right's own
+  // overflow-x:hidden when the panel's dragged narrow (see styles.css's
+  // #right container-type), CSS swaps to the icon-only span below a width
+  // threshold instead. aria-label carries the real meaning either way, since
+  // a screen reader shouldn't announce a different label depending on how
+  // much pixel width happened to be available.
   if (!document.documentElement.classList.contains('touch-device')){
     const seqRow = document.createElement('div');
     seqRow.className = 'mtc-btn-row';
-    const seqFirstBtn = document.createElement('button');
-    seqFirstBtn.textContent = '▶ Sequential from first';
-    seqFirstBtn.title = 'Review every gallery image in sort order, confirming detail tags one by one';
-    seqFirstBtn.addEventListener('click', () => onStartSequentialRef('first'));
-    const seqSelBtn = document.createElement('button');
-    seqSelBtn.textContent = '▶ Sequential from selected';
-    seqSelBtn.title = 'Review from the first selected image in sort order';
-    seqSelBtn.addEventListener('click', () => onStartSequentialRef('selected'));
+    function makeSeqBtn(label: string, icon: string, title: string, from: 'first' | 'selected'): HTMLButtonElement {
+      const btn = document.createElement('button');
+      btn.title = title;
+      btn.textContent = '▶ ' + label;
+      attachIconFallback(btn, icon);
+      btn.addEventListener('click', () => onStartSequentialRef(from));
+      return btn;
+    }
+    const seqFirstBtn = makeSeqBtn('Sequential from first', '⏮', 'Review every gallery image in sort order, confirming detail tags one by one', 'first');
+    const seqSelBtn = makeSeqBtn('Sequential from selected', '🎯', 'Review from the first selected image in sort order', 'selected');
     seqRow.appendChild(seqFirstBtn);
     seqRow.appendChild(seqSelBtn);
     masterSelectionSummary.after(seqRow);

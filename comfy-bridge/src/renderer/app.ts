@@ -22,12 +22,14 @@ interface ElectronAPI {
   loadPreset(payload: { kind: 'prompt' | 'negative'; name: string }): Promise<{ ok: boolean; value?: unknown; error?: string }>;
   deletePreset(payload: { kind: 'prompt' | 'negative'; name: string }): Promise<{ ok: boolean; error?: string }>;
   synthdatGetObjectInfo(payload: { host: string; classType: string; inputName: string }): Promise<{ ok: boolean; values?: string[]; error?: string }>;
-  synthdatQueueAndFetch(payload: { host: string; imageFilename: string | null; imageBytes: Uint8Array | null; prompt: any }): Promise<{ ok: boolean; imageBytes?: Uint8Array; pass1ImageBytes?: Uint8Array; error?: string; interrupted?: boolean; saveRel?: string; pass1SaveRel?: string }>;
+  synthdatQueueAndFetch(payload: { host: string; imageFilename: string | null; imageBytes: Uint8Array | null; prompt: any }): Promise<{ ok: boolean; imageBytes?: Uint8Array; pass1ImageBytes?: Uint8Array; upscaledImageBytes?: Uint8Array; error?: string; interrupted?: boolean; saveRel?: string; pass1SaveRel?: string; upscaledSaveRel?: string }>;
   synthdatStopGeneration(host: string): Promise<{ ok: boolean }>;
   galleryListDir(payload: { folder: string; relDir: string }): Promise<{ ok: boolean; entries?: { name: string; kind: 'file' | 'directory'; mtime?: number }[]; error?: string }>;
   galleryRead(payload: { folder: string; relPath: string }): Promise<{ ok: boolean; base64?: string; mime?: string; error?: string }>;
+  comfyFetchLogs(payload: { host: string }): Promise<{ ok: boolean; entries?: { t: string; m: string }[]; error?: string }>;
   onPreviewFrame(callback: (event: unknown, data: { mime: string; bytes: Uint8Array }) => void): void;
   onGenProgress(callback: (event: unknown, data: { value: number; max: number }) => void): void;
+  onComfyLog(callback: (event: unknown, entries: { t: string; m: string }[]) => void): void;
 }
 declare global { interface Window { electronAPI: ElectronAPI; } }
 export {};
@@ -39,6 +41,23 @@ import {
 import type { StorageBackend, DirEntry } from './shared/storage';
 
 function $<T extends HTMLElement>(id: string): T { return document.getElementById(id) as T; }
+
+// ---------------- Auto-expanding textareas ----------------
+// Prompt fields are never manually resizable — they grow with their content
+// instead, so a long prompt is never cramped into a fixed-height box. Typed
+// input is caught by the delegated 'input' listener; anywhere a textarea's
+// .value is set programmatically (restore, presets, import) must call
+// autoGrowAll() itself since that doesn't fire 'input'.
+function autoGrow(el: HTMLTextAreaElement): void {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+function autoGrowAll(): void {
+  document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach(autoGrow);
+}
+document.addEventListener('input', (ev) => {
+  if (ev.target instanceof HTMLTextAreaElement) autoGrow(ev.target);
+}, true);
 
 const host = $<HTMLInputElement>('host');
 const btnConnect = $<HTMLButtonElement>('btnConnect');
@@ -123,7 +142,8 @@ const btnImportGen = $<HTMLButtonElement>('btnImportGen');
 const genStatus = $<HTMLDivElement>('genStatus');
 const livePreviewWrap = $<HTMLDivElement>('livePreviewWrap');
 const livePreview = $<HTMLImageElement>('livePreview');
-const preview = $<HTMLImageElement>('preview');
+const previewCarousel = $<HTMLDivElement>('previewCarousel');
+const previewThumbs = $<HTMLDivElement>('previewThumbs');
 const previewEmpty = $<HTMLDivElement>('previewEmpty');
 const logBox = $<HTMLDivElement>('log');
 
@@ -135,6 +155,30 @@ function log(msg: string): void {
 }
 
 function getHost(): string { return (host.value || '').trim() || 'http://127.0.0.1:8188'; }
+
+// ---------------- ComfyUI terminal (real stdout/stderr) ----------------
+// Same internal API ComfyUI's own frontend "Logs" panel uses: a one-shot
+// GET for whatever's already buffered server-side, plus a live websocket
+// subscription during generation (see main.ts). Not this app's own
+// diagnostic messages (that's logBox above) — this is the actual server
+// console output.
+const comfyTerminal = $<HTMLDivElement>('comfyTerminal');
+const btnRefreshComfyLog = $<HTMLButtonElement>('btnRefreshComfyLog');
+// eslint-disable-next-line no-control-regex
+const ANSI_ESCAPE_RE = /\x1b\[[0-9;]*m/g;
+function appendComfyLogEntries(entries: { t: string; m: string }[]): void {
+  for (const e of entries) {
+    comfyTerminal.appendChild(document.createTextNode(e.m.replace(ANSI_ESCAPE_RE, '')));
+  }
+  comfyTerminal.scrollTop = comfyTerminal.scrollHeight;
+}
+btnRefreshComfyLog.addEventListener('click', async () => {
+  const res = await window.electronAPI.comfyFetchLogs({ host: getHost() });
+  if (!res.ok) { log(res.error || 'Could not fetch ComfyUI logs.'); return; }
+  comfyTerminal.textContent = '';
+  appendComfyLogEntries(res.entries || []);
+});
+window.electronAPI.onComfyLog((_event, entries) => appendComfyLogEntries(entries));
 
 function fillDatalist(el: HTMLElement, values: string[]): void {
   el.innerHTML = '';
@@ -184,6 +228,10 @@ function applyUnifiedPromptModeUI(): void {
   const unified = unifiedPromptMode.checked;
   unifiedPromptRow.style.display = unified ? '' : 'none';
   splitFieldsGroup.style.display = unified ? 'none' : '';
+  // A textarea measures scrollHeight 0 while display:none, so whichever
+  // side just became visible needs a fresh autoGrow — otherwise it can be
+  // left undersized from a measurement taken while it was hidden.
+  autoGrowAll();
 }
 unifiedPromptMode.addEventListener('change', applyUnifiedPromptModeUI);
 applyUnifiedPromptModeUI();
@@ -262,6 +310,7 @@ function applyPromptFields(fields: Record<string, string | boolean>): void {
   effects.value = String(fields.effects || '');
   extra.value = String(fields.extra || '');
   applyUnifiedPromptModeUI();
+  autoGrowAll();
 }
 
 async function refreshPresetLists(): Promise<void> {
@@ -315,7 +364,7 @@ btnLoadNegativePreset.addEventListener('click', async () => {
   const name = negativePresetSelect.value;
   if (!name) { log('Pick a negative preset to load first.'); return; }
   const res = await window.electronAPI.loadPreset({ kind: 'negative', name });
-  if (res.ok) { negative.value = String(res.value || ''); log(`Loaded negative preset "${name}".`); }
+  if (res.ok) { negative.value = String(res.value || ''); autoGrow(negative); log(`Loaded negative preset "${name}".`); }
   else log(res.error || 'Could not load negative preset.');
 });
 btnDeleteNegativePreset.addEventListener('click', async () => {
@@ -486,6 +535,7 @@ function restoreUiState(): void {
     for (const r of [...loraRows]) { loraRows = loraRows.filter(x => x !== r); r.row.remove(); }
     for (const l of loras) addLoraRow(String(l.n ?? ''), Number(l.s ?? 1) || 1);
   }
+  autoGrowAll();
 }
 let uiSaveTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleUiSave(): void {
@@ -506,6 +556,48 @@ captureUiState();
 // <select> popup refused to expand in this Electron window).
 initTheme(THEMES, DEFAULT_THEME);
 mountThemePicker({ wrap: 'themeWrap', btn: 'themeBtn', btnLabel: 'themeBtnLabel', menu: 'themeMenu' });
+
+// ---------------- Right column width (drag-resizable) ----------------
+// "Enlarge the generation area" means WIDER, squashing #mid — not a taller
+// preview box. #right's width drives var(--right-w) on #layout's grid
+// (see styles.css); #mid is the 1fr column that gives up the space.
+const rightResizeHandle = $<HTMLDivElement>('rightResizeHandle');
+const RIGHT_PANEL_MIN_WIDTH = 300;
+const RIGHT_PANEL_WIDTH_KEY = 'comfybridge-right-panel-width';
+let rightPanelWidth = 380;
+function rightPanelMaxWidth(): number {
+  // Leaves #left's fixed 320px plus a usable sliver of #mid.
+  return Math.max(RIGHT_PANEL_MIN_WIDTH, window.innerWidth - 320 - 260);
+}
+function applyRightPanelWidth(px: number): number {
+  rightPanelWidth = Math.min(rightPanelMaxWidth(), Math.max(RIGHT_PANEL_MIN_WIDTH, px));
+  document.documentElement.style.setProperty('--right-w', `${rightPanelWidth}px`);
+  return rightPanelWidth;
+}
+(function initRightPanelWidth(): void {
+  let saved = NaN;
+  try { saved = parseInt(localStorage.getItem(RIGHT_PANEL_WIDTH_KEY) || '', 10); } catch (e) { /* best effort */ }
+  applyRightPanelWidth(isNaN(saved) ? rightPanelWidth : saved);
+})();
+window.addEventListener('resize', () => applyRightPanelWidth(rightPanelWidth));
+rightResizeHandle.addEventListener('mousedown', (ev) => {
+  ev.preventDefault();
+  const startX = ev.clientX;
+  const startWidth = rightPanelWidth;
+  rightResizeHandle.classList.add('resizing');
+  function onMove(mv: MouseEvent): void {
+    // Dragging left (negative dx) widens #right, since it's the rightmost column.
+    applyRightPanelWidth(startWidth - (mv.clientX - startX));
+  }
+  function onUp(): void {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    rightResizeHandle.classList.remove('resizing');
+    try { localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(rightPanelWidth)); } catch (e) { /* best effort */ }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+});
 
 // ---------------- Output folder ----------------
 
@@ -603,7 +695,12 @@ function buildPrompt(): any {
   prompt['16'].inputs.text = fieldValue(negative);
 
   prompt['41'].inputs.unet_name = diffModel.value;
-  prompt['51'].inputs.lora_name = mainLora.value.trim() || 'None';
+  // 'DSM Lora Name' (node 51) is a combo widget validated against the
+  // actual lora directory listing — 'None' isn't a real file in it, so
+  // ComfyUI rejected the whole prompt whenever no main LoRA was picked.
+  // 'Anima-n' is a real no-op entry in that list, used as the base/no-LoRA
+  // stand-in.
+  prompt['51'].inputs.lora_name = mainLora.value.trim() || 'Anima-n';
   if (clip.value) { prompt['249'].inputs.clip_name = clip.value; prompt['47:45'].inputs.clip_name = clip.value; }
   if (vae.value) prompt['47:46'].inputs.vae_name = vae.value;
 
@@ -676,25 +773,38 @@ function buildPrompt(): any {
     prompt['192'].inputs.images = ['176', 0];
   }
 
-  // ---- Optional model-based upscale, inserted right before each SaveImage ----
-  // (192, and 192_pass1 if 2-Pass produced one). Matches the user's own
-  // reference workflow's "Upscale Result" branch exactly: UpscaleModelLoader
-  // -> ImageUpscaleWithModel -> ImageScaleBy(lanczos, scale_by) -> SaveImage —
-  // the ImageScaleBy step matters, not just cosmetic: model upscalers here
-  // are fixed-ratio (e.g. a "4x" ESRGAN model always outputs 4x regardless of
-  // want), so scale_by brings that back down to whatever the user actually
-  // wants (0.5 on a 4x model = a net 2x upscale).
+  // ---- Optional model-based upscale — a SEPARATE SaveImage ('192_upscaled'),
+  // not a rewire of 192 itself. Used to overwrite 192's own images with the
+  // upscaled result, which collapsed "the pass output" and "the upscaled
+  // output" into a single saved file — no way to preview or keep both. Now
+  // 192 (and 192_pass1) always stay the raw, pre-upscale pass output(s); the
+  // upscale chain taps 192's own source images and saves its result under
+  // its own node, so a generation with 2-Pass + Upscale on yields up to 3
+  // distinct saved images: pass 1, the (pre-upscale) final pass, upscaled.
+  // Matches the user's own reference workflow's "Upscale Result" branch:
+  // UpscaleModelLoader -> ImageUpscaleWithModel -> ImageScaleBy(lanczos,
+  // scale_by) -> SaveImage — ImageScaleBy matters, not just cosmetic: model
+  // upscalers here are fixed-ratio (e.g. a "4x" ESRGAN model always outputs
+  // 4x regardless of want), so scale_by brings that back down to whatever
+  // the user actually wants (0.5 on a 4x model = a net 2x upscale).
   if (upscaleEnabled.checked && upscaleModel.value.trim()) {
     prompt['upscale_model_loader'] = { class_type: 'UpscaleModelLoader', inputs: { model_name: upscaleModel.value.trim() }, _meta: { title: 'Upscale Model Loader' } };
     const scaleBy = parseFloat(upscaleScaleBy.value) || 1;
-    for (const saveId of ['192', '192_pass1']) {
-      if (!prompt[saveId]) continue;
-      const upscaleId = `upscale_model_${saveId}`;
-      const scaleId = `upscale_scale_${saveId}`;
-      prompt[upscaleId] = { class_type: 'ImageUpscaleWithModel', inputs: { upscale_model: ['upscale_model_loader', 0], image: prompt[saveId].inputs.images }, _meta: { title: 'Upscale' } };
-      prompt[scaleId] = { class_type: 'ImageScaleBy', inputs: { upscale_method: 'lanczos', scale_by: scaleBy, image: [upscaleId, 0] }, _meta: { title: 'Upscale scale-by' } };
-      prompt[saveId].inputs.images = [scaleId, 0];
-    }
+    prompt['upscale_model_192'] = { class_type: 'ImageUpscaleWithModel', inputs: { upscale_model: ['upscale_model_loader', 0], image: prompt['192'].inputs.images }, _meta: { title: 'Upscale' } };
+    prompt['upscale_scale_192'] = { class_type: 'ImageScaleBy', inputs: { upscale_method: 'lanczos', scale_by: scaleBy, image: ['upscale_model_192', 0] }, _meta: { title: 'Upscale scale-by' } };
+    // filename_prefix was `${prompt['192'].inputs.filename_prefix}_upscaled`
+    // — but 192's filename_prefix is a LINK (['207',0], the File Namer's
+    // output), not a string, so template-literal-stringifying it produced
+    // literal garbage like "207,0_upscaled". The template already has node
+    // '222' ("File Namer 4 Upscaler") built for exactly this: same
+    // rating(a)/character(b) resolution as the main File Namer, but the
+    // LoRA-tail value sits in slot d instead of c, leaving c free — WAS
+    // Text Concatenate joins connected, non-empty slots in a/b/c/d order,
+    // so filling c with the literal "Upscaled" places it exactly between
+    // character and the filename tail: rating/character/Upscaled/loraTail
+    // (or rating/Upscaled/loraTail when no character was detected).
+    prompt['222'].inputs.text_c = 'Upscaled';
+    prompt['192_upscaled'] = { class_type: 'SaveImage', inputs: { filename_prefix: ['222', 0], images: ['upscale_scale_192', 0] }, _meta: { title: 'Upscaled' } };
   }
 
   return prompt;
@@ -725,6 +835,69 @@ async function saveBytes(bytes: Uint8Array, filename: string): Promise<boolean> 
     return false;
   }
 }
+
+// ---------------- Result preview carousel ----------------
+// Up to 3 images from one generation (pass 1, pass 2/single-pass, upscaled)
+// used to just stack on top of each other. Now they're swipeable slides —
+// scroll-snap does the swipe/momentum for free on both touch and trackpad,
+// no hand-rolled drag math — with a thumbnail strip below to jump directly
+// and see which slide is active.
+let previewSlideUrls: string[] = [];
+
+function clearPreviewSlides(): void {
+  for (const u of previewSlideUrls) URL.revokeObjectURL(u);
+  previewSlideUrls = [];
+  previewCarousel.innerHTML = '';
+  previewThumbs.innerHTML = '';
+  previewThumbs.style.display = 'none';
+}
+
+function setPreviewSlides(slides: { label: string; bytes: Uint8Array }[]): void {
+  clearPreviewSlides();
+  if (!slides.length) { previewEmpty.style.display = ''; return; }
+  previewEmpty.style.display = 'none';
+  previewSlideUrls = slides.map((s) => URL.createObjectURL(new Blob([s.bytes as BlobPart], { type: 'image/png' })));
+  slides.forEach((s, i) => {
+    const slide = document.createElement('div');
+    slide.className = 'preview-slide';
+    const label = document.createElement('span');
+    label.className = 'preview-slide-label';
+    label.textContent = s.label;
+    const img = document.createElement('img');
+    img.src = previewSlideUrls[i];
+    img.addEventListener('click', () => showImageLightbox(img.src));
+    slide.appendChild(label);
+    slide.appendChild(img);
+    previewCarousel.appendChild(slide);
+  });
+  if (slides.length > 1) {
+    previewThumbs.style.display = '';
+    slides.forEach((s, i) => {
+      const thumb = document.createElement('button');
+      thumb.type = 'button';
+      thumb.className = 'preview-thumb' + (i === 0 ? ' active' : '');
+      thumb.title = s.label;
+      const timg = document.createElement('img');
+      timg.src = previewSlideUrls[i];
+      thumb.appendChild(timg);
+      thumb.addEventListener('click', () => {
+        previewCarousel.scrollTo({ left: i * previewCarousel.clientWidth, behavior: 'smooth' });
+      });
+      previewThumbs.appendChild(thumb);
+    });
+  }
+  previewCarousel.scrollLeft = 0;
+}
+
+let previewScrollTimer: ReturnType<typeof setTimeout> | null = null;
+previewCarousel.addEventListener('scroll', () => {
+  if (previewScrollTimer) clearTimeout(previewScrollTimer);
+  previewScrollTimer = setTimeout(() => {
+    const w = previewCarousel.clientWidth || 1;
+    const idx = Math.round(previewCarousel.scrollLeft / w);
+    previewThumbs.querySelectorAll('.preview-thumb').forEach((el, i) => el.classList.toggle('active', i === idx));
+  }, 80);
+});
 
 async function generate(): Promise<void> {
   if (generating) return;
@@ -773,23 +946,26 @@ async function generate(): Promise<void> {
   // history didn't expose a path (older server shapes).
   const fallbackN = () => nextFileNumber(desktopBackend());
   let saveFailed = false;
+  const slides: { label: string; bytes: Uint8Array }[] = [];
+  // 2-Pass: save BOTH passes, per this app's whole reason for existing —
+  // SynthDat only ever keeps one (via Accept), this keeps both always.
   if (res.pass1ImageBytes) {
-    // 2-Pass: save BOTH passes, per this app's whole reason for existing ?
-    // SynthDat only ever keeps one (via Accept), this keeps both always.
-    const s1 = await saveBytes(res.pass1ImageBytes, res.pass1SaveRel || `${await fallbackN()}_pass1.png`);
-    const s2 = await saveBytes(res.imageBytes!, res.saveRel || `${await fallbackN()}.png`);
-    if (!s1 || !s2) saveFailed = true;
-    preview.src = URL.createObjectURL(new Blob([res.imageBytes as BlobPart], { type: 'image/png' }));
-  } else if (res.imageBytes) {
+    if (!(await saveBytes(res.pass1ImageBytes, res.pass1SaveRel || `${await fallbackN()}_pass1.png`))) saveFailed = true;
+    slides.push({ label: 'Pass 1', bytes: res.pass1ImageBytes });
+  }
+  if (res.imageBytes) {
     if (!(await saveBytes(res.imageBytes, res.saveRel || `${await fallbackN()}.png`))) saveFailed = true;
-    preview.src = URL.createObjectURL(new Blob([res.imageBytes as BlobPart], { type: 'image/png' }));
+    slides.push({ label: res.pass1ImageBytes ? 'Pass 2' : 'Pass 1', bytes: res.imageBytes });
+  }
+  if (res.upscaledImageBytes) {
+    if (!(await saveBytes(res.upscaledImageBytes, res.upscaledSaveRel || `${await fallbackN()}_upscaled.png`))) saveFailed = true;
+    slides.push({ label: 'Upscaled', bytes: res.upscaledImageBytes });
   }
   if (saveFailed) {
     genStatus.style.display = 'block';
     genStatus.textContent = 'Generated, but saving failed — see Log for details.';
   }
-  preview.style.display = 'block';
-  previewEmpty.style.display = 'none';
+  setPreviewSlides(slides);
 }
 
 btnGenerate.addEventListener('click', generate);
@@ -807,7 +983,7 @@ function applyImportedPrompt(prompt: Record<string, any>): void {
     if (v !== '') el.value = v;
   }
   if (s('41', 'unet_name')) diffModel.value = s('41', 'unet_name');
-  if (s('51', 'lora_name') && s('51', 'lora_name') !== 'None') mainLora.value = s('51', 'lora_name');
+  if (s('51', 'lora_name') && s('51', 'lora_name') !== 'None' && s('51', 'lora_name') !== 'Anima-n') mainLora.value = s('51', 'lora_name');
   if (s('249', 'clip_name')) clip.value = s('249', 'clip_name');
   if (s('47:46', 'vae_name')) vae.value = s('47:46', 'vae_name');
 
@@ -898,6 +1074,7 @@ function applyImportedPrompt(prompt: Record<string, any>): void {
       upscaleScaleBy.value = String(typeof sb === 'number' ? sb : (parseFloat(sb) || 1));
     }
   }
+  autoGrowAll();
   scheduleUiSave();
 }
 btnImportGen.addEventListener('click', async () => {
@@ -923,6 +1100,5 @@ btnStop.addEventListener('click', async () => {
 
 mountGallerySidebar(desktopBackend, () => outputFolder || 'No folder chosen', { navigable: true });
 refreshSamplerLists();
-preview.addEventListener('click', () => { if (preview.src) showImageLightbox(preview.src); });
 window.electronAPI.getAppVersion().then((v) => { $<HTMLSpanElement>('appVersion').textContent = `v${v}`; }).catch(() => {});
 log('Comfy Bridge ready. Pick an output folder, set your host, and Generate.');

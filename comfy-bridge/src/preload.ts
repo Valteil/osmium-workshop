@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   synthdatGetObjectInfo: (payload) => ipcRenderer.invoke('synthdat-get-object-info', payload),
   synthdatQueueAndFetch: (payload) => ipcRenderer.invoke('synthdat-queue-and-fetch', payload),
   synthdatStopGeneration: (host) => ipcRenderer.invoke('synthdat-stop-generation', host),
+  comfyFetchLogs: (payload) => ipcRenderer.invoke('comfy-fetch-logs', payload),
   onPreviewFrame: (callback) => ipcRenderer.on('preview-frame', callback),
-  onGenProgress: (callback) => ipcRenderer.on('gen-progress', callback)
+  onGenProgress: (callback) => ipcRenderer.on('gen-progress', callback),
+  onComfyLog: (callback) => ipcRenderer.on('comfy-log', callback)
 });

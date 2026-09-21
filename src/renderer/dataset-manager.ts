@@ -8,7 +8,7 @@
 // plain CSS var (`--accent-flair`) rather than anything computed in JS.
 import type { DirHandle } from './types';
 import {
-  datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown,
+  datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown, dmTabBar,
   achievementsPanel, favoritesPanel, themeCustomPanel, logPanel, tagDetailsPanel, shopPanel
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown } from './shared-ui';
@@ -26,6 +26,426 @@ interface DMRecord {
   iconMode: string;
   iconImageBase: string | null;
   iconImageDataUrl: string | null;
+  // Added alongside dataset-folder tabs — absent on every record created
+  // before that feature shipped, which IndexedDB just returns as
+  // `undefined` for (no migration pass needed). recordGroupId() below is
+  // the one place that turns "undefined or null" into DEFAULT_GROUP_ID, so
+  // nothing else in this file needs to know the field used to not exist.
+  groupId?: number | null;
+}
+
+// ---------------- Dataset folder tabs (groups) ----------------
+// The whole point: someone other than you opens the app, and the Dataset
+// tab's grid shouldn't flash them every folder you've ever tracked. Folders
+// live in one of these groups; the built-in Default group (id 0, not
+// stored — see DEFAULT_GROUP_ID) is always visible with no lock option, and
+// any custom group can carry an optional password. A password only ever
+// hides folder NAMES/thumbnails from the *Dataset tab's own grid* — see
+// renderDatasetManagerTab()'s lock-screen branch, which renders nothing
+// from a locked group's contents at all, not even behind a blur. It does
+// NOT also hide a locked group's folders from the separate ★ Favorites
+// panel if one happens to be pinned there too; that's a real, deliberate
+// scope boundary (favorites.ts is a different feature with its own list),
+// not an oversight — mentioned here so it isn't "discovered" as a bug
+// later.
+interface DMGroup {
+  id: number;
+  name: string;
+  passwordSalt: string | null;
+  passwordHash: string | null;
+}
+
+const DEFAULT_GROUP_ID = 0;
+const GROUPS_KEY = 'dts-dataset-groups';
+const ACTIVE_GROUP_KEY = 'dts-dataset-active-group';
+
+let groups: DMGroup[] = [];
+let activeGroupId: number = DEFAULT_GROUP_ID;
+// Session-only, deliberately never persisted to localStorage or anywhere
+// else — the entire privacy guarantee of this feature is that a locked
+// group re-locks on every app launch. Persisting "unlocked" across
+// restarts would silently defeat the one thing this was built for.
+const unlockedGroupIds = new Set<number>();
+
+function recordGroupId(rec: DMRecord): number {
+  return rec.groupId == null ? DEFAULT_GROUP_ID : rec.groupId;
+}
+
+function loadGroups(): void {
+  try { groups = JSON.parse(localStorage.getItem(GROUPS_KEY) || '[]') as DMGroup[]; } catch(e){ groups = []; }
+  let saved = DEFAULT_GROUP_ID;
+  try { saved = parseInt(localStorage.getItem(ACTIVE_GROUP_KEY) || '', 10); if (isNaN(saved)) saved = DEFAULT_GROUP_ID; } catch(e){ saved = DEFAULT_GROUP_ID; }
+  // Never land on a locked group right at launch — nothing has been
+  // unlocked yet this session by definition, so this would otherwise force
+  // an immediate password prompt (or worse, a flash of its contents) before
+  // the user has done anything. Falls back to Default; re-picking the tab
+  // is an explicit, deliberate action instead.
+  const savedGroup = groups.find(g => g.id === saved);
+  activeGroupId = (savedGroup && savedGroup.passwordHash) ? DEFAULT_GROUP_ID : saved;
+}
+function saveGroups(){ try { localStorage.setItem(GROUPS_KEY, JSON.stringify(groups)); } catch(e){} }
+function saveActiveGroup(){ try { localStorage.setItem(ACTIVE_GROUP_KEY, String(activeGroupId)); } catch(e){} }
+
+function getGroup(id: number): DMGroup | undefined {
+  return groups.find(g => g.id === id);
+}
+function isGroupLocked(id: number): boolean {
+  if (id === DEFAULT_GROUP_ID) return false;
+  const g = getGroup(id);
+  return !!(g && g.passwordHash && !unlockedGroupIds.has(id));
+}
+
+// SHA-256 over a random per-group salt, not a KDF like bcrypt/scrypt/
+// argon2 — deliberately. The threat model this feature defends against is
+// someone else glancing at or briefly using the app on your machine, not
+// an attacker with a copy of localStorage and time to brute-force it; a
+// slow KDF buys real security against the second threat at the cost of
+// meaningfully slower unlock, for a feature that was never claiming to
+// solve the second problem.
+async function sha256Hex(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function randomHex(byteLen: number): string {
+  const arr = new Uint8Array(byteLen);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function hashPassword(password: string, salt: string): Promise<string> {
+  return sha256Hex(salt + ':' + password);
+}
+
+// Small single-field modal, same confirm-backdrop/confirm-box shell as
+// showConfirmModal (shared-ui.ts) — that helper doesn't take an input, and
+// this is the only place in dataset-manager.ts that needs one, so it's not
+// worth generalizing shared-ui.ts's version for one caller.
+function promptText(message: string, opts: { okLabel?: string; password?: boolean; placeholder?: string } = {}): Promise<string | null> {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'confirm-backdrop';
+    const box = document.createElement('div');
+    box.className = 'confirm-box';
+    const msg = document.createElement('div');
+    msg.className = 'confirm-message';
+    msg.textContent = message;
+    box.appendChild(msg);
+    const input = document.createElement('input');
+    input.type = opts.password ? 'password' : 'text';
+    input.className = 'dm-prompt-input';
+    if (opts.placeholder) input.placeholder = opts.placeholder;
+    box.appendChild(input);
+    const btnRow = document.createElement('div');
+    btnRow.className = 'confirm-btn-row';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    const okBtn = document.createElement('button');
+    okBtn.textContent = opts.okLabel || 'OK';
+    okBtn.className = 'primary';
+    function close(result: string | null): void {
+      backdrop.classList.remove('modal-visible');
+      setTimeout(() => backdrop.remove(), 160);
+      resolve(result);
+    }
+    cancelBtn.addEventListener('click', () => close(null));
+    okBtn.addEventListener('click', () => close(input.value));
+    input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') close(input.value); });
+    backdrop.addEventListener('click', (ev) => { if (ev.target === backdrop) close(null); });
+    document.addEventListener('keydown', function escHandler(ev: KeyboardEvent) {
+      if (ev.key === 'Escape') { close(null); document.removeEventListener('keydown', escHandler); }
+    });
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(okBtn);
+    box.appendChild(btnRow);
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+    requestAnimationFrame(() => requestAnimationFrame(() => { backdrop.classList.add('modal-visible'); input.focus(); }));
+  });
+}
+
+// ---------------- Group CRUD ----------------
+
+async function createGroupFlow(): Promise<void> {
+  const name = await promptText('Name this new tab:', { okLabel: 'Create', placeholder: 'e.g. Private' });
+  if (!name || !name.trim()) return;
+  const group: DMGroup = { id: Date.now(), name: name.trim(), passwordSalt: null, passwordHash: null };
+  groups.push(group);
+  saveGroups();
+  activeGroupId = group.id;
+  saveActiveGroup();
+  renderTabBar();
+  renderDatasetManagerTab();
+}
+
+async function renameGroupFlow(group: DMGroup): Promise<void> {
+  const name = await promptText(`Rename "${group.name}" to:`, { okLabel: 'Rename', placeholder: group.name });
+  if (!name || !name.trim()) return;
+  group.name = name.trim();
+  saveGroups();
+  renderTabBar();
+}
+
+async function setGroupPasswordFlow(group: DMGroup): Promise<void> {
+  const isFirstLock = !group.passwordHash;
+  if (isFirstLock) {
+    const ack = await showConfirmModal(
+      `This app has no "forgot password" recovery — if you forget the password for "${group.name}", the only way back in is deleting the tab itself. Continue setting a password?`,
+      { okLabel: 'I understand, continue' }
+    );
+    if (!ack) return;
+  } else {
+    // Changing an existing password must prove the old one first — otherwise
+    // anyone with the tab bar's context menu could relock it with a password
+    // of their own choosing and shut the actual owner out.
+    const oldPw = await promptText(
+      `Enter the current password for "${group.name}" to change it:`,
+      { okLabel: 'Verify', password: true, placeholder: 'Current password' }
+    );
+    if (oldPw === null) return;
+    const attemptHash = await hashPassword(oldPw, group.passwordSalt!);
+    if (attemptHash !== group.passwordHash){ toast('Wrong password — nothing changed.', 2600); return; }
+  }
+  const pw = await promptText(
+    group.passwordHash ? `Set a new password for "${group.name}":` : `Set a password for "${group.name}" — it'll lock every time the app starts, until you enter this again:`,
+    { okLabel: 'Set password', password: true, placeholder: 'Password' }
+  );
+  if (pw === null) return;
+  if (!pw){ toast('Password cannot be empty.', 2600); return; }
+  const confirmPw = await promptText('Confirm the password:', { okLabel: 'Confirm', password: true, placeholder: 'Password' });
+  if (confirmPw === null) return;
+  if (pw !== confirmPw){ toast('Passwords did not match — nothing changed.', 3200); return; }
+  const salt = randomHex(16);
+  group.passwordSalt = salt;
+  group.passwordHash = await hashPassword(pw, salt);
+  unlockedGroupIds.add(group.id); // setting it counts as knowing it — no need to immediately re-lock the tab you're sitting in
+  saveGroups();
+  renderTabBar();
+  toast(`"${group.name}" is now password-protected.`, 2600);
+}
+
+async function removeGroupPasswordFlow(group: DMGroup): Promise<void> {
+  const pw = await promptText(
+    `Enter the password for "${group.name}" to remove it:`,
+    { okLabel: 'Verify', password: true, placeholder: 'Password' }
+  );
+  if (pw === null) return;
+  const attemptHash = await hashPassword(pw, group.passwordSalt!);
+  if (attemptHash !== group.passwordHash){ toast('Wrong password — nothing changed.', 2600); return; }
+  const ok = await showConfirmModal(`Remove the password from "${group.name}"? Its folders will be visible to anyone who opens this app.`, { okLabel: 'Remove password', danger: true });
+  if (!ok) return;
+  group.passwordSalt = null;
+  group.passwordHash = null;
+  unlockedGroupIds.add(group.id);
+  saveGroups();
+  renderTabBar();
+}
+
+async function deleteGroupFlow(group: DMGroup): Promise<void> {
+  let moveToDefault = true;
+  if (group.passwordHash) {
+    // Deleting a locked tab must not silently dump its folders into Default —
+    // that would let anyone delete the tab they can't unlock to see its
+    // contents anyway. Proving the password is what unlocks the choice to
+    // bring the folders back; forgetting it still lets you delete the tab
+    // (there's no recovery — see setGroupPasswordFlow), but only ever onto
+    // the untracked path, never onto Default.
+    const pw = await promptText(
+      `"${group.name}" is password-protected. Enter the password to delete it — leave it blank if you've forgotten it:`,
+      { okLabel: 'Continue', password: true, placeholder: 'Password (optional if forgotten)' }
+    );
+    if (pw === null) return;
+    if (pw) {
+      const attemptHash = await hashPassword(pw, group.passwordSalt!);
+      if (attemptHash === group.passwordHash) {
+        moveToDefault = await showConfirmModal(
+          `Password verified. Move "${group.name}"'s folders back to the Default tab, or leave them untracked so they never resurface anywhere?`,
+          { okLabel: 'Move to Default', cancelLabel: 'Leave untracked', danger: true }
+        );
+      } else {
+        const forgot = await showConfirmModal(
+          `Wrong password. Forgot it? You can still delete "${group.name}", but its folders will stay untracked instead of moving to Default — that's what stops someone from deleting a tab they can't unlock just to get its folders back that way.`,
+          { okLabel: 'Delete without folders', cancelLabel: 'Cancel', danger: true }
+        );
+        if (!forgot) return;
+        moveToDefault = false;
+      }
+    } else {
+      const forgot = await showConfirmModal(
+        `Delete "${group.name}" without the password? Its folders will stay untracked instead of moving to Default — that's what stops someone from deleting a tab they can't unlock just to get its folders back that way.`,
+        { okLabel: 'Delete without folders', cancelLabel: 'Cancel', danger: true }
+      );
+      if (!forgot) return;
+      moveToDefault = false;
+    }
+  } else {
+    const ok = await showConfirmModal(
+      `Delete the "${group.name}" tab? Its folders move back to Default — nothing about the folders themselves or their tracking is deleted.`,
+      { okLabel: 'Delete tab', danger: true }
+    );
+    if (!ok) return;
+  }
+  let records: DMRecord[] = [];
+  try { records = await listDatasetFolders(); } catch(e){}
+  if (moveToDefault) {
+    for (const rec of records){
+      if (recordGroupId(rec) === group.id) await updateDatasetFolder(rec.id, { groupId: DEFAULT_GROUP_ID });
+    }
+  }
+  groups = groups.filter(g => g.id !== group.id);
+  unlockedGroupIds.delete(group.id);
+  saveGroups();
+  if (activeGroupId === group.id){ activeGroupId = DEFAULT_GROUP_ID; saveActiveGroup(); }
+  renderTabBar();
+  renderDatasetManagerTab();
+}
+
+// Prompts for the group's password, verifying against its stored hash;
+// returns true (and marks it unlocked for the rest of this session) only
+// on a correct match. Wrong password shows a toast and leaves it locked —
+// no lockout/attempt-limit, matching this feature's stated threat model
+// (see sha256Hex's own comment above).
+async function unlockGroupFlow(group: DMGroup): Promise<boolean> {
+  const pw = await promptText(`"${group.name}" is password-protected. Enter the password:`, { okLabel: 'Unlock', password: true, placeholder: 'Password' });
+  if (pw === null) return false;
+  const attemptHash = await hashPassword(pw, group.passwordSalt!);
+  if (attemptHash !== group.passwordHash){ toast('Wrong password.', 2600); return false; }
+  unlockedGroupIds.add(group.id);
+  return true;
+}
+
+async function selectGroup(id: number): Promise<void> {
+  if (id !== DEFAULT_GROUP_ID){
+    const group = getGroup(id);
+    if (group && isGroupLocked(id)){
+      const unlocked = await unlockGroupFlow(group);
+      if (!unlocked) return;
+    }
+  }
+  activeGroupId = id;
+  saveActiveGroup();
+  renderTabBar();
+  renderDatasetManagerTab();
+}
+
+// ---------------- Tab bar ----------------
+
+function renderTabBar(): void {
+  dmTabBar.innerHTML = '';
+
+  function buildTab(id: number, name: string, group: DMGroup | null): HTMLElement {
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'dm-tab' + (id === activeGroupId ? ' active' : '');
+    const label = document.createElement('span');
+    label.textContent = name;
+    tab.appendChild(label);
+    if (group && group.passwordHash){
+      const lock = document.createElement('span');
+      lock.className = 'dm-tab-lock';
+      lock.textContent = isGroupLocked(id) ? '🔒' : '🔓';
+      lock.title = isGroupLocked(id) ? 'Locked' : 'Unlocked for this session';
+      tab.appendChild(lock);
+    }
+    tab.addEventListener('click', () => selectGroup(id));
+    if (group){
+      const menuBtn = document.createElement('button');
+      menuBtn.type = 'button';
+      menuBtn.className = 'dm-tab-menu-btn';
+      menuBtn.title = 'Tab options';
+      menuBtn.textContent = '⋯';
+      menuBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const rect = menuBtn.getBoundingClientRect();
+        openTabContextMenu(group, rect.left, rect.bottom + 4);
+      });
+      tab.appendChild(menuBtn);
+    }
+    return tab;
+  }
+
+  dmTabBar.appendChild(buildTab(DEFAULT_GROUP_ID, 'Default', null));
+  for (const group of groups) dmTabBar.appendChild(buildTab(group.id, group.name, group));
+
+  const addTab = document.createElement('button');
+  addTab.type = 'button';
+  addTab.className = 'dm-tab dm-tab-add';
+  addTab.title = 'Add a new tab';
+  addTab.textContent = '+';
+  addTab.addEventListener('click', () => createGroupFlow());
+  dmTabBar.appendChild(addTab);
+}
+
+let dmTabCtxMenuEl: HTMLElement | null = null;
+function closeDmTabCtxMenu(): void {
+  if (dmTabCtxMenuEl){ dmTabCtxMenuEl.remove(); dmTabCtxMenuEl = null; }
+  document.removeEventListener('click', onDmTabCtxOutsideClick);
+}
+function onDmTabCtxOutsideClick(ev: MouseEvent): void {
+  if (!dmTabCtxMenuEl) return;
+  const path = ev.composedPath ? ev.composedPath() : [];
+  if (path.includes(dmTabCtxMenuEl)) return;
+  closeDmTabCtxMenu();
+}
+function openTabContextMenu(group: DMGroup, x: number, y: number): void {
+  closeDmTabCtxMenu();
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  const header = document.createElement('div');
+  header.className = 'ctx-header';
+  header.textContent = group.name;
+  menu.appendChild(header);
+  addDmCtxItem(menu, 'Rename tab', () => { closeDmTabCtxMenu(); renameGroupFlow(group); });
+  addDmCtxItem(menu, group.passwordHash ? 'Change password' : 'Set password…', () => { closeDmTabCtxMenu(); setGroupPasswordFlow(group); });
+  if (group.passwordHash) addDmCtxItem(menu, 'Remove password', () => { closeDmTabCtxMenu(); removeGroupPasswordFlow(group); });
+  addDmCtxItem(menu, 'Delete tab', () => { closeDmTabCtxMenu(); deleteGroupFlow(group); });
+  document.body.appendChild(menu);
+  dmTabCtxMenuEl = menu;
+  positionMenu(menu, x, y);
+  setTimeout(() => document.addEventListener('click', onDmTabCtxOutsideClick), 0);
+}
+
+// ---------------- Move a folder between tabs ----------------
+
+async function openMoveToTabModal(record: DMRecord): Promise<void> {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'confirm-backdrop modal-visible';
+  const box = document.createElement('div');
+  box.className = 'confirm-box';
+  const title = document.createElement('div');
+  title.className = 'confirm-message';
+  title.textContent = `Move "${record.name}" to which tab?`;
+  box.appendChild(title);
+  const list = document.createElement('div');
+  list.className = 'dm-move-tab-list';
+  box.appendChild(list);
+  const btnRow = document.createElement('div');
+  btnRow.className = 'confirm-btn-row';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  btnRow.appendChild(cancelBtn);
+  box.appendChild(btnRow);
+  backdrop.appendChild(box);
+  document.body.appendChild(backdrop);
+  function close(){ backdrop.remove(); }
+  cancelBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', (ev) => { if (ev.target === backdrop) close(); });
+
+  const current = recordGroupId(record);
+  const options: { id: number; name: string }[] = [{ id: DEFAULT_GROUP_ID, name: 'Default' }, ...groups.map(g => ({ id: g.id, name: g.name }))];
+  for (const opt of options){
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'dm-move-tab-row' + (opt.id === current ? ' active' : '');
+    row.textContent = opt.name + (opt.id === current ? ' (current)' : '');
+    row.disabled = opt.id === current;
+    row.addEventListener('click', async () => {
+      await updateDatasetFolder(record.id, { groupId: opt.id });
+      close();
+      renderDatasetManagerTab();
+      toast(`Moved "${record.name}" to "${opt.name}".`, 2200);
+    });
+    list.appendChild(row);
+  }
 }
 
 const DB_NAME = 'dts-dataset-manager-db';
@@ -84,7 +504,11 @@ async function addDatasetFolder(handle: DMRecord['handle']): Promise<IDBValidKey
     const tx = db.transaction(STORE, 'readwrite');
     const record = {
       name: handle.name, handle: storedHandle, addedAt: Date.now(), lastOpenedAt: Date.now(),
-      pinned: alreadyFavorited, iconMode: 'generic', iconImageBase: null, iconImageDataUrl: null
+      pinned: alreadyFavorited, iconMode: 'generic', iconImageBase: null, iconImageDataUrl: null,
+      // Lands in whichever tab is currently open, not always Default — add
+      // a folder while sitting in a locked tab and it should actually show
+      // up there, not silently reappear in the tab anyone can see.
+      groupId: activeGroupId
     };
     const req = tx.objectStore(STORE).add(record);
     req.onsuccess = () => resolve(req.result);
@@ -318,6 +742,15 @@ function openDmContextMenu(record: DMRecord, x: number, y: number): void {
     closeDmCtxMenu();
     await openIconPicker(record);
   });
+
+  // Only worth offering once a second tab actually exists — with just
+  // Default, there's nowhere to move a folder to.
+  if (groups.length > 0){
+    addDmCtxItem(menu, 'Move to tab…', async () => {
+      closeDmCtxMenu();
+      await openMoveToTabModal(record);
+    });
+  }
 
   document.body.appendChild(menu);
   dmCtxMenuEl = menu;
@@ -601,12 +1034,41 @@ export async function renderDatasetManagerTab(): Promise<void> {
   dmGrid.classList.toggle('dm-list-view', viewMode === 'list');
   dmGridBtn.classList.toggle('active', viewMode === 'grid');
   dmListBtn.classList.toggle('active', viewMode === 'list');
+  renderTabBar();
+
+  dmGrid.innerHTML = '';
+
+  // The actual privacy guarantee: a locked, not-yet-unlocked group renders
+  // NOTHING of its contents — not blurred thumbnails, not folder names
+  // behind a scrim, nothing queried from IndexedDB into the DOM at all.
+  // Anyone glancing at the screen sees a lock icon and a name they already
+  // knew existed (the tab label itself isn't hidden), never what's inside.
+  if (isGroupLocked(activeGroupId)){
+    const group = getGroup(activeGroupId)!;
+    const lockScreen = document.createElement('div');
+    lockScreen.className = 'dm-lock-screen';
+    const icon = document.createElement('div');
+    icon.className = 'dm-lock-icon';
+    icon.textContent = '🔒';
+    const msg = document.createElement('div');
+    msg.className = 'dm-lock-msg';
+    msg.textContent = `"${group.name}" is locked.`;
+    const unlockBtn = document.createElement('button');
+    unlockBtn.className = 'primary';
+    unlockBtn.textContent = 'Unlock';
+    unlockBtn.addEventListener('click', () => selectGroup(group.id));
+    lockScreen.appendChild(icon);
+    lockScreen.appendChild(msg);
+    lockScreen.appendChild(unlockBtn);
+    dmGrid.appendChild(lockScreen);
+    return;
+  }
 
   let records: DMRecord[] = [];
   try { records = await listDatasetFolders(); } catch(e){ records = []; }
-  const sorted = sortRecords(records);
+  const inGroup = records.filter(r => recordGroupId(r) === activeGroupId);
+  const sorted = sortRecords(inGroup);
 
-  dmGrid.innerHTML = '';
   // Grid view: the add-tile flows with the other tiles (last), so it drifts
   // rightward and wraps to the next row like any other tile as folders are
   // added, instead of permanently pinning the first grid cell. List view
@@ -630,6 +1092,7 @@ export function initDatasetManager(deps: DatasetManagerDeps): void {
   switchTab = deps.switchTab;
 
   loadPrefs();
+  loadGroups();
 
   dmGridBtn.addEventListener('click', () => {
     viewMode = 'grid'; saveViewMode(); renderDatasetManagerTab();

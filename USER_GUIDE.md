@@ -258,9 +258,18 @@ needs its indicator tags aligned without opening each card by hand.
 
 A folder manager separate from the Gallery — shows every dataset folder you've ever opened as a
 themed folder icon. Sort manually (drag) or by name/time. Right-click a folder for options:
-remove from this list, pin as a favorite, view its achievements read-only, or change its icon.
-Opening an untracked folder prompts once to add it here. Use it to switch between
-characters/projects without reopening folders.
+remove from this list, pin as a favorite, view its achievements read-only, change its icon, or
+move it to a different tab. Opening an untracked folder prompts once to add it here. Use it to
+switch between characters/projects without reopening folders.
+
+**Tabs** split your tracked folders into separate groups instead of one flat grid — the built-in
+**Default** tab always shows everything with no lock option; any tab you create with the **+**
+button can optionally be given a password (its own ⋯ button ▸ Set password). A password-protected
+tab locks every time the app starts — nothing from it, not even folder names, renders until you
+enter the password again. This is meant to stop someone else who briefly picks up your machine
+from seeing folders you'd rather they didn't, not to withstand a determined attacker with access
+to your files (the password is hashed, but with no deliberately-slow KDF — see the in-app help
+panel for the same caveat).
 
 ---
 
