@@ -982,12 +982,47 @@ async function generate(): Promise<void> {
 btnGenerate.addEventListener('click', generate);
 
 // ---------------- Import generation ----------------
+// Every field applyImportedPrompt can touch, reset to blank/default first.
+// The importer only ever writes a field when the saved prompt actually has
+// a value for it (see setVal/s() below) — without this, importing a
+// generation that, say, didn't use a 2nd pass or a LoRA stack left
+// whatever was already sitting in those fields from before the import,
+// silently mixing old and new settings.
+const RESET_TEXT_FIELDS: (HTMLInputElement | HTMLTextAreaElement)[] = [
+  diffModel, clip, vae, mainLora,
+  lliteStrength, lliteStartPercent, lliteEndPercent,
+  unifiedPrompt, global_, character, characterTrigger, rating, hair, face, chest, body_,
+  clothes, limbs, sexual, pose, scene, effects, extra, negative,
+  width, height, sampler, scheduler, steps1, cfg1, seed1, steps2, denoise2, seed2, upscaleModel, upscaleScaleBy
+];
+const RESET_CHECKBOXES: HTMLInputElement[] = [
+  skipRefImage, llitePreserveWrapper, unifiedPromptMode, use2Pass, upscaleEnabled
+];
+function resetGenerationForm(): void {
+  for (const el of RESET_TEXT_FIELDS) el.value = el.defaultValue;
+  for (const el of RESET_CHECKBOXES) el.checked = el.defaultChecked;
+  for (const sel of [resizeFit, resizeMethod]) {
+    for (const opt of Array.from(sel.options)) opt.selected = opt.defaultSelected;
+  }
+  for (const r of [...loraRows]) { loraRows = loraRows.filter(x => x !== r); r.row.remove(); }
+  refFile = null;
+  refFilename = '';
+  refFileName.textContent = '';
+  refPreview.removeAttribute('src');
+  refPreview.style.display = 'none';
+  applySkipRefImageUI();
+  applyUnifiedPromptModeUI();
+  applyUse2PassUI();
+  applyUpscaleUI();
+}
+
 // Reads a PNG saved by the integrated workflow and re-enters its full
 // generation config into the app: models, LoRA stack, prompt fields,
 // resolution, sampler/scheduler/steps/cfg/seeds, 2-Pass, resize and
 // upscale. Node ids mirror buildPrompt()'s fixed template (same file, the
 // template IS the format), so a saved prompt maps back 1:1.
 function applyImportedPrompt(prompt: Record<string, any>): void {
+  resetGenerationForm();
   const inp = (id: string): Record<string, unknown> => (prompt[id] && prompt[id].inputs) || {};
   const s = (id: string, key: string): string => { const v = inp(id)[key]; return v == null ? '' : String(v); };
   function setVal(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, v: string): void {
@@ -1015,10 +1050,7 @@ function applyImportedPrompt(prompt: Record<string, any>): void {
       if (name && name !== 'None') rows.push({ n: String(name), s: typeof str === 'number' ? str : (parseFloat(str) || 0) });
     }
   }
-  if (rows.length) {
-    for (const r of [...loraRows]) { loraRows = loraRows.filter(x => x !== r); r.row.remove(); }
-    for (const r of rows) addLoraRow(r.n, r.s);
-  }
+  for (const r of rows) addLoraRow(r.n, r.s);
 
   // Reference-image branch: an intact generation has '240' (LLite) and
   // possibly '238' (resize) unless it was run with the ref image skipped.
@@ -1085,6 +1117,10 @@ function applyImportedPrompt(prompt: Record<string, any>): void {
       upscaleScaleBy.value = String(typeof sb === 'number' ? sb : (parseFloat(sb) || 1));
     }
   }
+  applySkipRefImageUI();
+  applyUnifiedPromptModeUI();
+  applyUse2PassUI();
+  applyUpscaleUI();
   autoGrowAll();
   scheduleUiSave();
 }

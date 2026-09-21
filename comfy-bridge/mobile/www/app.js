@@ -1225,7 +1225,42 @@
     throw new Error('compressed iTXt metadata is not supported in this WebView');
   }
 
+  // Every field applyImportedPrompt can touch, reset to blank/default first
+  // — same reasoning as desktop's resetGenerationForm. Without this,
+  // importing a generation that didn't use a 2nd pass or a LoRA stack left
+  // whatever was already in those fields, silently mixing old and new
+  // settings.
+  const RESET_TEXT_FIELDS = [
+    diffModel, clip, vae, mainLora,
+    lliteStrength, lliteStartPercent, lliteEndPercent,
+    unifiedPrompt, global_, character, characterTrigger, rating, hair, face, chest, body_,
+    clothes, limbs, sexual, pose, scene, effects, extra, negative,
+    width, height, sampler, scheduler, steps1, cfg1, seed1, steps2, denoise2, seed2, upscaleModel, upscaleScaleBy
+  ];
+  const RESET_CHECKBOXES = [skipRefImage, llitePreserveWrapper, unifiedPromptMode, use2Pass, upscaleEnabled];
+  function resetGenerationForm() {
+    for (const el of RESET_TEXT_FIELDS) el.value = el.defaultValue;
+    for (const el of RESET_CHECKBOXES) el.checked = el.defaultChecked;
+    for (const sel of [resizeFit, resizeMethod]) {
+      for (const opt of Array.from(sel.options)) opt.selected = opt.defaultSelected;
+    }
+    for (const r of loraRows.slice()) {
+      loraRows = loraRows.filter((x) => x !== r);
+      r.row.remove();
+    }
+    refFile = null;
+    refFilename = '';
+    refFileName.textContent = '';
+    refPreview.removeAttribute('src');
+    refPreview.style.display = 'none';
+    applySkipRefImageUI();
+    applyUnifiedPromptModeUI();
+    pass2Fields.style.display = 'none';
+    upscaleModelRow.style.display = 'none';
+  }
+
   function applyImportedPrompt(prompt) {
+    resetGenerationForm();
     const inp = (id) => (prompt[id] && prompt[id].inputs) || {};
     const s = (id, key) => { const v = inp(id)[key]; return v == null ? '' : String(v); };
     function setVal(el, v) { if (v !== '') el.value = v; }
@@ -1250,13 +1285,7 @@
         if (name && name !== 'None') rows.push({ n: String(name), s: (typeof str === 'number') ? str : (parseFloat(str) || 0) });
       }
     }
-    if (rows.length) {
-      for (const r of loraRows.slice()) {
-        loraRows = loraRows.filter((x) => x !== r);
-        r.row.remove();
-      }
-      for (const r of rows) addLoraRow(r.n, r.s);
-    }
+    for (const r of rows) addLoraRow(r.n, r.s);
 
     if (prompt['240']) {
       skipRefImage.checked = false;
