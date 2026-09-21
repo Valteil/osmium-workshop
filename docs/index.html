@@ -254,12 +254,26 @@
   .nc-tl{top:-5px; left:-5px;} .nc-tr{top:-5px; right:-5px;}
   .nc-bl{bottom:-5px; left:-5px;} .nc-br{bottom:-5px; right:-5px;}
   .proof-cap{display:flex; justify-content:space-between; align-items:baseline; margin-top:14px; font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:var(--ink-soft);}
-  .shot-gallery{
-    display:grid; grid-template-columns:repeat(auto-fit, minmax(420px, 1fr)); gap:40px 32px;
-    margin-top:64px;
+  /* One screenshot on screen at a time, swiped between — the old grid dump
+     of all five at once (auto-fit minmax) read as visual clutter this far
+     down the page. Native scroll-snap does the swipe/momentum for free on
+     both touch and trackpad, same technique as Comfy Bridge's own result
+     carousel. */
+  .shot-carousel-wrap{ margin-top:64px; }
+  .shot-carousel{
+    display:flex; overflow-x:auto; scroll-snap-type:x mandatory;
+    scrollbar-width:none; gap:0;
   }
-  .shot-card{ margin:0; }
-  .shot-card .proof-cap{ justify-content:flex-start; gap:8px; }
+  .shot-carousel::-webkit-scrollbar{ display:none; }
+  .shot-slide{ flex:0 0 100%; min-width:0; scroll-snap-align:center; margin:0; }
+  .shot-slide .proof-cap{ justify-content:flex-start; gap:8px; }
+  .shot-dots{ display:flex; justify-content:center; gap:8px; margin-top:20px; }
+  .shot-dot{
+    width:8px; height:8px; border-radius:50%; padding:0; border:1px solid var(--line-strong);
+    background:transparent; cursor:pointer; transition:background .15s, border-color .15s;
+  }
+  .shot-dot:hover{ border-color:var(--ink); }
+  .shot-dot.active{ background:var(--ink); border-color:var(--ink); }
 
   /* ---------- inter-section teaser line ---------- */
   .transition-line{ padding-top:56px; }
@@ -692,47 +706,50 @@
 
       <hr class="rule" style="margin:64px 0 40px;">
 
-      <div class="shot-gallery">
-        <figure class="shot-card">
-          <div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-dark-mode.jpg" alt="Osmium Workshop Gallery tab in dark mode." loading="lazy" />
-          </div>
-          <figcaption class="proof-cap"><span>Dark mode</span></figcaption>
-        </figure>
-        <figure class="shot-card">
-          <div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-datasets-tab.png" alt="Osmium Workshop Datasets tab showing several dataset folders." loading="lazy" />
-          </div>
-          <figcaption class="proof-cap"><span>Datasets tab — every project in one place</span></figcaption>
-        </figure>
-        <figure class="shot-card">
-          <div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-help.png" alt="Osmium Workshop's built-in help panel with a table of contents and per-topic documentation." loading="lazy" />
-          </div>
-          <figcaption class="proof-cap"><span>Built-in help — every tab explained</span></figcaption>
-        </figure>
-        <figure class="shot-card">
-          <div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-visual-editing.jpg" alt="Close-up of inline tag editing on a single image card." loading="lazy" />
-          </div>
-          <figcaption class="proof-cap"><span>Inline tag editing</span></figcaption>
-        </figure>
-        <figure class="shot-card">
-          <div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-shop-themes.png" alt="Theme shop list showing rare, epic, and legendary themes with their Edibits price." loading="lazy" />
-          </div>
-          <figcaption class="proof-cap"><span>Shop themes — common to legendary, unlocked with Edibits you earn just by using the app</span></figcaption>
-        </figure>
+      <div class="shot-carousel-wrap">
+        <div class="shot-carousel" id="shotCarousel">
+          <figure class="shot-slide">
+            <div class="proof-frame">
+              <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+              <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+              <img src="assets/screenshot-dark-mode.jpg" alt="Osmium Workshop Gallery tab in dark mode." loading="lazy" />
+            </div>
+            <figcaption class="proof-cap"><span>Dark mode</span></figcaption>
+          </figure>
+          <figure class="shot-slide">
+            <div class="proof-frame">
+              <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+              <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+              <img src="assets/screenshot-datasets-tab.png" alt="Osmium Workshop Datasets tab showing several dataset folders." loading="lazy" />
+            </div>
+            <figcaption class="proof-cap"><span>Datasets tab — every project in one place</span></figcaption>
+          </figure>
+          <figure class="shot-slide">
+            <div class="proof-frame">
+              <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+              <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+              <img src="assets/screenshot-help.png" alt="Osmium Workshop's built-in help panel with a table of contents and per-topic documentation." loading="lazy" />
+            </div>
+            <figcaption class="proof-cap"><span>Built-in help — every tab explained</span></figcaption>
+          </figure>
+          <figure class="shot-slide">
+            <div class="proof-frame">
+              <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+              <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+              <img src="assets/screenshot-visual-editing.jpg" alt="Close-up of inline tag editing on a single image card." loading="lazy" />
+            </div>
+            <figcaption class="proof-cap"><span>Inline tag editing</span></figcaption>
+          </figure>
+          <figure class="shot-slide">
+            <div class="proof-frame">
+              <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+              <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+              <img src="assets/screenshot-shop-themes.png" alt="Theme shop list showing rare, epic, and legendary themes with their Edibits price." loading="lazy" />
+            </div>
+            <figcaption class="proof-cap"><span>Shop themes — common to legendary, unlocked with Edibits you earn just by using the app</span></figcaption>
+          </figure>
+        </div>
+        <div class="shot-dots" id="shotDots" aria-hidden="true"></div>
       </div>
     </div>
   </section>
@@ -1005,6 +1022,36 @@
     });
   }, { rootMargin: '-40% 0px -40% 0px' }); // fires around the section that's actually centered in view, not merely scrolled past
   sections.forEach(function(s){ io.observe(s); });
+})();
+
+(function(){
+  // Dot nav for the below-features screenshot carousel — click a dot to
+  // scroll to that slide, and a scroll listener keeps the active dot in
+  // sync whether the carousel was swiped, dragged, or clicked to.
+  var carousel = document.getElementById('shotCarousel');
+  var dotsWrap = document.getElementById('shotDots');
+  if (!carousel || !dotsWrap) return;
+  var slides = Array.from(carousel.children);
+  if (slides.length < 2) return; // nothing to swipe between
+  var dots = slides.map(function(_, i){
+    var dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'shot-dot' + (i === 0 ? ' active' : '');
+    dot.setAttribute('aria-label', 'Screenshot ' + (i + 1) + ' of ' + slides.length);
+    dot.addEventListener('click', function(){
+      carousel.scrollTo({ left: i * carousel.clientWidth, behavior: 'smooth' });
+    });
+    dotsWrap.appendChild(dot);
+    return dot;
+  });
+  var scrollTimer = null;
+  carousel.addEventListener('scroll', function(){
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(function(){
+      var idx = Math.round(carousel.scrollLeft / (carousel.clientWidth || 1));
+      dots.forEach(function(d, i){ d.classList.toggle('active', i === idx); });
+    }, 80);
+  }, { passive: true });
 })();
 
 (function(){
