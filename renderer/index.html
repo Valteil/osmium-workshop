@@ -193,6 +193,9 @@
         <div class="filter-help-row">
           <span title="How multiple comma-separated tags combine">AND</span>
           <div class="pdrop" id="filterModeDropdown"></div>
+          <label class="filter-mode-lock" title="Keep this filter mode even when Tag Pruner's mirror search or Clear filter would normally reset it to AND">
+            <input type="checkbox" id="filterModeLock"><span>Lock</span>
+          </label>
           <button id="btnClearFilter" title="Clear all filters">Clear filter</button>
         </div>
         <label class="ach-toggle-row" title="When on, a term only matches a tag that equals it exactly — searching &quot;dress&quot; won't also match &quot;black dress&quot; or &quot;frilly dress&quot;">
@@ -817,10 +820,11 @@
           <span style="font-size:11px; color:var(--text-faint);">Sort tags within each card</span>
           <div class="pdrop" id="cardTagSortDropdown"></div>
         </div>
-        <label class="ach-toggle-row" id="dynamicCardsRow">
+        <label class="ach-toggle-row" id="dynamicCardsRow" title="Arranges cards top-down, then left-to-right — it fills a whole column top to bottom before starting the next column, not row by row like the uniform grid. Sort order still applies to the underlying list; reversing Asc/Desc genuinely reverses it, but where a card lands follows this top-down-then-across order, not a plain top-to-bottom reading order.">
           <input type="checkbox" id="dynamicCardsToggle">
           <span>Dynamic card heights (masonry-style grid instead of uniform rows)</span>
         </label>
+        <div class="theme-panel-note">Arranges cards top-down, then left-to-right (fills each column before moving to the next) — sort order still applies, but it won't read top-to-bottom like the uniform grid.</div>
         <div class="theme-panel-note">Discrete mode</div>
         <div class="settings-row">
           <button id="btnDiscreteToggle" title="Blur every image thumbnail (privacy mode)">Blur all images</button>

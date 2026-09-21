@@ -5,7 +5,7 @@ import {
   singleViewEl, imageCardModal, modalCardInner, dropHint, dropHintWrap, filterInput, filterExactToggle,
   filterAllBtn, filterUntaggedBtn, filterDirtyBtn, excludeBadge, excludeBadgeText,
   excludeBadgeClear,
-  btnClearFilter, filterModeDropdown, btnFlagIsolated,
+  btnClearFilter, filterModeDropdown, filterModeLock, btnFlagIsolated,
   tagPrunerList, btnAddTagPruner, toastEl,
   btnOpenTagPrunerList, btnOpenUnifyVoidList, unifyVoidRows, btnOpenCanonicalTagsList, canonicalTagsList, btnOpenMasterMiniGrid,
   btnOpenTagFrequencyList, tagFamilyListArea,
@@ -111,6 +111,11 @@ import { pickDatasetFolder } from './folder-picker';
   let entries: Entry[] = [];
   let entryByBase = new Map<string, Entry>();
   let galleryFilter: GalleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false };
+  // Set once buildPersistentDropdown(filterModeDropdown, ...) runs, below —
+  // referenced (via closure, not by value) from initTagIndex()'s deps
+  // earlier in this same init sequence, so the assignment-after-reference
+  // order here is fine.
+  let filterModeDropdownCtrl: { refreshLabel: () => void } | null = null;
   // undoStack/redoStack moved to ./tags-edit.ts
   // viewMode/singleIndex/ctxMenuEl/commonLanguages moved to ./view.ts
   // editLog/logIdCounter moved to ./edit-log.ts
@@ -1185,7 +1190,9 @@ import { pickDatasetFolder } from './folder-picker';
     getGallerySortMode: () => gallerySortMode,
     getGallerySortDir: () => gallerySortDir,
     resetSingleIndex: () => resetSingleIndex(),
-    renderCurrentView: () => renderCurrentView()
+    renderCurrentView: () => renderCurrentView(),
+    refreshFilterModeUI: () => filterModeDropdownCtrl?.refreshLabel(),
+    isFilterModeLocked: () => filterModeLock.checked
   });
 
   // Master Tag Control moved to ./master-tag-control.ts
@@ -1657,11 +1664,12 @@ import { pickDatasetFolder } from './folder-picker';
     dropHintWrap.style.display = entries.length ? 'none' : 'block';
     galleryToolbar.style.display = entries.length ? 'flex' : 'none';
 
-    galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: filterExactToggle.checked };
+    galleryFilter = { base: 'all', terms: [], mode: filterModeLock.checked ? galleryFilter.mode : 'AND', excludes: '', disabledView: false, exactMatch: filterExactToggle.checked };
     filterInput.value = '';
     excludeBadge.style.display = 'none';
     [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach(b=>b.classList.remove('active'));
     filterAllBtn.classList.add('active');
+    filterModeDropdownCtrl?.refreshLabel();
 
     resetSingleIndex();
     switchView(viewMode === 'compact' ? 'compact' : 'grid');
@@ -1715,11 +1723,12 @@ import { pickDatasetFolder } from './folder-picker';
     dropHintWrap.style.display = 'block';
     galleryToolbar.style.display = 'none';
 
-    galleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: filterExactToggle.checked };
+    galleryFilter = { base: 'all', terms: [], mode: filterModeLock.checked ? galleryFilter.mode : 'AND', excludes: '', disabledView: false, exactMatch: filterExactToggle.checked };
     filterInput.value = '';
     excludeBadge.style.display = 'none';
     [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach(b=>b.classList.remove('active'));
     filterAllBtn.classList.add('active');
+    filterModeDropdownCtrl?.refreshLabel();
 
     resetSingleIndex();
     switchView('grid');
@@ -1760,7 +1769,7 @@ import { pickDatasetFolder } from './folder-picker';
 
   // Tag index/frequency list + gallery filtering moved to ./tag-index.ts
 
-  buildPersistentDropdown(filterModeDropdown,
+  filterModeDropdownCtrl = buildPersistentDropdown(filterModeDropdown,
     [
       { value: 'AND', label: 'AND', title: 'Show images containing ALL of the searched tags' },
       { value: 'OR', label: 'OR', title: 'Show images containing ANY of the searched tags' },

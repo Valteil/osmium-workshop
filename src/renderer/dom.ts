@@ -48,6 +48,7 @@ export const btnOpenTagFrequencyList = $<HTMLButtonElement>('btnOpenTagFrequency
 export const tagFamilyListArea = $('tagFamilyListArea');
 export const btnClearFilter = $<HTMLButtonElement>('btnClearFilter');
 export const filterModeDropdown = $('filterModeDropdown');
+export const filterModeLock = $<HTMLInputElement>('filterModeLock');
 export const btnFlagIsolated = $<HTMLButtonElement>('btnFlagIsolated');
 export const tagPrunerList = $('tagPrunerList');
 export const btnAddTagPruner = $<HTMLButtonElement>('btnAddTagPruner');

@@ -17,6 +17,16 @@ let getGallerySortMode: () => GallerySortMode = () => 'filename';
 let getGallerySortDir: () => GallerySortDir = () => 'asc';
 let resetSingleIndex: () => void = () => {};
 let renderCurrentViewRef: () => void = () => {};
+// The filter-mode dropdown (AND/OR/XOR/NOT) is a persistent custom control
+// (buildPersistentDropdown) whose displayed label only updates when ITS OWN
+// click handler fires — every place here that changes galleryFilter.mode
+// programmatically (mirror search, Clear filter) must call this afterward,
+// or the dropdown keeps showing the mode the user picked even after it's
+// silently been overridden. isFilterModeLocked() is the "Lock" checkbox
+// next to it — when on, those same call sites leave the user's chosen mode
+// alone instead of forcing AND.
+let refreshFilterModeUI: () => void = () => {};
+let isFilterModeLocked: () => boolean = () => false;
 
 let lastTagIndex: Map<string, Set<string>> = new Map();
 
@@ -328,10 +338,11 @@ export function parseFilterTerms(raw: string): string[] {
 export function setContainsFilter(value: string): void {
   const galleryFilter = getGalleryFilter();
   galleryFilter.terms = [value.toLowerCase()];
-  galleryFilter.mode = 'AND';
+  if (!isFilterModeLocked()) galleryFilter.mode = 'AND';
   filterInput.value = value;
   hideFilterSuggestions();
   resetSingleIndex();
+  refreshFilterModeUI();
   renderCurrentViewRef();
 }
 
@@ -345,10 +356,11 @@ export function setMirroredSelectionFilter(tags: Iterable<string>): void {
   const galleryFilter = getGalleryFilter();
   const list = Array.from(tags);
   galleryFilter.terms = list.map((t: string) => t.toLowerCase());
-  galleryFilter.mode = 'AND';
+  if (!isFilterModeLocked()) galleryFilter.mode = 'AND';
   filterInput.value = list.join(', ');
   hideFilterSuggestions();
   resetSingleIndex();
+  refreshFilterModeUI();
   renderCurrentViewRef();
 }
 
@@ -367,6 +379,8 @@ interface TagIndexDeps {
   getGallerySortDir: () => GallerySortDir;
   resetSingleIndex: () => void;
   renderCurrentView: () => void;
+  refreshFilterModeUI: () => void;
+  isFilterModeLocked: () => boolean;
 }
 
 export function initTagIndex(deps: TagIndexDeps): void {
@@ -376,6 +390,8 @@ export function initTagIndex(deps: TagIndexDeps): void {
   getGallerySortDir = deps.getGallerySortDir;
   resetSingleIndex = deps.resetSingleIndex;
   renderCurrentViewRef = deps.renderCurrentView;
+  refreshFilterModeUI = deps.refreshFilterModeUI;
+  isFilterModeLocked = deps.isFilterModeLocked;
 
   leftSortDirBtn.addEventListener('click', () => {
     leftSortDir = leftSortDir === 'asc' ? 'desc' : 'asc';
@@ -449,8 +465,10 @@ export function initTagIndex(deps: TagIndexDeps): void {
     const galleryFilter = getGalleryFilter();
     galleryFilter.terms = [];
     galleryFilter.excludes = '';
+    if (!isFilterModeLocked()) galleryFilter.mode = 'AND';
     excludeBadge.style.display = 'none';
     hideFilterSuggestions();
+    refreshFilterModeUI();
     setBaseFilter('all');
   });
 }

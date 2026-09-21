@@ -535,6 +535,17 @@ function restoreUiState(): void {
     for (const r of [...loraRows]) { loraRows = loraRows.filter(x => x !== r); r.row.remove(); }
     for (const l of loras) addLoraRow(String(l.n ?? ''), Number(l.s ?? 1) || 1);
   }
+  // Restoring el.checked here is a plain DOM assignment, not a real click —
+  // it never fires 'change', so none of the checkbox-driven show/hide
+  // functions (bound as 'change' listeners) re-run. Without this, a
+  // restored-checked skipRefImage/use2Pass/upscaleEnabled/unifiedPromptMode
+  // left its dependent section in whatever visibility the PRE-restore
+  // (unchecked-by-default) state left it in — checkbox says on, the actual
+  // fields still say off.
+  applySkipRefImageUI();
+  applyUse2PassUI();
+  applyUpscaleUI();
+  applyUnifiedPromptModeUI();
   autoGrowAll();
 }
 let uiSaveTimer: ReturnType<typeof setTimeout> | null = null;

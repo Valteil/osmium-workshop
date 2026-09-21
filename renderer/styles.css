@@ -2337,6 +2337,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .filter-help-row{ display: flex; align-items: center; gap: 8px; }
   .filter-help-row span{ font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
   .filter-help-row button{ font-size: 11px; padding: 5px 9px; }
+  .filter-mode-lock{ display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
+  .filter-mode-lock input[type="checkbox"]{ width: 12px; height: 12px; margin: 0; cursor: pointer; }
 
   .filter-suggestions{
     margin-top: 4px;
