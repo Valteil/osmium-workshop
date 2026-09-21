@@ -78,6 +78,7 @@
     --radius:2px;
     --measure:70ch;
     --pop-dur:.5s;
+    --ease-out:cubic-bezier(0.23, 1, 0.32, 1);
   }
   html.night{ --night:1; }
   /* html.night is toggled by JS (see bottom of file) the instant scroll
@@ -267,6 +268,14 @@
   .shot-carousel::-webkit-scrollbar{ display:none; }
   .shot-slide{ flex:0 0 100%; min-width:0; scroll-snap-align:center; margin:0; }
   .shot-slide .proof-cap{ justify-content:flex-start; gap:8px; }
+  /* Fixed slot so the carousel's height doesn't jump to whichever slide is
+     tallest — screenshots vary from ultra-wide app captures to a narrow
+     portrait crop. Every slide gets the same box; images that don't fill it
+     letterbox/pillarbox with the card background instead of stretching. */
+  .shot-slide .proof-frame{
+    aspect-ratio:3/2; display:flex; align-items:center; justify-content:center; overflow:hidden;
+  }
+  .shot-slide .proof-frame img{ width:auto; height:auto; max-width:100%; max-height:100%; object-fit:contain; }
   .shot-dots{ display:flex; justify-content:center; gap:8px; margin-top:20px; }
   .shot-dot{
     width:8px; height:8px; border-radius:50%; padding:0; border:1px solid var(--line-strong);
@@ -311,14 +320,28 @@
      identical rectangles. */
   .stair-wrap{ position:relative; height:640px; }
   .stair-shot{ position:absolute; width:600px; max-width:70%; }
-  .stair-shot .proof-frame{ box-shadow:0 20px 44px rgba(0,0,0,.22); transition:transform var(--panel-dur) ease; }
+  .stair-shot .proof-frame{
+    box-shadow:0 20px 44px rgba(0,0,0,.22);
+    transition:transform var(--pop-dur) var(--ease-out), box-shadow var(--pop-dur) var(--ease-out);
+  }
   .stair-shot .proof-cap{ margin-top:12px; justify-content:flex-start; gap:8px; }
   .stair-shot.s1{ top:0;     left:0;   z-index:1; transform:rotate(-2.2deg); }
   .stair-shot.s2{ top:120px; left:180px; z-index:2; transform:rotate(1.6deg); }
   .stair-shot.s3{ top:240px; left:360px; z-index:3; transform:rotate(-1.2deg); }
+  /* "Pop" on focus/hover — lifts and grows slightly toward the viewer, then
+     settles back to its resting angle on the same curve when it leaves
+     (the "recline"). Scale rides along with the existing per-card rotate()
+     rather than replacing it, so the card keeps its fanned-deck tilt. */
   @media (hover:hover) and (pointer:fine){
     .stair-shot:hover{ z-index:4; }
-    .stair-shot:hover .proof-frame{ transform:translateY(-8px); }
+    .stair-shot:hover .proof-frame{
+      transform:translateY(-14px) scale(1.045);
+      box-shadow:0 32px 60px rgba(0,0,0,.3);
+    }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .stair-shot .proof-frame{ transition:box-shadow var(--pop-dur) var(--ease-out); }
+    .stair-shot:hover .proof-frame{ transform:none; }
   }
   @media (max-width:860px){
     .stair-wrap{ height:auto; display:flex; flex-direction:column; gap:28px; }
@@ -766,15 +789,15 @@
           <div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-gallery.jpg" alt="Osmium Workshop Gallery tab in the default Studio theme." loading="lazy" />
+            <img src="assets/screenshot-theme-osmium.jpg" alt="Tag Overseer tab in the default Osmium theme's cream palette." loading="lazy" />
           </div>
-          <figcaption class="proof-cap"><span>Studio — default</span></figcaption>
+          <figcaption class="proof-cap"><span>Osmium — default</span></figcaption>
         </figure>
         <figure class="stair-shot s2">
           <div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-theme-candy.jpg" alt="Tag Pruner panel and tag search in the Candy theme's pink palette." loading="lazy" />
+            <img src="assets/screenshot-theme-candy.jpg" alt="Tag Overseer tab in the Candy theme's pink palette." loading="lazy" />
           </div>
           <figcaption class="proof-cap"><span>Candy</span></figcaption>
         </figure>
@@ -782,9 +805,9 @@
           <div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-theme-ocean.jpg" alt="Filter sidebar and gallery toolbar in the Ocean theme's deep-blue palette." loading="lazy" />
+            <img src="assets/screenshot-theme-celestial.jpg" alt="Tag Overseer tab in the Celestial theme's dark navy and gold palette." loading="lazy" />
           </div>
-          <figcaption class="proof-cap"><span>Ocean</span></figcaption>
+          <figcaption class="proof-cap"><span>Celestial</span></figcaption>
         </figure>
       </div>
     </div>
