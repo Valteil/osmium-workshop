@@ -9,7 +9,10 @@ features, quick start, dev workflow, project structure.
 that bulk directly but was migrated to be just a short pointer into `notes/` (commit "Migrate
 CLAUDE.md's bulk into a local Obsidian vault", 2026-09-14) — don't expect real content in
 `CLAUDE.md` itself anymore; start at `notes/Index.md` and follow links from there for anything
-non-trivial. `notes/Maintenance-Policy.md` is the doc-maintenance policy now (see `mem:conventions`
+non-trivial. **The vault was restructured into a wiki on 2026-09-22** — subfolders `Architecture/`,
+`Systems/`, `Features/`, `Apps/`, `Meta/`, and `Pitfalls/`, each with a consistent per-note template
+(Purpose / Where it lives / How it works / Conventions & invariants / Related / Pitfalls); notes are
+cross-linked by bare `[[Name]]` (folder-independent in Obsidian). `notes/Meta/Maintenance-Policy.md` is the doc-maintenance policy now (see `mem:conventions`
 and `mem:task_completion` for how that interacts with these Serena memories). If `notes/` doesn't
 exist in a fresh clone (gitignored), don't silently regenerate it — ask the user first.
 
@@ -47,12 +50,12 @@ from `dist/win-unpacked`.
 **A second build target, `tauri-port/` (added 2026-09-11), was discontinued and deleted from the
 repo on 2026-09-13** — the dual-maintenance cost of hand-porting every Electron change to Rust
 outweighed its value at this project's stage. See `mem:conventions` and
-`notes/Tauri-Port-Discontinued.md` if the old approach is ever worth referencing from git history.
+`notes/Meta/Tauri-Port-Discontinued.md` if the old approach is ever worth referencing from git history.
 
 **A third build target, `mobile/` (Android via Capacitor, added 2026-09-15), is active and NOT a
 repeat of the Tauri mistake** — it reuses the desktop `renderer/` build output completely
 unmodified (via `mobile/sync-web.js` + a JS shim polyfilling `window.showDirectoryPicker`/
 `window.electronAPI`), rather than hand-porting `main.ts`/`preload.ts` logic to a second language
-per change. See `notes/Mobile-Port.md` for the full architecture. The desktop app itself remains
+per change. See `notes/Apps/Mobile-Overview.md` (plus `Mobile-UI.md`/`Mobile-Networking.md`/`Mobile-History.md` in the same folder) for the full architecture. The desktop app itself remains
 untouched by this — "Electron-only" above refers specifically to not reviving the old
 hand-translated-Rust-backend approach, not a blanket rule against any cross-platform work.

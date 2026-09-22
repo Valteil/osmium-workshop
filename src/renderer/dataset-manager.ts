@@ -7,11 +7,15 @@
 // Constraints / Known Pitfalls for why the folder icon's outline color is a
 // plain CSS var (`--accent-flair`) rather than anything computed in JS.
 import type { DirHandle } from './types';
+import { hasDirectoryPicker, serializeHandle, isMobileHandle, reviveHandle, requestPermission } from './fs-access';
+import { getJSON, setJSON, getInt, setInt, getString, setString, getBool, setBool } from './storage';
+import { openDB, idbGetAll, idbAdd, idbDelete, idbUpdate } from './idb';
+import { isImageFile } from './file-types';
 import {
   datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown, dmTabBar,
   achievementsPanel, favoritesPanel, themeCustomPanel, logPanel, tagDetailsPanel, shopPanel
 } from './dom';
-import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown } from './shared-ui';
+import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, addContextMenuItem, createModalShell } from './shared-ui';
 import { pickDatasetFolder } from './folder-picker';
 import { renderAchievementsPanel, trackStat, checkAchievements } from './achievements';
 import { addFavoriteHandle, removeFavoriteByHandle, isFavorited } from './favorites';
@@ -72,9 +76,8 @@ function recordGroupId(rec: DMRecord): number {
 }
 
 function loadGroups(): void {
-  try { groups = JSON.parse(localStorage.getItem(GROUPS_KEY) || '[]') as DMGroup[]; } catch(e){ groups = []; }
-  let saved = DEFAULT_GROUP_ID;
-  try { saved = parseInt(localStorage.getItem(ACTIVE_GROUP_KEY) || '', 10); if (isNaN(saved)) saved = DEFAULT_GROUP_ID; } catch(e){ saved = DEFAULT_GROUP_ID; }
+  groups = getJSON<DMGroup[]>(GROUPS_KEY, []);
+  const saved = getInt(ACTIVE_GROUP_KEY, DEFAULT_GROUP_ID);
   // Never land on a locked group right at launch — nothing has been
   // unlocked yet this session by definition, so this would otherwise force
   // an immediate password prompt (or worse, a flash of its contents) before
@@ -83,8 +86,8 @@ function loadGroups(): void {
   const savedGroup = groups.find(g => g.id === saved);
   activeGroupId = (savedGroup && savedGroup.passwordHash) ? DEFAULT_GROUP_ID : saved;
 }
-function saveGroups(){ try { localStorage.setItem(GROUPS_KEY, JSON.stringify(groups)); } catch(e){} }
-function saveActiveGroup(){ try { localStorage.setItem(ACTIVE_GROUP_KEY, String(activeGroupId)); } catch(e){} }
+function saveGroups(){ setJSON(GROUPS_KEY, groups); }
+function saveActiveGroup(){ setInt(ACTIVE_GROUP_KEY, activeGroupId); }
 
 function getGroup(id: number): DMGroup | undefined {
   return groups.find(g => g.id === id);
@@ -116,16 +119,13 @@ async function hashPassword(password: string, salt: string): Promise<string> {
   return sha256Hex(salt + ':' + password);
 }
 
-// Small single-field modal, same confirm-backdrop/confirm-box shell as
-// showConfirmModal (shared-ui.ts) — that helper doesn't take an input, and
-// this is the only place in dataset-manager.ts that needs one, so it's not
-// worth generalizing shared-ui.ts's version for one caller.
+// Small single-field modal built on the shared modal shell (shared-ui.ts).
 function promptText(message: string, opts: { okLabel?: string; password?: boolean; placeholder?: string } = {}): Promise<string | null> {
   return new Promise((resolve) => {
-    const backdrop = document.createElement('div');
-    backdrop.className = 'confirm-backdrop';
-    const box = document.createElement('div');
-    box.className = 'confirm-box';
+    const { box, close } = createModalShell({
+      onDismiss: () => { resolve(null); close(); },
+      onShow: () => input.focus()
+    });
     const msg = document.createElement('div');
     msg.className = 'confirm-message';
     msg.textContent = message;
@@ -142,24 +142,12 @@ function promptText(message: string, opts: { okLabel?: string; password?: boolea
     const okBtn = document.createElement('button');
     okBtn.textContent = opts.okLabel || 'OK';
     okBtn.className = 'primary';
-    function close(result: string | null): void {
-      backdrop.classList.remove('modal-visible');
-      setTimeout(() => backdrop.remove(), 160);
-      resolve(result);
-    }
-    cancelBtn.addEventListener('click', () => close(null));
-    okBtn.addEventListener('click', () => close(input.value));
-    input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') close(input.value); });
-    backdrop.addEventListener('click', (ev) => { if (ev.target === backdrop) close(null); });
-    document.addEventListener('keydown', function escHandler(ev: KeyboardEvent) {
-      if (ev.key === 'Escape') { close(null); document.removeEventListener('keydown', escHandler); }
-    });
+    cancelBtn.addEventListener('click', () => { resolve(null); close(); });
+    okBtn.addEventListener('click', () => { resolve(input.value); close(); });
+    input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { resolve(input.value); close(); } });
     btnRow.appendChild(cancelBtn);
     btnRow.appendChild(okBtn);
     box.appendChild(btnRow);
-    backdrop.appendChild(box);
-    document.body.appendChild(backdrop);
-    requestAnimationFrame(() => requestAnimationFrame(() => { backdrop.classList.add('modal-visible'); input.focus(); }));
   });
 }
 
@@ -394,10 +382,10 @@ function openTabContextMenu(group: DMGroup, x: number, y: number): void {
   header.className = 'ctx-header';
   header.textContent = group.name;
   menu.appendChild(header);
-  addDmCtxItem(menu, 'Rename tab', () => { closeDmTabCtxMenu(); renameGroupFlow(group); });
-  addDmCtxItem(menu, group.passwordHash ? 'Change password' : 'Set password…', () => { closeDmTabCtxMenu(); setGroupPasswordFlow(group); });
-  if (group.passwordHash) addDmCtxItem(menu, 'Remove password', () => { closeDmTabCtxMenu(); removeGroupPasswordFlow(group); });
-  addDmCtxItem(menu, 'Delete tab', () => { closeDmTabCtxMenu(); deleteGroupFlow(group); });
+  addContextMenuItem(menu, 'Rename tab', () => { closeDmTabCtxMenu(); renameGroupFlow(group); });
+  addContextMenuItem(menu, group.passwordHash ? 'Change password' : 'Set password…', () => { closeDmTabCtxMenu(); setGroupPasswordFlow(group); });
+  if (group.passwordHash) addContextMenuItem(menu, 'Remove password', () => { closeDmTabCtxMenu(); removeGroupPasswordFlow(group); });
+  addContextMenuItem(menu, 'Delete tab', () => { closeDmTabCtxMenu(); deleteGroupFlow(group); });
   document.body.appendChild(menu);
   dmTabCtxMenuEl = menu;
   positionMenu(menu, x, y);
@@ -407,10 +395,7 @@ function openTabContextMenu(group: DMGroup, x: number, y: number): void {
 // ---------------- Move a folder between tabs ----------------
 
 async function openMoveToTabModal(record: DMRecord): Promise<void> {
-  const backdrop = document.createElement('div');
-  backdrop.className = 'confirm-backdrop modal-visible';
-  const box = document.createElement('div');
-  box.className = 'confirm-box';
+  const { box, close } = createModalShell({ instant: true });
   const title = document.createElement('div');
   title.className = 'confirm-message';
   title.textContent = `Move "${record.name}" to which tab?`;
@@ -422,13 +407,9 @@ async function openMoveToTabModal(record: DMRecord): Promise<void> {
   btnRow.className = 'confirm-btn-row';
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', close);
   btnRow.appendChild(cancelBtn);
   box.appendChild(btnRow);
-  backdrop.appendChild(box);
-  document.body.appendChild(backdrop);
-  function close(){ backdrop.remove(); }
-  cancelBtn.addEventListener('click', close);
-  backdrop.addEventListener('click', (ev) => { if (ev.target === backdrop) close(); });
 
   const current = recordGroupId(record);
   const options: { id: number; name: string }[] = [{ id: DEFAULT_GROUP_ID, name: 'Default' }, ...groups.map(g => ({ id: g.id, name: g.name }))];
@@ -455,11 +436,6 @@ const SORT_KEY = 'dts-dataset-folder-sort';
 const VIEW_KEY = 'dts-dataset-manager-view';
 const SUPPRESS_KEY = 'dts-dataset-tab-prompt-suppressed';
 
-const DM_IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'];
-function isImageFile(name: string): boolean {
-  const lower = name.toLowerCase();
-  return DM_IMAGE_EXT.some(ext => lower.endsWith(ext));
-}
 
 let getDirHandle: () => DirHandle | null = () => null;
 let openFolderHandle: (h: DirHandle) => Promise<void> = async () => {};
@@ -472,17 +448,7 @@ let viewMode = 'grid';
 // ---------------- IndexedDB ----------------
 
 function openDMDB(): Promise<IDBDatabase> {
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)){
-        db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+  return openDB(DB_NAME, 1, STORE);
 }
 
 async function addDatasetFolder(handle: DMRecord['handle']): Promise<IDBValidKey> {
@@ -490,7 +456,7 @@ async function addDatasetFolder(handle: DMRecord['handle']): Promise<IDBValidKey
   // before ever being tracked here, it should show up already pinned —
   // sync-on-arrival, the other half of syncPinFromFavoriteChange() below.
   let alreadyFavorited = false;
-  try { alreadyFavorited = await isFavorited(handle as unknown as FileSystemDirectoryHandle); } catch(e){}
+  try { alreadyFavorited = await isFavorited(handle); } catch(e){}
   // On mobile, `handle` is mobile-shim.js's polyfill object — full of
   // closures (native-plugin calls), which IndexedDB's structured clone
   // can't store at all (a real browser FileSystemDirectoryHandle has
@@ -499,21 +465,16 @@ async function addDatasetFolder(handle: DMRecord['handle']): Promise<IDBValidKey
   // back a small serializable shape instead — see
   // window.__dtsReviveDirHandle's use in listDatasetFolders() below for
   // the other half of this round-trip.
-  const storedHandle = handle.toJSON ? handle.toJSON() : handle;
-  const result = await openDMDB().then(db => new Promise<IDBValidKey>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const record = {
-      name: handle.name, handle: storedHandle, addedAt: Date.now(), lastOpenedAt: Date.now(),
-      pinned: alreadyFavorited, iconMode: 'generic', iconImageBase: null, iconImageDataUrl: null,
-      // Lands in whichever tab is currently open, not always Default — add
-      // a folder while sitting in a locked tab and it should actually show
-      // up there, not silently reappear in the tab anyone can see.
-      groupId: activeGroupId
-    };
-    const req = tx.objectStore(STORE).add(record);
-    req.onsuccess = () => resolve(req.result);
-    tx.onerror = () => reject(tx.error);
-  }));
+  const storedHandle = serializeHandle(handle);
+  const db = await openDMDB();
+  const result = await idbAdd(db, STORE, {
+    name: handle.name, handle: storedHandle, addedAt: Date.now(), lastOpenedAt: Date.now(),
+    pinned: alreadyFavorited, iconMode: 'generic', iconImageBase: null, iconImageDataUrl: null,
+    // Lands in whichever tab is currently open, not always Default — add
+    // a folder while sitting in a locked tab and it should actually show
+    // up there, not silently reappear in the tab anyone can see.
+    groupId: activeGroupId
+  });
   trackStat('dataset_tab_adds');
   checkAchievements();
   return result;
@@ -530,53 +491,30 @@ export async function syncPinFromFavoriteChange(handle: DMRecord['handle'], isNo
   if (datasetManagerTab.style.display !== 'none') renderDatasetManagerTab();
 }
 
-function listDatasetFolders(): Promise<DMRecord[]> {
-  return openDMDB().then(db => new Promise<DMRecord[]>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readonly');
-    const req = tx.objectStore(STORE).getAll();
-    req.onsuccess = () => {
-      const records = req.result || [];
-      // The one place every other function in this file gets records from
-      // — reviving a mobile-shim-serialized `handle` back into a live one
-      // here means nothing downstream (findTrackedRecord/openDataset/etc.)
-      // needs to know serialization happened at all. See addDatasetFolder()
-      // for the other half.
-      if (window.__dtsReviveDirHandle){
-        for (const rec of records){
-          if (rec.handle && rec.handle.__dtsMobileHandle){
-            rec.handle = window.__dtsReviveDirHandle(rec.handle);
-          }
-        }
-      }
-      resolve(records);
-    };
-    req.onerror = () => reject(req.error);
-  }));
+async function listDatasetFolders(): Promise<DMRecord[]> {
+  const db = await openDMDB();
+  const records = await idbGetAll<DMRecord>(db, STORE);
+  // The one place every other function in this file gets records from
+  // — reviving a mobile-shim-serialized `handle` back into a live one
+  // here means nothing downstream (findTrackedRecord/openDataset/etc.)
+  // needs to know serialization happened at all. See addDatasetFolder()
+  // for the other half.
+  for (const rec of records){
+    if (rec.handle && isMobileHandle(rec.handle)){
+      rec.handle = reviveHandle(rec.handle);
+    }
+  }
+  return records;
 }
 
-function removeDatasetFolder(id: number): Promise<void> {
-  return openDMDB().then(db => new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  }));
+async function removeDatasetFolder(id: number): Promise<void> {
+  const db = await openDMDB();
+  await idbDelete(db, STORE, id);
 }
 
-function updateDatasetFolder(id: number, patch: Partial<DMRecord>): Promise<void> {
-  return openDMDB().then(db => new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const store = tx.objectStore(STORE);
-    const getReq = store.get(id);
-    getReq.onsuccess = () => {
-      const rec = getReq.result;
-      if (!rec){ resolve(); return; }
-      Object.assign(rec, patch);
-      store.put(rec);
-    };
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  }));
+async function updateDatasetFolder(id: number, patch: Partial<DMRecord>): Promise<void> {
+  const db = await openDMDB();
+  await idbUpdate(db, STORE, id, patch as Record<string, unknown>);
 }
 
 async function findTrackedRecord(handle: DMRecord['handle']): Promise<DMRecord | null> {
@@ -595,13 +533,13 @@ async function findTrackedRecord(handle: DMRecord['handle']): Promise<DMRecord |
 // ---------------- Order / sort / view persistence ----------------
 
 function loadPrefs(): void {
-  try { folderOrder = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]') as number[] || []; } catch(e){ folderOrder = []; }
-  try { sortMode = localStorage.getItem(SORT_KEY) || 'manual'; } catch(e){ sortMode = 'manual'; }
-  try { viewMode = localStorage.getItem(VIEW_KEY) || 'grid'; } catch(e){ viewMode = 'grid'; }
+  folderOrder = getJSON<number[]>(ORDER_KEY, []);
+  sortMode = getString(SORT_KEY, 'manual');
+  viewMode = getString(VIEW_KEY, 'grid');
 }
-function saveOrder(){ try { localStorage.setItem(ORDER_KEY, JSON.stringify(folderOrder)); } catch(e){} }
-function saveSortMode(){ try { localStorage.setItem(SORT_KEY, sortMode); } catch(e){} }
-function saveViewMode(){ try { localStorage.setItem(VIEW_KEY, viewMode); } catch(e){} }
+function saveOrder(){ setJSON(ORDER_KEY, folderOrder); }
+function saveSortMode(){ setString(SORT_KEY, sortMode); }
+function saveViewMode(){ setString(VIEW_KEY, viewMode); }
 
 function reorderFolders(draggedId: number, targetId: number, after: boolean): void {
   folderOrder = folderOrder.filter(x => x !== draggedId);
@@ -688,18 +626,6 @@ function onDmCtxOutsideClick(ev: MouseEvent): void {
 function onDmCtxEscape(ev: KeyboardEvent): void {
   if (ev.key === 'Escape') closeDmCtxMenu();
 }
-function addDmCtxItem(menu: HTMLElement, label: string, onClick: () => void): void {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'ctx-item';
-  btn.textContent = label;
-  btn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    onClick();
-  });
-  menu.appendChild(btn);
-}
-
 function openDmContextMenu(record: DMRecord, x: number, y: number): void {
   closeDmCtxMenu();
   const menu = document.createElement('div');
@@ -710,7 +636,7 @@ function openDmContextMenu(record: DMRecord, x: number, y: number): void {
   header.textContent = record.name;
   menu.appendChild(header);
 
-  addDmCtxItem(menu, 'Remove from Dataset tab', async () => {
+  addContextMenuItem(menu, 'Remove from Dataset tab', async () => {
     closeDmCtxMenu();
     const ok = await showConfirmModal(
       `Remove "${record.name}" from the Dataset tab?\nThis only stops tracking it here — the folder and its files are untouched.`,
@@ -721,24 +647,24 @@ function openDmContextMenu(record: DMRecord, x: number, y: number): void {
     renderDatasetManagerTab();
   });
 
-  addDmCtxItem(menu, record.pinned ? 'Unpin favorite' : 'Pin as favorite', async () => {
+  addContextMenuItem(menu, record.pinned ? 'Unpin favorite' : 'Pin as favorite', async () => {
     closeDmCtxMenu();
     const nowPinned = !record.pinned;
     await updateDatasetFolder(record.id, { pinned: nowPinned });
     try {
-      if (nowPinned) await addFavoriteHandle(record.handle as unknown as FileSystemDirectoryHandle);
-      else await removeFavoriteByHandle(record.handle as unknown as FileSystemDirectoryHandle);
+      if (nowPinned) await addFavoriteHandle(record.handle);
+      else await removeFavoriteByHandle(record.handle);
     } catch(e){}
     if (nowPinned){ trackStat('favorited'); checkAchievements(); }
     renderDatasetManagerTab();
   });
 
-  addDmCtxItem(menu, 'View achievements', async () => {
+  addContextMenuItem(menu, 'View achievements', async () => {
     closeDmCtxMenu();
     await openReadOnlyAchievements(record);
   });
 
-  addDmCtxItem(menu, 'Select image for icon…', async () => {
+  addContextMenuItem(menu, 'Select image for icon…', async () => {
     closeDmCtxMenu();
     await openIconPicker(record);
   });
@@ -746,7 +672,7 @@ function openDmContextMenu(record: DMRecord, x: number, y: number): void {
   // Only worth offering once a second tab actually exists — with just
   // Default, there's nowhere to move a folder to.
   if (groups.length > 0){
-    addDmCtxItem(menu, 'Move to tab…', async () => {
+    addContextMenuItem(menu, 'Move to tab…', async () => {
       closeDmCtxMenu();
       await openMoveToTabModal(record);
     });
@@ -765,7 +691,7 @@ function openDmContextMenu(record: DMRecord, x: number, y: number): void {
 
 async function openReadOnlyAchievements(record: DMRecord): Promise<void> {
   try {
-    const perm = await record.handle.requestPermission!({ mode: 'read' });
+    const perm = await requestPermission(record.handle, 'read');
     if (perm !== 'granted'){ toast('Permission was not granted for that folder.'); return; }
     let unlocked: string[] = [];
     try {
@@ -792,14 +718,11 @@ async function openReadOnlyAchievements(record: DMRecord): Promise<void> {
 async function openIconPicker(record: DMRecord): Promise<void> {
   let perm: string;
   try {
-    perm = await record.handle.requestPermission!({ mode: 'read' });
+    perm = await requestPermission(record.handle, 'read');
   } catch(e){ perm = 'denied'; }
   if (perm !== 'granted'){ toast('Permission was not granted for that folder.'); return; }
 
-  const backdrop = document.createElement('div');
-  backdrop.className = 'confirm-backdrop modal-visible';
-  const box = document.createElement('div');
-  box.className = 'confirm-box dm-icon-picker';
+  const { box, close } = createModalShell({ instant: true, boxClassName: 'dm-icon-picker' });
   const title = document.createElement('div');
   title.className = 'confirm-message';
   title.textContent = `Choose an image from "${record.name}" for its icon:`;
@@ -811,13 +734,9 @@ async function openIconPicker(record: DMRecord): Promise<void> {
   btnRow.className = 'confirm-btn-row';
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', close);
   btnRow.appendChild(cancelBtn);
   box.appendChild(btnRow);
-  backdrop.appendChild(box);
-  document.body.appendChild(backdrop);
-  function close(){ backdrop.remove(); }
-  cancelBtn.addEventListener('click', close);
-  backdrop.addEventListener('click', (ev) => { if (ev.target === backdrop) close(); });
 
   const noImageCell = document.createElement('button');
   noImageCell.type = 'button';
@@ -919,7 +838,7 @@ function wireTileDrag(tile: HTMLElement, record: DMRecord): void {
 
 async function openTrackedFolder(record: DMRecord): Promise<void> {
   try {
-    const perm = await record.handle.requestPermission!({ mode: 'readwrite' });
+    const perm = await requestPermission(record.handle, 'readwrite');
     if (perm !== 'granted'){ toast('Permission was not granted for that folder.'); return; }
     await updateDatasetFolder(record.id, { lastOpenedAt: Date.now() });
     await openFolderHandle(record.handle);
@@ -937,8 +856,7 @@ async function openTrackedFolder(record: DMRecord): Promise<void> {
 export async function maybePromptAddDataset(handle: DMRecord['handle']): Promise<void> {
   const existing = await findTrackedRecord(handle);
   if (existing) return;
-  let suppressed = false;
-  try { suppressed = localStorage.getItem(SUPPRESS_KEY) === '1'; } catch(e){}
+  const suppressed = getBool(SUPPRESS_KEY);
   if (suppressed) return;
   const add = await showConfirmModal(
     `Add "${handle.name}" to your Dataset tab?\nChoosing No means you won't be asked again — you can still add folders anytime from the Dataset tab's + tile.`,
@@ -948,12 +866,12 @@ export async function maybePromptAddDataset(handle: DMRecord['handle']): Promise
     await addDatasetFolder(handle);
     if (datasetManagerTab.style.display !== 'none') renderDatasetManagerTab();
   } else {
-    try { localStorage.setItem(SUPPRESS_KEY, '1'); } catch(e){}
+    setBool(SUPPRESS_KEY, true);
   }
 }
 
 async function addFolderViaAddTile(){
-  if (!(window as unknown as Record<string, unknown>).showDirectoryPicker){
+  if (!hasDirectoryPicker()){
     toast('Your browser does not support folder access. Use Chrome or Edge, opened as a normal tab (not an embedded preview).', 5000);
     return;
   }

@@ -1,10 +1,14 @@
-const { contextBridge, ipcRenderer } = require('electron');
+import { contextBridge, ipcRenderer } from 'electron';
+import type { ElectronAPI } from './ipc-types';
 
 // Minimal, explicit bridge — only these actions are exposed to the
 // renderer, and all are simple pass-throughs to main-process handlers
 // that themselves only touch the app's own userData/tool folder or a
 // folder the user explicitly picks via a native dialog.
-contextBridge.exposeInMainWorld('electronAPI', {
+//
+// Annotated against the shared `ElectronAPI` contract so the exposed object
+// and the renderer's ambient `window.electronAPI` type can't drift apart.
+const api: ElectronAPI = {
   restartApp: () => ipcRenderer.invoke('restart-app'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
@@ -27,4 +31,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onWd14LocalDownloadProgress: (callback) => ipcRenderer.on('wd14-local-download-progress', callback),
   wd14LocalPickImportFiles: () => ipcRenderer.invoke('wd14-local-pick-import-files'),
   wd14LocalImportModel: (payload) => ipcRenderer.invoke('wd14-local-import-model', payload)
-});
+};
+
+contextBridge.exposeInMainWorld('electronAPI', api);

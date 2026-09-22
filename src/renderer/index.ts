@@ -1,4 +1,7 @@
 import type { Entry, DirHandle, FileHandle, EntryMeta, GalleryFilter, GallerySortMode, GallerySortDir, CardTagSortMode, FolderStats, EditLogAffected } from './types';
+import { hasDirectoryPicker, writeBytes } from './fs-access';
+import { getString, setString, getBool, setBool, getJSON, setJSON, getInt, setInt } from './storage';
+import { isImageFile } from './file-types';
 import {
   $, btnOpen, btnSave, btnUndo, btnRedo, btnUnloadDataset, btnReloadDataset, dirtyCountEl, galleryToolbar, galleryGrid,
   compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
@@ -36,7 +39,7 @@ import {
   singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle,
   settingsPanel, fontSizeSlider, fontSizeVal
 } from './dom';
-import { toast, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal } from './shared-ui';
+import { toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
 import {
   PREMIUM_THEMES, STUDIO_DEFAULTS, applyTheme, openThemeCustomPanel, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes
@@ -136,8 +139,7 @@ import { pickDatasetFolder } from './folder-picker';
   // tagAutocompleteEnabled/autocompleteEl moved to ./tags-autocomplete.ts
   // customPowerTools/powerToolPickerActive moved to ./power-tools.ts
 
-  const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'];
-
+  
   // ---------------- DOM refs ----------------
   // (moved to ./dom.ts, imported at the top of this file)
 
@@ -245,7 +247,7 @@ import { pickDatasetFolder } from './folder-picker';
     const premium = PREMIUM_THEMES.find(t => t.id === chosen);
     if (premium && !ownedThemes.includes(chosen)){
       toast(`"${premium.name}" is locked — buy it in the Shop first.`);
-      themeSelect.value = (localStorage.getItem('dts-theme')) || 'studio';
+      themeSelect.value = getString('dts-theme') || 'studio';
       themeDropdownCtrl.refreshLabel();
       return;
     }
@@ -254,8 +256,7 @@ import { pickDatasetFolder } from './folder-picker';
   });
 
   (function initTheme(){
-    let saved = 'studio';
-    try { saved = localStorage.getItem('dts-theme') || 'studio'; } catch(e){}
+    const saved = getString('dts-theme', 'studio');
     themeSelect.value = saved;
     themeDropdownCtrl.refreshLabel();
     if (!window.__dtsPreThemed){
@@ -277,7 +278,7 @@ import { pickDatasetFolder } from './folder-picker';
         // but doesn't know about the "no custom colors saved yet" first-run
         // case — that still needs the editor opened, same as applyTheme('custom') would.
         let hasCustom = false;
-        try { hasCustom = !!localStorage.getItem('dts-custom-theme'); } catch(e){}
+        hasCustom = !!getString('dts-custom-theme');
         if (!hasCustom) setTimeout(openThemeCustomPanel, 0);
       }
     }
@@ -305,11 +306,11 @@ import { pickDatasetFolder } from './folder-picker';
       custom[inp.dataset.varKey!] = inp.value;
       document.documentElement.style.setProperty(inp.dataset.varKey!, inp.value);
     });
-    try { localStorage.setItem('dts-custom-theme', JSON.stringify(custom)); } catch(e){}
+    setJSON('dts-custom-theme', custom);
     document.documentElement.setAttribute('data-theme', 'custom');
     themeSelect.value = 'custom';
     themeDropdownCtrl.refreshLabel();
-    try { localStorage.setItem('dts-theme', 'custom'); } catch(e){}
+    setString('dts-theme', 'custom');
     toast('Custom theme saved.');
     folderStats.theme_customized = true;
     saveFolderStats();
@@ -428,7 +429,7 @@ import { pickDatasetFolder } from './folder-picker';
       requestAnimationFrame(() => requestAnimationFrame(() => {
         entering.forEach(el => el.classList.remove('tab-fading'));
       }));
-    }, 100);
+    }, transitionMsOf(fadePanes[0]));
   }
   tabDatasetManager.addEventListener('click', () => switchTab('datasets'));
   tabGallery.addEventListener('click', () => switchTab('gallery'));
@@ -462,7 +463,7 @@ import { pickDatasetFolder } from './folder-picker';
   btnNightMode.addEventListener('click', toggleDayNightModeAndTrack);
   (function initNightMode(){
     let on = false;
-    try { on = localStorage.getItem('dts-night-mode') === '1'; } catch(e){}
+    on = getBool('dts-night-mode');
     if (on && themeSelect.value !== 'custom'){
       if (window.__dtsPreThemed){
         // The pre-paint script already inverted the colors and added the
@@ -517,11 +518,10 @@ import { pickDatasetFolder } from './folder-picker';
   let flyoutClosesOnOutsideClick = true;
   flyoutOutsideCloseToggle.addEventListener('change', () => {
     flyoutClosesOnOutsideClick = flyoutOutsideCloseToggle.checked;
-    try { localStorage.setItem('dts-flyout-outside-close', flyoutClosesOnOutsideClick ? '1' : '0'); } catch(e){}
+    setBool('dts-flyout-outside-close', flyoutClosesOnOutsideClick);
   });
   (function initFlyoutOutsideClosePref(){
-    let on = true;
-    try { on = localStorage.getItem('dts-flyout-outside-close') !== '0'; } catch(e){}
+    const on = getBool('dts-flyout-outside-close', true);
     flyoutClosesOnOutsideClick = on;
     flyoutOutsideCloseToggle.checked = on;
   })();
@@ -541,10 +541,10 @@ import { pickDatasetFolder } from './folder-picker';
   }
   let uiAnimationMode = 'fade';
   try {
-    const saved = localStorage.getItem('dts-ui-animation-mode');
+    const saved = getString('dts-ui-animation-mode');
     if (saved === 'off' || saved === 'swipe' || saved === 'fade') uiAnimationMode = saved;
     // Migrates the earlier boolean-only "Smooth transitions" checkbox pref.
-    else if (localStorage.getItem('dts-ui-animations') === '0') uiAnimationMode = 'off';
+    else if (!getBool('dts-ui-animations', true)) uiAnimationMode = 'off';
   } catch(e){}
   buildPersistentDropdown(uiAnimationsDropdown, [
     { value: 'fade', label: 'Fade' },
@@ -552,7 +552,7 @@ import { pickDatasetFolder } from './folder-picker';
     { value: 'off', label: 'Off' }
   ], () => uiAnimationMode, (val) => {
     uiAnimationMode = val;
-    try { localStorage.setItem('dts-ui-animation-mode', val); } catch(e){}
+    setString('dts-ui-animation-mode', val);
     applyUiAnimationMode(val);
   });
   applyUiAnimationMode(uiAnimationMode);
@@ -670,11 +670,10 @@ import { pickDatasetFolder } from './folder-picker';
   let panelsCloseOnOutsideClick = true;
   panelsOutsideCloseToggle.addEventListener('change', () => {
     panelsCloseOnOutsideClick = panelsOutsideCloseToggle.checked;
-    try { localStorage.setItem('dts-panels-outside-close', panelsCloseOnOutsideClick ? '1' : '0'); } catch(e){}
+    setBool('dts-panels-outside-close', panelsCloseOnOutsideClick);
   });
   (function initPanelsOutsideClosePref(){
-    let on = true;
-    try { on = localStorage.getItem('dts-panels-outside-close') !== '0'; } catch(e){}
+    const on = getBool('dts-panels-outside-close', true);
     panelsCloseOnOutsideClick = on;
     panelsOutsideCloseToggle.checked = on;
   })();
@@ -723,12 +722,11 @@ import { pickDatasetFolder } from './folder-picker';
 
   tagCountBadgeToggle.addEventListener('change', () => {
     showTagCountBadges = tagCountBadgeToggle.checked;
-    try { localStorage.setItem('dts-tagcount-badges', showTagCountBadges ? '1' : '0'); } catch(e){}
+    setBool('dts-tagcount-badges', showTagCountBadges);
     renderCurrentView();
   });
   (function initTagCountBadgePref(){
-    let on = false;
-    try { on = localStorage.getItem('dts-tagcount-badges') === '1'; } catch(e){}
+    const on = getBool('dts-tagcount-badges');
     showTagCountBadges = on;
     tagCountBadgeToggle.checked = on;
   })();
@@ -742,7 +740,7 @@ import { pickDatasetFolder } from './folder-picker';
   dynamicCardsToggle.addEventListener('change', () => {
     if (document.documentElement.classList.contains('touch-device')) return;
     document.documentElement.classList.toggle('dynamic-cards', dynamicCardsToggle.checked);
-    try { localStorage.setItem('dts-dynamic-cards', dynamicCardsToggle.checked ? '1' : '0'); } catch(e){}
+    setBool('dts-dynamic-cards', dynamicCardsToggle.checked);
   });
   (function initDynamicCardsPref(){
     if (document.documentElement.classList.contains('touch-device')){
@@ -750,8 +748,7 @@ import { pickDatasetFolder } from './folder-picker';
       document.documentElement.classList.remove('dynamic-cards');
       return;
     }
-    let on = false;
-    try { on = localStorage.getItem('dts-dynamic-cards') === '1'; } catch(e){}
+    const on = getBool('dts-dynamic-cards');
     dynamicCardsToggle.checked = on;
     document.documentElement.classList.toggle('dynamic-cards', on);
   })();
@@ -875,8 +872,7 @@ import { pickDatasetFolder } from './folder-picker';
 
   // SETTINGS_SECTIONS_KEY/saveSettingsSectionState moved to ./settings.ts
   (function initSettingsSections(){
-    let saved: Record<string, boolean> = {};
-    try { saved = JSON.parse(localStorage.getItem(SETTINGS_SECTIONS_KEY) || '{}') || {}; } catch(e){}
+    const saved = getJSON<Record<string, boolean>>(SETTINGS_SECTIONS_KEY, {});
     document.querySelectorAll<HTMLElement>('#settingsPanel .settings-section').forEach(section => {
       const id = section.dataset.section!;
       const defaultExpanded = id !== 'danger'; // everything starts open except Danger Zone
@@ -886,8 +882,7 @@ import { pickDatasetFolder } from './folder-picker';
       header!.addEventListener('click', () => {
         const nowExpanded = !section.classList.contains('expanded');
         section.classList.toggle('expanded', nowExpanded);
-        let state: Record<string, boolean> = {};
-        try { state = JSON.parse(localStorage.getItem(SETTINGS_SECTIONS_KEY) || '{}') || {}; } catch(e){}
+        const state = getJSON<Record<string, boolean>>(SETTINGS_SECTIONS_KEY, {});
         state[id] = nowExpanded;
         saveSettingsSectionState(state);
       });
@@ -920,7 +915,7 @@ import { pickDatasetFolder } from './folder-picker';
     // the round-trip, then one rAF to be sure the resulting layout pass has
     // actually run, before measuring anything.
     await applyAppZoom(parseInt(px, 10) / 14);
-    try { localStorage.setItem('dts-font-size', px); } catch(e){}
+    setString('dts-font-size', px);
     if (settingsPanel.style.display === 'flex'){
       requestAnimationFrame(() => {
         const rect = btnSettings.getBoundingClientRect();
@@ -933,8 +928,7 @@ import { pickDatasetFolder } from './folder-picker';
   });
   fontSizeSlider.addEventListener('change', applyFontZoomFromSlider);
   (function initFontSize(){
-    let px = '14';
-    try { px = localStorage.getItem('dts-font-size') || '14'; } catch(e){}
+    const px = getString('dts-font-size', '14');
     fontSizeSlider.value = px;
     fontSizeVal.textContent = px + 'px';
     applyAppZoom(parseInt(px, 10) / 14);
@@ -942,18 +936,15 @@ import { pickDatasetFolder } from './folder-picker';
 
   powerHighlightToggle.addEventListener('change', () => {
     document.documentElement.classList.toggle('power-highlight', powerHighlightToggle.checked);
-    try { localStorage.setItem('dts-power-highlight', powerHighlightToggle.checked ? '1' : '0'); } catch(e){}
+    setBool('dts-power-highlight', powerHighlightToggle.checked);
   });
   powerFillToggle.addEventListener('change', () => {
     document.documentElement.classList.toggle('power-fill', powerFillToggle.checked);
-    try { localStorage.setItem('dts-power-fill', powerFillToggle.checked ? '1' : '0'); } catch(e){}
+    setBool('dts-power-fill', powerFillToggle.checked);
   });
   (function initPowerHighlight(){
-    let highlightOn = true, fillOn = false;
-    try {
-      highlightOn = localStorage.getItem('dts-power-highlight') !== '0';
-      fillOn = localStorage.getItem('dts-power-fill') === '1';
-    } catch(e){}
+    const highlightOn = getBool('dts-power-highlight', true);
+    const fillOn = getBool('dts-power-fill');
     powerHighlightToggle.checked = highlightOn;
     powerFillToggle.checked = fillOn;
     document.documentElement.classList.toggle('power-highlight', highlightOn);
@@ -980,11 +971,10 @@ import { pickDatasetFolder } from './folder-picker';
 
   tagAutocompleteToggle.addEventListener('change', () => {
     setTagAutocompleteEnabled(tagAutocompleteToggle.checked);
-    try { localStorage.setItem('dts-tag-autocomplete', tagAutocompleteEnabled ? '1' : '0'); } catch(e){}
+    setBool('dts-tag-autocomplete', tagAutocompleteEnabled);
   });
   (function initTagAutocompletePref(){
-    let on = false;
-    try { on = localStorage.getItem('dts-tag-autocomplete') === '1'; } catch(e){}
+    const on = getBool('dts-tag-autocomplete');
     setTagAutocompleteEnabled(on);
     tagAutocompleteToggle.checked = on;
   })();
@@ -1049,17 +1039,16 @@ import { pickDatasetFolder } from './folder-picker';
       const result = await window.electronAPI.exportAppState(JSON.stringify(state, null, 2));
       toast(result.ok ? `Exported app state to ${result.path}` : (result.message || 'Export failed.'), result.ok ? 5000 : 4000);
     } catch(err){
-      toast('Failed to export app state: ' + (err as Error).message);
+      toastError('Failed to export app state', err, 2600);
     }
   });
 
   tooltipsToggle.addEventListener('change', () => {
     tooltipsEnabled = tooltipsToggle.checked;
-    try { localStorage.setItem('dts-tooltips-enabled', tooltipsEnabled ? '1' : '0'); } catch(e){}
+    setBool('dts-tooltips-enabled', tooltipsEnabled);
   });
   (function initTooltipsPref(){
-    let on = true;
-    try { on = localStorage.getItem('dts-tooltips-enabled') !== '0'; } catch(e){}
+    const on = getBool('dts-tooltips-enabled', true);
     tooltipsEnabled = on;
     tooltipsToggle.checked = on;
   })();
@@ -1067,11 +1056,10 @@ import { pickDatasetFolder } from './folder-picker';
   tooltipDelaySlider.addEventListener('input', () => {
     tooltipDelayMs = parseInt(tooltipDelaySlider.value, 10);
     tooltipDelayVal.textContent = tooltipDelayMs + 'ms';
-    try { localStorage.setItem('dts-tooltip-delay', String(tooltipDelayMs)); } catch(e){}
+    setInt('dts-tooltip-delay', tooltipDelayMs);
   });
   (function initTooltipDelayPref(){
-    let ms = 1000;
-    try { ms = parseInt(localStorage.getItem('dts-tooltip-delay') || '1000', 10) || 1000; } catch(e){}
+    let ms = getInt('dts-tooltip-delay', 1000);
     ms = Math.max(100, Math.min(2000, ms));
     tooltipDelayMs = ms;
     tooltipDelaySlider.value = String(ms);
@@ -1154,7 +1142,7 @@ import { pickDatasetFolder } from './folder-picker';
   initFavorites({
     getDirHandle: () => dirHandle,
     openFolderHandle,
-    onFavoriteChanged: syncPinFromFavoriteChange as unknown as (handle: FileSystemDirectoryHandle, isFav: boolean) => void
+    onFavoriteChanged: syncPinFromFavoriteChange
   });
 
   // Dataset folder manager moved to ./dataset-manager.ts
@@ -1275,7 +1263,7 @@ import { pickDatasetFolder } from './folder-picker';
     deleteEntryPermanently: (entry) => deleteEntryPermanently(entry),
     setRightPanelCollapsed: (collapsed) => applyRightPanelCollapsed(collapsed),
     getRightPanelCollapsed: () => rightAside.classList.contains('right-panel-collapsed'),
-    getHideTags: () => localStorage.getItem('dts-hide-tags') === '1'
+    getHideTags: () => getBool('dts-hide-tags')
   });
 
   // Achievements/stats/wallet/shop moved to ./achievements.ts
@@ -1284,14 +1272,10 @@ import { pickDatasetFolder } from './folder-picker';
     const i = name.lastIndexOf('.');
     return i === -1 ? name : name.slice(0, i);
   }
-  function isImageFile(name: string): boolean {
-    const lower = name.toLowerCase();
-    return IMAGE_EXT.some(ext => lower.endsWith(ext));
-  }
   // ---------------- Folder loading ----------------
 
   btnOpen.addEventListener('click', async () => {
-    if (!(window as unknown as Record<string, unknown>).showDirectoryPicker){
+    if (!hasDirectoryPicker()){
       toast('Your browser does not support folder access. Use Chrome or Edge, opened as a normal tab (not an embedded preview).', 5000);
       return;
     }
@@ -1467,13 +1451,9 @@ import { pickDatasetFolder } from './folder-picker';
       } else {
         try {
           const imgHandle = await dirHandle.getFileHandle(st.imgName, { create: true });
-          const iw = await imgHandle.createWritable();
-          await iw.write(st.bytes as BufferSource);
-          await iw.close();
+          await writeBytes(imgHandle, st.bytes);
           const txtHandle = await dirHandle.getFileHandle(a.base + '.txt', { create: true });
-          const tw = await txtHandle.createWritable();
-          await tw.write(st.tags.map((t) => t.replace(/ /g, '_')).join(','));
-          await tw.close();
+          await writeBytes(txtHandle, st.tags.map((t) => t.replace(/ /g, '_')).join(','));
           const existing = entryByBase.get(a.base);
           if (existing){
             try { URL.revokeObjectURL(existing.objectUrl); } catch(e){}
@@ -1598,9 +1578,7 @@ import { pickDatasetFolder } from './folder-picker';
     if (!dirHandle) return;
     try {
       const handle = await dirHandle.getFileHandle(META_FILE_NAME, { create: true });
-      const writable = await handle.createWritable();
-      await writable.write(JSON.stringify(entryMeta, null, 2));
-      await writable.close();
+      await writeBytes(handle, JSON.stringify(entryMeta, null, 2));
     } catch(err){}
   }
 
@@ -1834,7 +1812,7 @@ import { pickDatasetFolder } from './folder-picker';
     }
   }
   try {
-    const savedGalleryColumns = localStorage.getItem(GALLERY_COLUMNS_KEY);
+    const savedGalleryColumns = getString(GALLERY_COLUMNS_KEY);
     if (savedGalleryColumns) galleryColumns = savedGalleryColumns;
   } catch(e){}
   applyGalleryColumnOverride();
@@ -1852,7 +1830,7 @@ import { pickDatasetFolder } from './folder-picker';
     () => galleryColumns,
     (val) => {
       galleryColumns = val;
-      try { localStorage.setItem(GALLERY_COLUMNS_KEY, val); } catch(e){}
+      setString(GALLERY_COLUMNS_KEY, val);
       applyGalleryColumnOverride();
       if (val !== 'auto'){
         folderStats.gallery_columns_forced = true;
@@ -1890,13 +1868,13 @@ import { pickDatasetFolder } from './folder-picker';
     if (val === 'gallery-left') shellEl.classList.add('layout-gallery-left');
     else if (val === 'gallery-right') shellEl.classList.add('layout-gallery-right');
     panelLayout = val;
-    try { localStorage.setItem('dts-panel-layout', val); } catch(e){}
+    setString('dts-panel-layout', val);
     applyRightPanelCollapsedArrow();
     repositionRightResizeHandleSoon();
   }
   (function initPanelLayout(){
     let saved = 'standard';
-    try { saved = localStorage.getItem('dts-panel-layout') || 'standard'; } catch(e){}
+    saved = getString('dts-panel-layout', 'standard');
     applyPanelLayout(saved);
   })();
 
@@ -1918,11 +1896,11 @@ import { pickDatasetFolder } from './folder-picker';
     rightAside.classList.toggle('right-panel-collapsed', collapsed);
     applyRightPanelCollapsedArrow();
     repositionRightResizeHandleSoon();
-    try { localStorage.setItem('dts-right-panel-collapsed', collapsed ? '1' : '0'); } catch(e){}
+    setBool('dts-right-panel-collapsed', collapsed);
   }
   (function initRightPanelCollapsed(){
     let saved = false;
-    try { saved = localStorage.getItem('dts-right-panel-collapsed') === '1'; } catch(e){}
+    saved = getBool('dts-right-panel-collapsed');
     applyRightPanelCollapsed(saved);
   })();
   btnRightPanelCollapse.addEventListener('click', () => {
@@ -1988,7 +1966,7 @@ import { pickDatasetFolder } from './folder-picker';
   }
   (function initRightPanelWidth(){
     let saved = NaN;
-    try { saved = parseInt(localStorage.getItem(RIGHT_PANEL_WIDTH_KEY) || '', 10); } catch(e){}
+    saved = getInt(RIGHT_PANEL_WIDTH_KEY, NaN);
     applyRightPanelWidth(isNaN(saved) ? rightPanelWidth : saved);
     repositionRightResizeHandle();
   })();
@@ -2011,7 +1989,7 @@ import { pickDatasetFolder } from './folder-picker';
       document.removeEventListener('mouseup', onUp);
       shellEl.style.transition = '';
       rightPanelResizeHandle.classList.remove('resizing');
-      try { localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(rightPanelWidth)); } catch(e){}
+      setInt(RIGHT_PANEL_WIDTH_KEY, rightPanelWidth);
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -2179,14 +2157,10 @@ import { pickDatasetFolder } from './folder-picker';
       try {
         const imgName = await uniqueDatasetFileName(activeHandle, file.name);
         const imgHandle = await activeHandle.getFileHandle(imgName, { create: true });
-        const writable = await imgHandle.createWritable();
-        await writable.write(file);
-        await writable.close();
+        await writeBytes(imgHandle, file);
         try {
           const txtHandle = await activeHandle.getFileHandle(imgName.replace(/\.[^.]+$/, '') + '.txt', { create: true });
-          const txtWritable = await txtHandle.createWritable();
-          await txtWritable.write('');
-          await txtWritable.close();
+          await writeBytes(txtHandle, '');
         } catch {
           /* image saved; the empty sidecar is best-effort */
         }

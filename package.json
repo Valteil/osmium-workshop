@@ -35,6 +35,7 @@
       "main.js",
       "preload.js",
       "wd14-local.js",
+      "comfy-core.js",
       "renderer/**/*",
       "src/**/*",
       "scripts/**/*",

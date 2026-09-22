@@ -11,45 +11,42 @@
 // — both already exist and work; this module plus wd14-local-bridge.ts on
 // the renderer side just need to satisfy the same contract for desktop.
 //
-// export{} forces TS to treat this file as its own module scope rather
-// than merging its top-level consts into main.ts's global/script scope —
-// main.ts has no import/export syntax of its own (plain require() only,
-// same as this file), which is exactly what makes TS treat a .ts file as a
-// global script instead of a module; without this, `const app`/`fs`/etc.
-// here collide with main.ts's own identically-named top-level consts once
-// both are compiled together (tsconfig.main.json's `files` list).
-export {};
-const { app, dialog, BrowserWindow } = require('electron');
-const fs = require('fs');
-const path = require('path');
-const http = require('http');
-const https = require('https');
-const { InferenceSession, Tensor } = require('onnxruntime-node');
-const { nativeImage } = require('electron');
+import { app, dialog, BrowserWindow, nativeImage } from 'electron';
+import type { IpcMain, OpenDialogOptions } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as http from 'http';
+import * as https from 'https';
+import { InferenceSession, Tensor } from 'onnxruntime-node';
+import type {
+  Wd14LocalDownloadPayload, Wd14LocalImportPayload, Wd14LocalTagImagePayload, Wd14LocalPickImportResult
+} from './ipc-types';
+import type { Wd14LocalModel, Wd14LocalTagResult, Wd14LocalDownloadProgress } from './shared-types';
 
 function modelsDir() {
   const dir = path.join(app.getPath('userData'), 'wd14_models');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
-function modelDir(name) { return path.join(modelsDir(), name); }
+function modelDir(name: string): string { return path.join(modelsDir(), name); }
 
-async function listModels() {
+async function listModels(): Promise<Wd14LocalModel[]> {
   const dir = modelsDir();
   const names = fs.readdirSync(dir).filter((n) => !n.endsWith('.downloading'));
-  const models = [];
+  const models: Wd14LocalModel[] = [];
   for (const name of names) {
     const modelPath = path.join(modelDir(name), 'model.onnx');
     const tagsPath = path.join(modelDir(name), 'tags.csv');
     if (!fs.existsSync(modelPath) || !fs.existsSync(tagsPath)) continue;
     let tagCount = 0;
     try { tagCount = Math.max(0, fs.readFileSync(tagsPath, 'utf8').split(/\r?\n/).filter(Boolean).length - 1); } catch (err) { /* leave 0 */ }
-    models.push({ name, sizeBytes: fs.statSync(modelPath).size, tagCount });
+    // Reaching here means both files exist, so the pair is complete.
+    models.push({ name, sizeBytes: fs.statSync(modelPath).size, tagCount, hasOnnx: true, hasCsv: true });
   }
   return models;
 }
 
-function deleteModel(name) {
+function deleteModel(name: string) {
   sessionCache.delete(name + '|cpu');
   sessionCache.delete(name + '|dml');
   sessionCache.delete(name); // pre-provider cache shape, belt and suspenders
@@ -65,12 +62,15 @@ function deleteModel(name) {
 // proposed name; the actual copy (importModel below) is a separate call so
 // the renderer can run its own name-collision confirm first, the same way
 // downloadRepo() in wd14-tagger.ts already does before downloadModel().
-async function pickImportFiles(browserWindow) {
-  const res = await dialog.showOpenDialog(browserWindow, {
+async function pickImportFiles(browserWindow: BrowserWindow | null): Promise<Wd14LocalPickImportResult> {
+  const opts: OpenDialogOptions = {
     title: 'Pick this model\'s .onnx file and its tags .csv (select both at once)',
     properties: ['openFile', 'multiSelections'],
     filters: [{ name: 'WD14 model files', extensions: ['onnx', 'csv'] }]
-  });
+  };
+  const res = browserWindow
+    ? await dialog.showOpenDialog(browserWindow, opts)
+    : await dialog.showOpenDialog(opts);
   if (res.canceled || !res.filePaths || res.filePaths.length === 0) return { canceled: true };
   const modelPath = res.filePaths.find((p) => p.toLowerCase().endsWith('.onnx'));
   const tagsPath = res.filePaths.find((p) => p.toLowerCase().endsWith('.csv'));
@@ -81,7 +81,7 @@ async function pickImportFiles(browserWindow) {
   return { canceled: false, name, modelPath, tagsPath };
 }
 
-function importModel({ name, modelPath, tagsPath }) {
+function importModel({ name, modelPath, tagsPath }: Wd14LocalImportPayload) {
   sessionCache.delete(name + '|cpu');
   sessionCache.delete(name + '|dml');
   sessionCache.delete(name); // pre-provider cache shape, belt and suspenders
@@ -98,26 +98,27 @@ function importModel({ name, modelPath, tagsPath }) {
 // http/https do NOT auto-follow redirects — HuggingFace's own
 // resolve/main/<file> URLs redirect through a CDN host, so this has to
 // chase Location headers by hand.
-function fetchToFile(url, destPath, onPercent, redirectsLeft = 5) {
+function fetchToFile(url: string, destPath: string, onPercent: ((percent: number) => void) | null, redirectsLeft = 5): Promise<void> {
   return new Promise((resolve, reject) => {
-    const lib = url.startsWith('https:') ? https : http;
+    const lib = (url.startsWith('https:') ? https : http) as typeof http;
     const req = lib.get(url, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      const status = res.statusCode ?? 0;
+      if (status >= 300 && status < 400 && res.headers.location) {
         res.resume();
         if (redirectsLeft <= 0) { reject(new Error('Too many redirects.')); return; }
         const nextUrl = new URL(res.headers.location, url).toString();
         fetchToFile(nextUrl, destPath, onPercent, redirectsLeft - 1).then(resolve, reject);
         return;
       }
-      if (res.statusCode !== 200) {
+      if (status !== 200) {
         res.resume();
-        reject(new Error(`HTTP ${res.statusCode} downloading ${url}`));
+        reject(new Error(`HTTP ${status} downloading ${url}`));
         return;
       }
       const total = parseInt(res.headers['content-length'] || '0', 10);
       let downloaded = 0, lastPercent = -1;
       const file = fs.createWriteStream(destPath);
-      res.on('data', (chunk) => {
+      res.on('data', (chunk: Buffer) => {
         downloaded += chunk.length;
         if (total > 0 && onPercent) {
           const percent = Math.floor((downloaded / total) * 100);
@@ -137,15 +138,15 @@ function fetchToFile(url, destPath, onPercent, redirectsLeft = 5) {
 // Same .downloading-temp-dir-then-rename pattern as the Kotlin plugin.
 // Throws on failure (never resolves an {ok:false} shape) — downloadRepo()
 // in wd14-tagger.ts wraps its own call in try/catch expecting exactly that.
-async function downloadModel({ name, modelUrl, tagsUrl }, onProgress) {
+async function downloadModel({ name, modelUrl, tagsUrl }: Wd14LocalDownloadPayload, onProgress?: (ev: Wd14LocalDownloadProgress) => void) {
   const tmpDir = modelDir(name) + '.downloading';
   fs.rmSync(tmpDir, { recursive: true, force: true });
   fs.mkdirSync(tmpDir, { recursive: true });
   try {
-    await fetchToFile(modelUrl, path.join(tmpDir, 'model.onnx'), (percent) => {
+    await fetchToFile(modelUrl, path.join(tmpDir, 'model.onnx'), (percent: number) => {
       if (onProgress) onProgress({ name, part: 'model', percent });
     });
-    await fetchToFile(tagsUrl, path.join(tmpDir, 'tags.csv'), (percent) => {
+    await fetchToFile(tagsUrl, path.join(tmpDir, 'tags.csv'), (percent: number) => {
       if (onProgress) onProgress({ name, part: 'tags', percent });
     });
     fs.rmSync(modelDir(name), { recursive: true, force: true });
@@ -173,14 +174,15 @@ const DEFAULT_INPUT_SIZE = 448;
 // per its own README CUDA is Linux-only, so DirectML is the GPU path here).
 // Sessions are cached per model+provider; a failed GPU bring-up falls back
 // to CPU inside the same call rather than failing the batch.
-const sessionCache = new Map();
-async function loadSession(name, preferGpu) {
+const sessionCache = new Map<string, { session: InferenceSession; provider: string }>();
+async function loadSession(name: string, preferGpu?: boolean) {
   const wantGpu = !!preferGpu;
   const key = name + '|' + (wantGpu ? 'dml' : 'cpu');
-  if (sessionCache.has(key)) return sessionCache.get(key);
+  const cachedSession = sessionCache.get(key);
+  if (cachedSession) return cachedSession;
   const modelPath = path.join(modelDir(name), 'model.onnx');
   if (!fs.existsSync(modelPath)) throw new Error(`Model "${name}" is not downloaded.`);
-  let session = null;
+  let session: InferenceSession | null = null;
   let provider = 'cpu';
   if (wantGpu) {
     try {
@@ -196,14 +198,15 @@ async function loadSession(name, preferGpu) {
   return entry;
 }
 
-const tagsCache = new Map();
-function loadTags(name) {
-  if (tagsCache.has(name)) return tagsCache.get(name);
+const tagsCache = new Map<string, { name: string; category: number }[]>();
+function loadTags(name: string) {
+  const cachedTags = tagsCache.get(name);
+  if (cachedTags) return cachedTags;
   const lines = fs.readFileSync(path.join(modelDir(name), 'tags.csv'), 'utf8').split(/\r?\n/).filter(Boolean);
   const header = lines[0].split(',');
   const nameIdx = header.indexOf('name') !== -1 ? header.indexOf('name') : 1;
   const catIdx = header.indexOf('category') !== -1 ? header.indexOf('category') : 2;
-  const tags = lines.slice(1).map((line) => {
+  const tags = lines.slice(1).map((line: string) => {
     const cols = line.split(',');
     return { name: cols[nameIdx], category: parseInt(cols[catIdx], 10) };
   });
@@ -218,7 +221,7 @@ function loadTags(name) {
 // format on every Electron platform), which is a more direct match for
 // WD14's expected BGR order than an RGB-native library like sharp would be
 // — just drop the alpha byte.
-function preprocess(imageBuffer, size) {
+function preprocess(imageBuffer: Buffer, size: number) {
   const img = nativeImage.createFromBuffer(imageBuffer);
   const { width, height } = img.getSize();
   if (!width || !height) throw new Error('Could not decode this image.');
@@ -246,11 +249,11 @@ function preprocess(imageBuffer, size) {
 
 // Space -> underscore, literal ( ) escaped — matches the app's own caption-
 // file tag format, same as DtsWd14Plugin.kt's escapeTag().
-function escapeTag(name) {
+function escapeTag(name: string): string {
   return name.replace(/ /g, '_').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 }
 
-async function tagImage({ name, imageBytes, threshold, characterThreshold, preferGpu }) {
+async function tagImage({ name, imageBytes, threshold, characterThreshold, preferGpu }: Wd14LocalTagImagePayload): Promise<Wd14LocalTagResult> {
   const { session, provider } = await loadSession(name, preferGpu);
   const tags = loadTags(name);
   const inputTensor = preprocess(Buffer.from(imageBytes), DEFAULT_INPUT_SIZE);
@@ -262,8 +265,8 @@ async function tagImage({ name, imageBytes, threshold, characterThreshold, prefe
   // bug on the mobile plugin: it compresses every score into ~0.5-0.73
   // regardless of real confidence, dumping nearly the whole vocabulary
   // (~8900 tags on one test image) instead of the normal 20-40.
-  const scores = results[session.outputNames[0]].data;
-  const picked = [];
+  const scores = results[session.outputNames[0]].data as Float32Array;
+  const picked: string[] = [];
   for (let i = 0; i < tags.length && i < scores.length; i++) {
     const tag = tags[i];
     if (tag.category === 9) continue; // rating — never included
@@ -273,22 +276,22 @@ async function tagImage({ name, imageBytes, threshold, characterThreshold, prefe
   return { ok: true, tagsCsv: picked.join(', '), provider };
 }
 
-function registerWd14LocalHandlers(ipcMain) {
+function registerWd14LocalHandlers(ipcMain: IpcMain) {
   ipcMain.handle('wd14-local-list-models', async () => listModels());
-  ipcMain.handle('wd14-local-delete-model', async (event, name) => deleteModel(name));
-  ipcMain.handle('wd14-local-download-model', async (event, payload) => {
+  ipcMain.handle('wd14-local-delete-model', async (_event, name: string) => deleteModel(name));
+  ipcMain.handle('wd14-local-download-model', async (event, payload: Wd14LocalDownloadPayload) => {
     await downloadModel(payload, (progress) => event.sender.send('wd14-local-download-progress', progress));
   });
-  ipcMain.handle('wd14-local-tag-image', async (event, payload) => {
+  ipcMain.handle('wd14-local-tag-image', async (_event, payload: Wd14LocalTagImagePayload) => {
     try { return await tagImage(payload); }
-    catch (err) { return { ok: false, error: (err && err.message) || String(err) }; }
+    catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) }; }
   });
   ipcMain.handle('wd14-local-pick-import-files', async (event) => {
     return pickImportFiles(BrowserWindow.fromWebContents(event.sender));
   });
-  ipcMain.handle('wd14-local-import-model', async (event, payload) => {
+  ipcMain.handle('wd14-local-import-model', async (_event, payload: Wd14LocalImportPayload) => {
     importModel(payload);
   });
 }
 
-module.exports = { registerWd14LocalHandlers, listModels, deleteModel, downloadModel, tagImage, pickImportFiles, importModel };
+export { registerWd14LocalHandlers, listModels, deleteModel, downloadModel, tagImage, pickImportFiles, importModel };

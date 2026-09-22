@@ -1,4 +1,7 @@
 import type { ComfyResult, ComfyImageRef } from './types';
+import type { ElectronAPI } from '../ipc-types';
+import { parseComboValues, buildWd14Prompt, extractWd14Tags, uploadImage, queuePrompt, pollHistory } from '../comfy-core';
+import type { ComfyTransport } from '../comfy-core';
 import './global-types';
 
 function isLikelyCorsFailure(err: unknown): boolean {
@@ -14,6 +17,19 @@ function normalizeHost(host: string): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
 }
 
+// Browser transport for the shared ComfyUI client (comfy-core.ts) — the
+// renderer-side counterpart of main.ts's Node transport.
+const fetchComfyTransport: ComfyTransport = {
+  request: async (host, path, init = {}) => {
+    const res = await fetch(new URL(path, host), {
+      method: init.method || 'GET',
+      headers: init.headers as Record<string, string> | undefined,
+      body: (init.body ?? undefined) as BodyInit | undefined
+    });
+    return { status: res.status, body: new Uint8Array(await res.arrayBuffer()) };
+  }
+};
+
 export async function comfyGetModels(host: string): Promise<ComfyResult> {
   host = normalizeHost(host);
   let res: Response;
@@ -24,15 +40,12 @@ export async function comfyGetModels(host: string): Promise<ComfyResult> {
     return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : ' (' + msg + ')'}` };
   }
   if (!res.ok) return { ok: false, error: `ComfyUI returned HTTP ${res.status} — is the WD14 Tagger (pysssss) custom node installed?` };
-  let parsed: Record<string, { input?: { required?: Record<string, unknown[]> } }>;
+  let parsed: Record<string, { input?: { required?: Record<string, unknown> } }>;
   try { parsed = await res.json(); } catch { return { ok: false, error: 'ComfyUI returned an unexpected response.' }; }
-  const nodeInfo = parsed['WD14Tagger|pysssss'];
-  const models = nodeInfo?.input?.required?.model?.[0];
+  const models = parseComboValues(parsed['WD14Tagger|pysssss'], 'model');
   if (!Array.isArray(models)) return { ok: false, error: 'Could not find the WD14 Tagger node on that ComfyUI instance.' };
   return { ok: true, models };
 }
-
-function sleep(ms: number): Promise<void> { return new Promise(r => setTimeout(r, ms)); }
 
 interface ComfyTagPayload {
   host: string;
@@ -50,80 +63,25 @@ interface ComfyTagPayload {
 export async function comfyTagImage({ host, filename, imageBytes, settings }: ComfyTagPayload): Promise<ComfyResult> {
   host = normalizeHost(host);
   try {
-    const form = new FormData();
-    form.append('type', 'input');
-    form.append('overwrite', 'true');
-    form.append('image', new Blob([imageBytes as BlobPart]), filename);
-    let uploadRes: Response;
-    try {
-      uploadRes = await fetch(new URL('/upload/image', host), { method: 'POST', body: form });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : ' (' + msg + ')'}` };
-    }
-    if (!uploadRes.ok) return { ok: false, error: `Image upload to ComfyUI failed (HTTP ${uploadRes.status}).` };
-    const uploaded: { name: string; subfolder?: string } = await uploadRes.json();
-    const imageRef = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
+    const upload = await uploadImage(fetchComfyTransport, host, filename, imageBytes, 'Image');
+    if (!upload.ok) return upload;
 
     const clientId = `dts-mobile-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
-    const prompt: Record<string, { class_type: string; inputs: Record<string, unknown> }> = {
-      '1': { class_type: 'LoadImage', inputs: { image: imageRef, upload: 'image' } },
-      '2': {
-        class_type: 'WD14Tagger|pysssss',
-        inputs: {
-          image: ['1', 0],
-          model: settings.model,
-          threshold: settings.threshold,
-          character_threshold: settings.characterThreshold,
-          replace_underscore: false,
-          trailing_comma: !!settings.trailingComma,
-          exclude_tags: settings.excludeTags || ''
-        }
-      }
-    };
-    const queueRes = await fetch(new URL('/prompt', host), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, client_id: clientId })
-    });
-    let queueParsed: Record<string, unknown> = {};
-    try { queueParsed = await queueRes.json(); } catch { /* fall through with {} */ }
-    if (!queueRes.ok) {
-      const errObj = queueParsed.error as Record<string, unknown> | undefined;
-      const errMsg = errObj?.message as string | undefined;
-      return { ok: false, error: errMsg ? `ComfyUI rejected the request: ${errMsg}` : `ComfyUI returned HTTP ${queueRes.status} queuing the tag request.` };
-    }
-    const nodeErrors = queueParsed.node_errors as Record<string, unknown> | undefined;
-    const nodeErrorKeys = nodeErrors ? Object.keys(nodeErrors) : [];
-    if (nodeErrorKeys.length) return { ok: false, error: `ComfyUI rejected the workflow: ${JSON.stringify(nodeErrors)}` };
-    const promptId = queueParsed.prompt_id as string | undefined;
-    if (!promptId) return { ok: false, error: 'ComfyUI did not return a prompt id.' };
+    const prompt = buildWd14Prompt(upload.ref, settings);
+    const queue = await queuePrompt(fetchComfyTransport, host, prompt, clientId, { noun: 'tag' });
+    if (!queue.ok) return queue;
 
-    const deadline = Date.now() + 120000;
-    while (Date.now() < deadline) {
-      await sleep(700);
-      let histRes: Response;
-      try { histRes = await fetch(new URL(`/history/${promptId}`, host)); }
-      catch { continue; }
-      if (!histRes.ok) continue;
-      let hist: Record<string, Record<string, unknown>> = {};
-      try { hist = await histRes.json(); } catch { continue; }
-      const record = hist[promptId];
-      if (!record) continue;
-      const outputs = record.outputs as Record<string, { tags?: string | string[] }> | undefined;
-      if (outputs?.['2']?.tags) {
-        const tags = outputs['2'].tags;
-        return { ok: true, tagsCsv: Array.isArray(tags) ? tags[0] : tags };
-      }
-      const status = record.status as { status_str?: string } | undefined;
-      if (status?.status_str === 'error') {
-        return { ok: false, error: 'ComfyUI reported an error while tagging this image — check its console for details.' };
-      }
-    }
-    return { ok: false, error: 'Timed out waiting for ComfyUI to finish tagging this image.' };
+    const poll = await pollHistory<string>(fetchComfyTransport, host, queue.promptId, {
+      deadlineMs: 120000,
+      extract: (record) => extractWd14Tags(record),
+      errorStatusMessage: 'ComfyUI reported an error while tagging this image — check its console for details.',
+      timeoutMessage: 'Timed out waiting for ComfyUI to finish tagging this image.'
+    });
+    if (!poll.ok) return poll;
+    return { ok: true, tagsCsv: poll.value };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: `Could not reach ComfyUI at ${host} (${msg})` };
+    return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : ' (' + msg + ')'}` };
   }
 }
 
@@ -140,9 +98,8 @@ export async function comfyGetObjectInfo({ host, classType, inputName }: ComfyOb
   try {
     const res = await fetch(new URL(`/object_info/${encodeURIComponent(classType)}`, host));
     if (!res.ok) return { ok: false, error: `ComfyUI returned HTTP ${res.status} looking up ${classType}.` };
-    const parsed: Record<string, { input?: { required?: Record<string, unknown[]> } }> = await res.json();
-    const nodeInfo = parsed[classType];
-    const values = nodeInfo?.input?.required?.[inputName]?.[0];
+    const parsed: Record<string, { input?: { required?: Record<string, unknown> } }> = await res.json();
+    const values = parseComboValues(parsed[classType], inputName);
     if (!Array.isArray(values)) return { ok: false, error: `Could not find "${inputName}" on ${classType} — is the right custom node installed?` };
     return { ok: true, values };
   } catch (err: unknown) {
@@ -187,20 +144,9 @@ export async function comfyQueueAndFetch({ host, imageFilename, imageBytes, prom
   let ws: WebSocket | null = null;
   try {
     if (imageBytes && prompt['239']) {
-      const form = new FormData();
-      form.append('type', 'input');
-      form.append('overwrite', 'true');
-      form.append('image', new Blob([imageBytes as BlobPart]), imageFilename);
-      let uploadRes: Response;
-      try { uploadRes = await fetch(new URL('/upload/image', host), { method: 'POST', body: form }); }
-      catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : ' (' + msg + ')'}` };
-      }
-      if (!uploadRes.ok) return { ok: false, error: `Reference image upload to ComfyUI failed (HTTP ${uploadRes.status}).` };
-      const uploaded: { name: string; subfolder?: string } = await uploadRes.json();
-      const imageRef = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
-      (prompt['239'].inputs as Record<string, unknown>).image = imageRef;
+      const upload = await uploadImage(fetchComfyTransport, host, imageFilename, imageBytes, 'Reference image');
+      if (!upload.ok) return upload;
+      (prompt['239'].inputs as Record<string, unknown>).image = upload.ref;
     }
 
     const clientId = `dts-mobile-synthdat-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
@@ -257,41 +203,21 @@ export async function comfyQueueAndFetch({ host, imageFilename, imageBytes, prom
       });
     } catch (err) { console.error('[synthdat] preview websocket setup failed:', err); }
 
-    const queueRes = await fetch(new URL('/prompt', host), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, client_id: clientId, extra_data: { preview_method: 'taesd' } })
-    });
-    let queueParsed: Record<string, unknown> = {};
-    try { queueParsed = await queueRes.json(); } catch { /* fall through with {} */ }
-    if (!queueRes.ok) {
-      const errObj = queueParsed.error as Record<string, unknown> | undefined;
-      const errMsg = errObj?.message as string | undefined;
-      return { ok: false, error: errMsg ? `ComfyUI rejected the request: ${errMsg}` : `ComfyUI returned HTTP ${queueRes.status} queuing the generation request.` };
-    }
-    const nodeErrors = queueParsed.node_errors as Record<string, unknown> | undefined;
-    const nodeErrorKeys = nodeErrors ? Object.keys(nodeErrors) : [];
-    if (nodeErrorKeys.length) return { ok: false, error: `ComfyUI rejected the workflow: ${JSON.stringify(nodeErrors)}` };
-    const promptId = queueParsed.prompt_id as string | undefined;
-    if (!promptId) return { ok: false, error: 'ComfyUI did not return a prompt id.' };
+    const queue = await queuePrompt(fetchComfyTransport, host, prompt, clientId, { extraData: { preview_method: 'taesd' }, noun: 'generation' });
+    if (!queue.ok) return queue;
+    const promptId = queue.promptId;
 
-    const deadline = Date.now() + 300000;
-    while (Date.now() < deadline) {
-      if (activeGen.cancelled) return { ok: false, error: 'Generation stopped.', interrupted: true };
-      await sleep(700);
-      if (activeGen.cancelled) return { ok: false, error: 'Generation stopped.', interrupted: true };
-      let histRes: Response;
-      try { histRes = await fetch(new URL(`/history/${promptId}`, host)); }
-      catch { continue; }
-      if (!histRes.ok) continue;
-      let hist: Record<string, Record<string, unknown>> = {};
-      try { hist = await histRes.json(); } catch { continue; }
-      const record = hist[promptId];
-      if (!record) continue;
-      const outputs = record.outputs as Record<string, { images?: ComfyImageRef[] }> | undefined;
-      const saveOutput = outputs?.['192'];
-      const image = saveOutput?.images?.[0];
-      if (image) {
+    const poll = await pollHistory<ComfyResult>(fetchComfyTransport, host, promptId, {
+      deadlineMs: 300000,
+      isCancelled: () => !!(activeGen && activeGen.cancelled),
+      onCancelled: () => ({ ok: false, error: 'Generation stopped.', interrupted: true }),
+      errorStatusMessage: 'ComfyUI reported an error while generating this image — check its console for details.',
+      timeoutMessage: 'Timed out waiting for ComfyUI to finish generating this image.',
+      extract: async (record) => {
+        const outputs = record.outputs as Record<string, { images?: ComfyImageRef[] }> | undefined;
+        const saveOutput = outputs?.['192'];
+        const image = saveOutput?.images?.[0];
+        if (!image) return null;
         const result: ComfyResult = { ok: true, imageBytes: await fetchViewImage(host, image) };
         const pass1Output = outputs?.['192_pass1'];
         const pass1Image = pass1Output?.images?.[0];
@@ -300,12 +226,8 @@ export async function comfyQueueAndFetch({ host, imageFilename, imageBytes, prom
         }
         return result;
       }
-      const status = record.status as { status_str?: string } | undefined;
-      if (status?.status_str === 'error') {
-        return { ok: false, error: 'ComfyUI reported an error while generating this image — check its console for details.' };
-      }
-    }
-    return { ok: false, error: 'Timed out waiting for ComfyUI to finish generating this image.' };
+    });
+    return poll.ok ? poll.value : poll;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `Could not reach ComfyUI at ${host} (${msg})` };

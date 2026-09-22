@@ -7,13 +7,15 @@
 // mutated from dropdowns/tabs that live in index.ts) are injected once via
 // initView(), since index.ts's IIFE can't export them.
 import type { Entry, EntryMeta, GalleryFilter, CardTagSortMode, DirHandle, FileHandle } from './types';
+import { getJSON, setJSON, getBool, setBool } from './storage';
+import { writeBytes } from './fs-access';
 import {
   viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, btnUnlockAll, btnHideTags, btnRenameAllImages, singlePrevBtn, singleNextBtn,
   galleryGrid, compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
   langAutoSelectToggle, filterMatchCount
 } from './dom';
-import { toast, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox } from './shared-ui';
+import { toast, toastError, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox, addContextMenuItem, transitionMsOf } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
 import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially } from './tags-edit';
 import { openTagDetails } from './tag-details';
@@ -132,7 +134,7 @@ export function switchView(mode: ViewMode): void {
     const shownEl = viewContainerFor(mode);
     shownEl.classList.add(inClass);
     requestAnimationFrame(() => requestAnimationFrame(() => shownEl.classList.remove(inClass)));
-  }, 100);
+  }, transitionMsOf(oldEl));
 }
 
 // ---------------- Gallery (grid) rendering ----------------
@@ -771,7 +773,7 @@ function openMultiCompareTagMenu(entry: Entry, tag: string, x: number, y: number
   header.className = 'ctx-header';
   header.textContent = entry.imgName || entry.base;
   menu.appendChild(header);
-  addCtxItem(menu, `Remove "${tag}" from this image`, () => {
+  addContextMenuItem(menu, `Remove "${tag}" from this image`, () => {
     removeTagFromEntry(entry, tag);
     closeTagContextMenu();
     renderMultiCompareView();
@@ -1793,17 +1795,15 @@ async function commitPixelEdit(entry: Entry, canvas: HTMLCanvasElement, mime: st
   try {
     prevBytes = new Uint8Array(await (await entry.imgHandle.getFile()).arrayBuffer());
   } catch (err) {
-    toast(`Could not read the image: ${(err as Error)?.message || err}`, 4200);
+    toastError('Could not read the image', err);
     return false;
   }
   const prevW = entry.width || 0, prevH = entry.height || 0;
   const bytes = new Uint8Array(await blob.arrayBuffer());
   try {
-    const writable = await entry.imgHandle.createWritable();
-    await writable.write(bytes as BufferSource);
-    await writable.close();
+    await writeBytes(entry.imgHandle, bytes);
   } catch (err) {
-    toast(`Could not save the edited image: ${(err as Error)?.message || err}`, 4200);
+    toastError('Could not save the edited image', err);
     return false;
   }
   try { URL.revokeObjectURL(entry.objectUrl); } catch { /* best effort */ }
@@ -1830,7 +1830,7 @@ async function rotateEntryImage(entry: Entry, dir: 1 | -1): Promise<void> {
   try {
     bmp = await createImageBitmap(await entry.imgHandle.getFile());
   } catch (err) {
-    toast(`Could not read the image: ${(err as Error)?.message || err}`, 4200);
+    toastError('Could not read the image', err);
     return;
   }
   const canvas = document.createElement('canvas');
@@ -1916,7 +1916,7 @@ function startCropMode(entry: Entry, imgSide: HTMLElement, img: HTMLImageElement
     try {
       bmp = await createImageBitmap(await entry.imgHandle.getFile());
     } catch (err) {
-      toast(`Could not read the image: ${(err as Error)?.message || err}`, 4200);
+      toastError('Could not read the image', err);
       return null;
     }
     const canvas = document.createElement('canvas');
@@ -1959,17 +1959,13 @@ function startCropMode(entry: Entry, imgSide: HTMLElement, img: HTMLImageElement
     const tags = (entry.tags || []).slice();
     try {
       const imgHandle = await dir.getFileHandle(imgName, { create: true });
-      const iw = await imgHandle.createWritable();
-      await iw.write(bytes as BufferSource);
-      await iw.close();
+      await writeBytes(imgHandle, bytes);
       const txtHandle = await dir.getFileHandle(`${base}.txt`, { create: true });
-      const tw = await txtHandle.createWritable();
-      await tw.write(tags.map((t) => t.replace(/ /g, '_')).join(','));
-      await tw.close();
+      await writeBytes(txtHandle, tags.map((t) => t.replace(/ /g, '_')).join(','));
       const created = await addEntryFromNewFileRef(base, imgHandle, imgName, txtHandle, true, tags, false);
       if (created) markDirty(created);
     } catch (err) {
-      toast(`Could not save the isolated image: ${(err as Error)?.message || err}`, 4200);
+      toastError('Could not save the isolated image', err);
       return;
     }
     recordIsolateChange(`Isolated region of ${entry.imgName} as ${imgName}`, base, {
@@ -2276,21 +2272,6 @@ function tokenizeTag(tag: string): string[] {
   return uniq.length > 1 ? uniq : [];
 }
 
-function addCtxItem(menu: HTMLElement, label: string, onClick: (ev?: MouseEvent) => void): void {
-  const btn = document.createElement('button');
-  btn.className = 'ctx-item';
-  btn.textContent = label;
-  btn.addEventListener('click', (ev) => {
-    // Without this, the click bubbles to the document-level listener that
-    // closes panels on an outside click — which would immediately close
-    // whatever panel this item just opened (e.g. Tag Details), since the
-    // click's target is this menu button, not the panel.
-    ev.stopPropagation();
-    onClick(ev);
-  });
-  menu.appendChild(btn);
-}
-
 function openTagContextMenu(entry: Entry, tag: string, x: number, y: number): void {
   closeTagContextMenu();
   const index = buildTagIndex();
@@ -2304,15 +2285,15 @@ function openTagContextMenu(entry: Entry, tag: string, x: number, y: number): vo
   header.textContent = `${tag} · ${set.size} image${set.size===1?'':'s'}`;
   menu.appendChild(header);
 
-  addCtxItem(menu, 'Show all images WITH this tag', () => {
+  addContextMenuItem(menu, 'Show all images WITH this tag', () => {
     setContainsFilter(tag);
     closeTagContextMenu();
   });
-  addCtxItem(menu, 'Show all images WITHOUT this tag', () => {
+  addContextMenuItem(menu, 'Show all images WITHOUT this tag', () => {
     setExcludesFilter(tag);
     closeTagContextMenu();
   });
-  addCtxItem(menu, '📖 Tag Details', () => {
+  addContextMenuItem(menu, '📖 Tag Details', () => {
     closeTagContextMenu();
     openTagDetails(tag);
   });
@@ -2341,7 +2322,7 @@ function openTagContextMenu(entry: Entry, tag: string, x: number, y: number): vo
     menu.appendChild(renameRow);
 
     const flagged = entry.meta && entry.meta.flaggedTags && entry.meta.flaggedTags.includes(tag);
-    addCtxItem(menu, flagged ? '🚩 Unflag this tag on this image' : '🚩 Flag this tag for review (this image)', () => {
+    addContextMenuItem(menu, flagged ? '🚩 Unflag this tag on this image' : '🚩 Flag this tag for review (this image)', () => {
       if (!entry.meta) entry.meta = {};
       if (!entry.meta.flaggedTags) entry.meta.flaggedTags = [];
       if (flagged) entry.meta.flaggedTags = entry.meta.flaggedTags.filter((t: string) => t !== tag);
@@ -2478,13 +2459,11 @@ function buildStatusIconsEl(e: Entry): HTMLElement {
 }
 
 function saveCommonLanguages(){
-  try { localStorage.setItem('dts-common-languages', JSON.stringify(commonLanguages)); } catch(e){}
+  setJSON('dts-common-languages', commonLanguages);
 }
 (function loadCommonLanguages(){
-  try {
-    const saved = JSON.parse(localStorage.getItem('dts-common-languages') || 'null');
-    if (Array.isArray(saved) && saved.length) commonLanguages = saved;
-  } catch(e){}
+  const saved = getJSON<string[] | null>('dts-common-languages', null);
+  if (Array.isArray(saved) && saved.length) commonLanguages = saved;
 })();
 
 const FLAG_COLORS = ['#e8a33d', '#e2637a', '#6fb8d1', '#7fbf8f', '#a683e0'];
@@ -2516,10 +2495,7 @@ function openNoteEditor(entry: Entry): void {
   visRow.appendChild(document.createTextNode(' Always show on card'));
   menu.appendChild(visRow);
 
-  const saveBtn = document.createElement('button');
-  saveBtn.className = 'primary ctx-item';
-  saveBtn.textContent = 'Save note';
-  saveBtn.addEventListener('click', () => {
+  addContextMenuItem(menu, 'Save note', () => {
     const wasEmpty = !entry.meta!.note;
     entry.meta!.note = noteArea.value;
     entry.meta!.noteAlwaysVisible = visCb.checked;
@@ -2533,8 +2509,7 @@ function openNoteEditor(entry: Entry): void {
     toast('Note saved.');
     closeTagContextMenu();
     renderCurrentView();
-  });
-  menu.appendChild(saveBtn);
+  }, { className: 'primary' });
 
   document.body.appendChild(menu);
   ctxMenuEl = menu;
@@ -2558,23 +2533,12 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
   // explanation lives in `title` (native hover tooltip) instead of being
   // crammed into the visible button text, which was making this menu read
   // as a wall of text.
-  const wd14Btn = document.createElement('button');
-  wd14Btn.className = 'ctx-item';
-  wd14Btn.textContent = '🐍 WD14 Tag';
-  wd14Btn.title = 'Tag this image with WD14 (via ComfyUI)';
-  wd14Btn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
+  addContextMenuItem(menu, '🐍 WD14 Tag', () => {
     closeTagContextMenu();
     tagSingleImageWithWd14(entry);
-  });
-  menu.appendChild(wd14Btn);
+  }, { title: 'Tag this image with WD14 (via ComfyUI)' });
 
-  const seqBtn = document.createElement('button');
-  seqBtn.className = 'ctx-item';
-  seqBtn.textContent = '▶ Sequential from here';
-  seqBtn.title = 'Enter sequential mode starting at this image (walks the current filter image by image)';
-  seqBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
+  addContextMenuItem(menu, '▶ Sequential from here', () => {
     closeTagContextMenu();
     const list = filteredEntries();
     let startIdx = list.findIndex((e) => e.base === entry.base);
@@ -2588,34 +2552,22 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     seqPanelForcedCollapse = !getRightPanelCollapsedRef();
     setRightPanelCollapsedRef(true);
     switchView('single');
-  });
-  menu.appendChild(seqBtn);
+  }, { title: 'Enter sequential mode starting at this image (walks the current filter image by image)' });
 
-  const toggleDisableBtn = document.createElement('button');
-  toggleDisableBtn.className = 'ctx-item';
-  toggleDisableBtn.textContent = entry.disabled ? '↩ Restore' : '🗑 Disable';
-  toggleDisableBtn.title = entry.disabled ? 'Restore this image to the dataset root' : 'Move this image to /Disabled';
-  toggleDisableBtn.addEventListener('click', async (ev) => {
-    ev.stopPropagation();
+  addContextMenuItem(menu, entry.disabled ? '↩ Restore' : '🗑 Disable', async () => {
     await moveEntry(entry, !entry.disabled);
     // The image this menu belongs to just moved out of whatever view it was
     // opened from (active <-> Disabled) — leaving the menu open no longer
     // makes sense once the thing it's about is gone from view.
     closeTagContextMenu();
-  });
-  menu.appendChild(toggleDisableBtn);
+  }, { title: entry.disabled ? 'Restore this image to the dataset root' : 'Move this image to /Disabled' });
 
   // Unlike Disable above (relocates into Disabled/, fully restorable), this
   // deletes the image + its .txt from disk outright and drops the entry
   // from memory — no undo, nothing left to restore from. Gated behind its
   // own confirm modal (danger-styled) since a single click here is
   // otherwise indistinguishable from Disable in the menu's own layout.
-  const deleteBtn = document.createElement('button');
-  deleteBtn.className = 'ctx-item ctx-item-danger';
-  deleteBtn.textContent = '❌ Delete permanently';
-  deleteBtn.title = 'Permanently delete this image and its tags from disk — cannot be undone';
-  deleteBtn.addEventListener('click', async (ev) => {
-    ev.stopPropagation();
+  addContextMenuItem(menu, '❌ Delete permanently', async () => {
     closeTagContextMenu();
     const ok = await showConfirmModal(
       `Permanently delete "${entry.imgName}" and its tags? This cannot be undone — the files are removed from disk, not moved to Disabled/.`,
@@ -2623,8 +2575,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     );
     if (!ok) return;
     await deleteEntryPermanentlyRef(entry);
-  });
-  menu.appendChild(deleteBtn);
+  }, { title: 'Permanently delete this image and its tags from disk — cannot be undone', className: 'ctx-item-danger' });
 
   // --- Text / language / comic / koma / speech bubble (draft, applied on demand) ---
   // Japanese and any number of foreign languages are independent, non-exclusive
@@ -2842,45 +2793,29 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
   sepAntimmunize.textContent = 'Antimmunize options';
   menu.appendChild(sepAntimmunize);
 
-  const toggleMergeImmuneBtn = document.createElement('button');
-  toggleMergeImmuneBtn.className = 'ctx-item';
   function mergeImmuneLabel(){ return entry.meta!.mergeImmune ? '🚫 Un-Merge-Immunize' : '🚫 Merge Immunize'; }
-  toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
-  toggleMergeImmuneBtn.title = 'Merge rules will never rewrite this image\'s tags';
-  toggleMergeImmuneBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
+  function antivoidLabel(){ return entry.meta!.antivoid ? '🟢 Un-Antivoid' : '🟢 Antivoid'; }
+  function antimmunizeLabel(){ return (entry.meta!.mergeImmune && entry.meta!.antivoid) ? '✋ Un-Antimmunize' : '✋ Antimmunize'; }
+
+  const toggleMergeImmuneBtn = addContextMenuItem(menu, mergeImmuneLabel(), () => {
     entry.meta!.mergeImmune = !entry.meta!.mergeImmune;
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
     toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
     toggleAntimmunizeBtn.textContent = antimmunizeLabel();
     renderCurrentView();
-  });
-  menu.appendChild(toggleMergeImmuneBtn);
+  }, { title: 'Merge rules will never rewrite this image\'s tags' });
 
-  const toggleAntivoidBtn = document.createElement('button');
-  toggleAntivoidBtn.className = 'ctx-item';
-  function antivoidLabel(){ return entry.meta!.antivoid ? '🟢 Un-Antivoid' : '🟢 Antivoid'; }
-  toggleAntivoidBtn.textContent = antivoidLabel();
-  toggleAntivoidBtn.title = 'Void rules will never remove tags from this image';
-  toggleAntivoidBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
+  const toggleAntivoidBtn = addContextMenuItem(menu, antivoidLabel(), () => {
     entry.meta!.antivoid = !entry.meta!.antivoid;
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
     toggleAntivoidBtn.textContent = antivoidLabel();
     toggleAntimmunizeBtn.textContent = antimmunizeLabel();
     renderCurrentView();
-  });
-  menu.appendChild(toggleAntivoidBtn);
+  }, { title: 'Void rules will never remove tags from this image' });
 
-  const toggleAntimmunizeBtn = document.createElement('button');
-  toggleAntimmunizeBtn.className = 'ctx-item';
-  function antimmunizeLabel(){ return (entry.meta!.mergeImmune && entry.meta!.antivoid) ? '✋ Un-Antimmunize' : '✋ Antimmunize'; }
-  toggleAntimmunizeBtn.title = 'Shortcut for toggling Merge Immunize and Antivoid together';
-  toggleAntimmunizeBtn.textContent = antimmunizeLabel();
-  toggleAntimmunizeBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
+  const toggleAntimmunizeBtn = addContextMenuItem(menu, antimmunizeLabel(), () => {
     const bothOn = entry.meta!.mergeImmune && entry.meta!.antivoid;
     entry.meta!.mergeImmune = !bothOn;
     entry.meta!.antivoid = !bothOn;
@@ -2890,20 +2825,14 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     toggleAntivoidBtn.textContent = antivoidLabel();
     toggleAntimmunizeBtn.textContent = antimmunizeLabel();
     renderCurrentView();
-  });
-  menu.appendChild(toggleAntimmunizeBtn);
+  }, { title: 'Shortcut for toggling Merge Immunize and Antivoid together' });
 
   // Removes every tag on this image in one click — unlike the chip list's
   // own × buttons (one click per tag), this is the bulk equivalent, gated
   // behind a confirm since it's otherwise a single misclick away from
   // wiping an image's whole tag set. Grouped next to Reset edits below —
   // both are whole-image tag-state actions.
-  const removeAllTagsBtn = document.createElement('button');
-  removeAllTagsBtn.className = 'ctx-item ctx-item-danger';
-  removeAllTagsBtn.textContent = '🗑️ Remove all tags';
-  removeAllTagsBtn.title = 'Remove every tag from this image at once';
-  removeAllTagsBtn.addEventListener('click', async (ev) => {
-    ev.stopPropagation();
+  addContextMenuItem(menu, '🗑️ Remove all tags', async () => {
     if (entry.tags.length === 0){ toast('This image has no tags to remove.'); return; }
     const ok = await showConfirmModal(
       `Remove all ${entry.tags.length} tag(s) from "${entry.imgName}"?`,
@@ -2913,29 +2842,16 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     removeAllTagsFromEntry(entry);
     header.textContent = `${entry.imgName} · ${entry.tags.length} tag${entry.tags.length===1?'':'s'}`;
     renderCurrentView();
-  });
-  menu.appendChild(removeAllTagsBtn);
+  }, { title: 'Remove every tag from this image at once', className: 'ctx-item-danger' });
 
-  const resetEditsBtn = document.createElement('button');
-  resetEditsBtn.className = 'ctx-item';
-  resetEditsBtn.textContent = '⏮ Reset edits';
-  resetEditsBtn.title = 'Reset this image to its earliest known tag state';
-  resetEditsBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    resetImageEdits(entry);
-  });
-  menu.appendChild(resetEditsBtn);
+  addContextMenuItem(menu, '⏮ Reset edits', () => resetImageEdits(entry), { title: 'Reset this image to its earliest known tag state' });
 
   // Censored/Has-text/Perspective — the same 3 quick-glance badges the
   // card itself shows (buildStatusIconsEl above), just spelled out with
   // which tags matched. Exists here specifically because mobile's badges
   // aren't hoverable — a long-press/tap can't show a native `title`
   // tooltip the way a mouse hover does on desktop.
-  const statusBtn = document.createElement('button');
-  statusBtn.className = 'ctx-item';
-  statusBtn.textContent = 'ⓘ Status details';
-  statusBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
+  addContextMenuItem(menu, 'ⓘ Status details', () => {
     closeTagContextMenu();
     const rows = getEntryStatusIndicators(entry).map(({ emoji, state, label, matchedTags }) => {
       const stateText = state === null ? 'Not indicated' : (state ? 'Yes' : 'No');
@@ -2944,27 +2860,20 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     }).join('');
     showInfoModal(rows, 'Image status');
   });
-  menu.appendChild(statusBtn);
 
   // Locked images are skipped by every mass/automatic tool (Quick Merge,
   // Master Tags, bulk WD14, retroactive catch-up, etc.) — manual per-image
   // actions like this menu's own items are unaffected, since a lock is
   // about protecting an image from being swept up by something the user
   // didn't specifically aim at it.
-  const toggleLockBtn = document.createElement('button');
-  toggleLockBtn.className = 'ctx-item';
   function lockLabel(){ return entry.meta!.locked ? '🔓 Unlock' : '🔒 Lock'; }
-  toggleLockBtn.textContent = lockLabel();
-  toggleLockBtn.title = 'Skip mass tools (Quick Merge, Master Tags, bulk WD14, etc.) for this image';
-  toggleLockBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
+  const toggleLockBtn = addContextMenuItem(menu, lockLabel(), () => {
     entry.meta!.locked = !entry.meta!.locked;
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
     toggleLockBtn.textContent = lockLabel();
     renderCurrentView();
-  });
-  menu.appendChild(toggleLockBtn);
+  }, { title: 'Skip mass tools (Quick Merge, Master Tags, bulk WD14, etc.) for this image' });
 
   // --- Review flag (limited palette) ---
   const sep2 = document.createElement('div');
@@ -3051,10 +2960,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
   visRow.appendChild(document.createTextNode(' Always show on card'));
   menu.appendChild(visRow);
 
-  const saveNoteBtn = document.createElement('button');
-  saveNoteBtn.className = 'primary ctx-item';
-  saveNoteBtn.textContent = 'Save note';
-  saveNoteBtn.addEventListener('click', () => {
+  addContextMenuItem(menu, 'Save note', () => {
     const wasEmpty = !entry.meta!.note;
     entry.meta!.note = noteArea.value;
     entry.meta!.noteAlwaysVisible = visCb.checked;
@@ -3068,8 +2974,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     toast('Note saved.');
     closeTagContextMenu();
     renderCurrentView();
-  });
-  menu.appendChild(saveNoteBtn);
+  }, { className: 'primary' });
 
   document.body.appendChild(menu);
   ctxMenuEl = menu;
@@ -3150,11 +3055,11 @@ export function initView(deps: ViewDeps): void {
 
   langAutoSelectToggle.addEventListener('change', () => {
     autoSelectNewLanguage = langAutoSelectToggle.checked;
-    try { localStorage.setItem('dts-lang-autoselect', autoSelectNewLanguage ? '1' : '0'); } catch(e){}
+    setBool('dts-lang-autoselect', autoSelectNewLanguage);
   });
   (function initLangAutoSelectPref(){
     let on = true;
-    try { on = localStorage.getItem('dts-lang-autoselect') !== '0'; } catch(e){}
+    on = getBool('dts-lang-autoselect', true);
     autoSelectNewLanguage = on;
     langAutoSelectToggle.checked = on;
   })();
@@ -3164,11 +3069,11 @@ export function initView(deps: ViewDeps): void {
   // filter-driven sort like "everything without 1girl" reads have/not-have
   // at a glance. Tags stay editable through the card modal either way.
   let hideTags = false;
-  try { hideTags = localStorage.getItem('dts-hide-tags') === '1'; } catch(e){}
+  hideTags = getBool('dts-hide-tags');
   btnHideTags.textContent = hideTags ? '\ud83d\udc41 Show tags' : '\ud83d\ude48 Hide tags';
   btnHideTags.addEventListener('click', () => {
     hideTags = !hideTags;
-    try { localStorage.setItem('dts-hide-tags', hideTags ? '1' : '0'); } catch(e){}
+    setBool('dts-hide-tags', hideTags);
     btnHideTags.textContent = hideTags ? '\ud83d\udc41 Show tags' : '\ud83d\ude48 Hide tags';
     renderCurrentView();
   });
@@ -3238,7 +3143,7 @@ export function initView(deps: ViewDeps): void {
       renderSingleView();
       singleViewEl.classList.add(inClass);
       requestAnimationFrame(() => requestAnimationFrame(() => singleViewEl.classList.remove(inClass)));
-    }, 100);
+    }, transitionMsOf(singleViewEl));
   }
   singlePrevBtn.addEventListener('click', () => pageSingle(-1));
   singleNextBtn.addEventListener('click', () => pageSingle(1));

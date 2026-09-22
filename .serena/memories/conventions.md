@@ -218,7 +218,7 @@ ComfyUI instance and pulling the real submitted graph back out of `GET /history/
 resolves packed subgraphs and mute/bypass state exactly like ComfyUI's own compiler would (hand-
 converting the UI-format export would have meant reimplementing that compiler). 1-Pass vs 2-Pass
 is presence/absence of nodes in the submitted dict, not a mode flag — there's no such concept in
-the API format. See `notes/SynthDat-Node-Map.md` and `notes/SynthDat-Overseer.md` for the full node-id map rather
+the API format. See `notes/Features/SynthDat-Node-Map.md` and `notes/Features/SynthDat-Overseer.md` for the full node-id map rather
 than duplicating it here; keep both in sync if the template ever changes.
 
 Two durable, broadly-reusable techniques from building it:
@@ -309,7 +309,7 @@ Disabled images too, per an earlier "it should autosweep all existing since it i
 instruction) — a later request in the same overall feature's lifecycle explicitly asked for
 Gallery-only scope instead, confirmed via a clarifying question before implementing. If a future
 session sees "retroactive" in the dock's name and assumes it should sweep Disabled entries, check
-`canonical-tags.ts`'s header comment and `notes/Retroactive-Merge-Void.md` first — this was a
+`canonical-tags.ts`'s header comment and `notes/Features/Retroactive-Merge-Void.md` first — this was a
 confirmed decision, not an oversight.
 
 Three "full control" additions layered onto the base rule shape (`{id, canonical, children,
@@ -449,7 +449,7 @@ one-time backward-compat scan of a leftover `Unsaved Approved/` folder from an o
 (if present) and folds its contents into the active set as ordinary entries, so nobody upgrading
 loses images that were stuck there — but nothing writes into that folder anymore going forward.
 
-**Doc maintenance policy** (`notes/Maintenance-Policy.md` — `CLAUDE.md` itself is now just a
+**Doc maintenance policy** (`notes/Meta/Maintenance-Policy.md` — `CLAUDE.md` itself is now just a
 pointer into `notes/`, see `mem:core`): after any feature/bugfix judged "major" (user-requested
 feature, a bug that took real investigation, or anything changing what a `notes/` note currently
 asserts), update the relevant `notes/` note(s) — new pitfall → `notes/Pitfalls/`, linked from
@@ -468,16 +468,14 @@ same running ComfyUI instance worked fine. Two shapes exist side by side dependi
 ComfyUI schema version the reporting node was last touched under: classic
 `[[...optionStrings], {meta}]` (element 0 IS the array — most nodes today) vs. the newer typed-
 widget `["COMBO", {options:[...], ...}]` (element 0 is the literal string `"COMBO"`; the real
-list is nested at element 1's `.options`). Both `comfy-bridge/src/main.ts`'s
-`synthdat-get-object-info` IPC handler (desktop) and `comfy-bridge/mobile/www/app.js`'s
-`comfyGetObjectInfo()` (mobile, hand-written JS with no shared TS source) now have their own
-`parseComboValues(nodeInfo, inputName)` helper trying the classic shape first, falling back to
-the typed-widget one — same fix duplicated in both files rather than shared, matching how
-`comfyGetObjectInfo`/`fetchComboValues` were already independently duplicated between desktop and
-mobile before this. If a future model dropdown (any `synthdatGetObjectInfo`/`comfyGetObjectInfo`
-caller) reports empty on a live, reachable ComfyUI, check this parser before assuming a
-connectivity or missing-custom-node problem — dump the raw `/object_info/<ClassType>` response
-and compare shapes.
+list is nested at element 1's `.options`). That parser is now shared:
+`src/comfy-core.ts`'s `parseComboValues`, synced to `comfy-bridge/src/comfy-core.ts` and re-exported
+by the bridge's `shared/index.ts` (`BridgeShared.parseComboValues`), so the desktop bridge
+(`comfy-bridge/src/main.ts`'s `synthdat-get-object-info`) and the now-TypeScript mobile shell
+(`comfy-bridge/mobile/src/app.ts`) both call one implementation. If a future model dropdown (any
+`synthdatGetObjectInfo` caller) reports empty on a live, reachable ComfyUI, check this parser before
+assuming a connectivity or missing-custom-node problem — dump the raw `/object_info/<ClassType>`
+response and compare shapes.
 
 **Comfy Bridge desktop's upscale-model list used to be read straight off disk from a
 hardcoded personal path — deleted, now a third combo lookup via `fetchComboValues` like every
@@ -529,3 +527,24 @@ color does) — all confirmed near-identical to the old hardcoded value when com
 subtly wrong in one spot, grep `renderer/styles.css` for a bare `#` hex in a `background`/
 `border-color` declaration OUTSIDE an `html[data-theme=...]` block before assuming the new
 theme's own tokens are the problem — it's more likely another one of these.
+
+**ComfyUI protocol core is ONE shared module (`src/comfy-core.ts`), not per-app copies.**
+The transport-agnostic pieces — `parseComboValues` (dual-shape `/object_info` combo parsing),
+`buildMultipart`, `buildSynthDatPrompt` (+ `SynthDatPromptConfig`), `buildWd14Prompt`,
+`parseQueueResponse`, `extractWd14Tags`, `extractPngTextChunks` — live there and are imported by root `main.ts` (Node),
+`comfy-client.ts` (fetch), root `synthdat-overseer.ts`, and Comfy Bridge. Comfy Bridge is a
+separate project that can't import across the repo root, so it keeps a **synced copy**
+(`comfy-bridge/src/comfy-core.ts` + `shared-types.d.ts`) regenerated by
+`node scripts/sync-comfy-core.js` after ANY edit to the root file — edit the root, never the copy.
+`comfy-core.ts` is a RUNTIME module, so `tsc` emits `comfy-core.js` at each app root: it must be
+listed in BOTH `package.json` `build.files` whitelists or a packaged build fails to `require` it
+(same class as the `ws`/icon whitelist pitfall). The bridge's `shared/index.ts` re-exports it, so
+the mobile shell calls `BridgeShared.*`. **The request/poll transport calls are shared too, via an
+injected transport:** `uploadImage`/`queuePrompt`/`pollHistory` live in `comfy-core.ts` and take a
+`ComfyTransport` (`{ request(host, path, init) }`) — each runtime supplies its own
+(`nodeComfyTransport` over Node `http` in the two `main.ts` files, `fetchComfyTransport` in
+`comfy-client.ts`, and the mobile shell's own fetch transport via `BridgeShared.*`). Only the
+transport differs per runtime; the upload→queue→poll sequence, error strings, and cancellation
+logic are one implementation. Verified live against a running ComfyUI: both the SynthDat prompt
+graph and the WD14 tag graph were accepted by `POST /prompt` (`node_errors: {}`), and the shared
+client's full upload→queue→poll round trip returns real tags.

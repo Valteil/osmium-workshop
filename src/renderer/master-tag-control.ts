@@ -3,7 +3,8 @@
 // `filteredEntries` and `renderCurrentView` stay owned by index.ts's core
 // filtering/view code and are injected once via initMasterTagControl(),
 // since index.ts's IIFE can't export them.
-import type { Entry, EntryMeta } from './types';
+import type { Entry, EntryMeta, EditLogAffected } from './types';
+import { getInt, setInt } from './storage';
 import {
   masterSelectionSummary, masterMiniGrid, btnMasterSelectAll, btnMasterClearSelection,
   btnMasterLockSelected, btnMasterUnlockSelected, btnMasterDeleteSelected, btnMasterDisableSelected,
@@ -68,7 +69,7 @@ document.addEventListener('pointercancel', () => { miniGridDragging = false; });
 const MINI_GRID_SIZE_KEY = 'dts-mini-grid-size';
 let miniGridSize = 1;
 try {
-  const saved = parseInt(localStorage.getItem(MINI_GRID_SIZE_KEY) || '', 10);
+  const saved = getInt(MINI_GRID_SIZE_KEY, NaN);
   if (saved >= 1 && saved <= 4) miniGridSize = saved;
 } catch(e){}
 
@@ -86,7 +87,7 @@ function buildMiniGridSizeRow(): HTMLElement {
     btn.title = `${n}x thumbnail size`;
     btn.addEventListener('click', () => {
       miniGridSize = n;
-      try { localStorage.setItem(MINI_GRID_SIZE_KEY, String(n)); } catch(e){}
+      setInt(MINI_GRID_SIZE_KEY, n);
       masterMiniGrid.style.setProperty('--mini-grid-size', String(n));
       row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
     });
@@ -307,7 +308,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   btnMasterDisableSelected.addEventListener('click', async () => {
     if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
     const total = masterSelectedImages.size;
-    const entriesList = Array.from(masterSelectedImages).map(base => getEntryByBase(base)).filter((e): e is Entry => !!e);
+    const entriesList = selectedEntries();
     const moved = await disableEntriesRef(entriesList);
     if (moved === 0){ toast('Nothing to disable — every selected image is already disabled or locked.'); return; }
     const skipped = total - moved;
@@ -331,7 +332,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
       { okLabel: `Delete ${total} permanently`, danger: true }
     );
     if (!ok) return;
-    const entriesList = Array.from(masterSelectedImages).map(base => getEntryByBase(base)).filter((e): e is Entry => !!e);
+    const entriesList = selectedEntries();
     const deleted = await deleteEntriesPermanentlyRef(entriesList);
     if (deleted === 0){ toast('Nothing deleted — every selected image is locked.'); return; }
     const skipped = total - deleted;
@@ -438,148 +439,139 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   }
   refreshImmunizeToggles();
 
-  btnMasterApplyToSelected.addEventListener('click', () => {
-    const tag = masterApplyTagInput.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
-    if (!tag){ toast('Enter a tag to apply.'); return; }
-    if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
-    const affected = [];
-    for (const base of masterSelectedImages){
-      const e = getEntryByBase(base);
-      if (!e || e.meta?.locked || e.tags.includes(tag)) continue;
+  function selectedEntries(): Entry[] {
+    return Array.from(masterSelectedImages).map(base => getEntryByBase(base)).filter((e): e is Entry => !!e);
+  }
+
+  // Tag inputs are normalized the same way on every bulk op (underscores ->
+  // spaces, collapse runs, trim) — one reader keeps them consistent.
+  const readTag = (el: HTMLInputElement): string => el.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+
+  // The shared skeleton every bulk tag op below follows: filter the target
+  // entries, snapshot + mutate + markDirty each, then report ONCE (one toast,
+  // one edit-log/undo entry, one master_ops stat bump) and refresh. Collapsing
+  // the eight handlers onto this keeps their reporting identical and stops the
+  // skip-predicate/summary logic from drifting between near-duplicate copies.
+  function runMassTagOp(opts: {
+    entries: Entry[];
+    skip: (e: Entry) => boolean;
+    apply: (e: Entry) => void;
+    logType: string;
+    summary: (count: number) => string;
+    emptyMsg: string;
+    clearInputs?: () => void;
+    statKey?: string;
+  }): void {
+    const affected: EditLogAffected[] = [];
+    for (const e of opts.entries) {
+      if (opts.skip(e)) continue;
       const prevTags = e.tags.slice();
-      e.tags.push(tag);
+      opts.apply(e);
       markDirty(e);
       affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
     }
-    if (affected.length === 0){ toast('Nothing to apply — selected images already have that tag.'); return; }
-    const summary = `Applied "${tag}" to ${affected.length} selected image(s).`;
+    if (affected.length === 0) { toast(opts.emptyMsg); return; }
+    const summary = opts.summary(affected.length);
     toast(summary);
-    recordChange('add-tag', summary, affected);
+    recordChange(opts.logType, summary, affected);
     folderStats.master_ops = (folderStats.master_ops || 0) + 1;
     saveFolderStats();
-    masterApplyTagInput.value = '';
+    if (opts.statKey) trackStat(opts.statKey);
+    if (opts.clearInputs) opts.clearInputs();
     refreshAllUIRef();
     checkAchievements();
+  }
+
+  btnMasterApplyToSelected.addEventListener('click', () => {
+    const tag = readTag(masterApplyTagInput);
+    if (!tag){ toast('Enter a tag to apply.'); return; }
+    if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
+    runMassTagOp({
+      entries: selectedEntries(),
+      skip: e => !!e.meta?.locked || e.tags.includes(tag),
+      apply: e => { e.tags.push(tag); },
+      logType: 'add-tag',
+      summary: n => `Applied "${tag}" to ${n} selected image(s).`,
+      emptyMsg: 'Nothing to apply — selected images already have that tag.',
+      clearInputs: () => { masterApplyTagInput.value = ''; }
+    });
   });
 
   btnMasterRemoveFromSelected.addEventListener('click', () => {
-    const tag = masterRemoveTagInput.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+    const tag = readTag(masterRemoveTagInput);
     if (!tag){ toast('Enter a tag to remove.'); return; }
     if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
-    const affected = [];
-    for (const base of masterSelectedImages){
-      const e = getEntryByBase(base);
-      if (!e || e.meta?.locked || !e.tags.includes(tag)) continue;
-      const prevTags = e.tags.slice();
-      e.tags = e.tags.filter(t => t !== tag);
-      markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-    }
-    if (affected.length === 0){ toast('None of the selected images have that tag.'); return; }
-    const summary = `Removed "${tag}" from ${affected.length} selected image(s).`;
-    toast(summary);
-    recordChange('remove-tag', summary, affected);
-    folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-    saveFolderStats();
-    masterRemoveTagInput.value = '';
-    refreshAllUIRef();
-    checkAchievements();
+    runMassTagOp({
+      entries: selectedEntries(),
+      skip: e => !!e.meta?.locked || !e.tags.includes(tag),
+      apply: e => { e.tags = e.tags.filter(t => t !== tag); },
+      logType: 'remove-tag',
+      summary: n => `Removed "${tag}" from ${n} selected image(s).`,
+      emptyMsg: 'None of the selected images have that tag.',
+      clearInputs: () => { masterRemoveTagInput.value = ''; }
+    });
   });
 
   btnCondApply.addEventListener('click', () => {
-    const sourceTag = condSourceTag.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
-    const addTag = condAddTag.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+    const sourceTag = readTag(condSourceTag);
+    const addTag = readTag(condAddTag);
     if (!sourceTag || !addTag){ toast('Fill in both tags.'); return; }
-    const affected = [];
-    for (const e of getEntries()){
-      if (e.disabled || e.meta?.locked) continue;
-      if (!e.tags.includes(sourceTag) || e.tags.includes(addTag)) continue;
-      const prevTags = e.tags.slice();
-      e.tags.push(addTag);
-      markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-    }
-    if (affected.length === 0){ toast(`No images with "${sourceTag}" are missing "${addTag}".`); return; }
-    const summary = `Added "${addTag}" to every image with "${sourceTag}" (${affected.length} image(s)).`;
-    toast(summary);
-    recordChange('add-tag', summary, affected);
-    folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-    saveFolderStats();
-    condSourceTag.value = ''; condAddTag.value = '';
-    refreshAllUIRef();
-    checkAchievements();
+    runMassTagOp({
+      entries: getEntries(),
+      skip: e => e.disabled || !!e.meta?.locked || !e.tags.includes(sourceTag) || e.tags.includes(addTag),
+      apply: e => { e.tags.push(addTag); },
+      logType: 'add-tag',
+      summary: n => `Added "${addTag}" to every image with "${sourceTag}" (${n} image(s)).`,
+      emptyMsg: `No images with "${sourceTag}" are missing "${addTag}".`,
+      clearInputs: () => { condSourceTag.value = ''; condAddTag.value = ''; }
+    });
   });
 
   btnCondApplyWithout.addEventListener('click', () => {
-    const sourceTag = condWithoutSourceTag.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
-    const addTag = condWithoutAddTag.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+    const sourceTag = readTag(condWithoutSourceTag);
+    const addTag = readTag(condWithoutAddTag);
     if (!sourceTag || !addTag){ toast('Fill in both tags.'); return; }
-    const affected = [];
-    for (const e of getEntries()){
-      if (e.disabled || e.meta?.locked) continue;
-      if (e.tags.includes(sourceTag) || e.tags.includes(addTag)) continue;
-      const prevTags = e.tags.slice();
-      e.tags.push(addTag);
-      markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-    }
-    if (affected.length === 0){ toast(`No images without "${sourceTag}" are missing "${addTag}".`); return; }
-    const summary = `Added "${addTag}" to every image WITHOUT "${sourceTag}" (${affected.length} image(s)).`;
-    toast(summary);
-    recordChange('add-tag', summary, affected);
-    folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-    saveFolderStats();
-    condWithoutSourceTag.value = ''; condWithoutAddTag.value = '';
-    refreshAllUIRef();
-    checkAchievements();
+    runMassTagOp({
+      entries: getEntries(),
+      skip: e => e.disabled || !!e.meta?.locked || e.tags.includes(sourceTag) || e.tags.includes(addTag),
+      apply: e => { e.tags.push(addTag); },
+      logType: 'add-tag',
+      summary: n => `Added "${addTag}" to every image WITHOUT "${sourceTag}" (${n} image(s)).`,
+      emptyMsg: `No images without "${sourceTag}" are missing "${addTag}".`,
+      clearInputs: () => { condWithoutSourceTag.value = ''; condWithoutAddTag.value = ''; }
+    });
   });
 
   btnMassApply.addEventListener('click', async () => {
-    const tag = massApplyInput.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+    const tag = readTag(massApplyInput);
     if (!tag){ toast('Enter a tag to apply.'); return; }
     const ok = await showConfirmModal(`Add "${tag}" to EVERY active image in this folder?`, { okLabel: 'Apply to all' });
     if (!ok) return;
-    const affected = [];
-    for (const e of getEntries()){
-      if (e.disabled || e.meta?.locked || e.tags.includes(tag)) continue;
-      const prevTags = e.tags.slice();
-      e.tags.push(tag);
-      markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-    }
-    if (affected.length === 0){ toast('Every image already has that tag.'); return; }
-    const summary = `Added "${tag}" to all ${affected.length} image(s).`;
-    toast(summary);
-    recordChange('add-tag', summary, affected);
-    folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-    saveFolderStats();
-    massApplyInput.value = '';
-    refreshAllUIRef();
-    checkAchievements();
+    runMassTagOp({
+      entries: getEntries(),
+      skip: e => e.disabled || !!e.meta?.locked || e.tags.includes(tag),
+      apply: e => { e.tags.push(tag); },
+      logType: 'add-tag',
+      summary: n => `Added "${tag}" to all ${n} image(s).`,
+      emptyMsg: 'Every image already has that tag.',
+      clearInputs: () => { massApplyInput.value = ''; }
+    });
   });
 
   btnMassRemove.addEventListener('click', async () => {
-    const tag = massRemoveInput.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
+    const tag = readTag(massRemoveInput);
     if (!tag){ toast('Enter a tag to remove.'); return; }
     const ok = await showConfirmModal(`Remove "${tag}" from EVERY active image in this folder?`, { okLabel: 'Remove from all', danger: true });
     if (!ok) return;
-    const affected = [];
-    for (const e of getEntries()){
-      if (e.disabled || e.meta?.locked || !e.tags.includes(tag)) continue;
-      const prevTags = e.tags.slice();
-      e.tags = e.tags.filter(t => t !== tag);
-      markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-    }
-    if (affected.length === 0){ toast('No images have that tag.'); return; }
-    const summary = `Removed "${tag}" from all ${affected.length} image(s).`;
-    toast(summary);
-    recordChange('remove-tag', summary, affected);
-    folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-    saveFolderStats();
-    massRemoveInput.value = '';
-    refreshAllUIRef();
-    checkAchievements();
+    runMassTagOp({
+      entries: getEntries(),
+      skip: e => e.disabled || !!e.meta?.locked || !e.tags.includes(tag),
+      apply: e => { e.tags = e.tags.filter(t => t !== tag); },
+      logType: 'remove-tag',
+      summary: n => `Removed "${tag}" from all ${n} image(s).`,
+      emptyMsg: 'No images have that tag.',
+      clearInputs: () => { massRemoveInput.value = ''; }
+    });
   });
 
   btnMasterRename.addEventListener('click', () => {
@@ -587,52 +579,34 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
     const to = masterRenameTo.value.trim();
     if (!from || !to){ toast('Enter both a tag to rename and its replacement.'); return; }
     if (from === to){ toast('New name is the same as the old one.'); return; }
-    const affected = [];
-    for (const e of getEntries()){
-      if (e.disabled || e.meta?.locked || !e.tags.includes(from)) continue;
-      const prevTags = e.tags.slice();
-      let newTags = e.tags.map(t => t === from ? to : t);
-      newTags = Array.from(new Set(newTags));
-      e.tags = newTags;
-      markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
-    }
-    if (affected.length === 0){ toast(`No active images currently have the tag "${from}".`); return; }
-    const summary = `Renamed "${from}" → "${to}" across ${affected.length} image(s).`;
-    toast(summary);
-    recordChange('rename', summary, affected);
-    folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-    saveFolderStats();
-    trackStat('renames');
-    masterRenameFrom.value = ''; masterRenameTo.value = '';
-    refreshAllUIRef();
-    checkAchievements();
+    runMassTagOp({
+      entries: getEntries(),
+      skip: e => e.disabled || !!e.meta?.locked || !e.tags.includes(from),
+      apply: e => { e.tags = Array.from(new Set(e.tags.map(t => t === from ? to : t))); },
+      logType: 'rename',
+      summary: n => `Renamed "${from}" → "${to}" across ${n} image(s).`,
+      emptyMsg: `No active images currently have the tag "${from}".`,
+      statKey: 'renames',
+      clearInputs: () => { masterRenameFrom.value = ''; masterRenameTo.value = ''; }
+    });
   });
 
   btnMasterFR.addEventListener('click', () => {
     const find = masterFRFind.value;
     const repl = masterFRReplace.value;
     if (!find){ toast('Enter a substring to find.'); return; }
-    const affected = [];
-    for (const e of getEntries()){
-      if (e.disabled || e.meta?.locked || !e.tags.some(t => t.includes(find))) continue;
-      const prevTags = e.tags.slice();
-      let newTags = e.tags.map(t => t.includes(find) ? t.split(find).join(repl) : t);
-      newTags = newTags.map(t => t.trim()).filter(Boolean);
-      newTags = Array.from(new Set(newTags));
-      e.tags = newTags;
-      markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
-    }
-    if (affected.length === 0){ toast(`No tags contain "${find}".`); return; }
-    const summary = `Replaced "${find}" → "${repl}" inside tags across ${affected.length} image(s).`;
-    toast(summary);
-    recordChange('find-replace', summary, affected);
-    folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-    saveFolderStats();
-    trackStat('find_replaces');
-    masterFRFind.value = ''; masterFRReplace.value = '';
-    refreshAllUIRef();
-    checkAchievements();
+    runMassTagOp({
+      entries: getEntries(),
+      skip: e => e.disabled || !!e.meta?.locked || !e.tags.some(t => t.includes(find)),
+      apply: e => {
+        const replaced = e.tags.map(t => t.includes(find) ? t.split(find).join(repl) : t);
+        e.tags = Array.from(new Set(replaced.map(t => t.trim()).filter(Boolean)));
+      },
+      logType: 'find-replace',
+      summary: n => `Replaced "${find}" → "${repl}" inside tags across ${n} image(s).`,
+      emptyMsg: `No tags contain "${find}".`,
+      statKey: 'find_replaces',
+      clearInputs: () => { masterFRFind.value = ''; masterFRReplace.value = ''; }
+    });
   });
 }

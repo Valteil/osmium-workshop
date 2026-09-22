@@ -1,4 +1,5 @@
 import type { ThemeName } from './types';
+import { getJSON, setJSON, setString, setBool } from './storage';
 import {
   favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel,
   themeVarRows, themeCustomPanel, themeSelect
@@ -96,12 +97,11 @@ export function applyTheme(theme: string): void {
   if (dayNightOn){
     dayNightOn = false;
     document.documentElement.classList.remove('night-mode');
-    try { localStorage.setItem('dts-night-mode', '0'); } catch(e){}
+    setBool('dts-night-mode', false);
   }
   if (theme === 'custom'){
     document.documentElement.setAttribute('data-theme', 'custom');
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem('dts-custom-theme') || 'null'); } catch(e){}
+    const saved = getJSON<Record<string, string> | null>('dts-custom-theme', null);
     if (saved){
       for (const [key] of THEME_VARS){
         if (saved[key]) document.documentElement.style.setProperty(key, saved[key]);
@@ -120,14 +120,13 @@ export function applyTheme(theme: string): void {
   // amethyst/solarflare/twilight-garden/aurora-borealis/celestial-gold —
   // this generic class is ORed in alongside those five in styles.css.
   document.documentElement.classList.toggle('theme-refined', refinedThemes.includes(theme));
-  try { localStorage.setItem('dts-theme', theme); } catch(e){}
+  setString('dts-theme', theme);
 }
 
-export let refinedThemes: string[] = [];
-try { refinedThemes = JSON.parse(localStorage.getItem('dts-refined-themes') || '[]') || []; } catch { refinedThemes = []; }
+export let refinedThemes: string[] = getJSON<string[]>('dts-refined-themes', []);
 
 export function saveRefinedThemes(): void {
-  try { localStorage.setItem('dts-refined-themes', JSON.stringify(refinedThemes)); } catch(e){}
+  setJSON('dts-refined-themes', refinedThemes);
 }
 
 // A theme already at epic/legendary rarity (or already individually
@@ -327,6 +326,6 @@ export function toggleDayNightMode(): boolean {
     clearCustomOverrides();
     document.documentElement.classList.remove('night-mode');
   }
-  try { localStorage.setItem('dts-night-mode', dayNightOn ? '1' : '0'); } catch(e){}
+  setBool('dts-night-mode', dayNightOn);
   return dayNightOn;
 }

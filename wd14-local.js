@@ -1,14 +1,66 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-const { app, dialog, BrowserWindow } = require('electron');
-const fs = require('fs');
-const path = require('path');
-const http = require('http');
-const https = require('https');
-const { InferenceSession, Tensor } = require('onnxruntime-node');
-const { nativeImage } = require('electron');
+exports.registerWd14LocalHandlers = registerWd14LocalHandlers;
+exports.listModels = listModels;
+exports.deleteModel = deleteModel;
+exports.downloadModel = downloadModel;
+exports.tagImage = tagImage;
+exports.pickImportFiles = pickImportFiles;
+exports.importModel = importModel;
+// Desktop's answer to mobile's DtsWd14Plugin.kt (ONNX Runtime Android) —
+// on-device WD14 tagging via onnxruntime-node, so a user never needs
+// ComfyUI running just to tag images. Ported from that Kotlin file as
+// closely as the two platforms' APIs allow; see this file's own comments
+// for the couple of places that genuinely differ (input-size discovery,
+// execution provider choice).
+//
+// The renderer-facing contract (list/delete/download/tagImage, and the
+// {ok,tagsCsv}/{ok:false,error} shape tagImage returns) is fixed by
+// src/renderer/wd14-tagger.ts and mobile/mobile-shim.js's window.Wd14Local
+// — both already exist and work; this module plus wd14-local-bridge.ts on
+// the renderer side just need to satisfy the same contract for desktop.
+//
+const electron_1 = require("electron");
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
+const http = __importStar(require("http"));
+const https = __importStar(require("https"));
+const onnxruntime_node_1 = require("onnxruntime-node");
 function modelsDir() {
-    const dir = path.join(app.getPath('userData'), 'wd14_models');
+    const dir = path.join(electron_1.app.getPath('userData'), 'wd14_models');
     fs.mkdirSync(dir, { recursive: true });
     return dir;
 }
@@ -27,7 +79,8 @@ async function listModels() {
             tagCount = Math.max(0, fs.readFileSync(tagsPath, 'utf8').split(/\r?\n/).filter(Boolean).length - 1);
         }
         catch (err) { /* leave 0 */ }
-        models.push({ name, sizeBytes: fs.statSync(modelPath).size, tagCount });
+        // Reaching here means both files exist, so the pair is complete.
+        models.push({ name, sizeBytes: fs.statSync(modelPath).size, tagCount, hasOnnx: true, hasCsv: true });
     }
     return models;
 }
@@ -47,11 +100,14 @@ function deleteModel(name) {
 // the renderer can run its own name-collision confirm first, the same way
 // downloadRepo() in wd14-tagger.ts already does before downloadModel().
 async function pickImportFiles(browserWindow) {
-    const res = await dialog.showOpenDialog(browserWindow, {
+    const opts = {
         title: 'Pick this model\'s .onnx file and its tags .csv (select both at once)',
         properties: ['openFile', 'multiSelections'],
         filters: [{ name: 'WD14 model files', extensions: ['onnx', 'csv'] }]
-    });
+    };
+    const res = browserWindow
+        ? await electron_1.dialog.showOpenDialog(browserWindow, opts)
+        : await electron_1.dialog.showOpenDialog(opts);
     if (res.canceled || !res.filePaths || res.filePaths.length === 0)
         return { canceled: true };
     const modelPath = res.filePaths.find((p) => p.toLowerCase().endsWith('.onnx'));
@@ -80,9 +136,10 @@ function importModel({ name, modelPath, tagsPath }) {
 // chase Location headers by hand.
 function fetchToFile(url, destPath, onPercent, redirectsLeft = 5) {
     return new Promise((resolve, reject) => {
-        const lib = url.startsWith('https:') ? https : http;
+        const lib = (url.startsWith('https:') ? https : http);
         const req = lib.get(url, (res) => {
-            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            const status = res.statusCode ?? 0;
+            if (status >= 300 && status < 400 && res.headers.location) {
                 res.resume();
                 if (redirectsLeft <= 0) {
                     reject(new Error('Too many redirects.'));
@@ -92,9 +149,9 @@ function fetchToFile(url, destPath, onPercent, redirectsLeft = 5) {
                 fetchToFile(nextUrl, destPath, onPercent, redirectsLeft - 1).then(resolve, reject);
                 return;
             }
-            if (res.statusCode !== 200) {
+            if (status !== 200) {
                 res.resume();
-                reject(new Error(`HTTP ${res.statusCode} downloading ${url}`));
+                reject(new Error(`HTTP ${status} downloading ${url}`));
                 return;
             }
             const total = parseInt(res.headers['content-length'] || '0', 10);
@@ -163,8 +220,9 @@ const sessionCache = new Map();
 async function loadSession(name, preferGpu) {
     const wantGpu = !!preferGpu;
     const key = name + '|' + (wantGpu ? 'dml' : 'cpu');
-    if (sessionCache.has(key))
-        return sessionCache.get(key);
+    const cachedSession = sessionCache.get(key);
+    if (cachedSession)
+        return cachedSession;
     const modelPath = path.join(modelDir(name), 'model.onnx');
     if (!fs.existsSync(modelPath))
         throw new Error(`Model "${name}" is not downloaded.`);
@@ -172,7 +230,7 @@ async function loadSession(name, preferGpu) {
     let provider = 'cpu';
     if (wantGpu) {
         try {
-            session = await InferenceSession.create(modelPath, { executionProviders: ['dml'] });
+            session = await onnxruntime_node_1.InferenceSession.create(modelPath, { executionProviders: ['dml'] });
             provider = 'dml';
         }
         catch (err) {
@@ -180,15 +238,16 @@ async function loadSession(name, preferGpu) {
         }
     }
     if (!session)
-        session = await InferenceSession.create(modelPath);
+        session = await onnxruntime_node_1.InferenceSession.create(modelPath);
     const entry = { session, provider };
     sessionCache.set(key, entry);
     return entry;
 }
 const tagsCache = new Map();
 function loadTags(name) {
-    if (tagsCache.has(name))
-        return tagsCache.get(name);
+    const cachedTags = tagsCache.get(name);
+    if (cachedTags)
+        return cachedTags;
     const lines = fs.readFileSync(path.join(modelDir(name), 'tags.csv'), 'utf8').split(/\r?\n/).filter(Boolean);
     const header = lines[0].split(',');
     const nameIdx = header.indexOf('name') !== -1 ? header.indexOf('name') : 1;
@@ -208,7 +267,7 @@ function loadTags(name) {
 // WD14's expected BGR order than an RGB-native library like sharp would be
 // — just drop the alpha byte.
 function preprocess(imageBuffer, size) {
-    const img = nativeImage.createFromBuffer(imageBuffer);
+    const img = electron_1.nativeImage.createFromBuffer(imageBuffer);
     const { width, height } = img.getSize();
     if (!width || !height)
         throw new Error('Could not decode this image.');
@@ -222,7 +281,7 @@ function preprocess(imageBuffer, size) {
         const destStart = ((y + offsetY) * maxSide + offsetX) * 4;
         srcBitmap.copy(squared, destStart, srcStart, srcStart + width * 4);
     }
-    const squaredImg = nativeImage.createFromBitmap(squared, { width: maxSide, height: maxSide });
+    const squaredImg = electron_1.nativeImage.createFromBitmap(squared, { width: maxSide, height: maxSide });
     const resized = squaredImg.resize({ width: size, height: size, quality: 'best' });
     const finalBitmap = resized.toBitmap(); // BGRA, size*size*4
     const floatData = new Float32Array(size * size * 3);
@@ -231,7 +290,7 @@ function preprocess(imageBuffer, size) {
         floatData[p + 1] = finalBitmap[i + 1]; // G
         floatData[p + 2] = finalBitmap[i + 2]; // R
     }
-    return new Tensor('float32', floatData, [1, size, size, 3]);
+    return new onnxruntime_node_1.Tensor('float32', floatData, [1, size, size, 3]);
 }
 // Space -> underscore, literal ( ) escaped — matches the app's own caption-
 // file tag format, same as DtsWd14Plugin.kt's escapeTag().
@@ -264,23 +323,22 @@ async function tagImage({ name, imageBytes, threshold, characterThreshold, prefe
 }
 function registerWd14LocalHandlers(ipcMain) {
     ipcMain.handle('wd14-local-list-models', async () => listModels());
-    ipcMain.handle('wd14-local-delete-model', async (event, name) => deleteModel(name));
+    ipcMain.handle('wd14-local-delete-model', async (_event, name) => deleteModel(name));
     ipcMain.handle('wd14-local-download-model', async (event, payload) => {
         await downloadModel(payload, (progress) => event.sender.send('wd14-local-download-progress', progress));
     });
-    ipcMain.handle('wd14-local-tag-image', async (event, payload) => {
+    ipcMain.handle('wd14-local-tag-image', async (_event, payload) => {
         try {
             return await tagImage(payload);
         }
         catch (err) {
-            return { ok: false, error: (err && err.message) || String(err) };
+            return { ok: false, error: err instanceof Error ? err.message : String(err) };
         }
     });
     ipcMain.handle('wd14-local-pick-import-files', async (event) => {
-        return pickImportFiles(BrowserWindow.fromWebContents(event.sender));
+        return pickImportFiles(electron_1.BrowserWindow.fromWebContents(event.sender));
     });
-    ipcMain.handle('wd14-local-import-model', async (event, payload) => {
+    ipcMain.handle('wd14-local-import-model', async (_event, payload) => {
         importModel(payload);
     });
 }
-module.exports = { registerWd14LocalHandlers, listModels, deleteModel, downloadModel, tagImage, pickImportFiles, importModel };

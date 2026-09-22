@@ -8,6 +8,7 @@
 // Self-contained: only touches its own dock* state (owned here now) plus DOM
 // refs and the generic toast() helper.
 import { normalRightTools, rightAside, btnResetDockLayout } from './dom';
+import { getJSON, setJSON } from './storage';
 import { toast } from './shared-ui';
 
 // Matches --panel-dur in styles.css (kept as a plain constant here rather
@@ -59,20 +60,16 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
   let dockHeights: Record<string, string> = {};
 
   function saveDockPrefs(): void {
-    try {
-      localStorage.setItem(storageOrderKey, JSON.stringify(dockOrder));
-      localStorage.setItem(storageCollapsedKey, JSON.stringify(dockCollapsed));
-      localStorage.setItem(storageHeightsKey, JSON.stringify(dockHeights));
-    } catch(e){}
+    setJSON(storageOrderKey, dockOrder);
+    setJSON(storageCollapsedKey, dockCollapsed);
+    setJSON(storageHeightsKey, dockHeights);
   }
 
   function loadDockPrefs(): void {
-    try {
-      const o = JSON.parse(localStorage.getItem(storageOrderKey) || 'null');
-      if (Array.isArray(o) && o.length) dockOrder = o;
-      dockCollapsed = JSON.parse(localStorage.getItem(storageCollapsedKey) || '{}') || {};
-      dockHeights = JSON.parse(localStorage.getItem(storageHeightsKey) || '{}') || {};
-    } catch(e){}
+    const o = getJSON<string[] | null>(storageOrderKey, null);
+    if (Array.isArray(o) && o.length) dockOrder = o;
+    dockCollapsed = getJSON<Record<string, boolean>>(storageCollapsedKey, {});
+    dockHeights = getJSON<Record<string, string>>(storageHeightsKey, {});
   }
 
   function applyDockOrder(): void {

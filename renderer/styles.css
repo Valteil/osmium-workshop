@@ -9,8 +9,17 @@
 :root{
   --pop-dur: 130ms; --pop-ease: cubic-bezier(.22,.85,.32,1);
   --panel-dur: 160ms; --tab-dur: 110ms;
+  /* Swipe-mode slides (html.motion-swipe): a directional push travels a whole
+     pane width, which reads as a jerk on the built-in ease-out or the lighter
+     --pop-ease at --tab-dur's 110ms. It gets the large-surface duration and a
+     strong ease-out (cubic-bezier(0.23, 1, 0.32, 1)) that front-loads the
+     travel and decelerates into place. index.ts/view.ts read --swipe-dur back
+     out of the computed style (shared-ui.ts's transitionMsOf) so the JS swap
+     delay can never drift from the CSS transition the way the old hardcoded
+     100ms did against a 110ms --tab-dur. */
+  --swipe-dur: 160ms; --swipe-ease: cubic-bezier(0.23, 1, 0.32, 1);
 }
-html.motion-off{ --pop-dur: 0ms; --panel-dur: 0ms; --tab-dur: 0ms; }
+html.motion-off{ --pop-dur: 0ms; --panel-dur: 0ms; --tab-dur: 0ms; --swipe-dur: 0ms; }
 
 /* Tab/sidebar-pane transition (index.ts's switchTab()) — Datasets/Editing
    Stats/the right-sidebar Master Tag Control swap all animate OUT, THEN swap
@@ -42,6 +51,14 @@ html.motion-swipe #datasetManagerTab.tab-fading{ opacity: 1; transform: translat
 html.motion-swipe #statsTab.tab-fading,
 html.motion-swipe #normalRightTools.tab-fading,
 html.motion-swipe #masterTagPanel.tab-fading{ opacity: 1; transform: translateX(100%); }
+/* Swipe slides travel further than a fade, so in Swipe mode the panes take the
+   large-surface duration and the strong --swipe-ease instead of the fade's
+   --tab-dur/--pop-ease. Only the timing changes; the transition property list
+   above stays shared. */
+html.motion-swipe #datasetManagerTab, html.motion-swipe #statsTab,
+html.motion-swipe #normalRightTools, html.motion-swipe #masterTagPanel{
+  transition-duration: var(--swipe-dur); transition-timing-function: var(--swipe-ease);
+}
 
 /* Gallery view mode (Grid/Compact/Single/Disabled) and single-mode
    prev/next paging — same sequential animate-out/swap/animate-in shape as
@@ -56,6 +73,9 @@ html.motion-swipe .view-swipe-out-left{ opacity: 1; transform: translateX(-100%)
 html.motion-swipe .view-swipe-out-right{ opacity: 1; transform: translateX(100%); }
 html.motion-swipe .view-swipe-in-right{ opacity: 1; transform: translateX(100%); }
 html.motion-swipe .view-swipe-in-left{ opacity: 1; transform: translateX(-100%); }
+html.motion-swipe #galleryGrid, html.motion-swipe #compactGrid, html.motion-swipe #singleView{
+  transition-duration: var(--swipe-dur); transition-timing-function: var(--swipe-ease);
+}
 
 /* Image card modal — Swipe mode turns its scale-in-from-center into a
    bottom-sheet-style slide up from off-screen, in place of the default
@@ -67,10 +87,32 @@ html.motion-swipe .view-swipe-in-left{ opacity: 1; transform: translateX(-100%);
    adds it for the transition and resets it after (applied-at-start/
    reset-at-end layer discipline), so the modal isn't a permanent resident
    of the compositor's GPU memory. */
-html.motion-swipe .modal-card{ transform: translate3d(0, 100%, 0); }
+html.motion-swipe .modal-card{
+  transform: translate3d(0, 100%, 0);
+  transition-duration: var(--swipe-dur); transition-timing-function: var(--swipe-ease);
+}
+html.motion-swipe .modal-backdrop{ transition-duration: var(--swipe-dur); transition-timing-function: var(--swipe-ease); }
 html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translate3d(0, 0, 0); }
   /* Transition-only layer promotion (see view.ts openImageCardModal). */
   html.motion-swipe #imageCardModal.modal-anim-layers .modal-card{ will-change: transform; }
+
+/* Swipe mode is opt-in, but prefers-reduced-motion still wins: every slide
+   below drops its translate and keeps a plain fade (fewer/gentler, not none —
+   the fade still marks the change), so no user gets the full-width position
+   change they asked the OS to avoid. The out-then-in order is unchanged, so
+   direction stays legible even without the movement. */
+@media (prefers-reduced-motion: reduce){
+  html.motion-swipe #datasetManagerTab.tab-fading,
+  html.motion-swipe #statsTab.tab-fading,
+  html.motion-swipe #normalRightTools.tab-fading,
+  html.motion-swipe #masterTagPanel.tab-fading{ transform: none; opacity: 0; }
+  html.motion-swipe .view-swipe-out-left,
+  html.motion-swipe .view-swipe-out-right,
+  html.motion-swipe .view-swipe-in-right,
+  html.motion-swipe .view-swipe-in-left{ transform: none; opacity: 0; }
+  html.motion-swipe .modal-card{ transform: scale(0.96); }
+  html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: scale(1); }
+}
 
 :root, html[data-theme="studio"]{
     --bg-base:#16151c;

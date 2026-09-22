@@ -7,12 +7,11 @@
     "types": ["node"],
     "outDir": ".",
     "rootDir": "src",
-    "strict": false,
-    "noImplicitAny": false,
+    "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "sourceMap": false
   },
-  "files": ["src/main.ts", "src/preload.ts", "src/wd14-local.ts"]
+  "files": ["src/main.ts", "src/preload.ts", "src/wd14-local.ts", "src/shared-types.d.ts", "src/ipc-types.d.ts", "src/ws.d.ts"]
 }

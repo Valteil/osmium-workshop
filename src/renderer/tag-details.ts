@@ -1,4 +1,5 @@
 import type { FolderStats } from './types';
+import { getJSON, setJSON } from './storage';
 import {
   tagDetailsTitle, tagDetailsBody, tagDetailsCloseBtn, tagDetailsPanel,
   themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel
@@ -64,15 +65,15 @@ const CUSTOM_NOTES_KEY = 'dts-custom-tag-notes';
 
 export function getCustomTagNote(tag: string): string {
   try {
-    const notes = JSON.parse(localStorage.getItem(CUSTOM_NOTES_KEY) || '{}');
+    const notes = getJSON<Record<string, string>>(CUSTOM_NOTES_KEY, {});
     return notes[tag] || '';
   } catch(e){ return ''; }
 }
 export function setCustomTagNote(tag: string, text: string): void {
   try {
-    const notes = JSON.parse(localStorage.getItem(CUSTOM_NOTES_KEY) || '{}');
+    const notes = getJSON<Record<string, string>>(CUSTOM_NOTES_KEY, {});
     notes[tag] = text;
-    localStorage.setItem(CUSTOM_NOTES_KEY, JSON.stringify(notes));
+    setJSON(CUSTOM_NOTES_KEY, notes);
   } catch(e){}
 }
 

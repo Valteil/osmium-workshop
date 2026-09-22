@@ -1,15 +1,16 @@
 import { toastEl, pdropCloseOnSelectToggle, flyoutOutsideCloseToggle, outsideClickSwallowToggle } from './dom';
+import { getBool, setBool } from './storage';
 
 // ---------------- Pdrop-menu "close after selecting" preference ----------------
 
 const PDROP_CLOSE_ON_SELECT_KEY = 'dts-pdrop-close-on-select';
 (function initPdropCloseOnSelectPref(): void {
   let on = true;
-  try { on = localStorage.getItem(PDROP_CLOSE_ON_SELECT_KEY) !== '0'; } catch {}
+  try { on = getBool(PDROP_CLOSE_ON_SELECT_KEY, true); } catch {}
   pdropCloseOnSelectToggle.checked = on;
 })();
 pdropCloseOnSelectToggle.addEventListener('change', () => {
-  try { localStorage.setItem(PDROP_CLOSE_ON_SELECT_KEY, pdropCloseOnSelectToggle.checked ? '1' : '0'); } catch {}
+  try { setBool(PDROP_CLOSE_ON_SELECT_KEY, pdropCloseOnSelectToggle.checked); } catch {}
 });
 function pdropClosesOnSelect(): boolean {
   return pdropCloseOnSelectToggle.checked;
@@ -20,11 +21,11 @@ function pdropClosesOnSelect(): boolean {
 const OUTSIDE_CLICK_SWALLOW_KEY = 'dts-outside-click-swallow';
 (function initOutsideClickSwallowPref(): void {
   let on = false;
-  try { on = localStorage.getItem(OUTSIDE_CLICK_SWALLOW_KEY) === '1'; } catch {}
+  try { on = getBool(OUTSIDE_CLICK_SWALLOW_KEY); } catch {}
   outsideClickSwallowToggle.checked = on;
 })();
 outsideClickSwallowToggle.addEventListener('change', () => {
-  try { localStorage.setItem(OUTSIDE_CLICK_SWALLOW_KEY, outsideClickSwallowToggle.checked ? '1' : '0'); } catch {}
+  try { setBool(OUTSIDE_CLICK_SWALLOW_KEY, outsideClickSwallowToggle.checked); } catch {}
 });
 export function shouldSwallowOutsideClick(): boolean {
   return outsideClickSwallowToggle.checked;
@@ -221,6 +222,31 @@ export function toast(msg: string, ms = 2600): void {
   _toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms);
 }
 
+// Error-toast convenience — the `Could not X: <message>` shape used across the
+// renderer for a caught error.
+export function toastError(prefix: string, err: unknown, ms = 4200): void {
+  const msg = err instanceof Error ? (err.message || String(err)) : String(err);
+  toast(`${prefix}: ${msg}`, ms);
+}
+
+// The `.ctx-item` button shared by every context menu. The stopPropagation is
+// load-bearing: without it the click bubbles to the document-level
+// outside-click listener and immediately closes whatever panel this item just
+// opened (e.g. Tag Details), since the click target is this menu button.
+export function addContextMenuItem(menu: HTMLElement, label: string, onClick: (ev: MouseEvent) => void, opts: { title?: string; className?: string } = {}): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'ctx-item' + (opts.className ? ' ' + opts.className : '');
+  btn.textContent = label;
+  if (opts.title) btn.title = opts.title;
+  btn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    onClick(ev);
+  });
+  menu.appendChild(btn);
+  return btn;
+}
+
 // ---------------- Floating panel show/hide animation ----------------
 
 export function showPanel(el: HTMLElement): void {
@@ -321,6 +347,18 @@ export function showImageLightbox(src: string): void {
 
 // ---------------- Generic viewport-bounded menu positioning ----------------
 
+// The real duration (ms) of an element's own CSS transition, read from the
+// computed style so a JS swap delay can never drift from the stylesheet — the
+// swipe drivers used to hardcode 100ms against a 110ms --tab-dur, and would
+// have missed --swipe-dur entirely. Falls back to 160ms if unparseable;
+// returns 0 under html.motion-off, where the transition vars are zeroed.
+export function transitionMsOf(el: HTMLElement): number {
+  const raw = getComputedStyle(el).transitionDuration.split(',')[0].trim();
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n)) return 160;
+  return raw.endsWith('ms') ? n : n * 1000;
+}
+
 export function positionMenu(menu: HTMLElement, x: number, y: number): void {
   const pad = 8;
   const width = menu.offsetWidth, height = menu.offsetHeight;
@@ -340,12 +378,56 @@ interface ConfirmModalOpts {
   danger?: boolean;
 }
 
+// The shared backdrop/box shell every modal in the renderer is built on:
+// creates the `.confirm-backdrop` + `.confirm-box`, wires outside-click and
+// Escape to dismiss, appends to the body, and fades in. Callers append their
+// own content to `box` (synchronously, before the next paint, so an empty box
+// never flashes) and call `close()` to tear it down. `instant` skips the fade
+// (the two dataset-manager pickers are visible from creation).
+export interface ModalShellOpts {
+  className?: string;      // extra classes on the backdrop
+  boxClassName?: string;   // extra classes on the box
+  instant?: boolean;       // no fade: visible immediately, removed on close
+  onDismiss?: () => void;  // Escape / backdrop-click; defaults to close()
+  onClose?: () => void;    // after teardown (post-fade unless instant)
+  onShow?: () => void;     // inside the reveal frame
+}
+export interface ModalShell { backdrop: HTMLDivElement; box: HTMLDivElement; close: () => void; }
+
+export function createModalShell(opts: ModalShellOpts = {}): ModalShell {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'confirm-backdrop' + (opts.className ? ' ' + opts.className : '') + (opts.instant ? ' modal-visible' : '');
+  const box = document.createElement('div');
+  box.className = 'confirm-box' + (opts.boxClassName ? ' ' + opts.boxClassName : '');
+  backdrop.appendChild(box);
+  let closed = false;
+  function close(): void {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('keydown', onKey);
+    if (opts.instant) {
+      backdrop.remove();
+      if (opts.onClose) opts.onClose();
+    } else {
+      backdrop.classList.remove('modal-visible');
+      setTimeout(() => { backdrop.remove(); if (opts.onClose) opts.onClose(); }, 160);
+    }
+  }
+  function onKey(ev: KeyboardEvent): void { if (ev.key === 'Escape') (opts.onDismiss || close)(); }
+  backdrop.addEventListener('click', (ev: MouseEvent) => { if (ev.target === backdrop) (opts.onDismiss || close)(); });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(backdrop);
+  if (opts.instant) {
+    if (opts.onShow) opts.onShow();
+  } else {
+    requestAnimationFrame(() => requestAnimationFrame(() => { backdrop.classList.add('modal-visible'); if (opts.onShow) opts.onShow(); }));
+  }
+  return { backdrop, box, close };
+}
+
 export function showConfirmModal(message: string, opts: ConfirmModalOpts = {}): Promise<boolean> {
   return new Promise((resolve) => {
-    const backdrop = document.createElement('div');
-    backdrop.className = 'confirm-backdrop';
-    const box = document.createElement('div');
-    box.className = 'confirm-box';
+    const { box, close } = createModalShell({ onDismiss: () => { resolve(false); close(); } });
     const msg = document.createElement('div');
     msg.className = 'confirm-message';
     msg.textContent = message;
@@ -357,31 +439,16 @@ export function showConfirmModal(message: string, opts: ConfirmModalOpts = {}): 
     const okBtn = document.createElement('button');
     okBtn.textContent = opts.okLabel || 'Confirm';
     okBtn.className = opts.danger ? 'danger-ghost' : 'primary';
-    function close(result: boolean): void {
-      backdrop.classList.remove('modal-visible');
-      setTimeout(() => backdrop.remove(), 160);
-      resolve(result);
-    }
-    cancelBtn.addEventListener('click', () => close(false));
-    okBtn.addEventListener('click', () => close(true));
-    backdrop.addEventListener('click', (ev: MouseEvent) => { if (ev.target === backdrop) close(false); });
-    document.addEventListener('keydown', function escHandler(ev: KeyboardEvent) {
-      if (ev.key === 'Escape') { close(false); document.removeEventListener('keydown', escHandler); }
-    });
+    cancelBtn.addEventListener('click', () => { resolve(false); close(); });
+    okBtn.addEventListener('click', () => { resolve(true); close(); });
     btnRow.appendChild(cancelBtn);
     btnRow.appendChild(okBtn);
     box.appendChild(btnRow);
-    backdrop.appendChild(box);
-    document.body.appendChild(backdrop);
-    requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));
   });
 }
 
 export function showInfoModal(html: string, title?: string, onBody?: (body: HTMLElement) => void): void {
-  const backdrop = document.createElement('div');
-  backdrop.className = 'confirm-backdrop';
-  const box = document.createElement('div');
-  box.className = 'confirm-box info-modal-box';
+  const { box, close } = createModalShell({ boxClassName: 'info-modal-box' });
   if (title) {
     const head = document.createElement('div');
     head.className = 'info-modal-title';
@@ -398,35 +465,29 @@ export function showInfoModal(html: string, title?: string, onBody?: (body: HTML
   const closeBtn = document.createElement('button');
   closeBtn.className = 'primary';
   closeBtn.textContent = 'Close';
-  function close(): void {
-    backdrop.classList.remove('modal-visible');
-    setTimeout(() => backdrop.remove(), 160);
-  }
   closeBtn.addEventListener('click', close);
-  backdrop.addEventListener('click', (ev: MouseEvent) => { if (ev.target === backdrop) close(); });
-  document.addEventListener('keydown', function escHandler(ev: KeyboardEvent) {
-    if (ev.key === 'Escape') { close(); document.removeEventListener('keydown', escHandler); }
-  });
   btnRow.appendChild(closeBtn);
   box.appendChild(btnRow);
-  backdrop.appendChild(box);
-  document.body.appendChild(backdrop);
-  requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));
 }
 
 export function openDockListModal(title: string, contentEl: HTMLElement): void {
-  const backdrop = document.createElement('div');
-  backdrop.className = 'confirm-backdrop dock-list-modal-backdrop';
-  const box = document.createElement('div');
-  box.className = 'confirm-box dock-list-modal-box';
+  const originalParent = contentEl.parentNode!;
+  const originalNextSibling = contentEl.nextSibling;
+  const { box, close } = createModalShell({
+    className: 'dock-list-modal-backdrop',
+    boxClassName: 'dock-list-modal-box',
+    onClose: () => {
+      contentEl.classList.remove('dock-list-modal-content');
+      if (originalNextSibling) originalParent.insertBefore(contentEl, originalNextSibling);
+      else originalParent.appendChild(contentEl);
+    }
+  });
   if (title) {
     const head = document.createElement('div');
     head.className = 'info-modal-title';
     head.textContent = title;
     box.appendChild(head);
   }
-  const originalParent = contentEl.parentNode!;
-  const originalNextSibling = contentEl.nextSibling;
   contentEl.classList.add('dock-list-modal-content');
   box.appendChild(contentEl);
   const btnRow = document.createElement('div');
@@ -434,25 +495,9 @@ export function openDockListModal(title: string, contentEl: HTMLElement): void {
   const closeBtn = document.createElement('button');
   closeBtn.className = 'primary';
   closeBtn.textContent = 'Close';
-  function close(): void {
-    backdrop.classList.remove('modal-visible');
-    setTimeout(() => {
-      contentEl.classList.remove('dock-list-modal-content');
-      if (originalNextSibling) originalParent.insertBefore(contentEl, originalNextSibling);
-      else originalParent.appendChild(contentEl);
-      backdrop.remove();
-    }, 160);
-  }
   closeBtn.addEventListener('click', close);
-  backdrop.addEventListener('click', (ev: MouseEvent) => { if (ev.target === backdrop) close(); });
-  document.addEventListener('keydown', function escHandler(ev: KeyboardEvent) {
-    if (ev.key === 'Escape') { close(); document.removeEventListener('keydown', escHandler); }
-  });
   btnRow.appendChild(closeBtn);
   box.appendChild(btnRow);
-  backdrop.appendChild(box);
-  document.body.appendChild(backdrop);
-  requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));
 }
 
 export function initInfoButtons(scope?: Element | Document): void {

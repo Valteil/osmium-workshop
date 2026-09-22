@@ -1,6 +1,7 @@
 import { btnHelp, helpModal, helpToc, helpTocToggle, helpContent, helpCloseBtn } from './dom';
+import { getString, setString } from './storage';
 import { HELP_SECTIONS } from './help-docs';
-import { initInfoButtons, positionMenu } from './shared-ui';
+import { initInfoButtons, positionMenu, addContextMenuItem } from './shared-ui';
 
 const HELP_LAST_SECTION_KEY = 'dts-help-last-section';
 
@@ -26,12 +27,12 @@ function showSection(id: string): void {
   helpContent.scrollTop = 0;
   initInfoButtons(helpContent);
   renderToc(sec.id);
-  try { localStorage.setItem(HELP_LAST_SECTION_KEY, sec.id); } catch {}
+  try { setString(HELP_LAST_SECTION_KEY, sec.id); } catch {}
 }
 
 function openHelp(): void {
   let last = HELP_SECTIONS[0].id;
-  try { last = localStorage.getItem(HELP_LAST_SECTION_KEY) || last; } catch {}
+  try { last = getString(HELP_LAST_SECTION_KEY) || last; } catch {}
   if (!HELP_SECTIONS.some(s => s.id === last)) last = HELP_SECTIONS[0].id;
   showSection(last);
   helpModal.style.display = 'flex';
@@ -56,15 +57,10 @@ function openTocMenu(activeId: string): void {
   const menu = document.createElement('div');
   menu.className = 'ctx-menu';
   for (const sec of HELP_SECTIONS) {
-    const item = document.createElement('button');
-    item.className = 'ctx-item' + (sec.id === activeId ? ' active' : '');
-    item.textContent = sec.title;
-    item.addEventListener('click', (ev: MouseEvent) => {
-      ev.stopPropagation();
+    addContextMenuItem(menu, sec.title, () => {
       closeTocMenu();
       showSection(sec.id);
-    });
-    menu.appendChild(item);
+    }, { className: sec.id === activeId ? 'active' : '' });
   }
   document.body.appendChild(menu);
   tocMenuEl = menu;
@@ -80,7 +76,7 @@ export function initHelp(): void {
     ev.stopPropagation();
     if (tocMenuEl) { closeTocMenu(); return; }
     let last = HELP_SECTIONS[0].id;
-    try { last = localStorage.getItem(HELP_LAST_SECTION_KEY) || last; } catch {}
+    try { last = getString(HELP_LAST_SECTION_KEY) || last; } catch {}
     openTocMenu(last);
   });
   helpModal.addEventListener('click', (ev: MouseEvent) => { if (ev.target === helpModal) closeHelp(); });

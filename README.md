@@ -323,9 +323,10 @@ The renderer was ported from a single ~5,500-line untyped script into TypeScript
 ~17 feature modules. `src/renderer/index.ts` is one top-level IIFE (it can't `export` from inside
 itself) acting as the composition root: it owns core cross-cutting state (`entries`, `dirHandle`,
 `entryByBase`, ...) and wires every extracted module together via a small injected-`deps` object
-passed to that module's own `init*(deps)` call — never a circular import. Every extracted module
-still carries `// @ts-nocheck`. Real type annotations are a possible future increment, one
-module at a time.
+passed to that module's own `init*(deps)` call — never a circular import. The renderer is fully
+type-annotated now (`strict: true`, shared types in `src/renderer/types.ts`) — there is no
+`// @ts-nocheck` anywhere. The main process and preload are strict too, against a shared IPC
+contract in `src/ipc-types.ts`.
 
 This repo is set up for **Serena** (MCP) — semantic code navigation plus a persistent
 project-memory graph (`mem:core` and onward, project name `osmium-workshop-electron`, rooted

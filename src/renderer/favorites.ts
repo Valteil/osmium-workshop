@@ -6,6 +6,8 @@ import {
 } from './dom';
 import { toast, showPanel, hidePanel } from './shared-ui';
 import { trackStat, checkAchievements } from './achievements';
+import { serializeHandle, isMobileHandle, reviveHandle, requestPermission } from './fs-access';
+import { openDB, idbGetAll, idbAdd, idbDelete } from './idb';
 
 const FAV_DB_NAME = 'dts-favorites-db';
 const FAV_STORE = 'folders';
@@ -13,47 +15,30 @@ const FAV_STORE = 'folders';
 interface FavoriteRecord {
   id: number;
   name: string;
-  handle: FileSystemDirectoryHandle;
+  handle: DirHandle;
   addedAt: number;
 }
 
 interface FavoritesDeps {
   getDirHandle: () => DirHandle | null;
   openFolderHandle: (handle: DirHandle) => Promise<void>;
-  onFavoriteChanged?: (handle: FileSystemDirectoryHandle, isFav: boolean) => void;
+  onFavoriteChanged?: (handle: DirHandle, isFav: boolean) => void;
 }
 
 let getDirHandle: () => DirHandle | null = () => null;
 let openFolderHandle: (handle: DirHandle) => Promise<void> = async () => {};
-let onFavoriteChanged: (handle: FileSystemDirectoryHandle, isFav: boolean) => void = () => {};
+let onFavoriteChanged: (handle: DirHandle, isFav: boolean) => void = () => {};
 
 function openFavDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(FAV_DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(FAV_STORE)) {
-        db.createObjectStore(FAV_STORE, { keyPath: 'id', autoIncrement: true });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+  return openDB(FAV_DB_NAME, 1, FAV_STORE);
 }
 
-export function addFavoriteHandle(handle: FileSystemDirectoryHandle): Promise<void> {
-  const storedHandle = (handle as unknown as { toJSON?: () => unknown }).toJSON
-    ? (handle as unknown as { toJSON: () => unknown }).toJSON()
-    : handle;
-  return openFavDB().then(db => new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(FAV_STORE, 'readwrite');
-    tx.objectStore(FAV_STORE).add({ name: handle.name, handle: storedHandle, addedAt: Date.now() });
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  }));
+export async function addFavoriteHandle(handle: DirHandle): Promise<void> {
+  const db = await openFavDB();
+  await idbAdd(db, FAV_STORE, { name: handle.name, handle: serializeHandle(handle), addedAt: Date.now() });
 }
 
-async function findFavoriteMatch(handle: FileSystemDirectoryHandle): Promise<FavoriteRecord | null> {
+async function findFavoriteMatch(handle: DirHandle): Promise<FavoriteRecord | null> {
   let favs: FavoriteRecord[] = [];
   try { favs = await listFavorites(); } catch { return null; }
   for (const fav of favs) {
@@ -66,41 +51,29 @@ async function findFavoriteMatch(handle: FileSystemDirectoryHandle): Promise<Fav
   return null;
 }
 
-export async function removeFavoriteByHandle(handle: FileSystemDirectoryHandle): Promise<void> {
+export async function removeFavoriteByHandle(handle: DirHandle): Promise<void> {
   const match = await findFavoriteMatch(handle);
   if (match) { try { await removeFavorite(match.id); } catch {} }
 }
 
-export async function isFavorited(handle: FileSystemDirectoryHandle): Promise<boolean> {
+export async function isFavorited(handle: DirHandle): Promise<boolean> {
   return !!(await findFavoriteMatch(handle));
 }
 
-function listFavorites(): Promise<FavoriteRecord[]> {
-  return openFavDB().then(db => new Promise<FavoriteRecord[]>((resolve, reject) => {
-    const tx = db.transaction(FAV_STORE, 'readonly');
-    const req = tx.objectStore(FAV_STORE).getAll();
-    req.onsuccess = () => {
-      const favs: FavoriteRecord[] = req.result || [];
-      if (window.__dtsReviveDirHandle) {
-        for (const fav of favs) {
-          if (fav.handle && (fav.handle as unknown as { __dtsMobileHandle?: boolean }).__dtsMobileHandle) {
-            fav.handle = window.__dtsReviveDirHandle(fav.handle) as unknown as FileSystemDirectoryHandle;
-          }
-        }
-      }
-      resolve(favs);
-    };
-    req.onerror = () => reject(req.error);
-  }));
+async function listFavorites(): Promise<FavoriteRecord[]> {
+  const db = await openFavDB();
+  const favs = await idbGetAll<FavoriteRecord>(db, FAV_STORE);
+  for (const fav of favs) {
+    if (fav.handle && isMobileHandle(fav.handle)) {
+      fav.handle = reviveHandle(fav.handle);
+    }
+  }
+  return favs;
 }
 
-function removeFavorite(id: number): Promise<void> {
-  return openFavDB().then(db => new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(FAV_STORE, 'readwrite');
-    tx.objectStore(FAV_STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  }));
+async function removeFavorite(id: number): Promise<void> {
+  const db = await openFavDB();
+  await idbDelete(db, FAV_STORE, id);
 }
 
 async function renderFavorites(): Promise<void> {
@@ -140,13 +113,13 @@ async function renderFavorites(): Promise<void> {
 
 async function openFavorite(fav: FavoriteRecord): Promise<void> {
   try {
-    const perm = await (fav.handle as unknown as { requestPermission(opts: { mode: string }): Promise<string> }).requestPermission({ mode: 'readwrite' });
+    const perm = await requestPermission(fav.handle, 'readwrite');
     if (perm !== 'granted') {
       toast('Permission was not granted for that folder.');
       return;
     }
     hidePanel(favoritesPanel);
-    await openFolderHandle(fav.handle as unknown as DirHandle);
+    await openFolderHandle(fav.handle);
   } catch {
     toast('Could not reopen that folder — it may have been moved or deleted.', 3600);
   }
@@ -169,14 +142,13 @@ export function initFavorites(deps: FavoritesDeps): void {
   btnAddFavorite.addEventListener('click', async () => {
     const dirHandle = getDirHandle();
     if (!dirHandle) return;
-    const fsHandle = dirHandle as unknown as FileSystemDirectoryHandle;
-    if (await isFavorited(fsHandle)) {
+    if (await isFavorited(dirHandle)) {
       toast(`"${dirHandle.name}" is already favorited.`);
       return;
     }
     try {
-      await addFavoriteHandle(fsHandle);
-      onFavoriteChanged(fsHandle, true);
+      await addFavoriteHandle(dirHandle);
+      onFavoriteChanged(dirHandle, true);
       toast(`Saved "${dirHandle.name}" to favorites.`);
       trackStat('favorited');
       checkAchievements();

@@ -1,5 +1,6 @@
 import type { DirHandle } from './types';
 import { toast, showConfirmModal } from './shared-ui';
+import { pickDirectory } from './fs-access';
 
 // Both folder-picker entry points (File ▸ Load Dataset in index.ts, the
 // Dataset tab's + tile here) share the renderer's ONE native picker session.
@@ -36,7 +37,7 @@ export async function pickDatasetFolder(): Promise<DirHandle | null> {
   pickerBusy = true;
   let picked: DirHandle | null = null;
   try {
-    picked = await (window as unknown as { showDirectoryPicker(opts: { mode: string }): Promise<DirHandle> }).showDirectoryPicker({ mode: 'readwrite' });
+    picked = await pickDirectory({ mode: 'readwrite' });
   } catch(e){
     const msg = (e as Error)?.message || '';
     const cancelled = (e as DOMException)?.name === 'AbortError' || /cancel/i.test(msg);

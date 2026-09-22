@@ -1,4 +1,5 @@
 import './global-types';
+import { setString, setJSON } from './storage';
 import { fontSizeSlider, fontSizeVal, settingsPanel } from './dom';
 import {
   favoritesPanel, themeCustomPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel
@@ -19,7 +20,7 @@ export function resetAppZoom(): void {
   if (fontSizeVal) {
     fontSizeVal.textContent = '14px';
   }
-  try { localStorage.setItem('dts-font-size', '14'); } catch {}
+  setString('dts-font-size', '14');
 }
 
 export function getOutsideClosablePanels(): HTMLElement[] {
@@ -28,5 +29,5 @@ export function getOutsideClosablePanels(): HTMLElement[] {
 
 export const SETTINGS_SECTIONS_KEY = 'dts-settings-sections-expanded';
 export function saveSettingsSectionState(state: Record<string, boolean>): void {
-  try { localStorage.setItem(SETTINGS_SECTIONS_KEY, JSON.stringify(state)); } catch {}
+  try { setJSON(SETTINGS_SECTIONS_KEY, state); } catch {}
 }

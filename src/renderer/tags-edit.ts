@@ -5,19 +5,14 @@
 // disabledDirHandle, singleIndex, refreshStats/refreshAllUI/renderCurrentView)
 // are injected once via initTagsEdit() rather than imported, since index.ts's
 // IIFE can't export them.
-import type { Entry, EditLogAffected, DirHandle } from './types';
+import type { Entry, EditLogAffected, DirHandle, ChangeRecord } from './types';
+import { getBool, setBool } from './storage';
+import { writeBytes } from './fs-access';
 import { btnUndo, btnRedo, btnSave, dirtyCountEl, includeDisabledToggle, autosaveToggle } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, checkVoidThemeAchievements, folderStats, saveFolderStats } from './achievements';
 import { pushLogEntry, editLog, PIXEL_TYPES, ISOLATE_TYPES } from './edit-log';
 import { applyCanonicalRules, registerMergeRule, registerVoidRule, findBlockingRule, saveCanonicalRules } from './canonical-tags';
-
-interface ChangeRecord {
-  type: string;
-  summary: string;
-  affected: EditLogAffected[];
-  [key: string]: unknown;
-}
 
 export let undoStack: ChangeRecord[] = [];
 export let redoStack: ChangeRecord[] = [];
@@ -86,9 +81,7 @@ export async function applyPixelDirection(affected: EditLogAffected[], direction
     if (!e || !st) continue;
     const bytes = direction === 'undo' ? st.prev : st.next;
     try {
-      const writable = await e.imgHandle.createWritable();
-      await writable.write(bytes as BufferSource);
-      await writable.close();
+      await writeBytes(e.imgHandle, bytes);
     } catch {
       continue;
     }
@@ -126,11 +119,11 @@ let applyIsolateDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 
 const AUTOSAVE_KEY = 'dts-autosave';
 (function initAutosavePref(){
   let on = false;
-  try { on = localStorage.getItem(AUTOSAVE_KEY) === '1'; } catch(e){}
+  on = getBool(AUTOSAVE_KEY);
   autosaveToggle.checked = on;
 })();
 autosaveToggle.addEventListener('change', () => {
-  try { localStorage.setItem(AUTOSAVE_KEY, autosaveToggle.checked ? '1' : '0'); } catch(e){}
+  setBool(AUTOSAVE_KEY, autosaveToggle.checked);
 });
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 const AUTOSAVE_DEBOUNCE_MS = 1200;
@@ -312,9 +305,7 @@ export async function moveEntry(entry: Entry, toDisabled: boolean, opts?: { sile
 
     const file = await entry.imgHandle.getFile();
     const newImgHandle = await targetDir.getFileHandle(entry.imgName!, { create: true });
-    const iw = await newImgHandle.createWritable();
-    await iw.write(file);
-    await iw.close();
+    await writeBytes(newImgHandle, file);
 
     if (sourceDir){
       try { await sourceDir.removeEntry(entry.imgName!); } catch(e){}
@@ -324,9 +315,7 @@ export async function moveEntry(entry: Entry, toDisabled: boolean, opts?: { sile
 
     if (entry.tags.length > 0){
       const newTxtHandle = await targetDir.getFileHandle(entry.txtName!, { create: true });
-      const tw = await newTxtHandle.createWritable();
-      await tw.write(entry.tags.join(', '));
-      await tw.close();
+      await writeBytes(newTxtHandle, entry.tags.join(', '));
       entry.txtHandle = newTxtHandle;
       entry.txtExisted = true;
     } else {
@@ -348,7 +337,7 @@ export async function moveEntry(entry: Entry, toDisabled: boolean, opts?: { sile
       });
     }
     trackStat(toDisabled ? 'disables' : 'restores');
-    const mc = (folderStats.moveCounts || {}) as Record<string, number>;
+    const mc = folderStats.moveCounts || {};
     mc[entry.base] = (mc[entry.base] || 0) + 1;
     folderStats.moveCounts = mc;
     if (mc[entry.base] >= 6) folderStats.flag_indecisive = true;
@@ -369,9 +358,7 @@ async function renameFileInPlace(dir: DirHandle, oldName: string, newName: strin
   const oldHandle = await dir.getFileHandle(oldName, { create: false });
   const file = await oldHandle.getFile();
   const newHandle = await dir.getFileHandle(newName, { create: true });
-  const writable = await newHandle.createWritable();
-  await writable.write(file);
-  await writable.close();
+  await writeBytes(newHandle, file);
   await dir.removeEntry(oldName);
   return newHandle;
 }
@@ -684,9 +671,7 @@ export async function saveAllDirty(silent = false){
       if (!e.txtHandle){
         e.txtHandle = await targetDir.getFileHandle(e.txtName!, { create: true });
       }
-      const writable = await e.txtHandle.createWritable();
-      await writable.write(e.tags.join(', '));
-      await writable.close();
+      await writeBytes(e.txtHandle, e.tags.join(', '));
       e.dirty = false;
       e.txtExisted = true;
       ok++;

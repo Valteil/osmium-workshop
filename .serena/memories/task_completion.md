@@ -15,7 +15,7 @@ A change here is not done until:
    large multi-block edit compiled correctly — esbuild doesn't validate `styles.css` at all, it's
    just copied as-is.
 6. If the change is "major" per the doc-maintenance policy: the relevant `notes/` vault note(s)
-   updated in the same pass (`notes/Maintenance-Policy.md` — `CLAUDE.md` itself is just a pointer
+   updated in the same pass (`notes/Meta/Maintenance-Policy.md` — `CLAUDE.md` itself is just a pointer
    into `notes/` now, not the real doc), AND a Serena memory added/updated if it's a durable,
    non-obvious CODE convention worth Serena surfacing on its own (see `mem:conventions`). These are
    two separate surfaces for two different audiences — update whichever apply, possibly both.

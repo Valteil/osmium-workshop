@@ -10,7 +10,8 @@
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "tsc -p tsconfig.renderer.json --noEmit && esbuild src/renderer/app.ts --bundle --outfile=renderer/app.js",
     "build:shared": "esbuild src/renderer/shared/index.ts --bundle --format=iife --global-name=BridgeShared --outfile=mobile/www/shared.js && node scripts/copy-shared-css.js",
-    "build": "npm run build:main && npm run build:shared && npm run build:renderer",
+    "build:mobile-app": "tsc -p mobile/tsconfig.json && esbuild mobile/src/app.ts --bundle --outfile=mobile/www/app.js",
+    "build": "npm run build:main && npm run build:shared && npm run build:renderer && npm run build:mobile-app",
     "prestart": "npm run build",
     "start": "electron .",
     "predist:zip": "npm run build",
@@ -33,6 +34,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "comfy-core.js",
       "renderer/**/*",
       "node_modules/ws/**/*",
       "build/icon.ico",

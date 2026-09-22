@@ -1,10 +1,29 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const http = require('http');
-const https = require('https');
-const WS = require('ws');
-const { registerWd14LocalHandlers } = require('./wd14-local');
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell } from 'electron';
+import { execFileSync } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as http from 'http';
+import * as https from 'https';
+import WS from 'ws';
+import { registerWd14LocalHandlers } from './wd14-local';
+import { parseComboValues, buildWd14Prompt, extractWd14Tags, uploadImage, queuePrompt, pollHistory } from './comfy-core';
+import type { ComfyTransport } from './comfy-core';
+import type {
+  Wd14TagImagePayload, SynthdatObjectInfoPayload, SynthdatQueuePayload,
+  ExportAppStateResult
+} from './ipc-types';
+import type { ComfyResult } from './shared-types';
+
+// `__closeConfirmed` is a flag this file sets on the window itself (see the
+// close/confirm-close pair below) — not part of Electron's own BrowserWindow.
+type AppWindow = BrowserWindow & { __closeConfirmed?: boolean };
+
+interface ComfyRequestOptions {
+  method?: string;
+  headers?: Record<string, string | number>;
+  body?: Buffer | Uint8Array | null;
+  timeoutMs?: number;
+}
 
 // ---- Portable mode ----
 // A packaged build stores everything (the renderer's live "tool" copy, plus
@@ -18,7 +37,7 @@ const { registerWd14LocalHandlers } = require('./wd14-local');
 // In dev (`npm start`, unpackaged) this intentionally does nothing — the
 // existing %APPDATA%\osmium-workshop\tool workflow (sync-tool-folder.js,
 // the Restart app button) keeps working exactly as before.
-function getPortableRoot() {
+function getPortableRoot(): string {
   // Dev (`npm start`, unpackaged): app.getPath('exe') points at the electron
   // binary buried in node_modules/electron/dist, not this project — anything
   // "portable-root-relative" should resolve to the project root instead.
@@ -64,7 +83,7 @@ configurePortableUserData();
 // see `restartApp()`'s existing flow.
 const HW_ACCEL_PREF_FILE = () => path.join(app.getPath('userData'), 'hw-accel-pref.json');
 
-function readHardwareAccelPref() {
+function readHardwareAccelPref(): boolean {
   try {
     const raw = fs.readFileSync(HW_ACCEL_PREF_FILE(), 'utf8');
     const parsed = JSON.parse(raw);
@@ -74,7 +93,7 @@ function readHardwareAccelPref() {
   }
 }
 
-function writeHardwareAccelPref(enabled) {
+function writeHardwareAccelPref(enabled: boolean) {
   try {
     fs.mkdirSync(path.dirname(HW_ACCEL_PREF_FILE()), { recursive: true });
     fs.writeFileSync(HW_ACCEL_PREF_FILE(), JSON.stringify({ enabled: !!enabled }));
@@ -112,7 +131,6 @@ if (!hardwareAccelEnabled) {
   if (process.platform === 'win32' && app.isPackaged) {
     try {
       const exePath = app.getPath('exe');
-      const { execFileSync } = require('child_process');
       const keyPath = 'HKCU\\Software\\Microsoft\\DirectX\\UserGpuPreferences';
       let current = '';
       try {
@@ -129,11 +147,11 @@ if (!hardwareAccelEnabled) {
   }
 }
 
-function getToolDir() {
+function getToolDir(): string {
   return path.join(app.getPath('userData'), 'tool');
 }
 
-function copyDirSync(src, dest) {
+function copyDirSync(src: string, dest: string) {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     const srcPath = path.join(src, entry.name);
@@ -143,7 +161,7 @@ function copyDirSync(src, dest) {
   }
 }
 
-async function copyRecursiveAsync(src, dest) {
+async function copyRecursiveAsync(src: string, dest: string): Promise<void> {
   const stat = await fs.promises.stat(src);
   if (stat.isDirectory()) {
     await fs.promises.mkdir(dest, { recursive: true });
@@ -160,7 +178,7 @@ async function copyRecursiveAsync(src, dest) {
 // The renderer (index.html/app.js/styles.css/data/) lives in userData/tool so
 // future updates can be applied by replacing files there — no rebuild needed.
 // If it's not there yet (first run), seed it from the bundled copy.
-function ensureRendererFiles() {
+function ensureRendererFiles(): string {
   const toolDir = getToolDir();
   const toolIndex = path.join(toolDir, 'index.html');
   if (!fs.existsSync(toolIndex)) {
@@ -169,13 +187,13 @@ function ensureRendererFiles() {
   return toolIndex;
 }
 
-function createWindow() {
+function createWindow(): void {
   // electron-builder's own `build.win/mac/linux.icon` (package.json) bakes the icon into a
   // PACKAGED exe automatically — this is what makes it show up in dev (`npm start`, unpackaged)
   // and on Linux, where there's no single exe resource to bake it into. .ico on Windows (multi-
   // resolution, what the taskbar/titlebar actually want), .png everywhere else.
   const windowIcon = path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
-  const win = new BrowserWindow({
+  const win: AppWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1040,
@@ -232,7 +250,7 @@ function createWindow() {
 ipcMain.handle('get-app-version', () => app.getVersion());
 
 ipcMain.handle('confirm-close', (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
+  const win = BrowserWindow.fromWebContents(event.sender) as AppWindow | null;
   if (win) {
     win.__closeConfirmed = true;
     win.close();
@@ -246,7 +264,7 @@ ipcMain.handle('confirm-close', (event) => {
 // folder" getPortableRoot() already resolves for the portable-mode data
 // folder, so it's wherever the user would actually look for app-adjacent
 // files, not buried in userData.
-ipcMain.handle('export-app-state', (event, text) => {
+ipcMain.handle('export-app-state', (_event, text: string): ExportAppStateResult => {
   try {
     const stamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '').replace('T', '_');
     const filePath = path.join(getPortableRoot(), `dts-app-state_${stamp}.txt`);
@@ -254,7 +272,7 @@ ipcMain.handle('export-app-state', (event, text) => {
     shell.showItemInFolder(filePath);
     return { ok: true, path: filePath };
   } catch (err) {
-    return { ok: false, message: 'Failed to write app state file: ' + err.message };
+    return { ok: false, message: 'Failed to write app state file: ' + (err as Error).message };
   }
 });
 
@@ -282,7 +300,7 @@ ipcMain.handle('restart-app', async () => {
 // viewport atomically (vw/vh/% all stay consistent) instead of the
 // CSS `zoom` property, which scales an element's own box independently
 // of its container and reliably causes overflow.
-ipcMain.handle('set-zoom-factor', (event, factor) => {
+ipcMain.handle('set-zoom-factor', (event, factor: number) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win && typeof factor === 'number' && factor > 0 && factor <= 3) {
     win.webContents.setZoomFactor(factor);
@@ -295,7 +313,7 @@ ipcMain.handle('set-zoom-factor', (event, factor) => {
 // responsible for prompting a restart afterward, same as any other
 // startup-only preference here.
 ipcMain.handle('get-hardware-acceleration', () => hardwareAccelEnabled);
-ipcMain.handle('set-hardware-acceleration', (event, enabled) => {
+ipcMain.handle('set-hardware-acceleration', (_event, enabled: boolean) => {
   writeHardwareAccelPref(!!enabled);
 });
 
@@ -311,15 +329,15 @@ ipcMain.handle('set-hardware-acceleration', (event, enabled) => {
 // This is a deliberate, user-configured exception to "no network calls":
 // it only ever talks to the host the user typed into Tag Overseer's WD14
 // section, expected to be a loopback ComfyUI instance (127.0.0.1/localhost).
-function comfyRequest(host, urlPath, { method = 'GET', headers = {}, body = null, timeoutMs = 8000 }: any = {}): Promise<{ status: number; body: Buffer }> {
+function comfyRequest(host: string, urlPath: string, { method = 'GET', headers = {}, body = null, timeoutMs = 8000 }: ComfyRequestOptions = {}): Promise<{ status: number; body: Buffer }> {
   return new Promise((resolve, reject) => {
-    let target;
+    let target: URL;
     try { target = new URL(urlPath, host); } catch (err) { reject(new Error('Invalid ComfyUI host URL.')); return; }
-    const lib = target.protocol === 'https:' ? https : http;
+    const lib = (target.protocol === 'https:' ? https : http) as typeof http;
     const req = lib.request(target, { method, headers }, (res) => {
-      const chunks = [];
+      const chunks: Buffer[] = [];
       res.on('data', (c) => chunks.push(c));
-      res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks) }));
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks) }));
     });
     req.on('error', (err) => reject(err));
     req.setTimeout(timeoutMs, () => req.destroy(new Error('Request to ComfyUI timed out.')));
@@ -328,18 +346,14 @@ function comfyRequest(host, urlPath, { method = 'GET', headers = {}, body = null
   });
 }
 
-function buildMultipart(fields, fileField, fileName, fileBuffer) {
-  const boundary = '----DTSBoundary' + Date.now().toString(16) + Math.random().toString(16).slice(2);
-  const parts = [];
-  for (const [key, value] of Object.entries(fields)) {
-    parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`));
+// Node transport for the shared ComfyUI client (comfy-core.ts) — wraps the raw
+// http/https helper above in the transport interface both apps implement.
+const nodeComfyTransport: ComfyTransport = {
+  request: async (host, path, init = {}) => {
+    const res = await comfyRequest(host, path, init);
+    return { status: res.status, body: res.body };
   }
-  const safeName = String(fileName).replace(/"/g, '');
-  parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${fileField}"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`));
-  parts.push(fileBuffer);
-  parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
-  return { boundary, body: Buffer.concat(parts) };
-}
+};
 
 // Lists the models WD14Tagger|pysssss's own INPUT_TYPES currently reports —
 // scraped live from ComfyUI's /object_info, never hardcoded here, so the
@@ -349,17 +363,16 @@ function buildMultipart(fields, fileField, fileName, fileBuffer) {
 // wd14-local.ts's own top comment; this mirrors mobile's DtsWd14Plugin.kt.
 registerWd14LocalHandlers(ipcMain);
 
-ipcMain.handle('wd14-get-models', async (event, host) => {
+ipcMain.handle('wd14-get-models', async (_event, host: string) => {
   try {
     const res = await comfyRequest(host, '/object_info/WD14Tagger%7Cpysssss', { timeoutMs: 6000 });
     if (res.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${res.status} — is the WD14 Tagger (pysssss) custom node installed?` };
     const parsed = JSON.parse(res.body.toString('utf8'));
-    const nodeInfo = parsed['WD14Tagger|pysssss'];
-    const models = nodeInfo && nodeInfo.input && nodeInfo.input.required && nodeInfo.input.required.model && nodeInfo.input.required.model[0];
+    const models = parseComboValues(parsed['WD14Tagger|pysssss'], 'model');
     if (!Array.isArray(models)) return { ok: false, error: 'Could not find the WD14 Tagger node on that ComfyUI instance.' };
     return { ok: true, models };
   } catch (err) {
-    return { ok: false, error: `Could not reach ComfyUI at ${host} — is it running? (${err.message})` };
+    return { ok: false, error: `Could not reach ComfyUI at ${host} — is it running? (${(err as Error).message})` };
   }
 });
 
@@ -370,81 +383,26 @@ ipcMain.handle('wd14-get-models', async (event, host) => {
 // from the renderer (read via the image's own FileSystemFileHandle) — the
 // app never stores or forwards this anywhere except to the host the user
 // configured.
-ipcMain.handle('wd14-tag-image', async (event, { host, filename, imageBytes, settings }) => {
+ipcMain.handle('wd14-tag-image', async (_event, { host, filename, imageBytes, settings }: Wd14TagImagePayload) => {
   try {
-    const fileBuffer = Buffer.from(imageBytes);
-    const { boundary, body } = buildMultipart({ type: 'input', overwrite: 'true' }, 'image', filename, fileBuffer);
-    const uploadRes = await comfyRequest(host, '/upload/image', {
-      method: 'POST',
-      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length },
-      body,
-      timeoutMs: 20000
-    });
-    if (uploadRes.status !== 200) return { ok: false, error: `Image upload to ComfyUI failed (HTTP ${uploadRes.status}).` };
-    const uploaded = JSON.parse(uploadRes.body.toString('utf8'));
-    const imageRef = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
+    const upload = await uploadImage(nodeComfyTransport, host, filename, imageBytes, 'Image');
+    if (!upload.ok) return upload;
 
     const clientId = `dts-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
-    const prompt = {
-      '1': { class_type: 'LoadImage', inputs: { image: imageRef, upload: 'image' } },
-      '2': {
-        class_type: 'WD14Tagger|pysssss',
-        inputs: {
-          image: ['1', 0],
-          model: settings.model,
-          threshold: settings.threshold,
-          character_threshold: settings.characterThreshold,
-          // No longer user-configurable (app.ts normalizes tags to
-          // space-separated unconditionally either way) — always false so the
-          // WD14Tagger|pysssss node still gets a value for this required input.
-          replace_underscore: false,
-          trailing_comma: !!settings.trailingComma,
-          exclude_tags: settings.excludeTags || ''
-        }
-      }
-    };
-    const promptBody = Buffer.from(JSON.stringify({ prompt, client_id: clientId }), 'utf8');
-    const queueRes = await comfyRequest(host, '/prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': promptBody.length },
-      body: promptBody,
-      timeoutMs: 10000
-    });
-    let queueParsed: any = {};
-    try { queueParsed = JSON.parse(queueRes.body.toString('utf8') || '{}'); } catch (err) { /* fall through with {} */ }
-    if (queueRes.status !== 200) {
-      const errMsg = queueParsed && queueParsed.error && queueParsed.error.message;
-      return { ok: false, error: errMsg ? `ComfyUI rejected the request: ${errMsg}` : `ComfyUI returned HTTP ${queueRes.status} queuing the tag request.` };
-    }
-    const nodeErrorKeys = queueParsed.node_errors ? Object.keys(queueParsed.node_errors) : [];
-    if (nodeErrorKeys.length) {
-      return { ok: false, error: `ComfyUI rejected the workflow: ${JSON.stringify(queueParsed.node_errors)}` };
-    }
-    const promptId = queueParsed.prompt_id;
-    if (!promptId) return { ok: false, error: 'ComfyUI did not return a prompt id.' };
+    const prompt = buildWd14Prompt(upload.ref, settings);
+    const queue = await queuePrompt(nodeComfyTransport, host, prompt, clientId, { noun: 'tag' });
+    if (!queue.ok) return queue;
 
-    const deadline = Date.now() + 120000;
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 700));
-      let histRes;
-      try { histRes = await comfyRequest(host, `/history/${promptId}`, { timeoutMs: 8000 }); }
-      catch (err) { continue; }
-      if (histRes.status !== 200) continue;
-      let hist: any = {};
-      try { hist = JSON.parse(histRes.body.toString('utf8') || '{}'); } catch (err) { continue; }
-      const record = hist[promptId];
-      if (!record) continue;
-      if (record.outputs && record.outputs['2'] && record.outputs['2'].tags) {
-        const tags = record.outputs['2'].tags;
-        return { ok: true, tagsCsv: Array.isArray(tags) ? tags[0] : tags };
-      }
-      if (record.status && record.status.status_str === 'error') {
-        return { ok: false, error: 'ComfyUI reported an error while tagging this image — check its console for details.' };
-      }
-    }
-    return { ok: false, error: 'Timed out waiting for ComfyUI to finish tagging this image.' };
+    const poll = await pollHistory<string>(nodeComfyTransport, host, queue.promptId, {
+      deadlineMs: 120000,
+      extract: (record) => extractWd14Tags(record),
+      errorStatusMessage: 'ComfyUI reported an error while tagging this image — check its console for details.',
+      timeoutMessage: 'Timed out waiting for ComfyUI to finish tagging this image.'
+    });
+    if (!poll.ok) return poll;
+    return { ok: true, tagsCsv: poll.value };
   } catch (err) {
-    return { ok: false, error: `Could not reach ComfyUI at ${host} — is it running? (${err.message})` };
+    return { ok: false, error: `Could not reach ComfyUI at ${host} — is it running? (${(err as Error).message})` };
   }
 });
 
@@ -460,17 +418,16 @@ ipcMain.handle('wd14-tag-image', async (event, { host, filename, imageBytes, set
 // wd14-get-models, reused here for the diffusion model, Main LoRA, and LoRA
 // stack dropdowns (all different node classes, hence this being generic
 // rather than three near-duplicate handlers).
-ipcMain.handle('synthdat-get-object-info', async (event, { host, classType, inputName }) => {
+ipcMain.handle('synthdat-get-object-info', async (_event, { host, classType, inputName }: SynthdatObjectInfoPayload) => {
   try {
     const res = await comfyRequest(host, `/object_info/${encodeURIComponent(classType)}`, { timeoutMs: 6000 });
     if (res.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${res.status} looking up ${classType}.` };
     const parsed = JSON.parse(res.body.toString('utf8'));
-    const nodeInfo = parsed[classType];
-    const values = nodeInfo && nodeInfo.input && nodeInfo.input.required && nodeInfo.input.required[inputName] && nodeInfo.input.required[inputName][0];
+    const values = parseComboValues(parsed[classType], inputName);
     if (!Array.isArray(values)) return { ok: false, error: `Could not find "${inputName}" on ${classType} — is the right custom node installed?` };
     return { ok: true, values };
   } catch (err) {
-    return { ok: false, error: `Could not reach ComfyUI at ${host} — is it running? (${err.message})` };
+    return { ok: false, error: `Could not reach ComfyUI at ${host} — is it running? (${(err as Error).message})` };
   }
 });
 
@@ -478,9 +435,9 @@ ipcMain.handle('synthdat-get-object-info', async (event, { host, classType, inpu
 // at a time) so synthdat-stop-generation can both hit ComfyUI's own
 // /interrupt endpoint AND short-circuit the polling loop below immediately,
 // rather than waiting for /history to eventually reflect the interruption.
-let activeSynthdatGen: { cancelled: boolean; ws: any } | null = null;
+let activeSynthdatGen: { cancelled: boolean; ws: WS | null } | null = null;
 
-ipcMain.handle('synthdat-stop-generation', async (event, host) => {
+ipcMain.handle('synthdat-stop-generation', async (_event, host: string) => {
   if (activeSynthdatGen) activeSynthdatGen.cancelled = true;
   try { await comfyRequest(host, '/interrupt', { method: 'POST', timeoutMs: 5000 }); } catch (err) { /* best effort */ }
   return { ok: true };
@@ -501,26 +458,17 @@ ipcMain.handle('synthdat-stop-generation', async (event, host) => {
 // then the raw image bytes — forwarded to the renderer as-is via a plain
 // `send()` (not part of this handler's own return value) so the renderer
 // can update a live preview while the invoke() call is still pending.
-ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, imageBytes, prompt }) => {
-  let ws: any = null;
+ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, imageBytes, prompt }: SynthdatQueuePayload) => {
+  let ws: WS | null = null;
   try {
     // "Skip reference image" (renderer's buildPromptFromFields) deletes node
     // 239 (LoadImage) from the prompt entirely, and imageBytes/imageFilename
     // come through as null/undefined in that case — nothing to upload, and
     // no node left to point at an uploaded file even if there were.
     if (imageBytes && prompt['239']) {
-      const fileBuffer = Buffer.from(imageBytes);
-      const { boundary, body } = buildMultipart({ type: 'input', overwrite: 'true' }, 'image', imageFilename, fileBuffer);
-      const uploadRes = await comfyRequest(host, '/upload/image', {
-        method: 'POST',
-        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length },
-        body,
-        timeoutMs: 20000
-      });
-      if (uploadRes.status !== 200) return { ok: false, error: `Reference image upload to ComfyUI failed (HTTP ${uploadRes.status}).` };
-      const uploaded = JSON.parse(uploadRes.body.toString('utf8'));
-      const imageRef = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
-      prompt['239'].inputs.image = imageRef;
+      const upload = await uploadImage(nodeComfyTransport, host, imageFilename ?? 'reference', imageBytes, 'Reference image');
+      if (!upload.ok) return upload;
+      prompt['239'].inputs.image = upload.ref;
     }
 
     const clientId = `dts-synthdat-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
@@ -528,8 +476,9 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
     activeSynthdatGen = { cancelled: false, ws: null };
     try {
       const wsUrl = `${host.replace(/^http/i, 'ws')}/ws?clientId=${encodeURIComponent(clientId)}`;
-      ws = new WS(wsUrl);
-      activeSynthdatGen.ws = ws;
+      const socket = new WS(wsUrl);
+      ws = socket;
+      activeSynthdatGen.ws = socket;
       // ComfyUI's newer per-step preview path (comfy_execution/progress.py's
       // WebUIProgressHandler.update_handler) only ever sends the image via
       // BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA (wire event type 4), and
@@ -542,11 +491,11 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
       // queued prompt requests. Must be sent before anything else on the
       // socket, so do it on 'open' rather than immediately after construction
       // (the underlying TCP/TLS handshake isn't done yet at construction time).
-      ws.on('open', () => {
-        try { ws.send(JSON.stringify({ type: 'feature_flags', data: { supports_preview_metadata: true } })); }
+      socket.on('open', () => {
+        try { socket.send(JSON.stringify({ type: 'feature_flags', data: { supports_preview_metadata: true } })); }
         catch (err) { /* best effort */ }
       });
-      ws.on('message', (data, isBinary) => {
+      socket.on('message', (data: Buffer, isBinary: boolean) => {
         if (isBinary) {
           if (data.length < 8) return;
           const eventType = data.readUInt32BE(0);
@@ -595,21 +544,21 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
       // with zero symptoms, so log every failure mode to stderr instead of
       // eating it silently (visible via `--enable-logging=stderr`, see
       // CLAUDE.md's Known Pitfalls).
-      ws.on('error', (err) => console.error('[synthdat] preview websocket error:', err && err.message));
-      ws.on('unexpected-response', (req, res) => console.error('[synthdat] preview websocket handshake rejected:', res.statusCode));
-      ws.on('close', (code, reason) => { if (code !== 1000) console.error('[synthdat] preview websocket closed:', code, reason && reason.toString()); });
+      socket.on('error', (err) => console.error('[synthdat] preview websocket error:', err && err.message));
+      socket.on('unexpected-response', (req, res) => console.error('[synthdat] preview websocket handshake rejected:', res.statusCode));
+      socket.on('close', (code, reason) => { if (code !== 1000) console.error('[synthdat] preview websocket closed:', code, reason && reason.toString()); });
       // Wait (briefly) for the handshake so the feature_flags message above
       // is sent (and so we don't miss the earliest preview frames of a short
       // generation) before queuing — best-effort, so a slow/failed connection
       // just proceeds without live preview rather than blocking generation.
       await new Promise<void>((resolve) => {
-        const done = () => { ws.removeListener('open', done); ws.removeListener('error', done); ws.removeListener('unexpected-response', done); resolve(); };
-        ws.once('open', done);
-        ws.once('error', done);
-        ws.once('unexpected-response', done);
+        const done = () => { socket.removeListener('open', done); socket.removeListener('error', done); socket.removeListener('unexpected-response', done); resolve(); };
+        socket.once('open', done);
+        socket.once('error', done);
+        socket.once('unexpected-response', done);
         setTimeout(done, 3000);
       });
-    } catch (err) { console.error('[synthdat] preview websocket setup failed:', err && err.message); }
+    } catch (err) { console.error('[synthdat] preview websocket setup failed:', (err as Error)?.message); }
 
     // ComfyUI's server-wide preview method defaults to "none" unless it was
     // launched with --preview-method — a per-request override in extra_data
@@ -621,52 +570,30 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
     // our queued prompt silently generates zero preview frames even when the
     // server's own web UI — which does send this override — shows a live
     // preview for the exact same workflow.
-    const promptBody = Buffer.from(JSON.stringify({ prompt, client_id: clientId, extra_data: { preview_method: 'taesd' } }), 'utf8');
-    const queueRes = await comfyRequest(host, '/prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': promptBody.length },
-      body: promptBody,
-      timeoutMs: 10000
-    });
-    let queueParsed: any = {};
-    try { queueParsed = JSON.parse(queueRes.body.toString('utf8') || '{}'); } catch (err) { /* fall through with {} */ }
-    if (queueRes.status !== 200) {
-      const errMsg = queueParsed && queueParsed.error && queueParsed.error.message;
-      return { ok: false, error: errMsg ? `ComfyUI rejected the request: ${errMsg}` : `ComfyUI returned HTTP ${queueRes.status} queuing the generation request.` };
-    }
-    const nodeErrorKeys = queueParsed.node_errors ? Object.keys(queueParsed.node_errors) : [];
-    if (nodeErrorKeys.length) {
-      return { ok: false, error: `ComfyUI rejected the workflow: ${JSON.stringify(queueParsed.node_errors)}` };
-    }
-    const promptId = queueParsed.prompt_id;
-    if (!promptId) return { ok: false, error: 'ComfyUI did not return a prompt id.' };
+    const queue = await queuePrompt(nodeComfyTransport, host, prompt, clientId, { extraData: { preview_method: 'taesd' }, noun: 'generation' });
+    if (!queue.ok) return queue;
+    const promptId = queue.promptId;
 
     // Generation is much slower than a WD14 tag pass — allow up to 5 minutes.
-    const deadline = Date.now() + 300000;
-    while (Date.now() < deadline) {
-      if (activeSynthdatGen && activeSynthdatGen.cancelled) return { ok: false, error: 'Generation stopped.', interrupted: true };
-      await new Promise((r) => setTimeout(r, 700));
-      if (activeSynthdatGen && activeSynthdatGen.cancelled) return { ok: false, error: 'Generation stopped.', interrupted: true };
-      let histRes;
-      try { histRes = await comfyRequest(host, `/history/${promptId}`, { timeoutMs: 8000 }); }
-      catch (err) { continue; }
-      if (histRes.status !== 200) continue;
-      let hist: any = {};
-      try { hist = JSON.parse(histRes.body.toString('utf8') || '{}'); } catch (err) { continue; }
-      const record = hist[promptId];
-      if (!record) continue;
-      const saveOutput = record.outputs && record.outputs['192'];
-      const image = saveOutput && Array.isArray(saveOutput.images) && saveOutput.images[0];
-      if (image) {
+    const poll = await pollHistory<ComfyResult>(nodeComfyTransport, host, promptId, {
+      deadlineMs: 300000,
+      isCancelled: () => !!(activeSynthdatGen && activeSynthdatGen.cancelled),
+      onCancelled: () => ({ ok: false, error: 'Generation stopped.', interrupted: true }),
+      errorStatusMessage: 'ComfyUI reported an error while generating this image — check its console for details.',
+      timeoutMessage: 'Timed out waiting for ComfyUI to finish generating this image.',
+      extract: async (record) => {
+        const saveOutput = record.outputs?.['192'];
+        const image = saveOutput && Array.isArray(saveOutput.images) && saveOutput.images[0];
+        if (!image) return null;
         const qs = new URLSearchParams({ filename: image.filename, subfolder: image.subfolder || '', type: image.type || 'output' });
         const viewRes = await comfyRequest(host, `/view?${qs.toString()}`, { timeoutMs: 20000 });
-        if (viewRes.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${viewRes.status} fetching the generated image.` };
-        const result: any = { ok: true, imageBytes: new Uint8Array(viewRes.body) };
-        // Only present when 2-Pass ran (buildPromptFromFields() clones a 2nd
+        if (viewRes.status !== 200) return null;
+        const result: ComfyResult = { ok: true, imageBytes: new Uint8Array(viewRes.body) };
+        // Only present when 2-Pass ran (buildSynthDatPrompt clones a 2nd
         // SaveImage, "192_pass1", pointed at pass 1's own decode) — lets the
         // renderer offer a choice between the two instead of only ever
         // keeping the refined pass-2 result.
-        const pass1Output = record.outputs['192_pass1'];
+        const pass1Output = record.outputs?.['192_pass1'];
         const pass1Image = pass1Output && Array.isArray(pass1Output.images) && pass1Output.images[0];
         if (pass1Image) {
           const qs1 = new URLSearchParams({ filename: pass1Image.filename, subfolder: pass1Image.subfolder || '', type: pass1Image.type || 'output' });
@@ -675,13 +602,10 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
         }
         return result;
       }
-      if (record.status && record.status.status_str === 'error') {
-        return { ok: false, error: 'ComfyUI reported an error while generating this image — check its console for details.' };
-      }
-    }
-    return { ok: false, error: 'Timed out waiting for ComfyUI to finish generating this image.' };
+    });
+    return poll.ok ? poll.value : poll;
   } catch (err) {
-    return { ok: false, error: `Could not reach ComfyUI at ${host} — is it running? (${err.message})` };
+    return { ok: false, error: `Could not reach ComfyUI at ${host} — is it running? (${(err as Error).message})` };
   } finally {
     try { if (ws) ws.close(); } catch (err) { /* already closed */ }
     activeSynthdatGen = null;

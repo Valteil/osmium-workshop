@@ -1,4 +1,5 @@
-import type { EditLogEntry, EditLogAffected, Entry, DirHandle } from './types';
+import type { EditLogEntry, EditLogAffected, Entry, DirHandle, ChangeRecord } from './types';
+import { hasSaveFilePicker, pickSaveFile, writeBytes } from './fs-access';
 import {
   btnLog, logPanel, logPanelTitle, logList, btnExportLog, btnClearLog, logCloseBtn,
   themeCustomPanel, favoritesPanel, achievementsPanel, shopPanel, tagDetailsPanel,
@@ -34,8 +35,8 @@ interface EditLogDeps {
   trackStat: (key: string, amount?: number) => void;
   checkAchievements: () => void;
   refreshAllUI: () => void;
-  getUndoStack: () => unknown[];
-  getRedoStack: () => unknown[];
+  getUndoStack: () => ChangeRecord[];
+  getRedoStack: () => ChangeRecord[];
 }
 
 let getDirHandle: () => DirHandle | null = () => null;
@@ -48,8 +49,8 @@ let moveEntryRef: (entry: Entry, toDisabled: boolean) => Promise<void> = async (
 let trackStatRef: (key: string, amount?: number) => void = () => {};
 let checkAchievementsRef: () => void = () => {};
 let refreshAllUIRef: () => void = () => {};
-let getUndoStack: () => unknown[] = () => [];
-let getRedoStack: () => unknown[] = () => [];
+let getUndoStack: () => ChangeRecord[] = () => [];
+let getRedoStack: () => ChangeRecord[] = () => [];
 
 export function pushLogEntry(partial: { type: string; summary: string; affected?: EditLogAffected[] }): EditLogEntry {
   const entry: EditLogEntry = {
@@ -72,9 +73,7 @@ export async function saveEditLog(): Promise<void> {
   if (!dirHandle) return;
   try {
     const handle = await dirHandle.getFileHandle(LOG_FILE_NAME, { create: true });
-    const writable = await handle.createWritable();
-    await writable.write(JSON.stringify(editLog, null, 2));
-    await writable.close();
+    await writeBytes(handle, JSON.stringify(editLog, null, 2));
   } catch {
     // best-effort autosave
   }
@@ -448,17 +447,15 @@ export function initEditLog(deps: EditLogDeps): void {
 
   btnExportLog.addEventListener('click', async () => {
     if (editLog.length === 0) { toast('Nothing to export yet.'); return; }
-    if (!(window as unknown as Record<string, unknown>).showSaveFilePicker) { toast('File export needs Chrome/Edge/Electron.'); return; }
+    if (!hasSaveFilePicker()) { toast('File export needs Chrome/Edge/Electron.'); return; }
     try {
       const dirHandle = getDirHandle();
       const suggestedName = `tag-edit-log-${(dirHandle?.name) || 'dataset'}-${new Date().toISOString().slice(0, 10)}.json`;
-      const handle = await (window as unknown as { showSaveFilePicker(opts: unknown): Promise<FileSystemFileHandle> }).showSaveFilePicker({
+      const handle = await pickSaveFile({
         suggestedName,
         types: [{ description: 'JSON log', accept: { 'application/json': ['.json'] } }]
       });
-      const writable = await handle.createWritable();
-      await writable.write(JSON.stringify(editLog, null, 2));
-      await writable.close();
+      await writeBytes(handle, JSON.stringify(editLog, null, 2));
       toast('Log exported.');
     } catch {
       // user cancelled the save dialog

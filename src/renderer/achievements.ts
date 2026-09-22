@@ -1,4 +1,6 @@
 import type { FolderStats, EditLogEntry, DirHandle } from './types';
+import { getJSON, setJSON, getBool, setBool, getInt, setInt } from './storage';
+import { writeBytes } from './fs-access';
 import {
   walletDisplay, achWallet, shopWallet, achievementsPanel, achList, achPopupsToggle,
   btnAchievements, achCloseBtn, shopPanel, shopList, btnShop, shopCloseBtn,
@@ -127,9 +129,7 @@ export async function saveFolderStats(): Promise<void> {
   if (!dirHandle) return;
   try {
     const handle = await dirHandle.getFileHandle(ACH_FILE_NAME, { create: true });
-    const writable = await handle.createWritable();
-    await writable.write(JSON.stringify({ stats: folderStats, unlocked: folderUnlocked }, null, 2));
-    await writable.close();
+    await writeBytes(handle, JSON.stringify({ stats: folderStats, unlocked: folderUnlocked }, null, 2));
   } catch(err){}
 }
 
@@ -151,21 +151,17 @@ export async function loadFolderStats(): Promise<void> {
 }
 
 export function saveWallet(): void {
-  try {
-    localStorage.setItem('dts-wallet', String(wallet));
-    localStorage.setItem('dts-owned-themes', JSON.stringify(ownedThemes));
-  } catch(e){}
+  setInt('dts-wallet', wallet);
+  setJSON('dts-owned-themes', ownedThemes);
   walletDisplay.textContent = String(wallet);
   achWallet.textContent = String(wallet);
   shopWallet.textContent = String(wallet);
 }
 
 export function loadWallet(): void {
-  try {
-    wallet = parseInt(localStorage.getItem('dts-wallet') || '0', 10) || 0;
-    const owned = JSON.parse(localStorage.getItem('dts-owned-themes') || 'null');
-    if (Array.isArray(owned)) ownedThemes = Array.from(new Set(['studio','cyberpunk','oriental','subway','osmium', ...owned]));
-  } catch(e){}
+  wallet = getInt('dts-wallet', 0);
+  const owned = getJSON<string[] | null>('dts-owned-themes', null);
+  if (Array.isArray(owned)) ownedThemes = Array.from(new Set(['studio','cyberpunk','oriental','subway','osmium', ...owned]));
   saveWallet();
 }
 
@@ -406,11 +402,10 @@ export function initAchievementPanels(): void {
 
   achPopupsToggle.addEventListener('change', () => {
     achievementPopupsEnabled = achPopupsToggle.checked;
-    try { localStorage.setItem('dts-ach-popups', achievementPopupsEnabled ? '1' : '0'); } catch(e){}
+    setBool('dts-ach-popups', achievementPopupsEnabled);
   });
   (function initAchPopupPref(){
-    let on = true;
-    try { on = localStorage.getItem('dts-ach-popups') !== '0'; } catch(e){}
+    const on = getBool('dts-ach-popups', true);
     achievementPopupsEnabled = on;
     achPopupsToggle.checked = on;
   })();
@@ -435,13 +430,12 @@ export function initAchievementPanels(): void {
 
   suppressThemeFlourishesToggle.addEventListener('change', () => {
     const on = suppressThemeFlourishesToggle.checked;
-    try { localStorage.setItem('dts-suppress-theme-flourishes', on ? '1' : '0'); } catch(e){}
+    setBool('dts-suppress-theme-flourishes', on);
     document.documentElement.classList.toggle('suppress-theme-flourishes', on);
     updateRefineThemeButton();
   });
   (function initSuppressThemeFlourishesPref(){
-    let on = false;
-    try { on = localStorage.getItem('dts-suppress-theme-flourishes') === '1'; } catch(e){}
+    const on = getBool('dts-suppress-theme-flourishes');
     suppressThemeFlourishesToggle.checked = on;
     document.documentElement.classList.toggle('suppress-theme-flourishes', on);
   })();
@@ -452,11 +446,10 @@ export function initAchievementPanels(): void {
   function wireFlourishToggle(toggleEl: HTMLInputElement, storageKey: string, className: string): void {
     toggleEl.addEventListener('change', () => {
       const on = toggleEl.checked;
-      try { localStorage.setItem(storageKey, on ? '1' : '0'); } catch(e){}
+      setBool(storageKey, on);
       document.documentElement.classList.toggle(className, on);
     });
-    let on = false;
-    try { on = localStorage.getItem(storageKey) === '1'; } catch(e){}
+    const on = getBool(storageKey);
     toggleEl.checked = on;
     document.documentElement.classList.toggle(className, on);
   }

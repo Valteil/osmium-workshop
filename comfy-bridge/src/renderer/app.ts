@@ -39,6 +39,7 @@ import {
   showImageLightbox, nextFileNumber, bytesToBase64, base64ToBytes
 } from './shared/index';
 import type { StorageBackend, DirEntry } from './shared/storage';
+import { buildSynthDatPrompt } from '../comfy-core';
 
 function $<T extends HTMLElement>(id: string): T { return document.getElementById(id) as T; }
 
@@ -684,141 +685,54 @@ async function loadTemplate(): Promise<any> {
 }
 
 function buildPrompt(): any {
-  const prompt: any = JSON.parse(JSON.stringify(template));
-  const unified = unifiedPromptMode.checked;
-  const characterVal = [unified ? fieldValue(unifiedPrompt) : fieldValue(character), fieldValue(characterTrigger)].filter(Boolean).join(', ');
-
-  prompt['21'].inputs.value = fieldValue(global_);
-  prompt['8'].inputs.value = unified ? '' : fieldValue(rating);
-  prompt['19'].inputs.value = '';
-  prompt['11'].inputs.value = characterVal;
-  prompt['12'].inputs.value = unified ? '' : fieldValue(hair);
-  prompt['15'].inputs.value = unified ? '' : fieldValue(face);
-  prompt['18'].inputs.value = unified ? '' : fieldValue(chest);
-  prompt['9'].inputs.value = unified ? '' : fieldValue(body_);
-  prompt['6'].inputs.value = unified ? '' : fieldValue(clothes);
-  prompt['20'].inputs.value = unified ? '' : fieldValue(limbs);
-  prompt['14'].inputs.value = unified ? '' : fieldValue(sexual);
-  prompt['7'].inputs.value = unified ? '' : fieldValue(pose);
-  prompt['10'].inputs.value = unified ? '' : fieldValue(extra);
-  prompt['13'].inputs.value = unified ? '' : fieldValue(effects);
-  prompt['17'].inputs.value = unified ? '' : fieldValue(scene);
-  prompt['16'].inputs.text = fieldValue(negative);
-
-  prompt['41'].inputs.unet_name = diffModel.value;
-  // 'DSM Lora Name' (node 51) is a combo widget validated against the
-  // actual lora directory listing — 'None' isn't a real file in it, so
-  // ComfyUI rejected the whole prompt whenever no main LoRA was picked.
-  // 'Anima-n' is a real no-op entry in that list, used as the base/no-LoRA
-  // stand-in.
-  prompt['51'].inputs.lora_name = mainLora.value.trim() || 'Anima-n';
-  if (clip.value) { prompt['249'].inputs.clip_name = clip.value; prompt['47:45'].inputs.clip_name = clip.value; }
-  if (vae.value) prompt['47:46'].inputs.vae_name = vae.value;
-
-  const chunks: LoraRow[][] = [];
-  for (let i = 0; i < loraRows.length; i += 4) chunks.push(loraRows.slice(i, i + 4));
-  function fillStackInputs(inputs: Record<string, unknown>, chunk: LoraRow[]): void {
-    for (let i = 0; i < 4; i++) {
-      const slot = String(i + 1).padStart(2, '0');
-      const r = chunk[i];
-      inputs[`lora_${slot}`] = r ? (r.input.value.trim() || 'None') : 'None';
-      inputs[`strength_${slot}`] = r ? (parseFloat(r.strength.value) || 0) : 0;
-    }
-  }
-  let lastStackId = '237';
-  fillStackInputs(prompt['237'].inputs, chunks[0] || []);
-  for (let c = 1; c < chunks.length; c++) {
-    const newId = `237_extra_${c}`;
-    const newInputs: any = { model: [lastStackId, 0], clip: ['47:45', 0] };
-    fillStackInputs(newInputs, chunks[c]);
-    prompt[newId] = { class_type: 'DSM Lora Loader Stack', inputs: newInputs, _meta: { title: 'DSM Lora Loader Stack' } };
-    lastStackId = newId;
-  }
-  if (lastStackId !== '237') {
-    prompt['243'].inputs.input1 = [lastStackId, 0];
-    prompt['240'].inputs.model = [lastStackId, 0];
-    prompt['195'].inputs.model = [lastStackId, 0];
-  }
-
-  if (skipRefImage.checked) {
-    delete prompt['239'];
-    delete prompt['240'];
-    delete prompt['243'];
-    delete prompt['238'];
-    delete prompt['246'];
-    prompt['158:53'].inputs.model = [lastStackId, 0];
-    prompt['158:54'].inputs.model = [lastStackId, 0];
-  } else {
-    prompt['240'].inputs.strength = parseFloat(lliteStrength.value) || 0;
-    prompt['240'].inputs.start_percent = parseFloat(lliteStartPercent.value) || 0;
-    prompt['240'].inputs.end_percent = parseFloat(lliteEndPercent.value) || 0;
-    prompt['240'].inputs.preserve_wrapper = llitePreserveWrapper.checked;
-    prompt['243'].inputs.select = 2;
-    prompt['238'].inputs.fit = resizeFit.value;
-    prompt['238'].inputs.method = resizeMethod.value;
-    prompt['240'].inputs.image = ['238', 0];
-  }
-
-  prompt['168:167'].inputs.sampler_name = sampler.value;
-  prompt['158:53'].inputs.scheduler = scheduler.value;
-  prompt['158:53'].inputs.steps = parseInt(steps1.value, 10) || 1;
-  prompt['158:54'].inputs.cfg = parseFloat(cfg1.value) || 1;
-
-  prompt['174:171'].inputs.value = parseInt(width.value, 10) || 920;
-  prompt['174:172'].inputs.value = parseInt(height.value, 10) || 1244;
-
-  prompt['165'].inputs.noise_seed = parseInt(seed1.value, 10) || 0;
-
-  if (use2Pass.checked) {
-    prompt['227'].inputs.noise_seed = parseInt(seed2.value, 10) || 0;
-    prompt['195'].inputs.denoise = parseFloat(denoise2.value) || 0;
-    prompt['195'].inputs.scheduler = scheduler.value;
-    prompt['195'].inputs.steps = parseInt(steps2.value, 10) || 1;
-    prompt['192_pass1'] = { class_type: 'SaveImage', inputs: { filename_prefix: prompt['192'].inputs.filename_prefix, images: ['176', 0] }, _meta: { title: 'Pass 1 preview' } };
-  } else {
-    delete prompt['190'];
-    delete prompt['191'];
-    delete prompt['195'];
-    delete prompt['227'];
-    delete prompt['224'];
-    prompt['192'].inputs.images = ['176', 0];
-  }
-
-  // ---- Optional model-based upscale — a SEPARATE SaveImage ('192_upscaled'),
-  // not a rewire of 192 itself. Used to overwrite 192's own images with the
-  // upscaled result, which collapsed "the pass output" and "the upscaled
-  // output" into a single saved file — no way to preview or keep both. Now
-  // 192 (and 192_pass1) always stay the raw, pre-upscale pass output(s); the
-  // upscale chain taps 192's own source images and saves its result under
-  // its own node, so a generation with 2-Pass + Upscale on yields up to 3
-  // distinct saved images: pass 1, the (pre-upscale) final pass, upscaled.
-  // Matches the user's own reference workflow's "Upscale Result" branch:
-  // UpscaleModelLoader -> ImageUpscaleWithModel -> ImageScaleBy(lanczos,
-  // scale_by) -> SaveImage — ImageScaleBy matters, not just cosmetic: model
-  // upscalers here are fixed-ratio (e.g. a "4x" ESRGAN model always outputs
-  // 4x regardless of want), so scale_by brings that back down to whatever
-  // the user actually wants (0.5 on a 4x model = a net 2x upscale).
-  if (upscaleEnabled.checked && upscaleModel.value.trim()) {
-    prompt['upscale_model_loader'] = { class_type: 'UpscaleModelLoader', inputs: { model_name: upscaleModel.value.trim() }, _meta: { title: 'Upscale Model Loader' } };
-    const scaleBy = parseFloat(upscaleScaleBy.value) || 1;
-    prompt['upscale_model_192'] = { class_type: 'ImageUpscaleWithModel', inputs: { upscale_model: ['upscale_model_loader', 0], image: prompt['192'].inputs.images }, _meta: { title: 'Upscale' } };
-    prompt['upscale_scale_192'] = { class_type: 'ImageScaleBy', inputs: { upscale_method: 'lanczos', scale_by: scaleBy, image: ['upscale_model_192', 0] }, _meta: { title: 'Upscale scale-by' } };
-    // filename_prefix was `${prompt['192'].inputs.filename_prefix}_upscaled`
-    // — but 192's filename_prefix is a LINK (['207',0], the File Namer's
-    // output), not a string, so template-literal-stringifying it produced
-    // literal garbage like "207,0_upscaled". The template already has node
-    // '222' ("File Namer 4 Upscaler") built for exactly this: same
-    // rating(a)/character(b) resolution as the main File Namer, but the
-    // LoRA-tail value sits in slot d instead of c, leaving c free — WAS
-    // Text Concatenate joins connected, non-empty slots in a/b/c/d order,
-    // so filling c with the literal "Upscaled" places it exactly between
-    // character and the filename tail: rating/character/Upscaled/loraTail
-    // (or rating/Upscaled/loraTail when no character was detected).
-    prompt['222'].inputs.text_c = 'Upscaled';
-    prompt['192_upscaled'] = { class_type: 'SaveImage', inputs: { filename_prefix: ['222', 0], images: ['upscale_scale_192', 0] }, _meta: { title: 'Upscaled' } };
-  }
-
-  return prompt;
+  // Thin adapter over the shared builder (comfy-core.ts, synced from the root
+  // app) — reads this app's UI into SynthDatPromptConfig. All graph logic lives
+  // there so it can't drift from the root app's SynthDat Overseer.
+  return buildSynthDatPrompt(template, {
+    unified: unifiedPromptMode.checked,
+    global: fieldValue(global_),
+    rating: fieldValue(rating),
+    character: fieldValue(character),
+    characterTrigger: fieldValue(characterTrigger),
+    unifiedPrompt: fieldValue(unifiedPrompt),
+    hair: fieldValue(hair),
+    face: fieldValue(face),
+    chest: fieldValue(chest),
+    body: fieldValue(body_),
+    clothes: fieldValue(clothes),
+    limbs: fieldValue(limbs),
+    sexual: fieldValue(sexual),
+    pose: fieldValue(pose),
+    extra: fieldValue(extra),
+    effects: fieldValue(effects),
+    scene: fieldValue(scene),
+    negative: fieldValue(negative),
+    diffModel: diffModel.value,
+    mainLora: mainLora.value,
+    clip: clip.value,
+    vae: vae.value,
+    loraRows: loraRows.map(r => ({ input: r.input.value, strength: r.strength.value })),
+    noLoraStandIn: 'Anima-n',
+    skipRefImage: skipRefImage.checked,
+    lliteStrength: lliteStrength.value,
+    lliteStartPercent: lliteStartPercent.value,
+    lliteEndPercent: lliteEndPercent.value,
+    llitePreserveWrapper: llitePreserveWrapper.checked,
+    resizeFit: resizeFit.value,
+    resizeMethod: resizeMethod.value,
+    sampler: sampler.value,
+    scheduler: scheduler.value,
+    steps1: steps1.value,
+    cfg1: cfg1.value,
+    width: width.value,
+    height: height.value,
+    seed1: seed1.value,
+    use2Pass: use2Pass.checked,
+    seed2: seed2.value,
+    denoise2: denoise2.value,
+    steps2: steps2.value,
+    upscale: { enabled: upscaleEnabled.checked, model: upscaleModel.value, scaleBy: upscaleScaleBy.value }
+  });
 }
 
 // ---------------- Generate ----------------

@@ -9,11 +9,16 @@ export interface DirHandle {
   toJSON?(): SerializedDirHandle;
 }
 
+export interface WritableFileStream {
+  write(data: unknown): Promise<void>;
+  close(): Promise<void>;
+}
+
 export interface FileHandle {
   name: string;
   kind: 'file';
   getFile(): Promise<File>;
-  createWritable(): Promise<FileSystemWritableFileStream>;
+  createWritable(): Promise<WritableFileStream>;
   isSameEntry?(other: FileHandle): Promise<boolean>;
 }
 
@@ -102,6 +107,13 @@ export interface EditLogEntry {
   [key: string]: unknown;
 }
 
+export interface ChangeRecord {
+  type: string;
+  summary: string;
+  affected: EditLogAffected[];
+  [key: string]: unknown;
+}
+
 export interface CanonicalRule {
   id: string;
   canonical: string | null;
@@ -156,6 +168,7 @@ export interface FolderStats {
   filter_suggestions_used?: boolean;
   gallery_columns_forced?: boolean;
   favorited?: number;
+  moveCounts?: Record<string, number>;
   [key: string]: unknown;
 }
 
@@ -196,24 +209,11 @@ export interface Wd14Settings {
   replaceUnderscore?: boolean;
 }
 
-export interface ComfyResult<T = unknown> {
-  ok: boolean;
-  error?: string;
-  models?: string[];
-  values?: string[];
-  tagsCsv?: string;
-  imageBytes?: Uint8Array;
-  pass1ImageBytes?: Uint8Array;
-  interrupted?: boolean;
-}
-
-export interface SynthDatPromptNode {
-  class_type: string;
-  inputs: Record<string, unknown>;
-  _meta?: Record<string, unknown>;
-}
-
-export type SynthDatPrompt = Record<string, SynthDatPromptNode>;
+// Cross-boundary types live in src/shared-types.d.ts so the main process can
+// import them without pulling this renderer-only file into its build; import
+// and re-export them here so existing `from './types'` imports keep working.
+import type { ComfyResult, SynthDatPromptNode, SynthDatPrompt } from '../shared-types';
+export type { ComfyResult, SynthDatPromptNode, SynthDatPrompt };
 
 export interface ComfyImageRef {
   filename: string;
@@ -236,26 +236,8 @@ export interface PowerTool {
 
 export type ThemeName = string;
 
-export interface Wd14LocalModel {
-  name: string;
-  hasOnnx: boolean;
-  hasCsv: boolean;
-  tagCount?: number;
-  sizeBytes?: number;
-}
-
-export interface Wd14LocalTagResult {
-  ok: boolean;
-  tagsCsv?: string;
-  error?: string;
-  provider?: string;
-}
-
-export interface Wd14LocalDownloadProgress {
-  name: string;
-  part: string;
-  percent: number;
-}
+import type { Wd14LocalModel, Wd14LocalTagResult, Wd14LocalDownloadProgress } from '../shared-types';
+export type { Wd14LocalModel, Wd14LocalTagResult, Wd14LocalDownloadProgress };
 
 export interface Wd14LocalInterface {
   listModels(): Promise<Wd14LocalModel[]>;

@@ -11,6 +11,15 @@ All run from this directory (the project root).
 - `npm start` — dev launch pointing at `renderer/` in the project folder directly.
 - `npm run dist:zip` — full release build to `Shippable/`. Slow (`compression: "maximum"`); only
   run when a release is actually wanted, never for routine verification.
+- **Sync scripts (edit the source, never the copy; run from the repo root):**
+  - `node scripts/sync-comfy-core.js` — after editing `src/comfy-core.ts` / `src/shared-types.d.ts`,
+    copy them into `comfy-bridge/src/`.
+  - `node scripts/sync-synthdat-workflow.js` — after editing `renderer/data/synthdat-workflow.json`,
+    copy it to Comfy Bridge desktop + mobile, `docs/demo/`, and the Capacitor Android asset.
+  - `node mobile/sync-web.js` — after any renderer build, re-sync `renderer/app.js` + `renderer/data/`
+    into `mobile/www/`.
+  - `npm run build:shared` (from `comfy-bridge/`) — regenerate the bridge's `mobile/www/shared.js`
+    + the `shared.css` copies.
 - Verify no silent renderer startup crash (see `mem:conventions` on why a clean build isn't
   sufficient): after `refresh-app`, launch with
   `ELECTRON_ENABLE_LOGGING=1 "./Osmium Workshop.exe" --enable-logging=stderr` (Bash tool;
@@ -29,12 +38,13 @@ All run from this directory (the project root).
   new code. Don't add sleeps or extra verification steps.
 
 
-**Windows/PowerShell-vs-Bash-tool notes:**
-- The Bash tool here runs Git Bash (POSIX sh) — use `/c/Users/...` style paths in Bash commands,
-  `C:\Users\...` style in file-editing tool arguments (Read/Edit/Write/Serena file tools). Don't
-  mix within one call.
-- `taskkill //IM "name.exe" //F` (double-slash flags — single-slash `/IM` gets swallowed by Git
-  Bash's path-conversion).
+**Windows shell notes (harness-dependent):**
+- In THIS harness the Bash tool runs **PowerShell 5.1**, not Git Bash — so use `C:\Users\...`-style
+  paths everywhere (file tools AND shell), `;` to chain, and `$env:NAME='...'` to set env vars; there
+  is no `&&`. (If a future harness reports Git Bash again, its `/c/Users/...` paths and
+  `taskkill //IM "name.exe" //F` double-slash flags apply instead — check the tool's own shell banner
+  rather than assuming.)
+- The file-editing tools (Read/Edit/Write/Serena) always take `C:\Users\...`-style paths regardless.
 - A `refresh-app` can transiently fail on `rcedit-x64.exe --set-version-string` with "Unable to
   commit changes" if a previous test instance still holds the exe file handle open — it
   auto-retries and the refresh still completes; confirm via the exe's modified timestamp rather

@@ -14,6 +14,8 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const WS = require('ws');
+import { parseComboValues, uploadImage, queuePrompt, pollHistory, extractPngTextChunks as extractPngChunks } from './comfy-core';
+import type { ComfyTransport } from './comfy-core';
 
 function createWindow() {
   const windowIcon = path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
@@ -67,38 +69,10 @@ ipcMain.handle('pick-output-folder', async (event) => {
 // chunk named "prompt" (plus a UI-shaped "workflow" chunk we don't need).
 // Filenames like "<rating>/<char>/<lora>_00003.png" (the integrated
 // workflow's File Namer scheme) are a hint, but the deciding factor is the
-// payload: recognized when it contains the Bridge's fixed node ids.
+// payload: recognized when it contains the Bridge's fixed node ids. The chunk
+// walk itself is shared (comfy-core); Node's zlib supplies the inflate.
 function extractPngTextChunks(buffer: Buffer): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (buffer.length < 8 || !buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return out;
-  let off = 8;
-  while (off + 12 <= buffer.length) {
-    const len = buffer.readUInt32BE(off);
-    const type = buffer.toString('ascii', off + 4, off + 8);
-    const data = buffer.subarray(off + 8, off + 8 + len);
-    if (type === 'tEXt') {
-      const nul = data.indexOf(0);
-      if (nul > 0) out[data.toString('latin1', 0, nul)] = data.toString('latin1', nul + 1);
-    } else if (type === 'iTXt') {
-      const nul = data.indexOf(0);
-      if (nul > 0) {
-        const keyword = data.toString('latin1', 0, nul);
-        let p = nul + 1;
-        const compressionFlag = data[p]; p += 2; // flag + method
-        while (p < data.length && data[p] !== 0) p++; p += 1; // language tag
-        while (p < data.length && data[p] !== 0) p++; p += 1; // translated keyword
-        let text = data.toString('latin1', p);
-        if (compressionFlag === 1) {
-          try { text = require('zlib').inflateSync(data.subarray(p)).toString('utf8'); }
-          catch { text = ''; }
-        }
-        if (text) out[keyword] = text;
-      }
-    }
-    off += 12 + len;
-    if (type === 'IEND') break;
-  }
-  return out;
+  return extractPngChunks(new Uint8Array(buffer), (d) => require('zlib').inflateSync(d));
 }
 
 ipcMain.handle('import-workflow-file', async (event) => {
@@ -228,37 +202,13 @@ function comfyRequest(host, urlPath, { method = 'GET', headers = {}, body = null
   });
 }
 
-function buildMultipart(fields, fileField, fileName, fileBuffer) {
-  const boundary = '----ComfyBridgeBoundary' + Date.now().toString(16) + Math.random().toString(16).slice(2);
-  const parts = [];
-  for (const [key, value] of Object.entries(fields)) {
-    parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`));
+// Node transport for the shared ComfyUI client (comfy-core.ts).
+const nodeComfyTransport: ComfyTransport = {
+  request: async (host, path, init = {}) => {
+    const res = await comfyRequest(host, path, init);
+    return { status: res.status, body: res.body };
   }
-  const safeName = String(fileName).replace(/"/g, '');
-  parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${fileField}"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`));
-  parts.push(fileBuffer);
-  parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
-  return { boundary, body: Buffer.concat(parts) };
-}
-
-// A combo widget's option list sits in one of two shapes depending on which
-// ComfyUI schema version the node reporting it was last touched under:
-// classic `[[...options], {meta}]` (element 0 IS the array — most nodes,
-// including UNETLoader/CLIPLoader/VAELoader/KSampler as of this ComfyUI
-// build) or the newer typed-widget `["COMBO", {options:[...], ...}]`
-// (element 0 is the literal string "COMBO", the real list is nested at
-// element 1's `options`). UpscaleModelLoader reports the newer shape even
-// on a ComfyUI build where every other node here still uses the classic
-// one — confirmed by querying both from the same running instance — so a
-// parser that only understood the classic shape silently found nothing for
-// upscale models specifically while every other dropdown kept working.
-function parseComboValues(nodeInfo, inputName) {
-  const raw = nodeInfo && nodeInfo.input && nodeInfo.input.required && nodeInfo.input.required[inputName];
-  if (!Array.isArray(raw)) return null;
-  if (Array.isArray(raw[0])) return raw[0];
-  if (raw[0] === 'COMBO' && raw[1] && Array.isArray(raw[1].options)) return raw[1].options;
-  return null;
-}
+};
 
 ipcMain.handle('synthdat-get-object-info', async (event, { host, classType, inputName }) => {
   try {
@@ -300,18 +250,9 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
   let ws: any = null;
   try {
     if (imageBytes && prompt['239']) {
-      const fileBuffer = Buffer.from(imageBytes);
-      const { boundary, body } = buildMultipart({ type: 'input', overwrite: 'true' }, 'image', imageFilename, fileBuffer);
-      const uploadRes = await comfyRequest(host, '/upload/image', {
-        method: 'POST',
-        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length },
-        body,
-        timeoutMs: 20000
-      });
-      if (uploadRes.status !== 200) return { ok: false, error: `Reference image upload to ComfyUI failed (HTTP ${uploadRes.status}).` };
-      const uploaded = JSON.parse(uploadRes.body.toString('utf8'));
-      const imageRef = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
-      prompt['239'].inputs.image = imageRef;
+      const upload = await uploadImage(nodeComfyTransport, host, imageFilename, imageBytes, 'Reference image');
+      if (!upload.ok) return upload;
+      prompt['239'].inputs.image = upload.ref;
     }
 
     const clientId = `comfy-bridge-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
@@ -386,58 +327,33 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
       });
     } catch (err) { console.error('[comfy-bridge] preview websocket setup failed:', err && err.message); }
 
-    const promptBody = Buffer.from(JSON.stringify({ prompt, client_id: clientId, extra_data: { preview_method: 'taesd' } }), 'utf8');
-    const queueRes = await comfyRequest(host, '/prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': promptBody.length },
-      body: promptBody,
-      timeoutMs: 10000
-    });
-    let queueParsed: any = {};
-    try { queueParsed = JSON.parse(queueRes.body.toString('utf8') || '{}'); } catch (err) { /* fall through with {} */ }
-    if (queueRes.status !== 200) {
-      const errMsg = queueParsed && queueParsed.error && queueParsed.error.message;
-      return { ok: false, error: errMsg ? `ComfyUI rejected the request: ${errMsg}` : `ComfyUI returned HTTP ${queueRes.status} queuing the generation request.` };
-    }
-    const nodeErrorKeys = queueParsed.node_errors ? Object.keys(queueParsed.node_errors) : [];
-    if (nodeErrorKeys.length) {
-      return { ok: false, error: `ComfyUI rejected the workflow: ${JSON.stringify(queueParsed.node_errors)}` };
-    }
-    const promptId = queueParsed.prompt_id;
-    if (!promptId) return { ok: false, error: 'ComfyUI did not return a prompt id.' };
+    const queue = await queuePrompt(nodeComfyTransport, host, prompt, clientId, { extraData: { preview_method: 'taesd' }, noun: 'generation' });
+    if (!queue.ok) return queue;
+    const promptId = queue.promptId;
 
-    const deadline = Date.now() + 300000;
-    while (Date.now() < deadline) {
-      if (activeGen && activeGen.cancelled) return { ok: false, error: 'Generation stopped.', interrupted: true };
-      await new Promise((r) => setTimeout(r, 700));
-      if (activeGen && activeGen.cancelled) return { ok: false, error: 'Generation stopped.', interrupted: true };
-      let histRes;
-      try { histRes = await comfyRequest(host, `/history/${promptId}`, { timeoutMs: 8000 }); }
-      catch (err) { continue; }
-      if (histRes.status !== 200) continue;
-      let hist: any = {};
-      try { hist = JSON.parse(histRes.body.toString('utf8') || '{}'); } catch (err) { continue; }
-      const record = hist[promptId];
-      if (!record) continue;
-      const saveOutput = record.outputs && record.outputs['192'];
-      const image = saveOutput && Array.isArray(saveOutput.images) && saveOutput.images[0];
-      // '192_pass1' and '192_upscaled' are sibling branches off the same
-      // upstream node as '192', not downstream of it — ComfyUI doesn't
-      // guarantee they finish before '192' does. Only treat the job as done
-      // once every branch the submitted prompt actually asked for (nodes
-      // present in `prompt`, not just outputs already computed) has an
-      // output, or a still-running sibling branch's image gets missed.
-      const pass1Ready = !prompt['192_pass1'] || (record.outputs && record.outputs['192_pass1']);
-      const upscaledReady = !prompt['192_upscaled'] || (record.outputs && record.outputs['192_upscaled']);
-      if (image && pass1Ready && upscaledReady) {
+    const poll = await pollHistory<any>(nodeComfyTransport, host, promptId, {
+      deadlineMs: 300000,
+      isCancelled: () => !!(activeGen && activeGen.cancelled),
+      onCancelled: () => ({ ok: false, error: 'Generation stopped.', interrupted: true }),
+      errorStatusMessage: 'ComfyUI reported an error while generating this image — check its console for details.',
+      timeoutMessage: 'Timed out waiting for ComfyUI to finish generating this image.',
+      extract: async (record) => {
+        const saveOutput = record.outputs && record.outputs['192'];
+        const image = saveOutput && Array.isArray(saveOutput.images) && saveOutput.images[0];
+        // '192_pass1' and '192_upscaled' are sibling branches off the same
+        // upstream node as '192', not downstream of it — ComfyUI doesn't
+        // guarantee they finish before '192' does. Only treat the job as done
+        // once every branch the submitted prompt actually asked for has an
+        // output, or a still-running sibling branch's image gets missed.
+        const pass1Ready = !prompt['192_pass1'] || (record.outputs && record.outputs['192_pass1']);
+        const upscaledReady = !prompt['192_upscaled'] || (record.outputs && record.outputs['192_upscaled']);
+        if (!(image && pass1Ready && upscaledReady)) return null;
         const qs = new URLSearchParams({ filename: image.filename, subfolder: image.subfolder || '', type: image.type || 'output' });
         const viewRes = await comfyRequest(host, `/view?${qs.toString()}`, { timeoutMs: 20000 });
-        if (viewRes.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${viewRes.status} fetching the generated image.` };
+        if (viewRes.status !== 200) return null;
         const result: any = { ok: true, imageBytes: new Uint8Array(viewRes.body) };
-        // The SaveImage node's own path/subfolder from history — this is the
-        // File Namer's composed scheme (e.g. "explicit/<character>/<lora>"),
-        // which the app-side disk copy mirrors instead of its own flat
-        // numbering so both copies stay in the same folder scheme.
+        // The SaveImage node's own path/subfolder from history — the File
+        // Namer's composed scheme, which the app-side disk copy mirrors.
         result.saveRel = saveImageRelPath(image);
         const pass1Output = record.outputs['192_pass1'];
         const pass1Image = pass1Output && Array.isArray(pass1Output.images) && pass1Output.images[0];
@@ -455,11 +371,8 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
         }
         return result;
       }
-      if (record.status && record.status.status_str === 'error') {
-        return { ok: false, error: 'ComfyUI reported an error while generating this image — check its console for details.' };
-      }
-    }
-    return { ok: false, error: 'Timed out waiting for ComfyUI to finish generating this image.' };
+    });
+    return poll.ok ? poll.value : poll;
   } catch (err) {
     return { ok: false, error: `Could not reach ComfyUI at ${host} — is it running? (${err.message})` };
   } finally {

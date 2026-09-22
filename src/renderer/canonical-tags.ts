@@ -45,6 +45,8 @@
 //   from this module's canonicalRules instead of its own prevTags/newTags
 //   diffing reconstruction — one shared source of truth, not two).
 import type { CanonicalRule, Entry, EditLogEntry, EditLogAffected, DirHandle } from './types';
+import { getBool, setBool } from './storage';
+import { writeBytes } from './fs-access';
 import { canonicalTagsList, btnAddCanonicalRule } from './dom';
 import { editLog, pushLogEntry } from './edit-log';
 
@@ -96,9 +98,7 @@ export async function saveCanonicalRules(): Promise<void> {
   if (!dirHandle) return;
   try {
     const handle = await dirHandle.getFileHandle(RULES_FILE_NAME, { create: true });
-    const writable = await handle.createWritable();
-    await writable.write(JSON.stringify(canonicalRules, null, 2));
-    await writable.close();
+    await writeBytes(handle, JSON.stringify(canonicalRules, null, 2));
   } catch(err){ /* best-effort autosave, same as editLog's own save */ }
 }
 
@@ -579,7 +579,7 @@ function buildRuleRow(rule: CanonicalRule): HTMLElement {
 }
 
 let voidSectionExpanded = true;
-try { voidSectionExpanded = localStorage.getItem('dts-void-section-expanded') !== '0'; } catch(e){}
+voidSectionExpanded = getBool('dts-void-section-expanded', true);
 
 // Void and merge rules are visually grouped instead of one undifferentiated
 // list — void's own group is collapsible (voidSectionExpanded, persisted)
@@ -617,7 +617,7 @@ export function renderCanonicalTagsList(){
     header.addEventListener('click', () => {
       voidSectionExpanded = !section.classList.contains('expanded');
       section.classList.toggle('expanded', voidSectionExpanded);
-      try { localStorage.setItem('dts-void-section-expanded', voidSectionExpanded ? '1' : '0'); } catch(e){}
+      setBool('dts-void-section-expanded', voidSectionExpanded);
     });
     section.appendChild(header);
     const body = document.createElement('div');

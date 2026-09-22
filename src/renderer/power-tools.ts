@@ -7,6 +7,7 @@ import {
   $, powerToolList, btnStartPowerToolPicker, btnResetCustomPowerTools, settingsPanel
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, positionMenu } from './shared-ui';
+import { getJSON, setJSON } from './storage';
 
 interface PowerToolEntry {
   id: string;
@@ -70,13 +71,11 @@ export function applyPowerToolMarks(): void {
 }
 
 export function saveCustomPowerTools(): void {
-  try { localStorage.setItem('dts-custom-power-tools', JSON.stringify(customPowerTools)); } catch(e){}
+  setJSON('dts-custom-power-tools', customPowerTools);
 }
 export function loadCustomPowerTools(): void {
-  try {
-    const saved = JSON.parse(localStorage.getItem('dts-custom-power-tools') || 'null');
-    if (Array.isArray(saved)) customPowerTools = saved;
-  } catch(e){}
+  const saved = getJSON<PowerToolEntry[] | null>('dts-custom-power-tools', null);
+  if (Array.isArray(saved)) customPowerTools = saved;
 }
 
 // Finds whether an element id already belongs to a power tool, and where —

@@ -27,10 +27,12 @@ tauri-port/src-tauri/gen/
 # comfy-bridge/), its portable dev build, and Android build outputs.
 comfy-bridge/main.js
 comfy-bridge/preload.js
+comfy-bridge/comfy-core.js
 comfy-bridge/renderer/app.js
 comfy-bridge/renderer/shared.css
 comfy-bridge/mobile/www/shared.js
 comfy-bridge/mobile/www/shared.css
+comfy-bridge/mobile/www/app.js
 comfy-bridge/Comfy Bridge.exe
 comfy-bridge/LICENSE.electron.txt
 comfy-bridge/LICENSES.chromium.html
@@ -61,6 +63,7 @@ comfy-bridge/mobile/android/local.properties
 /main.js
 /preload.js
 /renderer/app.js
+/comfy-core.js
 
 # Root build (electron-builder --dir output, copied here by refresh-app —
 # see scripts/refresh-portable-dev.js). Tied to Electron's currently-bundled

@@ -1,4 +1,5 @@
 import type { Entry, GalleryFilter, GallerySortMode, GallerySortDir, LeftSortMode, LeftSortDir } from './types';
+import { getJSON, setJSON, getBool, setBool } from './storage';
 import {
   $, tagFrequencyList, leftSortDropdown, leftSortDirBtn, btnResetFamilyOrder,
   filterInput, filterSuggestions, filterExactToggle, filterAllBtn, filterUntaggedBtn, filterDirtyBtn,
@@ -224,13 +225,11 @@ function applyFamilyOrder(familyList: [string, string[]][]): [string, string[]][
 }
 
 function saveFamilyOrder(): void {
-  try { localStorage.setItem('dts-family-order', JSON.stringify(familyOrder)); } catch(e){}
+  setJSON('dts-family-order', familyOrder);
 }
 (function loadFamilyOrder(){
-  try {
-    const saved = JSON.parse(localStorage.getItem('dts-family-order') || 'null');
-    if (Array.isArray(saved)) familyOrder = saved;
-  } catch(e){}
+  const saved = getJSON<string[] | null>('dts-family-order', null);
+  if (Array.isArray(saved)) familyOrder = saved;
 })();
 
 // Direction-aware: "insert before target" always, regardless of drag
@@ -436,7 +435,7 @@ export function initTagIndex(deps: TagIndexDeps): void {
   }, true);
   filterExactToggle.addEventListener('change', () => {
     getGalleryFilter().exactMatch = filterExactToggle.checked;
-    try { localStorage.setItem('dts-filter-exact-match', filterExactToggle.checked ? '1' : '0'); } catch(e){}
+    setBool('dts-filter-exact-match', filterExactToggle.checked);
     if (filterExactToggle.checked){
       folderStats.exact_match_used = true;
       saveFolderStats();
@@ -447,7 +446,7 @@ export function initTagIndex(deps: TagIndexDeps): void {
   });
   (function initExactMatchPref(){
     let on = false;
-    try { on = localStorage.getItem('dts-filter-exact-match') === '1'; } catch(e){}
+    on = getBool('dts-filter-exact-match');
     filterExactToggle.checked = on;
     getGalleryFilter().exactMatch = on;
   })();

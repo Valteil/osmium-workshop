@@ -12,7 +12,10 @@
 // generated/accepted images into the loaded dataset folder happens directly
 // here in the renderer via the File System Access API (dirHandle), exactly
 // like every other file write in this app — no IPC needed for that part.
-import type { DirHandle, Entry, ComfyResult, SynthDatPrompt } from './types';
+import type { DirHandle, Entry, ComfyResult, SynthDatPrompt, FileHandle, Wd14Settings } from './types';
+import { hasOpenFilePicker, pickOpenFiles, writeBytes } from './fs-access';
+import { getJSON } from './storage';
+import { buildSynthDatPrompt } from '../comfy-core';
 import {
   synthDatHost, synthDatRefPreviewWrap, synthDatRefPreview, synthDatRefEmpty, synthDatResizedPreviewWrap,
   synthDatResizedPreview, synthDatResizedPreviewLabel, btnSynthDatPickImage, btnSynthDatInterrogate,
@@ -37,7 +40,7 @@ import {
   synthDatStripHairFace, synthDatTagPreview, synthDatRenameOnAccept, btnSynthDatAccept, btnSynthDatReject,
   synthDatMigrateClearFirst, synthDatSkipRefImage, synthDatRefImageSection, synthDatCol1
 } from './dom';
-import { toast, showImageLightbox, positionMenu } from './shared-ui';
+import { toast, toastError, showImageLightbox, positionMenu, addContextMenuItem } from './shared-ui';
 import { attachPickerModal } from './picker-modal';
 import { parseWd14Tags } from './wd14-tagger';
 import { moveEntry, markDirty } from './tags-edit';
@@ -50,12 +53,10 @@ import { initSynthDatSectionDocks } from './docks';
 // module only depends on the localStorage contract, not wd14-tagger.ts's
 // internals.
 const WD14_SETTINGS_KEY = 'dts-wd14-settings';
-function getWd14Settings(){
-  try {
-    const saved = JSON.parse(localStorage.getItem(WD14_SETTINGS_KEY) || 'null');
-    if (saved && typeof saved === 'object') return saved;
-  } catch(e){ /* fall through */ }
-  return { host: 'http://127.0.0.1:8188', model: '', threshold: 0.35, characterThreshold: 0.85, trailingComma: false, excludeTags: '' };
+function getWd14Settings(): Wd14Settings {
+  const defaults: Wd14Settings = { host: 'http://127.0.0.1:8188', model: '', threshold: 0.35, characterThreshold: 0.85, trailingComma: false, excludeTags: '' };
+  const saved = getJSON<Partial<Wd14Settings> | null>(WD14_SETTINGS_KEY, null);
+  return saved && typeof saved === 'object' ? { ...defaults, ...saved } : defaults;
 }
 
 // SynthDat gets its OWN ComfyUI host, independent of Tag Overseer's WD14
@@ -84,8 +85,7 @@ async function saveSettings(): Promise<void> {
   if (!dirHandle) return; // nothing to save into with no dataset open
   try {
     const handle = await dirHandle.getFileHandle(SETTINGS_FILE_NAME, { create: true });
-    const writable = await handle.createWritable();
-    await writable.write(JSON.stringify({
+    await writeBytes(handle, JSON.stringify({
       host: synthDatHost.value,
       unifiedPromptMode: synthDatUnifiedPromptMode.checked, unifiedPrompt: synthDatUnifiedPrompt.value,
       global: synthDatGlobal.value, character: synthDatCharacter.value, characterTrigger: synthDatCharacterTrigger.value,
@@ -103,7 +103,6 @@ async function saveSettings(): Promise<void> {
       seed1: synthDatSeed1.value, seed2: synthDatSeed2.value, denoise2: synthDatDenoise2.value,
       stripHairFace: synthDatStripHairFace.checked, skipRefImage: synthDatSkipRefImage.checked
     }, null, 2));
-    await writable.close();
   } catch(e){ /* non-fatal, best-effort autosave same as canonical-tags.ts's own */ }
 }
 // Blanks every field back to its bare static-HTML default — used before
@@ -447,13 +446,13 @@ function setGenStatus(text: string): void {
 // ---------------- Reference image: pick, resized/padded preview, aspect warning ----------------
 
 async function pickReferenceImage(){
-  if (!(window as unknown as Record<string, unknown>).showOpenFilePicker){
+  if (!hasOpenFilePicker()){
     toast('Your browser does not support file picking here.', 4000);
     return;
   }
-  let handles: FileSystemFileHandle[];
+  let handles: FileHandle[];
   try {
-    handles = await (window as unknown as { showOpenFilePicker(opts: unknown): Promise<FileSystemFileHandle[]> }).showOpenFilePicker({
+    handles = await pickOpenFiles({
       types: [{ description: 'Images', accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp'] } }],
       multiple: false
     });
@@ -1002,30 +1001,21 @@ function openPendingTagMenu(tag: string, x: number, y: number): void {
   header.textContent = tag;
   menu.appendChild(header);
 
-  const defBtn = document.createElement('button');
-  defBtn.className = 'ctx-item';
-  defBtn.textContent = '📖 Definition';
-  defBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
+  addContextMenuItem(menu, '📖 Definition', () => {
     closePendingTagMenu();
     openTagDetails(tag);
   });
-  menu.appendChild(defBtn);
 
   const isVoid = markedVoidTags.has(tag);
-  const voidBtn = document.createElement('button');
-  voidBtn.className = 'ctx-item';
-  voidBtn.textContent = isVoid ? '↩️ Unmark void' : '🚫 Mark as void';
-  voidBtn.title = isVoid
-    ? 'Stop treating this tag as a void rule candidate.'
-    : 'Drop this tag from what gets saved, and add a Retroactive Void rule for it on Accept — so it\'s auto-stripped from future images too, not just this one.';
-  voidBtn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
+  addContextMenuItem(menu, isVoid ? '↩️ Unmark void' : '🚫 Mark as void', () => {
     if (isVoid) markedVoidTags.delete(tag); else markedVoidTags.add(tag);
     closePendingTagMenu();
     renderTagCard();
+  }, {
+    title: isVoid
+      ? 'Stop treating this tag as a void rule candidate.'
+      : 'Drop this tag from what gets saved, and add a Retroactive Void rule for it on Accept — so it\'s auto-stripped from future images too, not just this one.'
   });
-  menu.appendChild(voidBtn);
 
   document.body.appendChild(menu);
   pendingTagMenuEl = menu;
@@ -1124,150 +1114,53 @@ function finalTagList(){
 }
 
 function buildPromptFromFields(): SynthDatPrompt {
-  const prompt: SynthDatPrompt = JSON.parse(JSON.stringify(template));
-  const unified = synthDatUnifiedPromptMode.checked;
-  const character = [unified ? fieldValue(synthDatUnifiedPrompt) : fieldValue(synthDatCharacter), fieldValue(synthDatCharacterTrigger)].filter(Boolean).join(', ');
-
-  prompt['21'].inputs.value = fieldValue(synthDatGlobal);
-  prompt['8'].inputs.value = unified ? '' : fieldValue(synthDatRating);
-  prompt['19'].inputs.value = ''; // Character Count folded into Character (see above)
-  prompt['11'].inputs.value = character;
-  prompt['12'].inputs.value = unified ? '' : fieldValue(synthDatHair);
-  prompt['15'].inputs.value = unified ? '' : fieldValue(synthDatFace);
-  prompt['18'].inputs.value = unified ? '' : fieldValue(synthDatChest);
-  prompt['9'].inputs.value = unified ? '' : fieldValue(synthDatBody);
-  prompt['6'].inputs.value = unified ? '' : fieldValue(synthDatClothes);
-  prompt['20'].inputs.value = unified ? '' : fieldValue(synthDatLimbs);
-  prompt['14'].inputs.value = unified ? '' : fieldValue(synthDatSexual);
-  prompt['7'].inputs.value = unified ? '' : fieldValue(synthDatPose);
-  prompt['10'].inputs.value = unified ? '' : fieldValue(synthDatExtra);
-  prompt['13'].inputs.value = unified ? '' : fieldValue(synthDatEffects);
-  prompt['17'].inputs.value = unified ? '' : fieldValue(synthDatScene);
-  prompt['16'].inputs.text = fieldValue(synthDatNegative);
-
-  prompt['41'].inputs.unet_name = synthDatDiffModel.value;
-  // 'None' (not '') is this node pack's convention for "no LoRA here" — see
-  // node 237's own lora_03/04 defaults below. An empty string isn't a valid
-  // value for this combo input, so leaving Main LoRA blank to mean "skip it"
-  // was actually sending ComfyUI something it would reject outright.
-  prompt['51'].inputs.lora_name = synthDatMainLora.value.trim() || 'None';
-  // The template has two CLIPLoader nodes (249, 47:45) both loading the same
-  // file — kept in sync here rather than exposed as two separate fields,
-  // since there's no reason for them to ever differ in this workflow.
-  if (synthDatClip.value) { prompt['249'].inputs.clip_name = synthDatClip.value; prompt['47:45'].inputs.clip_name = synthDatClip.value; }
-  if (synthDatVae.value) prompt['47:46'].inputs.vae_name = synthDatVae.value;
-
-  // First 4 LoRA rows fill the template's own stack node (237) directly.
-  // Any rows beyond that chain additional stack node clones, each one's
-  // model input wired to the previous stack's output.
-  const chunks: LoraRow[][] = [];
-  for (let i = 0; i < loraRows.length; i += 4) chunks.push(loraRows.slice(i, i + 4));
-  function fillStackInputs(inputs: Record<string, unknown>, chunk: LoraRow[]): void {
-    for (let i = 0; i < 4; i++){
-      const slot = String(i + 1).padStart(2, '0');
-      const r = chunk[i];
-      inputs[`lora_${slot}`] = r ? (r.input.value.trim() || 'None') : 'None';
-      inputs[`strength_${slot}`] = r ? (parseFloat(r.strength.value) || 0) : 0;
-    }
-  }
-  // Always filled, even with zero rows — node 237 otherwise keeps whatever
-  // LoRAs happened to be baked into the captured template's own JSON, since
-  // nothing else in the graph ever clears them. That meant deleting every
-  // row in the LoRA stack UI didn't actually generate with no LoRA at all;
-  // it silently generated with the template's original ones.
-  let lastStackId = '237';
-  fillStackInputs(prompt['237'].inputs, chunks[0] || []);
-  for (let c = 1; c < chunks.length; c++){
-    const newId = `237_extra_${c}`;
-    const newInputs = { model: [lastStackId, 0], clip: ['47:45', 0] };
-    fillStackInputs(newInputs, chunks[c]);
-    prompt[newId] = { class_type: 'DSM Lora Loader Stack', inputs: newInputs, _meta: { title: 'DSM Lora Loader Stack' } };
-    lastStackId = newId;
-  }
-  if (lastStackId !== '237'){
-    prompt['243'].inputs.input1 = [lastStackId, 0];
-    prompt['240'].inputs.model = [lastStackId, 0];
-    prompt['195'].inputs.model = [lastStackId, 0];
-  }
-
-  if (synthDatSkipRefImage.checked){
-    // No reference image: literally remove the ControlNet path (LoadImage +
-    // AnimaLLLiteApply + the switch) from the graph rather than just
-    // flipping DSM Switch (Any)'s `select` to the base-model branch — ComfyUI's
-    // executor resolves what to run from the prompt graph's edges, not from
-    // a switch node's runtime value, so a connected-but-unselected branch
-    // still executes (LoadImage still loads, AnimaLLLiteApply still runs
-    // ControlNet inference) and still costs the user that generation time
-    // for nothing. Mirrors the 1-Pass/2-Pass node-deletion pattern already
-    // used above (see CLAUDE.md — no "disabled" flag exists in the API
-    // format; presence/absence of the node IS the toggle). Image Resize
-    // (238) and its PreviewImage (246) both depend on LoadImage's output too
-    // — a PreviewImage node is itself an "output node" ComfyUI validates
-    // independently of what 192 (the real SaveImage) needs, so a dangling
-    // reference to a deleted 239 would fail prompt validation if left in.
-    delete prompt['239'];
-    delete prompt['240'];
-    delete prompt['243'];
-    delete prompt['238'];
-    delete prompt['246'];
-    prompt['158:53'].inputs.model = [lastStackId, 0];
-    prompt['158:54'].inputs.model = [lastStackId, 0];
-  } else {
-    prompt['240'].inputs.strength = parseFloat(synthDatLLLiteStrength.value) || 0;
-    prompt['240'].inputs.start_percent = parseFloat(synthDatLLLiteStartPercent.value) || 0;
-    prompt['240'].inputs.end_percent = parseFloat(synthDatLLLiteEndPercent.value) || 0;
-    prompt['240'].inputs.preserve_wrapper = synthDatLLLitePreserveWrapper.checked;
-    // Always CNET-guided when a reference image is in use — the entire point of this feature (see CLAUDE.md).
-    prompt['243'].inputs.select = 2;
-    // Image Resize (rgthree, node 238) does the actual resize+pad; its
-    // output feeds both ComfyUI's own PreviewImage (246, so a ComfyUI-side
-    // user can see the result) and AnimaLLLiteApply's `image` input (240) —
-    // ControlNet conditions on the padded/resized image, matching what both
-    // that preview and our own app's resized-preview box show.
-    prompt['238'].inputs.fit = synthDatResizeFit.value;
-    prompt['238'].inputs.method = synthDatResizeMethod.value;
-    prompt['240'].inputs.image = ['238', 0];
-  }
-
-  // Sampler/scheduler: the template's own switch (169, "1 = EA, 2 = ESDE")
-  // just picks between two hardcoded KSamplerSelect nodes — rather than
-  // exposing that switch mechanic, the user's chosen sampler is written
-  // directly into whichever one it's pinned to select (168:167).
-  prompt['168:167'].inputs.sampler_name = synthDatSampler.value;
-  prompt['158:53'].inputs.scheduler = synthDatScheduler.value;
-  prompt['158:53'].inputs.steps = parseInt(synthDatSteps1.value, 10) || 1;
-  prompt['158:54'].inputs.cfg = parseFloat(synthDatCfg1.value) || 1;
-
-  prompt['174:171'].inputs.value = parseInt(synthDatWidth.value, 10) || 920;
-  prompt['174:172'].inputs.value = parseInt(synthDatHeight.value, 10) || 1244;
-
-  prompt['165'].inputs.noise_seed = parseInt(synthDatSeed1.value, 10) || 0;
-
-  if (synthDatUse2Pass.checked){
-    prompt['227'].inputs.noise_seed = parseInt(synthDatSeed2.value, 10) || 0;
-    prompt['195'].inputs.denoise = parseFloat(synthDatDenoise2.value) || 0;
-    prompt['195'].inputs.scheduler = synthDatScheduler.value;
-    prompt['195'].inputs.steps = parseInt(synthDatSteps2.value, 10) || 1;
-    // Node 192 (the always-on SaveImage) already saves pass 2's decode (176
-    // for pass 1, but 192 defaults to 191 — pass 2 — when this branch runs).
-    // Cloning a second SaveImage pointed at pass 1's own decode (176) lets
-    // the user choose between the two afterward instead of only ever seeing
-    // the refined result — see generate()/main.ts's synthdat-queue-and-fetch,
-    // which fetches both node 192's and this node's output when present.
-    prompt['192_pass1'] = { class_type: 'SaveImage', inputs: { filename_prefix: prompt['192'].inputs.filename_prefix, images: ['176', 0] }, _meta: { title: 'Pass 1 preview' } };
-  } else {
-    // 1-Pass: omit the 2nd-pass nodes entirely (no "mode"/bypass flag exists
-    // in the API format — presence/absence of the node IS the toggle, see
-    // CLAUDE.md) and repoint the always-on SaveImage at pass-1's decode.
-    delete prompt['190'];
-    delete prompt['191'];
-    delete prompt['195'];
-    delete prompt['227'];
-    delete prompt['224'];
-    prompt['192'].inputs.images = ['176', 0];
-  }
-
-  return prompt;
+  // Thin adapter: read the UI into the shared config, let comfy-core.ts build
+  // the graph. All graph logic (node ids, pass/ControlNet node deletion, LoRA
+  // stacking) lives in buildSynthDatPrompt so it can't drift from Comfy Bridge.
+  return buildSynthDatPrompt(template as SynthDatPrompt, {
+    unified: synthDatUnifiedPromptMode.checked,
+    global: fieldValue(synthDatGlobal),
+    rating: fieldValue(synthDatRating),
+    character: fieldValue(synthDatCharacter),
+    characterTrigger: fieldValue(synthDatCharacterTrigger),
+    unifiedPrompt: fieldValue(synthDatUnifiedPrompt),
+    hair: fieldValue(synthDatHair),
+    face: fieldValue(synthDatFace),
+    chest: fieldValue(synthDatChest),
+    body: fieldValue(synthDatBody),
+    clothes: fieldValue(synthDatClothes),
+    limbs: fieldValue(synthDatLimbs),
+    sexual: fieldValue(synthDatSexual),
+    pose: fieldValue(synthDatPose),
+    extra: fieldValue(synthDatExtra),
+    effects: fieldValue(synthDatEffects),
+    scene: fieldValue(synthDatScene),
+    negative: fieldValue(synthDatNegative),
+    diffModel: synthDatDiffModel.value,
+    mainLora: synthDatMainLora.value,
+    clip: synthDatClip.value,
+    vae: synthDatVae.value,
+    loraRows: loraRows.map(r => ({ input: r.input.value, strength: r.strength.value })),
+    noLoraStandIn: 'None',
+    skipRefImage: synthDatSkipRefImage.checked,
+    lliteStrength: synthDatLLLiteStrength.value,
+    lliteStartPercent: synthDatLLLiteStartPercent.value,
+    lliteEndPercent: synthDatLLLiteEndPercent.value,
+    llitePreserveWrapper: synthDatLLLitePreserveWrapper.checked,
+    resizeFit: synthDatResizeFit.value,
+    resizeMethod: synthDatResizeMethod.value,
+    sampler: synthDatSampler.value,
+    scheduler: synthDatScheduler.value,
+    steps1: synthDatSteps1.value,
+    cfg1: synthDatCfg1.value,
+    width: synthDatWidth.value,
+    height: synthDatHeight.value,
+    seed1: synthDatSeed1.value,
+    use2Pass: synthDatUse2Pass.checked,
+    seed2: synthDatSeed2.value,
+    denoise2: synthDatDenoise2.value,
+    steps2: synthDatSteps2.value
+  });
 }
 
 // ---------------- Generate / Accept / Reject ----------------
@@ -1426,13 +1319,9 @@ async function writeImageEntry(bytes: Uint8Array, base: string, imgName: string,
       // being moved out of the active set — then moveEntry() relocates them
       // into Disabled/ the same way any other disable action does.
       const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
-      const imgWritable = await imgHandle.createWritable();
-      await imgWritable.write(bytes as BufferSource);
-      await imgWritable.close();
+      await writeBytes(imgHandle, bytes);
       const txtHandle = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
-      const txtWritable = await txtHandle.createWritable();
-      await txtWritable.write(tags.map(t => t.replace(/ /g, '_')).join(', '));
-      await txtWritable.close();
+      await writeBytes(txtHandle, tags.map(t => t.replace(/ /g, '_')).join(', '));
       const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false) as Entry | null;
       if (entry) await moveEntry(entry, true);
       return entry;
@@ -1446,18 +1335,14 @@ async function writeImageEntry(bytes: Uint8Array, base: string, imgName: string,
     // immediate write is a safety net, not a substitute for the normal
     // dirty/save lifecycle every other entry goes through.
     const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
-    const imgWritable = await imgHandle.createWritable();
-    await imgWritable.write(bytes as BufferSource);
-    await imgWritable.close();
+    await writeBytes(imgHandle, bytes);
     const txtHandle = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
-    const txtWritable = await txtHandle.createWritable();
-    await txtWritable.write(tags.map(t => t.replace(/ /g, '_')).join(', '));
-    await txtWritable.close();
+    await writeBytes(txtHandle, tags.map(t => t.replace(/ /g, '_')).join(', '));
     const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false) as Entry | null;
     if (entry) markDirty(entry);
     return entry;
   } catch(err){
-    toast(`Could not save an image: ${(err as Error)?.message || err}`, 4200);
+    toastError('Could not save an image', err);
     return null;
   }
 }

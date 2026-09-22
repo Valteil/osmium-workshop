@@ -14,6 +14,7 @@
 // entry point view.ts's 3-dot menu calls directly, and the optional
 // review-before-apply step.
 import type { Entry } from './types';
+import { getJSON, setJSON } from './storage';
 import {
   btnWd14TagSelected, wd14Status, wd14AutoApply, wd14Host, wd14ModelSelect,
   btnWd14RefreshModels, wd14Threshold, wd14CharThreshold,
@@ -22,7 +23,7 @@ import {
   wd14LocalModelList, wd14LocalCatalog, wd14LocalAddRepo,
   btnWd14LocalDownload, wd14LocalDownloadStatus, btnWd14LocalImport
 } from './dom';
-import { toast, showConfirmModal } from './shared-ui';
+import { toast, showConfirmModal, createModalShell } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
 import { markDirty, recordChange } from './tags-edit';
 import { masterSelectedImages, renderMasterSelectionSummary } from './master-tag-control';
@@ -109,14 +110,12 @@ function loadSettings(){
   // settings yet) — an explicit saved `mode` always wins over this.
   const base = { ...DEFAULT_SETTINGS, mode: hasLocalWd14 ? 'local' : 'comfyui' };
   settings = { ...base };
-  try {
-    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
-    if (saved && typeof saved === 'object') settings = { ...base, ...saved };
-  } catch(e){ /* keep defaults */ }
+  const saved = getJSON<Partial<Wd14Settings> | null>(SETTINGS_KEY, null);
+  if (saved && typeof saved === 'object') settings = { ...base, ...saved };
 }
 
 function saveSettings(){
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e){}
+  setJSON(SETTINGS_KEY, settings);
 }
 
 // Whether local mode is even offered — true on mobile (DtsWd14Plugin.kt)
@@ -267,10 +266,7 @@ async function tagOneWithRetry(entry: Entry): Promise<string | null> {
 // the whole batch was cancelled.
 function showWd14ReviewModal(rows: Wd14ReviewRow[]): Promise<Wd14AcceptedRow[] | null> {
   return new Promise<Wd14AcceptedRow[] | null>((resolve) => {
-    const backdrop = document.createElement('div');
-    backdrop.className = 'confirm-backdrop';
-    const box = document.createElement('div');
-    box.className = 'confirm-box wd14-review-box';
+    const { box, close: teardown } = createModalShell({ boxClassName: 'wd14-review-box', onDismiss: () => close(null) });
 
     const msg = document.createElement('div');
     msg.className = 'confirm-message';
@@ -360,8 +356,7 @@ function showWd14ReviewModal(rows: Wd14ReviewRow[]): Promise<Wd14AcceptedRow[] |
     okBtn.className = 'primary';
     okBtn.textContent = 'Apply checked rows';
     function close(result: Wd14AcceptedRow[] | null): void {
-      backdrop.classList.remove('modal-visible');
-      setTimeout(() => backdrop.remove(), 160);
+      teardown();
       resolve(result);
     }
     cancelBtn.addEventListener('click', () => close(null));
@@ -374,13 +369,9 @@ function showWd14ReviewModal(rows: Wd14ReviewRow[]): Promise<Wd14AcceptedRow[] |
       }));
       close(accepted);
     });
-    backdrop.addEventListener('click', (ev) => { if (ev.target === backdrop) close(null); });
     btnRow.appendChild(cancelBtn);
     btnRow.appendChild(okBtn);
     box.appendChild(btnRow);
-    backdrop.appendChild(box);
-    document.body.appendChild(backdrop);
-    requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));
   });
 }
 
