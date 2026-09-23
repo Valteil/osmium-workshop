@@ -368,6 +368,36 @@
         </div>
       </div>
 
+      <div class="tool-section" data-dock-id="bucketImages" data-resizable="true">
+        <div class="sec-head"><span class="dot manual"></span><span class="t">Bucket Images</span><button type="button" class="info-btn dock-info-btn" id="infoBucketImages" title="About Bucket Images">ⓘ</button></div>
+        <template id="infoBucketImagesContent">
+          <p>Crops and resizes every Gallery image to the nearest training bucket — the same aspect-ratio bucketing Anima-TrainFlow uses — so a LoRA trainer doesn't have to. The crop is head-first: a u2net saliency model decides what to keep.</p>
+          <ul>
+            <li><b>Originals are kept.</b> Each image is moved into an <code>original_images/</code> folder (treated as disabled, shown under the <b>Originals</b> view next to Disabled) and its bucketed copy is written back to the dataset root as PNG.</li>
+            <li><b>Captions follow the copy.</b> The bucketed image keeps the same name stem, so it inherits the caption; the original keeps a duplicate <code>.txt</code>.</li>
+            <li><b>Already-bucketed images are left alone</b> — anything already at a valid bucket size is kept as-is and never moved.</li>
+            <li><b>Revert</b> deletes the bucketed copies and moves the originals back to the Gallery.</li>
+          </ul>
+          <p>The bucketing model is ~176 MB and downloads once from this app's GitHub release.</p>
+        </template>
+        <div class="dock-scroll-body">
+          <div class="dock-controls-area">
+            <div class="bucket-model-row">
+              <span id="bucketModelStatusText" class="d">Checking model…</span>
+              <button id="btnBucketDownloadModel" class="dock-list-open-btn primary" style="display:none;">⬇ Download model (176 MB)</button>
+            </div>
+            <div class="bucket-params-row">
+              <label>Min side <input type="number" id="bucketSideMin" value="256" min="64" step="64"></label>
+              <label>Max side <input type="number" id="bucketSideMax" value="1024" min="64" step="64"></label>
+              <label>Step <input type="number" id="bucketSideStep" value="64" min="16" step="16"></label>
+            </div>
+            <button id="btnBucketRun" class="dock-list-open-btn primary" title="Crop + resize every Gallery image to its nearest bucket">🧺 Bucket images</button>
+            <button id="btnBucketRevert" class="dock-list-open-btn" title="Undo bucketing: delete the bucketed copies and restore the originals">↩ Revert bucketing</button>
+          </div>
+          <div id="bucketLog" class="dock-list-area bucket-log"></div>
+        </div>
+      </div>
+
       </div>
 
       <div id="masterTagPanel" class="rt-hidden">

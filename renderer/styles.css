@@ -3820,3 +3820,17 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       max-width: 100%; box-sizing: border-box;
     }
   }
+
+/* ---------- Bucket Images dock (Gallery right panel) ---------- */
+
+.bucket-model-row{ display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.bucket-model-row .d{ font-size: 11px; line-height: 1.4; }
+.bucket-params-row{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.bucket-params-row label{ display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-muted); }
+.bucket-params-row input{ width: 70px; }
+.bucket-log{
+  font-size: 11px; line-height: 1.5; max-height: 190px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-word;
+}
+.bucket-log .bucket-log-line{ color: var(--text-muted); }
+.bucket-log .bucket-log-line.err{ color: var(--accent-danger); }

@@ -377,7 +377,7 @@ const rightToolsDockManager = createDockManager({
   storageOrderKey: 'dts-dock-order',
   storageCollapsedKey: 'dts-dock-collapsed',
   storageHeightsKey: 'dts-dock-heights',
-  defaultOrder: ['tagPruner', 'unifyVoid', 'canonicalTags'],
+  defaultOrder: ['tagPruner', 'unifyVoid', 'canonicalTags', 'bucketImages'],
   scrollContainer: rightAside,
   horizontalOnMobile: true
 });

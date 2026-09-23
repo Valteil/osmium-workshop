@@ -68,10 +68,11 @@ import {
   renderStatsTab, initEditLog
 } from './edit-log';
 import { initCanonicalTags, loadCanonicalRulesForFolder } from './canonical-tags';
+import { initBucketImages } from './bucket-images';
 import {
   markDirty, updateDirtyUI, recordChange, applyTagDirection, applyRenameDirection, applyPixelDirection, getIsolateState, updateUndoRedoButtons,
   resetUndoRedo, moveEntry, initTagsEdit, undoStack, redoStack, addTagToEntry,
-  markRulesDirty, rulesDirty, resetRulesDirty, renameAllEntriesSequentially
+  markRulesDirty, rulesDirty, resetRulesDirty, renameAllEntriesSequentially, saveAllDirty
 } from './tags-edit';
 import {
   masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid, initMasterTagControl
@@ -1243,6 +1244,14 @@ import { pickDatasetFolder } from './folder-picker';
     markRulesDirty: () => markRulesDirty(),
     recordChange: (type, summary, affected, extra) => recordChange(type, summary, affected, extra),
     refreshAllUI: () => refreshAllUI()
+  });
+
+  // Bucket Images dock (Gallery right panel) — moved to ./bucket-images.ts
+  initBucketImages({
+    getDirHandle: () => dirHandle,
+    getEntries: () => entries,
+    reload: () => loadFolder(),
+    saveAllDirty: (silent) => saveAllDirty(silent)
   });
 
   // Gallery/compact/single view rendering, chips, modal, image options menu moved to ./view.ts
