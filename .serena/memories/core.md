@@ -9,7 +9,14 @@ features, quick start, dev workflow, project structure.
 that bulk directly but was migrated to be just a short pointer into `notes/` (commit "Migrate
 CLAUDE.md's bulk into a local Obsidian vault", 2026-09-14) — don't expect real content in
 `CLAUDE.md` itself anymore; start at `notes/Index.md` and follow links from there for anything
-non-trivial. **The vault was restructured into a wiki on 2026-09-22** — subfolders `Architecture/`,
+non-trivial.
+
+**Mandatory for every agent, every session:** read the relevant note(s) from `notes/Index.md` +
+`notes/Pitfalls/Index.md` BEFORE touching an area. If the vault and the code disagree, SURFACE it —
+suggest correcting the note (vault stale) or flag the code (code behind a newer note); never
+silently pick one, and never resolve it by reverting the newer side to the older. `AGENTS.md`
+(git-tracked) is the cross-agent twin of `CLAUDE.md` — same pointers, keep in sync. Policy:
+`notes/Meta/Maintenance-Policy.md`. **The vault was restructured into a wiki on 2026-09-22** — subfolders `Architecture/`,
 `Systems/`, `Features/`, `Apps/`, `Meta/`, and `Pitfalls/`, each with a consistent per-note template
 (Purpose / Where it lives / How it works / Conventions & invariants / Related / Pitfalls); notes are
 cross-linked by bare `[[Name]]` (folder-independent in Obsidian). `notes/Meta/Maintenance-Policy.md` is the doc-maintenance policy now (see `mem:conventions`

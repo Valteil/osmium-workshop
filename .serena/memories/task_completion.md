@@ -28,3 +28,9 @@ A change here is not done until:
 
 Never run `npm run dist:zip` as part of routine verification — it's slow and only warranted when
 the user explicitly wants a release artifact.
+
+8. **Vault/code drift is part of "done".** If the change — or anything you read along the way — makes
+   a `notes/` note, `AGENTS.md`/`CLAUDE.md`, or a Serena memory stale, fix it in the same pass. If
+   you find a note the code hasn't caught up to, **flag the code as the thing to fix** rather than
+   matching the old code. Never revert the newer side to the older one. Per explicit user
+   instruction (2026-09-23); policy in `notes/Meta/Maintenance-Policy.md`.
