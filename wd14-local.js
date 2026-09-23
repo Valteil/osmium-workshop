@@ -56,9 +56,8 @@ exports.importModel = importModel;
 const electron_1 = require("electron");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
-const http = __importStar(require("http"));
-const https = __importStar(require("https"));
 const onnxruntime_node_1 = require("onnxruntime-node");
+const http_download_1 = require("./http-download");
 function modelsDir() {
     const dir = path.join(electron_1.app.getPath('userData'), 'wd14_models');
     fs.mkdirSync(dir, { recursive: true });
@@ -129,53 +128,6 @@ function importModel({ name, modelPath, tagsPath }) {
     fs.copyFileSync(modelPath, path.join(dir, 'model.onnx'));
     fs.copyFileSync(tagsPath, path.join(dir, 'tags.csv'));
 }
-// Plain Node http/https (same as main.ts's own comfyRequest) rather than a
-// new HTTP dependency. Unlike the Kotlin side's HttpURLConnection, Node's
-// http/https do NOT auto-follow redirects — HuggingFace's own
-// resolve/main/<file> URLs redirect through a CDN host, so this has to
-// chase Location headers by hand.
-function fetchToFile(url, destPath, onPercent, redirectsLeft = 5) {
-    return new Promise((resolve, reject) => {
-        const lib = (url.startsWith('https:') ? https : http);
-        const req = lib.get(url, (res) => {
-            const status = res.statusCode ?? 0;
-            if (status >= 300 && status < 400 && res.headers.location) {
-                res.resume();
-                if (redirectsLeft <= 0) {
-                    reject(new Error('Too many redirects.'));
-                    return;
-                }
-                const nextUrl = new URL(res.headers.location, url).toString();
-                fetchToFile(nextUrl, destPath, onPercent, redirectsLeft - 1).then(resolve, reject);
-                return;
-            }
-            if (status !== 200) {
-                res.resume();
-                reject(new Error(`HTTP ${status} downloading ${url}`));
-                return;
-            }
-            const total = parseInt(res.headers['content-length'] || '0', 10);
-            let downloaded = 0, lastPercent = -1;
-            const file = fs.createWriteStream(destPath);
-            res.on('data', (chunk) => {
-                downloaded += chunk.length;
-                if (total > 0 && onPercent) {
-                    const percent = Math.floor((downloaded / total) * 100);
-                    if (percent !== lastPercent) {
-                        lastPercent = percent;
-                        onPercent(percent);
-                    }
-                }
-            });
-            res.pipe(file);
-            file.on('finish', () => file.close(() => resolve(undefined)));
-            file.on('error', reject);
-            res.on('error', reject);
-        });
-        req.on('error', reject);
-        req.setTimeout(30000, () => req.destroy(new Error('Download timed out.')));
-    });
-}
 // Same .downloading-temp-dir-then-rename pattern as the Kotlin plugin.
 // Throws on failure (never resolves an {ok:false} shape) — downloadRepo()
 // in wd14-tagger.ts wraps its own call in try/catch expecting exactly that.
@@ -184,11 +136,11 @@ async function downloadModel({ name, modelUrl, tagsUrl }, onProgress) {
     fs.rmSync(tmpDir, { recursive: true, force: true });
     fs.mkdirSync(tmpDir, { recursive: true });
     try {
-        await fetchToFile(modelUrl, path.join(tmpDir, 'model.onnx'), (percent) => {
+        await (0, http_download_1.fetchToFile)(modelUrl, path.join(tmpDir, 'model.onnx'), (percent) => {
             if (onProgress)
                 onProgress({ name, part: 'model', percent });
         });
-        await fetchToFile(tagsUrl, path.join(tmpDir, 'tags.csv'), (percent) => {
+        await (0, http_download_1.fetchToFile)(tagsUrl, path.join(tmpDir, 'tags.csv'), (percent) => {
             if (onProgress)
                 onProgress({ name, part: 'tags', percent });
         });

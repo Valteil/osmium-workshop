@@ -15,9 +15,8 @@ import { app, dialog, BrowserWindow, nativeImage } from 'electron';
 import type { IpcMain, OpenDialogOptions } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as http from 'http';
-import * as https from 'https';
 import { InferenceSession, Tensor } from 'onnxruntime-node';
+import { fetchToFile } from './http-download';
 import type {
   Wd14LocalDownloadPayload, Wd14LocalImportPayload, Wd14LocalTagImagePayload, Wd14LocalPickImportResult
 } from './ipc-types';
@@ -91,48 +90,6 @@ function importModel({ name, modelPath, tagsPath }: Wd14LocalImportPayload) {
   fs.mkdirSync(dir, { recursive: true });
   fs.copyFileSync(modelPath, path.join(dir, 'model.onnx'));
   fs.copyFileSync(tagsPath, path.join(dir, 'tags.csv'));
-}
-
-// Plain Node http/https (same as main.ts's own comfyRequest) rather than a
-// new HTTP dependency. Unlike the Kotlin side's HttpURLConnection, Node's
-// http/https do NOT auto-follow redirects — HuggingFace's own
-// resolve/main/<file> URLs redirect through a CDN host, so this has to
-// chase Location headers by hand.
-function fetchToFile(url: string, destPath: string, onPercent: ((percent: number) => void) | null, redirectsLeft = 5): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const lib = (url.startsWith('https:') ? https : http) as typeof http;
-    const req = lib.get(url, (res) => {
-      const status = res.statusCode ?? 0;
-      if (status >= 300 && status < 400 && res.headers.location) {
-        res.resume();
-        if (redirectsLeft <= 0) { reject(new Error('Too many redirects.')); return; }
-        const nextUrl = new URL(res.headers.location, url).toString();
-        fetchToFile(nextUrl, destPath, onPercent, redirectsLeft - 1).then(resolve, reject);
-        return;
-      }
-      if (status !== 200) {
-        res.resume();
-        reject(new Error(`HTTP ${status} downloading ${url}`));
-        return;
-      }
-      const total = parseInt(res.headers['content-length'] || '0', 10);
-      let downloaded = 0, lastPercent = -1;
-      const file = fs.createWriteStream(destPath);
-      res.on('data', (chunk: Buffer) => {
-        downloaded += chunk.length;
-        if (total > 0 && onPercent) {
-          const percent = Math.floor((downloaded / total) * 100);
-          if (percent !== lastPercent) { lastPercent = percent; onPercent(percent); }
-        }
-      });
-      res.pipe(file);
-      file.on('finish', () => file.close(() => resolve(undefined)));
-      file.on('error', reject);
-      res.on('error', reject);
-    });
-    req.on('error', reject);
-    req.setTimeout(30000, () => req.destroy(new Error('Download timed out.')));
-  });
 }
 
 // Same .downloading-temp-dir-then-rename pattern as the Kotlin plugin.

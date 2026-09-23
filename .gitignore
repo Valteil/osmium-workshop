@@ -64,6 +64,9 @@ comfy-bridge/mobile/android/local.properties
 /preload.js
 /renderer/app.js
 /comfy-core.js
+/bucket-local.js
+/bucket-core.js
+/http-download.js
 
 # Root build (electron-builder --dir output, copied here by refresh-app —
 # see scripts/refresh-portable-dev.js). Tied to Electron's currently-bundled

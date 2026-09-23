@@ -6,6 +6,7 @@ import * as http from 'http';
 import * as https from 'https';
 import WS from 'ws';
 import { registerWd14LocalHandlers } from './wd14-local';
+import { registerBucketLocalHandlers } from './bucket-local';
 import { parseComboValues, buildWd14Prompt, extractWd14Tags, uploadImage, queuePrompt, pollHistory } from './comfy-core';
 import type { ComfyTransport } from './comfy-core';
 import type {
@@ -361,7 +362,8 @@ const nodeComfyTransport: ComfyTransport = {
 // offers on the user's machine.
 // On-device WD14 tagging — no ComfyUI instance needed at all. See
 // wd14-local.ts's own top comment; this mirrors mobile's DtsWd14Plugin.kt.
-registerWd14LocalHandlers(ipcMain);
+  registerWd14LocalHandlers(ipcMain);
+  registerBucketLocalHandlers(ipcMain);
 
 ipcMain.handle('wd14-get-models', async (_event, host: string) => {
   try {

@@ -43,3 +43,22 @@ export interface Wd14LocalDownloadProgress {
   part: string;
   percent: number;
 }
+
+// ---- Aspect-ratio bucketing (src/bucket-local.ts) ----
+
+export interface BucketModelStatus {
+  present: boolean;
+  sizeBytes?: number;
+}
+
+export interface BucketDownloadProgress {
+  percent: number;
+}
+
+export interface BucketImageResult {
+  ok: boolean;
+  error?: string;
+  pngBytes?: Uint8Array;
+  bucket?: [number, number];
+  provider?: string;
+}

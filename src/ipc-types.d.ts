@@ -7,7 +7,8 @@
 // against `ElectronAPI`, and main.ts's handlers can reuse the same payload
 // types, instead of three hand-maintained copies silently drifting apart.
 import type {
-  ComfyResult, Wd14LocalModel, Wd14LocalTagResult, Wd14LocalDownloadProgress, SynthDatPrompt
+  ComfyResult, Wd14LocalModel, Wd14LocalTagResult, Wd14LocalDownloadProgress, SynthDatPrompt,
+  BucketModelStatus, BucketImageResult, BucketDownloadProgress
 } from './shared-types';
 
 export interface Wd14TagSettings {
@@ -68,6 +69,13 @@ export interface Wd14LocalTagImagePayload {
   preferGpu?: boolean;
 }
 
+export interface BucketImagePayload {
+  imageBytes: Uint8Array;
+  sideMin: number;
+  sideMax: number;
+  step: number;
+}
+
 export interface ElectronAPI {
   restartApp(): Promise<void>;
   getAppVersion(): Promise<string>;
@@ -95,4 +103,9 @@ export interface ElectronAPI {
   onWd14LocalDownloadProgress(callback: (event: unknown, ev: Wd14LocalDownloadProgress) => void): void;
   wd14LocalPickImportFiles(): Promise<Wd14LocalPickImportResult>;
   wd14LocalImportModel(payload: Wd14LocalImportPayload): Promise<void>;
+
+  bucketModelStatus(): Promise<BucketModelStatus>;
+  bucketDownloadModel(): Promise<void>;
+  bucketImage(payload: BucketImagePayload): Promise<BucketImageResult>;
+  onBucketDownloadProgress(callback: (event: unknown, ev: BucketDownloadProgress) => void): void;
 }

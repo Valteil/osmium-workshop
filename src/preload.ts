@@ -30,7 +30,11 @@ const api: ElectronAPI = {
   wd14LocalTagImage: (payload) => ipcRenderer.invoke('wd14-local-tag-image', payload),
   onWd14LocalDownloadProgress: (callback) => ipcRenderer.on('wd14-local-download-progress', callback),
   wd14LocalPickImportFiles: () => ipcRenderer.invoke('wd14-local-pick-import-files'),
-  wd14LocalImportModel: (payload) => ipcRenderer.invoke('wd14-local-import-model', payload)
+  wd14LocalImportModel: (payload) => ipcRenderer.invoke('wd14-local-import-model', payload),
+  bucketModelStatus: () => ipcRenderer.invoke('bucket-model-status'),
+  bucketDownloadModel: () => ipcRenderer.invoke('bucket-download-model'),
+  bucketImage: (payload) => ipcRenderer.invoke('bucket-image', payload),
+  onBucketDownloadProgress: (callback) => ipcRenderer.on('bucket-download-progress', callback)
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);
