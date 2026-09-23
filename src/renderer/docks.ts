@@ -112,8 +112,12 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
     const resizeHandle = sec.querySelector('.dock-resize-handle') as HTMLElement | null;
     const resizeTarget = scrollBody || sec;
     const collapsing = !!dockCollapsed[id];
-    const finalMaxDim = collapsing ? '' : (dockHeights[id] || '');
-    const finalOverflow = collapsing ? '' : (dockHeights[id] ? 'auto' : '');
+    // A dock WITHOUT data-resizable ignores any saved height, so its content
+    // always shows in full — a height left over from when it was resizable (or
+    // dragged by the user) would otherwise keep clipping it.
+    const savedHeight = (sec.dataset.resizable === 'true') ? (dockHeights[id] || '') : '';
+    const finalMaxDim = collapsing ? '' : savedHeight;
+    const finalOverflow = collapsing ? '' : (savedHeight ? 'auto' : '');
 
     // Horizontal mode's outer dock box (`sec`) has a fixed CSS `width`
     // (styles.css) independent of its content — unlike vertical mode,
@@ -176,7 +180,7 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
       void sec.offsetHeight;
       requestAnimationFrame(() => {
         bodyEls.forEach(el => {
-          el.style[maxProp] = (el === scrollBody && dockHeights[id]) ? dockHeights[id] : el[scrollProp] + 'px';
+          el.style[maxProp] = (el === scrollBody && savedHeight) ? savedHeight : el[scrollProp] + 'px';
           el.style.opacity = '1';
         });
       });

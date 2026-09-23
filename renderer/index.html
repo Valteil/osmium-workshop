@@ -368,7 +368,7 @@
         </div>
       </div>
 
-      <div class="tool-section" data-dock-id="bucketImages" data-resizable="true">
+      <div class="tool-section" data-dock-id="bucketImages">
         <div class="sec-head"><span class="dot manual"></span><span class="t">Bucket Images</span><button type="button" class="info-btn dock-info-btn" id="infoBucketImages" title="About Bucket Images">ⓘ</button></div>
         <template id="infoBucketImagesContent">
           <p>Crops and resizes every Gallery image to the nearest training bucket — the same aspect-ratio bucketing Anima-TrainFlow uses — so a LoRA trainer doesn't have to. The crop is head-first: a u2net saliency model decides what to keep.</p>
@@ -391,8 +391,8 @@
               <label>Max side <input type="number" id="bucketSideMax" value="1024" min="64" step="64"></label>
               <label>Step <input type="number" id="bucketSideStep" value="64" min="16" step="16"></label>
             </div>
-            <button id="btnBucketRun" class="dock-list-open-btn primary" title="Crop + resize every Gallery image to its nearest bucket">🧺 Bucket images</button>
-            <button id="btnBucketRevert" class="dock-list-open-btn" title="Undo bucketing: delete the bucketed copies and restore the originals">↩ Revert bucketing</button>
+            <button id="btnBucketRun" class="primary" title="Crop + resize every Gallery image to its nearest bucket">🧺 Bucket images</button>
+            <button id="btnBucketRevert" title="Undo bucketing: delete the bucketed copies and restore the originals">↩ Revert bucketing</button>
           </div>
           <div id="bucketLog" class="dock-list-area bucket-log"></div>
         </div>
