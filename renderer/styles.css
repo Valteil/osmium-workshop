@@ -3823,14 +3823,44 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
 /* ---------- Bucket Images dock (Gallery right panel) ---------- */
 
-.bucket-model-row{ display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-.bucket-model-row .d{ font-size: 11px; line-height: 1.4; }
-.bucket-params-row{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
-.bucket-params-row label{ display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-muted); }
-.bucket-params-row input{ width: 70px; }
-.bucket-log{
-  font-size: 11px; line-height: 1.5; max-height: 190px; overflow-y: auto;
-  white-space: pre-wrap; word-break: break-word;
+/* The number fields are the ONE input type the global rule
+   (`input[type="text"], textarea`) doesn't cover — without this they render as
+   the browser's default white boxes instead of the theme. Mirrors
+   .wd14-settings' own number-input styling. */
+.bucket-params-row input[type="number"]{
+  font-family: var(--sans); font-size: 12.5px; color: var(--text-primary);
+  background: var(--bg-elevated); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); padding: 6px 9px; box-sizing: border-box;
+  width: 100%; cursor: text;
 }
+.bucket-params-row input[type="number"]:focus{ border-color: var(--accent-manual); outline: none; }
+
+.bucket-model-row{ display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.bucket-model-row .d{ font-size: 11.5px; line-height: 1.4; color: var(--text-muted); }
+.bucket-model-row button{ width: 100%; white-space: normal; }
+
+.bucket-params-row{
+  /* auto-fit so the fields wrap to their own rows instead of squeezing into
+     slivers in the narrow/horizontal dock layout */
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
+  gap: 8px; margin-bottom: 12px;
+}
+.bucket-params-row label{
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 11px; color: var(--text-faint);
+}
+
+/* Both actions fill the dock's width, so the column reads as a deliberate
+   control stack rather than two stray pills. */
+#btnBucketRun, #btnBucketRevert{ width: 100%; white-space: normal; }
+#btnBucketRevert{ margin-top: 2px; font-size: 12px; }
+
+.bucket-log{
+  font-size: 11px; line-height: 1.55; max-height: 190px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-word;
+  background: var(--bg-base); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 8px 10px;
+}
+.bucket-log:empty{ display: none; }
 .bucket-log .bucket-log-line{ color: var(--text-muted); }
 .bucket-log .bucket-log-line.err{ color: var(--accent-danger); }
