@@ -1810,7 +1810,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .info-modal-body ul:last-child{ margin-bottom: 0; }
   .info-modal-body b{ color: var(--text-primary); }
 
-  html.discrete-mode .card img, html.discrete-mode .compact-card img, html.discrete-mode .single-img-side img{
+  html.discrete-mode .card img, html.discrete-mode .compact-card img, html.discrete-mode .single-img-side img, html.discrete-mode .single-preview img{
     filter: blur(24px);
   }
   html.discrete-mode .card.discrete-off img, html.discrete-mode .compact-card.discrete-off img{
@@ -2427,7 +2427,16 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   #singleNav{ display: none; align-items: center; gap: 10px; }
-  .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 64px; text-align:center; }
+  .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 64px; text-align:center; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+  /* The image-number field in the Single mode toolbar — type a number, Enter to
+     jump (view.ts renderSinglePos). */
+  .single-pos-input{
+    font-family: var(--mono); font-size: 12px; color: var(--text-primary);
+    background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 4px;
+    padding: 2px 4px; width: 46px; text-align: center; cursor: text;
+  }
+  .single-pos-input:focus{ border-color: var(--accent-manual); outline: none; }
+  .single-pos-total{ font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
   /* Sequential mode (view.ts): the Confirm button sticks to the panel's
      visible bottom edge so it never needs a scroll to reach; the panel's
      own scroller is .single-panel's overflow, so sticky grounds to that. */
@@ -3210,6 +3219,24 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: #0f0e13; border-radius: 8px; border: 1px solid var(--border-soft);
   }
   .single-img-side img{ max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 4px; }
+  /* Normal Single view's image: a small static preview (click opens the
+     fullscreen lightbox). Same dark frame + centered fit as the old big side,
+     just constrained so the tag panel gets the space instead. */
+  .single-preview{
+    flex: 0 0 38%; max-width: 38%; max-height: 42vh; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    background: #0f0e13; border-radius: 8px; border: 1px solid var(--border-soft);
+    overflow: hidden; cursor: zoom-in;
+  }
+  .single-preview img{ max-width: 100%; max-height: 42vh; object-fit: contain; border-radius: 4px; pointer-events: none; }
+  .single-preview-hint{
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    font-size: 10.5px; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+    background: rgba(0,0,0,0.55); color: #fff; pointer-events: none; opacity: 0.9;
+  }
+  /* The preview frees horizontal space; widen the panel so chips wrap less and
+     the rest of the Single UI needs far less scrolling. */
+  .single-panel-main{ width: auto; flex: 1; max-height: 82vh; }
   .single-panel{
     width: 360px; flex-shrink: 0; max-height: 85vh; overflow-y: scroll;
     background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: 8px;
@@ -3760,6 +3787,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
     .single-wrap{ flex-direction: column; }
     .single-panel{ width: 100%; }
+    .single-preview{ flex: 0 0 auto; max-width: 100%; max-height: 32vh; }
+    .single-preview img{ max-height: 32vh; }
+    .single-panel-main{ max-height: none; }
 
     /* Help modal was a fixed 230px TOC + content ROW regardless of
        viewport — on a ~92vw-wide phone modal that left barely a sliver for

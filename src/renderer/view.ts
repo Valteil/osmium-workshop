@@ -1203,16 +1203,10 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
   emitPreview();
 }
 
-// The zoomable/pannable image half of Single view, shared verbatim by the
-// normal and sequential renders (sequential swaps only the panel). Zoom
-// readout updates go through hooks since only the normal render owns a
-// slider for them.
-let singleImgEl: HTMLImageElement | null = null;
-
-function applySingleTransform(): void {
-  if (singleImgEl) singleImgEl.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom/100})`;
-}
-
+// The zoomable/pannable image side. Now used only by sequential mode — normal
+// Single view shows a small static preview that opens the fullscreen lightbox
+// on click (buildSinglePreview). Hooks carry the zoom readout up to whichever
+// render owns a slider for it.
 function buildSingleImgSide(e: Entry, hooks?: { setZoomUI(z: number): void }, opts?: { clampPan?: boolean }): HTMLElement {
   const imgSide = document.createElement('div');
   imgSide.className = 'single-img-side';
@@ -1319,8 +1313,84 @@ function buildSingleImgSide(e: Entry, hooks?: { setZoomUI(z: number): void }, op
   }, { passive: false });
   attachPinchZoom(imgSide, (delta) => zoomBy(delta));
 
-  singleImgEl = img;
   return imgSide;
+}
+
+// Normal Single view's image: a small static preview (no zoom/pan here) that
+// opens the fullscreen zoomable lightbox on click. The same 3-dot menu and
+// status/merge badges that used to overlay the big zoomable side ride on it.
+function buildSinglePreview(e: Entry): HTMLElement {
+  const box = document.createElement('div');
+  box.className = 'single-preview';
+  box.title = 'Click to view full size';
+
+  const img = document.createElement('img');
+  img.src = e.objectUrl;
+  img.draggable = false;
+  box.appendChild(img);
+
+  const menuBtn = document.createElement('button');
+  menuBtn.className = 'img-menu-btn';
+  menuBtn.style.left = '10px';
+  menuBtn.style.top = '10px';
+  menuBtn.textContent = '⋯';
+  menuBtn.title = 'More options';
+  menuBtn.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+  menuBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openImageOptionsMenu(e, ev.clientX, ev.clientY); });
+  box.appendChild(menuBtn);
+
+  const statusIconsEl = buildStatusIconsEl(e);
+  statusIconsEl.style.left = '10px';
+  statusIconsEl.style.top = '38px';
+  box.appendChild(statusIconsEl);
+
+  const mvBadges = buildMergeVoidBadgesEl(e);
+  if (mvBadges){
+    mvBadges.style.position = 'absolute';
+    mvBadges.style.left = '10px';
+    mvBadges.style.bottom = '10px';
+    box.appendChild(mvBadges);
+  }
+
+  const hint = document.createElement('div');
+  hint.className = 'single-preview-hint';
+  hint.textContent = 'Click to view full size';
+  box.appendChild(hint);
+
+  box.addEventListener('click', () => showImageLightbox(e.objectUrl));
+  return box;
+}
+
+// The toolbar's "N / total" indicator. N is an editable field: type a number
+// and press Enter (or blur) to jump straight to that image.
+function renderSinglePos(total: number): void {
+  singlePos.innerHTML = '';
+  if (!total){ singlePos.textContent = '0 / 0'; return; }
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'single-pos-input';
+  inp.value = String(singleIndex + 1);
+  inp.title = 'Type an image number and press Enter to jump';
+  inp.setAttribute('inputmode', 'numeric');
+  inp.setAttribute('aria-label', 'Image number');
+  const commit = (): void => {
+    const n = parseInt(inp.value, 10);
+    if (!isFinite(n)){ inp.value = String(singleIndex + 1); return; }
+    const target = Math.min(total, Math.max(1, n)) - 1;
+    if (target !== singleIndex){ singleIndex = target; renderSingleView(); }
+    else inp.value = String(singleIndex + 1);
+  };
+  inp.addEventListener('keydown', (ev) => {
+    ev.stopPropagation(); // don't let ←/→ page the image while typing here
+    if (ev.key === 'Enter'){ ev.preventDefault(); commit(); inp.blur(); }
+    else if (ev.key === 'Escape'){ inp.value = String(singleIndex + 1); inp.blur(); }
+  });
+  inp.addEventListener('blur', commit);
+  const tot = document.createElement('span');
+  tot.className = 'single-pos-total';
+  tot.textContent = '/ ' + total;
+  singlePos.appendChild(inp);
+  singlePos.appendChild(tot);
 }
 
 function renderSingleView(){
@@ -1449,7 +1519,7 @@ function renderSingleView(){
   if (singleIndex >= list.length) singleIndex = list.length - 1;
   if (singleIndex < 0) singleIndex = 0;
 
-  singlePos.textContent = list.length ? `${singleIndex + 1} / ${list.length}` : '0 / 0';
+  renderSinglePos(list.length);
   singlePrevBtn.disabled = list.length === 0 || singleIndex <= 0;
   singleNextBtn.disabled = list.length === 0 || singleIndex >= list.length - 1;
 
@@ -1470,58 +1540,15 @@ function renderSingleView(){
 
   const wrap = document.createElement('div');
   wrap.className = 'single-wrap';
-  wrap.appendChild(buildSingleImgSide(e, { setZoomUI: (z) => {
-    zoomSlider.value = String(z);
-    zoomVal.textContent = z + '%';
-  } }));
+  wrap.appendChild(buildSinglePreview(e));
 
   const panel = document.createElement('div');
-  panel.className = 'single-panel';
+  panel.className = 'single-panel single-panel-main';
 
   const nameEl = document.createElement('div');
   nameEl.className = 'single-name';
   nameEl.textContent = e.imgName + (e.width ? ` · ${e.width}×${e.height}` : '') + ` · ${e.tags.length} tags`;
   panel.appendChild(nameEl);
-
-  const zoomRow = document.createElement('div');
-  zoomRow.className = 'modal-zoom-row';
-  zoomRow.style.cssText = 'display:flex; gap:8px; align-items:center;';
-  const zoomLabel = document.createElement('span');
-  zoomLabel.style.cssText = 'font-size:11px; color:var(--text-faint);';
-  zoomLabel.textContent = 'Zoom';
-  const zoomSlider = document.createElement('input');
-  zoomSlider.type = 'range'; zoomSlider.min = '100'; zoomSlider.max = '400'; zoomSlider.step = '10';
-  zoomSlider.value = String(singleZoom);
-  zoomSlider.style.flex = '1';
-  const zoomVal = document.createElement('span');
-  zoomVal.style.cssText = 'font-family:var(--mono); font-size:11px; min-width:42px; text-align:right;';
-  zoomVal.textContent = singleZoom + '%';
-  zoomSlider.addEventListener('input', () => {
-    singleZoom = parseInt(zoomSlider.value, 10);
-    zoomVal.textContent = singleZoom + '%';
-    applySingleTransform();
-    if (singleZoom > (folderStats.zoom_max || 0)){
-      folderStats.zoom_max = singleZoom;
-      saveFolderStats();
-      checkAchievements();
-    }
-  });
-  const zoomResetBtn = document.createElement('button');
-  zoomResetBtn.textContent = 'Reset';
-  zoomResetBtn.addEventListener('click', () => {
-    singleZoom = 100; singlePanX = 0; singlePanY = 0;
-    zoomSlider.value = '100'; zoomVal.textContent = '100%';
-    applySingleTransform();
-  });
-  zoomRow.appendChild(zoomLabel);
-  zoomRow.appendChild(zoomSlider);
-  zoomRow.appendChild(zoomVal);
-  zoomRow.appendChild(zoomResetBtn);
-  panel.appendChild(zoomRow);
-  const zoomHint = document.createElement('div');
-  zoomHint.style.cssText = 'font-size:10.5px; color:var(--text-faint);';
-  zoomHint.textContent = 'Click and drag (either button) to pan. Scroll the mouse wheel over the image to zoom.';
-  panel.appendChild(zoomHint);
 
   if (e.disabled){
     const badge = document.createElement('div');
