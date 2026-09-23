@@ -51,20 +51,16 @@ async function downloadModel(onProgress?: (ev: BucketDownloadProgress) => void):
 }
 
 let session: InferenceSession | null = null;
-let provider = '';
 
-// DirectML first (same as wd14-local's own GPU path), CPU as the fallback.
+// CPU only. A DirectML attempt was the first choice, for parity with
+// wd14-local's GPU path — but u2net's graph hangs DirectML's session build in
+// onnxruntime-node: it burns CPU instead of erroring, freezing the whole main
+// process. u2net at 320x320 is fast enough on CPU for a one-off bucket batch.
 async function loadSession(): Promise<InferenceSession> {
   if (session) return session;
   const p = modelPath();
   if (!fs.existsSync(p)) throw new Error('The u2net model has not been downloaded yet.');
-  try {
-    session = await InferenceSession.create(p, { executionProviders: ['dml'] });
-    provider = 'GPU';
-  } catch {
-    session = await InferenceSession.create(p);
-    provider = 'CPU';
-  }
+  session = await InferenceSession.create(p);
   return session;
 }
 
@@ -135,7 +131,7 @@ async function bucketImage({ imageBytes, sideMin, sideMax, step }: BucketImagePa
     } else {
       out = img.crop(await cropRect(img, w, h, tw, th)).resize({ width: tw, height: th, quality: 'best' });
     }
-    return { ok: true, pngBytes: new Uint8Array(out.toPNG()), bucket: [tw, th], provider };
+    return { ok: true, pngBytes: new Uint8Array(out.toPNG()), bucket: [tw, th], provider: 'CPU' };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
