@@ -10,7 +10,7 @@ import type { Entry, EntryMeta, GalleryFilter, CardTagSortMode, DirHandle, FileH
 import { getJSON, setJSON, getBool, setBool } from './storage';
 import { writeBytes } from './fs-access';
 import {
-  viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, btnUnlockAll, btnHideTags, btnRenameAllImages, singlePrevBtn, singleNextBtn,
+  viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, viewOriginalsBtn, btnUnlockAll, btnHideTags, btnRenameAllImages, singlePrevBtn, singleNextBtn,
   galleryGrid, compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
   langAutoSelectToggle, filterMatchCount
@@ -25,7 +25,7 @@ import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGri
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
 
-export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled';
+export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
 export let viewMode: ViewMode = 'grid';
 export let stickyCompareImages: string[] = [];
 
@@ -40,7 +40,7 @@ let getDirHandleRef: () => DirHandle | null = () => null;
 let addEntryFromNewFileRef: (base: string, imgHandle: FileHandle, imgName: string, txtHandle: FileHandle | null, txtExisted: boolean, tags: string[], disabled: boolean) => Promise<Entry | null> = async () => null;
 let getMasterTagModeActive: () => boolean = () => false;
 let getCardTagSortMode: () => CardTagSortMode = () => 'default';
-let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false });
+let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, originalsView: false, exactMatch: false });
 let getIsolatedFlagActive: () => boolean = () => false;
 let getShowTagCountBadges: () => boolean = () => false;
 let getEntryMeta: () => Record<string, EntryMeta> = () => ({});
@@ -83,7 +83,7 @@ function updateFilterMatchCount(){
 // Grid and Disabled share #galleryGrid (getGalleryFilter().disabledView is
 // what actually distinguishes them), so a switch between the two never needs
 // a transition — the container never disappears/reappears.
-const VIEW_TRANSITION_ORDER = ['grid', 'compact', 'single', 'disabled'];
+const VIEW_TRANSITION_ORDER = ['grid', 'compact', 'single', 'disabled', 'originals'];
 function viewContainerFor(mode: ViewMode): HTMLElement {
   if (mode === 'compact') return compactGrid;
   if (mode === 'single') return singleViewEl;
@@ -102,12 +102,14 @@ export function switchView(mode: ViewMode): void {
     viewCompactBtn.classList.toggle('active', mode === 'compact');
     viewSingleBtn.classList.toggle('active', mode === 'single');
     viewDisabledBtn.classList.toggle('active', mode === 'disabled');
+    viewOriginalsBtn.classList.toggle('active', mode === 'originals');
     getGalleryFilter().disabledView = (mode === 'disabled');
+    getGalleryFilter().originalsView = (mode === 'originals');
     // '' (not 'grid') when shown: an inline style always beats stylesheet rules,
     // which would otherwise permanently defeat dynamic-cards mode's own
     // `display: block` override (its column-width/fill were applying, but were
     // inert since the container was still actually `display: grid` underneath).
-    galleryGrid.style.display = (mode === 'grid' || mode === 'disabled') ? '' : 'none';
+    galleryGrid.style.display = (mode === 'grid' || mode === 'disabled' || mode === 'originals') ? '' : 'none';
     compactGrid.style.display = mode === 'compact' ? 'grid' : 'none';
     compactCompareArea.style.display = (mode === 'compact' && stickyCompareImages.length > 0) ? 'block' : 'none';
     singleViewEl.style.display = mode === 'single' ? 'block' : 'none';
@@ -1554,16 +1556,21 @@ function renderSingleView(){
 
   const btnRow = document.createElement('div');
   btnRow.className = 'single-btn-row';
-  const toggleBtn = document.createElement('button');
-  if (e.disabled){
-    toggleBtn.textContent = 'Restore to dataset';
-    toggleBtn.className = 'primary';
-  } else {
-    toggleBtn.textContent = 'Disable (move to /Disabled)';
-    toggleBtn.className = 'danger-ghost';
+  // Originals live in original_images/ and are a paired copy of a bucketed
+  // image — the Bucket Images dock's Revert is what moves them back, so no
+  // disable/restore button here.
+  if (!e.original){
+    const toggleBtn = document.createElement('button');
+    if (e.disabled){
+      toggleBtn.textContent = 'Restore to dataset';
+      toggleBtn.className = 'primary';
+    } else {
+      toggleBtn.textContent = 'Disable (move to /Disabled)';
+      toggleBtn.className = 'danger-ghost';
+    }
+    toggleBtn.addEventListener('click', () => moveEntry(e, !e.disabled));
+    btnRow.appendChild(toggleBtn);
   }
-  toggleBtn.addEventListener('click', () => moveEntry(e, !e.disabled));
-  btnRow.appendChild(toggleBtn);
   panel.appendChild(btnRow);
 
   wrap.appendChild(panel);
@@ -2554,13 +2561,16 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     switchView('single');
   }, { title: 'Enter sequential mode starting at this image (walks the current filter image by image)' });
 
-  addContextMenuItem(menu, entry.disabled ? '↩ Restore' : '🗑 Disable', async () => {
-    await moveEntry(entry, !entry.disabled);
-    // The image this menu belongs to just moved out of whatever view it was
-    // opened from (active <-> Disabled) — leaving the menu open no longer
-    // makes sense once the thing it's about is gone from view.
-    closeTagContextMenu();
-  }, { title: entry.disabled ? 'Restore this image to the dataset root' : 'Move this image to /Disabled' });
+  // Originals are managed by the Bucket Images dock's Revert, not Disable.
+  if (!entry.original){
+    addContextMenuItem(menu, entry.disabled ? '↩ Restore' : '🗑 Disable', async () => {
+      await moveEntry(entry, !entry.disabled);
+      // The image this menu belongs to just moved out of whatever view it was
+      // opened from (active <-> Disabled) — leaving the menu open no longer
+      // makes sense once the thing it's about is gone from view.
+      closeTagContextMenu();
+    }, { title: entry.disabled ? 'Restore this image to the dataset root' : 'Move this image to /Disabled' });
+  }
 
   // Unlike Disable above (relocates into Disabled/, fully restorable), this
   // deletes the image + its .txt from disk outright and drops the entry
@@ -3111,6 +3121,7 @@ export function initView(deps: ViewDeps): void {
     await renameAllEntriesSequentially();
   });
   viewDisabledBtn.addEventListener('click', () => switchView('disabled'));
+  viewOriginalsBtn.addEventListener('click', () => switchView('originals'));
   viewDisabledBtn.addEventListener('dragover', (ev) => { ev.preventDefault(); viewDisabledBtn.classList.add('drag-over'); });
   viewDisabledBtn.addEventListener('dragleave', () => viewDisabledBtn.classList.remove('drag-over'));
   viewDisabledBtn.addEventListener('drop', (ev) => {

@@ -102,6 +102,7 @@ let getEntryByBase: (base: string) => Entry | undefined = () => undefined;
 let getDirHandle: () => DirHandle | null = () => null;
 let getDisabledDirHandle: () => DirHandle | null = () => null;
 let setDisabledDirHandle: (h: DirHandle) => void = () => {};
+let getOriginalDirHandle: () => DirHandle | null = () => null;
 let reindexEntry: (oldBase: string, newBase: string) => void = () => {};
 let resetSingleIndex: () => void = () => {};
 let refreshStatsRef: () => void = () => {};
@@ -298,6 +299,10 @@ async function ensureDisabledDir(): Promise<DirHandle> {
 export async function moveEntry(entry: Entry, toDisabled: boolean, opts?: { silent?: boolean }): Promise<void> {
   const dirHandle = getDirHandle();
   if (!dirHandle) return;
+  // Originals live in original_images/, not Disabled/, and are a paired copy of
+  // a bucketed image — disable/restore is meaningless for them (the Bucket
+  // Images dock's Revert is what moves them back).
+  if (entry.original){ toast('Originals are managed by the Bucket Images tool.'); return; }
   const silent = !!opts?.silent;
   try {
     const targetDir = toDisabled ? await ensureDisabledDir() : dirHandle;
@@ -380,8 +385,10 @@ export async function renameAllEntriesSequentially(): Promise<void> {
   if (!dirHandle){ toast('Open a dataset folder first.'); return; }
   const disabledDirHandle = getDisabledDirHandle();
   const byFilename = (a: Entry, b: Entry) => a.base.localeCompare(b.base, undefined, { numeric: true });
-  const active = getEntries().filter(e => !e.disabled).sort(byFilename);
-  const disabled = getEntries().filter(e => e.disabled).sort(byFilename);
+  // Originals are excluded: they're a paired copy of a bucketed image in the
+  // root, so renumbering them independently would break that pairing.
+  const active = getEntries().filter(e => !e.disabled && !e.original).sort(byFilename);
+  const disabled = getEntries().filter(e => e.disabled && !e.original).sort(byFilename);
   const ordered = [...active, ...disabled];
   if (ordered.length === 0){ toast('No images to rename.'); return; }
 
@@ -508,6 +515,7 @@ interface TagsEditDeps {
   getDirHandle: () => DirHandle | null;
   getDisabledDirHandle: () => DirHandle | null;
   setDisabledDirHandle: (h: DirHandle) => void;
+  getOriginalDirHandle: () => DirHandle | null;
   reindexEntry: (oldBase: string, newBase: string) => void;
   resetSingleIndex: () => void;
   refreshStats: () => void;
@@ -522,6 +530,7 @@ export function initTagsEdit(deps: TagsEditDeps): void {
   getDirHandle = deps.getDirHandle;
   getDisabledDirHandle = deps.getDisabledDirHandle;
   setDisabledDirHandle = deps.setDisabledDirHandle;
+  getOriginalDirHandle = deps.getOriginalDirHandle;
   reindexEntry = deps.reindexEntry;
   resetSingleIndex = deps.resetSingleIndex;
   refreshStatsRef = deps.refreshStats;
@@ -666,7 +675,7 @@ export async function saveAllDirty(silent = false){
   }
   for (const e of dirty){
     try {
-      const targetDir = e.disabled ? disabledDirHandle : dirHandle;
+      const targetDir = e.original ? getOriginalDirHandle() : (e.disabled ? disabledDirHandle : dirHandle);
       if (!targetDir) { fail++; continue; }
       if (!e.txtHandle){
         e.txtHandle = await targetDir.getFileHandle(e.txtName!, { create: true });

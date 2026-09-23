@@ -13,7 +13,7 @@ export let leftSortDir: LeftSortDir = 'desc';
 export let familyOrder: string[] = [];
 
 let getEntries: () => Entry[] = () => [];
-let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false });
+let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, originalsView: false, exactMatch: false });
 let getGallerySortMode: () => GallerySortMode = () => 'filename';
 let getGallerySortDir: () => GallerySortDir = () => 'asc';
 let resetSingleIndex: () => void = () => {};
@@ -300,8 +300,10 @@ export function filteredEntries(): Entry[] {
 
 export function passesFilter(e: Entry): boolean {
   const galleryFilter = getGalleryFilter();
-  if (galleryFilter.disabledView){
-    if (!e.disabled) return false;
+  if (galleryFilter.originalsView){
+    if (!e.original) return false;
+  } else if (galleryFilter.disabledView){
+    if (!e.disabled || e.original) return false;
   } else {
     if (e.disabled) return false;
     if (galleryFilter.base === 'untagged' && e.tags.length !== 0) return false;

@@ -111,9 +111,10 @@ import { pickDatasetFolder } from './folder-picker';
   // ---------------- State ----------------
   let dirHandle: DirHandle | null = null;
   let disabledDirHandle: DirHandle | null = null;
+  let originalDirHandle: DirHandle | null = null;
   let entries: Entry[] = [];
   let entryByBase = new Map<string, Entry>();
-  let galleryFilter: GalleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, exactMatch: false };
+  let galleryFilter: GalleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, originalsView: false, exactMatch: false };
   // Set once buildPersistentDropdown(filterModeDropdown, ...) runs, below —
   // referenced (via closure, not by value) from initTagIndex()'s deps
   // earlier in this same init sequence, so the assignment-after-reference
@@ -1159,6 +1160,7 @@ import { pickDatasetFolder } from './folder-picker';
     getDirHandle: () => dirHandle,
     getDisabledDirHandle: () => disabledDirHandle,
     setDisabledDirHandle: (h) => { disabledDirHandle = h; },
+    getOriginalDirHandle: () => originalDirHandle,
     reindexEntry: (oldBase, newBase) => {
       const entry = entryByBase.get(oldBase);
       if (entry){ entryByBase.delete(oldBase); entryByBase.set(newBase, entry); }
@@ -1312,6 +1314,7 @@ import { pickDatasetFolder } from './folder-picker';
       // attempt behave strangely.
       dirHandle = null;
       disabledDirHandle = null;
+      originalDirHandle = null;
       entries = [];
       entryByBase.clear();
       btnAddFavorite.disabled = true;
@@ -1329,7 +1332,7 @@ import { pickDatasetFolder } from './folder-picker';
     maybePromptAddDataset(picked);
   });
 
-  async function scanDirInto(handle: DirHandle, disabled: boolean): Promise<void> {
+  async function scanDirInto(handle: DirHandle, disabled: boolean, original = false): Promise<void> {
     const imageHandles = new Map<string, { handle: FileHandle; name: string }>();
     const txtHandles = new Map<string, { handle: FileHandle; name: string }>();
     for await (const h of handle.values()){
@@ -1359,7 +1362,7 @@ import { pickDatasetFolder } from './folder-picker';
         } catch(e){ tags = []; }
       }
 
-      await buildEntry(base, img.handle, img.name, txtHandle, txtExisted, tags, disabled);
+      await buildEntry(base, img.handle, img.name, txtHandle, txtExisted, tags, disabled, original);
     }
   }
 
@@ -1368,7 +1371,7 @@ import { pickDatasetFolder } from './folder-picker';
   // image+.txt into dirHandle without a full folder rescan) can be appended
   // to `entries` the exact same way a folder-open scan would have built it,
   // rather than a second, divergent entry-shape constructor.
-  async function buildEntry(base: string, imgHandle: FileHandle, imgName: string, txtHandle: FileHandle | null, txtExisted: boolean, tags: string[], disabled: boolean): Promise<Entry> {
+  async function buildEntry(base: string, imgHandle: FileHandle, imgName: string, txtHandle: FileHandle | null, txtExisted: boolean, tags: string[], disabled: boolean, original = false): Promise<Entry> {
     const file = await imgHandle.getFile();
     const objectUrl = URL.createObjectURL(file);
 
@@ -1383,6 +1386,7 @@ import { pickDatasetFolder } from './folder-picker';
       tags,
       dirty: false,
       disabled,
+      original,
       // Default meta for an entry created OUTSIDE the normal folder-scan path
       // (e.g. SynthDat's addEntryFromNewFile) — loadFolder()'s own post-scan
       // loop overwrites this from the persisted _dts_meta.json (or stamps a
@@ -1419,7 +1423,7 @@ import { pickDatasetFolder } from './folder-picker';
   // entry instead of one per image.
   async function deleteEntryFilesAndState(entry: Entry): Promise<boolean> {
     if (!dirHandle) return false;
-    const sourceDir = entry.disabled ? disabledDirHandle : dirHandle;
+    const sourceDir = entry.original ? originalDirHandle : (entry.disabled ? disabledDirHandle : dirHandle);
     if (!sourceDir) return false;
     try { await sourceDir.removeEntry(entry.imgName!); } catch(e){}
     try { await sourceDir.removeEntry(entry.txtName!); } catch(e){}
@@ -1589,6 +1593,7 @@ import { pickDatasetFolder } from './folder-picker';
     entries = [];
     entryByBase.clear();
     disabledDirHandle = null;
+    originalDirHandle = null;
     btnAddFavorite.disabled = !dirHandle;
     btnUnloadDataset.disabled = !dirHandle;
     btnReloadDataset.disabled = !dirHandle;
@@ -1605,7 +1610,17 @@ import { pickDatasetFolder } from './folder-picker';
       await scanDirInto(disabledDirHandle, true);
     } catch(e){
       disabledDirHandle = null;
+      originalDirHandle = null;
     }
+
+    try {
+      // original_images/ holds the pre-bucketing originals the "Bucket Images"
+      // dock moved out of the root. Scanned as `original: true` AND disabled,
+      // so every existing mass/auto tool already skips them — the Originals
+      // view shows them, and the Disabled view excludes them.
+      originalDirHandle = await dirHandle.getDirectoryHandle('original_images', { create: false });
+      await scanDirInto(originalDirHandle, true, true);
+    } catch(e){ originalDirHandle = null; }
 
     try {
       // One-time migration: a dataset last touched by an older version of
@@ -1642,7 +1657,7 @@ import { pickDatasetFolder } from './folder-picker';
     dropHintWrap.style.display = entries.length ? 'none' : 'block';
     galleryToolbar.style.display = entries.length ? 'flex' : 'none';
 
-    galleryFilter = { base: 'all', terms: [], mode: filterModeLock.checked ? galleryFilter.mode : 'AND', excludes: '', disabledView: false, exactMatch: filterExactToggle.checked };
+    galleryFilter = { base: 'all', terms: [], mode: filterModeLock.checked ? galleryFilter.mode : 'AND', excludes: '', disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
     filterInput.value = '';
     excludeBadge.style.display = 'none';
     [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach(b=>b.classList.remove('active'));
@@ -1686,6 +1701,7 @@ import { pickDatasetFolder } from './folder-picker';
     exitSequentialDetail();
     dirHandle = null;
     disabledDirHandle = null;
+    originalDirHandle = null;
     entries = [];
     entryByBase.clear();
     btnAddFavorite.disabled = true;
@@ -1701,7 +1717,7 @@ import { pickDatasetFolder } from './folder-picker';
     dropHintWrap.style.display = 'block';
     galleryToolbar.style.display = 'none';
 
-    galleryFilter = { base: 'all', terms: [], mode: filterModeLock.checked ? galleryFilter.mode : 'AND', excludes: '', disabledView: false, exactMatch: filterExactToggle.checked };
+    galleryFilter = { base: 'all', terms: [], mode: filterModeLock.checked ? galleryFilter.mode : 'AND', excludes: '', disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
     filterInput.value = '';
     excludeBadge.style.display = 'none';
     [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach(b=>b.classList.remove('active'));

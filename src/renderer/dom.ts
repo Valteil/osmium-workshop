@@ -223,6 +223,7 @@ export const viewGridBtn = $<HTMLButtonElement>('viewGridBtn');
 export const viewCompactBtn = $<HTMLButtonElement>('viewCompactBtn');
 export const viewSingleBtn = $<HTMLButtonElement>('viewSingleBtn');
 export const viewDisabledBtn = $<HTMLButtonElement>('viewDisabledBtn');
+export const viewOriginalsBtn = $<HTMLButtonElement>('viewOriginalsBtn');
 export const btnUnlockAll = $<HTMLButtonElement>('btnUnlockAll');
 export const btnHideTags = $<HTMLButtonElement>('btnHideTags');
 export const btnRenameAllImages = $<HTMLButtonElement>('btnRenameAllImages');

@@ -36,6 +36,11 @@ export interface Entry {
   tags: string[];
   dirty: boolean;
   disabled: boolean;
+  // True for images living in the dataset's original_images/ folder (the
+  // pre-bucketing originals). They are ALSO `disabled: true` — that's what
+  // "treated as disabled" means for every existing mass/auto tool — but the
+  // Disabled view excludes them so they only show in the Originals view.
+  original?: boolean;
   meta?: EntryMeta;
   imgName?: string;
   txtName?: string;
@@ -64,12 +69,13 @@ export interface GalleryFilter {
   mode: 'AND' | 'OR' | 'XOR' | 'NOT';
   excludes: string;
   disabledView: boolean;
+  originalsView: boolean;
   exactMatch: boolean;
 }
 
 export type GallerySortMode = 'filename' | 'tagcount' | 'resolution' | 'dirty' | 'dateadded' | 'newest' | 'oldest' | 'random' | 'modified';
 export type GallerySortDir = 'asc' | 'desc';
-export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled';
+export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
 export type CardTagSortMode = 'default' | 'alphabetical' | 'frequency';
 export type LeftSortMode = 'family' | 'alpha' | 'count' | 'alphabetical' | 'frequency';
 export type LeftSortDir = 'asc' | 'desc';
