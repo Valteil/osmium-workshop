@@ -88,3 +88,12 @@ comfy-bridge/mobile/android/local.properties
 /vk_swiftshader.dll
 /vk_swiftshader_icd.json
 /vulkan-1.dll
+
+# Local agent/tool state — machine-specific, not repo content. (.serena/memories
+# IS tracked and must stay; only its logs are ignored. Same for .impeccable's
+# shared config.json vs the local/critique output.)
+/.claude/
+/.opencode/
+/.serena/logs/
+/.impeccable/config.local.json
+/.impeccable/critique/
