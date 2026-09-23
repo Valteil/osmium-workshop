@@ -210,6 +210,7 @@
           Excluding "<b id="excludeBadgeText"></b>" <button id="excludeBadgeClear" title="Clear exclude filter">✕</button>
         </div>
         <button id="btnFlagIsolated" title="Highlight rarely-used tags that might need review">🚩 Flag isolated tags</button>
+        <button id="btnReviewFlagged" title="Swap the TAGS list for every tag flagged for review, each with a Reviewed button that clears it everywhere (undoable)">🚩 Review flagged tags</button>
       </div>
 
       <div class="field-block">
@@ -243,7 +244,7 @@
              mobile-only display flip is unaffected by the extra div). -->
         <div id="tagFamilyListArea" class="dock-list-area">
           <div class="left-sort-row">
-            <h3 class="panel-title">TAGS</h3>
+            <h3 class="panel-title" id="tagListTitle">TAGS</h3>
             <div class="pdrop" id="leftSortDropdown"></div>
             <button id="leftSortDirBtn" title="Toggle ascending/descending">▼</button>
             <button id="btnResetFamilyOrder" title="Reset the manual drag order of keyword families back to default">↺</button>
@@ -391,6 +392,10 @@
               <label>Max side <input type="number" id="bucketSideMax" value="1024" min="64" step="64"></label>
               <label>Step <input type="number" id="bucketSideStep" value="64" min="16" step="16"></label>
             </div>
+            <label class="ach-toggle-row bucket-gpu-row" title="Run the u2net saliency model on the GPU via DirectML when available, falling back to CPU automatically">
+              <input type="checkbox" id="bucketGpu" checked>
+              <span> Prefer GPU</span>
+            </label>
             <button id="btnBucketRun" class="primary" title="Crop + resize every Gallery image to its nearest bucket">🧺 Bucket images</button>
             <button id="btnBucketRevert" title="Undo bucketing: delete the bucketed copies and restore the originals">↩ Revert bucketing</button>
           </div>

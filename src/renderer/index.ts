@@ -86,7 +86,8 @@ import {
 } from './tag-details';
 import {
   buildTagIndex, refreshStats, filteredEntries, passesFilter, setBaseFilter,
-  parseFilterTerms, setContainsFilter, setExcludesFilter, setMirroredSelectionFilter, initTagIndex
+  parseFilterTerms, setContainsFilter, setExcludesFilter, setMirroredSelectionFilter, initTagIndex,
+  resetReviewFlagged
 } from './tag-index';
 import {
   viewMode, resetSingleIndex, resetStickyCompare,
@@ -1171,7 +1172,8 @@ import { pickDatasetFolder } from './folder-picker';
     refreshStats: () => refreshStats(),
     refreshAllUI: () => refreshAllUI(),
     renderCurrentView: () => renderCurrentView(),
-    applyIsolateDirection: (affected, direction) => applyIsolateDirection(affected, direction)
+    applyIsolateDirection: (affected, direction) => applyIsolateDirection(affected, direction),
+    applyFlaggedReviewDirection: (affected, direction) => applyFlaggedReviewDirection(affected, direction)
   });
 
   // Tag index/frequency list + gallery filtering moved to ./tag-index.ts
@@ -1183,7 +1185,8 @@ import { pickDatasetFolder } from './folder-picker';
     resetSingleIndex: () => resetSingleIndex(),
     renderCurrentView: () => renderCurrentView(),
     refreshFilterModeUI: () => filterModeDropdownCtrl?.refreshLabel(),
-    isFilterModeLocked: () => filterModeLock.checked
+    isFilterModeLocked: () => filterModeLock.checked,
+    markTagReviewed: (tag) => markTagReviewed(tag)
   });
 
   // Master Tag Control moved to ./master-tag-control.ts
@@ -1228,6 +1231,7 @@ import { pickDatasetFolder } from './folder-picker';
     applyRenameDirection: (affected, direction) => applyRenameDirection(affected, direction),
     applyPixelDirection: (affected, direction) => applyPixelDirection(affected, direction),
     applyIsolateDirection: (affected, direction) => applyIsolateDirection(affected, direction),
+    applyFlaggedReviewDirection: (affected, direction) => applyFlaggedReviewDirection(affected, direction),
     moveEntry: (entry, toDisabled) => moveEntry(entry, toDisabled),
     trackStat: (key, amount) => trackStat(key, amount),
     checkAchievements: () => checkAchievements(),
@@ -1332,6 +1336,7 @@ import { pickDatasetFolder } from './folder-picker';
       resetUndoRedo();
       masterSelectedImages.clear();
       resetStickyCompare();
+      resetReviewFlagged();
       updateUndoRedoButtons();
       dropHint.style.display = 'flex';
       dropHintWrap.style.display = 'block';
@@ -1406,7 +1411,16 @@ import { pickDatasetFolder } from './folder-picker';
       meta: { flaggedTags: [], note: '', noteAlwaysVisible: false, locked: false, mergeImmune: false, antivoid: false, dateAdded: Date.now() }
     };
     entries.push(entry);
-    entryByBase.set(base, entry);
+    // entryByBase is keyed by bare stem, but an `original_images/` shadow copy
+    // (Bucket Images) shares that stem with its bucketed root image — and
+    // originalImages is scanned AFTER the root, so a plain set() here let the
+    // DISABLED original clobber the real entry's mapping. Every selection-based
+    // action resolves through getEntryByBase(), so "Apply/remove on selected",
+    // Lock, Disable, Delete etc. silently hit the hidden original instead of the
+    // Gallery image (the edit log still recorded a hit — on the wrong object).
+    // Keep a non-original entry's mapping authoritative; an orphan original
+    // (no root counterpart) still gets mapped when nothing else claims the base.
+    if (!(original && entryByBase.has(base))) entryByBase.set(base, entry);
     loadImageDimensions(entry);
     return entry;
   }
@@ -1452,6 +1466,46 @@ import { pickDatasetFolder } from './folder-picker';
   // identical from the session-kept payload. Anything missing (bytes from an
   // earlier session, a manually deleted file) restores nothing and counts
   // zero, so callers show the honest toast.
+  // "Mark reviewed" for tag-index.ts's left-panel flagged-for-review list:
+  // strips `tag` from every entry's meta.flaggedTags and records ONE undoable
+  // change. Returns how many images listed it (0 = nothing to do). The caller
+  // (tag-index) re-renders the list itself.
+  function markTagReviewed(tag: string): number {
+    const affected: EditLogAffected[] = [];
+    for (const e of entries){
+      const flagged = e.meta?.flaggedTags;
+      if (!flagged || !flagged.includes(tag)) continue;
+      const prevFlagged = flagged.slice();
+      const newFlagged = flagged.filter((t) => t !== tag);
+      if (!e.meta) e.meta = {};
+      e.meta.flaggedTags = newFlagged;
+      entryMeta[e.base] = e.meta;
+      affected.push({ base: e.base, prevFlagged, newFlagged });
+    }
+    if (affected.length === 0) return 0;
+    saveEntryMeta();
+    recordChange('unflag-review', `Marked "${tag}" reviewed — unflagged from ${affected.length} image(s).`, affected);
+    return affected.length;
+  }
+
+  // Undo/redo applier for review-flag clearing. Swaps meta.flaggedTags, NOT
+  // entry.tags — deliberately not routed through tags-edit's applyTagDirection
+  // (that would overwrite the caption tags with the flagged list).
+  function applyFlaggedReviewDirection(affected: EditLogAffected[], direction: 'undo' | 'redo'): number {
+    let count = 0;
+    for (const a of affected){
+      const e = entryByBase.get(a.base);
+      const target = direction === 'undo' ? a.prevFlagged : a.newFlagged;
+      if (!e || !target) continue;
+      if (!e.meta) e.meta = {};
+      e.meta.flaggedTags = target.slice();
+      entryMeta[e.base] = e.meta;
+      count++;
+    }
+    if (count) saveEntryMeta();
+    return count;
+  }
+
   async function applyIsolateDirection(affected: EditLogAffected[], direction: 'undo' | 'redo'): Promise<number> {
     let count = 0;
     for (const a of affected){
@@ -1609,6 +1663,7 @@ import { pickDatasetFolder } from './folder-picker';
     resetUndoRedo();
     masterSelectedImages.clear();
     resetStickyCompare();
+    resetReviewFlagged();
     updateUndoRedoButtons();
     [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
 
@@ -1719,6 +1774,7 @@ import { pickDatasetFolder } from './folder-picker';
     resetUndoRedo();
     masterSelectedImages.clear();
     resetStickyCompare();
+    resetReviewFlagged();
     updateUndoRedoButtons();
     [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
 

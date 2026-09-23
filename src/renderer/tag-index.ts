@@ -3,7 +3,8 @@ import { getJSON, setJSON, getBool, setBool } from './storage';
 import {
   $, tagFrequencyList, leftSortDropdown, leftSortDirBtn, btnResetFamilyOrder,
   filterInput, filterSuggestions, filterExactToggle, filterAllBtn, filterUntaggedBtn, filterDirtyBtn,
-  excludeBadge, excludeBadgeText, excludeBadgeClear, btnClearFilter
+  excludeBadge, excludeBadgeText, excludeBadgeClear, btnClearFilter,
+  btnReviewFlagged, tagListTitle, tagFamilyListArea
 } from './dom';
 import { toast, escapeHtml, buildPersistentDropdown } from './shared-ui';
 import { folderStats, saveFolderStats, checkAchievements } from './achievements';
@@ -28,8 +29,26 @@ let renderCurrentViewRef: () => void = () => {};
 // alone instead of forcing AND.
 let refreshFilterModeUI: () => void = () => {};
 let isFilterModeLocked: () => boolean = () => false;
+let markTagReviewedRef: (tag: string) => number = () => 0;
 
 let lastTagIndex: Map<string, Set<string>> = new Map();
+
+// Left-panel "flagged for review" mode: btnReviewFlagged swaps the TAGS list
+// for the union of every entry's meta.flaggedTags (see view.ts's tag-chip 🚩
+// menu, which is the only thing that sets them). `reviewedFlaggedTags` is a
+// session-only memory of tags the user cleared from this list, so a cleared row
+// stays visible (struck through) instead of vanishing; a tag that has since
+// been re-flagged (e.g. via Undo) is never shown struck — currently-flagged
+// always wins. Cleared per dataset via resetReviewFlagged().
+export let reviewFlaggedActive = false;
+let reviewedFlaggedTags = new Set<string>();
+
+export function resetReviewFlagged(): void {
+  reviewFlaggedActive = false;
+  reviewedFlaggedTags = new Set();
+  btnReviewFlagged.classList.remove('active');
+  tagFamilyListArea.classList.remove('review-mode');
+}
 
 export function buildTagIndex(): Map<string, Set<string>> {
   const index = new Map<string, Set<string>>();
@@ -133,7 +152,62 @@ function updateFilterSuggestions(): void {
   filterSuggestions.style.display = '';
 }
 
+// The flagged-for-review list that HIJACKS the normal TAGS list while
+// btnReviewFlagged is active. Unlike the frequency list, rows do nothing on
+// click — each carries a "Reviewed" button that unflags that tag from every
+// image (one undoable edit-log entry, via the injected markTagReviewed) and
+// leaves the row struck through for the rest of the session.
+function renderFlaggedReviewList(): void {
+  tagListTitle.textContent = 'FLAGGED FOR REVIEW';
+  const counts = new Map<string, number>();
+  for (const e of getEntries()){
+    const flagged = e.meta && e.meta.flaggedTags;
+    if (!flagged) continue;
+    for (const t of flagged) counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  const tags = new Set<string>(counts.keys());
+  for (const t of reviewedFlaggedTags) tags.add(t);
+
+  tagFrequencyList.innerHTML = '';
+  if (tags.size === 0){
+    const empty = document.createElement('div');
+    empty.className = 'freq-family-header';
+    empty.style.cursor = 'default';
+    empty.textContent = 'No tags flagged for review. Use a tag chip\'s 🚩 menu to flag one.';
+    tagFrequencyList.appendChild(empty);
+    return;
+  }
+
+  const sorted = Array.from(tags).sort((a, b) => a.localeCompare(b));
+  for (const tag of sorted){
+    const stillFlagged = counts.has(tag);
+    const row = document.createElement('div');
+    row.className = 'freq-row review-flag-row' + (stillFlagged ? '' : ' reviewed');
+    const label = document.createElement('span');
+    label.className = 'review-flag-tag';
+    label.textContent = tag;
+    row.appendChild(label);
+    const btn = document.createElement('button');
+    btn.className = 'review-done-btn';
+    btn.textContent = 'Reviewed';
+    btn.title = stillFlagged
+      ? 'Unflag this tag from every image (undoable)'
+      : 'Already cleared — no image lists this tag anymore';
+    btn.disabled = !stillFlagged;
+    btn.addEventListener('click', () => {
+      reviewedFlaggedTags.add(tag);
+      const n = markTagReviewedRef(tag);
+      if (n === 0) toast(`No loaded image still lists "${tag}" as flagged for review.`);
+      refreshStats();
+    });
+    row.appendChild(btn);
+    tagFrequencyList.appendChild(row);
+  }
+}
+
 export function renderTagFrequencyList(index: Map<string, Set<string>>): void {
+  if (reviewFlaggedActive){ renderFlaggedReviewList(); return; }
+  tagListTitle.textContent = 'TAGS';
   const dir = leftSortDir === 'asc' ? 1 : -1;
   tagFrequencyList.innerHTML = '';
 
@@ -382,6 +456,7 @@ interface TagIndexDeps {
   renderCurrentView: () => void;
   refreshFilterModeUI: () => void;
   isFilterModeLocked: () => boolean;
+  markTagReviewed: (tag: string) => number;
 }
 
 export function initTagIndex(deps: TagIndexDeps): void {
@@ -393,6 +468,7 @@ export function initTagIndex(deps: TagIndexDeps): void {
   renderCurrentViewRef = deps.renderCurrentView;
   refreshFilterModeUI = deps.refreshFilterModeUI;
   isFilterModeLocked = deps.isFilterModeLocked;
+  markTagReviewedRef = deps.markTagReviewed;
 
   leftSortDirBtn.addEventListener('click', () => {
     leftSortDir = leftSortDir === 'asc' ? 'desc' : 'asc';
@@ -471,5 +547,15 @@ export function initTagIndex(deps: TagIndexDeps): void {
     hideFilterSuggestions();
     refreshFilterModeUI();
     setBaseFilter('all');
+  });
+
+  // Toggle the flagged-for-review list in place of the normal TAGS list.
+  // Reviewed tags start fresh each time the mode is switched on.
+  btnReviewFlagged.addEventListener('click', () => {
+    reviewFlaggedActive = !reviewFlaggedActive;
+    btnReviewFlagged.classList.toggle('active', reviewFlaggedActive);
+    tagFamilyListArea.classList.toggle('review-mode', reviewFlaggedActive);
+    if (reviewFlaggedActive) reviewedFlaggedTags = new Set();
+    refreshStats();
   });
 }

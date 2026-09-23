@@ -11,7 +11,7 @@ import { writeBytes } from './fs-access';
 import { btnUndo, btnRedo, btnSave, dirtyCountEl, includeDisabledToggle, autosaveToggle } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, checkVoidThemeAchievements, folderStats, saveFolderStats } from './achievements';
-import { pushLogEntry, editLog, PIXEL_TYPES, ISOLATE_TYPES } from './edit-log';
+import { pushLogEntry, editLog, PIXEL_TYPES, ISOLATE_TYPES, REVIEW_TYPES } from './edit-log';
 import { applyCanonicalRules, registerMergeRule, registerVoidRule, findBlockingRule, saveCanonicalRules } from './canonical-tags';
 
 export let undoStack: ChangeRecord[] = [];
@@ -109,6 +109,7 @@ let refreshStatsRef: () => void = () => {};
 let refreshAllUIRef: () => void = () => {};
 let renderCurrentViewRef: () => void = () => {};
 let applyIsolateDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
+let applyFlaggedReviewDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => number = () => 0;
 
 // ---------------- Autosave ----------------
 // Off by default. When on, every markDirty() schedules a debounced
@@ -522,6 +523,7 @@ interface TagsEditDeps {
   refreshAllUI: () => void;
   renderCurrentView: () => void;
   applyIsolateDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
+  applyFlaggedReviewDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => number;
 }
 
 export function initTagsEdit(deps: TagsEditDeps): void {
@@ -537,6 +539,7 @@ export function initTagsEdit(deps: TagsEditDeps): void {
   refreshAllUIRef = deps.refreshAllUI;
   renderCurrentViewRef = deps.renderCurrentView;
   applyIsolateDirectionRef = deps.applyIsolateDirection;
+  applyFlaggedReviewDirectionRef = deps.applyFlaggedReviewDirection;
 
   btnUndo.addEventListener('click', async () => {
     const record = undoStack.pop();
@@ -545,7 +548,9 @@ export function initTagsEdit(deps: TagsEditDeps): void {
       ? await applyPixelDirection(record.affected, 'undo')
       : ISOLATE_TYPES.has(record.type)
         ? await applyIsolateDirectionRef(record.affected, 'undo')
-        : applyTagDirection(record.affected, 'undo');
+        : REVIEW_TYPES.has(record.type)
+          ? applyFlaggedReviewDirectionRef(record.affected, 'undo')
+          : applyTagDirection(record.affected, 'undo');
     redoStack.push(record);
     updateUndoRedoButtons();
     const summary = `Undid: ${record.summary}`;
@@ -563,7 +568,9 @@ export function initTagsEdit(deps: TagsEditDeps): void {
       ? await applyPixelDirection(record.affected, 'redo')
       : ISOLATE_TYPES.has(record.type)
         ? await applyIsolateDirectionRef(record.affected, 'redo')
-        : applyTagDirection(record.affected, 'redo');
+        : REVIEW_TYPES.has(record.type)
+          ? applyFlaggedReviewDirectionRef(record.affected, 'redo')
+          : applyTagDirection(record.affected, 'redo');
     undoStack.push(record);
     updateUndoRedoButtons();
     const summary = `Redid: ${record.summary}`;

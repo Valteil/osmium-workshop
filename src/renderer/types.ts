@@ -96,6 +96,11 @@ export interface EditLogAffected {
   // log entry that owns this affected row's before/after bytes. Bytes themselves live in a
   // session-only map keyed by this id — never serialized into _tag_edit_log.json.
   logId?: number;
+  // Review-flag-only (unflag-review, see index.ts's markTagReviewed()): the entry's
+  // `meta.flaggedTags` before/after. A separate pair from prevTags/newTags because this swaps
+  // metadata, not the caption's tag list — applying it via applyTagDirection would corrupt tags.
+  prevFlagged?: string[];
+  newFlagged?: string[];
 }
 
 export interface EditLogEntry {

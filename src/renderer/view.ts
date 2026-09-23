@@ -21,6 +21,7 @@ import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTag
 import { openTagDetails } from './tag-details';
 import { attachTagAutocomplete, closeAutocomplete } from './tags-autocomplete';
 import { buildTagIndex, refreshStats, filteredEntries } from './tag-index';
+import { groupTagsByCategory } from './tag-categories';
 import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid } from './master-tag-control';
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
@@ -28,6 +29,12 @@ import { tagSingleImageWithWd14 } from './wd14-tagger';
 export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
 export let viewMode: ViewMode = 'grid';
 export let stickyCompareImages: string[] = [];
+
+// "Tag Sorting": in Single mode and the card modal, render chips grouped into
+// prompt-field categories (see tag-categories.ts). Never affects grid cards.
+// Persisted app-wide, same as every other toggle here.
+const TAG_SORTING_KEY = 'dts-tag-sorting';
+let tagSortingActive = getBool(TAG_SORTING_KEY);
 
 let singleIndex = 0;
 let ctxMenuEl: HTMLElement | null = null;
@@ -1531,12 +1538,9 @@ function renderSingleView(){
   }
 
   const singleTagIndex = buildTagIndex();
-  const chiprow = document.createElement('div');
-  chiprow.className = 'chiprow';
-  for (const tag of orderedTagsForDisplay(e, singleTagIndex)){
-    chiprow.appendChild(buildChip(e, tag, () => { renderSingleView(); refreshRightPanels(); refreshStats(); }, singleTagIndex));
-  }
-  panel.appendChild(chiprow);
+  const singleChipOnChange = () => { renderSingleView(); refreshRightPanels(); refreshStats(); };
+  panel.appendChild(buildTagSortToggle(singleChipOnChange));
+  panel.appendChild(buildChipsBlock(e, singleTagIndex, singleChipOnChange));
 
   const addInput = document.createElement('input');
   addInput.type = 'text';
@@ -1585,6 +1589,61 @@ function computeIsolatedTagSet(tagIndex: TagIndex): Set<string> {
     if (imgs.size <= 2) set.add(tag);
   }
   return set;
+}
+
+// Toggle for "Tag Sorting". Shown at the top of the chip block in Single mode and
+// the card modal; clicking flips the persisted preference and re-renders.
+function buildTagSortToggle(onToggle: () => void): HTMLElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'tagcat-toggle' + (tagSortingActive ? ' active' : '');
+  btn.textContent = tagSortingActive ? '🏷 Tag sorting: on' : '🏷 Tag sorting';
+  btn.title = tagSortingActive
+    ? 'Stop grouping tags by category'
+    : 'Group tags by prompt-field category (Character, Body, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects, Other)';
+  btn.addEventListener('click', () => {
+    tagSortingActive = !tagSortingActive;
+    setBool(TAG_SORTING_KEY, tagSortingActive);
+    onToggle();
+  });
+  return btn;
+}
+
+// The chips block shared by Single mode and the card modal: a flat chiprow by
+// default, or one labelled segment per category when Tag Sorting is on. Ordering
+// within each segment follows orderedTagsForDisplay(), so search matches still
+// float to the top of their own category.
+function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void): HTMLElement {
+  const ordered = orderedTagsForDisplay(entry, tagIndex);
+  if (!tagSortingActive){
+    const chiprow = document.createElement('div');
+    chiprow.className = 'chiprow';
+    for (const tag of ordered) chiprow.appendChild(buildChip(entry, tag, onChange, tagIndex));
+    return chiprow;
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'tagcat-groups';
+  for (const group of groupTagsByCategory(ordered)){
+    const seg = document.createElement('div');
+    seg.className = 'tagcat-seg';
+    const head = document.createElement('div');
+    head.className = 'tagcat-head';
+    const name = document.createElement('span');
+    name.className = 'tagcat-name';
+    name.textContent = group.label;
+    const count = document.createElement('span');
+    count.className = 'tagcat-count';
+    count.textContent = String(group.tags.length);
+    head.appendChild(name);
+    head.appendChild(count);
+    seg.appendChild(head);
+    const chiprow = document.createElement('div');
+    chiprow.className = 'chiprow';
+    for (const tag of group.tags) chiprow.appendChild(buildChip(entry, tag, onChange, tagIndex));
+    seg.appendChild(chiprow);
+    wrap.appendChild(seg);
+  }
+  return wrap;
 }
 
 function orderedTagsForDisplay(entry: Entry, tagIndex: TagIndex): string[] {
@@ -2262,12 +2321,9 @@ function renderImageCardModal(entry: Entry): void {
   attachTagAutocomplete(addInput, () => entry, () => { renderImageCardModal(entry); renderCurrentView(); });
   panel.appendChild(addInput);
 
-  const chiprow = document.createElement('div');
-  chiprow.className = 'chiprow';
-  for (const tag of orderedTagsForDisplay(entry, modalTagIndex)){
-    chiprow.appendChild(buildChip(entry, tag, () => { renderImageCardModal(entry); renderCurrentView(); refreshRightPanels(); refreshStats(); }, modalTagIndex));
-  }
-  panel.appendChild(chiprow);
+  const modalChipOnChange = () => { renderImageCardModal(entry); renderCurrentView(); refreshRightPanels(); refreshStats(); };
+  panel.appendChild(buildTagSortToggle(modalChipOnChange));
+  panel.appendChild(buildChipsBlock(entry, modalTagIndex, modalChipOnChange));
 
   modalCardInner.appendChild(imgSide);
   modalCardInner.appendChild(panel);
@@ -2338,6 +2394,8 @@ function openTagContextMenu(entry: Entry, tag: string, x: number, y: number): vo
       saveEntryMetaRef();
       closeTagContextMenu();
       renderCurrentView();
+      // Keep the left panel's flagged-for-review list live if it's open.
+      refreshStats();
     });
   }
 

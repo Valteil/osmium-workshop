@@ -74,6 +74,7 @@ export interface BucketImagePayload {
   sideMin: number;
   sideMax: number;
   step: number;
+  preferGpu?: boolean;
 }
 
 export interface ElectronAPI {

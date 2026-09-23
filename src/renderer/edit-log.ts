@@ -22,6 +22,11 @@ export const PIXEL_TYPES = new Set(['crop-image', 'rotate-image']);
 // and redo means re-creating it — a different applier, hence its own set.
 export const ISOLATE_TYPES = new Set(['isolate-image']);
 
+// Review-flag clearing ("Mark reviewed" on the left panel's flagged-tags
+// list). Swaps entry.meta.flaggedTags, NOT entry.tags — so it can't ride the
+// TAG_TYPES/applyTagDirection path; its own applier is injected instead.
+export const REVIEW_TYPES = new Set(['unflag-review']);
+
 const LOG_FILE_NAME = '_tag_edit_log.json';
 
 interface EditLogDeps {
@@ -31,6 +36,7 @@ interface EditLogDeps {
   applyRenameDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
   applyPixelDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
   applyIsolateDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
+  applyFlaggedReviewDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => number;
   moveEntry: (entry: Entry, toDisabled: boolean) => Promise<void>;
   trackStat: (key: string, amount?: number) => void;
   checkAchievements: () => void;
@@ -45,6 +51,7 @@ let applyTagDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'red
 let applyRenameDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
 let applyPixelDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
 let applyIsolateDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
+let applyFlaggedReviewDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => number = () => 0;
 let moveEntryRef: (entry: Entry, toDisabled: boolean) => Promise<void> = async () => {};
 let trackStatRef: (key: string, amount?: number) => void = () => {};
 let checkAchievementsRef: () => void = () => {};
@@ -115,14 +122,15 @@ const STAT_CHART_COLORS: Record<string, string> = {
   'rename': '#7fbf8f', 'find-replace': '#a683e0', 'disable': '#8a6f57', 'restore': '#4fae7a',
   'undo': '#9791a6', 'redo': '#6b6578', 'unmerge': '#d9b35c', 'unvoid': '#5cb9a8', 'rule-update': '#8a8fd9',
   'delete': '#c1443c', 'rename-files': '#4a9fd1', 'crop-image': '#3aa655', 'rotate-image': '#7a9fd1',
-  'isolate-image': '#b57edc'
+  'isolate-image': '#b57edc', 'unflag-review': '#e8a33d'
 };
 const STAT_TYPE_LABEL: Record<string, string> = {
   'add-tag': 'Tags added', 'remove-tag': 'Tags removed', 'merge': 'Merges', 'void': 'Voids',
   'rename': 'Renames', 'find-replace': 'Find & replace', 'disable': 'Disabled', 'restore': 'Restored',
   'undo': 'Undos', 'redo': 'Redos', 'unmerge': 'Unmerges', 'unvoid': 'Unvoids', 'rule-update': 'Rule changes',
   'delete': 'Deleted permanently', 'rename-files': 'Files renamed',
-  'crop-image': 'Crops', 'rotate-image': 'Rotates', 'isolate-image': 'Isolates'
+  'crop-image': 'Crops', 'rotate-image': 'Rotates', 'isolate-image': 'Isolates',
+  'unflag-review': 'Review flags cleared'
 };
 
 function computeStatsBreakdown(): Record<string, number> {
@@ -334,6 +342,19 @@ export function renderLogPanel(): void {
       actions.appendChild(undoBtn);
       actions.appendChild(redoBtn);
       row.appendChild(actions);
+    } else if (REVIEW_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
+      const actions = document.createElement('div');
+      actions.className = 'log-actions';
+      const undoBtn = document.createElement('button');
+      undoBtn.textContent = '↩ Undo this';
+      undoBtn.addEventListener('click', () => applyReviewLogEntryDirection(logEntry, 'undo'));
+      const redoBtn = document.createElement('button');
+      redoBtn.textContent = '↪ Redo this';
+      redoBtn.className = 'primary';
+      redoBtn.addEventListener('click', () => applyReviewLogEntryDirection(logEntry, 'redo'));
+      actions.appendChild(undoBtn);
+      actions.appendChild(redoBtn);
+      row.appendChild(actions);
     }
 
     logList.appendChild(row);
@@ -410,6 +431,22 @@ async function applyIsolateLogEntryDirection(logEntry: EditLogEntry, direction: 
   checkAchievementsRef();
 }
 
+function applyReviewLogEntryDirection(logEntry: EditLogEntry, direction: 'undo' | 'redo'): void {
+  const count = applyFlaggedReviewDirectionRef(logEntry.affected, direction);
+  if (count === 0) { toast('None of the affected images are in the loaded dataset anymore.'); return; }
+  const verb = direction === 'undo' ? 'Undid' : 'Redid';
+  pushLogEntry({
+    type: direction,
+    summary: `${verb} (from log): ${logEntry.summary}`,
+    affected: logEntry.affected
+  });
+  trackStatRef(direction === 'undo' ? 'undos' : 'redos');
+  toast(`${verb} that edit.`);
+  refreshAllUIRef();
+  renderLogPanel();
+  checkAchievementsRef();
+}
+
 async function toggleMoveLogEntry(logEntry: EditLogEntry): Promise<void> {
   const base = logEntry.affected[0]?.base;
   const e = base ? getEntryByBase(base) : null;
@@ -427,6 +464,7 @@ export function initEditLog(deps: EditLogDeps): void {
   applyRenameDirectionRef = deps.applyRenameDirection;
   applyPixelDirectionRef = deps.applyPixelDirection;
   applyIsolateDirectionRef = deps.applyIsolateDirection;
+  applyFlaggedReviewDirectionRef = deps.applyFlaggedReviewDirection;
   moveEntryRef = deps.moveEntry;
   trackStatRef = deps.trackStat;
   checkAchievementsRef = deps.checkAchievements;

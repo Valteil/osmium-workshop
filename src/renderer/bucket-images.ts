@@ -12,10 +12,11 @@
 // caption. Revert undoes exactly that.
 import {
   btnBucketRun, btnBucketRevert, btnBucketDownloadModel, bucketModelStatusText,
-  bucketSideMin, bucketSideMax, bucketSideStep, bucketLog
+  bucketSideMin, bucketSideMax, bucketSideStep, bucketGpu, bucketLog
 } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
 import { writeBytes } from './fs-access';
+import { getJSON, setJSON } from './storage';
 import { getValidBuckets, isBucketSize } from '../bucket-core';
 import type { Entry, DirHandle } from './types';
 
@@ -27,6 +28,9 @@ interface BucketImagesDeps {
 }
 
 const ORIGINAL_DIR = 'original_images';
+const SETTINGS_KEY = 'dts-bucket-settings';
+
+interface BucketSettings { gpu: boolean; }
 
 let getDirHandle: () => DirHandle | null = () => null;
 let getEntries: () => Entry[] = () => [];
@@ -115,6 +119,7 @@ async function run(): Promise<void> {
 
   const { sideMin, sideMax, step } = params();
   const buckets = getValidBuckets(sideMin, sideMax, step);
+  const preferGpu = bucketGpu.checked;
 
   const ok = await showConfirmModal(
     `Bucket ${active.length} Gallery image(s) at ${sideMin}–${sideMax} (step ${step})?\n\n` +
@@ -161,7 +166,7 @@ async function run(): Promise<void> {
       }
 
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const res = await window.electronAPI.bucketImage({ imageBytes: bytes, sideMin, sideMax, step });
+      const res = await window.electronAPI.bucketImage({ imageBytes: bytes, sideMin, sideMax, step, preferGpu });
       if (!res.ok || !res.pngBytes || !res.bucket) {
         log(`${filename}: ${res.error || 'bucketing failed'}`, true);
         failed++;
@@ -192,7 +197,8 @@ async function run(): Promise<void> {
       }
       processed++;
       bump(res.bucket[0], res.bucket[1]);
-      log(`${filename} → ${res.bucket[0]}x${res.bucket[1]}${res.provider ? ` (${res.provider})` : ''}`);
+      const engine = res.provider ? ` (${res.provider === 'dml' ? 'GPU' : 'CPU'})` : '';
+      log(`${filename} → ${res.bucket[0]}x${res.bucket[1]}${engine}`);
     }
 
     log('');
@@ -302,6 +308,12 @@ export function initBucketImages(deps: BucketImagesDeps): void {
   getEntries = deps.getEntries;
   reload = deps.reload;
   saveAllDirty = deps.saveAllDirty;
+
+  // Prefer GPU is a persisted preference (default on, matching WD14's own
+  // checkbox); markup ships it checked and this only overrides from storage.
+  const saved = getJSON<Partial<BucketSettings> | null>(SETTINGS_KEY, null);
+  if (saved && typeof saved.gpu === 'boolean') bucketGpu.checked = saved.gpu;
+  bucketGpu.addEventListener('change', () => setJSON(SETTINGS_KEY, { gpu: bucketGpu.checked }));
 
   btnBucketRun.addEventListener('click', () => { void run(); });
   btnBucketRevert.addEventListener('click', () => { void revert(); });

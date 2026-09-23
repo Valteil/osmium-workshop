@@ -1532,6 +1532,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   #btnFlagIsolated.active, #btnDiscreteToggle.active{
     background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual);
   }
+  /* The flagged-for-review list toggle glows orange — the app's own review-flag
+     color, the same --accent-auto the flagged chip uses — so it's obvious the
+     TAGS list has been hijacked. */
+  #btnReviewFlagged.active{
+    background: var(--accent-auto-dim); border-color: var(--accent-auto); color: var(--accent-auto);
+    box-shadow: 0 0 8px var(--accent-auto);
+  }
 
   /* ---------- Image options menu (3-dot) ---------- */
 
@@ -2246,6 +2253,23 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .freq-row:hover { background: var(--bg-elevated); color: var(--text-primary); }
   .freq-row .n { color: var(--text-faint); font-size: 11px; }
 
+  /* Flagged-for-review rows (the hijacked TAGS list): tag name + a Reviewed
+     button; a cleared tag stays listed, struck through, for the session. */
+  .review-flag-row .review-flag-tag { color: var(--text-primary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .review-flag-row.reviewed .review-flag-tag { text-decoration: line-through; color: var(--text-faint); }
+  .review-flag-row .review-done-btn {
+    flex-shrink: 0; font-size: 10.5px; padding: 3px 8px; border-radius: 4px; cursor: pointer;
+    background: var(--accent-auto-dim); border: 1px solid var(--accent-auto); color: var(--accent-auto);
+  }
+  .review-flag-row .review-done-btn:hover:not(:disabled) { background: var(--accent-auto); color: var(--bg-base); }
+  .review-flag-row .review-done-btn:disabled { opacity: 0.45; cursor: default; }
+
+  /* Review mode hides the family/count sort controls — they don't apply to a
+     flat flagged-tags list. */
+  #tagFamilyListArea.review-mode .left-sort-row .pdrop,
+  #tagFamilyListArea.review-mode .left-sort-row #leftSortDirBtn,
+  #tagFamilyListArea.review-mode .left-sort-row #btnResetFamilyOrder { display: none; }
+
   /* ---------- Tag inspector (left panel) ---------- */
 
   .inspector-box{
@@ -2674,6 +2698,29 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   .chiprow { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  /* Tag Sorting (view.ts) — Single mode + card modal only. A small pill toggle
+     above the chips, and the category segments it reveals. */
+  .tagcat-toggle {
+    align-self: flex-start; margin-bottom: 8px; font-size: 11px; padding: 4px 10px;
+    border-radius: 999px; cursor: pointer;
+    background: var(--bg-elevated); border: 1px solid var(--border-strong); color: var(--text-muted);
+  }
+  .tagcat-toggle:hover { border-color: var(--accent-manual); color: var(--text-primary); }
+  .tagcat-toggle.active {
+    background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual);
+  }
+  .tagcat-groups { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+  .tagcat-seg { display: flex; flex-direction: column; gap: 6px; }
+  .tagcat-head {
+    display: flex; align-items: baseline; gap: 8px;
+    border-bottom: 1px solid var(--border-soft); padding-bottom: 3px;
+  }
+  .tagcat-name {
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--accent-flair);
+  }
+  .tagcat-count { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
   /* Read-only chip (no × button) — e.g. the WD14 transfer-list viewer.
      The base .chip's asymmetric padding (9px left / 4px right + 5px gap)
      budgets room for the remove button; without it the label sits visibly
@@ -3849,6 +3896,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   display: flex; flex-direction: column; gap: 4px;
   font-size: 11px; color: var(--text-faint);
 }
+
+/* The Prefer GPU toggle reuses the app's checkbox row look; just needs its own
+   gap above the Bucket images button. */
+.bucket-gpu-row{ margin-bottom: 10px; }
 
 /* Both actions fill the dock's width, so the column reads as a deliberate
    control stack rather than two stray pills. */

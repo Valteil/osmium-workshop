@@ -51,24 +51,55 @@ async function downloadModel(onProgress?: (ev: BucketDownloadProgress) => void):
   }
 }
 
-let session: InferenceSession | null = null;
+interface LoadedSession { session: InferenceSession; provider: 'dml' | 'cpu'; }
 
-// CPU only. A DirectML attempt was the first choice, for parity with
-// wd14-local's GPU path — but u2net's graph hangs DirectML's session build in
-// onnxruntime-node: it burns CPU instead of erroring, freezing the whole main
-// process. u2net at 320x320 is fast enough on CPU for a one-off bucket batch.
-async function loadSession(): Promise<InferenceSession> {
-  if (session) return session;
+// Sessions are cached per provider, same shape as wd14-local.ts's cache. A
+// failed GPU bring-up falls back to CPU inside the same call rather than
+// failing the batch; the winning provider rides back on the result so the
+// dock log can name the engine.
+const sessionCache = new Map<string, LoadedSession>();
+
+// u2net's DirectML session build *used to hang* in onnxruntime-node — it spun
+// on CPU forever instead of throwing, freezing the whole main process, which
+// is why this feature originally shipped CPU-only. It now builds cleanly under
+// onnxruntime-node 1.30.0 (verified against the pinned model on Windows), so
+// GPU is the default. The timeout is insurance, not decoration: a throw is
+// caught below, but a silent re-hang would wedge the app, so a re-hang falls
+// back to CPU after this while instead. See Pitfalls/DirectML-Hangs-On-U2Net-Graph.
+const GPU_SESSION_TIMEOUT_MS = 45000;
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('DirectML session build timed out.')), ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
+async function loadSession(preferGpu: boolean): Promise<LoadedSession> {
+  const key = preferGpu ? 'dml' : 'cpu';
+  const cached = sessionCache.get(key);
+  if (cached) return cached;
   const p = modelPath();
   if (!fs.existsSync(p)) throw new Error('The u2net model has not been downloaded yet.');
-  session = await InferenceSession.create(p);
-  return session;
+  let entry: LoadedSession | null = null;
+  if (preferGpu) {
+    try {
+      const gpu = await withTimeout(InferenceSession.create(p, { executionProviders: ['dml'] }), GPU_SESSION_TIMEOUT_MS);
+      entry = { session: gpu, provider: 'dml' };
+    } catch { entry = null; } // GPU bring-up failed — fall through to CPU below
+  }
+  if (!entry) entry = { session: await InferenceSession.create(p), provider: 'cpu' };
+  sessionCache.set(key, entry);
+  return entry;
 }
 
 // One u2net forward pass over the downscaled image, returning the raw 320x320
 // saliency mask. Preprocessing matches the trainer: resize to 320x320, /255,
 // ImageNet mean/std applied in BGR order, NCHW.
-async function saliencyMask(small: Electron.NativeImage): Promise<Float32Array> {
+async function saliencyMask(small: Electron.NativeImage, sess: InferenceSession): Promise<Float32Array> {
   const bmp = small.resize({ width: U2NET_INPUT, height: U2NET_INPUT, quality: 'good' }).toBitmap(); // BGRA
   const mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225];
   const data = new Float32Array(3 * U2NET_INPUT * U2NET_INPUT);
@@ -77,7 +108,6 @@ async function saliencyMask(small: Electron.NativeImage): Promise<Float32Array> 
     data[p + 1] = (bmp[i + 1] / 255 - mean[1]) / std[1]; // G
     data[p + 2] = (bmp[i + 2] / 255 - mean[2]) / std[2]; // R
   }
-  const sess = await loadSession();
   const tensor = new Tensor('float32', data, [1, 3, U2NET_INPUT, U2NET_INPUT]);
   const out = await sess.run({ [sess.inputNames[0]]: tensor });
   return out[sess.outputNames[0]].data as Float32Array;
@@ -90,11 +120,11 @@ async function saliencyMask(small: Electron.NativeImage): Promise<Float32Array> 
 // 320 * h) — algebraically the same as the trainer's "resize the mask to the
 // downscaled image, then divide by low_res_scale", minus a bilinear mask
 // resize that only shifts the threshold by a pixel or two.
-async function cropRect(img: Electron.NativeImage, w: number, h: number, tw: number, th: number): Promise<{ x: number; y: number; width: number; height: number }> {
+async function cropRect(img: Electron.NativeImage, w: number, h: number, tw: number, th: number, sess: InferenceSession): Promise<{ x: number; y: number; width: number; height: number }> {
   const lowResScale = 1024 / Math.max(h, w);
   const smallW = Math.max(1, Math.round(w * lowResScale));
   const smallH = Math.max(1, Math.round(h * lowResScale));
-  const mask = await saliencyMask(img.resize({ width: smallW, height: smallH, quality: 'good' }));
+  const mask = await saliencyMask(img.resize({ width: smallW, height: smallH, quality: 'good' }), sess);
 
   let minY = Infinity, sumX = 0, n = 0;
   for (let i = 0; i < U2NET_INPUT * U2NET_INPUT; i++) {
@@ -117,7 +147,7 @@ async function cropRect(img: Electron.NativeImage, w: number, h: number, tw: num
   return { x, y, width: cw, height: ch };
 }
 
-async function bucketImage({ imageBytes, sideMin, sideMax, step }: BucketImagePayload): Promise<BucketImageResult> {
+async function bucketImage({ imageBytes, sideMin, sideMax, step, preferGpu }: BucketImagePayload): Promise<BucketImageResult> {
   try {
     const img = nativeImage.createFromBuffer(Buffer.from(imageBytes));
     const { width: w, height: h } = img.getSize();
@@ -126,13 +156,17 @@ async function bucketImage({ imageBytes, sideMin, sideMax, step }: BucketImagePa
     const buckets = getValidBuckets(sideMin, sideMax, step);
     const [tw, th] = getBestBucket(w, h, buckets);
 
-    let out: Electron.NativeImage;
+    // Aspect already matches the bucket within tolerance — a plain resize, no
+    // saliency model involved, so the provider is moot (report CPU).
     if (Math.abs((w / h) - (tw / th)) < 0.01) {
-      out = img.resize({ width: tw, height: th, quality: 'best' });
-    } else {
-      out = img.crop(await cropRect(img, w, h, tw, th)).resize({ width: tw, height: th, quality: 'best' });
+      const out = img.resize({ width: tw, height: th, quality: 'best' });
+      return { ok: true, pngBytes: new Uint8Array(out.toPNG()), bucket: [tw, th], provider: 'cpu' };
     }
-    return { ok: true, pngBytes: new Uint8Array(out.toPNG()), bucket: [tw, th], provider: 'CPU' };
+
+    // Load the session lazily — only this branch actually runs u2net.
+    const { session: sess, provider } = await loadSession(!!preferGpu);
+    const out = img.crop(await cropRect(img, w, h, tw, th, sess)).resize({ width: tw, height: th, quality: 'best' });
+    return { ok: true, pngBytes: new Uint8Array(out.toPNG()), bucket: [tw, th], provider };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
