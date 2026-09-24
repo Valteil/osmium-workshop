@@ -650,8 +650,6 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
 
 // ---------------- Single image view rendering ----------------
 
-let singleZoom = 100;
-let singlePanX = 0, singlePanY = 0;
 let lastSingleBase: string | null = null;
 
 function renderMultiCompareView(): void {
@@ -1208,117 +1206,14 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
   emitPreview();
 }
 
-// The zoomable/pannable image side. Now used only by sequential mode — normal
-// Single view shows a small static preview that opens the fullscreen lightbox
-// on click (buildSinglePreview). Hooks carry the zoom readout up to whichever
-// render owns a slider for it.
-function buildSingleImgSide(e: Entry, hooks?: { setZoomUI(z: number): void }, opts?: { clampPan?: boolean }): HTMLElement {
-  const imgSide = document.createElement('div');
-  imgSide.className = 'single-img-side';
-  imgSide.style.position = 'relative';
-  imgSide.style.overflow = 'hidden';
-
-  const img = document.createElement('img');
-  img.src = e.objectUrl;
-  img.draggable = false;
-  img.style.transformOrigin = 'center center';
-  img.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom/100})`;
-  img.style.cursor = 'grab';
-  imgSide.appendChild(img);
-
-  const menuBtn = document.createElement('button');
-  menuBtn.className = 'img-menu-btn';
-  menuBtn.style.left = '10px';
-  menuBtn.style.top = '10px';
-  menuBtn.textContent = '⋯';
-  menuBtn.title = 'More options';
-  menuBtn.addEventListener('pointerdown', (ev) => ev.stopPropagation());
-  menuBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openImageOptionsMenu(e, ev.clientX, ev.clientY); });
-  imgSide.appendChild(menuBtn);
-  const statusIconsEl = buildStatusIconsEl(e);
-  statusIconsEl.style.left = '10px';
-  statusIconsEl.style.top = '38px';
-  imgSide.appendChild(statusIconsEl);
-  const mvBadgesSingle = buildMergeVoidBadgesEl(e);
-  if (mvBadgesSingle){
-    mvBadgesSingle.style.position = 'absolute';
-    mvBadgesSingle.style.left = '10px';
-    mvBadgesSingle.style.bottom = '10px';
-    imgSide.appendChild(mvBadgesSingle);
+// Feeds the "Zoom Zoom" achievement stat from the fullscreen lightbox (the
+// only zoom surface Single/Sequential view has now).
+function recordZoom(pct: number): void {
+  if (pct > (folderStats.zoom_max || 0)){
+    folderStats.zoom_max = pct;
+    saveFolderStats();
+    checkAchievements();
   }
-
-  function applyTransform(){
-    img.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom/100})`;
-    // Sequential-only clamp: the pan can never push an image edge past the
-    // container border. Measured from live rects (not natural size × zoom)
-    // so CSS fit-sizing is accounted for exactly: undersized axes recenter,
-    // oversized axes stop dead at each edge.
-    if (opts && opts.clampPan){
-      const r = img.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0){
-        const c = imgSide.getBoundingClientRect();
-        let dx = 0, dy = 0;
-        if (r.width <= c.width) dx = (c.left + c.width / 2) - (r.left + r.width / 2);
-        else if (r.left > c.left) dx = c.left - r.left;
-        else if (r.right < c.right) dx = c.right - r.right;
-        if (r.height <= c.height) dy = (c.top + c.height / 2) - (r.top + r.height / 2);
-        else if (r.top > c.top) dy = c.top - r.top;
-        else if (r.bottom < c.bottom) dy = c.bottom - r.bottom;
-        if (dx || dy){
-          singlePanX += dx; singlePanY += dy;
-          img.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom/100})`;
-        }
-      }
-    }
-  }
-  // Stale pan carries between sequential images (no per-image reset); clamp
-  // on load so a new image never opens offset out of bounds.
-  if (opts && opts.clampPan) img.addEventListener('load', () => applyTransform());
-
-  function zoomBy(delta: number, clientX?: number, clientY?: number): void {
-    const prevZoom = singleZoom;
-    singleZoom = Math.min(400, Math.max(100, singleZoom + delta));
-    if (singleZoom === prevZoom) return;
-    if (hooks) hooks.setZoomUI(singleZoom);
-    applyTransform();
-    if (singleZoom > (folderStats.zoom_max || 0)){
-      folderStats.zoom_max = singleZoom;
-      saveFolderStats();
-      checkAchievements();
-    }
-  }
-
-  let isPanning = false, panStartX = 0, panStartY = 0, panOrigX = 0, panOrigY = 0;
-
-  imgSide.addEventListener('contextmenu', (ev) => ev.preventDefault());
-  imgSide.addEventListener('pointerdown', (ev) => {
-    if (ev.button === 0 || ev.button === 2){
-      isPanning = true;
-      panStartX = ev.clientX; panStartY = ev.clientY;
-      panOrigX = singlePanX; panOrigY = singlePanY;
-      imgSide.setPointerCapture(ev.pointerId);
-      img.style.cursor = 'grabbing';
-      ev.preventDefault();
-    }
-  });
-  imgSide.addEventListener('pointermove', (ev) => {
-    if (isPanning){
-      singlePanX = panOrigX + (ev.clientX - panStartX);
-      singlePanY = panOrigY + (ev.clientY - panStartY);
-      applyTransform();
-    }
-  });
-  imgSide.addEventListener('pointerup', (ev) => {
-    if (isPanning){ isPanning = false; img.style.cursor = 'grab'; try { imgSide.releasePointerCapture(ev.pointerId); } catch(err){} }
-  });
-  imgSide.addEventListener('wheel', (ev) => {
-    ev.preventDefault();
-    const delta = ev.deltaY < 0 ? 20 : -20;
-    zoomBy(delta, ev.clientX, ev.clientY);
-  }, { passive: false });
-  attachPinchZoom(imgSide, (delta) => zoomBy(delta));
-
-  return imgSide;
 }
 
 // Normal Single view's image: a small static preview (no zoom/pan here) that
@@ -1362,7 +1257,7 @@ function buildSinglePreview(e: Entry): HTMLElement {
   hint.textContent = 'Click to view full size';
   box.appendChild(hint);
 
-  box.addEventListener('click', () => showImageLightbox(e.objectUrl));
+  box.addEventListener('click', () => showImageLightbox(e.objectUrl, recordZoom));
   return box;
 }
 
@@ -1416,15 +1311,18 @@ function renderSingleView(){
       const entry = seqEntry;
       const wrap = document.createElement('div');
       wrap.className = 'single-wrap';
-      const seqSide = buildSingleImgSide(entry, undefined, { clampPan: true });
+      // Same static preview as normal Single view (click → fullscreen
+      // zoomable lightbox), not an inline zoom/pan surface.
+      const seqPreview = buildSinglePreview(entry);
       // Column wrapper: the live "will apply" chip strip docks below the
       // image instead of inside it (inside would overlay the artwork; beside
-      // it would steal panel width). The side's 60vh floor is lifted so the
-      // column still fits the viewport with the strip attached.
-      seqSide.style.minHeight = '0';
+      // it would steal panel width). The column takes the preview's usual
+      // 38% slot, so the preview itself just fills the column's width.
+      seqPreview.style.flex = 'none';
+      seqPreview.style.maxWidth = '100%';
       const imgCol = document.createElement('div');
-      imgCol.style.cssText = 'flex:1; min-width:0; display:flex; flex-direction:column; gap:8px;';
-      imgCol.appendChild(seqSide);
+      imgCol.style.cssText = 'flex:0 0 38%; max-width:38%; min-width:0; display:flex; flex-direction:column; gap:8px;';
+      imgCol.appendChild(seqPreview);
       // Filename + resolution live above the chips preview below the image
       // (the panel keeps only the counter per user spec — one top-of-panel
       // position read, file identity where the tags live).
@@ -1444,18 +1342,6 @@ function renderSingleView(){
       previewBox.appendChild(previewChips);
       imgCol.appendChild(previewBox);
       wrap.appendChild(imgCol);
-      // Click (not drag) opens the fullscreen zoomable lightbox for detail
-      // inspection — pan-drag threshold separates the two gestures sharing
-      // this surface.
-      let seqDownX = 0, seqDownY = 0;
-      const seqImg = seqSide.querySelector('img');
-      if (seqImg){
-        seqImg.addEventListener('pointerdown', (ev) => { seqDownX = ev.clientX; seqDownY = ev.clientY; });
-        seqImg.addEventListener('click', (ev) => {
-          if (Math.hypot(ev.clientX - seqDownX, ev.clientY - seqDownY) > 6) return;
-          showImageLightbox(entry.objectUrl);
-        });
-      }
       const panel = document.createElement('div');
       // seq-panel: sequential-specific compaction CSS (see styles.css) — the
       // whole panel is meant to fit without scrolling at normal window sizes.
@@ -1542,10 +1428,7 @@ function renderSingleView(){
   }
 
   const e = list[singleIndex];
-  if (e.base !== lastSingleBase){
-    singleZoom = 100; singlePanX = 0; singlePanY = 0;
-    lastSingleBase = e.base;
-  }
+  lastSingleBase = e.base;
 
   const wrap = document.createElement('div');
   wrap.className = 'single-wrap';

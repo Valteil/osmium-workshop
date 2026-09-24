@@ -262,7 +262,8 @@ export function hidePanel(el: HTMLElement): void {
 
 // ---------------- Generic full-screen image lightbox ----------------
 
-export function showImageLightbox(src: string): void {
+// onZoom (optional) receives the zoom level as a percentage after each change.
+export function showImageLightbox(src: string, onZoom?: (pct: number) => void): void {
   if (!src) return;
   const backdrop = document.createElement('div');
   backdrop.className = 'lightbox-backdrop';
@@ -292,6 +293,7 @@ export function showImageLightbox(src: string): void {
     else { const ratio = scale / prevScale; panX *= ratio; panY *= ratio; }
     clampPan();
     applyTransform();
+    if (onZoom && scale !== prevScale) onZoom(Math.round(scale * 100));
   }
   function onWheel(ev: WheelEvent): void {
     ev.preventDefault();
