@@ -438,8 +438,22 @@ import { pickDatasetFolder } from './folder-picker';
   tabGallery.addEventListener('click', () => switchTab('gallery'));
   // Clicking Tag Overseer while it's already the active tab toggles back to
   // the default Gallery view/right panel instead of just re-selecting itself.
+  // The Overseer lives in the right panel, so opening it while that panel is
+  // collapsed would switch silently — expand it instead, and re-collapse it
+  // when this tab toggles back to Gallery (only if this tab expanded it).
+  let overseerExpandedRightPanel = false;
   tabMasterTags.addEventListener('click', () => {
-    switchTab(tabMasterTags.classList.contains('active') ? 'gallery' : 'master');
+    if (tabMasterTags.classList.contains('active')){
+      if (overseerExpandedRightPanel && !rightAside.classList.contains('right-panel-collapsed')){
+        applyRightPanelCollapsed(true);
+      }
+      overseerExpandedRightPanel = false;
+      switchTab('gallery');
+      return;
+    }
+    overseerExpandedRightPanel = rightAside.classList.contains('right-panel-collapsed');
+    if (overseerExpandedRightPanel) applyRightPanelCollapsed(false);
+    switchTab('master');
   });
   tabStats.addEventListener('click', () => switchTab('stats'));
   tabSynthDat.addEventListener('click', () => switchTab('synthdat'));
