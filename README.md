@@ -67,8 +67,8 @@ Three related apps share this repository (and much of their renderer code):
    with bottom-sheet panels, tag editing straight from the image modal, and storage through
    Android's Storage Access Framework (a folder you pick stays accessible across restarts). It
    also does on-device WD14 tagging, downloading the model on first use, plus tagging and
-   generation against your own ComfyUI instance over the network. Distributed as a sideloadable
-   APK through GitHub Releases, not the Play Store.
+   generation against your own ComfyUI instance over the network. **Still in development — no
+   public APK yet**; build it from source (see below) if you want to try it.
 3. **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
    featuring a built-in workflow: no node graph to navigate, every generation saves straight to
    disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or

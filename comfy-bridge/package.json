@@ -1,6 +1,6 @@
 {
   "name": "comfy-bridge",
-  "version": "1.6.5",
+  "version": "1.7.0",
   "description": "Standalone desktop interface for a ComfyUI instance, built on Osmium Workshop's SynthDat Overseer generation workflow — no dataset, no accept/reject, just Generate.",
   "main": "main.js",
   "author": "",
