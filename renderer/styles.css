@@ -723,7 +723,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
   html.theme-refined:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell){
-    position: relative; overflow: hidden; isolation: isolate;
+    /* `overflow: clip`, NOT `hidden`: both clip the ::after flood, but
+       `hidden` makes the button a scroll container, which drops a flex
+       item's automatic min-width/min-height to 0 — so any button in a
+       crowded flex row/column (Clear filter, the Tag sorting pill) got
+       squashed below its own text, padding eaten, on these themes only. */
+    position: relative; overflow: clip; isolation: isolate;
   }
   html[data-theme="amethyst"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
   html[data-theme="solarflare"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
@@ -2400,7 +2405,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .pdrop-item:hover, .pdrop-item:focus-visible{ background: var(--bg-elevated); }
   .pdrop-item.active{ color: var(--accent-manual); font-weight: 600; }
 
-  .filter-help-row{ display: flex; align-items: center; gap: 8px; }
+  .filter-help-row{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .filter-help-row span{ font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
   .filter-help-row button{ font-size: 11px; padding: 5px 9px; }
   .filter-mode-lock{ display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
@@ -2430,12 +2435,14 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 0; text-align:center; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
   /* The image-number field in the Single mode toolbar — type a number, Enter to
      jump (view.ts renderSinglePos). */
-  .single-pos-input{
+  /* `input.` prefix is load-bearing: the global `input[type="text"]` rule
+     (width: 100%, 8px 10px padding) outranks a bare class selector. */
+  input.single-pos-input{
     font-family: var(--mono); font-size: 12px; color: var(--text-primary);
     background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 4px;
-    padding: 2px 4px; width: 30px; text-align: center; cursor: text;
+    padding: 2px 4px; width: 5ch; min-width: 0; box-sizing: content-box; text-align: center; cursor: text;
   }
-  .single-pos-input:focus{ border-color: var(--accent-manual); outline: none; }
+  input.single-pos-input:focus{ border-color: var(--accent-manual); outline: none; }
   .single-pos-total{ font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
   /* Sequential mode (view.ts): the Confirm button sticks to the panel's
      visible bottom edge so it never needs a scroll to reach; the panel's
@@ -2710,8 +2717,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   /* Tag Sorting (view.ts) — Single mode + card modal only. A small pill toggle
      above the chips, and the category segments it reveals. */
+  .tagcat-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
   .tagcat-toggle {
-    align-self: flex-start; margin-bottom: 8px; font-size: 11px; padding: 4px 10px;
+    font-size: 11px; padding: 4px 10px;
     border-radius: 999px; cursor: pointer;
     background: var(--bg-elevated); border: 1px solid var(--border-strong); color: var(--text-muted);
   }

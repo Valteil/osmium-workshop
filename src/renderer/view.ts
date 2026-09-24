@@ -1571,7 +1571,7 @@ function renderSingleView(){
 
   const singleTagIndex = buildTagIndex();
   const singleChipOnChange = () => { renderSingleView(); refreshRightPanels(); refreshStats(); };
-  panel.appendChild(buildTagSortToggle(singleChipOnChange));
+  panel.appendChild(buildTagSortBar(e, singleChipOnChange));
   panel.appendChild(buildChipsBlock(e, singleTagIndex, singleChipOnChange));
 
   const addInput = document.createElement('input');
@@ -1623,8 +1623,17 @@ function computeIsolatedTagSet(tagIndex: TagIndex): Set<string> {
   return set;
 }
 
-// Toggle for "Tag Sorting". Shown at the top of the chip block in Single mode and
-// the card modal; clicking flips the persisted preference and re-renders.
+// The bar above the chip block in Single mode and the card modal: the Tag
+// Sorting toggle, plus (while sorting is on) the "+ Add subject" button.
+function buildTagSortBar(entry: Entry, onChange: () => void): HTMLElement {
+  const bar = document.createElement('div');
+  bar.className = 'tagcat-bar';
+  bar.appendChild(buildTagSortToggle(onChange));
+  if (tagSortingActive) bar.appendChild(buildAddSubjectButton(entry, onChange));
+  return bar;
+}
+
+// Toggle for "Tag Sorting"; clicking flips the persisted preference and re-renders.
 function buildTagSortToggle(onToggle: () => void): HTMLElement {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -1643,7 +1652,7 @@ function buildTagSortToggle(onToggle: () => void): HTMLElement {
 
 // The chips block shared by Single mode and the card modal.
 //  - Tag Sorting off  -> one flat chiprow.
-//  - Tag Sorting on   -> category segments, plus an opt-in "+ Add subject" button.
+//  - Tag Sorting on   -> category segments ("+ Add subject" lives in buildTagSortBar).
 //  - Subjects present -> the multi-subject tree (subject headers with indented
 //    category subheaders), where tags are assigned to a subject manually.
 // Ordering within a segment follows orderedTagsForDisplay(), so search matches
@@ -1681,7 +1690,6 @@ function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void)
     seg.appendChild(chiprow);
     wrap.appendChild(seg);
   }
-  wrap.appendChild(buildAddSubjectButton(entry, onChange));
   return wrap;
 }
 
@@ -1749,7 +1757,6 @@ function buildSubjectTree(entry: Entry, ordered: string[], tagIndex: TagIndex, o
   for (const subject of subjects){
     root.appendChild(buildSubjectBlock(entry, subject, bySubject.get(subject.id), tagIndex, onChange));
   }
-  root.appendChild(buildAddSubjectButton(entry, onChange));
   return root;
 }
 
@@ -2632,7 +2639,7 @@ function renderImageCardModal(entry: Entry): void {
   panel.appendChild(addInput);
 
   const modalChipOnChange = () => { renderImageCardModal(entry); renderCurrentView(); refreshRightPanels(); refreshStats(); };
-  panel.appendChild(buildTagSortToggle(modalChipOnChange));
+  panel.appendChild(buildTagSortBar(entry, modalChipOnChange));
   panel.appendChild(buildChipsBlock(entry, modalTagIndex, modalChipOnChange));
 
   modalCardInner.appendChild(imgSide);
