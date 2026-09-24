@@ -46,8 +46,12 @@ export const HELP_SECTIONS: HelpSection[] = [
         a 3-dot menu for per-image actions.</li>
         ${isTouchDevice ? '' : `<li><b>Compact</b> — smaller thumbnails, tags appear on hover. Shift-click two images to
         pin them side by side in a comparison table.</li>
-        <li><b>Single</b> — one image at a time, zoomable up to 400%, drag to pan.</li>`}
+        <li><b>Single</b> — one image at a time: a compact preview (click it for the full-size
+        view — scroll to zoom, drag to pan) beside a roomy tag panel. Type a number into the
+        toolbar's "N / total" box and press Enter to jump straight to that image.</li>`}
         <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
+        ${isTouchDevice ? '' : `<li><b>🖼 Originals</b> — the pre-bucketing originals kept by Bucket Images (see Power
+        tools). Read-only here; Bucket Images' Revert is what moves them back.</li>`}
         <li><b>🔢 Rename all</b> — renames every loaded image (+ its .txt) to a simple zero-padded
         1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
         first; logged and undoable from the Log panel.</li>
@@ -56,12 +60,27 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>To edit tags: ${isTouchDevice ? 'tap' : 'click'} a chip to open its menu (filter by it, look up its wiki definition,
       flag it for review, explore its keyword family), type into a card's "+ add tag" box and
       press Enter to add one, or ${isTouchDevice ? 'tap' : 'click'} a chip's × to remove it.</p>
+      <p><b>🏷 Tag sorting</b> — in ${isTouchDevice ? 'the image modal' : 'Single view and the image modal'}, this pill above
+      the tags groups them into labelled categories (Character, Body, Face, Clothes, Limbs and
+      Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. The grouping is a best
+      guess from Danbooru tag groups, so the odd tag lands in a neighbouring category. With it on,
+      <b>＋ Add subject</b> (next to the pill) splits an image's tags into named subjects (e.g.
+      "Girl 1", "Girl 2") for multi-character images: rename a subject by typing in its name,
+      add category subheaders with <b>＋ Subheader</b>, and move tags between subjects by
+      dragging a chip onto a subject${isTouchDevice ? '' : ', or shift-clicking chips then "Move tags to:"'}.
+      Subjects are saved per image; removing them all returns to the plain category list.</p>
       <p><b>Filtering</b> — the search box on the left supports multiple tags combined with AND /
       OR / XOR / NOT. Type 2 or more characters and a suggestions list appears below the box:
       direct matches first, then other tags that share a word with them (searching "dr" suggests
       "dress" right away, and groups "black dress"/"dress shoes" under a "Same keyword family"
       heading). If you only want an exact match — so searching "dress" doesn't also pull in "black
-      dress" — check "Exact tag match" just under the search box.</p>
+      dress" — check "Exact tag match" just under the search box. The <b>Boolean</b> dropdown
+      under the box picks how your terms combine; tick <b>Lock</b> to keep that choice when
+      <b>Clear filter</b> (or Tag Pruner's mirror search) would otherwise reset it to AND.</p>
+      <p><b>🚩 Review flagged tags</b> (left panel) swaps the TAGS list for every tag you've
+      flagged for review from a chip's menu, across the whole dataset. <b>Reviewed</b> clears
+      that flag everywhere at once (undoable); the row stays struck through for the session.
+      <b>Flag isolated tags</b> highlights tags on 2 or fewer images — a fast way to spot typos.</p>
       <p>If your gallery's columns keep changing count as you zoom or open a side panel, that's
       expected — Settings ▸ Appearance has a "Gallery columns" option to lock it to a fixed
       number instead.</p>
@@ -134,6 +153,14 @@ export const HELP_SECTIONS: HelpSection[] = [
       actively restore whatever each affected image originally had. Void rules
       show in their own collapsible group (they all share one rule, since there's no separate
       canonical tag to key them by); merge rules list one row per canonical tag.</p>
+      ${isTouchDevice ? '' : `<p><b>🧺 Bucket Images</b> — crops and resizes every Gallery image to its nearest LoRA
+      training bucket (Min side / Max side / Step, default 256 / 1024 / 64), so your trainer
+      doesn't have to. The crop keeps the subject using a saliency model (a one-time ~176 MB
+      download, ⬇ button in the dock). <b>Prefer GPU</b> runs it on your graphics card with an
+      automatic CPU fallback. Originals are never lost: they move to an <code>original_images/</code>
+      folder (browse them via the 🖼 Originals view), and images already at a bucket size are
+      skipped, so re-running only handles the new ones. <b>↩ Revert bucketing</b> puts the
+      originals back.</p>`}
       <p>Merge and Void tend to matter a lot more for a
       <span style="white-space:nowrap;"><b>character LoRA</b> <button type="button" class="info-btn" id="infoGlossaryCharacterLora" title="Character LoRA vs. style LoRA">ⓘ</button></span>
       than a style one. A character LoRA needs its identity-defining tags kept tight and
@@ -191,7 +218,8 @@ export const HELP_SECTIONS: HelpSection[] = [
     title: 'Tag Overseer tab',
     html: `
       <p>Two tools live here: Master Tag Control and the WD14 Autotagger. Clicking this tab again
-      while it's already open takes you back to the Gallery.</p>
+      while it's already open takes you back to the Gallery.${isTouchDevice ? '' : ` If the right sidebar
+      is tucked away, clicking this tab opens it, and clicking the tab again tucks it back.`}</p>
       <p><b>Master Tag Control</b> — select images by ${isTouchDevice ? 'tapping' : 'clicking'} thumbnails in the mini-grid here, or
       by selecting them in the main Gallery first (selection stays in sync either way). From there
       you can apply or remove a tag across the whole selection, conditionally apply one tag based
@@ -205,7 +233,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p><b>▶ Sequential from first / from selected</b> — walk your current filter image by
       image in Single view with a quick-modify panel: text/language (custom languages welcome),
       censorship state + type checkboxes, multi-select perspective checkboxes, monochrome, sound
-      effects, comic, multiple views, koma count. A live tag preview under the image shows
+      effects, comic, multiple views, koma count. The image is the same compact preview as
+      Single view (click it for the full-size view). A live tag preview under the image shows
       exactly which tags Confirm will apply before you commit; Confirm advances automatically
       and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>`}
       <p><b>🐍 WD14 Autotagger</b> — sends selected images (or a single one, via its 3-dot menu) to

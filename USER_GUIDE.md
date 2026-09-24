@@ -16,6 +16,7 @@ app to look something up.
 - [The Gallery tab](#the-gallery-tab)
 - [The 3-dot image menu](#the-3-dot-image-menu)
 - [Power tools (right sidebar)](#power-tools-right-sidebar)
+- [Bucket Images](#bucket-images)
 - [Tag Overseer tab](#tag-overseer-tab)
 - [Sequential tagging](#sequential-tagging)
 - [Datasets tab](#datasets-tab)
@@ -60,11 +61,15 @@ This is the tag editor itself — everything else in the app supports what happe
   indicator, and a 3-dot menu. Toggle "Dynamic card heights" for a masonry layout.
 - **Compact** — dense thumbnails with tags on hover. Shift-click two images to pin them side by
   side in an aligned comparison table. Use it to triage large folders quickly.
-- **Single** — one image at a time, up to 400% zoom, drag-to-pan, arrow-key navigation. Select 2+
-  images in Tag Overseer first and switch here for a multi-image tag-alignment table. Use it to
-  inspect fine details (text, hands, artifacts) before training.
+- **Single** — one image at a time: a compact preview beside a roomy tag panel, with arrow-key
+  navigation. Click the preview for the full-size lightbox (scroll to zoom, drag to pan) to
+  inspect fine details (text, hands, artifacts) before training. The toolbar's "N / total" box is
+  editable — type an image number and press Enter to jump there. Select 2+ images in Tag Overseer
+  first and switch here for a multi-image tag-alignment table.
 - **❌ Disabled** — images you've moved out of the active set. Use it for maybes you don't want
   to delete.
+- **🖼 Originals** — the pre-bucketing originals kept by [Bucket Images](#bucket-images).
+  Read-only here; the dock's Revert is what moves them back.
 - **🔢 Rename all** — renames every loaded image (+ its `.txt`) to a simple zero-padded `1`-`N`
   sequence (active dataset first, then `Disabled/`, continuing the same count), confirmed first.
   Logged and undoable from the Log panel like any other bulk action. Use it to normalize a folder
@@ -85,13 +90,29 @@ untouched.
 definition, flag it for review, explore its keyword family). Type into a card's "+ add tag" field
 and press Enter to add a new one. Click the × on a chip to remove it.
 
+**🏷 Tag sorting:** in Single view and the image modal, this pill above the tags groups them into
+labelled categories — Character, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene,
+Effects, Other — instead of one flat wall (grid cards stay flat). The grouping is a best guess
+from Danbooru tag groups, so the odd tag lands in a neighbouring category. The setting is
+remembered. With it on, **＋ Add subject** (next to the pill) splits an image's tags into named
+subjects for multi-character images: rename a subject by typing in its name, add category
+subheaders with **＋ Subheader**, and move tags between subjects by dragging a chip onto a
+subject, or shift-clicking chips then **Move tags to:**. Every tag starts under the first subject
+and keeps its category when moved. Subjects are saved per image; removing them all returns to the
+plain category list.
+
 **Filtering:** the sidebar filter box supports multi-tag search combined with AND / OR / XOR /
 NOT, plus quick filters for All / Untagged / Unsaved. Typing 2+ characters shows a suggestions
 dropdown — direct matches first, then other tags sharing a word with them (e.g. searching "dr"
 suggests "dress" directly, and "black dress"/"dress shoes" under "Same keyword family"). "Exact
 tag match" (checkbox under the search box) makes a search match only a tag that equals your term
 exactly, instead of the default "contains" behavior — so "dress" won't also pull in "black dress".
+The **Boolean** dropdown under the box picks how terms combine; tick **Lock** to keep that choice
+when **Clear filter** (or Tag Pruner's mirror search) would otherwise reset it to AND.
 "Flag isolated tags" highlights tags that appear on 2 or fewer images — a fast way to spot typos.
+**🚩 Review flagged tags** swaps the left panel's TAGS list for every tag flagged for review (from a
+chip's menu) anywhere in the dataset; each row's **Reviewed** clears that flag on every image at
+once (undoable), and the row stays struck through for the rest of the session.
 
 **Locking an image** (🔒 in the 3-dot menu) excludes it from every mass/automatic tool (Unify/Void,
 Master Tags, bulk WD14) while leaving it fully editable by hand — use it to protect an image you
@@ -193,11 +214,27 @@ Void rules and merge rules are shown as two separate groups in this dock — Voi
 expand), Merge lists each canonical-tag rule on its own. Use standing rules so a cleanup never
 needs repeating.
 
+### Bucket Images
+Crops and resizes every Gallery image to its nearest LoRA training bucket, so your trainer
+doesn't have to. Set **Min side / Max side / Step** (default 256 / 1024 / 64 — the same bucket set
+the trainer builds); each image goes to the bucket closest to its aspect ratio. The crop is
+subject-first: a u2net saliency model decides what to keep. It's a one-time ~176 MB download via
+the dock's **⬇ Download model** button. **Prefer GPU** (on by default) runs it on your graphics
+card with an automatic CPU fallback; the log names which one handled each image.
+
+Originals are never lost: before an image is replaced, it (plus a copy of its `.txt`) moves to an
+`original_images/` folder, browsable from the Gallery's **🖼 Originals** view. Images already at a
+valid bucket size are left alone, so re-running on a mixed folder only processes the rest.
+**↩ Revert bucketing** restores the originals and removes the bucketed copies. Any unsaved tag
+edits are saved first, since bucketing reloads the folder.
+
 ---
 
 ## Tag Overseer tab
 
-Two things live here: **Master Tag Control** and the **WD14 Autotagger**.
+Two things live here: **Master Tag Control** and the **WD14 Autotagger**. Clicking the tab again
+while it's open returns to the Gallery. If the right sidebar is tucked away, clicking the tab
+opens it, and toggling back via the tab tucks it away again.
 
 ### Master Tag Control
 1. Select images — click thumbnails in the mini-grid here, or select in the main Gallery first
@@ -245,9 +282,8 @@ Every control prefills from the image's existing tags. Below the image, a **live
 strip** shows exactly which indicator tags Confirm will apply (tags new to the image glow) —
 it's only these panel selections, not the image's other tags. **Confirm** applies them, marks
 the image, and advances automatically; your progress is saved per image, and "Exit sequential"
-(or leaving Single view) ends the run without losing completed work. The image itself zooms to
-400% with pan locked at the image edges, and clicking it (a plain click, not a drag) opens the
-fullscreen lightbox for close inspection.
+(or leaving Single view) ends the run without losing completed work. The image is the same
+compact preview as Single view — click it for the fullscreen lightbox for close inspection.
 
 Use it when a whole filter batch — a character, a rating, everything missing "monochrome" —
 needs its indicator tags aligned without opening each card by hand.
