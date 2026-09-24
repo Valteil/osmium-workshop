@@ -58,6 +58,7 @@ declare const BridgeShared: {
     ok: boolean;
     error?: string;
     interrupted?: boolean;
+    uploadFailed?: boolean; // the reference upload failed — offer a Retry
     imageBytes?: Uint8Array;
     saveRel?: string | null;
     pass1ImageBytes?: Uint8Array;
@@ -497,10 +498,14 @@ declare const BridgeShared: {
     }
   }
 
-  let activeGen: { cancelled: boolean } | null = null;
+  // Set for the WHOLE run — including the reference upload, before any prompt
+  // exists — so Stop can cancel it at any stage. `abort` kills in-flight
+  // requests (a stuck upload otherwise left Stop with nothing to interrupt:
+  // ComfyUI only logged "Global interrupt (no prompt_id specified)").
+  let activeGen: { cancelled: boolean; abort: AbortController } | null = null;
 
   async function comfyStopGeneration(): Promise<void> {
-    if (activeGen) activeGen.cancelled = true;
+    if (activeGen) { activeGen.cancelled = true; activeGen.abort.abort(); }
     try { await fetch(new URL('/interrupt', getHost()), { method: 'POST' }); } catch (e) { /* best effort */ }
   }
 
@@ -525,27 +530,87 @@ declare const BridgeShared: {
 
   // Browser transport for the shared ComfyUI client (BridgeShared.*, bundled
   // from comfy-core.ts) — the mobile counterpart of the desktop Node transport.
-  function comfyTransport() {
+  // XHR (not fetch) so an upload can report progress. `init.timeoutMs` is
+  // honored as a STALL timeout — reset on every upload progress event — so a
+  // slow-but-moving upload survives while a dead one fails instead of hanging
+  // forever (fetch ignored timeoutMs entirely). `signal` aborts (Stop).
+  function comfyTransport(signal?: AbortSignal, onUploadProgress?: (loaded: number, total: number) => void) {
     return {
-      request: async (host: string, path: string, init: any = {}) => {
-        const res = await fetch(new URL(path, host), { method: init.method || 'GET', headers: init.headers, body: init.body ?? undefined });
-        return { status: res.status, body: new Uint8Array(await res.arrayBuffer()) };
-      }
+      request: (host: string, path: string, init: any = {}) => new Promise<{ status: number; body: Uint8Array }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(init.method || 'GET', new URL(path, host).toString());
+        xhr.responseType = 'arraybuffer';
+        // Content-Length is a forbidden header for XHR; the browser sets it.
+        for (const [k, v] of Object.entries(init.headers || {})) {
+          if (k.toLowerCase() !== 'content-length') xhr.setRequestHeader(k, String(v));
+        }
+        let stallTimer: ReturnType<typeof setTimeout> | undefined;
+        const armStall = () => {
+          if (!init.timeoutMs) return;
+          clearTimeout(stallTimer);
+          stallTimer = setTimeout(() => { xhr.abort(); reject(new Error('no response for ' + Math.round(init.timeoutMs / 1000) + 's')); }, init.timeoutMs);
+        };
+        const onAbort = () => { xhr.abort(); reject(new DOMException('Stopped', 'AbortError')); };
+        const done = () => { clearTimeout(stallTimer); signal?.removeEventListener('abort', onAbort); };
+        if (signal?.aborted) { reject(new DOMException('Stopped', 'AbortError')); return; }
+        signal?.addEventListener('abort', onAbort, { once: true });
+        if (onUploadProgress && init.body) {
+          xhr.upload.onprogress = (ev) => { armStall(); if (ev.lengthComputable) onUploadProgress(ev.loaded, ev.total); };
+        }
+        xhr.onload = () => { done(); resolve({ status: xhr.status, body: new Uint8Array(xhr.response || new ArrayBuffer(0)) }); };
+        xhr.onerror = () => { done(); reject(new Error('network error')); };
+        armStall();
+        xhr.send(init.body ?? null);
+      })
     };
   }
 
   async function comfyQueueAndFetch(imageFilename: string | null, imageBytes: Uint8Array | null, prompt: Record<string, any>): Promise<GenResult> {
     let ws: WebSocket | null = null;
-    const t = comfyTransport();
+    const gen = { cancelled: false, abort: new AbortController() };
+    activeGen = gen;
+    const stopped: GenResult = { ok: false, error: 'Generation stopped.', interrupted: true };
+    const t = comfyTransport(gen.abort.signal);
     try {
       if (imageBytes && prompt['239']) {
-        const upload = await BridgeShared.uploadImage(t, getHost(), imageFilename ?? 'reference', imageBytes, 'Reference image');
-        if (!upload.ok) return { ok: false, error: upload.error };
+        // Progress line + an always-available "Retry upload": it abandons the
+        // current attempt and force-starts a fresh upload (the run itself
+        // continues; Stop still cancels everything).
+        const kb = (n: number) => Math.round(n / 1024).toLocaleString() + ' KB';
+        const upText = document.createElement('span');
+        const retryBtn = document.createElement('button');
+        retryBtn.type = 'button';
+        retryBtn.className = 'gen-retry-btn';
+        retryBtn.textContent = '↻ Retry upload';
+        genStatus.textContent = '';
+        genStatus.append(upText, retryBtn);
+        let upload: { ok: boolean; ref?: string; error?: string } | null = null;
+        for (let attemptNo = 1; !upload; attemptNo++) {
+          const attempt = new AbortController();
+          const onGenAbort = () => attempt.abort();
+          gen.abort.signal.addEventListener('abort', onGenAbort, { once: true });
+          let retried = false;
+          retryBtn.onclick = () => { retried = true; attempt.abort(); };
+          upText.textContent = 'Uploading reference image… 0%' + (attemptNo > 1 ? ` (attempt ${attemptNo})` : '');
+          const upT = comfyTransport(attempt.signal, (loaded, total) => {
+            upText.textContent = `Uploading reference image… ${Math.round(loaded / total * 100)}% (${kb(loaded)} / ${kb(total)})` + (attemptNo > 1 ? ` (attempt ${attemptNo})` : '');
+          });
+          try { upload = await BridgeShared.uploadImage(upT, getHost(), imageFilename ?? 'reference', imageBytes, 'Reference image'); }
+          catch (err) {
+            if (gen.cancelled) return stopped;
+            if (retried) continue;
+            return { ok: false, uploadFailed: true, error: 'Reference image upload failed (' + errMsg(err) + ').' };
+          } finally {
+            gen.abort.signal.removeEventListener('abort', onGenAbort);
+          }
+        }
+        if (gen.cancelled) return stopped;
+        if (!upload.ok) return { ok: false, uploadFailed: true, error: upload.error };
         prompt['239'].inputs.image = upload.ref;
+        genStatus.textContent = 'Generating… this can take a while.';
       }
 
       const clientId = 'comfy-bridge-mobile-' + Date.now().toString(16) + '-' + Math.random().toString(16).slice(2);
-      activeGen = { cancelled: false };
 
       try {
         const wsUrl = getHost().replace(/^http/i, 'ws') + '/ws?clientId=' + encodeURIComponent(clientId);
@@ -639,6 +704,7 @@ declare const BridgeShared: {
       });
       return poll.ok ? (poll.value as GenResult) : { ok: false, error: poll.error, interrupted: poll.interrupted };
     } catch (err) {
+      if (gen.cancelled) return stopped; // Stop aborted an in-flight request
       return { ok: false, error: 'Could not reach ComfyUI at ' + getHost() + ' (' + errMsg(err) + ')' };
     } finally {
       try { if (ws) ws.close(); } catch (e) { /* already closed */ }
@@ -650,6 +716,10 @@ declare const BridgeShared: {
 
   let refFile: File | null = null;
   let refFilename = '';
+  // Bytes are read once, at pick time: Android can revoke a picked file's read
+  // grant (or stall on a cloud-backed photo) by the time Generate runs, which
+  // used to hang/throw inside generate() and wedge it in "Generating…".
+  let refBytes: Uint8Array | null = null;
 
   function applySkipRefImageUI() {
     refImageSection.classList.toggle('section-disabled', skipRefImage.checked);
@@ -659,10 +729,14 @@ declare const BridgeShared: {
   applySkipRefImageUI();
 
   btnPickImage.addEventListener('click', () => refFileInput.click());
-  refFileInput.addEventListener('change', () => {
+  refFileInput.addEventListener('change', async () => {
     const file = refFileInput.files && refFileInput.files[0];
     if (!file) return;
+    let bytes: Uint8Array;
+    try { bytes = new Uint8Array(await file.arrayBuffer()); }
+    catch (err) { log('Couldn\'t read that image (' + errMsg(err) + ') — try picking it again.'); return; }
     refFile = file;
+    refBytes = bytes;
     refFilename = file.name;
     refFileName.textContent = file.name;
     refPreview.src = URL.createObjectURL(file);
@@ -1070,9 +1144,25 @@ declare const BridgeShared: {
 
   async function generate() {
     if (generating) return;
-    if (!skipRefImage.checked && !refFile) { log('Pick a reference image first (or check "No reference image").'); return; }
+    if (!skipRefImage.checked && !refBytes) { log('Pick a reference image first (or check "No reference image").'); return; }
     await loadTemplate();
     generating = true;
+    try { await runGeneration(); }
+    catch (err) {
+      genStatus.style.display = 'block';
+      genStatus.textContent = 'Generation failed: ' + errMsg(err);
+      log('Generation failed: ' + errMsg(err));
+      finalizeGenNotification('Generation failed', errMsg(err));
+    } finally {
+      // Whatever happened, never leave the UI wedged in "Generating…".
+      generating = false;
+      btnGenerate.disabled = false;
+      btnStop.disabled = true;
+      livePreviewWrap.style.display = 'none';
+    }
+  }
+
+  async function runGeneration() {
     btnGenerate.disabled = true;
     btnStop.disabled = false;
     livePreview.src = '';
@@ -1086,18 +1176,28 @@ declare const BridgeShared: {
     }
 
     const prompt = buildPrompt();
-    const bytes = skipRefImage.checked ? null : new Uint8Array(await refFile!.arrayBuffer());
+    const bytes = skipRefImage.checked ? null : refBytes;
 
     const res = await comfyQueueAndFetch(skipRefImage.checked ? null : refFilename, bytes, prompt);
-
-    generating = false;
-    btnGenerate.disabled = false;
-    btnStop.disabled = true;
     livePreviewWrap.style.display = 'none';
 
     if (!res.ok) {
       if (res.interrupted) { genStatus.style.display = 'none'; log('Generation stopped.'); finalizeGenNotification('Generation stopped', ''); }
-      else { genStatus.textContent = res.error || ''; log(res.error); finalizeGenNotification('Generation failed', res.error || ''); }
+      else {
+        genStatus.textContent = res.error || '';
+        log(res.error);
+        finalizeGenNotification('Generation failed', res.error || '');
+        if (res.uploadFailed) {
+          const retry = document.createElement('button');
+          retry.type = 'button';
+          retry.className = 'gen-retry-btn';
+          retry.textContent = '↻ Retry upload';
+          // Bytes are already in memory, so this just re-runs Generate with
+          // the same settings — the upload is its first step.
+          retry.addEventListener('click', () => { retry.remove(); generate(); });
+          genStatus.appendChild(retry);
+        }
+      }
       return;
     }
     genStatus.style.display = 'none';
@@ -1169,6 +1269,7 @@ declare const BridgeShared: {
       r.row.remove();
     }
     refFile = null;
+    refBytes = null;
     refFilename = '';
     refFileName.textContent = '';
     refPreview.removeAttribute('src');
