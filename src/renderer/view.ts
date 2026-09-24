@@ -1531,7 +1531,7 @@ function renderSingleView(){
   // Re-rendering the SAME image (a tag edit, Tag Sorting move, …) keeps the
   // scroll where it was; paging to another image starts at the top.
   const restoreScroll = list[singleIndex]?.base === lastSingleBase
-    ? captureSingleScroll() : null;
+    ? capturePanelScroll(singleViewEl) : null;
   singleViewEl.innerHTML = '';
   if (list.length === 0){
     const empty = document.createElement('div');
@@ -1618,17 +1618,17 @@ function renderSingleView(){
   if (restoreScroll) restoreScroll();
 }
 
-// Snapshot the Single-view panel's own scroll plus every scrolled ancestor
-// (emptying singleViewEl clamps them to 0); returns a restorer to call once
-// the new DOM is in place.
-function captureSingleScroll(): () => void {
-  const panelTop = singleViewEl.querySelector<HTMLElement>('.single-panel')?.scrollTop ?? 0;
+// Snapshot the .single-panel's own scroll (Single view and the card modal both
+// use it) plus every scrolled ancestor of `host` (emptying host clamps them to
+// 0); returns a restorer to call once the new DOM is in place.
+function capturePanelScroll(host: HTMLElement): () => void {
+  const panelTop = host.querySelector<HTMLElement>('.single-panel')?.scrollTop ?? 0;
   const ancestors: [HTMLElement, number][] = [];
-  for (let el = singleViewEl.parentElement; el; el = el.parentElement){
+  for (let el = host.parentElement; el; el = el.parentElement){
     if (el.scrollTop) ancestors.push([el, el.scrollTop]);
   }
   return () => {
-    const panel = singleViewEl.querySelector<HTMLElement>('.single-panel');
+    const panel = host.querySelector<HTMLElement>('.single-panel');
     if (panel) panel.scrollTop = panelTop;
     for (const [el, top] of ancestors) el.scrollTop = top;
   };
@@ -2430,7 +2430,13 @@ function startCropMode(entry: Entry, imgSide: HTMLElement, img: HTMLImageElement
   isolateBtn.addEventListener('click', (ev) => { ev.stopPropagation(); void isolateSelection(); });
 }
 
+// Re-rendering the same image (a tag edit, Tag Sorting move, …) keeps the
+// panel's scroll; opening/paging to another image starts at the top.
+let lastModalBase: string | null = null;
 function renderImageCardModal(entry: Entry): void {
+  const restoreScroll = entry.base === lastModalBase && modalCardInner.childElementCount
+    ? capturePanelScroll(modalCardInner) : null;
+  lastModalBase = entry.base;
   modalCardInner.innerHTML = '';
 
   const imgSide = document.createElement('div');
@@ -2665,6 +2671,7 @@ function renderImageCardModal(entry: Entry): void {
 
   modalCardInner.appendChild(imgSide);
   modalCardInner.appendChild(panel);
+  if (restoreScroll) restoreScroll();
 }
 
 function tokenizeTag(tag: string): string[] {
