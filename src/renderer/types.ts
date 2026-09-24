@@ -61,6 +61,20 @@ export interface EntryMeta {
   locked?: boolean;
   dateAdded?: number;
   blurred?: boolean;
+  // Tag Sorting's per-image subject tree (see notes/Features/Tag-Sorting.md).
+  // Absent/empty = the flat category view.
+  tagSubjects?: TagSubject[];
+  tagAssign?: Record<string, string>; // tag -> subject id
+}
+
+// A named subject header in Tag Sorting's multi-subject tree (e.g. "Girl 1"),
+// holding the category subheaders the user chose to add under it. `subheaders`
+// holds TagCategoryId values (kept as plain strings so this renderer-only type
+// file doesn't import the generated data module).
+export interface TagSubject {
+  id: string;
+  name: string;
+  subheaders: string[];
 }
 
 export interface GalleryFilter {

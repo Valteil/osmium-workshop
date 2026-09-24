@@ -6,7 +6,7 @@
 // toggles, galleryFilter/cardTagSortMode/masterTagModeActive which are
 // mutated from dropdowns/tabs that live in index.ts) are injected once via
 // initView(), since index.ts's IIFE can't export them.
-import type { Entry, EntryMeta, GalleryFilter, CardTagSortMode, DirHandle, FileHandle } from './types';
+import type { Entry, EntryMeta, TagSubject, GalleryFilter, CardTagSortMode, DirHandle, FileHandle } from './types';
 import { getJSON, setJSON, getBool, setBool } from './storage';
 import { writeBytes } from './fs-access';
 import {
@@ -21,7 +21,7 @@ import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTag
 import { openTagDetails } from './tag-details';
 import { attachTagAutocomplete, closeAutocomplete } from './tags-autocomplete';
 import { buildTagIndex, refreshStats, filteredEntries } from './tag-index';
-import { groupTagsByCategory } from './tag-categories';
+import { categorizeTag, groupTagsByCategory, TAG_CATEGORY_ORDER, TAG_CATEGORY_LABELS } from './tag-categories';
 import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid } from './master-tag-control';
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
@@ -35,6 +35,11 @@ export let stickyCompareImages: string[] = [];
 // Persisted app-wide, same as every other toggle here.
 const TAG_SORTING_KEY = 'dts-tag-sorting';
 let tagSortingActive = getBool(TAG_SORTING_KEY);
+
+// Shift-click selection in the multi-subject tree (module-level so it survives
+// the re-render each selection change triggers). Reset when the entry changes.
+let subjectSelectedTags = new Set<string>();
+let subjectSelectionBase: string | null = null;
 
 let singleIndex = 0;
 let ctxMenuEl: HTMLElement | null = null;
@@ -1627,7 +1632,7 @@ function buildTagSortToggle(onToggle: () => void): HTMLElement {
   btn.textContent = tagSortingActive ? '🏷 Tag sorting: on' : '🏷 Tag sorting';
   btn.title = tagSortingActive
     ? 'Stop grouping tags by category'
-    : 'Group tags by prompt-field category (Character, Body, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects, Other)';
+    : 'Group tags by prompt-field category (Character, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects, Other)';
   btn.addEventListener('click', () => {
     tagSortingActive = !tagSortingActive;
     setBool(TAG_SORTING_KEY, tagSortingActive);
@@ -1636,10 +1641,13 @@ function buildTagSortToggle(onToggle: () => void): HTMLElement {
   return btn;
 }
 
-// The chips block shared by Single mode and the card modal: a flat chiprow by
-// default, or one labelled segment per category when Tag Sorting is on. Ordering
-// within each segment follows orderedTagsForDisplay(), so search matches still
-// float to the top of their own category.
+// The chips block shared by Single mode and the card modal.
+//  - Tag Sorting off  -> one flat chiprow.
+//  - Tag Sorting on   -> category segments, plus an opt-in "+ Add subject" button.
+//  - Subjects present -> the multi-subject tree (subject headers with indented
+//    category subheaders), where tags are assigned to a subject manually.
+// Ordering within a segment follows orderedTagsForDisplay(), so search matches
+// still float to the top of their own category.
 function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void): HTMLElement {
   const ordered = orderedTagsForDisplay(entry, tagIndex);
   if (!tagSortingActive){
@@ -1648,6 +1656,9 @@ function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void)
     for (const tag of ordered) chiprow.appendChild(buildChip(entry, tag, onChange, tagIndex));
     return chiprow;
   }
+  const subjects = entry.meta?.tagSubjects || [];
+  if (subjects.length) return buildSubjectTree(entry, ordered, tagIndex, onChange);
+
   const wrap = document.createElement('div');
   wrap.className = 'tagcat-groups';
   for (const group of groupTagsByCategory(ordered)){
@@ -1670,7 +1681,279 @@ function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void)
     seg.appendChild(chiprow);
     wrap.appendChild(seg);
   }
+  wrap.appendChild(buildAddSubjectButton(entry, onChange));
   return wrap;
+}
+
+// ---------------- Multi-subject tree (Tag Sorting) ----------------
+
+function ensureEntryMeta(entry: Entry): EntryMeta {
+  if (!entry.meta) entry.meta = {};
+  return entry.meta;
+}
+
+function persistEntryMeta(entry: Entry): void {
+  getEntryMeta()[entry.base] = ensureEntryMeta(entry);
+  saveEntryMetaRef();
+}
+
+let subjectIdCounter = 1;
+function nextSubjectId(): string {
+  return 'subj-' + Date.now().toString(36) + '-' + (subjectIdCounter++).toString(36);
+}
+
+function buildAddSubjectButton(entry: Entry, onChange: () => void): HTMLElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'tagsub-addsubject';
+  btn.textContent = '＋ Add subject';
+  btn.title = 'Split this image\'s tags into named subjects (e.g. Girl 1, Girl 2)';
+  btn.addEventListener('click', () => {
+    const meta = ensureEntryMeta(entry);
+    const subjects = meta.tagSubjects || (meta.tagSubjects = []);
+    subjects.push({ id: nextSubjectId(), name: `Subject ${subjects.length + 1}`, subheaders: [] });
+    persistEntryMeta(entry);
+    onChange();
+  });
+  return btn;
+}
+
+function assignTagsToSubject(entry: Entry, tags: Iterable<string>, subjectId: string): void {
+  const meta = ensureEntryMeta(entry);
+  const assign = meta.tagAssign || (meta.tagAssign = {});
+  for (const t of tags) assign[t] = subjectId;
+  persistEntryMeta(entry);
+}
+
+function buildSubjectTree(entry: Entry, ordered: string[], tagIndex: TagIndex, onChange: () => void): HTMLElement {
+  const meta = ensureEntryMeta(entry);
+  const subjects = meta.tagSubjects as TagSubject[];
+  const assign = meta.tagAssign || (meta.tagAssign = {});
+  if (subjectSelectionBase !== entry.base){ subjectSelectionBase = entry.base; subjectSelectedTags = new Set(); }
+
+  const validIds = new Set(subjects.map((s) => s.id));
+  const defaultId = subjects[0].id;
+  const bySubject = new Map<string, Map<string, string[]>>();
+  for (const tag of ordered){
+    const sid = assign[tag] && validIds.has(assign[tag]) ? assign[tag] : defaultId;
+    let cats = bySubject.get(sid);
+    if (!cats){ cats = new Map(); bySubject.set(sid, cats); }
+    const cat = categorizeTag(tag);
+    const list = cats.get(cat);
+    if (list) list.push(tag); else cats.set(cat, [tag]);
+  }
+
+  const root = document.createElement('div');
+  root.className = 'tagsub-tree';
+  if (subjectSelectedTags.size) root.appendChild(buildMoveToolbar(entry, subjects, onChange));
+  for (const subject of subjects){
+    root.appendChild(buildSubjectBlock(entry, subject, bySubject.get(subject.id), tagIndex, onChange));
+  }
+  root.appendChild(buildAddSubjectButton(entry, onChange));
+  return root;
+}
+
+function buildMoveToolbar(entry: Entry, subjects: TagSubject[], onChange: () => void): HTMLElement {
+  const bar = document.createElement('div');
+  bar.className = 'tagsub-movetoolbar';
+  const count = document.createElement('span');
+  count.className = 'tagsub-movecount';
+  count.textContent = `${subjectSelectedTags.size} selected`;
+  bar.appendChild(count);
+
+  const flyout = document.createElement('div');
+  flyout.className = 'tagsub-moveflyout';
+  flyout.style.display = 'none';
+  for (const s of subjects){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = s.name || '(unnamed)';
+    b.addEventListener('click', () => {
+      const tags = Array.from(subjectSelectedTags);
+      subjectSelectedTags = new Set();
+      assignTagsToSubject(entry, tags, s.id);
+      onChange();
+    });
+    flyout.appendChild(b);
+  }
+
+  const moveBtn = document.createElement('button');
+  moveBtn.type = 'button';
+  moveBtn.className = 'tagsub-movebtn';
+  moveBtn.textContent = 'Move tags to: ▾';
+  moveBtn.addEventListener('click', () => { flyout.style.display = flyout.style.display === 'none' ? 'flex' : 'none'; });
+
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'tagsub-moveclear';
+  clearBtn.textContent = 'Clear';
+  clearBtn.addEventListener('click', () => { subjectSelectedTags = new Set(); onChange(); });
+
+  bar.appendChild(moveBtn);
+  bar.appendChild(flyout);
+  bar.appendChild(clearBtn);
+  return bar;
+}
+
+function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, string[]> | undefined, tagIndex: TagIndex, onChange: () => void): HTMLElement {
+  const block = document.createElement('div');
+  block.className = 'tagsub-subject';
+  const dropHere = (ev: DragEvent): void => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    block.classList.remove('drop-hover');
+    const payload = ev.dataTransfer?.getData('text/plain') || '';
+    const tags = payload.split('\n').filter(Boolean);
+    if (!tags.length) return;
+    subjectSelectedTags = new Set();
+    assignTagsToSubject(entry, tags, subject.id);
+    onChange();
+  };
+  block.addEventListener('dragover', (ev) => { ev.preventDefault(); block.classList.add('drop-hover'); });
+  block.addEventListener('dragleave', () => block.classList.remove('drop-hover'));
+  block.addEventListener('drop', dropHere);
+
+  const head = document.createElement('div');
+  head.className = 'tagsub-subject-head';
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'tagsub-name';
+  nameInput.value = subject.name;
+  nameInput.title = 'Name this subject (e.g. Girl 1)';
+  nameInput.setAttribute('aria-label', 'Subject name');
+  nameInput.addEventListener('keydown', (ev) => ev.stopPropagation());
+  nameInput.addEventListener('input', () => { subject.name = nameInput.value; });
+  nameInput.addEventListener('change', () => persistEntryMeta(entry));
+  nameInput.addEventListener('blur', () => persistEntryMeta(entry));
+  head.appendChild(nameInput);
+
+  const actions = document.createElement('div');
+  actions.className = 'tagsub-head-actions';
+  const addSub = document.createElement('button');
+  addSub.type = 'button';
+  addSub.textContent = '＋ Subheader';
+  addSub.title = 'Add a category subheader under this subject';
+  addSub.addEventListener('click', (ev) => { ev.stopPropagation(); openSubheaderPicker(entry, subject, ev.clientX, ev.clientY, onChange); });
+  actions.appendChild(addSub);
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'tagsub-del';
+  del.textContent = '✕';
+  del.title = 'Remove this subject (its tags fall back to the first subject)';
+  del.addEventListener('click', () => removeSubject(entry, subject.id, onChange));
+  actions.appendChild(del);
+  head.appendChild(actions);
+  block.appendChild(head);
+
+  const present = cats || new Map<string, string[]>();
+  const catIds = new Set<string>([...present.keys(), ...subject.subheaders]);
+  const orderedCats = TAG_CATEGORY_ORDER.filter((c) => catIds.has(c));
+  if (!orderedCats.length){
+    const empty = document.createElement('div');
+    empty.className = 'tagsub-empty';
+    empty.textContent = 'No tags here yet — drag chips onto this subject, or add a subheader.';
+    block.appendChild(empty);
+    return block;
+  }
+  for (const cat of orderedCats){
+    const sub = document.createElement('div');
+    sub.className = 'tagsub-sub';
+    sub.addEventListener('dragover', (ev) => { ev.preventDefault(); });
+    sub.addEventListener('drop', dropHere);
+    const subHead = document.createElement('div');
+    subHead.className = 'tagsub-sub-head';
+    const catName = document.createElement('span');
+    catName.className = 'tagsub-cat';
+    catName.textContent = TAG_CATEGORY_LABELS[cat] || cat;
+    const countEl = document.createElement('span');
+    countEl.className = 'tagsub-count';
+    const tags = present.get(cat) || [];
+    countEl.textContent = String(tags.length);
+    subHead.appendChild(catName);
+    subHead.appendChild(countEl);
+    sub.appendChild(subHead);
+
+    const chiprow = document.createElement('div');
+    chiprow.className = 'chiprow';
+    if (!tags.length){
+      const none = document.createElement('span');
+      none.className = 'tagsub-empty';
+      none.textContent = '—';
+      chiprow.appendChild(none);
+    }
+    for (const tag of tags){
+      const chip = buildChip(entry, tag, onChange, tagIndex);
+      chip.classList.add('tagsub-chip');
+      if (subjectSelectedTags.has(tag)) chip.classList.add('tagsub-selected');
+      chip.draggable = true;
+      chip.addEventListener('dragstart', (ev) => {
+        const payload = subjectSelectedTags.has(tag) ? Array.from(subjectSelectedTags).join('\n') : tag;
+        ev.dataTransfer?.setData('text/plain', payload);
+        if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
+      });
+      // Capture phase so shift-click toggles selection instead of opening the
+      // tag's context menu (buildChip's own click handler sits on the label).
+      chip.addEventListener('click', (ev) => {
+        if (!ev.shiftKey) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (subjectSelectedTags.has(tag)) subjectSelectedTags.delete(tag);
+        else subjectSelectedTags.add(tag);
+        onChange();
+      }, true);
+      chiprow.appendChild(chip);
+    }
+    sub.appendChild(chiprow);
+    block.appendChild(sub);
+  }
+  return block;
+}
+
+function openSubheaderPicker(entry: Entry, subject: TagSubject, x: number, y: number, onChange: () => void): void {
+  document.querySelectorAll('.tagsub-picker').forEach((el) => el.remove());
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu tagsub-picker';
+  const header = document.createElement('div');
+  header.className = 'ctx-header';
+  header.textContent = 'Add subheader';
+  menu.appendChild(header);
+  let any = false;
+  for (const cat of TAG_CATEGORY_ORDER){
+    if (subject.subheaders.includes(cat)) continue;
+    any = true;
+    addContextMenuItem(menu, TAG_CATEGORY_LABELS[cat] || cat, () => {
+      subject.subheaders.push(cat);
+      persistEntryMeta(entry);
+      menu.remove();
+      onChange();
+    });
+  }
+  if (!any){
+    const none = document.createElement('div');
+    none.className = 'ctx-item';
+    none.textContent = 'All categories added';
+    menu.appendChild(none);
+  }
+  document.body.appendChild(menu);
+  positionMenu(menu, x, y);
+  const onOutside = (ev: MouseEvent): void => {
+    if (!menu.contains(ev.target as Node)){ menu.remove(); document.removeEventListener('click', onOutside, true); }
+  };
+  setTimeout(() => document.addEventListener('click', onOutside, true), 0);
+}
+
+function removeSubject(entry: Entry, subjectId: string, onChange: () => void): void {
+  const meta = ensureEntryMeta(entry);
+  const subjects = meta.tagSubjects || [];
+  const idx = subjects.findIndex((s) => s.id === subjectId);
+  if (idx === -1) return;
+  subjects.splice(idx, 1);
+  if (meta.tagAssign){
+    for (const [tag, sid] of Object.entries(meta.tagAssign)) if (sid === subjectId) delete meta.tagAssign[tag];
+  }
+  if (!subjects.length){ meta.tagAssign = {}; subjectSelectedTags = new Set(); }
+  persistEntryMeta(entry);
+  onChange();
 }
 
 function orderedTagsForDisplay(entry: Entry, tagIndex: TagIndex): string[] {

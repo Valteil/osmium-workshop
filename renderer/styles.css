@@ -2427,13 +2427,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   #singleNav{ display: none; align-items: center; gap: 10px; }
-  .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 64px; text-align:center; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+  .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 0; text-align:center; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
   /* The image-number field in the Single mode toolbar — type a number, Enter to
      jump (view.ts renderSinglePos). */
   .single-pos-input{
     font-family: var(--mono); font-size: 12px; color: var(--text-primary);
     background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 4px;
-    padding: 2px 4px; width: 46px; text-align: center; cursor: text;
+    padding: 2px 4px; width: 30px; text-align: center; cursor: text;
   }
   .single-pos-input:focus{ border-color: var(--accent-manual); outline: none; }
   .single-pos-total{ font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
@@ -2730,6 +2730,46 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     letter-spacing: 0.5px; color: var(--accent-flair);
   }
   .tagcat-count { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+
+  /* Multi-subject tree (Tag Sorting, opt-in): user-named subject headers, each
+     with indented category subheaders. Tags are assigned by dragging a chip onto
+     a subject, or shift-clicking chips then "Move tags to:". */
+  .tagsub-tree { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+  .tagsub-addsubject {
+    align-self: flex-start; font-size: 11px; padding: 4px 10px; border-radius: 999px;
+  }
+  .tagsub-subject {
+    display: flex; flex-direction: column; gap: 8px;
+    border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 10px; background: var(--bg-base);
+  }
+  .tagsub-subject.drop-hover { border-color: var(--accent-manual); background: var(--accent-manual-dim); }
+  .tagsub-subject-head { display: flex; align-items: center; gap: 8px; }
+  .tagsub-name {
+    font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text-primary);
+    background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 4px;
+    padding: 3px 6px; min-width: 90px; max-width: 220px; cursor: text;
+  }
+  .tagsub-name:focus { border-color: var(--accent-manual); outline: none; }
+  .tagsub-head-actions { margin-left: auto; display: flex; gap: 6px; }
+  .tagsub-head-actions button { font-size: 11px; padding: 3px 8px; }
+  .tagsub-del { color: var(--accent-danger); }
+  .tagsub-sub { margin-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+  .tagsub-sub-head {
+    display: flex; align-items: baseline; gap: 8px;
+    border-bottom: 1px solid var(--border-soft); padding-bottom: 2px;
+  }
+  .tagsub-cat { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent-flair); }
+  .tagsub-count { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+  .tagsub-empty { font-size: 11px; color: var(--text-faint); font-style: italic; }
+  .tagsub-chip { cursor: grab; }
+  .chip.tagsub-selected { outline: 2px solid var(--accent-manual); outline-offset: 1px; }
+  .tagsub-movetoolbar {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 6px 8px; border: 1px solid var(--accent-manual); border-radius: 6px; background: var(--bg-elevated);
+  }
+  .tagsub-movecount { font-family: var(--mono); font-size: 11px; color: var(--accent-manual); }
+  .tagsub-moveflyout { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tagsub-moveflyout button { font-size: 11px; padding: 3px 8px; }
   /* Read-only chip (no × button) — e.g. the WD14 transfer-list viewer.
      The base .chip's asymmetric padding (9px left / 4px right + 5px gap)
      budgets room for the remove button; without it the label sits visibly

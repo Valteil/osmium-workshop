@@ -8,22 +8,25 @@
 //      map misses;
 //   3. 'other' when nothing matches.
 //
-// A tag listed under several Danbooru groups resolves to the FIRST category in
-// TAG_CATEGORY_ORDER (most-specific-content first): sexual > limbs > pose > clothes >
-// body > character > scene > effects > other. That precedence is baked into the
-// generated seed map at build time and re-applied to the runtime rules here. (Limbs
-// outranks pose because Danbooru's Posture page cross-lists gesture tags, so posture's
-// own list contains "waving"/"salute"/etc.)
+// A tag listed under several Danbooru groups resolves to the FIRST category in the
+// build script's precedence order (most-specific-content first):
+// sexual > limbs > pose > clothes > face > body > character > scene > effects > other.
+// That precedence is baked into the generated seed map at build time and re-applied to
+// the runtime rules here. (Limbs outranks pose because Danbooru's Posture page
+// cross-lists gesture tags, so posture's own list contains "waving"/"salute"/etc. Face
+// outranks body so the face groups' tags land in Face rather than Body.)
 import {
   TAG_CATEGORY_ORDER, TAG_CATEGORY_SEEDS, TAG_CATEGORY_RULES,
   type TagCategoryId
 } from './tag-categories-data';
 
 export type { TagCategoryId };
+export { TAG_CATEGORY_ORDER };
 
 export const TAG_CATEGORY_LABELS: Record<TagCategoryId, string> = {
   character: 'Character',
   body: 'Body',
+  face: 'Face',
   clothes: 'Clothes',
   limbs: 'Limbs and Hands',
   sexual: 'Sexual',

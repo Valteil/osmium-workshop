@@ -25,7 +25,7 @@ const OUT = path.join(ROOT, 'src', 'renderer', 'tag-categories-data.ts');
 // order): Danbooru's Posture page cross-references the Gestures page, so posture's group
 // list contains gesture tags too ("waving", "salute", "akanbe", ...) — with Pose first
 // those all silently became Pose. Hands/gestures are the more specific fact, so they win.
-const ORDER = ['sexual', 'limbs', 'pose', 'clothes', 'body', 'character', 'scene', 'effects'];
+const ORDER = ['sexual', 'limbs', 'pose', 'clothes', 'face', 'body', 'character', 'scene', 'effects'];
 
 // Obvious non-content tags the (deliberately liberal) snapshot extraction swept in from
 // group pages' prose; dropping them here sends them to 'other' instead of a wrong bucket.
@@ -68,10 +68,10 @@ lines.push('// Sources: scripts/tag-categories/raw/*.json (Danbooru tag-group sn
 lines.push('//          scripts/tag-categories/rules/*.json (hand-authored fallback keywords).');
 lines.push('// Regenerate: `npm run build:tag-categories`.');
 lines.push('');
-lines.push("export type TagCategoryId = 'character' | 'body' | 'clothes' | 'limbs' | 'sexual' | 'pose' | 'scene' | 'effects' | 'other';");
+lines.push("export type TagCategoryId = 'character' | 'body' | 'face' | 'clothes' | 'limbs' | 'sexual' | 'pose' | 'scene' | 'effects' | 'other';");
 lines.push('');
 lines.push('/** Display order in Single mode and the card modal. */');
-lines.push("export const TAG_CATEGORY_ORDER: TagCategoryId[] = ['character', 'body', 'clothes', 'limbs', 'sexual', 'pose', 'scene', 'effects', 'other'];");
+lines.push("export const TAG_CATEGORY_ORDER: TagCategoryId[] = ['character', 'body', 'face', 'clothes', 'limbs', 'sexual', 'pose', 'scene', 'effects', 'other'];");
 lines.push('');
 lines.push('/** Exact tag -> category, compiled from Danbooru tag groups (most-specific category wins overlaps). */');
 lines.push('export const TAG_CATEGORY_SEEDS: Record<string, TagCategoryId> = {');
