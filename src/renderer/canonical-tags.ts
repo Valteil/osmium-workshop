@@ -482,7 +482,7 @@ function buildRuleRow(rule: CanonicalRule): HTMLElement {
   // resweepAllEntries() re-corrects everything the instant it's turned back
   // on, same as adding/editing a rule.
   const enableToggle = document.createElement('label');
-  enableToggle.className = 'canonical-rule-enable-toggle';
+  enableToggle.className = 'ach-toggle-row canonical-rule-enable-toggle';
   enableToggle.title = rule.enabled ? 'Uncheck to pause this whole rule' : 'This rule is paused — check to resume applying it';
   const enableCb = document.createElement('input');
   enableCb.type = 'checkbox';

@@ -1364,25 +1364,31 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   /* Custom checkbox — bigger than a native one (18px vs. a browser's usual
      ~13px) and styled to match the app's own controls (rounded, accent-
      colored check) instead of whatever the OS theme happens to render. */
-  .ach-toggle-row input[type="checkbox"]{
+  /* Applied to EVERY checkbox (not just .ach-toggle-row ones) so none falls
+     back to the OS look. Wrapped in :where() = zero specificity, so any
+     class's own size/position (.master-select-cb, .master-mini-cb, …) still
+     wins. The tick is sized in % so it fits any box size. */
+  :where(input[type="checkbox"]){
     appearance: none; -webkit-appearance: none; margin: 0;
-    width: 18px; height: 18px; flex-shrink: 0; position: relative;
+    width: 15px; height: 15px; flex-shrink: 0; position: relative; vertical-align: middle;
     border: 1.5px solid var(--border-strong); border-radius: 4px;
     background: var(--bg-elevated); cursor: pointer;
     transition: background 0.12s ease, border-color 0.12s ease;
   }
-  .ach-toggle-row input[type="checkbox"]:hover{ border-color: var(--accent-manual); }
-  .ach-toggle-row input[type="checkbox"]:checked{
+  :where(input[type="checkbox"]:hover:not(:disabled)){ border-color: var(--accent-manual); }
+  :where(input[type="checkbox"]:checked){
     background: var(--accent-manual); border-color: var(--accent-manual);
   }
-  .ach-toggle-row input[type="checkbox"]:checked::after{
-    content: ''; position: absolute; left: 5px; top: 1px;
-    width: 5px; height: 9px; border: solid var(--bg-base); border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
+  :where(input[type="checkbox"]:checked)::after{
+    content: ''; position: absolute; left: 50%; top: 45%;
+    width: 28%; height: 55%; border: solid var(--bg-base); border-width: 0 2px 2px 0;
+    transform: translate(-50%, -50%) rotate(45deg);
   }
-  .ach-toggle-row input[type="checkbox"]:focus-visible{
+  :where(input[type="checkbox"]:focus-visible){
     outline: 2px solid var(--accent-manual); outline-offset: 1px;
   }
+  :where(input[type="checkbox"]:disabled){ opacity: 0.5; cursor: default; }
+  .ach-toggle-row input[type="checkbox"]{ width: 18px; height: 18px; }
   .ach-list{
     display: flex; flex-direction: column; gap: 8px;
     max-height: 340px; overflow-y: scroll; flex-shrink: 0;
@@ -2408,8 +2414,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .filter-help-row{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .filter-help-row span{ font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
   .filter-help-row button{ font-size: 11px; padding: 5px 9px; }
-  .filter-mode-lock{ display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
-  .filter-mode-lock input[type="checkbox"]{ width: 12px; height: 12px; margin: 0; cursor: pointer; }
+  /* Lock + Clear filter wrap as ONE unit, so Clear filter never lands on a
+     line of its own at high zoom. */
+  .filter-lock-clear{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  /* Compact ach-toggle-row, sized to sit in this one-line row. */
+  .ach-toggle-row.filter-mode-lock{ gap: 6px; padding: 4px 8px; user-select: none; }
+  .ach-toggle-row.filter-mode-lock input[type="checkbox"]{ width: 14px; height: 14px; }
 
   .filter-suggestions{
     margin-top: 4px;
@@ -3040,7 +3050,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .canonical-rule-add-row{ display: flex; gap: 6px; }
   .canonical-rule-add-row input{ flex: 1; font-size: 12px; }
   .canonical-rule-add-row button{ font-size: 11px; padding: 4px 8px; }
-  .canonical-rule-enable-toggle{ display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+  /* Compact ach-toggle-row — sits in the rule's header row. */
+  .ach-toggle-row.canonical-rule-enable-toggle{ gap: 6px; padding: 4px 8px; white-space: nowrap; }
+  .ach-toggle-row.canonical-rule-enable-toggle input[type="checkbox"]{ width: 14px; height: 14px; }
   .canonical-rule-row.canonical-rule-disabled{ opacity: 0.55; }
   .canonical-rule-row.canonical-rule-disabled .canonical-rule-label{ text-decoration: line-through; }
   .canonical-chip-disabled{ opacity: 0.5; }

@@ -1528,6 +1528,10 @@ function renderSingleView(){
   singlePrevBtn.disabled = list.length === 0 || singleIndex <= 0;
   singleNextBtn.disabled = list.length === 0 || singleIndex >= list.length - 1;
 
+  // Re-rendering the SAME image (a tag edit, Tag Sorting move, …) keeps the
+  // scroll where it was; paging to another image starts at the top.
+  const restoreScroll = list[singleIndex]?.base === lastSingleBase
+    ? captureSingleScroll() : null;
   singleViewEl.innerHTML = '';
   if (list.length === 0){
     const empty = document.createElement('div');
@@ -1611,6 +1615,23 @@ function renderSingleView(){
 
   wrap.appendChild(panel);
   singleViewEl.appendChild(wrap);
+  if (restoreScroll) restoreScroll();
+}
+
+// Snapshot the Single-view panel's own scroll plus every scrolled ancestor
+// (emptying singleViewEl clamps them to 0); returns a restorer to call once
+// the new DOM is in place.
+function captureSingleScroll(): () => void {
+  const panelTop = singleViewEl.querySelector<HTMLElement>('.single-panel')?.scrollTop ?? 0;
+  const ancestors: [HTMLElement, number][] = [];
+  for (let el = singleViewEl.parentElement; el; el = el.parentElement){
+    if (el.scrollTop) ancestors.push([el, el.scrollTop]);
+  }
+  return () => {
+    const panel = singleViewEl.querySelector<HTMLElement>('.single-panel');
+    if (panel) panel.scrollTop = panelTop;
+    for (const [el, top] of ancestors) el.scrollTop = top;
+  };
 }
 
 // ---------------- Chips + tag context menu ----------------
