@@ -77,31 +77,70 @@ html.motion-swipe #galleryGrid, html.motion-swipe #compactGrid, html.motion-swip
   transition-duration: var(--swipe-dur); transition-timing-function: var(--swipe-ease);
 }
 
-/* Image card modal — Swipe mode turns its scale-in-from-center into a
-   bottom-sheet-style slide up from off-screen, in place of the default
-   .modal-card scale(0.96)->scale(1) declared further down.
-   Compositing details that keep the slide at full frame rate:
-   translate3d() makes the whole flight a one-time compositor move of an
-   already-rasterized layer, no per-frame repainting of the large modal
-   content. will-change: transform is NOT set statically here — view.ts
-   adds it for the transition and resets it after (applied-at-start/
-   reset-at-end layer discipline), so the modal isn't a permanent resident
-   of the compositor's GPU memory. */
-html.motion-swipe .modal-card{
-  transform: translate3d(0, 100%, 0);
-  transition-duration: var(--swipe-dur); transition-timing-function: var(--swipe-ease);
+/* ---------- Swipe map ----------
+   Swipe mode treats the app as one map (mapPan(), shared-ui.ts): tabs in
+   tab-bar order along the x-axis, Gallery's views as a strip inside the
+   Gallery chunk, images as a strip inside Single view and the image modal,
+   and the modal itself on the depth axis — lifted out of its card.
+   A pan is a View Transition over the ONE region that differs
+   (view-transition-name: map-pane, set per move from JS): the outgoing and
+   incoming snapshots travel together by exactly one region width, so the
+   two chunks read as a single sheet sliding under a fixed frame. The group
+   clips to the region's box, so a right-column pan never paints over the
+   gallery beside it. Everything outside the region (topbar, tab bar, shared
+   panels) stays in the root snapshot and holds still.
+   Timing: iOS push curve (--ease-drawer), 260ms for tab/view chunks, 200ms
+   for an image-to-image step (a smaller semantic move). Keyboard paging
+   and Escape skip the pan entirely (view.ts). */
+:root{ --map-dur: 260ms; --map-ease: cubic-bezier(0.32, 0.72, 0, 1); }
+html[data-map-kind="page"]{ --map-dur: 200ms; }
+::view-transition-group(map-pane){ animation: none; overflow: clip; }
+::view-transition-image-pair(map-pane){ isolation: auto; }
+::view-transition-old(map-pane), ::view-transition-new(map-pane){
+  animation-duration: var(--map-dur); animation-timing-function: var(--map-ease);
+  animation-fill-mode: both; mix-blend-mode: normal;
+  height: 100%; object-fit: none; object-position: left top;
 }
-html.motion-swipe .modal-backdrop{ transition-duration: var(--swipe-dur); transition-timing-function: var(--swipe-ease); }
-html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translate3d(0, 0, 0); }
+html[data-map-dir="fwd"]::view-transition-old(map-pane){ animation-name: mapOutToLeft; }
+html[data-map-dir="fwd"]::view-transition-new(map-pane){ animation-name: mapInFromRight; }
+html[data-map-dir="back"]::view-transition-old(map-pane){ animation-name: mapOutToRight; }
+html[data-map-dir="back"]::view-transition-new(map-pane){ animation-name: mapInFromLeft; }
+@keyframes mapOutToLeft{ from{ transform: translateX(0); } to{ transform: translateX(-100%); } }
+@keyframes mapInFromRight{ from{ transform: translateX(100%); } to{ transform: translateX(0); } }
+@keyframes mapOutToRight{ from{ transform: translateX(0); } to{ transform: translateX(100%); } }
+@keyframes mapInFromLeft{ from{ transform: translateX(-100%); } to{ transform: translateX(0); } }
+/* Chrome that changed with the move (active tab, active view button)
+   settles in the same beat as the pan instead of the UA's slower fade. */
+html[data-map-dir]::view-transition-old(root), html[data-map-dir]::view-transition-new(root){
+  animation-duration: var(--map-dur); animation-timing-function: var(--map-ease);
+}
+
+/* Image card modal — depth axis. view.ts's aimModalAt() sets --from-x/-y/-s
+   to the source card's thumbnail, so under Swipe the modal grows out of the
+   card it was opened from and shrinks back into it on close; with no
+   visible source the defaults give a short 32px rise at 0.96.
+   Compositing: translate3d() + scale keep the flight a compositor move of
+   an already-rasterized layer. will-change is NOT static — view.ts adds it
+   for the transition only (applied-at-start/reset-at-end), so the large
+   modal isn't a permanent resident of GPU memory. */
+html.motion-swipe .modal-card{
+  transform: translate3d(var(--from-x, 0px), var(--from-y, 32px), 0) scale(var(--from-s, 0.96));
+  transition-duration: var(--map-dur); transition-timing-function: var(--map-ease);
+}
+html.motion-swipe .modal-backdrop{ transition-duration: var(--map-dur); transition-timing-function: var(--map-ease); }
+html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translate3d(0, 0, 0) scale(1); }
   /* Transition-only layer promotion (see view.ts openImageCardModal). */
   html.motion-swipe #imageCardModal.modal-anim-layers .modal-card{ will-change: transform; }
 
-/* Swipe mode is opt-in, but prefers-reduced-motion still wins: every slide
-   below drops its translate and keeps a plain fade (fewer/gentler, not none —
-   the fade still marks the change), so no user gets the full-width position
-   change they asked the OS to avoid. The out-then-in order is unchanged, so
-   direction stays legible even without the movement. */
+/* Swipe mode is opt-in, but prefers-reduced-motion still wins: the map pan
+   and the modal's flight drop their movement and keep a plain crossfade
+   (fewer/gentler, not none — the change stays marked). The fallback
+   out-then-in classes (engines without View Transitions) do the same. */
+@keyframes mapFadeOut{ to{ opacity: 0; } }
+@keyframes mapFadeIn{ from{ opacity: 0; } }
 @media (prefers-reduced-motion: reduce){
+  html[data-map-dir]::view-transition-old(map-pane){ animation-name: mapFadeOut; animation-duration: 150ms; }
+  html[data-map-dir]::view-transition-new(map-pane){ animation-name: mapFadeIn; animation-duration: 150ms; }
   html.motion-swipe #datasetManagerTab.tab-fading,
   html.motion-swipe #statsTab.tab-fading,
   html.motion-swipe #normalRightTools.tab-fading,

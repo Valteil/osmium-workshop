@@ -39,7 +39,7 @@ import {
   singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle,
   settingsPanel, fontSizeSlider, fontSizeVal
 } from './dom';
-import { toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
+import { toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, mapPan, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
 import {
   PREMIUM_THEMES, STUDIO_DEFAULTS, applyTheme, openThemeCustomPanel, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes
@@ -356,6 +356,7 @@ import { setIconLabel } from './icons';
   // shift the display swap itself causes. Respects the "Smooth transitions"
   // Settings toggle (`html.motion-off`) by skipping straight to the final
   // state with no delay when it's off.
+  const TAB_MAP_ORDER = ['datasets', 'gallery', 'master', 'stats', 'synthdat'];
   function switchTab(tab: string, opts?: { skipDrawerSync?: boolean }): void {
     const skipDrawerSync = !!(opts && opts.skipDrawerSync);
     const fadePanes = [datasetManagerTab, statsTab, synthDatTab, normalRightTools, masterTagPanel];
@@ -422,6 +423,23 @@ import { setIconLabel } from './icons';
     };
 
     if (document.documentElement.classList.contains('motion-off')){ applyState(); return; }
+
+    // Swipe map: tabs sit left→right in tab-bar order. Gallery and Tag
+    // Overseer share the same shell and differ only in the right column, so
+    // between those two only the right column's content pans; every other
+    // pair pans the whole content region below the tab bar.
+    const fromTab = tabDatasetManager.classList.contains('active') ? 'datasets'
+      : tabMasterTags.classList.contains('active') ? 'master'
+      : tabStats.classList.contains('active') ? 'stats'
+      : tabSynthDat.classList.contains('active') ? 'synthdat' : 'gallery';
+    const onShell = (t: string) => t === 'gallery' || t === 'master';
+    const regionOf = (t: string): HTMLElement | null => {
+      if (onShell(fromTab) && onShell(tab)) return document.getElementById('rightPanelContent');
+      if (onShell(t)) return document.getElementById('shell');
+      return t === 'datasets' ? datasetManagerTab : t === 'stats' ? statsTab : synthDatTab;
+    };
+    const dir = Math.sign(TAB_MAP_ORDER.indexOf(tab) - TAB_MAP_ORDER.indexOf(fromTab));
+    if (mapPan(dir, 'tab', regionOf(fromTab), () => regionOf(tab), applyState)) return;
 
     const leaving = fadePanes.filter(el => el.style.display !== 'none');
     leaving.forEach(el => el.classList.add('tab-fading'));

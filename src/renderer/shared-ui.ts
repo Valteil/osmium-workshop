@@ -376,6 +376,60 @@ export function transitionMsOf(el: HTMLElement): number {
   return raw.endsWith('ms') ? n : n * 1000;
 }
 
+// ---------------- Swipe map ----------------
+// Swipe mode treats the app as one horizontal map: tabs in tab-bar order,
+// Gallery's views in view-button order inside the Gallery chunk, images in
+// order inside Single view / the image modal. A move pans the camera: the
+// outgoing region and the incoming one travel TOGETHER by exactly one region
+// width (a View Transition, so both states are on screen at once), which
+// reads as one continuous sheet sliding under a fixed frame — not two panes
+// taking turns. Only the region that actually differs is named and panned;
+// everything else (topbar, tab bar, shared panels) holds still, like the
+// parts of the map both chunks share. CSS: "Swipe map" in styles.css.
+//
+// Returns false when it didn't handle the move (not Swipe mode, motion off,
+// or no View Transitions) so the caller runs its own fallback path.
+type ViewTransitionDoc = Document & {
+  startViewTransition?: (update: () => void) => { finished: Promise<void> };
+};
+let mapPanSeq = 0;
+let mapNamed: HTMLElement[] = [];
+export function mapPan(
+  dir: number, kind: 'tab' | 'view' | 'page',
+  from: Element | null, to: () => Element | null, update: () => void
+): boolean {
+  const html = document.documentElement;
+  const doc = document as ViewTransitionDoc;
+  if (!dir || !doc.startViewTransition || !html.classList.contains('motion-swipe') || html.classList.contains('motion-off')) return false;
+  const seq = ++mapPanSeq;
+  // A pan started mid-pan skips the running one; drop its names first, or the
+  // same view-transition-name on two rendered elements aborts this capture.
+  for (const el of mapNamed) el.style.viewTransitionName = '';
+  mapNamed = [];
+  const name = (el: Element | null) => {
+    if (!(el instanceof HTMLElement)) return;
+    el.style.viewTransitionName = 'map-pane';
+    mapNamed.push(el);
+  };
+  html.dataset.mapDir = dir > 0 ? 'fwd' : 'back';
+  html.dataset.mapKind = kind;
+  name(from);
+  const t = doc.startViewTransition(() => {
+    // Old state is captured; hand the name to the incoming region.
+    if (from instanceof HTMLElement) from.style.viewTransitionName = '';
+    update();
+    name(to());
+  });
+  t.finished.finally(() => {
+    if (seq !== mapPanSeq) return;
+    for (const el of mapNamed) el.style.viewTransitionName = '';
+    mapNamed = [];
+    delete html.dataset.mapDir;
+    delete html.dataset.mapKind;
+  });
+  return true;
+}
+
 export function positionMenu(menu: HTMLElement, x: number, y: number): void {
   const pad = 8;
   const width = menu.offsetWidth, height = menu.offsetHeight;

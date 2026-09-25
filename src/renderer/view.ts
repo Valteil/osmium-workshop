@@ -15,7 +15,7 @@ import {
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
   langAutoSelectToggle, filterMatchCount
 } from './dom';
-import { toast, toastError, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox, addContextMenuItem, transitionMsOf } from './shared-ui';
+import { toast, toastError, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox, addContextMenuItem, transitionMsOf, mapPan } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
 import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially } from './tags-edit';
 import { openTagDetails } from './tag-details';
@@ -103,7 +103,7 @@ function viewContainerFor(mode: ViewMode): HTMLElement {
   return galleryGrid;
 }
 
-export function switchView(mode: ViewMode): void {
+export function switchView(mode: ViewMode, opts?: { instant?: boolean }): void {
   // Leaving Single view abandons any in-progress sequential detail run —
   // the queue is order- and filter-dependent, so resuming it elsewhere would
   // review the wrong images. Re-entering Single later starts clean.
@@ -135,10 +135,13 @@ export function switchView(mode: ViewMode): void {
   const html = document.documentElement;
   const oldEl = viewContainerFor(prevMode);
   const newEl = viewContainerFor(mode);
-  if (html.classList.contains('motion-off') || prevMode === mode || oldEl === newEl){ applyState(); return; }
+  if (html.classList.contains('motion-off') || prevMode === mode || oldEl === newEl || (opts && opts.instant)){ applyState(); return; }
 
   const swipe = html.classList.contains('motion-swipe');
   const movingForward = VIEW_TRANSITION_ORDER.indexOf(mode) > VIEW_TRANSITION_ORDER.indexOf(prevMode);
+  // Swipe map: the views are a strip inside the Gallery chunk, in the same
+  // left→right order as their buttons.
+  if (mapPan(movingForward ? 1 : -1, 'view', oldEl, () => viewContainerFor(mode), applyState)) return;
   const outClass = swipe ? (movingForward ? 'view-swipe-out-left' : 'view-swipe-out-right') : 'view-fade-out';
   const inClass = swipe ? (movingForward ? 'view-swipe-in-right' : 'view-swipe-in-left') : 'view-fade-out';
 
@@ -2013,8 +2016,49 @@ let modalCloseTimer: ReturnType<typeof setTimeout> | null = null;
 let modalLayerTimer: ReturnType<typeof setTimeout> | null = null;
 let currentModalBase: string | null = null;
 
+// Swipe map, depth axis: the image modal is the card it was opened from,
+// lifted toward the viewer. aimModalAt() points the modal card's resting
+// transform (--from-x/-y/-s, styles.css) at that card's thumbnail on screen,
+// so opening grows it out of the card and closing shrinks it back into
+// wherever that card is NOW. With no visible source (it scrolled away, or a
+// different view) the vars clear and the CSS falls back to a short rise.
+function modalSourceEl(base: string | null): HTMLElement | null {
+  if (!base) return null;
+  const sel = `.card[data-base="${CSS.escape(base)}"] .thumbwrap, .compact-card[data-base="${CSS.escape(base)}"]`;
+  const el = document.querySelector<HTMLElement>(sel);
+  if (el && el.offsetParent){
+    const r = el.getBoundingClientRect();
+    if (r.bottom > 0 && r.top < window.innerHeight && r.width > 0) return el;
+  }
+  return null;
+}
+function aimModalAt(base: string | null): void {
+  const card = modalCardInner;
+  const src = modalSourceEl(base);
+  if (!src || !document.documentElement.classList.contains('motion-swipe')){
+    card.style.removeProperty('--from-x'); card.style.removeProperty('--from-y'); card.style.removeProperty('--from-s');
+    return;
+  }
+  const prevTransition = card.style.transition;
+  card.style.transition = 'none';
+  card.style.transform = 'none';
+  const rest = card.getBoundingClientRect();
+  card.style.transform = '';
+  const s = src.getBoundingClientRect();
+  card.style.setProperty('--from-x', `${(s.left + s.width / 2) - (rest.left + rest.width / 2)}px`);
+  card.style.setProperty('--from-y', `${(s.top + s.height / 2) - (rest.top + rest.height / 2)}px`);
+  card.style.setProperty('--from-s', String(Math.max(0.08, Math.min(1, s.width / rest.width))));
+  void card.offsetWidth;
+  card.style.transition = prevTransition;
+}
+
+function pageModalTo(entry: Entry, dir: number): void {
+  if (!mapPan(dir, 'page', modalCardInner, () => modalCardInner, () => openImageCardModal(entry))) openImageCardModal(entry);
+}
+
 export function openImageCardModal(entry: Entry, opts?: { hover?: boolean }): void {
   const isHoverPreview = !!(opts && opts.hover);
+  const wasShowing = imageCardModal.classList.contains('modal-visible');
   if (modalCloseTimer){ clearTimeout(modalCloseTimer); modalCloseTimer = null; }
   closeTagContextMenu();
   if (currentModalBase !== entry.base){
@@ -2023,18 +2067,19 @@ export function openImageCardModal(entry: Entry, opts?: { hover?: boolean }): vo
     currentModalBase = entry.base;
   }
   imageCardModal.style.display = 'flex';
+  if (!wasShowing) aimModalAt(entry.base);
   // Swipe-mode slide-up: promote the modal card to its own compositor layer
   // ONLY for the transition (the CSS side declares the transform itself as
   // translate3d). This is the "will-change applied at start, reset at end"
   // discipline — a static rule would keep the large modal resident in GPU
-  // memory even while nobody's looking. Reset uses --panel-dur's own value
-  // plus the same tiny buffer the close path uses.
+  // memory even while nobody's looking. Reset follows the card's own
+  // transition duration (--map-dur under Swipe) plus a small buffer.
   imageCardModal.classList.add('modal-anim-layers');
   if (modalLayerTimer) clearTimeout(modalLayerTimer);
   modalLayerTimer = setTimeout(() => {
     modalLayerTimer = null;
     imageCardModal.classList.remove('modal-anim-layers');
-  }, 240);
+  }, transitionMsOf(modalCardInner) + 60);
   requestAnimationFrame(() => requestAnimationFrame(() => imageCardModal.classList.add('modal-visible')));
   if (!isHoverPreview){
     folderStats.card_modal_opens = (folderStats.card_modal_opens || 0) + 1;
@@ -2045,13 +2090,14 @@ export function openImageCardModal(entry: Entry, opts?: { hover?: boolean }): vo
 
 export function closeImageCardModal(){
   if (modalCloseTimer) clearTimeout(modalCloseTimer);
+  aimModalAt(currentModalBase);
   imageCardModal.classList.remove('modal-visible');
   modalCloseTimer = setTimeout(() => {
     imageCardModal.style.display = 'none';
     modalCardInner.innerHTML = '';
     currentModalBase = null;
     modalCloseTimer = null;
-  }, 180);
+  }, Math.max(180, transitionMsOf(modalCardInner)));
 }
 
 // ---------------- Pixel editing (rotate/crop, desktop modal) ----------------
@@ -2451,14 +2497,14 @@ function renderImageCardModal(entry: Entry): void {
     const prevBtn = document.createElement('button');
     setIconLabel(prevBtn, '‹ Prev');
     prevBtn.disabled = modalNavIdx <= 0;
-    prevBtn.addEventListener('click', () => openImageCardModal(modalNavList[modalNavIdx - 1]));
+    prevBtn.addEventListener('click', () => pageModalTo(modalNavList[modalNavIdx - 1], -1));
     const posEl = document.createElement('span');
     posEl.className = 'single-pos';
     posEl.textContent = `${modalNavIdx + 1} / ${modalNavList.length}`;
     const nextBtn = document.createElement('button');
     setIconLabel(nextBtn, 'Next ›');
     nextBtn.disabled = modalNavIdx >= modalNavList.length - 1;
-    nextBtn.addEventListener('click', () => openImageCardModal(modalNavList[modalNavIdx + 1]));
+    nextBtn.addEventListener('click', () => pageModalTo(modalNavList[modalNavIdx + 1], 1));
     navRow.appendChild(prevBtn);
     navRow.appendChild(posEl);
     navRow.appendChild(nextBtn);
@@ -3425,9 +3471,11 @@ export function initView(deps: ViewDeps): void {
   });
   // Swipe mode only — paging in Grid/Compact/Fade mode stays instant, same
   // as before this feature existed; only Swipe gets the physical slide.
-  function pageSingle(delta: number): void {
+  function pageSingle(delta: number, fromKeyboard = false): void {
     const html = document.documentElement;
-    if (!html.classList.contains('motion-swipe') || html.classList.contains('motion-off')){
+    const step = () => { singleIndex += delta; renderSingleView(); };
+    if (!fromKeyboard && mapPan(delta, 'page', singleViewEl, () => singleViewEl, step)) return;
+    if (fromKeyboard || !html.classList.contains('motion-swipe') || html.classList.contains('motion-off')){
       singleIndex += delta;
       renderSingleView();
       return;
@@ -3459,11 +3507,11 @@ export function initView(deps: ViewDeps): void {
     if (ev.key === 'Escape'){
       if (imageCardModal.style.display === 'flex'){ closeImageCardModal(); return; }
       if (ctxMenuEl){ closeTagContextMenu(); return; }
-      if (viewMode === 'single'){ switchView('grid'); return; }
+      if (viewMode === 'single'){ switchView('grid', { instant: true }); return; }
     }
     if (viewMode === 'single' && !ctxMenuEl){
-      if (ev.key === 'ArrowLeft' && !singlePrevBtn.disabled){ pageSingle(-1); }
-      if (ev.key === 'ArrowRight' && !singleNextBtn.disabled){ pageSingle(1); }
+      if (ev.key === 'ArrowLeft' && !singlePrevBtn.disabled){ pageSingle(-1, true); }
+      if (ev.key === 'ArrowRight' && !singleNextBtn.disabled){ pageSingle(1, true); }
     }
   });
 }
