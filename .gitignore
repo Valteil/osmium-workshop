@@ -100,3 +100,4 @@ comfy-bridge/mobile/android/local.properties
 /.serena/logs/
 /.impeccable/config.local.json
 /.impeccable/critique/
+/.impeccable/review/
