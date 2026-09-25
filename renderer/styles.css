@@ -1774,7 +1774,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      away with it — which is the "edge tab scrolled off-screen" bug. The
      scrolling lives one level down in .synthdat-scroll, so the tab's own
      box (and everything pinned to it) never moves. */
-  #synthDatTab{ height: 100%; position: relative; transform: translateZ(0); }
+  /* flex:1 + min-height:0, not height:100%: as a flex item of #app's
+     column, 100% resolved to the WHOLE window height, stacked under the
+     topbar + tab bar — and since this tab is overflow:visible (it doesn't
+     scroll, see above) its min-height:auto refused to shrink, so the page
+     itself overflowed by the header height and grew a second, whole-UI
+     scrollbar. The other tabs escape it only because they scroll themselves. */
+  #synthDatTab{ flex: 1 1 0; min-height: 0; position: relative; transform: translateZ(0); }
   .synthdat-scroll{ height: 100%; overflow-y: scroll; padding: 24px; }
   /* Generation (top, full-width, its own internal 2-col settings/preview
      split — see below) above a single column of the setup docks (ComfyUI
