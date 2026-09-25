@@ -389,11 +389,38 @@ export function transitionMsOf(el: HTMLElement): number {
 //
 // Returns false when it didn't handle the move (not Swipe mode, motion off,
 // or no View Transitions) so the caller runs its own fallback path.
+type ViewTransitionLike = { finished: Promise<void>; skipTransition: () => void };
 type ViewTransitionDoc = Document & {
-  startViewTransition?: (update: () => void) => { finished: Promise<void> };
+  startViewTransition?: (update: () => void) => ViewTransitionLike;
 };
 let mapPanSeq = 0;
 let mapNamed: HTMLElement[] = [];
+let activePan: ViewTransitionLike | null = null;
+
+// While a View Transition runs, Chromium hit-tests the whole page as <html>
+// (pointer-events on ::view-transition doesn't change that), so every click
+// during a pan was swallowed, which locked users out of rapid tab switching
+// until each pan finished. This relays such a click instead: it skips the
+// running pan, and once the live DOM is back it re-hit-tests the same point
+// and clicks what's really there, one frame late rather than never.
+let panClickRelayInstalled = false;
+function installPanClickRelay(): void {
+  if (panClickRelayInstalled) return;
+  panClickRelayInstalled = true;
+  document.addEventListener('click', (ev: MouseEvent) => {
+    const pan = activePan;
+    if (!pan || ev.target !== document.documentElement) return;
+    ev.stopPropagation();
+    ev.preventDefault();
+    const { clientX: x, clientY: y } = ev;
+    pan.skipTransition();
+    pan.finished.finally(() => {
+      const hit = document.elementFromPoint(x, y) as HTMLElement | null;
+      if (!hit || hit === document.documentElement) return;
+      (hit.closest<HTMLElement>('button, a, label, [role="button"]') || hit).click();
+    });
+  }, true);
+}
 export function mapPan(
   dir: number, kind: 'tab' | 'view' | 'page',
   from: Element | null, to: () => Element | null, update: () => void,
@@ -402,6 +429,7 @@ export function mapPan(
   const html = document.documentElement;
   const doc = document as ViewTransitionDoc;
   if (!dir || !doc.startViewTransition || !html.classList.contains('motion-swipe') || html.classList.contains('motion-off')) return false;
+  installPanClickRelay();
   const seq = ++mapPanSeq;
   // A pan started mid-pan skips the running one; drop its names first, or the
   // same view-transition-name on two rendered elements aborts this capture.
@@ -421,9 +449,11 @@ export function mapPan(
     update();
     name(to());
   });
+  activePan = t;
   t.finished.finally(() => {
     if (after) after();
     if (seq !== mapPanSeq) return;
+    activePan = null;
     for (const el of mapNamed) el.style.viewTransitionName = '';
     mapNamed = [];
     delete html.dataset.mapDir;
