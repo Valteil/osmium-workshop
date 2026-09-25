@@ -84,9 +84,17 @@ export function hasIconGlyph(text: string): boolean {
 
 // Drop-in replacement for `el.textContent = text` on any label that may carry
 // a glyph. Plain text (no glyph) stays a plain text node.
+//
+// A glyph INSIDE a sentence ("Use a tag chip's 🚩 menu…") gets the whole label
+// wrapped in one <span>: dropped into a flex container, text | icon | text
+// would otherwise become three flex items laid out as columns. A leading or
+// trailing icon stays a direct child, so buttons keep aligning icon and text
+// as separate flex items.
 export function setIconLabel(el: Element, text: string): void {
-  if (hasIconGlyph(text)) el.innerHTML = iconHTML(text);
-  else el.textContent = text;
+  if (!hasIconGlyph(text)){ el.textContent = text; return; }
+  const parts = text.split(GLYPH_RE);
+  const midSentence = parts.length > 2 && parts[0].trim() !== '' && parts[parts.length - 1].trim() !== '';
+  el.innerHTML = midSentence ? `<span>${iconHTML(text)}</span>` : iconHTML(text);
 }
 
 // In-place pass over an already-built subtree (help pages, templates

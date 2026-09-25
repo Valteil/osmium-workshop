@@ -2958,6 +2958,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .freq-family-header .family-drag-handle{ color: var(--text-faint); font-size: 11px; }
   .freq-family-header.family-dragging{ opacity: 0.4; }
   .freq-family-header.family-drop-target{ background: var(--accent-manual-dim); border-radius: 4px; }
+  /* Empty-state sentence for the TAGS list (no flagged tags, no families).
+     Its own plain block, not .freq-family-header: that class is a flex row
+     styled as an uppercase mono heading, and once a sentence carried an
+     inline icon, flex split it into text | icon | text columns. */
+  .freq-empty{ padding: 6px 8px; font-size: 12px; line-height: 1.45; color: var(--text-muted); }
 
   #tagFrequencyList {
     display: flex; flex-direction: column; gap: 2px;

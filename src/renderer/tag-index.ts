@@ -172,8 +172,7 @@ function renderFlaggedReviewList(): void {
   tagFrequencyList.innerHTML = '';
   if (tags.size === 0){
     const empty = document.createElement('div');
-    empty.className = 'freq-family-header';
-    empty.style.cursor = 'default';
+    empty.className = 'freq-empty';
     setIconLabel(empty, 'No tags flagged for review. Use a tag chip\'s 🚩 menu to flag one.');
     tagFrequencyList.appendChild(empty);
     return;
@@ -227,8 +226,7 @@ export function renderTagFrequencyList(index: Map<string, Set<string>>): void {
 
     if (familyList.length === 0){
       const empty = document.createElement('div');
-      empty.className = 'freq-family-header';
-      empty.style.cursor = 'default';
+      empty.className = 'freq-empty';
       empty.textContent = 'No tags share a common word yet.';
       tagFrequencyList.appendChild(empty);
       return;
