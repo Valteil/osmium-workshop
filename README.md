@@ -92,11 +92,13 @@ Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
   switches to masonry layout on mixed-size sets.
 - **Compact** — dense thumbnails for scanning large folders fast. Hover to preview tags, or
   Shift-click two cards to compare them side by side.
-- **Single** — one image at a time, up to 400% zoom, with drag-pan and arrow keys. Use it to
-  inspect fine details (text, hands, artifacts) before training.
+- **Single** — one image at a time: a compact preview beside a roomy tag panel, with arrow keys
+  and a type-a-number jump box. Click the preview for a full-size zoom/pan view to inspect fine
+  details (text, hands, artifacts) before training.
 - **Disabled** — a quarantine tab for images pulled out of the active set (drag a card onto it).
   Tags stay editable the whole time, and you can restore anytime. Good for maybes you're not
   ready to delete.
+- **Originals** — the pre-bucketing originals kept by Bucket Images (below).
 
 Clicking any image opens a floating, zoomable, pannable card modal without losing your place in
 the grid. On desktop that modal also has **⟲/⟳ Rotate** and **✂ Crop** — real pixel edits that
@@ -107,9 +109,13 @@ cropped region as a *new* image instead, leaving the source untouched.
 - **Chips** (on every card) — click one for filter-by-presence, the Tag Details wiki lookup, a
   review flag, or its keyword family. Type into "+ add tag" and hit Enter to add one. × removes
   it.
-- **Filter sidebar** (left) — multi-tag AND/OR/XOR/NOT search plus All/Untagged/Unsaved quick
-  filters, **Flag isolated tags** (tags on ≤2 images), draggable family sort. Handy for finding
-  images fast, and for hunting down typos.
+- **Tag Sorting** (Single view + image modal) — groups an image's chips into Character, Body,
+  Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects and Other. For multi-character
+  images, split tags into named subjects with their own category subheaders.
+- **Filter sidebar** (left) — multi-tag AND/OR/XOR/NOT search (with a Lock to keep the mode)
+  plus All/Untagged/Unsaved quick filters, **Flag isolated tags** (tags on ≤2 images), draggable
+  family sort. Handy for finding images fast, and for hunting down typos. **Review flagged tags**
+  lists every tag flagged for review across the dataset, with a one-click, undoable "Reviewed".
 - **Tag Pruner** (right sidebar) — hand-pick tag sets, then **Unify** (merge into one name) or
   **Void** (delete). Confirmed, undoable, logged. Run several independent instances for unrelated
   tag families. 🔍 Mirror previews the affected images in the gallery before you commit. Use it
@@ -119,6 +125,9 @@ cropped region as a *new* image instead, leaving the source untouched.
   hand-type a tag a rule covers, and it gets blocked with a pointer back to the rule. Pause a
   rule, or a single tag within it, to restore originals. Per-image Immunize and Antivoid
   exemptions cover the rest. Use it so a cleanup never has to be repeated.
+- **Bucket Images** (right sidebar) — crops and resizes every image to its nearest LoRA training
+  bucket, subject-first via a u2net saliency model (GPU with CPU fallback; ~176 MB, downloaded on
+  first use). Originals move to `original_images/` and can be restored with one click.
 - **Master Tag Control** (tab) — check off a batch of images, then run one tool across all of
   them: add or remove tags, add a tag only where another tag is already present, rename a tag
   dataset-wide, find-and-replace, or delete the selection outright. Use it for bulk passes, like

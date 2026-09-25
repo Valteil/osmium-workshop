@@ -56,7 +56,8 @@ tagging, and direct ComfyUI output syncing — all offline, portable, in one bin
 ## Capabilities and Constraints
 
 - Views: Grid (default, masonry option), Compact (hover previews, side-by-side
-  comparison), Single (up to 400% zoom, rotate/crop with undo), Disabled quarantine.
+  comparison), Single (compact preview + full-size lightbox, Tag Sorting), Disabled
+  quarantine, Originals (pre-bucketing images). Rotate/crop with undo in the image modal.
 - Editing: tag chips, filter sidebar with AND/OR/XOR/NOT and keyword families, saved
   per-dataset edit log with full undo/redo and file-level revert.
 - Power tools: Tag Pruner (Unify/Void), Retroactive Merge/Void rules with immune/
