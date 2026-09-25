@@ -57,6 +57,20 @@ export function shrinkTextToFit(el: HTMLElement, minFontPx = 9): void {
   }
 }
 
+// Every shrinkTextToFit() caller is a .pdrop-btn label. Theme faces are
+// bundled webfonts (renderer/fonts, font-display: swap), so a label fitted
+// at startup or right after a theme switch was measured against the
+// fallback face — once the real face lands it can be wider and clip. Re-fit
+// them all whenever a font finishes loading (initFontRefit) and on every
+// theme change (applyTheme, themes.ts).
+export function refitShrunkText(): void {
+  document.querySelectorAll<HTMLElement>('.pdrop-btn').forEach(b => shrinkTextToFit(b));
+}
+
+export function initFontRefit(): void {
+  document.fonts.addEventListener('loadingdone', refitShrunkText);
+}
+
 // ---------------- Persistent dropdown ----------------
 
 interface DropdownOption {

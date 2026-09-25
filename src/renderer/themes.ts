@@ -4,7 +4,7 @@ import {
   favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel,
   themeVarRows, themeCustomPanel, themeSelect
 } from './dom';
-import { hidePanel, showPanel, toast, shrinkTextToFit } from './shared-ui';
+import { hidePanel, showPanel, toast, shrinkTextToFit, refitShrunkText } from './shared-ui';
 
 export const THEME_VARS = [
   ['--bg-base','Background'],
@@ -121,6 +121,10 @@ export function applyTheme(theme: string): void {
   // this generic class is ORed in alongside those five in styles.css.
   document.documentElement.classList.toggle('theme-refined', refinedThemes.includes(theme));
   setString('dts-theme', theme);
+  // Each theme brings its own faces — dropdown labels fitted to the old
+  // theme's metrics must be re-measured (a not-yet-loaded face re-fits again
+  // via initFontRefit's loadingdone listener).
+  requestAnimationFrame(refitShrunkText);
 }
 
 export let refinedThemes: string[] = getJSON<string[]>('dts-refined-themes', []);

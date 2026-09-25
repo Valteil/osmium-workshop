@@ -39,7 +39,7 @@ import {
   singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle,
   settingsPanel, fontSizeSlider, fontSizeVal
 } from './dom';
-import { toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
+import { toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
 import {
   PREMIUM_THEMES, STUDIO_DEFAULTS, applyTheme, openThemeCustomPanel, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes
@@ -2117,6 +2117,7 @@ import { pickDatasetFolder } from './folder-picker';
 
   // Premium hover-fill "click flash" (epic/legendary shop themes) — see shared-ui.ts
   initClickFlash();
+  initFontRefit();
   initInfoButtons();
   initHelp();
   // Arrow-key navigation inside dropdowns/context menus — see shared-ui.ts

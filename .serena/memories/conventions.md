@@ -27,7 +27,13 @@ every theme defines the same variable set including `--accent-flair` (a third ac
 `--accent-auto`/`--accent-manual`, used for baseline chrome like the active-tab underline so
 themes stay visually distinct even in undecorated UI). Any new/edited CSS var MUST be added to
 `THEME_VARS` in `themes.ts` or it silently freezes at its authored value instead of inverting
-under night mode. `PREMIUM_THEMES`' `swatches` array must equal exactly
+under night mode. (That rule covers COLOR vars only. Since 2026-09-25 each theme also sets
+non-color "element grammar" tokens: faces `--display/--head-font/--tab-font`, shapes
+`--r-ctl/--r-chip/--r-card/--r-panel/--r-check`, and premium fx `--fx-*`, where `--fx-w` is a
+scaleX factor. Defaults live in the `:root, html[data-theme="studio"]` block. Never set `--radius`
+to a pill value; use `--r-ctl`. A theme's bare `.chip`/`.card`/`button` rules must not set colors,
+because they'd outrank the state classes. Bundled OFL fonts are in `renderer/fonts/`. See
+notes/Systems/Themes-System.md.) `PREMIUM_THEMES`' `swatches` array must equal exactly
 `[--bg-base, --accent-manual, --accent-flair]` for that theme — it's a promise about what the
 theme actually looks like, shown in the shop, sorted by price there. Before adding a broad
 theme-wide `button:not(...)` selector (e.g. a new hover/click effect), grep the file for

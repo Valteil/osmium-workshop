@@ -1,0 +1,520 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-25T15:00:35.330Z",
+  "title": "Design System: Osmium Workshop",
+  "extensions": {
+    "colorMeta": {
+      "bg-base": {
+        "role": "neutral",
+        "displayName": "Bench Floor",
+        "canonical": "oklch(20.0% 0.014 291.6)",
+        "tonalRamp": [
+          "oklch(15% 0.014 291.6)",
+          "oklch(26% 0.014 291.6)",
+          "oklch(37% 0.014 291.6)",
+          "oklch(48% 0.014 291.6)",
+          "oklch(60% 0.014 291.6)",
+          "oklch(71% 0.014 291.6)",
+          "oklch(83% 0.014 291.6)",
+          "oklch(95% 0.014 291.6)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "bg-panel": {
+        "role": "neutral",
+        "displayName": "Bench Panel",
+        "canonical": "oklch(22.5% 0.019 293.9)",
+        "tonalRamp": [
+          "oklch(15% 0.019 293.9)",
+          "oklch(26% 0.019 293.9)",
+          "oklch(37% 0.019 293.9)",
+          "oklch(48% 0.019 293.9)",
+          "oklch(60% 0.019 293.9)",
+          "oklch(71% 0.019 293.9)",
+          "oklch(83% 0.019 293.9)",
+          "oklch(95% 0.019 293.9)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "bg-elevated": {
+        "role": "neutral",
+        "displayName": "Elevated Surface",
+        "canonical": "oklch(26.2% 0.026 294.3)",
+        "tonalRamp": [
+          "oklch(15% 0.026 294.3)",
+          "oklch(26% 0.026 294.3)",
+          "oklch(37% 0.026 294.3)",
+          "oklch(48% 0.026 294.3)",
+          "oklch(60% 0.026 294.3)",
+          "oklch(71% 0.026 294.3)",
+          "oklch(83% 0.026 294.3)",
+          "oklch(95% 0.026 294.3)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "bg-elevated-2": {
+        "role": "neutral",
+        "displayName": "Elevated Surface 2",
+        "canonical": "oklch(29.4% 0.025 294.6)",
+        "tonalRamp": [
+          "oklch(15% 0.025 294.6)",
+          "oklch(26% 0.025 294.6)",
+          "oklch(37% 0.025 294.6)",
+          "oklch(48% 0.025 294.6)",
+          "oklch(60% 0.025 294.6)",
+          "oklch(71% 0.025 294.6)",
+          "oklch(83% 0.025 294.6)",
+          "oklch(95% 0.025 294.6)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "border-soft": {
+        "role": "neutral",
+        "displayName": "Soft Rule",
+        "canonical": "oklch(32.9% 0.029 299.1)",
+        "tonalRamp": [
+          "oklch(15% 0.029 299.1)",
+          "oklch(26% 0.029 299.1)",
+          "oklch(37% 0.029 299.1)",
+          "oklch(48% 0.029 299.1)",
+          "oklch(60% 0.029 299.1)",
+          "oklch(71% 0.029 299.1)",
+          "oklch(83% 0.029 299.1)",
+          "oklch(95% 0.029 299.1)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "border-strong": {
+        "role": "neutral",
+        "displayName": "Strong Rule",
+        "canonical": "oklch(40.1% 0.036 297.9)",
+        "tonalRamp": [
+          "oklch(15% 0.036 297.9)",
+          "oklch(26% 0.036 297.9)",
+          "oklch(37% 0.036 297.9)",
+          "oklch(48% 0.036 297.9)",
+          "oklch(60% 0.036 297.9)",
+          "oklch(71% 0.036 297.9)",
+          "oklch(83% 0.036 297.9)",
+          "oklch(95% 0.036 297.9)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(93.6% 0.011 308.3)",
+        "tonalRamp": [
+          "oklch(15% 0.011 308.3)",
+          "oklch(26% 0.011 308.3)",
+          "oklch(37% 0.011 308.3)",
+          "oklch(48% 0.011 308.3)",
+          "oklch(60% 0.011 308.3)",
+          "oklch(71% 0.011 308.3)",
+          "oklch(83% 0.011 308.3)",
+          "oklch(95% 0.011 308.3)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "oklch(66.9% 0.031 298.6)",
+        "tonalRamp": [
+          "oklch(15% 0.031 298.6)",
+          "oklch(26% 0.031 298.6)",
+          "oklch(37% 0.031 298.6)",
+          "oklch(48% 0.031 298.6)",
+          "oklch(60% 0.031 298.6)",
+          "oklch(71% 0.031 298.6)",
+          "oklch(83% 0.031 298.6)",
+          "oklch(95% 0.031 298.6)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "text-faint": {
+        "role": "neutral",
+        "displayName": "Faint Ink",
+        "canonical": "oklch(51.9% 0.030 299.8)",
+        "tonalRamp": [
+          "oklch(15% 0.030 299.8)",
+          "oklch(26% 0.030 299.8)",
+          "oklch(37% 0.030 299.8)",
+          "oklch(48% 0.030 299.8)",
+          "oklch(60% 0.030 299.8)",
+          "oklch(71% 0.030 299.8)",
+          "oklch(83% 0.030 299.8)",
+          "oklch(95% 0.030 299.8)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "accent-auto": {
+        "role": "secondary",
+        "displayName": "Workshop Amber (auto)",
+        "canonical": "oklch(76.5% 0.140 72.9)",
+        "tonalRamp": [
+          "oklch(15% 0.140 72.9)",
+          "oklch(26% 0.140 72.9)",
+          "oklch(37% 0.140 72.9)",
+          "oklch(48% 0.140 72.9)",
+          "oklch(60% 0.140 72.9)",
+          "oklch(71% 0.140 72.9)",
+          "oklch(83% 0.140 72.9)",
+          "oklch(95% 0.140 72.9)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "accent-auto-dim": {
+        "role": "secondary",
+        "displayName": "Amber Well (auto dim)",
+        "canonical": "oklch(36.4% 0.045 82.0)",
+        "tonalRamp": [
+          "oklch(15% 0.045 82.0)",
+          "oklch(26% 0.045 82.0)",
+          "oklch(37% 0.045 82.0)",
+          "oklch(48% 0.045 82.0)",
+          "oklch(60% 0.045 82.0)",
+          "oklch(71% 0.045 82.0)",
+          "oklch(83% 0.045 82.0)",
+          "oklch(95% 0.045 82.0)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "accent-manual": {
+        "role": "primary",
+        "displayName": "Tide Teal (manual)",
+        "canonical": "oklch(74.4% 0.081 222.0)",
+        "tonalRamp": [
+          "oklch(15% 0.081 222.0)",
+          "oklch(26% 0.081 222.0)",
+          "oklch(37% 0.081 222.0)",
+          "oklch(48% 0.081 222.0)",
+          "oklch(60% 0.081 222.0)",
+          "oklch(71% 0.081 222.0)",
+          "oklch(83% 0.081 222.0)",
+          "oklch(95% 0.081 222.0)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "accent-manual-dim": {
+        "role": "primary",
+        "displayName": "Teal Well (manual dim)",
+        "canonical": "oklch(32.6% 0.034 227.4)",
+        "tonalRamp": [
+          "oklch(15% 0.034 227.4)",
+          "oklch(26% 0.034 227.4)",
+          "oklch(37% 0.034 227.4)",
+          "oklch(48% 0.034 227.4)",
+          "oklch(60% 0.034 227.4)",
+          "oklch(71% 0.034 227.4)",
+          "oklch(83% 0.034 227.4)",
+          "oklch(95% 0.034 227.4)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "accent-danger": {
+        "role": "danger",
+        "displayName": "Danger Rose",
+        "canonical": "oklch(66.2% 0.159 11.3)",
+        "tonalRamp": [
+          "oklch(15% 0.159 11.3)",
+          "oklch(26% 0.159 11.3)",
+          "oklch(37% 0.159 11.3)",
+          "oklch(48% 0.159 11.3)",
+          "oklch(60% 0.159 11.3)",
+          "oklch(71% 0.159 11.3)",
+          "oklch(83% 0.159 11.3)",
+          "oklch(95% 0.159 11.3)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "accent-success": {
+        "role": "success",
+        "displayName": "Success Sage",
+        "canonical": "oklch(74.8% 0.095 151.4)",
+        "tonalRamp": [
+          "oklch(15% 0.095 151.4)",
+          "oklch(26% 0.095 151.4)",
+          "oklch(37% 0.095 151.4)",
+          "oklch(48% 0.095 151.4)",
+          "oklch(60% 0.095 151.4)",
+          "oklch(71% 0.095 151.4)",
+          "oklch(83% 0.095 151.4)",
+          "oklch(95% 0.095 151.4)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      },
+      "accent-flair": {
+        "role": "tertiary",
+        "displayName": "Orchid Flair",
+        "canonical": "oklch(71.5% 0.110 310.8)",
+        "tonalRamp": [
+          "oklch(15% 0.110 310.8)",
+          "oklch(26% 0.110 310.8)",
+          "oklch(37% 0.110 310.8)",
+          "oklch(48% 0.110 310.8)",
+          "oklch(60% 0.110 310.8)",
+          "oklch(71% 0.110 310.8)",
+          "oklch(83% 0.110 310.8)",
+          "oklch(95% 0.110 310.8)"
+        ],
+        "note": "Studio value; every theme restates this role in renderer/styles.css. Night mode inverts it by HSL lightness."
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Brand lockup",
+        "purpose": "The wordmark, top left. Reads --display, --brand-size, --brand-weight, --brand-track and --brand-case."
+      },
+      "headline": {
+        "displayName": "Dock title",
+        "purpose": "Tool-section titles in --head-font with --head-color. Panel titles use the same tokens at 0.5px smaller in text-muted."
+      },
+      "title": {
+        "displayName": "Tab",
+        "purpose": "Tab-bar buttons in --tab-font with --tab-case and --tab-track. 600 when active."
+      },
+      "body": {
+        "displayName": "Control",
+        "purpose": "Buttons and inputs in --sans with --btn-weight, --btn-track and --btn-case."
+      },
+      "label": {
+        "displayName": "Tag",
+        "purpose": "Chips, the brand tag and filenames. Always --mono, 11px."
+      }
+    },
+    "elementGrammar": {
+      "faces": [
+        "--sans",
+        "--mono",
+        "--display",
+        "--head-font",
+        "--tab-font"
+      ],
+      "type": [
+        "--brand-size",
+        "--brand-weight",
+        "--brand-track",
+        "--brand-case",
+        "--tab-size",
+        "--tab-track",
+        "--tab-case",
+        "--head-size",
+        "--head-weight",
+        "--head-track",
+        "--head-case",
+        "--head-color",
+        "--btn-weight",
+        "--btn-track",
+        "--btn-case"
+      ],
+      "shapes": [
+        "--r-ctl",
+        "--r-chip",
+        "--r-card",
+        "--r-panel",
+        "--r-check",
+        "--r-scroll",
+        "--card-shadow"
+      ],
+      "premiumEffects": [
+        "--fx-fill",
+        "--fx-o",
+        "--fx-top",
+        "--fx-h",
+        "--fx-w",
+        "--fx-card-t",
+        "--fx-card-s"
+      ],
+      "source": "renderer/styles.css, from ':root, html[data-theme=\"studio\"]' to 'End themes'",
+      "note": "Not in THEME_VARS; night mode does not touch them. --fx-w is a scaleX factor for the resting hover-fill."
+    },
+    "shadows": [
+      {
+        "name": "card-rest",
+        "value": "0 1px 2px rgba(0,0,0,0.25)",
+        "purpose": "Studio --card-shadow on resting gallery cards."
+      },
+      {
+        "name": "dock-edge",
+        "value": "inset 0 1px 0 color-mix(in srgb, var(--text-primary) 5%, transparent), 0 1px 0 rgba(0,0,0,0.25)",
+        "purpose": "Studio machined edge on tool and settings sections."
+      },
+      {
+        "name": "card-lift",
+        "value": "0 10px 22px rgba(0,0,0,0.4)",
+        "purpose": "Studio --fx-card-s. Premium card hover, paired with --fx-card-t translateY(-3px)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-state",
+        "value": "0.12s ease",
+        "purpose": "Button and checkbox background/border transitions."
+      },
+      {
+        "name": "premium-fill",
+        "value": "transform 0.24s cubic-bezier(.2,.8,.3,1), opacity 0.2s ease",
+        "purpose": "Premium hover-fill scaling to --fx-w."
+      },
+      {
+        "name": "premium-flash",
+        "value": "flairClickFlash 0.6s ease forwards",
+        "purpose": "Click floods the fill to scaleX(1), then fades."
+      },
+      {
+        "name": "card-lift",
+        "value": "transform 0.2s cubic-bezier(.2,.8,.3,1), box-shadow 0.2s ease",
+        "purpose": "Premium card lift."
+      },
+      {
+        "name": "ambient-gate",
+        "value": "animation-play-state: var(--flair-play)",
+        "purpose": "Every ambient flair* animation carries this line so html.no-flourish-ambient pauses it."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default control on every surface.",
+      "html": "<button class=\"ds-btn\">Clear filter</button>",
+      "css": ".ds-btn{font-family:var(--sans);font-size:13px;color:var(--text-primary,#ece8f0);background:var(--bg-elevated,#252230);border:1px solid var(--border-strong,#4a4459);border-radius:var(--r-ctl,6px);padding:7px 13px;cursor:pointer;font-weight:var(--btn-weight,500);letter-spacing:var(--btn-track,0);text-transform:var(--btn-case,none);transition:background .12s ease,border-color .12s ease,transform .05s ease;}.ds-btn:hover{background:var(--bg-elevated-2,#2d2a38);border-color:var(--text-faint,#6b6578);}.ds-btn:active{transform:translateY(1px);}.ds-btn:focus-visible{outline:2px solid var(--accent-manual,#6fb8d1);outline-offset:2px;}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one committing action in a dock.",
+      "html": "<button class=\"ds-btn-primary\">Bucket images</button>",
+      "css": ".ds-btn-primary{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--accent-manual,#6fb8d1);background:var(--accent-manual-dim,#213842);border:1px solid var(--accent-manual,#6fb8d1);border-radius:var(--r-ctl,6px);padding:7px 13px;cursor:pointer;box-shadow:inset 0 1px 0 color-mix(in srgb,var(--accent-manual,#6fb8d1) 30%,transparent);transition:background .12s ease,border-color .12s ease;}.ds-btn-primary:hover{background:color-mix(in srgb,var(--accent-manual,#6fb8d1) 22%,var(--accent-manual-dim,#213842));}.ds-btn-primary:focus-visible{outline:2px solid var(--accent-manual,#6fb8d1);outline-offset:2px;}"
+    },
+    {
+      "name": "Tag Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A caption tag as a mono data label. Selected state shown second.",
+      "html": "<span class=\"ds-chip\">long hair <button class=\"ds-chip-x\" aria-label=\"Remove\">×</button></span> <span class=\"ds-chip ds-chip-sel\">solo <button class=\"ds-chip-x\" aria-label=\"Remove\">×</button></span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:5px;background:var(--bg-elevated,#252230);border:1px solid var(--border-soft,#37324277);border-radius:var(--r-chip,5px);padding:2px 4px 2px 9px;font-family:var(--mono);font-size:11px;color:var(--text-primary,#ece8f0);}.ds-chip-sel{border-color:var(--accent-manual,#6fb8d1);background:var(--accent-manual-dim,#213842);color:var(--accent-manual,#6fb8d1);}.ds-chip-x{all:unset;cursor:pointer;color:var(--text-faint,#6b6578);font-size:10px;padding:0 3px;}.ds-chip-x:hover,.ds-chip-x:focus-visible{color:var(--text-primary,#ece8f0);}"
+    },
+    {
+      "name": "Tab Bar",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Top-level views. Studio marks the active tab with a flair underline.",
+      "html": "<nav class=\"ds-tabs\"><button class=\"ds-tab\">Datasets</button><button class=\"ds-tab ds-tab-active\">Gallery</button><button class=\"ds-tab\">Tag Overseer</button></nav>",
+      "css": ".ds-tabs{display:flex;gap:4px;padding:0 20px;background:var(--bg-panel,#1c1a24);border-bottom:1px solid var(--border-soft,#37324277);}.ds-tab{background:transparent;border:none;border-bottom:2px solid transparent;border-radius:0;padding:10px 14px;font-family:var(--tab-font,var(--sans));font-size:var(--tab-size,12.5px);text-transform:var(--tab-case,none);letter-spacing:var(--tab-track,0);color:var(--text-muted,#9791a6);cursor:pointer;}.ds-tab:hover{background:var(--bg-elevated,#252230);color:var(--text-primary,#ece8f0);}.ds-tab:focus-visible{outline:2px solid var(--accent-flair,#b98fd6);outline-offset:-2px;}.ds-tab-active{color:var(--text-primary,#ece8f0);border-bottom-color:var(--accent-flair,#b98fd6);font-weight:600;}"
+    },
+    {
+      "name": "Dock Section",
+      "kind": "card",
+      "refersTo": "tool-section",
+      "description": "Right-dock tool panel; where each theme puts its panel material.",
+      "html": "<section class=\"ds-dock\"><div class=\"ds-dock-head\"><span class=\"ds-dot\"></span><span class=\"ds-dock-t\">Tag Pruner</span></div><button class=\"ds-dock-btn\">+ Add another Tag Pruner</button></section>",
+      "css": ".ds-dock{background:var(--bg-elevated,#252230);border:1px solid var(--border-soft,#37324277);border-radius:var(--r-panel,10px);padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:inset 0 1px 0 color-mix(in srgb,var(--text-primary,#ece8f0) 5%,transparent),0 1px 0 rgba(0,0,0,.25);}.ds-dock-head{display:flex;align-items:center;gap:8px;}.ds-dot{width:8px;height:8px;border-radius:50%;background:var(--accent-manual,#6fb8d1);}.ds-dock-t{font-family:var(--head-font,var(--sans));font-size:var(--head-size,12.5px);font-weight:var(--head-weight,700);letter-spacing:var(--head-track,0);text-transform:var(--head-case,none);color:var(--head-color,var(--text-primary,#ece8f0));}.ds-dock-btn{font-family:var(--sans);font-size:13px;color:var(--text-primary,#ece8f0);background:var(--bg-elevated,#252230);border:1px solid var(--border-strong,#4a4459);border-radius:var(--r-ctl,6px);padding:7px 13px;cursor:pointer;align-self:flex-start;}.ds-dock-btn:hover{background:var(--bg-elevated-2,#2d2a38);}.ds-dock-btn:focus-visible{outline:2px solid var(--accent-manual,#6fb8d1);outline-offset:2px;}"
+    },
+    {
+      "name": "Gallery Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Image plus caption chips; shown with the premium lift on hover.",
+      "html": "<article class=\"ds-card\" tabindex=\"0\"><div class=\"ds-thumb\">img_0001.png</div><div class=\"ds-card-tags\"><span class=\"ds-card-chip\">1girl</span><span class=\"ds-card-chip\">smile</span></div></article>",
+      "css": ".ds-card{width:220px;background:var(--bg-panel,#1c1a24);border:1px solid var(--border-soft,#37324277);border-radius:var(--r-card,8px);box-shadow:var(--card-shadow,0 1px 2px rgba(0,0,0,.25));overflow:hidden;transition:transform .2s cubic-bezier(.2,.8,.3,1),box-shadow .2s ease;}.ds-card:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(0,0,0,.4);}.ds-card:focus-visible{outline:2px solid var(--accent-manual,#6fb8d1);outline-offset:2px;}.ds-thumb{height:140px;display:flex;align-items:flex-end;padding:8px 10px;font-family:var(--mono);font-size:11px;color:#fff;background:linear-gradient(160deg,#c46aa0,#5a3a8a);}.ds-card-tags{display:flex;flex-wrap:wrap;gap:6px;padding:10px;}.ds-card-chip{background:var(--bg-elevated,#252230);border:1px solid var(--border-soft,#37324277);border-radius:var(--r-chip,5px);padding:2px 8px;font-family:var(--mono);font-size:11px;color:var(--text-primary,#ece8f0);}"
+    },
+    {
+      "name": "Brand Lockup",
+      "kind": "custom",
+      "refersTo": "brand-tag",
+      "description": "Wordmark in --display over the stacked mono tag.",
+      "html": "<div class=\"ds-brand\">Osmium Workshop<span class=\"ds-brand-tag\">local · no upload</span></div>",
+      "css": ".ds-brand{display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-family:var(--display,var(--sans));font-weight:var(--brand-weight,800);font-size:var(--brand-size,17px);letter-spacing:var(--brand-track,-0.015em);text-transform:var(--brand-case,none);line-height:1.05;color:var(--text-primary,#ece8f0);}.ds-brand-tag{font-family:var(--mono);font-size:11px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--accent-auto,#e8a33d);background:var(--accent-auto-dim,#4a3c22);border:1px solid color-mix(in srgb,var(--accent-auto,#e8a33d) 35%,transparent);padding:2px 6px;border-radius:var(--r-chip,5px);}"
+    },
+    {
+      "name": "Checkbox",
+      "kind": "input",
+      "refersTo": "checkbox",
+      "description": "Custom-drawn in every theme; never the OS box.",
+      "html": "<label class=\"ds-check-row\"><input type=\"checkbox\" class=\"ds-check\" checked> Prefer GPU</label>",
+      "css": ".ds-check-row{display:inline-flex;align-items:center;gap:8px;font-family:var(--sans);font-size:13px;color:var(--text-muted,#9791a6);}.ds-check{appearance:none;-webkit-appearance:none;margin:0;width:15px;height:15px;position:relative;border:1.5px solid var(--border-strong,#4a4459);border-radius:var(--r-check,4px);background:var(--bg-elevated,#252230);cursor:pointer;transition:background .12s ease,border-color .12s ease;}.ds-check:hover{border-color:var(--accent-manual,#6fb8d1);}.ds-check:focus-visible{outline:2px solid var(--accent-manual,#6fb8d1);outline-offset:2px;}.ds-check:checked{background:var(--accent-manual,#6fb8d1);border-color:var(--accent-manual,#6fb8d1);}.ds-check:checked::after{content:'';position:absolute;left:50%;top:45%;width:28%;height:55%;border:solid var(--bg-base,#16151c);border-width:0 2px 2px 0;transform:translate(-50%,-50%) rotate(45deg);}"
+    }
+  ],
+  "narrative": {
+    "northStar": "A Theme Is a Material, Not a Tint",
+    "overview": "Osmium Workshop is a dense, keyboard-and-mouse workbench where curators tag thousands of image/caption pairs in long sittings. The layout, DOM and behavior are fixed: every control stays where the hands expect it. What changes between themes is the material the bench is made of. One shared set of components (topbar, brand lockup, tabs, buttons, chips, cards, dock sections, inputs, checkboxes, scrollbars) reads two token layers: 16 color variables and a non-color **element grammar** (faces, type settings, per-atom radii, card shadow, premium-effect tokens). Each of the 26 themes is a pinned world that restates both layers in the vocabulary its name already names: subway signage, a phosphor CRT, a letterpress catalogue, lacquerware with a cinnabar seal, a foundry plate with rivets.\n\nStudio, the default, is the workbench itself: machined panels with a lit top edge, a tight grotesk, and tags set as square-cornered mono drawer labels rather than pills. Studio's values live on `:root, html[data-theme=\"studio\"]` in `renderer/styles.css`, so any theme that omits a grammar token (including user-built Custom themes) inherits Studio's. The frontmatter here records Studio; every other theme's colors are the per-theme blocks in `renderer/styles.css` between the Studio block and `End themes`, and are not restated in this file.\n\nThe themes are also an economy (shop tiers, Refine Theme, three flourish toggles). Epic and legendary themes, or any theme bought up through Refine Theme, add a premium button hover-fill and card lift, and each world supplies its own version of both effects through `--fx-*` tokens.",
+    "keyCharacteristics": [
+      "One component set, two token layers: 16 color vars (in `THEME_VARS`, inverted by night mode) and the element grammar (never inverted).",
+      "Every theme brings its own faces, shapes, active-tab marker, panel material, `#gallery` ground texture, and premium-effect version.",
+      "Tags are always mono data labels. Only their shape and selected state change per world.",
+      "Layout never moves between themes. Identity comes from lettering, form and surface.",
+      "Faces are bundled OFL woff2 (`renderer/fonts/fonts.css`, 62 `@font-face`, `font-display: swap`). Nothing loads from the network."
+    ],
+    "rules": [
+      {
+        "name": "The Sixteen Roles Rule",
+        "body": "A theme sets exactly the 16 `THEME_VARS` colors. A new theme that omits `--accent-flair` is incomplete, and no rule may hardcode a flair hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Derived Texture Rule",
+        "body": "Textures, rules and frames mix from theme vars through `color-mix(in srgb, var(--…) N%, transparent)`, never from a literal color, so that night mode's HSL inversion carries them too.",
+        "section": "colors"
+      },
+      {
+        "name": "The Light-Ground Ink Rule",
+        "body": "On light palettes, `accent-auto` on `accent-auto-dim` falls below 3:1. The brand tag and flagged-review chips on light themes take ink from `text-primary` (or `color-mix(accent-auto 40%, text-primary)`) instead.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Tag Rule",
+        "body": "Tags are data. Chips and the brand tag are always set in `--mono` at 11px, and no theme changes that face through the chip rule.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tracked-Caps Pairing Rule",
+        "body": "A theme that sets `--*-case: uppercase` also sets positive tracking (0.02–0.2em) on the same atom. Uppercase is never set solid.",
+        "section": "typography"
+      },
+      {
+        "name": "The Still Bench Rule",
+        "body": "Switching theme never moves a control. If a theme's device needs space, it takes that space from padding inside its own atom and never from a neighboring atom's position.",
+        "section": "layout"
+      },
+      {
+        "name": "The Native Light Rule",
+        "body": "Glows and lit gradients appear only where the world itself emits light: phosphor text (Terminal), a photophore (Bioluminescent), a corona (Solar Flare), an aurora (Aurora Borealis), a vignette (Blood Moon). A theme without a light source gets no glow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Per-Atom Radius Rule",
+        "body": "Components read their own `--r-*` token and never the legacy `--radius`. A theme's shape identity is the set of six radii, not one number.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Clipped Focus Rule",
+        "body": "Any theme that clips a control's silhouette must restore a visible focus indicator inside the clip.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "**Do** build a new theme by setting the 16 `THEME_VARS` colors plus the element grammar (faces, `--brand-*`, `--tab-*`, `--head-*`, `--btn-*`, the six `--r-*`, `--card-shadow`, and the `--fx-*` set with `--fx-card-t/s`) from the world its name names.",
+      "**Do** put ground textures on `#gallery` only. Every other pane is opaque, so a texture on `body` never renders.",
+      "**Do** mix every texture, rule and frame from theme vars with `color-mix()` so night mode inverts it.",
+      "**Do** restyle selected tags only through `.chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review)`.",
+      "**Do** draw active-tab markers with background, border or box-shadow.",
+      "**Do** end every ambient `flair*` animation rule with `animation-play-state: var(--flair-play);` so the \"Disable ambient animations\" toggle freezes it.",
+      "**Do** add any new absolutely positioned or `all: unset` button class to the exclusion list of every broad theme-wide button rule.",
+      "**Do** bundle any new face as an OFL woff2 in `renderer/fonts/` with `font-display: swap`."
+    ],
+    "donts": [
+      "**Don't** recolor one kit and call it a theme. A theme changes lettering, shape and surface, and never layout.",
+      "**Don't** set `border-color`, `background` or `box-shadow` in a theme's bare `.chip` or `.card` rule. At (0,2,1) it silently hides the dirty, untagged, match, isolated and flagged states.",
+      "**Don't** set colors in a theme's bare `button` rule. It outranks `button.primary`, `.danger-ghost` and every classed button.",
+      "**Don't** use `::after` for tab markers. Premium themes own every button's `::after` for the hover-fill.",
+      "**Don't** use `overflow: hidden` to clip the premium fill. Use `overflow: clip` so flex buttons keep their min-size.",
+      "**Don't** add a glow to a world with no light source.",
+      "**Don't** gate static textures or frames behind the flourish toggles. The toggles govern motion (ambient animation, hover-fill, card tilt), not material."
+    ]
+  }
+}
