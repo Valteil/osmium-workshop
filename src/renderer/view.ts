@@ -1053,7 +1053,21 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
     return wrap;
   }
 
-  panel.appendChild(sectionLabel('Text'));
+  // Sections flow as CSS columns inside .seq-sections (styles.css): each
+  // category stays whole in its own column, and the panel goes two-up
+  // wherever there's width (falling back to one column at high zoom).
+  const sections = document.createElement('div');
+  sections.className = 'seq-sections';
+  panel.appendChild(sections);
+  function newSection(title: string): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'seq-section';
+    el.appendChild(sectionLabel(title));
+    sections.appendChild(el);
+    return el;
+  }
+  let sec: HTMLElement;
+  sec = newSection('Text');
   // Compact two-up rows: most toggles are 1-2 words, so full-width rows
   // wasted half the panel and forced scrolling. Pairs share a line
   // (Has text/Yapanese-class pairs per user spec).
@@ -1072,7 +1086,7 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
   // Sound effects sits right beside Has text (per user spec, not buried
   // further down under its own heading).
   const soundRow = toggleRow('Sound effects', d.soundEffects, (v) => { d.soundEffects = v; });
-  panel.appendChild(togglePair(hasTextRow, soundRow));
+  sec.appendChild(togglePair(hasTextRow, soundRow));
   const textSub = document.createElement('div');
   textSub.className = 'seq-text-sub';
   textSub.style.display = d.hasText ? '' : 'none';
@@ -1124,11 +1138,11 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
   addLangRow.appendChild(addLangInput);
   addLangRow.appendChild(addLangBtn);
   textSub.appendChild(addLangRow);
-  panel.appendChild(textSub);
+  sec.appendChild(textSub);
 
-  panel.appendChild(sectionLabel('Censorship'));
+  sec = newSection('Censorship');
   const censorWrap = document.createElement('div');
-  panel.appendChild(censorWrap);
+  sec.appendChild(censorWrap);
   // Censor types are independent checkboxes, not a dropdown — an image can
   // carry several at once (mosaic AND bar, etc.).
   // Explicit two columns for censor types (user spec): five short labels
@@ -1163,9 +1177,9 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
     }));
   }
   renderCensor();
-  panel.appendChild(typeBox);
+  sec.appendChild(typeBox);
 
-  panel.appendChild(sectionLabel('Perspective'));
+  sec = newSection('Perspective');
   const perspBox = checkGrid();
   for (const p of perspectiveOptionTags()){
     // Angles drop their literal "from " prefix for display; the extras are
@@ -1176,14 +1190,14 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
       else d.perspectives.delete(p);
     }));
   }
-  panel.appendChild(perspBox);
+  sec.appendChild(perspBox);
 
-  panel.appendChild(sectionLabel('Indicator'));
+  sec = newSection('Indicator');
   const monoRowOuter = toggleRow('Monochrome', d.monochrome, (v) => { d.monochrome = v; });
   const comicRow = toggleRow('Comic', d.isComic, (v) => { d.isComic = v; });
-  panel.appendChild(togglePair(monoRowOuter, comicRow));
-  panel.appendChild(toggleRow('Multiple views', d.multipleViews, (v) => { d.multipleViews = v; }));
-  panel.appendChild(radioRow('seq-koma', [
+  sec.appendChild(togglePair(monoRowOuter, comicRow));
+  sec.appendChild(toggleRow('Multiple views', d.multipleViews, (v) => { d.multipleViews = v; }));
+  sec.appendChild(radioRow('seq-koma', [
     { value: '', label: 'Not koma' },
     ...KOMA_OPTIONS.map((k) => ({ value: k, label: k }))
   ], d.koma, (v) => { d.koma = v; }));
@@ -3413,11 +3427,11 @@ export function initView(deps: ViewDeps): void {
   // at a glance. Tags stay editable through the card modal either way.
   let hideTags = false;
   hideTags = getBool('dts-hide-tags');
-  btnHideTags.textContent = hideTags ? '\ud83d\udc41 Show tags' : '\ud83d\ude48 Hide tags';
+  setIconLabel(btnHideTags, hideTags ? '\ud83d\udc41 Show tags' : '\ud83d\ude48 Hide tags');
   btnHideTags.addEventListener('click', () => {
     hideTags = !hideTags;
     setBool('dts-hide-tags', hideTags);
-    btnHideTags.textContent = hideTags ? '\ud83d\udc41 Show tags' : '\ud83d\ude48 Hide tags';
+    setIconLabel(btnHideTags, hideTags ? '\ud83d\udc41 Show tags' : '\ud83d\ude48 Hide tags');
     renderCurrentView();
   });
 

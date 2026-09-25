@@ -3195,7 +3195,18 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .single-panel.seq-panel{
     max-height: none; padding: 12px 14px; gap: 7px;
     overflow-y: auto;
+    /* Fill the space beside the image instead of stopping at the base
+       panel's 360px, which left a dead strip to the right. */
+    width: auto; flex: 1 1 auto; min-width: 0; max-width: 980px;
   }
+  /* Category sections flow as columns: column one fills with its own rows,
+     then column two. column-width (not a fixed count) makes it one column
+     whenever the panel is narrower than two 230px tracks, which happens at
+     high font-size zoom or with a narrow window. A section never splits
+     across columns. */
+  .seq-sections{ columns: 230px 2; column-gap: 22px; }
+  .seq-section{ break-inside: avoid; padding-bottom: 10px; }
+  .seq-section > :first-child{ margin-top: 0 !important; }
   .single-panel.seq-panel .ach-toggle-row{
     padding: 4px 8px; gap: 7px;
   }
