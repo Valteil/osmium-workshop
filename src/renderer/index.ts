@@ -357,9 +357,34 @@ import { setIconLabel } from './icons';
   // Settings toggle (`html.motion-off`) by skipping straight to the final
   // state with no delay when it's off.
   const TAB_MAP_ORDER = ['datasets', 'gallery', 'master', 'stats', 'synthdat'];
+  const onShell = (t: string) => t === 'gallery' || t === 'master';
+  // Hover preload: pointing at the Datasets/Stats tab renders that tab's
+  // (hidden) content ahead of the click, so the switch itself only flips
+  // visibility. Valid only while the pointer stays on that tab — leaving
+  // invalidates it, so nothing edited in the meantime can go stale.
+  const tabIsActive = (t: string): boolean => ({
+    datasets: tabDatasetManager, gallery: tabGallery, master: tabMasterTags, stats: tabStats, synthdat: tabSynthDat
+  } as Record<string, HTMLElement>)[t]?.classList.contains('active') ?? false;
+  let preloadedTab: string | null = null;
+  function preloadTab(tab: string, btn: HTMLElement): void {
+    if (btn.classList.contains('active')) return;
+    if (tab === 'stats') renderStatsTab();
+    else if (tab === 'datasets') void renderDatasetManagerTab();
+    else return;
+    preloadedTab = tab;
+  }
+  ([[tabStats, 'stats'], [tabDatasetManager, 'datasets']] as [HTMLElement, string][]).forEach(([btn, tab]) => {
+    btn.addEventListener('pointerenter', () => preloadTab(tab, btn));
+    btn.addEventListener('pointerleave', () => { if (preloadedTab === tab) preloadedTab = null; });
+  });
   function switchTab(tab: string, opts?: { skipDrawerSync?: boolean }): void {
     const skipDrawerSync = !!(opts && opts.skipDrawerSync);
     const fadePanes = [datasetManagerTab, statsTab, synthDatTab, normalRightTools, masterTagPanel];
+    // Gallery rebuild (cards differ between Gallery and Tag Overseer mode —
+    // the selection checkbox). Only a shell tab shows the gallery; Stats and
+    // SynthDat used to rebuild it too, invisibly, on every switch.
+    const renderShell = () => { if (onShell(tab)) { renderCurrentView(); renderMasterSelectionSummary(); } };
+    let deferShellRender = false;
     const applyState = () => {
       tabDatasetManager.classList.toggle('active', tab === 'datasets');
       tabGallery.classList.toggle('active', tab === 'gallery');
@@ -410,9 +435,10 @@ import { setIconLabel } from './icons';
       // inside the dock content itself.
       btnGoToTagOverseer.style.display = masterTagModeActive ? 'none' : '';
       btnMasterBack.style.display = masterTagModeActive ? '' : 'none';
-      if (tab === 'stats') renderStatsTab();
-      if (tab === 'datasets') renderDatasetManagerTab();
-      if (tab !== 'datasets') { renderCurrentView(); renderMasterSelectionSummary(); }
+      if (tab === 'stats' && preloadedTab !== 'stats') renderStatsTab();
+      if (tab === 'datasets' && preloadedTab !== 'datasets') renderDatasetManagerTab();
+      preloadedTab = null;
+      if (!deferShellRender) renderShell();
       // #right is hidden (display:none, via #galleryTab above) on every tab
       // except gallery/master — re-measuring the resize handle's position
       // here, every switch, is a cheap no-op when it's still hidden (see
@@ -432,14 +458,21 @@ import { setIconLabel } from './icons';
       : tabMasterTags.classList.contains('active') ? 'master'
       : tabStats.classList.contains('active') ? 'stats'
       : tabSynthDat.classList.contains('active') ? 'synthdat' : 'gallery';
-    const onShell = (t: string) => t === 'gallery' || t === 'master';
     const regionOf = (t: string): HTMLElement | null => {
       if (onShell(fromTab) && onShell(tab)) return document.getElementById('rightPanelContent');
       if (onShell(t)) return document.getElementById('shell');
       return t === 'datasets' ? datasetManagerTab : t === 'stats' ? statsTab : synthDatTab;
     };
     const dir = Math.sign(TAB_MAP_ORDER.indexOf(tab) - TAB_MAP_ORDER.indexOf(fromTab));
-    if (mapPan(dir, 'tab', regionOf(fromTab), () => regionOf(tab), applyState)) return;
+    // A View Transition freezes the screen while its update runs, so the
+    // gallery rebuild waits until the pan has landed: the pan shows the
+    // gallery exactly as it was left (almost always identical), and the
+    // rebuild settles in right after — instead of a frozen beat on click.
+    deferShellRender = true;
+    if (mapPan(dir, 'tab', regionOf(fromTab), () => regionOf(tab), applyState, () => {
+      if (tabIsActive(tab)) renderShell();
+    })) return;
+    deferShellRender = false;
 
     const leaving = fadePanes.filter(el => el.style.display !== 'none');
     leaving.forEach(el => el.classList.add('tab-fading'));

@@ -396,7 +396,8 @@ let mapPanSeq = 0;
 let mapNamed: HTMLElement[] = [];
 export function mapPan(
   dir: number, kind: 'tab' | 'view' | 'page',
-  from: Element | null, to: () => Element | null, update: () => void
+  from: Element | null, to: () => Element | null, update: () => void,
+  after?: () => void // deferred work, run once the pan lands (or is cut short by the next one)
 ): boolean {
   const html = document.documentElement;
   const doc = document as ViewTransitionDoc;
@@ -421,6 +422,7 @@ export function mapPan(
     name(to());
   });
   t.finished.finally(() => {
+    if (after) after();
     if (seq !== mapPanSeq) return;
     for (const el of mapNamed) el.style.viewTransitionName = '';
     mapNamed = [];
