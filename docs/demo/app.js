@@ -1,4 +1,111 @@
 (() => {
+  // src/renderer/fs-access.ts
+  var fsa = window;
+  function hasDirectoryPicker() {
+    return typeof fsa.showDirectoryPicker === "function";
+  }
+  function hasOpenFilePicker() {
+    return typeof fsa.showOpenFilePicker === "function";
+  }
+  function hasSaveFilePicker() {
+    return typeof fsa.showSaveFilePicker === "function";
+  }
+  function pickDirectory(opts = {}) {
+    return fsa.showDirectoryPicker(opts);
+  }
+  function pickOpenFiles(opts) {
+    return fsa.showOpenFilePicker(opts);
+  }
+  function pickSaveFile(opts) {
+    return fsa.showSaveFilePicker(opts);
+  }
+  async function requestPermission(handle, mode) {
+    const h = handle;
+    return h.requestPermission ? h.requestPermission({ mode }) : "granted";
+  }
+  function serializeHandle(handle) {
+    const h = handle;
+    return h.toJSON ? h.toJSON() : handle;
+  }
+  function isMobileHandle(value) {
+    return !!(value && value.__dtsMobileHandle);
+  }
+  function reviveHandle(value) {
+    return window.__dtsReviveDirHandle ? window.__dtsReviveDirHandle(value) : value;
+  }
+  async function writeBytes(handle, data) {
+    const writable = await handle.createWritable();
+    await writable.write(data);
+    await writable.close();
+  }
+
+  // src/renderer/storage.ts
+  function getString(key, fallback = "") {
+    try {
+      const v = localStorage.getItem(key);
+      return v === null ? fallback : v;
+    } catch {
+      return fallback;
+    }
+  }
+  function setString(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+    }
+  }
+  function getJSON(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) return fallback;
+      const parsed = JSON.parse(raw);
+      return parsed === null || parsed === void 0 ? fallback : parsed;
+    } catch {
+      return fallback;
+    }
+  }
+  function setJSON(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+    }
+  }
+  function getBool(key, fallback = false) {
+    try {
+      const v = localStorage.getItem(key);
+      return v === null ? fallback : v === "1";
+    } catch {
+      return fallback;
+    }
+  }
+  function setBool(key, value) {
+    try {
+      localStorage.setItem(key, value ? "1" : "0");
+    } catch {
+    }
+  }
+  function getInt(key, fallback) {
+    try {
+      const v = parseInt(localStorage.getItem(key) || "", 10);
+      return Number.isNaN(v) ? fallback : v;
+    } catch {
+      return fallback;
+    }
+  }
+  function setInt(key, value) {
+    try {
+      localStorage.setItem(key, String(value));
+    } catch {
+    }
+  }
+
+  // src/renderer/file-types.ts
+  var IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"];
+  function isImageFile(name) {
+    const lower = name.toLowerCase();
+    return IMAGE_EXTS.some((ext) => lower.endsWith(ext));
+  }
+
   // src/renderer/dom.ts
   function $(id) {
     return document.getElementById(id);
@@ -42,6 +149,7 @@
   var excludeBadgeText = $("excludeBadgeText");
   var excludeBadgeClear = $("excludeBadgeClear");
   var tagFrequencyList = $("tagFrequencyList");
+  var tagListTitle = $("tagListTitle");
   var leftSortDropdown = $("leftSortDropdown");
   var leftSortDirBtn = $("leftSortDirBtn");
   var btnResetFamilyOrder = $("btnResetFamilyOrder");
@@ -49,7 +157,9 @@
   var tagFamilyListArea = $("tagFamilyListArea");
   var btnClearFilter = $("btnClearFilter");
   var filterModeDropdown = $("filterModeDropdown");
+  var filterModeLock = $("filterModeLock");
   var btnFlagIsolated = $("btnFlagIsolated");
+  var btnReviewFlagged = $("btnReviewFlagged");
   var tagPrunerList = $("tagPrunerList");
   var btnAddTagPruner = $("btnAddTagPruner");
   var btnOpenTagPrunerList = $("btnOpenTagPrunerList");
@@ -111,6 +221,7 @@
   var statsTab = $("statsTab");
   var tabDatasetManager = $("tabDatasetManager");
   var datasetManagerTab = $("datasetManagerTab");
+  var dmTabBar = $("dmTabBar");
   var dmGrid = $("dmGrid");
   var dmGridBtn = $("dmGridBtn");
   var dmListBtn = $("dmListBtn");
@@ -220,6 +331,16 @@
   var viewCompactBtn = $("viewCompactBtn");
   var viewSingleBtn = $("viewSingleBtn");
   var viewDisabledBtn = $("viewDisabledBtn");
+  var viewOriginalsBtn = $("viewOriginalsBtn");
+  var btnBucketRun = $("btnBucketRun");
+  var btnBucketRevert = $("btnBucketRevert");
+  var btnBucketDownloadModel = $("btnBucketDownloadModel");
+  var bucketModelStatusText = $("bucketModelStatusText");
+  var bucketSideMin = $("bucketSideMin");
+  var bucketSideMax = $("bucketSideMax");
+  var bucketSideStep = $("bucketSideStep");
+  var bucketGpu = $("bucketGpu");
+  var bucketLog = $("bucketLog");
   var btnUnlockAll = $("btnUnlockAll");
   var btnHideTags = $("btnHideTags");
   var btnRenameAllImages = $("btnRenameAllImages");
@@ -330,19 +451,176 @@
   var btnSynthDatAccept = $("btnSynthDatAccept");
   var btnSynthDatReject = $("btnSynthDatReject");
 
+  // src/renderer/icons.ts
+  var EMOJI_ICON = {
+    "\u{1F4C1}": "folder",
+    "\u{1F4C2}": "folder",
+    "\u2699\uFE0F": "settings",
+    "\u2699": "settings",
+    "\u{1F527}": "wrench",
+    "\u{1F52D}": "telescope",
+    "\u{1F4DC}": "log",
+    "\u{1F3A8}": "palette",
+    "\u{1F512}": "lock",
+    "\u{1F513}": "unlock",
+    "\u{1F3C6}": "trophy",
+    "\u{1F4B0}": "coins",
+    "\u{1F319}": "moon",
+    "\u2753": "help",
+    "\u{1F5BC}\uFE0F": "image",
+    "\u{1F5BC}": "image",
+    "\u{1F4CA}": "chart",
+    "\u{1F9EA}": "flask",
+    "\u{1F6A9}": "flag",
+    "\u{1F50D}": "search",
+    "\u{1F3B2}": "dice",
+    "\u{1F648}": "eye-off",
+    "\u{1F441}\uFE0F": "eye",
+    "\u{1F441}": "eye",
+    "\u{1F522}": "hash",
+    "\u274C": "x-circle",
+    "\u2715": "x",
+    "\u2716": "x",
+    "\u{1F517}": "link",
+    "\u2702\uFE0F": "scissors",
+    "\u2702": "scissors",
+    "\u{1F4CB}": "list",
+    "\u2B07": "download",
+    "\u{1F9FA}": "bucket",
+    "\u{1FAA3}": "bucket",
+    "\u21A9\uFE0F": "undo",
+    "\u21A9": "undo",
+    "\u21AA": "redo",
+    "\u{1F3F7}\uFE0F": "tag",
+    "\u{1F3F7}": "tag",
+    "\u{1F5D1}\uFE0F": "trash",
+    "\u{1F5D1}": "trash",
+    "\u{1F6AB}": "shield-off",
+    "\u{1F7E2}": "shield-plus",
+    "\u270B": "hand",
+    "\u{1F40D}": "wand",
+    "\u{1F504}": "refresh",
+    "\u21BA": "rotate",
+    "\u25B6": "play",
+    "\u23F9": "stop",
+    "\u2705": "check-circle",
+    "\u2611": "check-square",
+    "\u{1F50C}": "plug",
+    "\u{1F4DD}": "note",
+    "\u{1F6CD}\uFE0F": "bag",
+    "\u{1F6CD}": "bag",
+    "\u{1F381}": "gift",
+    "\u{1F528}": "hammer",
+    "\u{1F3AF}": "target",
+    "\u{1FA7A}": "pulse",
+    "\u{1F4D6}": "book",
+    "\u{1F4BE}": "save",
+    "\u26A0\uFE0F": "alert",
+    "\u26A0": "alert",
+    "\u23EE": "skip-back",
+    "\u{1F5E8}\uFE0F": "message",
+    "\u{1F5E8}": "message",
+    "\u{1F9ED}": "compass",
+    "\u2605": "star",
+    "\u2B50": "star",
+    "\u2630": "menu",
+    "\u25A6": "grid",
+    "\u25BE": "caret-down",
+    "\u25BC": "caret-down",
+    "\u25B2": "caret-up",
+    "\u25B8": "chevron-right",
+    "\u25C0": "chevron-left",
+    "\u2039": "chevron-left",
+    "\u203A": "chevron-right",
+    "\u27F2": "rotate",
+    "\u27F3": "rotate-cw",
+    "\u2713": "check",
+    "\u21C4": "swap"
+  };
+  function rarityIcon(rarity) {
+    return iconSvg(rarity === "legendary" ? "star" : "gem", "rarity-" + rarity);
+  }
+  function plainLabel(text) {
+    return text.replace(GLYPH_RE, "").replace(/\s+/g, " ").trim();
+  }
+  var GLYPH_RE = new RegExp(
+    "(" + Object.keys(EMOJI_ICON).sort((a, b) => b.length - a.length).map((g) => g.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\uFE0F?",
+    "gu"
+  );
+  function iconSvg(id, extraClass = "") {
+    return `<svg class="ic${extraClass ? " " + extraClass : ""}" aria-hidden="true"><use href="#i-${id}"></use></svg>`;
+  }
+  function escapeText(s) {
+    return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  }
+  function iconHTML(text) {
+    const parts = text.split(GLYPH_RE);
+    let out = "";
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (i % 2 === 0) {
+        out += escapeText(part);
+        continue;
+      }
+      const before = parts[i - 1] ?? "", after = parts[i + 1] ?? "";
+      const cls = [];
+      if (/^\s+\S/.test(after)) {
+        cls.push("ic-lead");
+        parts[i + 1] = after.replace(/^\s/, "");
+      }
+      if (/\S\s$/.test(before) || /\S$/.test(before) && before.length) {
+        cls.push("ic-trail");
+        out = out.replace(/\s$/, "");
+      }
+      out += iconSvg(EMOJI_ICON[part], cls.join(" "));
+    }
+    return out;
+  }
+  function hasIconGlyph(text) {
+    GLYPH_RE.lastIndex = 0;
+    const hit = GLYPH_RE.test(text);
+    GLYPH_RE.lastIndex = 0;
+    return hit;
+  }
+  function setIconLabel(el, text) {
+    if (!hasIconGlyph(text)) {
+      el.textContent = text;
+      return;
+    }
+    const parts = text.split(GLYPH_RE);
+    const midSentence = parts.length > 2 && parts[0].trim() !== "" && parts[parts.length - 1].trim() !== "";
+    el.innerHTML = midSentence ? `<span>${iconHTML(text)}</span>` : iconHTML(text);
+  }
+  function iconize(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => {
+        const p = n.parentElement;
+        if (!p || p.closest("option, select, textarea, script, style, svg, code, pre")) return NodeFilter.FILTER_REJECT;
+        return hasIconGlyph(n.nodeValue || "") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
+    const hits = [];
+    while (walker.nextNode()) hits.push(walker.currentNode);
+    for (const t of hits) {
+      const span = document.createElement("span");
+      span.innerHTML = iconHTML(t.nodeValue || "");
+      t.replaceWith(...Array.from(span.childNodes));
+    }
+  }
+
   // src/renderer/shared-ui.ts
   var PDROP_CLOSE_ON_SELECT_KEY = "dts-pdrop-close-on-select";
   (function initPdropCloseOnSelectPref() {
     let on = true;
     try {
-      on = localStorage.getItem(PDROP_CLOSE_ON_SELECT_KEY) !== "0";
+      on = getBool(PDROP_CLOSE_ON_SELECT_KEY, true);
     } catch {
     }
     pdropCloseOnSelectToggle.checked = on;
   })();
   pdropCloseOnSelectToggle.addEventListener("change", () => {
     try {
-      localStorage.setItem(PDROP_CLOSE_ON_SELECT_KEY, pdropCloseOnSelectToggle.checked ? "1" : "0");
+      setBool(PDROP_CLOSE_ON_SELECT_KEY, pdropCloseOnSelectToggle.checked);
     } catch {
     }
   });
@@ -353,14 +631,14 @@
   (function initOutsideClickSwallowPref() {
     let on = false;
     try {
-      on = localStorage.getItem(OUTSIDE_CLICK_SWALLOW_KEY) === "1";
+      on = getBool(OUTSIDE_CLICK_SWALLOW_KEY);
     } catch {
     }
     outsideClickSwallowToggle.checked = on;
   })();
   outsideClickSwallowToggle.addEventListener("change", () => {
     try {
-      localStorage.setItem(OUTSIDE_CLICK_SWALLOW_KEY, outsideClickSwallowToggle.checked ? "1" : "0");
+      setBool(OUTSIDE_CLICK_SWALLOW_KEY, outsideClickSwallowToggle.checked);
     } catch {
     }
   });
@@ -390,6 +668,12 @@
       fontPx -= 0.5;
       el.style.fontSize = fontPx + "px";
     }
+  }
+  function refitShrunkText() {
+    document.querySelectorAll(".pdrop-btn").forEach((b) => shrinkTextToFit(b));
+  }
+  function initFontRefit() {
+    document.fonts.addEventListener("loadingdone", refitShrunkText);
   }
   var openPdropClose = null;
   var openPdropOwnerPanel = null;
@@ -425,10 +709,10 @@
       return found ? found.label : getValue();
     }
     function setLabel() {
-      btn.textContent = currentLabel() + " \u25BE";
+      setIconLabel(btn, currentLabel() + " \u25BE");
       shrinkTextToFit(btn);
     }
-    btn.textContent = currentLabel() + " \u25BE";
+    setIconLabel(btn, currentLabel() + " \u25BE");
     let menuEl = null;
     function closeMenu() {
       if (menuEl) {
@@ -450,7 +734,7 @@
         const item = document.createElement("button");
         item.type = "button";
         item.className = "pdrop-item" + (opt.value === getValue() ? " active" : "");
-        item.textContent = opt.label;
+        setIconLabel(item, opt.label);
         if (opt.title) item.title = opt.title;
         item.addEventListener("click", (ev) => {
           ev.stopPropagation();
@@ -552,10 +836,27 @@
   }
   var _toastTimer;
   function toast(msg, ms = 2600) {
-    toastEl.textContent = msg;
+    setIconLabel(toastEl, msg);
     toastEl.classList.add("show");
     clearTimeout(_toastTimer);
     _toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms);
+  }
+  function toastError(prefix, err, ms = 4200) {
+    const msg = err instanceof Error ? err.message || String(err) : String(err);
+    toast(`${prefix}: ${msg}`, ms);
+  }
+  function addContextMenuItem(menu, label, onClick, opts = {}) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ctx-item" + (opts.className ? " " + opts.className : "");
+    setIconLabel(btn, label);
+    if (opts.title) btn.title = opts.title;
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      onClick(ev);
+    });
+    menu.appendChild(btn);
+    return btn;
   }
   function showPanel(el) {
     el.style.display = "flex";
@@ -569,7 +870,7 @@
       el.style.display = "none";
     }, 160);
   }
-  function showImageLightbox(src) {
+  function showImageLightbox(src, onZoom) {
     if (!src) return;
     const backdrop = document.createElement("div");
     backdrop.className = "lightbox-backdrop";
@@ -604,6 +905,7 @@
       }
       clampPan();
       applyTransform();
+      if (onZoom && scale !== prevScale) onZoom(Math.round(scale * 100));
     }
     function onWheel(ev) {
       ev.preventDefault();
@@ -666,6 +968,71 @@
     document.body.appendChild(backdrop);
     requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add("modal-visible")));
   }
+  function transitionMsOf(el) {
+    const raw = getComputedStyle(el).transitionDuration.split(",")[0].trim();
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n)) return 160;
+    return raw.endsWith("ms") ? n : n * 1e3;
+  }
+  var mapPanSeq = 0;
+  var mapNamed = [];
+  var activePan = null;
+  var panClickRelayInstalled = false;
+  var pressHitRoot = false;
+  function installPanClickRelay() {
+    if (panClickRelayInstalled) return;
+    panClickRelayInstalled = true;
+    document.addEventListener("pointerdown", (ev) => {
+      pressHitRoot = !!activePan && ev.target === document.documentElement;
+    }, true);
+    document.addEventListener("click", (ev) => {
+      const pan = activePan;
+      if (!pan || ev.target !== document.documentElement || !pressHitRoot) return;
+      pressHitRoot = false;
+      ev.stopPropagation();
+      ev.preventDefault();
+      const { clientX: x, clientY: y } = ev;
+      pan.skipTransition();
+      pan.finished.finally(() => {
+        const hit = document.elementFromPoint(x, y);
+        if (!hit || hit === document.documentElement) return;
+        (hit.closest('button, a, label, [role="button"]') || hit).click();
+      });
+    }, true);
+  }
+  function mapPan(dir, kind, from, to, update, after) {
+    const html = document.documentElement;
+    const doc = document;
+    if (!dir || !doc.startViewTransition || !html.classList.contains("motion-swipe") || html.classList.contains("motion-off")) return false;
+    installPanClickRelay();
+    const seq = ++mapPanSeq;
+    for (const el of mapNamed) el.style.viewTransitionName = "";
+    mapNamed = [];
+    const name = (el) => {
+      if (!(el instanceof HTMLElement)) return;
+      el.style.viewTransitionName = "map-pane";
+      mapNamed.push(el);
+    };
+    html.dataset.mapDir = dir > 0 ? "fwd" : "back";
+    html.dataset.mapKind = kind;
+    name(from);
+    const t = doc.startViewTransition(() => {
+      if (from instanceof HTMLElement) from.style.viewTransitionName = "";
+      update();
+      name(to());
+    });
+    activePan = t;
+    t.finished.finally(() => {
+      if (after) after();
+      if (seq !== mapPanSeq) return;
+      activePan = null;
+      for (const el of mapNamed) el.style.viewTransitionName = "";
+      mapNamed = [];
+      delete html.dataset.mapDir;
+      delete html.dataset.mapKind;
+    });
+    return true;
+  }
   function positionMenu(menu, x, y) {
     const pad = 8;
     const width = menu.offsetWidth, height = menu.offsetHeight;
@@ -676,12 +1043,52 @@
     menu.style.top = Math.max(pad, top) + "px";
     requestAnimationFrame(() => requestAnimationFrame(() => menu.classList.add("menu-in")));
   }
+  function createModalShell(opts = {}) {
+    const backdrop = document.createElement("div");
+    backdrop.className = "confirm-backdrop" + (opts.className ? " " + opts.className : "") + (opts.instant ? " modal-visible" : "");
+    const box = document.createElement("div");
+    box.className = "confirm-box" + (opts.boxClassName ? " " + opts.boxClassName : "");
+    backdrop.appendChild(box);
+    let closed = false;
+    function close() {
+      if (closed) return;
+      closed = true;
+      document.removeEventListener("keydown", onKey);
+      if (opts.instant) {
+        backdrop.remove();
+        if (opts.onClose) opts.onClose();
+      } else {
+        backdrop.classList.remove("modal-visible");
+        setTimeout(() => {
+          backdrop.remove();
+          if (opts.onClose) opts.onClose();
+        }, 160);
+      }
+    }
+    function onKey(ev) {
+      if (ev.key === "Escape") (opts.onDismiss || close)();
+    }
+    backdrop.addEventListener("click", (ev) => {
+      if (ev.target === backdrop) (opts.onDismiss || close)();
+    });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(backdrop);
+    if (opts.instant) {
+      if (opts.onShow) opts.onShow();
+    } else {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        backdrop.classList.add("modal-visible");
+        if (opts.onShow) opts.onShow();
+      }));
+    }
+    return { backdrop, box, close };
+  }
   function showConfirmModal(message, opts = {}) {
     return new Promise((resolve) => {
-      const backdrop = document.createElement("div");
-      backdrop.className = "confirm-backdrop";
-      const box = document.createElement("div");
-      box.className = "confirm-box";
+      const { box, close } = createModalShell({ onDismiss: () => {
+        resolve(false);
+        close();
+      } });
       const msg = document.createElement("div");
       msg.className = "confirm-message";
       msg.textContent = message;
@@ -693,35 +1100,21 @@
       const okBtn = document.createElement("button");
       okBtn.textContent = opts.okLabel || "Confirm";
       okBtn.className = opts.danger ? "danger-ghost" : "primary";
-      function close(result) {
-        backdrop.classList.remove("modal-visible");
-        setTimeout(() => backdrop.remove(), 160);
-        resolve(result);
-      }
-      cancelBtn.addEventListener("click", () => close(false));
-      okBtn.addEventListener("click", () => close(true));
-      backdrop.addEventListener("click", (ev) => {
-        if (ev.target === backdrop) close(false);
+      cancelBtn.addEventListener("click", () => {
+        resolve(false);
+        close();
       });
-      document.addEventListener("keydown", function escHandler(ev) {
-        if (ev.key === "Escape") {
-          close(false);
-          document.removeEventListener("keydown", escHandler);
-        }
+      okBtn.addEventListener("click", () => {
+        resolve(true);
+        close();
       });
       btnRow.appendChild(cancelBtn);
       btnRow.appendChild(okBtn);
       box.appendChild(btnRow);
-      backdrop.appendChild(box);
-      document.body.appendChild(backdrop);
-      requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add("modal-visible")));
     });
   }
   function showInfoModal(html, title, onBody) {
-    const backdrop = document.createElement("div");
-    backdrop.className = "confirm-backdrop";
-    const box = document.createElement("div");
-    box.className = "confirm-box info-modal-box";
+    const { box, close } = createModalShell({ boxClassName: "info-modal-box" });
     if (title) {
       const head = document.createElement("div");
       head.className = "info-modal-title";
@@ -738,39 +1131,28 @@
     const closeBtn = document.createElement("button");
     closeBtn.className = "primary";
     closeBtn.textContent = "Close";
-    function close() {
-      backdrop.classList.remove("modal-visible");
-      setTimeout(() => backdrop.remove(), 160);
-    }
     closeBtn.addEventListener("click", close);
-    backdrop.addEventListener("click", (ev) => {
-      if (ev.target === backdrop) close();
-    });
-    document.addEventListener("keydown", function escHandler(ev) {
-      if (ev.key === "Escape") {
-        close();
-        document.removeEventListener("keydown", escHandler);
-      }
-    });
     btnRow.appendChild(closeBtn);
     box.appendChild(btnRow);
-    backdrop.appendChild(box);
-    document.body.appendChild(backdrop);
-    requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add("modal-visible")));
   }
   function openDockListModal(title, contentEl) {
-    const backdrop = document.createElement("div");
-    backdrop.className = "confirm-backdrop dock-list-modal-backdrop";
-    const box = document.createElement("div");
-    box.className = "confirm-box dock-list-modal-box";
+    const originalParent = contentEl.parentNode;
+    const originalNextSibling = contentEl.nextSibling;
+    const { box, close } = createModalShell({
+      className: "dock-list-modal-backdrop",
+      boxClassName: "dock-list-modal-box",
+      onClose: () => {
+        contentEl.classList.remove("dock-list-modal-content");
+        if (originalNextSibling) originalParent.insertBefore(contentEl, originalNextSibling);
+        else originalParent.appendChild(contentEl);
+      }
+    });
     if (title) {
       const head = document.createElement("div");
       head.className = "info-modal-title";
       head.textContent = title;
       box.appendChild(head);
     }
-    const originalParent = contentEl.parentNode;
-    const originalNextSibling = contentEl.nextSibling;
     contentEl.classList.add("dock-list-modal-content");
     box.appendChild(contentEl);
     const btnRow = document.createElement("div");
@@ -778,30 +1160,9 @@
     const closeBtn = document.createElement("button");
     closeBtn.className = "primary";
     closeBtn.textContent = "Close";
-    function close() {
-      backdrop.classList.remove("modal-visible");
-      setTimeout(() => {
-        contentEl.classList.remove("dock-list-modal-content");
-        if (originalNextSibling) originalParent.insertBefore(contentEl, originalNextSibling);
-        else originalParent.appendChild(contentEl);
-        backdrop.remove();
-      }, 160);
-    }
     closeBtn.addEventListener("click", close);
-    backdrop.addEventListener("click", (ev) => {
-      if (ev.target === backdrop) close();
-    });
-    document.addEventListener("keydown", function escHandler(ev) {
-      if (ev.key === "Escape") {
-        close();
-        document.removeEventListener("keydown", escHandler);
-      }
-    });
     btnRow.appendChild(closeBtn);
     box.appendChild(btnRow);
-    backdrop.appendChild(box);
-    document.body.appendChild(backdrop);
-    requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add("modal-visible")));
   }
   function initInfoButtons(scope) {
     (scope || document).querySelectorAll(".info-btn").forEach((btn) => {
@@ -952,18 +1313,11 @@
     if (dayNightOn) {
       dayNightOn = false;
       document.documentElement.classList.remove("night-mode");
-      try {
-        localStorage.setItem("dts-night-mode", "0");
-      } catch (e) {
-      }
+      setBool("dts-night-mode", false);
     }
     if (theme === "custom") {
       document.documentElement.setAttribute("data-theme", "custom");
-      let saved = null;
-      try {
-        saved = JSON.parse(localStorage.getItem("dts-custom-theme") || "null");
-      } catch (e) {
-      }
+      const saved = getJSON("dts-custom-theme", null);
       if (saved) {
         for (const [key] of THEME_VARS) {
           if (saved[key]) document.documentElement.style.setProperty(key, saved[key]);
@@ -976,22 +1330,12 @@
       document.documentElement.setAttribute("data-theme", theme);
     }
     document.documentElement.classList.toggle("theme-refined", refinedThemes.includes(theme));
-    try {
-      localStorage.setItem("dts-theme", theme);
-    } catch (e) {
-    }
+    setString("dts-theme", theme);
+    requestAnimationFrame(refitShrunkText);
   }
-  var refinedThemes = [];
-  try {
-    refinedThemes = JSON.parse(localStorage.getItem("dts-refined-themes") || "[]") || [];
-  } catch {
-    refinedThemes = [];
-  }
+  var refinedThemes = getJSON("dts-refined-themes", []);
   function saveRefinedThemes() {
-    try {
-      localStorage.setItem("dts-refined-themes", JSON.stringify(refinedThemes));
-    } catch (e) {
-    }
+    setJSON("dts-refined-themes", refinedThemes);
   }
   function themeAlreadyHasPremiumEffects(themeId) {
     const premium = PREMIUM_THEMES.find((t) => t.id === themeId);
@@ -1040,59 +1384,6 @@
     }
     showPanel(themeCustomPanel);
   }
-  function hexToHsl(hex) {
-    const r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h, s, l = (max + min) / 2;
-    if (max === min) {
-      h = 0;
-      s = 0;
-    } else {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      switch (max) {
-        case r:
-          h = (g - b) / d + (g < b ? 6 : 0);
-          break;
-        case g:
-          h = (b - r) / d + 2;
-          break;
-        default:
-          h = (r - g) / d + 4;
-      }
-      h /= 6;
-    }
-    return [h * 360, s * 100, l * 100];
-  }
-  function hslToHex(h, s, l) {
-    h /= 360;
-    s /= 100;
-    l /= 100;
-    let r, g, b;
-    if (s === 0) {
-      r = g = b = l;
-    } else {
-      const hue2rgb = (p2, q2, t) => {
-        if (t < 0) t += 1;
-        if (t > 1) t -= 1;
-        if (t < 1 / 6) return p2 + (q2 - p2) * 6 * t;
-        if (t < 1 / 2) return q2;
-        if (t < 2 / 3) return p2 + (q2 - p2) * (2 / 3 - t) * 6;
-        return p2;
-      };
-      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-      const p = 2 * l - q;
-      r = hue2rgb(p, q, h + 1 / 3);
-      g = hue2rgb(p, q, h);
-      b = hue2rgb(p, q, h - 1 / 3);
-    }
-    const toHex = (x) => Math.round(x * 255).toString(16).padStart(2, "0");
-    return "#" + toHex(r) + toHex(g) + toHex(b);
-  }
-  function invertLightness(hex) {
-    const [h, s, l] = hexToHsl(hex);
-    return hslToHex(h, s, 100 - l);
-  }
   function initThemeDropdown(container) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -1102,10 +1393,10 @@
       return (opt ? opt.textContent : themeSelect.value) + " \u25BE";
     }
     function setLabel() {
-      btn.textContent = currentLabel();
+      setIconLabel(btn, currentLabel());
       shrinkTextToFit(btn);
     }
-    btn.textContent = currentLabel();
+    setIconLabel(btn, currentLabel());
     let menuEl = null;
     function onOutsideMouseDown(ev) {
       if (ev.target === document.documentElement || ev.target === document.body) return;
@@ -1125,7 +1416,7 @@
         const item = document.createElement("button");
         item.type = "button";
         item.className = "pdrop-item" + (opt.value === themeSelect.value ? " active" : "");
-        item.textContent = opt.textContent;
+        setIconLabel(item, opt.textContent || "");
         item.addEventListener("click", (ev) => {
           ev.stopPropagation();
           themeSelect.value = opt.value;
@@ -1157,19 +1448,15 @@
     }
     dayNightOn = !dayNightOn;
     if (dayNightOn) {
-      for (const [key] of THEME_VARS) {
-        const dayHex = getCurrentVarHex(key);
-        document.documentElement.style.setProperty(key, invertLightness(dayHex));
-      }
+      const nightPalette = window.__dtsNightPalette;
+      const pal = nightPalette(getCurrentVarHex);
+      for (const [key, value] of Object.entries(pal)) document.documentElement.style.setProperty(key, value);
       document.documentElement.classList.add("night-mode");
     } else {
       clearCustomOverrides();
       document.documentElement.classList.remove("night-mode");
     }
-    try {
-      localStorage.setItem("dts-night-mode", dayNightOn ? "1" : "0");
-    } catch (e) {
-    }
+    setBool("dts-night-mode", dayNightOn);
     return dayNightOn;
   }
 
@@ -1187,21 +1474,15 @@
     let dockCollapsed = {};
     let dockHeights = {};
     function saveDockPrefs() {
-      try {
-        localStorage.setItem(storageOrderKey, JSON.stringify(dockOrder));
-        localStorage.setItem(storageCollapsedKey, JSON.stringify(dockCollapsed));
-        localStorage.setItem(storageHeightsKey, JSON.stringify(dockHeights));
-      } catch (e) {
-      }
+      setJSON(storageOrderKey, dockOrder);
+      setJSON(storageCollapsedKey, dockCollapsed);
+      setJSON(storageHeightsKey, dockHeights);
     }
     function loadDockPrefs() {
-      try {
-        const o = JSON.parse(localStorage.getItem(storageOrderKey) || "null");
-        if (Array.isArray(o) && o.length) dockOrder = o;
-        dockCollapsed = JSON.parse(localStorage.getItem(storageCollapsedKey) || "{}") || {};
-        dockHeights = JSON.parse(localStorage.getItem(storageHeightsKey) || "{}") || {};
-      } catch (e) {
-      }
+      const o = getJSON(storageOrderKey, null);
+      if (Array.isArray(o) && o.length) dockOrder = o;
+      dockCollapsed = getJSON(storageCollapsedKey, {});
+      dockHeights = getJSON(storageHeightsKey, {});
     }
     function applyDockOrder() {
       const sections = Array.from(container.querySelectorAll(".tool-section[data-dock-id]"));
@@ -1226,8 +1507,9 @@
       const resizeHandle = sec.querySelector(".dock-resize-handle");
       const resizeTarget = scrollBody || sec;
       const collapsing = !!dockCollapsed[id];
-      const finalMaxDim = collapsing ? "" : dockHeights[id] || "";
-      const finalOverflow = collapsing ? "" : dockHeights[id] ? "auto" : "";
+      const savedHeight = sec.dataset.resizable === "true" ? dockHeights[id] || "" : "";
+      const finalMaxDim = collapsing ? "" : savedHeight;
+      const finalOverflow = collapsing ? "" : savedHeight ? "auto" : "";
       const headEl = horizontal ? sec.querySelector(".sec-head") : null;
       const outerCollapsedWidth = headEl ? headEl.getBoundingClientRect().width + 24 + "px" : "100px";
       if (!animate || !dockMotionEnabled()) {
@@ -1286,7 +1568,7 @@
         void sec.offsetHeight;
         requestAnimationFrame(() => {
           bodyEls.forEach((el) => {
-            el.style[maxProp] = el === scrollBody && dockHeights[id] ? dockHeights[id] : el[scrollProp] + "px";
+            el.style[maxProp] = el === scrollBody && savedHeight ? savedHeight : el[scrollProp] + "px";
             el.style.opacity = "1";
           });
         });
@@ -1326,7 +1608,7 @@
         controls.className = "dock-controls";
         const dragHandle = document.createElement("span");
         dragHandle.className = "dock-drag-handle";
-        dragHandle.textContent = "\u2630";
+        setIconLabel(dragHandle, "\u2630");
         dragHandle.title = "Drag to reorder this panel";
         dragHandle.draggable = true;
         dragHandle.addEventListener("dragstart", (ev) => {
@@ -1338,13 +1620,13 @@
         const collapseBtn = document.createElement("button");
         collapseBtn.className = "dock-collapse-btn";
         collapseBtn.title = "Collapse / expand this panel";
-        const collapseGlyph = () => dockCollapsed[id] ? "\u25B6" : isHorizontal() ? "\u25C0" : "\u25BC";
-        collapseBtn.textContent = collapseGlyph();
+        const collapseGlyph = () => dockCollapsed[id] ? "\u25B8" : isHorizontal() ? "\u25C0" : "\u25BC";
+        setIconLabel(collapseBtn, collapseGlyph());
         collapseBtn.addEventListener("click", () => {
           dockCollapsed[id] = !dockCollapsed[id];
           saveDockPrefs();
           applyDockCollapse(sec, id, true);
-          collapseBtn.textContent = collapseGlyph();
+          setIconLabel(collapseBtn, collapseGlyph());
         });
         controls.appendChild(dragHandle);
         controls.appendChild(collapseBtn);
@@ -1435,7 +1717,7 @@
         if (horizontal) sec.style.maxWidth = "";
         applyDockCollapse(sec, sec.dataset.dockId);
         const collapseBtn = sec.querySelector(".dock-collapse-btn");
-        if (collapseBtn) collapseBtn.textContent = horizontal ? "\u25C0" : "\u25BC";
+        if (collapseBtn) setIconLabel(collapseBtn, horizontal ? "\u25C0" : "\u25BC");
       });
     }
     return { init, reset };
@@ -1445,7 +1727,7 @@
     storageOrderKey: "dts-dock-order",
     storageCollapsedKey: "dts-dock-collapsed",
     storageHeightsKey: "dts-dock-heights",
-    defaultOrder: ["tagPruner", "unifyVoid", "canonicalTags"],
+    defaultOrder: ["tagPruner", "unifyVoid", "canonicalTags", "bucketImages"],
     scrollContainer: rightAside,
     horizontalOnMobile: true
   });
@@ -1485,10 +1767,7 @@
     if (fontSizeVal) {
       fontSizeVal.textContent = "14px";
     }
-    try {
-      localStorage.setItem("dts-font-size", "14");
-    } catch {
-    }
+    setString("dts-font-size", "14");
   }
   function getOutsideClosablePanels() {
     return [favoritesPanel, themeCustomPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel, settingsPanel];
@@ -1496,7 +1775,7 @@
   var SETTINGS_SECTIONS_KEY = "dts-settings-sections-expanded";
   function saveSettingsSectionState(state) {
     try {
-      localStorage.setItem(SETTINGS_SECTIONS_KEY, JSON.stringify(state));
+      setJSON(SETTINGS_SECTIONS_KEY, state);
     } catch {
     }
   }
@@ -1547,17 +1826,11 @@
     }
   }
   function saveCustomPowerTools() {
-    try {
-      localStorage.setItem("dts-custom-power-tools", JSON.stringify(customPowerTools));
-    } catch (e) {
-    }
+    setJSON("dts-custom-power-tools", customPowerTools);
   }
   function loadCustomPowerTools() {
-    try {
-      const saved = JSON.parse(localStorage.getItem("dts-custom-power-tools") || "null");
-      if (Array.isArray(saved)) customPowerTools = saved;
-    } catch (e) {
-    }
+    const saved = getJSON("dts-custom-power-tools", null);
+    if (Array.isArray(saved)) customPowerTools = saved;
   }
   function findPowerToolMatch(elId) {
     for (const entry of BUILTIN_POWER_TOOLS) {
@@ -1829,8 +2102,12 @@
         a 3-dot menu for per-image actions.</li>
         ${isTouchDevice ? "" : `<li><b>Compact</b> \u2014 smaller thumbnails, tags appear on hover. Shift-click two images to
         pin them side by side in a comparison table.</li>
-        <li><b>Single</b> \u2014 one image at a time, zoomable up to 400%, drag to pan.</li>`}
+        <li><b>Single</b> \u2014 one image at a time: a compact preview (click it for the full-size
+        view \u2014 scroll to zoom, drag to pan) beside a roomy tag panel. Type a number into the
+        toolbar's "N / total" box and press Enter to jump straight to that image.</li>`}
         <li><b>\u274C Disabled</b> \u2014 the images you've moved out of the active set.</li>
+        ${isTouchDevice ? "" : `<li><b>\u{1F5BC} Originals</b> \u2014 the pre-bucketing originals kept by Bucket Images (see Power
+        tools). Read-only here; Bucket Images' Revert is what moves them back.</li>`}
         <li><b>\u{1F522} Rename all</b> \u2014 renames every loaded image (+ its .txt) to a simple zero-padded
         1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
         first; logged and undoable from the Log panel.</li>
@@ -1839,12 +2116,27 @@
       <p>To edit tags: ${isTouchDevice ? "tap" : "click"} a chip to open its menu (filter by it, look up its wiki definition,
       flag it for review, explore its keyword family), type into a card's "+ add tag" box and
       press Enter to add one, or ${isTouchDevice ? "tap" : "click"} a chip's \xD7 to remove it.</p>
+      <p><b>\u{1F3F7} Tag sorting</b> \u2014 in ${isTouchDevice ? "the image modal" : "Single view and the image modal"}, this pill above
+      the tags groups them into labelled categories (Character, Body, Face, Clothes, Limbs and
+      Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. The grouping is a best
+      guess from Danbooru tag groups, so the odd tag lands in a neighbouring category. With it on,
+      <b>\uFF0B Add subject</b> (next to the pill) splits an image's tags into named subjects (e.g.
+      "Girl 1", "Girl 2") for multi-character images: rename a subject by typing in its name,
+      add category subheaders with <b>\uFF0B Subheader</b>, and move tags between subjects by
+      dragging a chip onto a subject${isTouchDevice ? "" : ', or shift-clicking chips then "Move tags to:"'}.
+      Subjects are saved per image; removing them all returns to the plain category list.</p>
       <p><b>Filtering</b> \u2014 the search box on the left supports multiple tags combined with AND /
       OR / XOR / NOT. Type 2 or more characters and a suggestions list appears below the box:
       direct matches first, then other tags that share a word with them (searching "dr" suggests
       "dress" right away, and groups "black dress"/"dress shoes" under a "Same keyword family"
       heading). If you only want an exact match \u2014 so searching "dress" doesn't also pull in "black
-      dress" \u2014 check "Exact tag match" just under the search box.</p>
+      dress" \u2014 check "Exact tag match" just under the search box. The <b>Boolean</b> dropdown
+      under the box picks how your terms combine; tick <b>Lock</b> to keep that choice when
+      <b>Clear filter</b> (or Tag Pruner's mirror search) would otherwise reset it to AND.</p>
+      <p><b>\u{1F6A9} Review flagged tags</b> (left panel) swaps the TAGS list for every tag you've
+      flagged for review from a chip's menu, across the whole dataset. <b>Reviewed</b> clears
+      that flag everywhere at once (undoable); the row stays struck through for the session.
+      <b>Flag isolated tags</b> highlights tags on 2 or fewer images \u2014 a fast way to spot typos.</p>
       <p>If your gallery's columns keep changing count as you zoom or open a side panel, that's
       expected \u2014 Settings \u25B8 Appearance has a "Gallery columns" option to lock it to a fixed
       number instead.</p>
@@ -1917,6 +2209,14 @@
       actively restore whatever each affected image originally had. Void rules
       show in their own collapsible group (they all share one rule, since there's no separate
       canonical tag to key them by); merge rules list one row per canonical tag.</p>
+      ${isTouchDevice ? "" : `<p><b>\u{1F9FA} Bucket Images</b> \u2014 crops and resizes every Gallery image to its nearest LoRA
+      training bucket (Min side / Max side / Step, default 256 / 1024 / 64), so your trainer
+      doesn't have to. The crop keeps the subject using a saliency model (a one-time ~176 MB
+      download, \u2B07 button in the dock). <b>Prefer GPU</b> runs it on your graphics card with an
+      automatic CPU fallback. Originals are never lost: they move to an <code>original_images/</code>
+      folder (browse them via the \u{1F5BC} Originals view), and images already at a bucket size are
+      skipped, so re-running only handles the new ones. <b>\u21A9 Revert bucketing</b> puts the
+      originals back.</p>`}
       <p>Merge and Void tend to matter a lot more for a
       <span style="white-space:nowrap;"><b>character LoRA</b> <button type="button" class="info-btn" id="infoGlossaryCharacterLora" title="Character LoRA vs. style LoRA">\u24D8</button></span>
       than a style one. A character LoRA needs its identity-defining tags kept tight and
@@ -1974,7 +2274,8 @@
       title: "Tag Overseer tab",
       html: `
       <p>Two tools live here: Master Tag Control and the WD14 Autotagger. Clicking this tab again
-      while it's already open takes you back to the Gallery.</p>
+      while it's already open takes you back to the Gallery.${isTouchDevice ? "" : ` If the right sidebar
+      is tucked away, clicking this tab opens it, and clicking the tab again tucks it back.`}</p>
       <p><b>Master Tag Control</b> \u2014 select images by ${isTouchDevice ? "tapping" : "clicking"} thumbnails in the mini-grid here, or
       by selecting them in the main Gallery first (selection stays in sync either way). From there
       you can apply or remove a tag across the whole selection, conditionally apply one tag based
@@ -1988,7 +2289,8 @@
       <p><b>\u25B6 Sequential from first / from selected</b> \u2014 walk your current filter image by
       image in Single view with a quick-modify panel: text/language (custom languages welcome),
       censorship state + type checkboxes, multi-select perspective checkboxes, monochrome, sound
-      effects, comic, multiple views, koma count. A live tag preview under the image shows
+      effects, comic, multiple views, koma count. The image is the same compact preview as
+      Single view (click it for the full-size view). A live tag preview under the image shows
       exactly which tags Confirm will apply before you commit; Confirm advances automatically
       and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>`}
       <p><b>\u{1F40D} WD14 Autotagger</b> \u2014 sends selected images (or a single one, via its 3-dot menu) to
@@ -2008,8 +2310,14 @@
       <p>A folder manager separate from the Gallery \u2014 every dataset folder you've opened shows up
       here as a themed folder icon. Sort by name/time,${isTouchDevice ? "" : " or manually by dragging,"} and
       ${isTouchDevice ? "tap a folder's \u22EF button" : "right-click a folder (or tap its \u22EF button)"} for more options: remove it from
-      this list, pin it as a favorite, view its achievements read-only, or change its icon. Opening
-      a folder that isn't tracked here yet prompts you once to add it.</p>`
+      this list, pin it as a favorite, view its achievements read-only, change its icon, or move it
+      to a different tab. Opening a folder that isn't tracked here yet prompts you once to add it.</p>
+      <p><b>Tabs</b> split folders into separate groups \u2014 the built-in <b>Default</b> tab always
+      shows, and any tab you add with the <b>+</b> button can be given a password (tap its \u22EF
+      button). A password-protected tab re-locks every time the app starts; nothing about it
+      (not even folder names) renders until you enter the password. This protects against someone
+      else briefly opening the app on your machine, not a determined attacker with access to your
+      files.</p>`
     },
     {
       id: "stats-tab",
@@ -2118,7 +2426,8 @@
         rendering onto your integrated GPU instead of competing with ComfyUI's real workload on
         your discrete one. Turning it off forces pure CPU rendering. Takes effect on your next
         launch.</li>
-        <li><b>Layout & Panels</b> \u2014 UI animation mode (Fade/Swipe/Off), and "Reset panel layout" if
+        <li><b>Layout & Panels</b> \u2014 UI animation mode (Fade/Swipe/Off; Swipe treats the app as one
+        map, so tabs, views and images slide the way they actually sit), and "Reset panel layout" if
         a dock's ${isTouchDevice ? "collapse state ever gets stuck" : "drag-reorder or collapse state ever gets into a bad state"}.</li>
         <li><b>Updates & Sharing</b> \u2014 "Restart app" reloads the latest files instantly, no manual
         quit/reopen needed. "\u{1FA7A} Export app state" isn't something you'd normally need \u2014 it's a
@@ -2130,14 +2439,15 @@
       id: "themes",
       title: "Themes, Shop & Achievements",
       html: `
-      <p>25 themes in total \u2014 4 free, 21 in the \u{1F4B0} Shop (common through legendary, priced in
-      Edibits, a small in-app currency you earn from achievements). Every theme has its own accent
-      color and at least one real visual flourish beyond its palette. Epic/legendary themes
-      get an extra hover-fill effect on buttons; any cheaper theme can buy that same effect
-      individually via the Shop's "\u{1F528} Refine Theme" button, for the price difference.</p>
+      <p>26 themes in total \u2014 5 free, 21 in the \u{1F4B0} Shop (common through legendary, priced in
+      Edibits, a small in-app currency you earn from achievements). Each theme is a whole look,
+      not just a palette: its own typefaces, button and tag shapes, panel materials, and active-tab
+      marker, with the icons restroked to match. Epic/legendary themes get an extra hover-fill and
+      card lift in that theme's own style; any cheaper theme can buy them individually via the
+      Shop's "\u{1F528} Refine Theme" button, for the price difference.</p>
       <p>\u{1F3C6} Achievements (55+, unlocked per dataset folder \u2014 a fresh dataset starts with none
       unlocked) pay out Edibits as you use the app's features. \u{1F319} Night mode is a genuine per-theme
-      color inversion.</p>
+      color inversion that also keeps every text and accent color readable.</p>
       <p>Settings \u25B8 Appearance has motion-sensitivity controls: <b>Suppress Theme Flourishes</b>
       hides the Refine Theme button and turns off epic/legendary-tier hover-fill/card-tilt
       everywhere \u2014 whether a theme has it natively or you bought it via Refine Theme. Three
@@ -2220,18 +2530,19 @@
   function showSection(id) {
     const sec = HELP_SECTIONS.find((s) => s.id === id) || HELP_SECTIONS[0];
     helpContent.innerHTML = `<h2>${sec.title}</h2>${sec.html}`;
+    iconize(helpContent);
     helpContent.scrollTop = 0;
     initInfoButtons(helpContent);
     renderToc(sec.id);
     try {
-      localStorage.setItem(HELP_LAST_SECTION_KEY, sec.id);
+      setString(HELP_LAST_SECTION_KEY, sec.id);
     } catch {
     }
   }
   function openHelp() {
     let last = HELP_SECTIONS[0].id;
     try {
-      last = localStorage.getItem(HELP_LAST_SECTION_KEY) || last;
+      last = getString(HELP_LAST_SECTION_KEY) || last;
     } catch {
     }
     if (!HELP_SECTIONS.some((s) => s.id === last)) last = HELP_SECTIONS[0].id;
@@ -2261,15 +2572,10 @@
     const menu = document.createElement("div");
     menu.className = "ctx-menu";
     for (const sec of HELP_SECTIONS) {
-      const item = document.createElement("button");
-      item.className = "ctx-item" + (sec.id === activeId ? " active" : "");
-      item.textContent = sec.title;
-      item.addEventListener("click", (ev) => {
-        ev.stopPropagation();
+      addContextMenuItem(menu, sec.title, () => {
         closeTocMenu();
         showSection(sec.id);
-      });
-      menu.appendChild(item);
+      }, { className: sec.id === activeId ? "active" : "" });
     }
     document.body.appendChild(menu);
     tocMenuEl = menu;
@@ -2288,7 +2594,7 @@
       }
       let last = HELP_SECTIONS[0].id;
       try {
-        last = localStorage.getItem(HELP_LAST_SECTION_KEY) || last;
+        last = getString(HELP_LAST_SECTION_KEY) || last;
       } catch {
       }
       openTocMenu(last);
@@ -2317,7 +2623,6 @@
     refreshThemeDropdownLabel = deps.refreshThemeDropdownLabel;
   }
   var RARITY_VALUE = { common: 10, uncommon: 25, rare: 60, epic: 120, legendary: 250 };
-  var RARITY_ICON = { common: "\u26AA", uncommon: "\u{1F7E2}", rare: "\u{1F537}", epic: "\u{1F7E3}", legendary: "\u2B50" };
   var ACHIEVEMENTS = [
     {
       id: "first-edit",
@@ -2415,9 +2720,7 @@
     if (!dirHandle) return;
     try {
       const handle = await dirHandle.getFileHandle(ACH_FILE_NAME, { create: true });
-      const writable = await handle.createWritable();
-      await writable.write(JSON.stringify({ stats: folderStats, unlocked: folderUnlocked }, null, 2));
-      await writable.close();
+      await writeBytes(handle, JSON.stringify({ stats: folderStats, unlocked: folderUnlocked }, null, 2));
     } catch (err) {
     }
   }
@@ -2438,22 +2741,16 @@
     }
   }
   function saveWallet() {
-    try {
-      localStorage.setItem("dts-wallet", String(wallet));
-      localStorage.setItem("dts-owned-themes", JSON.stringify(ownedThemes));
-    } catch (e) {
-    }
+    setInt("dts-wallet", wallet);
+    setJSON("dts-owned-themes", ownedThemes);
     walletDisplay.textContent = String(wallet);
     achWallet.textContent = String(wallet);
     shopWallet.textContent = String(wallet);
   }
   function loadWallet() {
-    try {
-      wallet = parseInt(localStorage.getItem("dts-wallet") || "0", 10) || 0;
-      const owned = JSON.parse(localStorage.getItem("dts-owned-themes") || "null");
-      if (Array.isArray(owned)) ownedThemes = Array.from(/* @__PURE__ */ new Set(["studio", "cyberpunk", "oriental", "subway", "osmium", ...owned]));
-    } catch (e) {
-    }
+    wallet = getInt("dts-wallet", 0);
+    const owned = getJSON("dts-owned-themes", null);
+    if (Array.isArray(owned)) ownedThemes = Array.from(/* @__PURE__ */ new Set(["studio", "cyberpunk", "oriental", "subway", "osmium", ...owned]));
     saveWallet();
   }
   function resetWallet() {
@@ -2503,9 +2800,9 @@
     const popup = document.createElement("div");
     popup.className = "ach-popup";
     popup.innerHTML = `
-    <span class="ach-rarity-icon">${RARITY_ICON[ach.rarity] || "\u26AA"}</span>
+    <span class="ach-rarity-icon">${rarityIcon(ach.rarity)}</span>
     <div class="ach-info">
-      <div class="ach-title">\u{1F3C6} ${escapeHtml(ach.title)}</div>
+      <div class="ach-title">${iconSvg("trophy", "ic-lead")}${escapeHtml(ach.title)}</div>
       <div class="ach-desc">${escapeHtml(ach.desc)}</div>
       <div class="ach-reward">${ach.rarity} achievement \xB7 +${reward} Edibits</div>
     </div>
@@ -2527,9 +2824,9 @@
       const row = document.createElement("div");
       row.className = "ach-row " + (unlocked ? "unlocked" : "locked");
       row.innerHTML = `
-      <span class="ach-rarity-icon">${RARITY_ICON[ach.rarity] || "\u26AA"}</span>
+      <span class="ach-rarity-icon">${rarityIcon(ach.rarity)}</span>
       <div class="ach-info">
-        <div class="ach-title">${unlocked ? "\u{1F3C6} " : ""}${escapeHtml(ach.title)}</div>
+        <div class="ach-title">${unlocked ? iconSvg("trophy", "ic-lead") : ""}${escapeHtml(ach.title)}</div>
         <div class="ach-desc">${escapeHtml(ach.desc)}</div>
         <div class="ach-reward">${unlocked ? "Unlocked" : "Locked"} \xB7 ${ach.rarity} \xB7 +${RARITY_VALUE[ach.rarity]} Edibits</div>
       </div>
@@ -2566,7 +2863,7 @@
       const btn = document.createElement("button");
       if (owned) {
         const active = themeSelect.value === t.id;
-        btn.textContent = active ? "In use \u2713" : "Use";
+        setIconLabel(btn, active ? "In use \u2713" : "Use");
         btn.disabled = active;
         if (!active) {
           btn.addEventListener("click", (ev) => {
@@ -2623,13 +2920,13 @@
     btnRefineTheme.style.display = "";
     const currentTheme = themeSelect.value;
     if (themeAlreadyHasPremiumEffects(currentTheme)) {
-      btnRefineTheme.textContent = "\u{1F528} Refine Theme (already refined)";
+      setIconLabel(btnRefineTheme, "\u{1F528} Refine Theme (already refined)");
       btnRefineTheme.disabled = true;
       btnRefineTheme.title = "The current theme already has the epic/legendary button effects.";
       return;
     }
     const cost = refineThemeCost(currentTheme);
-    btnRefineTheme.textContent = `\u{1F528} Refine Theme (${cost} Edibits)`;
+    setIconLabel(btnRefineTheme, `\u{1F528} Refine Theme (${cost} Edibits)`);
     btnRefineTheme.disabled = wallet < cost;
     btnRefineTheme.title = "Upgrade the current theme to epic/legendary-tier button effects.";
   }
@@ -2668,17 +2965,10 @@
     achCloseBtn.addEventListener("click", () => hidePanel(achievementsPanel));
     achPopupsToggle.addEventListener("change", () => {
       achievementPopupsEnabled = achPopupsToggle.checked;
-      try {
-        localStorage.setItem("dts-ach-popups", achievementPopupsEnabled ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-ach-popups", achievementPopupsEnabled);
     });
     (function initAchPopupPref() {
-      let on = true;
-      try {
-        on = localStorage.getItem("dts-ach-popups") !== "0";
-      } catch (e) {
-      }
+      const on = getBool("dts-ach-popups", true);
       achievementPopupsEnabled = on;
       achPopupsToggle.checked = on;
     })();
@@ -2707,36 +2997,22 @@
     });
     suppressThemeFlourishesToggle.addEventListener("change", () => {
       const on = suppressThemeFlourishesToggle.checked;
-      try {
-        localStorage.setItem("dts-suppress-theme-flourishes", on ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-suppress-theme-flourishes", on);
       document.documentElement.classList.toggle("suppress-theme-flourishes", on);
       updateRefineThemeButton();
     });
     (function initSuppressThemeFlourishesPref() {
-      let on = false;
-      try {
-        on = localStorage.getItem("dts-suppress-theme-flourishes") === "1";
-      } catch (e) {
-      }
+      const on = getBool("dts-suppress-theme-flourishes");
       suppressThemeFlourishesToggle.checked = on;
       document.documentElement.classList.toggle("suppress-theme-flourishes", on);
     })();
     function wireFlourishToggle(toggleEl, storageKey, className) {
       toggleEl.addEventListener("change", () => {
         const on2 = toggleEl.checked;
-        try {
-          localStorage.setItem(storageKey, on2 ? "1" : "0");
-        } catch (e) {
-        }
+        setBool(storageKey, on2);
         document.documentElement.classList.toggle(className, on2);
       });
-      let on = false;
-      try {
-        on = localStorage.getItem(storageKey) === "1";
-      } catch (e) {
-      }
+      const on = getBool(storageKey);
       toggleEl.checked = on;
       document.documentElement.classList.toggle(className, on);
     }
@@ -2781,6 +3057,7 @@
   var statsChartMode = "pie";
   var PIXEL_TYPES = /* @__PURE__ */ new Set(["crop-image", "rotate-image"]);
   var ISOLATE_TYPES = /* @__PURE__ */ new Set(["isolate-image"]);
+  var REVIEW_TYPES = /* @__PURE__ */ new Set(["unflag-review"]);
   var LOG_FILE_NAME = "_tag_edit_log.json";
   var getDirHandle2 = () => null;
   var getEntryByBase = () => void 0;
@@ -2788,6 +3065,7 @@
   var applyRenameDirectionRef = async () => 0;
   var applyPixelDirectionRef = async () => 0;
   var applyIsolateDirectionRef = async () => 0;
+  var applyFlaggedReviewDirectionRef = () => 0;
   var moveEntryRef = async () => {
   };
   var trackStatRef = () => {
@@ -2818,9 +3096,7 @@
     if (!dirHandle) return;
     try {
       const handle = await dirHandle.getFileHandle(LOG_FILE_NAME, { create: true });
-      const writable = await handle.createWritable();
-      await writable.write(JSON.stringify(editLog, null, 2));
-      await writable.close();
+      await writeBytes(handle, JSON.stringify(editLog, null, 2));
     } catch {
     }
   }
@@ -2845,7 +3121,7 @@
     updateLogButton();
   }
   function updateLogButton() {
-    btnLog.textContent = getDirHandle2() ? `\u{1F4DC} Log (${editLog.length})` : "\u{1F4DC} Log";
+    setIconLabel(btnLog, getDirHandle2() ? `\u{1F4DC} Log (${editLog.length})` : "\u{1F4DC} Log");
   }
   function formatLogTime(ts) {
     try {
@@ -2872,7 +3148,8 @@
     "rename-files": "#4a9fd1",
     "crop-image": "#3aa655",
     "rotate-image": "#7a9fd1",
-    "isolate-image": "#b57edc"
+    "isolate-image": "#b57edc",
+    "unflag-review": "#e8a33d"
   };
   var STAT_TYPE_LABEL = {
     "add-tag": "Tags added",
@@ -2892,7 +3169,8 @@
     "rename-files": "Files renamed",
     "crop-image": "Crops",
     "rotate-image": "Rotates",
-    "isolate-image": "Isolates"
+    "isolate-image": "Isolates",
+    "unflag-review": "Review flags cleared"
   };
   function computeStatsBreakdown() {
     const counts = {};
@@ -3035,10 +3313,10 @@
         const actions = document.createElement("div");
         actions.className = "log-actions";
         const undoBtn = document.createElement("button");
-        undoBtn.textContent = "\u21A9 Undo this";
+        setIconLabel(undoBtn, "\u21A9 Undo this");
         undoBtn.addEventListener("click", () => applyLogEntryDirection(logEntry, "undo"));
         const redoBtn = document.createElement("button");
-        redoBtn.textContent = "\u21AA Redo this";
+        setIconLabel(redoBtn, "\u21AA Redo this");
         redoBtn.className = "primary";
         redoBtn.addEventListener("click", () => applyLogEntryDirection(logEntry, "redo"));
         actions.appendChild(undoBtn);
@@ -3057,10 +3335,10 @@
         const actions = document.createElement("div");
         actions.className = "log-actions";
         const undoBtn = document.createElement("button");
-        undoBtn.textContent = "\u21A9 Undo this";
+        setIconLabel(undoBtn, "\u21A9 Undo this");
         undoBtn.addEventListener("click", () => applyRenameLogEntryDirection(logEntry, "undo"));
         const redoBtn = document.createElement("button");
-        redoBtn.textContent = "\u21AA Redo this";
+        setIconLabel(redoBtn, "\u21AA Redo this");
         redoBtn.className = "primary";
         redoBtn.addEventListener("click", () => applyRenameLogEntryDirection(logEntry, "redo"));
         actions.appendChild(undoBtn);
@@ -3070,10 +3348,10 @@
         const actions = document.createElement("div");
         actions.className = "log-actions";
         const undoBtn = document.createElement("button");
-        undoBtn.textContent = "\u21A9 Undo this";
+        setIconLabel(undoBtn, "\u21A9 Undo this");
         undoBtn.addEventListener("click", () => applyPixelLogEntryDirection(logEntry, "undo"));
         const redoBtn = document.createElement("button");
-        redoBtn.textContent = "\u21AA Redo this";
+        setIconLabel(redoBtn, "\u21AA Redo this");
         redoBtn.className = "primary";
         redoBtn.addEventListener("click", () => applyPixelLogEntryDirection(logEntry, "redo"));
         actions.appendChild(undoBtn);
@@ -3083,12 +3361,25 @@
         const actions = document.createElement("div");
         actions.className = "log-actions";
         const undoBtn = document.createElement("button");
-        undoBtn.textContent = "\u21A9 Undo this";
+        setIconLabel(undoBtn, "\u21A9 Undo this");
         undoBtn.addEventListener("click", () => applyIsolateLogEntryDirection(logEntry, "undo"));
         const redoBtn = document.createElement("button");
-        redoBtn.textContent = "\u21AA Redo this";
+        setIconLabel(redoBtn, "\u21AA Redo this");
         redoBtn.className = "primary";
         redoBtn.addEventListener("click", () => applyIsolateLogEntryDirection(logEntry, "redo"));
+        actions.appendChild(undoBtn);
+        actions.appendChild(redoBtn);
+        row.appendChild(actions);
+      } else if (REVIEW_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
+        const actions = document.createElement("div");
+        actions.className = "log-actions";
+        const undoBtn = document.createElement("button");
+        setIconLabel(undoBtn, "\u21A9 Undo this");
+        undoBtn.addEventListener("click", () => applyReviewLogEntryDirection(logEntry, "undo"));
+        const redoBtn = document.createElement("button");
+        setIconLabel(redoBtn, "\u21AA Redo this");
+        redoBtn.className = "primary";
+        redoBtn.addEventListener("click", () => applyReviewLogEntryDirection(logEntry, "redo"));
         actions.appendChild(undoBtn);
         actions.appendChild(redoBtn);
         row.appendChild(actions);
@@ -3174,6 +3465,24 @@
     renderLogPanel();
     checkAchievementsRef();
   }
+  function applyReviewLogEntryDirection(logEntry, direction) {
+    const count = applyFlaggedReviewDirectionRef(logEntry.affected, direction);
+    if (count === 0) {
+      toast("None of the affected images are in the loaded dataset anymore.");
+      return;
+    }
+    const verb = direction === "undo" ? "Undid" : "Redid";
+    pushLogEntry({
+      type: direction,
+      summary: `${verb} (from log): ${logEntry.summary}`,
+      affected: logEntry.affected
+    });
+    trackStatRef(direction === "undo" ? "undos" : "redos");
+    toast(`${verb} that edit.`);
+    refreshAllUIRef();
+    renderLogPanel();
+    checkAchievementsRef();
+  }
   async function toggleMoveLogEntry(logEntry) {
     const base = logEntry.affected[0]?.base;
     const e = base ? getEntryByBase(base) : null;
@@ -3196,6 +3505,7 @@
     applyRenameDirectionRef = deps.applyRenameDirection;
     applyPixelDirectionRef = deps.applyPixelDirection;
     applyIsolateDirectionRef = deps.applyIsolateDirection;
+    applyFlaggedReviewDirectionRef = deps.applyFlaggedReviewDirection;
     moveEntryRef = deps.moveEntry;
     trackStatRef = deps.trackStat;
     checkAchievementsRef = deps.checkAchievements;
@@ -3234,20 +3544,18 @@
         toast("Nothing to export yet.");
         return;
       }
-      if (!window.showSaveFilePicker) {
+      if (!hasSaveFilePicker()) {
         toast("File export needs Chrome/Edge/Electron.");
         return;
       }
       try {
         const dirHandle = getDirHandle2();
         const suggestedName = `tag-edit-log-${dirHandle?.name || "dataset"}-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json`;
-        const handle = await window.showSaveFilePicker({
+        const handle = await pickSaveFile({
           suggestedName,
           types: [{ description: "JSON log", accept: { "application/json": [".json"] } }]
         });
-        const writable = await handle.createWritable();
-        await writable.write(JSON.stringify(editLog, null, 2));
-        await writable.close();
+        await writeBytes(handle, JSON.stringify(editLog, null, 2));
         toast("Log exported.");
       } catch {
       }
@@ -3294,9 +3602,7 @@
     if (!dirHandle) return;
     try {
       const handle = await dirHandle.getFileHandle(RULES_FILE_NAME, { create: true });
-      const writable = await handle.createWritable();
-      await writable.write(JSON.stringify(canonicalRules, null, 2));
-      await writable.close();
+      await writeBytes(handle, JSON.stringify(canonicalRules, null, 2));
     } catch (err) {
     }
   }
@@ -3569,12 +3875,12 @@
     } else {
       const label = document.createElement("span");
       label.className = "canonical-rule-label canonical-rule-void";
-      label.textContent = "\u{1F5D1} Void (remove entirely)";
+      setIconLabel(label, "\u{1F5D1} Void (remove entirely)");
       label.title = "Every ACTIVE child tag below gets removed outright \u2014 nothing replaces it.";
       head.appendChild(label);
     }
     const enableToggle = document.createElement("label");
-    enableToggle.className = "canonical-rule-enable-toggle";
+    enableToggle.className = "ach-toggle-row canonical-rule-enable-toggle";
     enableToggle.title = rule.enabled ? "Uncheck to pause this whole rule" : "This rule is paused \u2014 check to resume applying it";
     const enableCb = document.createElement("input");
     enableCb.type = "checkbox";
@@ -3590,7 +3896,7 @@
     enableToggle.appendChild(document.createTextNode(rule.enabled ? " Enabled" : " Paused"));
     head.appendChild(enableToggle);
     const deleteRuleBtn = document.createElement("button");
-    deleteRuleBtn.textContent = "\u{1F5D1} Delete rule";
+    setIconLabel(deleteRuleBtn, "\u{1F5D1} Delete rule");
     deleteRuleBtn.title = "Remove this whole rule and unmerge/unvoid whatever it affected, using the edit log to restore exactly the tags each image actually had";
     deleteRuleBtn.addEventListener("click", () => {
       unmergeChildren(rule, rule.children.slice());
@@ -3649,10 +3955,7 @@
     return row;
   }
   var voidSectionExpanded = true;
-  try {
-    voidSectionExpanded = localStorage.getItem("dts-void-section-expanded") !== "0";
-  } catch (e) {
-  }
+  voidSectionExpanded = getBool("dts-void-section-expanded", true);
   function renderCanonicalTagsList() {
     canonicalTagsList.innerHTML = "";
     if (canonicalRules.length === 0) {
@@ -3672,14 +3975,11 @@
       const header = document.createElement("button");
       header.type = "button";
       header.className = "settings-section-header";
-      header.innerHTML = `<span class="settings-section-arrow">\u25B8</span><span>\u{1F5D1} Void \u2014 ${voidTagCount} tag${voidTagCount === 1 ? "" : "s"}</span>`;
+      header.innerHTML = `<span class="settings-section-arrow">${iconSvg("chevron-right")}</span><span>${iconSvg("trash", "ic-lead")}Void \u2014 ${voidTagCount} tag${voidTagCount === 1 ? "" : "s"}</span>`;
       header.addEventListener("click", () => {
         voidSectionExpanded = !section.classList.contains("expanded");
         section.classList.toggle("expanded", voidSectionExpanded);
-        try {
-          localStorage.setItem("dts-void-section-expanded", voidSectionExpanded ? "1" : "0");
-        } catch (e) {
-        }
+        setBool("dts-void-section-expanded", voidSectionExpanded);
       });
       section.appendChild(header);
       const body = document.createElement("div");
@@ -3769,9 +4069,7 @@
       if (!e || !st) continue;
       const bytes = direction === "undo" ? st.prev : st.next;
       try {
-        const writable = await e.imgHandle.createWritable();
-        await writable.write(bytes);
-        await writable.close();
+        await writeBytes(e.imgHandle, bytes);
       } catch {
         continue;
       }
@@ -3798,6 +4096,7 @@
   var getDisabledDirHandle = () => null;
   var setDisabledDirHandle = () => {
   };
+  var getOriginalDirHandle = () => null;
   var reindexEntry = () => {
   };
   var resetSingleIndex = () => {
@@ -3809,20 +4108,15 @@
   var renderCurrentViewRef = () => {
   };
   var applyIsolateDirectionRef2 = async () => 0;
+  var applyFlaggedReviewDirectionRef2 = () => 0;
   var AUTOSAVE_KEY = "dts-autosave";
   (function initAutosavePref() {
     let on = false;
-    try {
-      on = localStorage.getItem(AUTOSAVE_KEY) === "1";
-    } catch (e) {
-    }
+    on = getBool(AUTOSAVE_KEY);
     autosaveToggle.checked = on;
   })();
   autosaveToggle.addEventListener("change", () => {
-    try {
-      localStorage.setItem(AUTOSAVE_KEY, autosaveToggle.checked ? "1" : "0");
-    } catch (e) {
-    }
+    setBool(AUTOSAVE_KEY, autosaveToggle.checked);
   });
   var autosaveTimer = null;
   var AUTOSAVE_DEBOUNCE_MS = 1200;
@@ -3976,15 +4270,17 @@
   async function moveEntry(entry, toDisabled, opts) {
     const dirHandle = getDirHandle4();
     if (!dirHandle) return;
+    if (entry.original) {
+      toast("Originals are managed by the Bucket Images tool.");
+      return;
+    }
     const silent = !!opts?.silent;
     try {
       const targetDir = toDisabled ? await ensureDisabledDir() : dirHandle;
       const sourceDir = toDisabled ? dirHandle : getDisabledDirHandle();
       const file = await entry.imgHandle.getFile();
       const newImgHandle = await targetDir.getFileHandle(entry.imgName, { create: true });
-      const iw = await newImgHandle.createWritable();
-      await iw.write(file);
-      await iw.close();
+      await writeBytes(newImgHandle, file);
       if (sourceDir) {
         try {
           await sourceDir.removeEntry(entry.imgName);
@@ -3998,9 +4294,7 @@
       entry.imgHandle = newImgHandle;
       if (entry.tags.length > 0) {
         const newTxtHandle = await targetDir.getFileHandle(entry.txtName, { create: true });
-        const tw = await newTxtHandle.createWritable();
-        await tw.write(entry.tags.join(", "));
-        await tw.close();
+        await writeBytes(newTxtHandle, entry.tags.join(", "));
         entry.txtHandle = newTxtHandle;
         entry.txtExisted = true;
       } else {
@@ -4037,9 +4331,7 @@
     const oldHandle = await dir.getFileHandle(oldName, { create: false });
     const file = await oldHandle.getFile();
     const newHandle = await dir.getFileHandle(newName, { create: true });
-    const writable = await newHandle.createWritable();
-    await writable.write(file);
-    await writable.close();
+    await writeBytes(newHandle, file);
     await dir.removeEntry(oldName);
     return newHandle;
   }
@@ -4051,8 +4343,8 @@
     }
     const disabledDirHandle = getDisabledDirHandle();
     const byFilename = (a, b) => a.base.localeCompare(b.base, void 0, { numeric: true });
-    const active = getEntries2().filter((e) => !e.disabled).sort(byFilename);
-    const disabled = getEntries2().filter((e) => e.disabled).sort(byFilename);
+    const active = getEntries2().filter((e) => !e.disabled && !e.original).sort(byFilename);
+    const disabled = getEntries2().filter((e) => e.disabled && !e.original).sort(byFilename);
     const ordered = [...active, ...disabled];
     if (ordered.length === 0) {
       toast("No images to rename.");
@@ -4154,16 +4446,18 @@
     getDirHandle4 = deps.getDirHandle;
     getDisabledDirHandle = deps.getDisabledDirHandle;
     setDisabledDirHandle = deps.setDisabledDirHandle;
+    getOriginalDirHandle = deps.getOriginalDirHandle;
     reindexEntry = deps.reindexEntry;
     resetSingleIndex = deps.resetSingleIndex;
     refreshStatsRef = deps.refreshStats;
     refreshAllUIRef3 = deps.refreshAllUI;
     renderCurrentViewRef = deps.renderCurrentView;
     applyIsolateDirectionRef2 = deps.applyIsolateDirection;
+    applyFlaggedReviewDirectionRef2 = deps.applyFlaggedReviewDirection;
     btnUndo.addEventListener("click", async () => {
       const record = undoStack.pop();
       if (!record) return;
-      const count = PIXEL_TYPES.has(record.type) ? await applyPixelDirection(record.affected, "undo") : ISOLATE_TYPES.has(record.type) ? await applyIsolateDirectionRef2(record.affected, "undo") : applyTagDirection(record.affected, "undo");
+      const count = PIXEL_TYPES.has(record.type) ? await applyPixelDirection(record.affected, "undo") : ISOLATE_TYPES.has(record.type) ? await applyIsolateDirectionRef2(record.affected, "undo") : REVIEW_TYPES.has(record.type) ? applyFlaggedReviewDirectionRef2(record.affected, "undo") : applyTagDirection(record.affected, "undo");
       redoStack.push(record);
       updateUndoRedoButtons();
       const summary = `Undid: ${record.summary}`;
@@ -4176,7 +4470,7 @@
     btnRedo.addEventListener("click", async () => {
       const record = redoStack.pop();
       if (!record) return;
-      const count = PIXEL_TYPES.has(record.type) ? await applyPixelDirection(record.affected, "redo") : ISOLATE_TYPES.has(record.type) ? await applyIsolateDirectionRef2(record.affected, "redo") : applyTagDirection(record.affected, "redo");
+      const count = PIXEL_TYPES.has(record.type) ? await applyPixelDirection(record.affected, "redo") : ISOLATE_TYPES.has(record.type) ? await applyIsolateDirectionRef2(record.affected, "redo") : REVIEW_TYPES.has(record.type) ? applyFlaggedReviewDirectionRef2(record.affected, "redo") : applyTagDirection(record.affected, "redo");
       undoStack.push(record);
       updateUndoRedoButtons();
       const summary = `Redid: ${record.summary}`;
@@ -4274,7 +4568,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     }
     for (const e of dirty) {
       try {
-        const targetDir = e.disabled ? disabledDirHandle : dirHandle;
+        const targetDir = e.original ? getOriginalDirHandle() : e.disabled ? disabledDirHandle : dirHandle;
         if (!targetDir) {
           fail++;
           continue;
@@ -4282,9 +4576,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
         if (!e.txtHandle) {
           e.txtHandle = await targetDir.getFileHandle(e.txtName, { create: true });
         }
-        const writable = await e.txtHandle.createWritable();
-        await writable.write(e.tags.join(", "));
-        await writable.close();
+        await writeBytes(e.txtHandle, e.tags.join(", "));
         e.dirty = false;
         e.txtExisted = true;
         ok++;
@@ -4359,7 +4651,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
         if (mirrorSourcePrunerId !== null) mirrorToGalleryRef(pruner.selected);
       });
       mirrorLabel.appendChild(mirrorCb);
-      mirrorLabel.appendChild(document.createTextNode("\u{1F50D}"));
+      mirrorLabel.insertAdjacentHTML("beforeend", iconSvg("search"));
       head.appendChild(mirrorLabel);
       const clearBtn = document.createElement("button");
       clearBtn.className = "pruner-clear-btn";
@@ -4376,7 +4668,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       if (tagPruners.length > 1) {
         const rmBtn = document.createElement("button");
         rmBtn.className = "pruner-remove-btn danger-ghost";
-        rmBtn.textContent = "\u2715";
+        setIconLabel(rmBtn, "\u2715");
         rmBtn.title = "Remove this Tag Pruner";
         rmBtn.addEventListener("click", () => {
           if (mirrorSourcePrunerId === pruner.id) mirrorSourcePrunerId = null;
@@ -4403,7 +4695,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     wrap.className = "pruner-mobile-tasks";
     const saveBtn = document.createElement("button");
     saveBtn.className = "primary";
-    saveBtn.textContent = "\u{1F4BE} Save as task";
+    setIconLabel(saveBtn, "\u{1F4BE} Save as task");
     saveBtn.title = "Stash the tags currently checked above as a separate merge/void job, and clear the checkboxes to browse for the next one";
     saveBtn.disabled = pruner.selected.size === 0;
     saveBtn.addEventListener("click", () => {
@@ -4932,6 +5224,63 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     positionAutocomplete(inputEl.getBoundingClientRect());
   }
 
+  // src/renderer/idb.ts
+  function openDB(name, version, storeName) {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(name, version);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(storeName)) {
+          db.createObjectStore(storeName, { keyPath: "id", autoIncrement: true });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function idbGetAll(db, storeName) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readonly");
+      const req = tx.objectStore(storeName).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function idbAdd(db, storeName, value) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readwrite");
+      const req = tx.objectStore(storeName).add(value);
+      tx.oncomplete = () => resolve(req.result);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  function idbDelete(db, storeName, key) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readwrite");
+      tx.objectStore(storeName).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  function idbUpdate(db, storeName, key, patch) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readwrite");
+      const store = tx.objectStore(storeName);
+      const getReq = store.get(key);
+      getReq.onsuccess = () => {
+        const rec = getReq.result;
+        if (!rec) {
+          resolve();
+          return;
+        }
+        Object.assign(rec, patch);
+        store.put(rec);
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   // src/renderer/favorites.ts
   var FAV_DB_NAME = "dts-favorites-db";
   var FAV_STORE = "folders";
@@ -4941,26 +5290,11 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
   var onFavoriteChanged = () => {
   };
   function openFavDB() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(FAV_DB_NAME, 1);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(FAV_STORE)) {
-          db.createObjectStore(FAV_STORE, { keyPath: "id", autoIncrement: true });
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
+    return openDB(FAV_DB_NAME, 1, FAV_STORE);
   }
-  function addFavoriteHandle(handle) {
-    const storedHandle = handle.toJSON ? handle.toJSON() : handle;
-    return openFavDB().then((db) => new Promise((resolve, reject) => {
-      const tx = db.transaction(FAV_STORE, "readwrite");
-      tx.objectStore(FAV_STORE).add({ name: handle.name, handle: storedHandle, addedAt: Date.now() });
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    }));
+  async function addFavoriteHandle(handle) {
+    const db = await openFavDB();
+    await idbAdd(db, FAV_STORE, { name: handle.name, handle: serializeHandle(handle), addedAt: Date.now() });
   }
   async function findFavoriteMatch(handle) {
     let favs = [];
@@ -4992,31 +5326,19 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
   async function isFavorited(handle) {
     return !!await findFavoriteMatch(handle);
   }
-  function listFavorites() {
-    return openFavDB().then((db) => new Promise((resolve, reject) => {
-      const tx = db.transaction(FAV_STORE, "readonly");
-      const req = tx.objectStore(FAV_STORE).getAll();
-      req.onsuccess = () => {
-        const favs = req.result || [];
-        if (window.__dtsReviveDirHandle) {
-          for (const fav of favs) {
-            if (fav.handle && fav.handle.__dtsMobileHandle) {
-              fav.handle = window.__dtsReviveDirHandle(fav.handle);
-            }
-          }
-        }
-        resolve(favs);
-      };
-      req.onerror = () => reject(req.error);
-    }));
+  async function listFavorites() {
+    const db = await openFavDB();
+    const favs = await idbGetAll(db, FAV_STORE);
+    for (const fav of favs) {
+      if (fav.handle && isMobileHandle(fav.handle)) {
+        fav.handle = reviveHandle(fav.handle);
+      }
+    }
+    return favs;
   }
-  function removeFavorite(id) {
-    return openFavDB().then((db) => new Promise((resolve, reject) => {
-      const tx = db.transaction(FAV_STORE, "readwrite");
-      tx.objectStore(FAV_STORE).delete(id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    }));
+  async function removeFavorite(id) {
+    const db = await openFavDB();
+    await idbDelete(db, FAV_STORE, id);
   }
   async function renderFavorites() {
     let favs = [];
@@ -5043,7 +5365,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       openBtn.className = "primary";
       openBtn.addEventListener("click", () => openFavorite(fav));
       const rmBtn = document.createElement("button");
-      rmBtn.textContent = "\u2715";
+      setIconLabel(rmBtn, "\u2715");
       rmBtn.className = "danger-ghost";
       rmBtn.addEventListener("click", async () => {
         await removeFavorite(fav.id);
@@ -5058,7 +5380,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
   }
   async function openFavorite(fav) {
     try {
-      const perm = await fav.handle.requestPermission({ mode: "readwrite" });
+      const perm = await requestPermission(fav.handle, "readwrite");
       if (perm !== "granted") {
         toast("Permission was not granted for that folder.");
         return;
@@ -5092,14 +5414,13 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     btnAddFavorite.addEventListener("click", async () => {
       const dirHandle = getDirHandle5();
       if (!dirHandle) return;
-      const fsHandle = dirHandle;
-      if (await isFavorited(fsHandle)) {
+      if (await isFavorited(dirHandle)) {
         toast(`"${dirHandle.name}" is already favorited.`);
         return;
       }
       try {
-        await addFavoriteHandle(fsHandle);
-        onFavoriteChanged(fsHandle, true);
+        await addFavoriteHandle(dirHandle);
+        onFavoriteChanged(dirHandle, true);
         toast(`Saved "${dirHandle.name}" to favorites.`);
         trackStat("favorited");
         checkAchievements();
@@ -5133,7 +5454,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     pickerBusy = true;
     let picked = null;
     try {
-      picked = await window.showDirectoryPicker({ mode: "readwrite" });
+      picked = await pickDirectory({ mode: "readwrite" });
     } catch (e) {
       const msg = e?.message || "";
       const cancelled = e?.name === "AbortError" || /cancel/i.test(msg);
@@ -5168,17 +5489,378 @@ Pick your actual dataset folder (the one containing your images and .txt files) 
   }
 
   // src/renderer/dataset-manager.ts
+  var DEFAULT_GROUP_ID = 0;
+  var GROUPS_KEY = "dts-dataset-groups";
+  var ACTIVE_GROUP_KEY = "dts-dataset-active-group";
+  var groups = [];
+  var activeGroupId = DEFAULT_GROUP_ID;
+  var unlockedGroupIds = /* @__PURE__ */ new Set();
+  function recordGroupId(rec) {
+    return rec.groupId == null ? DEFAULT_GROUP_ID : rec.groupId;
+  }
+  function loadGroups() {
+    groups = getJSON(GROUPS_KEY, []);
+    const saved = getInt(ACTIVE_GROUP_KEY, DEFAULT_GROUP_ID);
+    const savedGroup = groups.find((g) => g.id === saved);
+    activeGroupId = savedGroup && savedGroup.passwordHash ? DEFAULT_GROUP_ID : saved;
+  }
+  function saveGroups() {
+    setJSON(GROUPS_KEY, groups);
+  }
+  function saveActiveGroup() {
+    setInt(ACTIVE_GROUP_KEY, activeGroupId);
+  }
+  function getGroup(id) {
+    return groups.find((g) => g.id === id);
+  }
+  function isGroupLocked(id) {
+    if (id === DEFAULT_GROUP_ID) return false;
+    const g = getGroup(id);
+    return !!(g && g.passwordHash && !unlockedGroupIds.has(id));
+  }
+  async function sha256Hex(text) {
+    const bytes = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  function randomHex(byteLen) {
+    const arr = new Uint8Array(byteLen);
+    crypto.getRandomValues(arr);
+    return Array.from(arr).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  async function hashPassword(password, salt) {
+    return sha256Hex(salt + ":" + password);
+  }
+  function promptText(message, opts = {}) {
+    return new Promise((resolve) => {
+      const { box, close } = createModalShell({
+        onDismiss: () => {
+          resolve(null);
+          close();
+        },
+        onShow: () => input.focus()
+      });
+      const msg = document.createElement("div");
+      msg.className = "confirm-message";
+      msg.textContent = message;
+      box.appendChild(msg);
+      const input = document.createElement("input");
+      input.type = opts.password ? "password" : "text";
+      input.className = "dm-prompt-input";
+      if (opts.placeholder) input.placeholder = opts.placeholder;
+      box.appendChild(input);
+      const btnRow = document.createElement("div");
+      btnRow.className = "confirm-btn-row";
+      const cancelBtn = document.createElement("button");
+      cancelBtn.textContent = "Cancel";
+      const okBtn = document.createElement("button");
+      okBtn.textContent = opts.okLabel || "OK";
+      okBtn.className = "primary";
+      cancelBtn.addEventListener("click", () => {
+        resolve(null);
+        close();
+      });
+      okBtn.addEventListener("click", () => {
+        resolve(input.value);
+        close();
+      });
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          resolve(input.value);
+          close();
+        }
+      });
+      btnRow.appendChild(cancelBtn);
+      btnRow.appendChild(okBtn);
+      box.appendChild(btnRow);
+    });
+  }
+  async function createGroupFlow() {
+    const name = await promptText("Name this new tab:", { okLabel: "Create", placeholder: "e.g. Private" });
+    if (!name || !name.trim()) return;
+    const group = { id: Date.now(), name: name.trim(), passwordSalt: null, passwordHash: null };
+    groups.push(group);
+    saveGroups();
+    activeGroupId = group.id;
+    saveActiveGroup();
+    renderTabBar();
+    renderDatasetManagerTab();
+  }
+  async function renameGroupFlow(group) {
+    const name = await promptText(`Rename "${group.name}" to:`, { okLabel: "Rename", placeholder: group.name });
+    if (!name || !name.trim()) return;
+    group.name = name.trim();
+    saveGroups();
+    renderTabBar();
+  }
+  async function setGroupPasswordFlow(group) {
+    const isFirstLock = !group.passwordHash;
+    if (isFirstLock) {
+      const ack = await showConfirmModal(
+        `This app has no "forgot password" recovery \u2014 if you forget the password for "${group.name}", the only way back in is deleting the tab itself. Continue setting a password?`,
+        { okLabel: "I understand, continue" }
+      );
+      if (!ack) return;
+    } else {
+      const oldPw = await promptText(
+        `Enter the current password for "${group.name}" to change it:`,
+        { okLabel: "Verify", password: true, placeholder: "Current password" }
+      );
+      if (oldPw === null) return;
+      const attemptHash = await hashPassword(oldPw, group.passwordSalt);
+      if (attemptHash !== group.passwordHash) {
+        toast("Wrong password \u2014 nothing changed.", 2600);
+        return;
+      }
+    }
+    const pw = await promptText(
+      group.passwordHash ? `Set a new password for "${group.name}":` : `Set a password for "${group.name}" \u2014 it'll lock every time the app starts, until you enter this again:`,
+      { okLabel: "Set password", password: true, placeholder: "Password" }
+    );
+    if (pw === null) return;
+    if (!pw) {
+      toast("Password cannot be empty.", 2600);
+      return;
+    }
+    const confirmPw = await promptText("Confirm the password:", { okLabel: "Confirm", password: true, placeholder: "Password" });
+    if (confirmPw === null) return;
+    if (pw !== confirmPw) {
+      toast("Passwords did not match \u2014 nothing changed.", 3200);
+      return;
+    }
+    const salt = randomHex(16);
+    group.passwordSalt = salt;
+    group.passwordHash = await hashPassword(pw, salt);
+    unlockedGroupIds.add(group.id);
+    saveGroups();
+    renderTabBar();
+    toast(`"${group.name}" is now password-protected.`, 2600);
+  }
+  async function removeGroupPasswordFlow(group) {
+    const pw = await promptText(
+      `Enter the password for "${group.name}" to remove it:`,
+      { okLabel: "Verify", password: true, placeholder: "Password" }
+    );
+    if (pw === null) return;
+    const attemptHash = await hashPassword(pw, group.passwordSalt);
+    if (attemptHash !== group.passwordHash) {
+      toast("Wrong password \u2014 nothing changed.", 2600);
+      return;
+    }
+    const ok = await showConfirmModal(`Remove the password from "${group.name}"? Its folders will be visible to anyone who opens this app.`, { okLabel: "Remove password", danger: true });
+    if (!ok) return;
+    group.passwordSalt = null;
+    group.passwordHash = null;
+    unlockedGroupIds.add(group.id);
+    saveGroups();
+    renderTabBar();
+  }
+  async function deleteGroupFlow(group) {
+    let moveToDefault = true;
+    if (group.passwordHash) {
+      const pw = await promptText(
+        `"${group.name}" is password-protected. Enter the password to delete it \u2014 leave it blank if you've forgotten it:`,
+        { okLabel: "Continue", password: true, placeholder: "Password (optional if forgotten)" }
+      );
+      if (pw === null) return;
+      if (pw) {
+        const attemptHash = await hashPassword(pw, group.passwordSalt);
+        if (attemptHash === group.passwordHash) {
+          moveToDefault = await showConfirmModal(
+            `Password verified. Move "${group.name}"'s folders back to the Default tab, or leave them untracked so they never resurface anywhere?`,
+            { okLabel: "Move to Default", cancelLabel: "Leave untracked", danger: true }
+          );
+        } else {
+          const forgot = await showConfirmModal(
+            `Wrong password. Forgot it? You can still delete "${group.name}", but its folders will stay untracked instead of moving to Default \u2014 that's what stops someone from deleting a tab they can't unlock just to get its folders back that way.`,
+            { okLabel: "Delete without folders", cancelLabel: "Cancel", danger: true }
+          );
+          if (!forgot) return;
+          moveToDefault = false;
+        }
+      } else {
+        const forgot = await showConfirmModal(
+          `Delete "${group.name}" without the password? Its folders will stay untracked instead of moving to Default \u2014 that's what stops someone from deleting a tab they can't unlock just to get its folders back that way.`,
+          { okLabel: "Delete without folders", cancelLabel: "Cancel", danger: true }
+        );
+        if (!forgot) return;
+        moveToDefault = false;
+      }
+    } else {
+      const ok = await showConfirmModal(
+        `Delete the "${group.name}" tab? Its folders move back to Default \u2014 nothing about the folders themselves or their tracking is deleted.`,
+        { okLabel: "Delete tab", danger: true }
+      );
+      if (!ok) return;
+    }
+    let records = [];
+    try {
+      records = await listDatasetFolders();
+    } catch (e) {
+    }
+    if (moveToDefault) {
+      for (const rec of records) {
+        if (recordGroupId(rec) === group.id) await updateDatasetFolder(rec.id, { groupId: DEFAULT_GROUP_ID });
+      }
+    }
+    groups = groups.filter((g) => g.id !== group.id);
+    unlockedGroupIds.delete(group.id);
+    saveGroups();
+    if (activeGroupId === group.id) {
+      activeGroupId = DEFAULT_GROUP_ID;
+      saveActiveGroup();
+    }
+    renderTabBar();
+    renderDatasetManagerTab();
+  }
+  async function unlockGroupFlow(group) {
+    const pw = await promptText(`"${group.name}" is password-protected. Enter the password:`, { okLabel: "Unlock", password: true, placeholder: "Password" });
+    if (pw === null) return false;
+    const attemptHash = await hashPassword(pw, group.passwordSalt);
+    if (attemptHash !== group.passwordHash) {
+      toast("Wrong password.", 2600);
+      return false;
+    }
+    unlockedGroupIds.add(group.id);
+    return true;
+  }
+  async function selectGroup(id) {
+    if (id !== DEFAULT_GROUP_ID) {
+      const group = getGroup(id);
+      if (group && isGroupLocked(id)) {
+        const unlocked = await unlockGroupFlow(group);
+        if (!unlocked) return;
+      }
+    }
+    activeGroupId = id;
+    saveActiveGroup();
+    renderTabBar();
+    renderDatasetManagerTab();
+  }
+  function renderTabBar() {
+    dmTabBar.innerHTML = "";
+    function buildTab(id, name, group) {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "dm-tab" + (id === activeGroupId ? " active" : "");
+      const label = document.createElement("span");
+      label.textContent = name;
+      tab.appendChild(label);
+      if (group && group.passwordHash) {
+        const lock = document.createElement("span");
+        lock.className = "dm-tab-lock";
+        setIconLabel(lock, isGroupLocked(id) ? "\u{1F512}" : "\u{1F513}");
+        lock.title = isGroupLocked(id) ? "Locked" : "Unlocked for this session";
+        tab.appendChild(lock);
+      }
+      tab.addEventListener("click", () => selectGroup(id));
+      if (group) {
+        const menuBtn = document.createElement("button");
+        menuBtn.type = "button";
+        menuBtn.className = "dm-tab-menu-btn";
+        menuBtn.title = "Tab options";
+        menuBtn.textContent = "\u22EF";
+        menuBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const rect = menuBtn.getBoundingClientRect();
+          openTabContextMenu(group, rect.left, rect.bottom + 4);
+        });
+        tab.appendChild(menuBtn);
+      }
+      return tab;
+    }
+    dmTabBar.appendChild(buildTab(DEFAULT_GROUP_ID, "Default", null));
+    for (const group of groups) dmTabBar.appendChild(buildTab(group.id, group.name, group));
+    const addTab = document.createElement("button");
+    addTab.type = "button";
+    addTab.className = "dm-tab dm-tab-add";
+    addTab.title = "Add a new tab";
+    addTab.textContent = "+";
+    addTab.addEventListener("click", () => createGroupFlow());
+    dmTabBar.appendChild(addTab);
+  }
+  var dmTabCtxMenuEl = null;
+  function closeDmTabCtxMenu() {
+    if (dmTabCtxMenuEl) {
+      dmTabCtxMenuEl.remove();
+      dmTabCtxMenuEl = null;
+    }
+    document.removeEventListener("click", onDmTabCtxOutsideClick);
+  }
+  function onDmTabCtxOutsideClick(ev) {
+    if (!dmTabCtxMenuEl) return;
+    const path = ev.composedPath ? ev.composedPath() : [];
+    if (path.includes(dmTabCtxMenuEl)) return;
+    closeDmTabCtxMenu();
+  }
+  function openTabContextMenu(group, x, y) {
+    closeDmTabCtxMenu();
+    const menu = document.createElement("div");
+    menu.className = "ctx-menu";
+    const header = document.createElement("div");
+    header.className = "ctx-header";
+    header.textContent = group.name;
+    menu.appendChild(header);
+    addContextMenuItem(menu, "Rename tab", () => {
+      closeDmTabCtxMenu();
+      renameGroupFlow(group);
+    });
+    addContextMenuItem(menu, group.passwordHash ? "Change password" : "Set password\u2026", () => {
+      closeDmTabCtxMenu();
+      setGroupPasswordFlow(group);
+    });
+    if (group.passwordHash) addContextMenuItem(menu, "Remove password", () => {
+      closeDmTabCtxMenu();
+      removeGroupPasswordFlow(group);
+    });
+    addContextMenuItem(menu, "Delete tab", () => {
+      closeDmTabCtxMenu();
+      deleteGroupFlow(group);
+    });
+    document.body.appendChild(menu);
+    dmTabCtxMenuEl = menu;
+    positionMenu(menu, x, y);
+    setTimeout(() => document.addEventListener("click", onDmTabCtxOutsideClick), 0);
+  }
+  async function openMoveToTabModal(record) {
+    const { box, close } = createModalShell({ instant: true });
+    const title = document.createElement("div");
+    title.className = "confirm-message";
+    title.textContent = `Move "${record.name}" to which tab?`;
+    box.appendChild(title);
+    const list = document.createElement("div");
+    list.className = "dm-move-tab-list";
+    box.appendChild(list);
+    const btnRow = document.createElement("div");
+    btnRow.className = "confirm-btn-row";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", close);
+    btnRow.appendChild(cancelBtn);
+    box.appendChild(btnRow);
+    const current = recordGroupId(record);
+    const options = [{ id: DEFAULT_GROUP_ID, name: "Default" }, ...groups.map((g) => ({ id: g.id, name: g.name }))];
+    for (const opt of options) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "dm-move-tab-row" + (opt.id === current ? " active" : "");
+      row.textContent = opt.name + (opt.id === current ? " (current)" : "");
+      row.disabled = opt.id === current;
+      row.addEventListener("click", async () => {
+        await updateDatasetFolder(record.id, { groupId: opt.id });
+        close();
+        renderDatasetManagerTab();
+        toast(`Moved "${record.name}" to "${opt.name}".`, 2200);
+      });
+      list.appendChild(row);
+    }
+  }
   var DB_NAME = "dts-dataset-manager-db";
   var STORE = "folders";
   var ORDER_KEY = "dts-dataset-folder-order";
   var SORT_KEY = "dts-dataset-folder-sort";
   var VIEW_KEY = "dts-dataset-manager-view";
   var SUPPRESS_KEY = "dts-dataset-tab-prompt-suppressed";
-  var DM_IMAGE_EXT = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"];
-  function isImageFile(name) {
-    const lower = name.toLowerCase();
-    return DM_IMAGE_EXT.some((ext) => lower.endsWith(ext));
-  }
   var getDirHandle6 = () => null;
   var openFolderHandle2 = async () => {
   };
@@ -5188,17 +5870,7 @@ Pick your actual dataset folder (the one containing your images and .txt files) 
   var sortMode = "manual";
   var viewMode = "grid";
   function openDMDB() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(STORE)) {
-          db.createObjectStore(STORE, { keyPath: "id", autoIncrement: true });
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
+    return openDB(DB_NAME, 1, STORE);
   }
   async function addDatasetFolder(handle) {
     let alreadyFavorited = false;
@@ -5206,23 +5878,22 @@ Pick your actual dataset folder (the one containing your images and .txt files) 
       alreadyFavorited = await isFavorited(handle);
     } catch (e) {
     }
-    const storedHandle = handle.toJSON ? handle.toJSON() : handle;
-    const result = await openDMDB().then((db) => new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, "readwrite");
-      const record = {
-        name: handle.name,
-        handle: storedHandle,
-        addedAt: Date.now(),
-        lastOpenedAt: Date.now(),
-        pinned: alreadyFavorited,
-        iconMode: "generic",
-        iconImageBase: null,
-        iconImageDataUrl: null
-      };
-      const req = tx.objectStore(STORE).add(record);
-      req.onsuccess = () => resolve(req.result);
-      tx.onerror = () => reject(tx.error);
-    }));
+    const storedHandle = serializeHandle(handle);
+    const db = await openDMDB();
+    const result = await idbAdd(db, STORE, {
+      name: handle.name,
+      handle: storedHandle,
+      addedAt: Date.now(),
+      lastOpenedAt: Date.now(),
+      pinned: alreadyFavorited,
+      iconMode: "generic",
+      iconImageBase: null,
+      iconImageDataUrl: null,
+      // Lands in whichever tab is currently open, not always Default — add
+      // a folder while sitting in a locked tab and it should actually show
+      // up there, not silently reappear in the tab anyone can see.
+      groupId: activeGroupId
+    });
     trackStat("dataset_tab_adds");
     checkAchievements();
     return result;
@@ -5233,49 +5904,23 @@ Pick your actual dataset folder (the one containing your images and .txt files) 
     await updateDatasetFolder(record.id, { pinned: isNowFavorited });
     if (datasetManagerTab.style.display !== "none") renderDatasetManagerTab();
   }
-  function listDatasetFolders() {
-    return openDMDB().then((db) => new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, "readonly");
-      const req = tx.objectStore(STORE).getAll();
-      req.onsuccess = () => {
-        const records = req.result || [];
-        if (window.__dtsReviveDirHandle) {
-          for (const rec of records) {
-            if (rec.handle && rec.handle.__dtsMobileHandle) {
-              rec.handle = window.__dtsReviveDirHandle(rec.handle);
-            }
-          }
-        }
-        resolve(records);
-      };
-      req.onerror = () => reject(req.error);
-    }));
+  async function listDatasetFolders() {
+    const db = await openDMDB();
+    const records = await idbGetAll(db, STORE);
+    for (const rec of records) {
+      if (rec.handle && isMobileHandle(rec.handle)) {
+        rec.handle = reviveHandle(rec.handle);
+      }
+    }
+    return records;
   }
-  function removeDatasetFolder(id) {
-    return openDMDB().then((db) => new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, "readwrite");
-      tx.objectStore(STORE).delete(id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    }));
+  async function removeDatasetFolder(id) {
+    const db = await openDMDB();
+    await idbDelete(db, STORE, id);
   }
-  function updateDatasetFolder(id, patch) {
-    return openDMDB().then((db) => new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, "readwrite");
-      const store = tx.objectStore(STORE);
-      const getReq = store.get(id);
-      getReq.onsuccess = () => {
-        const rec = getReq.result;
-        if (!rec) {
-          resolve();
-          return;
-        }
-        Object.assign(rec, patch);
-        store.put(rec);
-      };
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    }));
+  async function updateDatasetFolder(id, patch) {
+    const db = await openDMDB();
+    await idbUpdate(db, STORE, id, patch);
   }
   async function findTrackedRecord(handle) {
     let records = [];
@@ -5296,39 +5941,18 @@ Pick your actual dataset folder (the one containing your images and .txt files) 
     return null;
   }
   function loadPrefs() {
-    try {
-      folderOrder = JSON.parse(localStorage.getItem(ORDER_KEY) || "[]") || [];
-    } catch (e) {
-      folderOrder = [];
-    }
-    try {
-      sortMode = localStorage.getItem(SORT_KEY) || "manual";
-    } catch (e) {
-      sortMode = "manual";
-    }
-    try {
-      viewMode = localStorage.getItem(VIEW_KEY) || "grid";
-    } catch (e) {
-      viewMode = "grid";
-    }
+    folderOrder = getJSON(ORDER_KEY, []);
+    sortMode = getString(SORT_KEY, "manual");
+    viewMode = getString(VIEW_KEY, "grid");
   }
   function saveOrder() {
-    try {
-      localStorage.setItem(ORDER_KEY, JSON.stringify(folderOrder));
-    } catch (e) {
-    }
+    setJSON(ORDER_KEY, folderOrder);
   }
   function saveSortMode() {
-    try {
-      localStorage.setItem(SORT_KEY, sortMode);
-    } catch (e) {
-    }
+    setString(SORT_KEY, sortMode);
   }
   function saveViewMode() {
-    try {
-      localStorage.setItem(VIEW_KEY, viewMode);
-    } catch (e) {
-    }
+    setString(VIEW_KEY, viewMode);
   }
   function reorderFolders(draggedId, targetId, after) {
     folderOrder = folderOrder.filter((x) => x !== draggedId);
@@ -5404,17 +6028,6 @@ Pick your actual dataset folder (the one containing your images and .txt files) 
   function onDmCtxEscape(ev) {
     if (ev.key === "Escape") closeDmCtxMenu();
   }
-  function addDmCtxItem(menu, label, onClick) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "ctx-item";
-    btn.textContent = label;
-    btn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      onClick();
-    });
-    menu.appendChild(btn);
-  }
   function openDmContextMenu(record, x, y) {
     closeDmCtxMenu();
     const menu = document.createElement("div");
@@ -5423,7 +6036,7 @@ Pick your actual dataset folder (the one containing your images and .txt files) 
     header.className = "ctx-header";
     header.textContent = record.name;
     menu.appendChild(header);
-    addDmCtxItem(menu, "Remove from Dataset tab", async () => {
+    addContextMenuItem(menu, "Remove from Dataset tab", async () => {
       closeDmCtxMenu();
       const ok = await showConfirmModal(
         `Remove "${record.name}" from the Dataset tab?
@@ -5434,7 +6047,7 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
       await removeDatasetFolder(record.id);
       renderDatasetManagerTab();
     });
-    addDmCtxItem(menu, record.pinned ? "Unpin favorite" : "Pin as favorite", async () => {
+    addContextMenuItem(menu, record.pinned ? "Unpin favorite" : "Pin as favorite", async () => {
       closeDmCtxMenu();
       const nowPinned = !record.pinned;
       await updateDatasetFolder(record.id, { pinned: nowPinned });
@@ -5449,14 +6062,20 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
       }
       renderDatasetManagerTab();
     });
-    addDmCtxItem(menu, "View achievements", async () => {
+    addContextMenuItem(menu, "View achievements", async () => {
       closeDmCtxMenu();
       await openReadOnlyAchievements(record);
     });
-    addDmCtxItem(menu, "Select image for icon\u2026", async () => {
+    addContextMenuItem(menu, "Select image for icon\u2026", async () => {
       closeDmCtxMenu();
       await openIconPicker(record);
     });
+    if (groups.length > 0) {
+      addContextMenuItem(menu, "Move to tab\u2026", async () => {
+        closeDmCtxMenu();
+        await openMoveToTabModal(record);
+      });
+    }
     document.body.appendChild(menu);
     dmCtxMenuEl = menu;
     positionMenu(menu, x, y);
@@ -5467,7 +6086,7 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
   }
   async function openReadOnlyAchievements(record) {
     try {
-      const perm = await record.handle.requestPermission({ mode: "read" });
+      const perm = await requestPermission(record.handle, "read");
       if (perm !== "granted") {
         toast("Permission was not granted for that folder.");
         return;
@@ -5497,7 +6116,7 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
   async function openIconPicker(record) {
     let perm;
     try {
-      perm = await record.handle.requestPermission({ mode: "read" });
+      perm = await requestPermission(record.handle, "read");
     } catch (e) {
       perm = "denied";
     }
@@ -5505,10 +6124,7 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
       toast("Permission was not granted for that folder.");
       return;
     }
-    const backdrop = document.createElement("div");
-    backdrop.className = "confirm-backdrop modal-visible";
-    const box = document.createElement("div");
-    box.className = "confirm-box dm-icon-picker";
+    const { box, close } = createModalShell({ instant: true, boxClassName: "dm-icon-picker" });
     const title = document.createElement("div");
     title.className = "confirm-message";
     title.textContent = `Choose an image from "${record.name}" for its icon:`;
@@ -5520,17 +6136,9 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
     btnRow.className = "confirm-btn-row";
     const cancelBtn = document.createElement("button");
     cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", close);
     btnRow.appendChild(cancelBtn);
     box.appendChild(btnRow);
-    backdrop.appendChild(box);
-    document.body.appendChild(backdrop);
-    function close() {
-      backdrop.remove();
-    }
-    cancelBtn.addEventListener("click", close);
-    backdrop.addEventListener("click", (ev) => {
-      if (ev.target === backdrop) close();
-    });
     const noImageCell = document.createElement("button");
     noImageCell.type = "button";
     noImageCell.className = "dm-icon-picker-cell dm-icon-picker-noimage";
@@ -5631,7 +6239,7 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
   }
   async function openTrackedFolder(record) {
     try {
-      const perm = await record.handle.requestPermission({ mode: "readwrite" });
+      const perm = await requestPermission(record.handle, "readwrite");
       if (perm !== "granted") {
         toast("Permission was not granted for that folder.");
         return;
@@ -5646,11 +6254,7 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
   async function maybePromptAddDataset(handle) {
     const existing = await findTrackedRecord(handle);
     if (existing) return;
-    let suppressed = false;
-    try {
-      suppressed = localStorage.getItem(SUPPRESS_KEY) === "1";
-    } catch (e) {
-    }
+    const suppressed = getBool(SUPPRESS_KEY);
     if (suppressed) return;
     const add = await showConfirmModal(
       `Add "${handle.name}" to your Dataset tab?
@@ -5661,14 +6265,11 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
       await addDatasetFolder(handle);
       if (datasetManagerTab.style.display !== "none") renderDatasetManagerTab();
     } else {
-      try {
-        localStorage.setItem(SUPPRESS_KEY, "1");
-      } catch (e) {
-      }
+      setBool(SUPPRESS_KEY, true);
     }
   }
   async function addFolderViaAddTile() {
-    if (!window.showDirectoryPicker) {
+    if (!hasDirectoryPicker()) {
       toast("Your browser does not support folder access. Use Chrome or Edge, opened as a normal tab (not an embedded preview).", 5e3);
       return;
     }
@@ -5700,7 +6301,7 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     if (record.pinned) {
       const pin = document.createElement("span");
       pin.className = "dm-pin-badge";
-      pin.textContent = "\u2605";
+      setIconLabel(pin, "\u2605");
       tile.appendChild(pin);
     }
     tile.appendChild(buildFolderIcon(record));
@@ -5735,14 +6336,36 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     dmGrid.classList.toggle("dm-list-view", viewMode === "list");
     dmGridBtn.classList.toggle("active", viewMode === "grid");
     dmListBtn.classList.toggle("active", viewMode === "list");
+    renderTabBar();
+    dmGrid.innerHTML = "";
+    if (isGroupLocked(activeGroupId)) {
+      const group = getGroup(activeGroupId);
+      const lockScreen = document.createElement("div");
+      lockScreen.className = "dm-lock-screen";
+      const icon = document.createElement("div");
+      icon.className = "dm-lock-icon";
+      setIconLabel(icon, "\u{1F512}");
+      const msg = document.createElement("div");
+      msg.className = "dm-lock-msg";
+      msg.textContent = `"${group.name}" is locked.`;
+      const unlockBtn = document.createElement("button");
+      unlockBtn.className = "primary";
+      unlockBtn.textContent = "Unlock";
+      unlockBtn.addEventListener("click", () => selectGroup(group.id));
+      lockScreen.appendChild(icon);
+      lockScreen.appendChild(msg);
+      lockScreen.appendChild(unlockBtn);
+      dmGrid.appendChild(lockScreen);
+      return;
+    }
     let records = [];
     try {
       records = await listDatasetFolders();
     } catch (e) {
       records = [];
     }
-    const sorted = sortRecords(records);
-    dmGrid.innerHTML = "";
+    const inGroup = records.filter((r) => recordGroupId(r) === activeGroupId);
+    const sorted = sortRecords(inGroup);
     if (viewMode === "list") dmGrid.appendChild(buildAddTile());
     for (const record of sorted) dmGrid.appendChild(buildFolderTile(record));
     if (viewMode !== "list") dmGrid.appendChild(buildAddTile());
@@ -5752,6 +6375,7 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     openFolderHandle2 = deps.openFolderHandle;
     switchTab = deps.switchTab;
     loadPrefs();
+    loadGroups();
     dmGridBtn.addEventListener("click", () => {
       viewMode = "grid";
       saveViewMode();
@@ -5774,9 +6398,398 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     });
   }
 
+  // src/bucket-core.ts
+  function getValidBuckets(sideMin, sideMax, step = 64) {
+    const sMin = Math.floor(sideMin), sMax = Math.floor(sideMax), st = Math.max(1, Math.floor(step));
+    const seen = /* @__PURE__ */ new Map();
+    const add = (w, h) => {
+      seen.set(`${w}x${h}`, [w, h]);
+    };
+    add(sMin, sMin);
+    for (let s = sMin + st; s < sMax + st; s += st) {
+      add(sMin, s);
+      add(s, sMin);
+    }
+    return Array.from(seen.values()).sort((a, b) => a[0] * a[1] - b[0] * b[1]);
+  }
+  function isBucketSize(w, h, buckets) {
+    return buckets.some((b) => b[0] === w && b[1] === h);
+  }
+
+  // src/renderer/bucket-images.ts
+  var ORIGINAL_DIR = "original_images";
+  var SETTINGS_KEY = "dts-bucket-settings";
+  var getDirHandle7 = () => null;
+  var getEntries3 = () => [];
+  var reload = async () => {
+  };
+  var saveAllDirty2 = async () => {
+  };
+  var busy = false;
+  function log(line, isErr = false) {
+    const el = document.createElement("div");
+    el.className = "bucket-log-line" + (isErr ? " err" : "");
+    el.textContent = line;
+    bucketLog.appendChild(el);
+    bucketLog.scrollTop = bucketLog.scrollHeight;
+  }
+  function clearLog() {
+    bucketLog.textContent = "";
+  }
+  function params() {
+    const sideMin = Math.max(64, parseInt(bucketSideMin.value, 10) || 256);
+    const sideMax = Math.max(sideMin, parseInt(bucketSideMax.value, 10) || 1024);
+    const step = Math.max(16, parseInt(bucketSideStep.value, 10) || 64);
+    return { sideMin, sideMax, step };
+  }
+  async function imageDimensions(file) {
+    const bmp = await createImageBitmap(file);
+    const dims = { width: bmp.width, height: bmp.height };
+    bmp.close();
+    return dims;
+  }
+  async function originalDir(create) {
+    const dirHandle = getDirHandle7();
+    if (!dirHandle) return null;
+    try {
+      return await dirHandle.getDirectoryHandle(ORIGINAL_DIR, { create });
+    } catch {
+      return null;
+    }
+  }
+  function setBusy(on) {
+    busy = on;
+    btnBucketRun.disabled = on;
+    btnBucketRevert.disabled = on;
+  }
+  async function refreshModelStatus() {
+    try {
+      const st = await window.electronAPI.bucketModelStatus();
+      if (st.present) {
+        bucketModelStatusText.textContent = `u2net ready (${Math.round((st.sizeBytes || 0) / 1048576)} MB).`;
+        btnBucketDownloadModel.style.display = "none";
+      } else {
+        bucketModelStatusText.textContent = "u2net model not downloaded yet.";
+        btnBucketDownloadModel.style.display = "";
+      }
+    } catch {
+      bucketModelStatusText.textContent = "Could not read the model status.";
+    }
+  }
+  async function downloadModel() {
+    if (busy) return;
+    setBusy(true);
+    btnBucketDownloadModel.disabled = true;
+    try {
+      bucketModelStatusText.textContent = "Downloading u2net\u2026 0%";
+      await window.electronAPI.bucketDownloadModel();
+      toast("u2net model downloaded.", 2600);
+    } catch (err) {
+      toast(`Could not download the u2net model: ${err instanceof Error ? err.message : String(err)}`, 5e3);
+    } finally {
+      btnBucketDownloadModel.disabled = false;
+      setBusy(false);
+      await refreshModelStatus();
+    }
+  }
+  async function run() {
+    if (busy) return;
+    const dirHandle = getDirHandle7();
+    if (!dirHandle) {
+      toast("Open a dataset folder first.");
+      return;
+    }
+    const active = getEntries3().filter((e) => !e.disabled && !e.original);
+    if (!active.length) {
+      toast("No Gallery images to bucket.");
+      return;
+    }
+    const { sideMin, sideMax, step } = params();
+    const buckets = getValidBuckets(sideMin, sideMax, step);
+    const preferGpu = bucketGpu.checked;
+    const ok = await showConfirmModal(
+      `Bucket ${active.length} Gallery image(s) at ${sideMin}\u2013${sideMax} (step ${step})?
+
+Each image is moved into original_images/ (treated as disabled \u2014 the new Originals view), and a cropped + resized PNG is written back to the dataset root under the same name. Images already at a valid bucket size are left alone.`,
+      { okLabel: "Bucket images" }
+    );
+    if (!ok) return;
+    if (!(await window.electronAPI.bucketModelStatus()).present) {
+      toast("Download the u2net model first (the button above).");
+      return;
+    }
+    await saveAllDirty2(true);
+    setBusy(true);
+    clearLog();
+    const origDir = await originalDir(true);
+    if (!origDir) {
+      log(`Could not create ${ORIGINAL_DIR}/.`, true);
+      setBusy(false);
+      return;
+    }
+    let processed = 0, skipped = 0, failed = 0;
+    const counts = {};
+    const bump = (w, h) => {
+      const k = `${w}x${h}`;
+      counts[k] = (counts[k] || 0) + 1;
+    };
+    try {
+      for (const entry of active) {
+        const filename = entry.imgName || entry.base;
+        let file;
+        try {
+          file = await entry.imgHandle.getFile();
+        } catch {
+          log(`${filename}: could not read the file.`, true);
+          failed++;
+          continue;
+        }
+        let dims;
+        try {
+          dims = await imageDimensions(file);
+        } catch {
+          log(`${filename}: could not read its dimensions (unsupported format?).`, true);
+          failed++;
+          continue;
+        }
+        if (isBucketSize(dims.width, dims.height, buckets)) {
+          skipped++;
+          bump(dims.width, dims.height);
+          log(`${filename}: already ${dims.width}x${dims.height} \u2014 left as-is.`);
+          continue;
+        }
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const res = await window.electronAPI.bucketImage({ imageBytes: bytes, sideMin, sideMax, step, preferGpu });
+        if (!res.ok || !res.pngBytes || !res.bucket) {
+          log(`${filename}: ${res.error || "bucketing failed"}`, true);
+          failed++;
+          continue;
+        }
+        try {
+          const origImg = await origDir.getFileHandle(filename, { create: true });
+          await writeBytes(origImg, bytes);
+          if (entry.txtHandle && entry.txtName) {
+            try {
+              const txtBlob = await entry.txtHandle.getFile();
+              const origTxt = await origDir.getFileHandle(entry.txtName, { create: true });
+              await writeBytes(origTxt, txtBlob);
+            } catch {
+            }
+          }
+          const stemPng = entry.base + ".png";
+          const outHandle = await dirHandle.getFileHandle(stemPng, { create: true });
+          await writeBytes(outHandle, res.pngBytes);
+          if (filename !== stemPng) {
+            try {
+              await dirHandle.removeEntry(filename);
+            } catch {
+            }
+          }
+        } catch (err) {
+          log(`${filename}: ${err instanceof Error ? err.message : String(err)}`, true);
+          failed++;
+          continue;
+        }
+        processed++;
+        bump(res.bucket[0], res.bucket[1]);
+        const engine = res.provider ? ` (${res.provider === "dml" ? "GPU" : "CPU"})` : "";
+        log(`${filename} \u2192 ${res.bucket[0]}x${res.bucket[1]}${engine}`);
+      }
+      log("");
+      log(`Done. Bucketed ${processed}, already-bucketed ${skipped}, failed ${failed}.`);
+      for (const k of Object.keys(counts).sort()) log(`  ${k}: ${counts[k]}`);
+      toast(`Bucketed ${processed} image(s) \u2014 originals are in the Originals view.`, 3600);
+    } catch (err) {
+      log(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`, true);
+      toast("Bucketing failed \u2014 see the dock log.", 4200);
+    } finally {
+      setBusy(false);
+      await reload();
+    }
+  }
+  async function revert() {
+    if (busy) return;
+    const dirHandle = getDirHandle7();
+    if (!dirHandle) {
+      toast("Open a dataset folder first.");
+      return;
+    }
+    const originals = getEntries3().filter((e) => e.original);
+    if (!originals.length) {
+      toast("No originals to restore \u2014 nothing has been bucketed.");
+      return;
+    }
+    const { sideMin, sideMax, step } = params();
+    const buckets = getValidBuckets(sideMin, sideMax, step);
+    const originalBases = new Set(originals.map((e) => e.base));
+    const orphans = [];
+    for (const e of getEntries3().filter((x) => !x.disabled && !x.original)) {
+      if (originalBases.has(e.base)) continue;
+      try {
+        const dims = await imageDimensions(await e.imgHandle.getFile());
+        if (isBucketSize(dims.width, dims.height, buckets)) orphans.push(e);
+      } catch {
+      }
+    }
+    const ok = await showConfirmModal(
+      `Revert bucketing for ${originals.length} image(s)?
+
+This deletes the bucketed copy in the dataset root and moves the original back from original_images/ into the Gallery.`,
+      { okLabel: "Revert bucketing", danger: true }
+    );
+    if (!ok) return;
+    setBusy(true);
+    clearLog();
+    const origDir = await originalDir(false);
+    let restored = 0, failed = 0;
+    try {
+      for (const entry of originals) {
+        const imgName = entry.imgName || entry.base;
+        const stemPng = entry.base + ".png";
+        try {
+          if (origDir) {
+            try {
+              await dirHandle.removeEntry(stemPng);
+            } catch {
+            }
+            const file = await entry.imgHandle.getFile();
+            const back = await dirHandle.getFileHandle(imgName, { create: true });
+            await writeBytes(back, file);
+            try {
+              await origDir.removeEntry(imgName);
+            } catch {
+            }
+            if (entry.txtName) {
+              try {
+                await origDir.removeEntry(entry.txtName);
+              } catch {
+              }
+            }
+          }
+          restored++;
+          log(`restored ${imgName}`);
+        } catch (err) {
+          log(`${imgName}: ${err instanceof Error ? err.message : String(err)}`, true);
+          failed++;
+        }
+      }
+      if (orphans.length) {
+        const del = await showConfirmModal(
+          `${orphans.length} image(s) in the dataset are already bucket-sized but have no saved original (they were never moved to original_images/).
+
+Delete them too? "Keep them" leaves them in the Gallery.`,
+          { okLabel: "Delete them too", cancelLabel: "Keep them", danger: true }
+        );
+        if (del) {
+          for (const e of orphans) {
+            try {
+              await dirHandle.removeEntry(e.imgName || e.base);
+            } catch {
+            }
+            if (e.txtName) {
+              try {
+                await dirHandle.removeEntry(e.txtName);
+              } catch {
+              }
+            }
+          }
+          log(`deleted ${orphans.length} bucketed image(s) with no original`);
+        }
+      }
+      try {
+        await dirHandle.removeEntry(ORIGINAL_DIR, { recursive: true });
+      } catch {
+      }
+      log("");
+      log(`Done. Restored ${restored}, failed ${failed}.`);
+      toast(`Reverted bucketing \u2014 restored ${restored} original(s).`, 3600);
+    } catch (err) {
+      log(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`, true);
+      toast("Revert failed \u2014 see the dock log.", 4200);
+    } finally {
+      setBusy(false);
+      await reload();
+    }
+  }
+  function initBucketImages(deps) {
+    getDirHandle7 = deps.getDirHandle;
+    getEntries3 = deps.getEntries;
+    reload = deps.reload;
+    saveAllDirty2 = deps.saveAllDirty;
+    const saved = getJSON(SETTINGS_KEY, null);
+    if (saved && typeof saved.gpu === "boolean") bucketGpu.checked = saved.gpu;
+    bucketGpu.addEventListener("change", () => setJSON(SETTINGS_KEY, { gpu: bucketGpu.checked }));
+    btnBucketRun.addEventListener("click", () => {
+      void run();
+    });
+    btnBucketRevert.addEventListener("click", () => {
+      void revert();
+    });
+    btnBucketDownloadModel.addEventListener("click", () => {
+      void downloadModel();
+    });
+    window.electronAPI.onBucketDownloadProgress((_event, ev) => {
+      bucketModelStatusText.textContent = `Downloading u2net\u2026 ${ev.percent}%`;
+    });
+    void refreshModelStatus();
+  }
+
   // src/renderer/master-tag-control.ts
   var masterSelectedImages = /* @__PURE__ */ new Set();
-  var getEntries3 = () => [];
+  function attachIconFallback(btn, icon) {
+    const label = (btn.dataset.iconLabel || btn.textContent || "").trim();
+    btn.classList.add("icon-fallback-btn");
+    btn.setAttribute("aria-label", plainLabel(label));
+    btn.textContent = "";
+    const full = document.createElement("span");
+    full.className = "label-full";
+    full.setAttribute("aria-hidden", "true");
+    setIconLabel(full, label);
+    const iconEl = document.createElement("span");
+    iconEl.className = "label-icon";
+    iconEl.setAttribute("aria-hidden", "true");
+    setIconLabel(iconEl, icon);
+    btn.appendChild(full);
+    btn.appendChild(iconEl);
+  }
+  var miniGridDragging = false;
+  var miniGridPaintMode = false;
+  document.addEventListener("pointerup", () => {
+    miniGridDragging = false;
+  });
+  document.addEventListener("pointercancel", () => {
+    miniGridDragging = false;
+  });
+  var MINI_GRID_SIZE_KEY = "dts-mini-grid-size";
+  var miniGridSize = 1;
+  try {
+    const saved = getInt(MINI_GRID_SIZE_KEY, NaN);
+    if (saved >= 1 && saved <= 4) miniGridSize = saved;
+  } catch (e) {
+  }
+  function buildMiniGridSizeRow() {
+    const row = document.createElement("div");
+    row.className = "mini-grid-size-row";
+    const label = document.createElement("span");
+    label.textContent = "Size";
+    row.appendChild(label);
+    for (let n = 1; n <= 4; n++) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = n + "x";
+      btn.className = n === miniGridSize ? "active" : "";
+      btn.title = `${n}x thumbnail size`;
+      btn.addEventListener("click", () => {
+        miniGridSize = n;
+        setInt(MINI_GRID_SIZE_KEY, n);
+        masterMiniGrid.style.setProperty("--mini-grid-size", String(n));
+        row.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
+      });
+      row.appendChild(btn);
+    }
+    return row;
+  }
+  var getEntries4 = () => [];
   var getEntryByBase3 = () => void 0;
   var filteredEntriesRef = () => [];
   var renderCurrentViewRef2 = () => {
@@ -5800,6 +6813,8 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
   }
   function renderMasterMiniGrid() {
     masterMiniGrid.innerHTML = "";
+    masterMiniGrid.style.setProperty("--mini-grid-size", String(miniGridSize));
+    masterMiniGrid.appendChild(buildMiniGridSizeRow());
     const list = filteredEntriesRef();
     list.forEach((e) => {
       const cell = document.createElement("div");
@@ -5808,12 +6823,14 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
       const img = document.createElement("img");
       img.src = e.objectUrl;
       img.loading = "lazy";
+      img.draggable = false;
       cell.appendChild(img);
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.className = "master-mini-cb";
       cb.checked = masterSelectedImages.has(e.base);
       cb.addEventListener("click", (ev) => ev.stopPropagation());
+      cb.addEventListener("pointerdown", (ev) => ev.stopPropagation());
       cb.addEventListener("change", () => {
         if (cb.checked) masterSelectedImages.add(e.base);
         else masterSelectedImages.delete(e.base);
@@ -5822,9 +6839,21 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
         renderCurrentViewRef2();
       });
       cell.appendChild(cb);
-      cell.addEventListener("click", () => {
-        cb.checked = !cb.checked;
+      function paint() {
+        if (cb.checked === miniGridPaintMode) return;
+        cb.checked = miniGridPaintMode;
         cb.dispatchEvent(new Event("change"));
+      }
+      cell.addEventListener("pointerdown", (ev) => {
+        if (ev.button !== 0) return;
+        ev.preventDefault();
+        miniGridDragging = true;
+        miniGridPaintMode = !cb.checked;
+        paint();
+      });
+      cell.addEventListener("pointerenter", () => {
+        if (!miniGridDragging) return;
+        paint();
       });
       masterMiniGrid.appendChild(cell);
     });
@@ -5845,7 +6874,7 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
   var onStartSequentialRef = () => {
   };
   function initMasterTagControl(deps) {
-    getEntries3 = deps.getEntries;
+    getEntries4 = deps.getEntries;
     getEntryByBase3 = deps.getEntryByBase;
     filteredEntriesRef = deps.filteredEntries;
     renderCurrentViewRef2 = deps.renderCurrentView;
@@ -5855,17 +6884,21 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     deleteEntriesPermanentlyRef = deps.deleteEntriesPermanently;
     disableEntriesRef = deps.disableEntries;
     onStartSequentialRef = deps.onStartSequential;
+    attachIconFallback(btnMasterSelectAll, "\u2611");
+    attachIconFallback(btnMasterClearSelection, "\u2716");
     if (!document.documentElement.classList.contains("touch-device")) {
+      let makeSeqBtn = function(label, icon, title, from) {
+        const btn = document.createElement("button");
+        btn.title = title;
+        btn.dataset.iconLabel = "\u25B6 " + label;
+        attachIconFallback(btn, icon);
+        btn.addEventListener("click", () => onStartSequentialRef(from));
+        return btn;
+      };
       const seqRow = document.createElement("div");
       seqRow.className = "mtc-btn-row";
-      const seqFirstBtn = document.createElement("button");
-      seqFirstBtn.textContent = "\u25B6 Sequential from first";
-      seqFirstBtn.title = "Review every gallery image in sort order, confirming detail tags one by one";
-      seqFirstBtn.addEventListener("click", () => onStartSequentialRef("first"));
-      const seqSelBtn = document.createElement("button");
-      seqSelBtn.textContent = "\u25B6 Sequential from selected";
-      seqSelBtn.title = "Review from the first selected image in sort order";
-      seqSelBtn.addEventListener("click", () => onStartSequentialRef("selected"));
+      const seqFirstBtn = makeSeqBtn("Sequential from first", "\u23EE", "Review every gallery image in sort order, confirming detail tags one by one", "first");
+      const seqSelBtn = makeSeqBtn("Sequential from selected", "\u{1F3AF}", "Review from the first selected image in sort order", "selected");
       seqRow.appendChild(seqFirstBtn);
       seqRow.appendChild(seqSelBtn);
       masterSelectionSummary.after(seqRow);
@@ -5923,7 +6956,7 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
         return;
       }
       const total = masterSelectedImages.size;
-      const entriesList = Array.from(masterSelectedImages).map((base) => getEntryByBase3(base)).filter((e) => !!e);
+      const entriesList = selectedEntries();
       const moved = await disableEntriesRef(entriesList);
       if (moved === 0) {
         toast("Nothing to disable \u2014 every selected image is already disabled or locked.");
@@ -5945,7 +6978,7 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
         { okLabel: `Delete ${total} permanently`, danger: true }
       );
       if (!ok) return;
-      const entriesList = Array.from(masterSelectedImages).map((base) => getEntryByBase3(base)).filter((e) => !!e);
+      const entriesList = selectedEntries();
       const deleted = await deleteEntriesPermanentlyRef(entriesList);
       if (deleted === 0) {
         toast("Nothing deleted \u2014 every selected image is locked.");
@@ -6027,7 +7060,7 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     function refreshImmunizeToggles() {
       for (const t of immunizeToggles) {
         const allOn = computeAllHaveFlags(t.flags);
-        t.btn.textContent = allOn ? t.onLabel : t.offLabel;
+        setIconLabel(t.btn, allOn ? t.onLabel : t.offLabel);
         t.btn.title = allOn ? t.onTitle : t.offTitle;
         t.btn.classList.toggle("ghost-secondary", allOn);
       }
@@ -6043,8 +7076,35 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
       });
     }
     refreshImmunizeToggles();
+    function selectedEntries() {
+      return Array.from(masterSelectedImages).map((base) => getEntryByBase3(base)).filter((e) => !!e);
+    }
+    const readTag = (el) => el.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+    function runMassTagOp(opts) {
+      const affected = [];
+      for (const e of opts.entries) {
+        if (opts.skip(e)) continue;
+        const prevTags = e.tags.slice();
+        opts.apply(e);
+        markDirty(e);
+        affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
+      }
+      if (affected.length === 0) {
+        toast(opts.emptyMsg);
+        return;
+      }
+      const summary = opts.summary(affected.length);
+      toast(summary);
+      recordChange(opts.logType, summary, affected);
+      folderStats.master_ops = (folderStats.master_ops || 0) + 1;
+      saveFolderStats();
+      if (opts.statKey) trackStat(opts.statKey);
+      if (opts.clearInputs) opts.clearInputs();
+      refreshAllUIRef4();
+      checkAchievements();
+    }
     btnMasterApplyToSelected.addEventListener("click", () => {
-      const tag = masterApplyTagInput.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+      const tag = readTag(masterApplyTagInput);
       if (!tag) {
         toast("Enter a tag to apply.");
         return;
@@ -6053,30 +7113,22 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
         toast("Select at least one image first.");
         return;
       }
-      const affected = [];
-      for (const base of masterSelectedImages) {
-        const e = getEntryByBase3(base);
-        if (!e || e.meta?.locked || e.tags.includes(tag)) continue;
-        const prevTags = e.tags.slice();
-        e.tags.push(tag);
-        markDirty(e);
-        affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-      }
-      if (affected.length === 0) {
-        toast("Nothing to apply \u2014 selected images already have that tag.");
-        return;
-      }
-      const summary = `Applied "${tag}" to ${affected.length} selected image(s).`;
-      toast(summary);
-      recordChange("add-tag", summary, affected);
-      folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-      saveFolderStats();
-      masterApplyTagInput.value = "";
-      refreshAllUIRef4();
-      checkAchievements();
+      runMassTagOp({
+        entries: selectedEntries(),
+        skip: (e) => !!e.meta?.locked || e.tags.includes(tag),
+        apply: (e) => {
+          e.tags.push(tag);
+        },
+        logType: "add-tag",
+        summary: (n) => `Applied "${tag}" to ${n} selected image(s).`,
+        emptyMsg: "Nothing to apply \u2014 selected images already have that tag.",
+        clearInputs: () => {
+          masterApplyTagInput.value = "";
+        }
+      });
     });
     btnMasterRemoveFromSelected.addEventListener("click", () => {
-      const tag = masterRemoveTagInput.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+      const tag = readTag(masterRemoveTagInput);
       if (!tag) {
         toast("Enter a tag to remove.");
         return;
@@ -6085,145 +7137,107 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
         toast("Select at least one image first.");
         return;
       }
-      const affected = [];
-      for (const base of masterSelectedImages) {
-        const e = getEntryByBase3(base);
-        if (!e || e.meta?.locked || !e.tags.includes(tag)) continue;
-        const prevTags = e.tags.slice();
-        e.tags = e.tags.filter((t) => t !== tag);
-        markDirty(e);
-        affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-      }
-      if (affected.length === 0) {
-        toast("None of the selected images have that tag.");
-        return;
-      }
-      const summary = `Removed "${tag}" from ${affected.length} selected image(s).`;
-      toast(summary);
-      recordChange("remove-tag", summary, affected);
-      folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-      saveFolderStats();
-      masterRemoveTagInput.value = "";
-      refreshAllUIRef4();
-      checkAchievements();
+      runMassTagOp({
+        entries: selectedEntries(),
+        skip: (e) => !!e.meta?.locked || !e.tags.includes(tag),
+        apply: (e) => {
+          e.tags = e.tags.filter((t) => t !== tag);
+        },
+        logType: "remove-tag",
+        summary: (n) => `Removed "${tag}" from ${n} selected image(s).`,
+        emptyMsg: "None of the selected images have that tag.",
+        clearInputs: () => {
+          masterRemoveTagInput.value = "";
+        }
+      });
     });
     btnCondApply.addEventListener("click", () => {
-      const sourceTag = condSourceTag.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
-      const addTag = condAddTag.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+      const sourceTag = readTag(condSourceTag);
+      const addTag = readTag(condAddTag);
       if (!sourceTag || !addTag) {
         toast("Fill in both tags.");
         return;
       }
-      const affected = [];
-      for (const e of getEntries3()) {
-        if (e.disabled || e.meta?.locked) continue;
-        if (!e.tags.includes(sourceTag) || e.tags.includes(addTag)) continue;
-        const prevTags = e.tags.slice();
-        e.tags.push(addTag);
-        markDirty(e);
-        affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-      }
-      if (affected.length === 0) {
-        toast(`No images with "${sourceTag}" are missing "${addTag}".`);
-        return;
-      }
-      const summary = `Added "${addTag}" to every image with "${sourceTag}" (${affected.length} image(s)).`;
-      toast(summary);
-      recordChange("add-tag", summary, affected);
-      folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-      saveFolderStats();
-      condSourceTag.value = "";
-      condAddTag.value = "";
-      refreshAllUIRef4();
-      checkAchievements();
+      runMassTagOp({
+        entries: getEntries4(),
+        skip: (e) => e.disabled || !!e.meta?.locked || !e.tags.includes(sourceTag) || e.tags.includes(addTag),
+        apply: (e) => {
+          e.tags.push(addTag);
+        },
+        logType: "add-tag",
+        summary: (n) => `Added "${addTag}" to every image with "${sourceTag}" (${n} image(s)).`,
+        emptyMsg: `No images with "${sourceTag}" are missing "${addTag}".`,
+        clearInputs: () => {
+          condSourceTag.value = "";
+          condAddTag.value = "";
+        }
+      });
     });
     btnCondApplyWithout.addEventListener("click", () => {
-      const sourceTag = condWithoutSourceTag.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
-      const addTag = condWithoutAddTag.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+      const sourceTag = readTag(condWithoutSourceTag);
+      const addTag = readTag(condWithoutAddTag);
       if (!sourceTag || !addTag) {
         toast("Fill in both tags.");
         return;
       }
-      const affected = [];
-      for (const e of getEntries3()) {
-        if (e.disabled || e.meta?.locked) continue;
-        if (e.tags.includes(sourceTag) || e.tags.includes(addTag)) continue;
-        const prevTags = e.tags.slice();
-        e.tags.push(addTag);
-        markDirty(e);
-        affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-      }
-      if (affected.length === 0) {
-        toast(`No images without "${sourceTag}" are missing "${addTag}".`);
-        return;
-      }
-      const summary = `Added "${addTag}" to every image WITHOUT "${sourceTag}" (${affected.length} image(s)).`;
-      toast(summary);
-      recordChange("add-tag", summary, affected);
-      folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-      saveFolderStats();
-      condWithoutSourceTag.value = "";
-      condWithoutAddTag.value = "";
-      refreshAllUIRef4();
-      checkAchievements();
+      runMassTagOp({
+        entries: getEntries4(),
+        skip: (e) => e.disabled || !!e.meta?.locked || e.tags.includes(sourceTag) || e.tags.includes(addTag),
+        apply: (e) => {
+          e.tags.push(addTag);
+        },
+        logType: "add-tag",
+        summary: (n) => `Added "${addTag}" to every image WITHOUT "${sourceTag}" (${n} image(s)).`,
+        emptyMsg: `No images without "${sourceTag}" are missing "${addTag}".`,
+        clearInputs: () => {
+          condWithoutSourceTag.value = "";
+          condWithoutAddTag.value = "";
+        }
+      });
     });
     btnMassApply.addEventListener("click", async () => {
-      const tag = massApplyInput.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+      const tag = readTag(massApplyInput);
       if (!tag) {
         toast("Enter a tag to apply.");
         return;
       }
       const ok = await showConfirmModal(`Add "${tag}" to EVERY active image in this folder?`, { okLabel: "Apply to all" });
       if (!ok) return;
-      const affected = [];
-      for (const e of getEntries3()) {
-        if (e.disabled || e.meta?.locked || e.tags.includes(tag)) continue;
-        const prevTags = e.tags.slice();
-        e.tags.push(tag);
-        markDirty(e);
-        affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-      }
-      if (affected.length === 0) {
-        toast("Every image already has that tag.");
-        return;
-      }
-      const summary = `Added "${tag}" to all ${affected.length} image(s).`;
-      toast(summary);
-      recordChange("add-tag", summary, affected);
-      folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-      saveFolderStats();
-      massApplyInput.value = "";
-      refreshAllUIRef4();
-      checkAchievements();
+      runMassTagOp({
+        entries: getEntries4(),
+        skip: (e) => e.disabled || !!e.meta?.locked || e.tags.includes(tag),
+        apply: (e) => {
+          e.tags.push(tag);
+        },
+        logType: "add-tag",
+        summary: (n) => `Added "${tag}" to all ${n} image(s).`,
+        emptyMsg: "Every image already has that tag.",
+        clearInputs: () => {
+          massApplyInput.value = "";
+        }
+      });
     });
     btnMassRemove.addEventListener("click", async () => {
-      const tag = massRemoveInput.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+      const tag = readTag(massRemoveInput);
       if (!tag) {
         toast("Enter a tag to remove.");
         return;
       }
       const ok = await showConfirmModal(`Remove "${tag}" from EVERY active image in this folder?`, { okLabel: "Remove from all", danger: true });
       if (!ok) return;
-      const affected = [];
-      for (const e of getEntries3()) {
-        if (e.disabled || e.meta?.locked || !e.tags.includes(tag)) continue;
-        const prevTags = e.tags.slice();
-        e.tags = e.tags.filter((t) => t !== tag);
-        markDirty(e);
-        affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
-      }
-      if (affected.length === 0) {
-        toast("No images have that tag.");
-        return;
-      }
-      const summary = `Removed "${tag}" from all ${affected.length} image(s).`;
-      toast(summary);
-      recordChange("remove-tag", summary, affected);
-      folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-      saveFolderStats();
-      massRemoveInput.value = "";
-      refreshAllUIRef4();
-      checkAchievements();
+      runMassTagOp({
+        entries: getEntries4(),
+        skip: (e) => e.disabled || !!e.meta?.locked || !e.tags.includes(tag),
+        apply: (e) => {
+          e.tags = e.tags.filter((t) => t !== tag);
+        },
+        logType: "remove-tag",
+        summary: (n) => `Removed "${tag}" from all ${n} image(s).`,
+        emptyMsg: "No images have that tag.",
+        clearInputs: () => {
+          massRemoveInput.value = "";
+        }
+      });
     });
     btnMasterRename.addEventListener("click", () => {
       const from = masterRenameFrom.value.trim();
@@ -6236,30 +7250,21 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
         toast("New name is the same as the old one.");
         return;
       }
-      const affected = [];
-      for (const e of getEntries3()) {
-        if (e.disabled || e.meta?.locked || !e.tags.includes(from)) continue;
-        const prevTags = e.tags.slice();
-        let newTags = e.tags.map((t) => t === from ? to : t);
-        newTags = Array.from(new Set(newTags));
-        e.tags = newTags;
-        markDirty(e);
-        affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
-      }
-      if (affected.length === 0) {
-        toast(`No active images currently have the tag "${from}".`);
-        return;
-      }
-      const summary = `Renamed "${from}" \u2192 "${to}" across ${affected.length} image(s).`;
-      toast(summary);
-      recordChange("rename", summary, affected);
-      folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-      saveFolderStats();
-      trackStat("renames");
-      masterRenameFrom.value = "";
-      masterRenameTo.value = "";
-      refreshAllUIRef4();
-      checkAchievements();
+      runMassTagOp({
+        entries: getEntries4(),
+        skip: (e) => e.disabled || !!e.meta?.locked || !e.tags.includes(from),
+        apply: (e) => {
+          e.tags = Array.from(new Set(e.tags.map((t) => t === from ? to : t)));
+        },
+        logType: "rename",
+        summary: (n) => `Renamed "${from}" \u2192 "${to}" across ${n} image(s).`,
+        emptyMsg: `No active images currently have the tag "${from}".`,
+        statKey: "renames",
+        clearInputs: () => {
+          masterRenameFrom.value = "";
+          masterRenameTo.value = "";
+        }
+      });
     });
     btnMasterFR.addEventListener("click", () => {
       const find = masterFRFind.value;
@@ -6268,32 +7273,260 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
         toast("Enter a substring to find.");
         return;
       }
-      const affected = [];
-      for (const e of getEntries3()) {
-        if (e.disabled || e.meta?.locked || !e.tags.some((t) => t.includes(find))) continue;
-        const prevTags = e.tags.slice();
-        let newTags = e.tags.map((t) => t.includes(find) ? t.split(find).join(repl) : t);
-        newTags = newTags.map((t) => t.trim()).filter(Boolean);
-        newTags = Array.from(new Set(newTags));
-        e.tags = newTags;
-        markDirty(e);
-        affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
-      }
-      if (affected.length === 0) {
-        toast(`No tags contain "${find}".`);
-        return;
-      }
-      const summary = `Replaced "${find}" \u2192 "${repl}" inside tags across ${affected.length} image(s).`;
-      toast(summary);
-      recordChange("find-replace", summary, affected);
-      folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-      saveFolderStats();
-      trackStat("find_replaces");
-      masterFRFind.value = "";
-      masterFRReplace.value = "";
-      refreshAllUIRef4();
-      checkAchievements();
+      runMassTagOp({
+        entries: getEntries4(),
+        skip: (e) => e.disabled || !!e.meta?.locked || !e.tags.some((t) => t.includes(find)),
+        apply: (e) => {
+          const replaced = e.tags.map((t) => t.includes(find) ? t.split(find).join(repl) : t);
+          e.tags = Array.from(new Set(replaced.map((t) => t.trim()).filter(Boolean)));
+        },
+        logType: "find-replace",
+        summary: (n) => `Replaced "${find}" \u2192 "${repl}" inside tags across ${n} image(s).`,
+        emptyMsg: `No tags contain "${find}".`,
+        statKey: "find_replaces",
+        clearInputs: () => {
+          masterFRFind.value = "";
+          masterFRReplace.value = "";
+        }
+      });
     });
+  }
+
+  // src/comfy-core.ts
+  function parseComboValues(nodeInfo, inputName) {
+    const raw = nodeInfo?.input?.required?.[inputName];
+    if (!Array.isArray(raw)) return null;
+    if (Array.isArray(raw[0])) return raw[0];
+    const second = raw[1];
+    if (raw[0] === "COMBO" && second && Array.isArray(second.options)) return second.options;
+    return null;
+  }
+  function concatBytes(parts) {
+    let total = 0;
+    for (const p of parts) total += p.length;
+    const out = new Uint8Array(total);
+    let offset = 0;
+    for (const p of parts) {
+      out.set(p, offset);
+      offset += p.length;
+    }
+    return out;
+  }
+  function buildMultipart(fields, fileField, fileName, fileBytes) {
+    const boundary = "----DTSBoundary" + Date.now().toString(16) + Math.random().toString(16).slice(2);
+    const encoder = new TextEncoder();
+    const parts = [];
+    for (const [key, value] of Object.entries(fields)) {
+      parts.push(encoder.encode(`--${boundary}\r
+Content-Disposition: form-data; name="${key}"\r
+\r
+${value}\r
+`));
+    }
+    const safeName = String(fileName).replace(/"/g, "");
+    parts.push(encoder.encode(`--${boundary}\r
+Content-Disposition: form-data; name="${fileField}"; filename="${safeName}"\r
+Content-Type: application/octet-stream\r
+\r
+`));
+    parts.push(fileBytes);
+    parts.push(encoder.encode(`\r
+--${boundary}--\r
+`));
+    return { boundary, body: concatBytes(parts) };
+  }
+  function buildSynthDatPrompt(template2, cfg) {
+    const prompt = JSON.parse(JSON.stringify(template2));
+    const character = [cfg.unified ? cfg.unifiedPrompt : cfg.character, cfg.characterTrigger].filter(Boolean).join(", ");
+    prompt["21"].inputs.value = cfg.global;
+    prompt["8"].inputs.value = cfg.unified ? "" : cfg.rating;
+    prompt["19"].inputs.value = "";
+    prompt["11"].inputs.value = character;
+    prompt["12"].inputs.value = cfg.unified ? "" : cfg.hair;
+    prompt["15"].inputs.value = cfg.unified ? "" : cfg.face;
+    prompt["18"].inputs.value = cfg.unified ? "" : cfg.chest;
+    prompt["9"].inputs.value = cfg.unified ? "" : cfg.body;
+    prompt["6"].inputs.value = cfg.unified ? "" : cfg.clothes;
+    prompt["20"].inputs.value = cfg.unified ? "" : cfg.limbs;
+    prompt["14"].inputs.value = cfg.unified ? "" : cfg.sexual;
+    prompt["7"].inputs.value = cfg.unified ? "" : cfg.pose;
+    prompt["10"].inputs.value = cfg.unified ? "" : cfg.extra;
+    prompt["13"].inputs.value = cfg.unified ? "" : cfg.effects;
+    prompt["17"].inputs.value = cfg.unified ? "" : cfg.scene;
+    prompt["16"].inputs.text = cfg.negative;
+    prompt["41"].inputs.unet_name = cfg.diffModel;
+    prompt["51"].inputs.lora_name = cfg.mainLora.trim() || cfg.noLoraStandIn;
+    if (cfg.clip) {
+      prompt["249"].inputs.clip_name = cfg.clip;
+      prompt["47:45"].inputs.clip_name = cfg.clip;
+    }
+    if (cfg.vae) prompt["47:46"].inputs.vae_name = cfg.vae;
+    const chunks = [];
+    for (let i = 0; i < cfg.loraRows.length; i += 4) chunks.push(cfg.loraRows.slice(i, i + 4));
+    function fillStackInputs(inputs, chunk) {
+      for (let i = 0; i < 4; i++) {
+        const slot = String(i + 1).padStart(2, "0");
+        const r = chunk[i];
+        inputs[`lora_${slot}`] = r ? r.input.trim() || "None" : "None";
+        inputs[`strength_${slot}`] = r ? parseFloat(r.strength) || 0 : 0;
+      }
+    }
+    let lastStackId = "237";
+    fillStackInputs(prompt["237"].inputs, chunks[0] || []);
+    for (let c = 1; c < chunks.length; c++) {
+      const newId = `237_extra_${c}`;
+      const newInputs = { model: [lastStackId, 0], clip: ["47:45", 0] };
+      fillStackInputs(newInputs, chunks[c]);
+      prompt[newId] = { class_type: "DSM Lora Loader Stack", inputs: newInputs, _meta: { title: "DSM Lora Loader Stack" } };
+      lastStackId = newId;
+    }
+    if (lastStackId !== "237") {
+      prompt["243"].inputs.input1 = [lastStackId, 0];
+      prompt["240"].inputs.model = [lastStackId, 0];
+      prompt["195"].inputs.model = [lastStackId, 0];
+    }
+    if (cfg.skipRefImage) {
+      delete prompt["239"];
+      delete prompt["240"];
+      delete prompt["243"];
+      delete prompt["238"];
+      delete prompt["246"];
+      prompt["158:53"].inputs.model = [lastStackId, 0];
+      prompt["158:54"].inputs.model = [lastStackId, 0];
+    } else {
+      prompt["240"].inputs.strength = parseFloat(cfg.lliteStrength) || 0;
+      prompt["240"].inputs.start_percent = parseFloat(cfg.lliteStartPercent) || 0;
+      prompt["240"].inputs.end_percent = parseFloat(cfg.lliteEndPercent) || 0;
+      prompt["240"].inputs.preserve_wrapper = cfg.llitePreserveWrapper;
+      prompt["243"].inputs.select = 2;
+      prompt["238"].inputs.fit = cfg.resizeFit;
+      prompt["238"].inputs.method = cfg.resizeMethod;
+      prompt["240"].inputs.image = ["238", 0];
+    }
+    prompt["168:167"].inputs.sampler_name = cfg.sampler;
+    prompt["158:53"].inputs.scheduler = cfg.scheduler;
+    prompt["158:53"].inputs.steps = parseInt(cfg.steps1, 10) || 1;
+    prompt["158:54"].inputs.cfg = parseFloat(cfg.cfg1) || 1;
+    prompt["174:171"].inputs.value = parseInt(cfg.width, 10) || 920;
+    prompt["174:172"].inputs.value = parseInt(cfg.height, 10) || 1244;
+    prompt["165"].inputs.noise_seed = parseInt(cfg.seed1, 10) || 0;
+    if (cfg.use2Pass) {
+      prompt["227"].inputs.noise_seed = parseInt(cfg.seed2, 10) || 0;
+      prompt["195"].inputs.denoise = parseFloat(cfg.denoise2) || 0;
+      prompt["195"].inputs.scheduler = cfg.scheduler;
+      prompt["195"].inputs.steps = parseInt(cfg.steps2, 10) || 1;
+      prompt["192_pass1"] = { class_type: "SaveImage", inputs: { filename_prefix: prompt["192"].inputs.filename_prefix, images: ["176", 0] }, _meta: { title: "Pass 1 preview" } };
+    } else {
+      delete prompt["190"];
+      delete prompt["191"];
+      delete prompt["195"];
+      delete prompt["227"];
+      delete prompt["224"];
+      prompt["192"].inputs.images = ["176", 0];
+    }
+    if (cfg.upscale && cfg.upscale.enabled && cfg.upscale.model.trim()) {
+      prompt["upscale_model_loader"] = { class_type: "UpscaleModelLoader", inputs: { model_name: cfg.upscale.model.trim() }, _meta: { title: "Upscale Model Loader" } };
+      const scaleBy = parseFloat(cfg.upscale.scaleBy) || 1;
+      prompt["upscale_model_192"] = { class_type: "ImageUpscaleWithModel", inputs: { upscale_model: ["upscale_model_loader", 0], image: prompt["192"].inputs.images }, _meta: { title: "Upscale" } };
+      prompt["upscale_scale_192"] = { class_type: "ImageScaleBy", inputs: { upscale_method: "lanczos", scale_by: scaleBy, image: ["upscale_model_192", 0] }, _meta: { title: "Upscale scale-by" } };
+      prompt["222"].inputs.text_c = "Upscaled";
+      prompt["192_upscaled"] = { class_type: "SaveImage", inputs: { filename_prefix: ["222", 0], images: ["upscale_scale_192", 0] }, _meta: { title: "Upscaled" } };
+    }
+    return prompt;
+  }
+  function buildWd14Prompt(imageRef, settings2) {
+    return {
+      "1": { class_type: "LoadImage", inputs: { image: imageRef, upload: "image" } },
+      "2": {
+        class_type: "WD14Tagger|pysssss",
+        inputs: {
+          image: ["1", 0],
+          model: settings2.model,
+          threshold: settings2.threshold,
+          character_threshold: settings2.characterThreshold,
+          // No longer user-configurable — always false so the node still gets a
+          // value for this required input.
+          replace_underscore: false,
+          trailing_comma: !!settings2.trailingComma,
+          exclude_tags: settings2.excludeTags || ""
+        }
+      }
+    };
+  }
+  function parseQueueResponse(parsed, status, noun) {
+    if (status !== 200) {
+      const errMsg = parsed && parsed.error && parsed.error.message;
+      return { ok: false, error: errMsg ? `ComfyUI rejected the request: ${errMsg}` : `ComfyUI returned HTTP ${status} queuing the ${noun} request.` };
+    }
+    const nodeErrorKeys = parsed && parsed.node_errors ? Object.keys(parsed.node_errors) : [];
+    if (nodeErrorKeys.length) return { ok: false, error: `ComfyUI rejected the workflow: ${JSON.stringify(parsed.node_errors)}` };
+    const promptId = parsed && parsed.prompt_id;
+    if (!promptId) return { ok: false, error: "ComfyUI did not return a prompt id." };
+    return { ok: true, promptId };
+  }
+  function extractWd14Tags(record) {
+    const tags = record && record.outputs && record.outputs["2"] && record.outputs["2"].tags;
+    if (!tags) return null;
+    return Array.isArray(tags) ? tags[0] : tags;
+  }
+  function decodeUtf8(bytes) {
+    return new TextDecoder().decode(bytes);
+  }
+  function safeJson(text) {
+    try {
+      return JSON.parse(text || "{}");
+    } catch {
+      return {};
+    }
+  }
+  async function uploadImage(t, host, filename, bytes, label = "Image") {
+    const { boundary, body } = buildMultipart({ type: "input", overwrite: "true" }, "image", filename, bytes);
+    const res = await t.request(host, "/upload/image", {
+      method: "POST",
+      headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, "Content-Length": body.length },
+      body,
+      timeoutMs: 2e4
+    });
+    if (res.status !== 200) return { ok: false, error: `${label} upload to ComfyUI failed (HTTP ${res.status}).` };
+    const uploaded = safeJson(decodeUtf8(res.body));
+    return { ok: true, ref: uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name };
+  }
+  async function queuePrompt(t, host, prompt, clientId, opts = {}) {
+    const payload = { prompt, client_id: clientId };
+    if (opts.extraData) payload.extra_data = opts.extraData;
+    const body = new TextEncoder().encode(JSON.stringify(payload));
+    const res = await t.request(host, "/prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": body.length },
+      body,
+      timeoutMs: 1e4
+    });
+    return parseQueueResponse(safeJson(decodeUtf8(res.body)), res.status, opts.noun || "request");
+  }
+  async function pollHistory(t, host, promptId, opts) {
+    const interval = opts.intervalMs ?? 700;
+    const deadline = Date.now() + opts.deadlineMs;
+    const cancelled = () => opts.isCancelled ? opts.isCancelled() : false;
+    const stopped = () => opts.onCancelled ? opts.onCancelled() : { ok: false, error: "Cancelled." };
+    while (Date.now() < deadline) {
+      if (cancelled()) return stopped();
+      await new Promise((r) => setTimeout(r, interval));
+      if (cancelled()) return stopped();
+      let histRes;
+      try {
+        histRes = await t.request(host, `/history/${promptId}`, { timeoutMs: 8e3 });
+      } catch {
+        continue;
+      }
+      if (histRes.status !== 200) continue;
+      const hist = safeJson(decodeUtf8(histRes.body));
+      const record = hist[promptId];
+      if (!record) continue;
+      const value = await opts.extract(record);
+      if (value !== null && value !== void 0) return { ok: true, value };
+      if (record.status && record.status.status_str === "error") return { ok: false, error: opts.errorStatusMessage };
+    }
+    return { ok: false, error: opts.timeoutMessage };
   }
 
   // src/renderer/comfy-client.ts
@@ -6307,6 +7540,16 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     const trimmed = String(host || "").trim();
     return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
   }
+  var fetchComfyTransport = {
+    request: async (host, path, init = {}) => {
+      const res = await fetch(new URL(path, host), {
+        method: init.method || "GET",
+        headers: init.headers,
+        body: init.body ?? void 0
+      });
+      return { status: res.status, body: new Uint8Array(await res.arrayBuffer()) };
+    }
+  };
   async function comfyGetModels(host) {
     host = normalizeHost(host);
     let res;
@@ -6323,99 +7566,30 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     } catch {
       return { ok: false, error: "ComfyUI returned an unexpected response." };
     }
-    const nodeInfo = parsed["WD14Tagger|pysssss"];
-    const models = nodeInfo?.input?.required?.model?.[0];
+    const models = parseComboValues(parsed["WD14Tagger|pysssss"], "model");
     if (!Array.isArray(models)) return { ok: false, error: "Could not find the WD14 Tagger node on that ComfyUI instance." };
     return { ok: true, models };
-  }
-  function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
   }
   async function comfyTagImage({ host, filename, imageBytes, settings: settings2 }) {
     host = normalizeHost(host);
     try {
-      const form = new FormData();
-      form.append("type", "input");
-      form.append("overwrite", "true");
-      form.append("image", new Blob([imageBytes]), filename);
-      let uploadRes;
-      try {
-        uploadRes = await fetch(new URL("/upload/image", host), { method: "POST", body: form });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : " (" + msg + ")"}` };
-      }
-      if (!uploadRes.ok) return { ok: false, error: `Image upload to ComfyUI failed (HTTP ${uploadRes.status}).` };
-      const uploaded = await uploadRes.json();
-      const imageRef = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
+      const upload = await uploadImage(fetchComfyTransport, host, filename, imageBytes, "Image");
+      if (!upload.ok) return upload;
       const clientId = `dts-mobile-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
-      const prompt = {
-        "1": { class_type: "LoadImage", inputs: { image: imageRef, upload: "image" } },
-        "2": {
-          class_type: "WD14Tagger|pysssss",
-          inputs: {
-            image: ["1", 0],
-            model: settings2.model,
-            threshold: settings2.threshold,
-            character_threshold: settings2.characterThreshold,
-            replace_underscore: false,
-            trailing_comma: !!settings2.trailingComma,
-            exclude_tags: settings2.excludeTags || ""
-          }
-        }
-      };
-      const queueRes = await fetch(new URL("/prompt", host), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, client_id: clientId })
+      const prompt = buildWd14Prompt(upload.ref, settings2);
+      const queue = await queuePrompt(fetchComfyTransport, host, prompt, clientId, { noun: "tag" });
+      if (!queue.ok) return queue;
+      const poll = await pollHistory(fetchComfyTransport, host, queue.promptId, {
+        deadlineMs: 12e4,
+        extract: (record) => extractWd14Tags(record),
+        errorStatusMessage: "ComfyUI reported an error while tagging this image \u2014 check its console for details.",
+        timeoutMessage: "Timed out waiting for ComfyUI to finish tagging this image."
       });
-      let queueParsed = {};
-      try {
-        queueParsed = await queueRes.json();
-      } catch {
-      }
-      if (!queueRes.ok) {
-        const errObj = queueParsed.error;
-        const errMsg = errObj?.message;
-        return { ok: false, error: errMsg ? `ComfyUI rejected the request: ${errMsg}` : `ComfyUI returned HTTP ${queueRes.status} queuing the tag request.` };
-      }
-      const nodeErrors = queueParsed.node_errors;
-      const nodeErrorKeys = nodeErrors ? Object.keys(nodeErrors) : [];
-      if (nodeErrorKeys.length) return { ok: false, error: `ComfyUI rejected the workflow: ${JSON.stringify(nodeErrors)}` };
-      const promptId = queueParsed.prompt_id;
-      if (!promptId) return { ok: false, error: "ComfyUI did not return a prompt id." };
-      const deadline = Date.now() + 12e4;
-      while (Date.now() < deadline) {
-        await sleep(700);
-        let histRes;
-        try {
-          histRes = await fetch(new URL(`/history/${promptId}`, host));
-        } catch {
-          continue;
-        }
-        if (!histRes.ok) continue;
-        let hist = {};
-        try {
-          hist = await histRes.json();
-        } catch {
-          continue;
-        }
-        const record = hist[promptId];
-        if (!record) continue;
-        const outputs = record.outputs;
-        if (outputs?.["2"]?.tags) {
-          const tags = outputs["2"].tags;
-          return { ok: true, tagsCsv: Array.isArray(tags) ? tags[0] : tags };
-        }
-        const status = record.status;
-        if (status?.status_str === "error") {
-          return { ok: false, error: "ComfyUI reported an error while tagging this image \u2014 check its console for details." };
-        }
-      }
-      return { ok: false, error: "Timed out waiting for ComfyUI to finish tagging this image." };
+      if (!poll.ok) return poll;
+      return { ok: true, tagsCsv: poll.value };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: `Could not reach ComfyUI at ${host} (${msg})` };
+      return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : " (" + msg + ")"}` };
     }
   }
   async function comfyGetObjectInfo({ host, classType, inputName }) {
@@ -6424,8 +7598,7 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
       const res = await fetch(new URL(`/object_info/${encodeURIComponent(classType)}`, host));
       if (!res.ok) return { ok: false, error: `ComfyUI returned HTTP ${res.status} looking up ${classType}.` };
       const parsed = await res.json();
-      const nodeInfo = parsed[classType];
-      const values = nodeInfo?.input?.required?.[inputName]?.[0];
+      const values = parseComboValues(parsed[classType], inputName);
       if (!Array.isArray(values)) return { ok: false, error: `Could not find "${inputName}" on ${classType} \u2014 is the right custom node installed?` };
       return { ok: true, values };
     } catch (err) {
@@ -6464,21 +7637,9 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     let ws = null;
     try {
       if (imageBytes && prompt["239"]) {
-        const form = new FormData();
-        form.append("type", "input");
-        form.append("overwrite", "true");
-        form.append("image", new Blob([imageBytes]), imageFilename);
-        let uploadRes;
-        try {
-          uploadRes = await fetch(new URL("/upload/image", host), { method: "POST", body: form });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : " (" + msg + ")"}` };
-        }
-        if (!uploadRes.ok) return { ok: false, error: `Reference image upload to ComfyUI failed (HTTP ${uploadRes.status}).` };
-        const uploaded = await uploadRes.json();
-        const imageRef = uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name;
-        prompt["239"].inputs.image = imageRef;
+        const upload = await uploadImage(fetchComfyTransport, host, imageFilename, imageBytes, "Reference image");
+        if (!upload.ok) return upload;
+        prompt["239"].inputs.image = upload.ref;
       }
       const clientId = `dts-mobile-synthdat-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
       activeGen = { cancelled: false };
@@ -6546,50 +7707,20 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
       } catch (err) {
         console.error("[synthdat] preview websocket setup failed:", err);
       }
-      const queueRes = await fetch(new URL("/prompt", host), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, client_id: clientId, extra_data: { preview_method: "taesd" } })
-      });
-      let queueParsed = {};
-      try {
-        queueParsed = await queueRes.json();
-      } catch {
-      }
-      if (!queueRes.ok) {
-        const errObj = queueParsed.error;
-        const errMsg = errObj?.message;
-        return { ok: false, error: errMsg ? `ComfyUI rejected the request: ${errMsg}` : `ComfyUI returned HTTP ${queueRes.status} queuing the generation request.` };
-      }
-      const nodeErrors = queueParsed.node_errors;
-      const nodeErrorKeys = nodeErrors ? Object.keys(nodeErrors) : [];
-      if (nodeErrorKeys.length) return { ok: false, error: `ComfyUI rejected the workflow: ${JSON.stringify(nodeErrors)}` };
-      const promptId = queueParsed.prompt_id;
-      if (!promptId) return { ok: false, error: "ComfyUI did not return a prompt id." };
-      const deadline = Date.now() + 3e5;
-      while (Date.now() < deadline) {
-        if (activeGen.cancelled) return { ok: false, error: "Generation stopped.", interrupted: true };
-        await sleep(700);
-        if (activeGen.cancelled) return { ok: false, error: "Generation stopped.", interrupted: true };
-        let histRes;
-        try {
-          histRes = await fetch(new URL(`/history/${promptId}`, host));
-        } catch {
-          continue;
-        }
-        if (!histRes.ok) continue;
-        let hist = {};
-        try {
-          hist = await histRes.json();
-        } catch {
-          continue;
-        }
-        const record = hist[promptId];
-        if (!record) continue;
-        const outputs = record.outputs;
-        const saveOutput = outputs?.["192"];
-        const image = saveOutput?.images?.[0];
-        if (image) {
+      const queue = await queuePrompt(fetchComfyTransport, host, prompt, clientId, { extraData: { preview_method: "taesd" }, noun: "generation" });
+      if (!queue.ok) return queue;
+      const promptId = queue.promptId;
+      const poll = await pollHistory(fetchComfyTransport, host, promptId, {
+        deadlineMs: 3e5,
+        isCancelled: () => !!(activeGen && activeGen.cancelled),
+        onCancelled: () => ({ ok: false, error: "Generation stopped.", interrupted: true }),
+        errorStatusMessage: "ComfyUI reported an error while generating this image \u2014 check its console for details.",
+        timeoutMessage: "Timed out waiting for ComfyUI to finish generating this image.",
+        extract: async (record) => {
+          const outputs = record.outputs;
+          const saveOutput = outputs?.["192"];
+          const image = saveOutput?.images?.[0];
+          if (!image) return null;
           const result = { ok: true, imageBytes: await fetchViewImage(host, image) };
           const pass1Output = outputs?.["192_pass1"];
           const pass1Image = pass1Output?.images?.[0];
@@ -6601,12 +7732,8 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
           }
           return result;
         }
-        const status = record.status;
-        if (status?.status_str === "error") {
-          return { ok: false, error: "ComfyUI reported an error while generating this image \u2014 check its console for details." };
-        }
-      }
-      return { ok: false, error: "Timed out waiting for ComfyUI to finish generating this image." };
+      });
+      return poll.ok ? poll.value : poll;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false, error: `Could not reach ComfyUI at ${host} (${msg})` };
@@ -6669,7 +7796,7 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
 
   // src/renderer/wd14-tagger.ts
   var hasElectronComfy = !!(window.electronAPI && window.electronAPI.wd14GetModels);
-  var SETTINGS_KEY = "dts-wd14-settings";
+  var SETTINGS_KEY2 = "dts-wd14-settings";
   var DEFAULT_SETTINGS = {
     host: "http://127.0.0.1:8188",
     model: "",
@@ -6683,7 +7810,7 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     gpu: true
   };
   var settings = { ...DEFAULT_SETTINGS };
-  var getEntries4 = () => [];
+  var getEntries5 = () => [];
   var refreshAllUIRef5 = () => {
   };
   var cancelRequested = false;
@@ -6695,17 +7822,11 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
   function loadSettings() {
     const base = { ...DEFAULT_SETTINGS, mode: hasLocalWd14 ? "local" : "comfyui" };
     settings = { ...base };
-    try {
-      const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null");
-      if (saved && typeof saved === "object") settings = { ...base, ...saved };
-    } catch (e) {
-    }
+    const saved = getJSON(SETTINGS_KEY2, null);
+    if (saved && typeof saved === "object") settings = { ...base, ...saved };
   }
   function saveSettings() {
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    } catch (e) {
-    }
+    setJSON(SETTINGS_KEY2, settings);
   }
   var hasLocalWd14 = !!window.Wd14Local;
   function applySettingsToUI() {
@@ -6824,10 +7945,7 @@ Image: ${entry.imgName}`,
   }
   function showWd14ReviewModal(rows) {
     return new Promise((resolve) => {
-      const backdrop = document.createElement("div");
-      backdrop.className = "confirm-backdrop";
-      const box = document.createElement("div");
-      box.className = "confirm-box wd14-review-box";
+      const { box, close: teardown } = createModalShell({ boxClassName: "wd14-review-box", onDismiss: () => close(null) });
       const msg = document.createElement("div");
       msg.className = "confirm-message";
       msg.textContent = `Review WD14 tags for ${rows.length} image(s) before applying. Edit any row, or uncheck to skip it.`;
@@ -6911,8 +8029,7 @@ Image: ${entry.imgName}`,
       okBtn.className = "primary";
       okBtn.textContent = "Apply checked rows";
       function close(result) {
-        backdrop.classList.remove("modal-visible");
-        setTimeout(() => backdrop.remove(), 160);
+        teardown();
         resolve(result);
       }
       cancelBtn.addEventListener("click", () => close(null));
@@ -6923,15 +8040,9 @@ Image: ${entry.imgName}`,
         }));
         close(accepted);
       });
-      backdrop.addEventListener("click", (ev) => {
-        if (ev.target === backdrop) close(null);
-      });
       btnRow.appendChild(cancelBtn);
       btnRow.appendChild(okBtn);
       box.appendChild(btnRow);
-      backdrop.appendChild(box);
-      document.body.appendChild(backdrop);
-      requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add("modal-visible")));
     });
   }
   function commitTags(accepted) {
@@ -6978,7 +8089,7 @@ Image: ${entry.imgName}`,
     running = true;
     cancelRequested = false;
     lastProvider = null;
-    btnWd14TagSelected.textContent = "\u23F9 Cancel tagging";
+    setIconLabel(btnWd14TagSelected, "\u23F9 Cancel tagging");
     const results = [];
     let failCount = 0;
     for (let i = 0; i < entries.length; i++) {
@@ -6998,7 +8109,7 @@ Image: ${entry.imgName}`,
     const engineNote = lastProvider ? ` \u2014 on ${lastProvider === "dml" ? "GPU" : "CPU"}` : "";
     setStatus("");
     running = false;
-    btnWd14TagSelected.textContent = "\u{1F40D} Tag selected images with WD14";
+    setIconLabel(btnWd14TagSelected, "\u{1F40D} Tag selected images with WD14");
     if (cancelRequested && results.length === 0) {
       toast("WD14 tagging cancelled.");
       return;
@@ -7074,7 +8185,7 @@ Image: ${entry.imgName}`,
       row.appendChild(label);
       const delBtn = document.createElement("button");
       delBtn.className = "danger-ghost";
-      delBtn.textContent = "\u2715";
+      setIconLabel(delBtn, "\u2715");
       delBtn.title = "Delete this downloaded model";
       delBtn.addEventListener("click", async () => {
         await window.Wd14Local.deleteModel(m.name);
@@ -7159,7 +8270,7 @@ Image: ${entry.imgName}`,
       row.appendChild(label);
       const dlBtn = document.createElement("button");
       dlBtn.className = "primary";
-      dlBtn.textContent = "\u2B07";
+      setIconLabel(dlBtn, "\u2B07");
       dlBtn.title = `Download ${entry.repo}`;
       dlBtn.addEventListener("click", () => downloadRepo(resolveHfRepo(entry.repo), dlBtn));
       row.appendChild(dlBtn);
@@ -7167,7 +8278,7 @@ Image: ${entry.imgName}`,
     }
   }
   function initWd14Tagger(deps) {
-    getEntries4 = deps.getEntries;
+    getEntries5 = deps.getEntries;
     refreshAllUIRef5 = deps.refreshAllUI;
     loadSettings();
     applySettingsToUI();
@@ -7198,7 +8309,7 @@ Image: ${entry.imgName}`,
         cancelRequested = true;
         return;
       }
-      const entries = getEntries4().filter((e) => masterSelectedImages.has(e.base) && !e.disabled && !e.meta?.locked);
+      const entries = getEntries5().filter((e) => masterSelectedImages.has(e.base) && !e.disabled && !e.meta?.locked);
       runBatch(entries);
     });
   }
@@ -7340,7 +8451,7 @@ Image: ${entry.imgName}`,
   var CUSTOM_NOTES_KEY = "dts-custom-tag-notes";
   function getCustomTagNote(tag) {
     try {
-      const notes = JSON.parse(localStorage.getItem(CUSTOM_NOTES_KEY) || "{}");
+      const notes = getJSON(CUSTOM_NOTES_KEY, {});
       return notes[tag] || "";
     } catch (e) {
       return "";
@@ -7348,9 +8459,9 @@ Image: ${entry.imgName}`,
   }
   function setCustomTagNote(tag, text) {
     try {
-      const notes = JSON.parse(localStorage.getItem(CUSTOM_NOTES_KEY) || "{}");
+      const notes = getJSON(CUSTOM_NOTES_KEY, {});
       notes[tag] = text;
-      localStorage.setItem(CUSTOM_NOTES_KEY, JSON.stringify(notes));
+      setJSON(CUSTOM_NOTES_KEY, notes);
     } catch (e) {
     }
   }
@@ -7411,12 +8522,9 @@ Image: ${entry.imgName}`,
   // src/renderer/synthdat-overseer.ts
   var WD14_SETTINGS_KEY = "dts-wd14-settings";
   function getWd14Settings() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(WD14_SETTINGS_KEY) || "null");
-      if (saved && typeof saved === "object") return saved;
-    } catch (e) {
-    }
-    return { host: "http://127.0.0.1:8188", model: "", threshold: 0.35, characterThreshold: 0.85, trailingComma: false, excludeTags: "" };
+    const defaults = { host: "http://127.0.0.1:8188", model: "", threshold: 0.35, characterThreshold: 0.85, trailingComma: false, excludeTags: "" };
+    const saved = getJSON(WD14_SETTINGS_KEY, null);
+    return saved && typeof saved === "object" ? { ...defaults, ...saved } : defaults;
   }
   function getHost() {
     return (synthDatHost.value || "").trim() || "http://127.0.0.1:8188";
@@ -7428,12 +8536,11 @@ Image: ${entry.imgName}`,
     saveTimer = setTimeout(saveSettings2, 400);
   }
   async function saveSettings2() {
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) return;
     try {
       const handle = await dirHandle.getFileHandle(SETTINGS_FILE_NAME, { create: true });
-      const writable = await handle.createWritable();
-      await writable.write(JSON.stringify({
+      await writeBytes(handle, JSON.stringify({
         host: synthDatHost.value,
         unifiedPromptMode: synthDatUnifiedPromptMode.checked,
         unifiedPrompt: synthDatUnifiedPrompt.value,
@@ -7477,7 +8584,6 @@ Image: ${entry.imgName}`,
         stripHairFace: synthDatStripHairFace.checked,
         skipRefImage: synthDatSkipRefImage.checked
       }, null, 2));
-      await writable.close();
     } catch (e) {
     }
   }
@@ -7529,7 +8635,7 @@ Image: ${entry.imgName}`,
     applyUnifiedPromptModeUI();
   }
   async function loadSettingsFromFile() {
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) return null;
     let saved = null;
     try {
@@ -7587,7 +8693,7 @@ Image: ${entry.imgName}`,
   }
   async function loadSynthDatSettingsForFolder() {
     resetSettingsToDefault();
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) {
       document.querySelectorAll("#synthDatTab textarea").forEach((el) => growTextarea(el));
       return;
@@ -8019,7 +9125,7 @@ Image: ${entry.imgName}`,
     [/sex|standing sex|straddling|thighjob|armpit/, "Positions & Grinding"]
   ];
   function groupTagsByFamily(tags, rules) {
-    const groups = /* @__PURE__ */ new Map();
+    const groups2 = /* @__PURE__ */ new Map();
     for (const raw of tags) {
       const t = normalizeTag(raw);
       let family = "Other";
@@ -8029,10 +9135,10 @@ Image: ${entry.imgName}`,
           break;
         }
       }
-      if (!groups.has(family)) groups.set(family, []);
-      groups.get(family).push(raw);
+      if (!groups2.has(family)) groups2.set(family, []);
+      groups2.get(family).push(raw);
     }
-    return Array.from(groups.entries()).map(([family, list]) => ({ family, tags: list.sort((a, b) => a.localeCompare(b)) })).sort((a, b) => b.tags.length - a.tags.length);
+    return Array.from(groups2.entries()).map(([family, list]) => ({ family, tags: list.sort((a, b) => a.localeCompare(b)) })).sort((a, b) => b.tags.length - a.tags.length);
   }
   function getWd14TransferSets() {
     return [
@@ -8041,17 +9147,17 @@ Image: ${entry.imgName}`,
       { name: "Scene (perspective/composition)", desc: "Camera-angle/composition tags \u2014 suggested destination: Scene.", groups: [] },
       { name: "Sexual", desc: "Sexual-content actions \u2014 suggested destination: Sexual.", groups: [] }
     ].map((s, i) => {
-      const groups = [
+      const groups2 = [
         groupTagsByFamily([...POSE_TAGS], POSE_FAMILIES),
         groupTagsByFamily([...LIMB_ACTION_TAGS], LIMB_FAMILIES),
         groupTagsByFamily([...SCENE_TAGS], SCENE_FAMILIES),
         groupTagsByFamily([...SEXUAL_ACTION_TAGS], SEXUAL_FAMILIES)
       ][i];
-      return { name: s.name, desc: s.desc, groups, total: groups.reduce((n, g) => n + g.tags.length, 0) };
+      return { name: s.name, desc: s.desc, groups: groups2, total: groups2.reduce((n, g) => n + g.tags.length, 0) };
     });
   }
   var template = null;
-  var getDirHandle7 = () => null;
+  var getDirHandle8 = () => null;
   var addEntryFromNewFile = async () => null;
   var refreshAllUIRef6 = () => {
   };
@@ -8091,13 +9197,13 @@ Image: ${entry.imgName}`,
     synthDatGenStatus.textContent = text;
   }
   async function pickReferenceImage() {
-    if (!window.showOpenFilePicker) {
+    if (!hasOpenFilePicker()) {
       toast("Your browser does not support file picking here.", 4e3);
       return;
     }
     let handles;
     try {
-      handles = await window.showOpenFilePicker({
+      handles = await pickOpenFiles({
         types: [{ description: "Images", accept: { "image/*": [".png", ".jpg", ".jpeg", ".webp"] } }],
         multiple: false
       });
@@ -8176,7 +9282,7 @@ Image: ${entry.imgName}`,
     const refPortrait = refImageEl.naturalHeight > refImageEl.naturalWidth;
     const targetPortrait = targetH > targetW;
     if (refPortrait !== targetPortrait) {
-      synthDatResoWarning.textContent = `\u26A0 Reference image is ${refPortrait ? "portrait" : "landscape"} (${refImageEl.naturalWidth}\xD7${refImageEl.naturalHeight}) but your generation resolution is ${targetPortrait ? "portrait" : "landscape"} (${targetW}\xD7${targetH}) \u2014 consider swapping Width/Height.`;
+      setIconLabel(synthDatResoWarning, `\u26A0 Reference image is ${refPortrait ? "portrait" : "landscape"} (${refImageEl.naturalWidth}\xD7${refImageEl.naturalHeight}) but your generation resolution is ${targetPortrait ? "portrait" : "landscape"} (${targetW}\xD7${targetH}) \u2014 consider swapping Width/Height.`);
       synthDatResoWarning.style.display = "block";
     } else {
       synthDatResoWarning.style.display = "none";
@@ -8399,7 +9505,7 @@ Image: ${entry.imgName}`,
     const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: "UNETLoader", inputName: "unet_name" });
     if (res.ok) {
       synthDatConnStatus.style.color = "var(--accent-ok, #3a9)";
-      synthDatConnStatus.textContent = `\u2713 Connected to ${getHost()}`;
+      setIconLabel(synthDatConnStatus, `\u2713 Connected to ${getHost()}`);
     } else {
       synthDatConnStatus.style.color = "";
       synthDatConnStatus.textContent = res.error || "Could not connect.";
@@ -8487,28 +9593,19 @@ Image: ${entry.imgName}`,
     header.className = "ctx-header";
     header.textContent = tag;
     menu.appendChild(header);
-    const defBtn = document.createElement("button");
-    defBtn.className = "ctx-item";
-    defBtn.textContent = "\u{1F4D6} Definition";
-    defBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
+    addContextMenuItem(menu, "\u{1F4D6} Definition", () => {
       closePendingTagMenu();
       openTagDetails(tag);
     });
-    menu.appendChild(defBtn);
     const isVoid = markedVoidTags.has(tag);
-    const voidBtn = document.createElement("button");
-    voidBtn.className = "ctx-item";
-    voidBtn.textContent = isVoid ? "\u21A9\uFE0F Unmark void" : "\u{1F6AB} Mark as void";
-    voidBtn.title = isVoid ? "Stop treating this tag as a void rule candidate." : "Drop this tag from what gets saved, and add a Retroactive Void rule for it on Accept \u2014 so it's auto-stripped from future images too, not just this one.";
-    voidBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
+    addContextMenuItem(menu, isVoid ? "\u21A9\uFE0F Unmark void" : "\u{1F6AB} Mark as void", () => {
       if (isVoid) markedVoidTags.delete(tag);
       else markedVoidTags.add(tag);
       closePendingTagMenu();
       renderTagCard();
+    }, {
+      title: isVoid ? "Stop treating this tag as a void rule candidate." : "Drop this tag from what gets saved, and add a Retroactive Void rule for it on Accept \u2014 so it's auto-stripped from future images too, not just this one."
     });
-    menu.appendChild(voidBtn);
     document.body.appendChild(menu);
     pendingTagMenuEl = menu;
     positionMenu(menu, x, y);
@@ -8578,96 +9675,50 @@ Image: ${entry.imgName}`,
     return Array.from(new Set(tags));
   }
   function buildPromptFromFields() {
-    const prompt = JSON.parse(JSON.stringify(template));
-    const unified = synthDatUnifiedPromptMode.checked;
-    const character = [unified ? fieldValue(synthDatUnifiedPrompt) : fieldValue(synthDatCharacter), fieldValue(synthDatCharacterTrigger)].filter(Boolean).join(", ");
-    prompt["21"].inputs.value = fieldValue(synthDatGlobal);
-    prompt["8"].inputs.value = unified ? "" : fieldValue(synthDatRating);
-    prompt["19"].inputs.value = "";
-    prompt["11"].inputs.value = character;
-    prompt["12"].inputs.value = unified ? "" : fieldValue(synthDatHair);
-    prompt["15"].inputs.value = unified ? "" : fieldValue(synthDatFace);
-    prompt["18"].inputs.value = unified ? "" : fieldValue(synthDatChest);
-    prompt["9"].inputs.value = unified ? "" : fieldValue(synthDatBody);
-    prompt["6"].inputs.value = unified ? "" : fieldValue(synthDatClothes);
-    prompt["20"].inputs.value = unified ? "" : fieldValue(synthDatLimbs);
-    prompt["14"].inputs.value = unified ? "" : fieldValue(synthDatSexual);
-    prompt["7"].inputs.value = unified ? "" : fieldValue(synthDatPose);
-    prompt["10"].inputs.value = unified ? "" : fieldValue(synthDatExtra);
-    prompt["13"].inputs.value = unified ? "" : fieldValue(synthDatEffects);
-    prompt["17"].inputs.value = unified ? "" : fieldValue(synthDatScene);
-    prompt["16"].inputs.text = fieldValue(synthDatNegative);
-    prompt["41"].inputs.unet_name = synthDatDiffModel.value;
-    prompt["51"].inputs.lora_name = synthDatMainLora.value.trim() || "None";
-    if (synthDatClip.value) {
-      prompt["249"].inputs.clip_name = synthDatClip.value;
-      prompt["47:45"].inputs.clip_name = synthDatClip.value;
-    }
-    if (synthDatVae.value) prompt["47:46"].inputs.vae_name = synthDatVae.value;
-    const chunks = [];
-    for (let i = 0; i < loraRows.length; i += 4) chunks.push(loraRows.slice(i, i + 4));
-    function fillStackInputs(inputs, chunk) {
-      for (let i = 0; i < 4; i++) {
-        const slot = String(i + 1).padStart(2, "0");
-        const r = chunk[i];
-        inputs[`lora_${slot}`] = r ? r.input.value.trim() || "None" : "None";
-        inputs[`strength_${slot}`] = r ? parseFloat(r.strength.value) || 0 : 0;
-      }
-    }
-    let lastStackId = "237";
-    fillStackInputs(prompt["237"].inputs, chunks[0] || []);
-    for (let c = 1; c < chunks.length; c++) {
-      const newId = `237_extra_${c}`;
-      const newInputs = { model: [lastStackId, 0], clip: ["47:45", 0] };
-      fillStackInputs(newInputs, chunks[c]);
-      prompt[newId] = { class_type: "DSM Lora Loader Stack", inputs: newInputs, _meta: { title: "DSM Lora Loader Stack" } };
-      lastStackId = newId;
-    }
-    if (lastStackId !== "237") {
-      prompt["243"].inputs.input1 = [lastStackId, 0];
-      prompt["240"].inputs.model = [lastStackId, 0];
-      prompt["195"].inputs.model = [lastStackId, 0];
-    }
-    if (synthDatSkipRefImage.checked) {
-      delete prompt["239"];
-      delete prompt["240"];
-      delete prompt["243"];
-      delete prompt["238"];
-      delete prompt["246"];
-      prompt["158:53"].inputs.model = [lastStackId, 0];
-      prompt["158:54"].inputs.model = [lastStackId, 0];
-    } else {
-      prompt["240"].inputs.strength = parseFloat(synthDatLLLiteStrength.value) || 0;
-      prompt["240"].inputs.start_percent = parseFloat(synthDatLLLiteStartPercent.value) || 0;
-      prompt["240"].inputs.end_percent = parseFloat(synthDatLLLiteEndPercent.value) || 0;
-      prompt["240"].inputs.preserve_wrapper = synthDatLLLitePreserveWrapper.checked;
-      prompt["243"].inputs.select = 2;
-      prompt["238"].inputs.fit = synthDatResizeFit.value;
-      prompt["238"].inputs.method = synthDatResizeMethod.value;
-      prompt["240"].inputs.image = ["238", 0];
-    }
-    prompt["168:167"].inputs.sampler_name = synthDatSampler.value;
-    prompt["158:53"].inputs.scheduler = synthDatScheduler.value;
-    prompt["158:53"].inputs.steps = parseInt(synthDatSteps1.value, 10) || 1;
-    prompt["158:54"].inputs.cfg = parseFloat(synthDatCfg1.value) || 1;
-    prompt["174:171"].inputs.value = parseInt(synthDatWidth.value, 10) || 920;
-    prompt["174:172"].inputs.value = parseInt(synthDatHeight.value, 10) || 1244;
-    prompt["165"].inputs.noise_seed = parseInt(synthDatSeed1.value, 10) || 0;
-    if (synthDatUse2Pass.checked) {
-      prompt["227"].inputs.noise_seed = parseInt(synthDatSeed2.value, 10) || 0;
-      prompt["195"].inputs.denoise = parseFloat(synthDatDenoise2.value) || 0;
-      prompt["195"].inputs.scheduler = synthDatScheduler.value;
-      prompt["195"].inputs.steps = parseInt(synthDatSteps2.value, 10) || 1;
-      prompt["192_pass1"] = { class_type: "SaveImage", inputs: { filename_prefix: prompt["192"].inputs.filename_prefix, images: ["176", 0] }, _meta: { title: "Pass 1 preview" } };
-    } else {
-      delete prompt["190"];
-      delete prompt["191"];
-      delete prompt["195"];
-      delete prompt["227"];
-      delete prompt["224"];
-      prompt["192"].inputs.images = ["176", 0];
-    }
-    return prompt;
+    return buildSynthDatPrompt(template, {
+      unified: synthDatUnifiedPromptMode.checked,
+      global: fieldValue(synthDatGlobal),
+      rating: fieldValue(synthDatRating),
+      character: fieldValue(synthDatCharacter),
+      characterTrigger: fieldValue(synthDatCharacterTrigger),
+      unifiedPrompt: fieldValue(synthDatUnifiedPrompt),
+      hair: fieldValue(synthDatHair),
+      face: fieldValue(synthDatFace),
+      chest: fieldValue(synthDatChest),
+      body: fieldValue(synthDatBody),
+      clothes: fieldValue(synthDatClothes),
+      limbs: fieldValue(synthDatLimbs),
+      sexual: fieldValue(synthDatSexual),
+      pose: fieldValue(synthDatPose),
+      extra: fieldValue(synthDatExtra),
+      effects: fieldValue(synthDatEffects),
+      scene: fieldValue(synthDatScene),
+      negative: fieldValue(synthDatNegative),
+      diffModel: synthDatDiffModel.value,
+      mainLora: synthDatMainLora.value,
+      clip: synthDatClip.value,
+      vae: synthDatVae.value,
+      loraRows: loraRows.map((r) => ({ input: r.input.value, strength: r.strength.value })),
+      noLoraStandIn: "None",
+      skipRefImage: synthDatSkipRefImage.checked,
+      lliteStrength: synthDatLLLiteStrength.value,
+      lliteStartPercent: synthDatLLLiteStartPercent.value,
+      lliteEndPercent: synthDatLLLiteEndPercent.value,
+      llitePreserveWrapper: synthDatLLLitePreserveWrapper.checked,
+      resizeFit: synthDatResizeFit.value,
+      resizeMethod: synthDatResizeMethod.value,
+      sampler: synthDatSampler.value,
+      scheduler: synthDatScheduler.value,
+      steps1: synthDatSteps1.value,
+      cfg1: synthDatCfg1.value,
+      width: synthDatWidth.value,
+      height: synthDatHeight.value,
+      seed1: synthDatSeed1.value,
+      use2Pass: synthDatUse2Pass.checked,
+      seed2: synthDatSeed2.value,
+      denoise2: synthDatDenoise2.value,
+      steps2: synthDatSteps2.value
+    });
   }
   var pendingBase = "";
   var pendingImgName = "";
@@ -8702,7 +9753,7 @@ Image: ${entry.imgName}`,
       toast(`Pick a reference image first (or check "I don't want to use a reference image").`);
       return;
     }
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) {
       toast("Open a dataset folder first.");
       return;
@@ -8782,35 +9833,27 @@ Image: ${entry.imgName}`,
     return { next: maxNum + 1, width: Math.max(width, String(maxNum + 1).length) };
   }
   async function writeImageEntry(bytes, base, imgName, tags, disable) {
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) return null;
     try {
       if (disable) {
         const imgHandle2 = await dirHandle.getFileHandle(imgName, { create: true });
-        const imgWritable2 = await imgHandle2.createWritable();
-        await imgWritable2.write(bytes);
-        await imgWritable2.close();
+        await writeBytes(imgHandle2, bytes);
         const txtHandle2 = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
-        const txtWritable2 = await txtHandle2.createWritable();
-        await txtWritable2.write(tags.map((t) => t.replace(/ /g, "_")).join(", "));
-        await txtWritable2.close();
+        await writeBytes(txtHandle2, tags.map((t) => t.replace(/ /g, "_")).join(", "));
         const entry2 = await addEntryFromNewFile(base, imgHandle2, imgName, txtHandle2, true, tags, false);
         if (entry2) await moveEntry(entry2, true);
         return entry2;
       }
       const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
-      const imgWritable = await imgHandle.createWritable();
-      await imgWritable.write(bytes);
-      await imgWritable.close();
+      await writeBytes(imgHandle, bytes);
       const txtHandle = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
-      const txtWritable = await txtHandle.createWritable();
-      await txtWritable.write(tags.map((t) => t.replace(/ /g, "_")).join(", "));
-      await txtWritable.close();
+      await writeBytes(txtHandle, tags.map((t) => t.replace(/ /g, "_")).join(", "));
       const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false);
       if (entry) markDirty(entry);
       return entry;
     } catch (err) {
-      toast(`Could not save an image: ${err?.message || err}`, 4200);
+      toastError("Could not save an image", err);
       return null;
     }
   }
@@ -8819,7 +9862,7 @@ Image: ${entry.imgName}`,
     return previewBytes === pass1Bytes ? pass2Bytes : pass1Bytes;
   }
   async function acceptImage() {
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) {
       toast("Open a dataset folder first.");
       return;
@@ -8845,7 +9888,7 @@ Image: ${entry.imgName}`,
     clearPreview();
   }
   async function rejectImage() {
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) {
       toast("Open a dataset folder first.");
       return;
@@ -8865,7 +9908,7 @@ Image: ${entry.imgName}`,
   }
   async function autoRejectPendingIfAny() {
     if (!previewBytes) return;
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) return;
     const tags = pendingTagSnapshot || [];
     await writeImageEntry(previewBytes, pendingBase, pendingImgName, tags, true);
@@ -8929,7 +9972,7 @@ Image: ${entry.imgName}`,
     });
   }
   function initSynthDatOverseer(deps) {
-    getDirHandle7 = deps.getDirHandle;
+    getDirHandle8 = deps.getDirHandle;
     addEntryFromNewFile = deps.addEntryFromNewFile;
     refreshAllUIRef6 = deps.refreshAllUI;
     loadTemplate();
@@ -9060,18 +10103,30 @@ Image: ${entry.imgName}`,
   var leftSortMode = "family";
   var leftSortDir = "desc";
   var familyOrder = [];
-  var getEntries5 = () => [];
-  var getGalleryFilter = () => ({ base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, exactMatch: false });
+  var getEntries6 = () => [];
+  var getGalleryFilter = () => ({ base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, originalsView: false, exactMatch: false });
   var getGallerySortMode = () => "filename";
   var getGallerySortDir = () => "asc";
   var resetSingleIndex2 = () => {
   };
   var renderCurrentViewRef3 = () => {
   };
+  var refreshFilterModeUI = () => {
+  };
+  var isFilterModeLocked = () => false;
+  var markTagReviewedRef = () => 0;
   var lastTagIndex = /* @__PURE__ */ new Map();
+  var reviewFlaggedActive = false;
+  var reviewedFlaggedTags = /* @__PURE__ */ new Set();
+  function resetReviewFlagged() {
+    reviewFlaggedActive = false;
+    reviewedFlaggedTags = /* @__PURE__ */ new Set();
+    btnReviewFlagged.classList.remove("active");
+    tagFamilyListArea.classList.remove("review-mode");
+  }
   function buildTagIndex() {
     const index = /* @__PURE__ */ new Map();
-    for (const e of getEntries5()) {
+    for (const e of getEntries6()) {
       if (e.disabled) continue;
       for (const t of e.tags) {
         if (!index.has(t)) index.set(t, /* @__PURE__ */ new Set());
@@ -9155,7 +10210,54 @@ Image: ${entry.imgName}`,
     filterSuggestions.appendChild(list);
     filterSuggestions.style.display = "";
   }
+  function renderFlaggedReviewList() {
+    tagListTitle.textContent = "FLAGGED FOR REVIEW";
+    const counts = /* @__PURE__ */ new Map();
+    for (const e of getEntries6()) {
+      const flagged = e.meta && e.meta.flaggedTags;
+      if (!flagged) continue;
+      for (const t of flagged) counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    const tags = new Set(counts.keys());
+    for (const t of reviewedFlaggedTags) tags.add(t);
+    tagFrequencyList.innerHTML = "";
+    if (tags.size === 0) {
+      const empty = document.createElement("div");
+      empty.className = "freq-empty";
+      setIconLabel(empty, "No tags flagged for review. Use a tag chip's \u{1F6A9} menu to flag one.");
+      tagFrequencyList.appendChild(empty);
+      return;
+    }
+    const sorted = Array.from(tags).sort((a, b) => a.localeCompare(b));
+    for (const tag of sorted) {
+      const stillFlagged = counts.has(tag);
+      const row = document.createElement("div");
+      row.className = "freq-row review-flag-row" + (stillFlagged ? "" : " reviewed");
+      const label = document.createElement("span");
+      label.className = "review-flag-tag";
+      label.textContent = tag;
+      row.appendChild(label);
+      const btn = document.createElement("button");
+      btn.className = "review-done-btn";
+      btn.textContent = "Reviewed";
+      btn.title = stillFlagged ? "Unflag this tag from every image (undoable)" : "Already cleared \u2014 no image lists this tag anymore";
+      btn.disabled = !stillFlagged;
+      btn.addEventListener("click", () => {
+        reviewedFlaggedTags.add(tag);
+        const n = markTagReviewedRef(tag);
+        if (n === 0) toast(`No loaded image still lists "${tag}" as flagged for review.`);
+        refreshStats();
+      });
+      row.appendChild(btn);
+      tagFrequencyList.appendChild(row);
+    }
+  }
   function renderTagFrequencyList(index) {
+    if (reviewFlaggedActive) {
+      renderFlaggedReviewList();
+      return;
+    }
+    tagListTitle.textContent = "TAGS";
     const dir = leftSortDir === "asc" ? 1 : -1;
     tagFrequencyList.innerHTML = "";
     if (leftSortMode === "family") {
@@ -9172,8 +10274,7 @@ Image: ${entry.imgName}`,
       familyList = applyFamilyOrder(familyList);
       if (familyList.length === 0) {
         const empty = document.createElement("div");
-        empty.className = "freq-family-header";
-        empty.style.cursor = "default";
+        empty.className = "freq-empty";
         empty.textContent = "No tags share a common word yet.";
         tagFrequencyList.appendChild(empty);
         return;
@@ -9185,7 +10286,7 @@ Image: ${entry.imgName}`,
         header.dataset.word = word;
         const dragHandle = document.createElement("span");
         dragHandle.className = "family-drag-handle";
-        dragHandle.textContent = "\u2630";
+        setIconLabel(dragHandle, "\u2630");
         dragHandle.title = "Drag to reorder this family";
         header.appendChild(dragHandle);
         const labelSpan = document.createElement("span");
@@ -9241,17 +10342,11 @@ Image: ${entry.imgName}`,
     return finalOrder.map((w) => familyList.find(([fw]) => fw === w));
   }
   function saveFamilyOrder() {
-    try {
-      localStorage.setItem("dts-family-order", JSON.stringify(familyOrder));
-    } catch (e) {
-    }
+    setJSON("dts-family-order", familyOrder);
   }
   (function loadFamilyOrder() {
-    try {
-      const saved = JSON.parse(localStorage.getItem("dts-family-order") || "null");
-      if (Array.isArray(saved)) familyOrder = saved;
-    } catch (e) {
-    }
+    const saved = getJSON("dts-family-order", null);
+    if (Array.isArray(saved)) familyOrder = saved;
   })();
   function reorderFamilyBefore(draggedWord, targetWord, currentOrder) {
     const draggedIdx = currentOrder.indexOf(draggedWord);
@@ -9269,7 +10364,7 @@ Image: ${entry.imgName}`,
   function refreshStats() {
     const index = buildTagIndex();
     lastTagIndex = index;
-    const entries = getEntries5();
+    const entries = getEntries6();
     const activeEntries = entries.filter((e) => !e.disabled);
     $("cardImages").textContent = String(activeEntries.length);
     $("cardTags").textContent = String(index.size);
@@ -9300,12 +10395,14 @@ Image: ${entry.imgName}`,
     return arr;
   }
   function filteredEntries() {
-    return sortEntries(getEntries5().filter(passesFilter));
+    return sortEntries(getEntries6().filter(passesFilter));
   }
   function passesFilter(e) {
     const galleryFilter = getGalleryFilter();
-    if (galleryFilter.disabledView) {
-      if (!e.disabled) return false;
+    if (galleryFilter.originalsView) {
+      if (!e.original) return false;
+    } else if (galleryFilter.disabledView) {
+      if (!e.disabled || e.original) return false;
     } else {
       if (e.disabled) return false;
       if (galleryFilter.base === "untagged" && e.tags.length !== 0) return false;
@@ -9336,20 +10433,22 @@ Image: ${entry.imgName}`,
   function setContainsFilter(value) {
     const galleryFilter = getGalleryFilter();
     galleryFilter.terms = [value.toLowerCase()];
-    galleryFilter.mode = "AND";
+    if (!isFilterModeLocked()) galleryFilter.mode = "AND";
     filterInput.value = value;
     hideFilterSuggestions();
     resetSingleIndex2();
+    refreshFilterModeUI();
     renderCurrentViewRef3();
   }
   function setMirroredSelectionFilter(tags) {
     const galleryFilter = getGalleryFilter();
     const list = Array.from(tags);
     galleryFilter.terms = list.map((t) => t.toLowerCase());
-    galleryFilter.mode = "AND";
+    if (!isFilterModeLocked()) galleryFilter.mode = "AND";
     filterInput.value = list.join(", ");
     hideFilterSuggestions();
     resetSingleIndex2();
+    refreshFilterModeUI();
     renderCurrentViewRef3();
   }
   function setExcludesFilter(value) {
@@ -9360,15 +10459,18 @@ Image: ${entry.imgName}`,
     renderCurrentViewRef3();
   }
   function initTagIndex(deps) {
-    getEntries5 = deps.getEntries;
+    getEntries6 = deps.getEntries;
     getGalleryFilter = deps.getGalleryFilter;
     getGallerySortMode = deps.getGallerySortMode;
     getGallerySortDir = deps.getGallerySortDir;
     resetSingleIndex2 = deps.resetSingleIndex;
     renderCurrentViewRef3 = deps.renderCurrentView;
+    refreshFilterModeUI = deps.refreshFilterModeUI;
+    isFilterModeLocked = deps.isFilterModeLocked;
+    markTagReviewedRef = deps.markTagReviewed;
     leftSortDirBtn.addEventListener("click", () => {
       leftSortDir = leftSortDir === "asc" ? "desc" : "asc";
-      leftSortDirBtn.textContent = leftSortDir === "asc" ? "\u25B2" : "\u25BC";
+      setIconLabel(leftSortDirBtn, leftSortDir === "asc" ? "\u25B2" : "\u25BC");
       refreshStats();
     });
     btnResetFamilyOrder.addEventListener("click", () => {
@@ -9410,10 +10512,7 @@ Image: ${entry.imgName}`,
     }, true);
     filterExactToggle.addEventListener("change", () => {
       getGalleryFilter().exactMatch = filterExactToggle.checked;
-      try {
-        localStorage.setItem("dts-filter-exact-match", filterExactToggle.checked ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-filter-exact-match", filterExactToggle.checked);
       if (filterExactToggle.checked) {
         folderStats.exact_match_used = true;
         saveFolderStats();
@@ -9424,10 +10523,7 @@ Image: ${entry.imgName}`,
     });
     (function initExactMatchPref() {
       let on = false;
-      try {
-        on = localStorage.getItem("dts-filter-exact-match") === "1";
-      } catch (e) {
-      }
+      on = getBool("dts-filter-exact-match");
       filterExactToggle.checked = on;
       getGalleryFilter().exactMatch = on;
     })();
@@ -9444,26 +10540,9225 @@ Image: ${entry.imgName}`,
       const galleryFilter = getGalleryFilter();
       galleryFilter.terms = [];
       galleryFilter.excludes = "";
+      if (!isFilterModeLocked()) galleryFilter.mode = "AND";
       excludeBadge.style.display = "none";
       hideFilterSuggestions();
+      refreshFilterModeUI();
       setBaseFilter("all");
     });
+    btnReviewFlagged.addEventListener("click", () => {
+      reviewFlaggedActive = !reviewFlaggedActive;
+      btnReviewFlagged.classList.toggle("active", reviewFlaggedActive);
+      tagFamilyListArea.classList.toggle("review-mode", reviewFlaggedActive);
+      if (reviewFlaggedActive) reviewedFlaggedTags = /* @__PURE__ */ new Set();
+      refreshStats();
+    });
+  }
+
+  // src/renderer/tag-categories-data.ts
+  var TAG_CATEGORY_ORDER = ["character", "body", "face", "clothes", "limbs", "sexual", "pose", "scene", "effects", "other"];
+  var TAG_CATEGORY_SEEDS = {
+    ";)": "face",
+    ";<": "face",
+    ";>": "face",
+    ";3": "face",
+    ";d": "face",
+    ";o": "face",
+    ";p": "face",
+    ";q": "face",
+    ". .": "face",
+    "@ @": "face",
+    "\\(^o^)/": "face",
+    "\\||/": "limbs",
+    "\\m/": "limbs",
+    "\\n/": "limbs",
+    "\\o/": "pose",
+    "^ ^": "face",
+    "^^^": "face",
+    "^q^": "face",
+    "^v^": "face",
+    "+ -": "face",
+    "+ +": "face",
+    "<": "body",
+    "<|> <|>": "face",
+    "<o> <o>": "face",
+    "= =": "face",
+    "> @": "face",
+    "> <": "face",
+    ">3<": "face",
+    ">o<": "face",
+    "0 0": "face",
+    "0w0": "face",
+    "1 pound no fukuin": "pose",
+    "1910s fashion": "clothes",
+    "1920s (style)": "effects",
+    "1920s fashion": "clothes",
+    "1930s (style)": "effects",
+    "1930s fashion": "clothes",
+    "1940s (style)": "effects",
+    "1940s fashion": "clothes",
+    "1950s (style)": "effects",
+    "1950s fashion": "clothes",
+    "1960s (style)": "effects",
+    "1960s fashion": "clothes",
+    "1970s (style)": "effects",
+    "1970s fashion": "clothes",
+    "1980s (style)": "effects",
+    "1980s fashion": "clothes",
+    "1986 fifa world cup": "pose",
+    "1990s (style)": "effects",
+    "1990s fashion": "clothes",
+    "1boy": "character",
+    "1girl": "character",
+    "1other": "character",
+    "2000s (style)": "effects",
+    "2002 fifa world cup": "pose",
+    "2006 fifa world cup": "pose",
+    "2006 winter olympics": "pose",
+    "2009 world baseball classic": "pose",
+    "2010 fifa world cup": "pose",
+    "2010 winter olympics": "pose",
+    "2010-2011 uefa champions' league": "pose",
+    "2011 afc asian cup": "pose",
+    "2011 copa america": "pose",
+    "2011 fifa women's world cup": "pose",
+    "2011 tohoku earthquake and tsunami": "scene",
+    "2012 summer olympics": "pose",
+    "2014 afc women's asian cup": "pose",
+    "2014 fifa world cup": "pose",
+    "2014 winter olympics": "pose",
+    "2015 copa america": "pose",
+    "2015 fifa women's world cup": "pose",
+    "2015 rugby world cup": "pose",
+    "2016 summer olympics": "pose",
+    "2016 us election": "scene",
+    "2017 taipei universiade": "pose",
+    "2018 fifa world cup": "pose",
+    "2018 winter olympics": "pose",
+    "2019 rugby world cup": "pose",
+    "2019-2020 hong kong protests": "scene",
+    "2020 summer olympics": "pose",
+    "2020 us election": "scene",
+    "2021 copa america": "pose",
+    "2022 fifa world cup": "pose",
+    "2022 winter olympics": "pose",
+    "2023 world baseball classic": "pose",
+    "2024 attempted assassination of donald trump": "scene",
+    "2024 copa america": "pose",
+    "2024 crowdstrike incident": "scene",
+    "2024 south korea martial law crisis": "scene",
+    "2024 summer olympics": "pose",
+    "2025 fifa club world cup": "pose",
+    "2026 fifa world cup": "pose",
+    "2026 iran war": "scene",
+    "2026 united states strikes in venezuela": "scene",
+    "2026 winter olympics": "pose",
+    "2boys": "character",
+    "2d dating": "pose",
+    "2girls": "character",
+    "2others": "character",
+    "3 3": "face",
+    "3boys": "character",
+    "3d": "scene",
+    "3d background": "scene",
+    "3d glasses": "clothes",
+    "3girls": "character",
+    "3others": "character",
+    "416 day": "scene",
+    "4boys": "character",
+    "4girls": "character",
+    "4others": "character",
+    "5boys": "character",
+    "5girls": "character",
+    "5koma": "scene",
+    "5others": "character",
+    "6 9": "face",
+    "6+boys": "character",
+    "6+girls": "character",
+    "6+others": "character",
+    "7-eleven": "scene",
+    "7up": "scene",
+    "9/11": "scene",
+    "a flat chest is a status symbol": "body",
+    "a world underneath": "scene",
+    "a-pose": "pose",
+    "a&w": "scene",
+    "abs": "body",
+    "absolutely everyone": "character",
+    "abstract": "scene",
+    "abstract background": "scene",
+    "absurdly long hair": "body",
+    "abu simbel": "scene",
+    "aburaage": "scene",
+    "abyaa face": "face",
+    "ac milan": "pose",
+    "accurate lolita coord": "clothes",
+    "ace combat": "scene",
+    "ace wo nerae!": "pose",
+    "acf fiorentina": "pose",
+    "acid graphics": "effects",
+    "acubi": "clothes",
+    "adapted costume": "effects",
+    "adelaide football club": "pose",
+    "adjusting another's hair": "limbs",
+    "adjusting clothes": "sexual",
+    "adjusting collar": "clothes",
+    "adjusting eyewear": "limbs",
+    "adjusting gloves": "clothes",
+    "adjusting hair": "body",
+    "adjusting headwear": "clothes",
+    "adjusting legwear": "clothes",
+    "adjusting mask": "clothes",
+    "adjusting neck ribbon": "clothes",
+    "adjusting neckerchief": "clothes",
+    "adjusting necklace": "clothes",
+    "adjusting necktie": "clothes",
+    "adjusting scarf": "clothes",
+    "adjusting swimsuit": "clothes",
+    "adonis (flower)": "scene",
+    "adrian helmet": "clothes",
+    "adult baby": "sexual",
+    "adversarial noise": "scene",
+    "aegyo sal": "clothes",
+    "aerial fireworks": "scene",
+    "aerial root": "scene",
+    "afc ajax": "pose",
+    "affogato": "scene",
+    "afghanistan": "scene",
+    "african clothes": "clothes",
+    "afro": "body",
+    "afrofuturism": "effects",
+    "after anal": "sexual",
+    "after buttjob": "sexual",
+    "after fellatio": "sexual",
+    "after fingering": "sexual",
+    "after footjob": "sexual",
+    "after frottage": "sexual",
+    "after insertion": "sexual",
+    "after masturbation": "sexual",
+    "after oral": "sexual",
+    "after paizuri": "sexual",
+    "after rape": "sexual",
+    "after sex": "sexual",
+    "after urethral": "sexual",
+    "after vaginal": "sexual",
+    "afterglow": "sexual",
+    "afterimage": "scene",
+    "against bed": "pose",
+    "against chair": "pose",
+    "against desk": "pose",
+    "against door": "scene",
+    "against tree": "scene",
+    "agapanthus (flower)": "scene",
+    "agave": "scene",
+    "age comparison": "effects",
+    "age progression": "effects",
+    "aged down": "effects",
+    "aged up": "effects",
+    "agejo gyaru": "clothes",
+    "ahegao": "sexual",
+    "ahiru no sora": "pose",
+    "ahoge": "body",
+    "ai-generated": "scene",
+    "ai-generated background": "scene",
+    "aichi prefecture": "scene",
+    "aiguillette": "clothes",
+    "aiming": "pose",
+    "aiming at viewer": "pose",
+    "aincrad": "scene",
+    "ainu clothes": "clothes",
+    "air guitar": "limbs",
+    "air quotes": "limbs",
+    "airfield": "scene",
+    "airplane arms": "pose",
+    "airplane interior": "scene",
+    "airport": "scene",
+    "aisle": "scene",
+    "ajirogasa": "clothes",
+    "akakichi no eleven": "pose",
+    "akanbe": "limbs",
+    "akebia fruit": "scene",
+    "akeome": "scene",
+    "akita prefecture": "scene",
+    "al-hilal sfc": "pose",
+    "al-masjid al-nabawi": "scene",
+    "alaska": "scene",
+    "albino": "body",
+    "albirex niigata": "pose",
+    "album cover": "scene",
+    "alcatraz": "scene",
+    "alcohol": "scene",
+    "alcohol burner": "scene",
+    "algeria": "scene",
+    "algorithm march": "pose",
+    "aliasing": "scene",
+    "alien mask": "clothes",
+    "all fours": "pose",
+    "all out!!": "pose",
+    "alley": "scene",
+    "allianz arena": "scene",
+    "alligator mask": "clothes",
+    "allium (flower)": "scene",
+    "almond": "scene",
+    "alsatian clothes": "clothes",
+    "alstroemeria (flower)": "scene",
+    "alternate ass size (larger)": "effects",
+    "alternate body size": "effects",
+    "alternate breast size": "body",
+    "alternate breast size (larger)": "body",
+    "alternate breast size (smaller)": "body",
+    "alternate color": "effects",
+    "alternate costume": "effects",
+    "alternate element": "effects",
+    "alternate eye color": "effects",
+    "alternate eyewear": "clothes",
+    "alternate hair color": "body",
+    "alternate hair length (longer)": "effects",
+    "alternate hair length (shorter)": "effects",
+    "alternate hairstyle": "body",
+    "alternate headwear": "effects",
+    "alternate legwear": "clothes",
+    "alternate mask": "clothes",
+    "alternate skin color": "effects",
+    "alternate species": "effects",
+    "alternate universe": "effects",
+    "alternate weapon": "effects",
+    "alternate wing color": "body",
+    "alternate wings": "body",
+    "altyn helmet": "clothes",
+    "amaryllis (flower)": "scene",
+    "amazake (drink)": "scene",
+    "amazigh clothes": "clothes",
+    "amazon position": "sexual",
+    "amekaji gyaru": "clothes",
+    "american civil war": "scene",
+    "american flag legwear": "clothes",
+    "american football (object)": "pose",
+    "american football (sport)": "pose",
+    "american football helmet": "clothes",
+    "american revolution": "scene",
+    "amesuku gyaru": "clothes",
+    "amigasa": "clothes",
+    "amphitheater": "scene",
+    "amputee": "sexual",
+    "amulet": "clothes",
+    "amusement park": "scene",
+    "anachronism": "effects",
+    "anaglyph": "scene",
+    "anal": "sexual",
+    "anal ball wear": "clothes",
+    "anal beads": "sexual",
+    "anal fingering": "sexual",
+    "anal fisting": "sexual",
+    "anal hair": "body",
+    "anal hook": "sexual",
+    "anal object insertion": "sexual",
+    "anal tail": "sexual",
+    "analogous colors": "effects",
+    "anatomical nonsense": "scene",
+    "anatomy": "sexual",
+    "anchor choker": "clothes",
+    "anchor hat ornament": "clothes",
+    "anchor necklace": "clothes",
+    "ancient egyptian clothes": "clothes",
+    "ancient greek clothes": "clothes",
+    "androgen": "sexual",
+    "androgyne symbol": "sexual",
+    "androgynous": "sexual",
+    "anemone (flower)": "scene",
+    "aneros": "sexual",
+    "anfield (stadium)": "scene",
+    "angel de la independencia": "scene",
+    "angel food cake": "scene",
+    "angel mort": "scene",
+    "angel wings": "body",
+    "angel's trumpet (flower)": "scene",
+    "anger vein": "face",
+    "angkor wat": "scene",
+    "anglerfish dance": "pose",
+    "angry": "face",
+    "angry dog noises (meme)": "face",
+    "anilingus": "sexual",
+    "animal": "character",
+    "animal around neck": "clothes",
+    "animal background": "scene",
+    "animal collar": "clothes",
+    "animal costume": "clothes",
+    "animal ear headphones": "face",
+    "animal ear helmet": "clothes",
+    "animal ear legwear": "clothes",
+    "animal ears": "face",
+    "animal focus": "character",
+    "animal hat": "clothes",
+    "animal insertion": "sexual",
+    "animal nose": "face",
+    "animal on shoulder": "clothes",
+    "animal penis": "body",
+    "animal pose": "pose",
+    "animal print": "clothes",
+    "animal pussy": "body",
+    "animal slippers": "clothes",
+    "animal-themed eyewear": "clothes",
+    "animalization": "effects",
+    "animated": "scene",
+    "animated gif": "scene",
+    "animated png": "scene",
+    "anime coloring": "effects",
+    "anime screenshot": "scene",
+    "animegao": "clothes",
+    "anise (spice)": "scene",
+    "ankle boots": "clothes",
+    "ankle garter": "clothes",
+    "ankle lace-up": "clothes",
+    "ankle socks": "clothes",
+    "ankle strap": "clothes",
+    "ankle wings": "body",
+    "anklet": "clothes",
+    "anman": "scene",
+    "anmitsu (dessert)": "scene",
+    "anna miller": "scene",
+    "anniversary": "scene",
+    "annoyed": "face",
+    "anpan": "scene",
+    "antenna hair": "body",
+    "anthurium": "scene",
+    "anti-eyebrow piercing": "face",
+    "anus": "body",
+    "anus cutout": "clothes",
+    "anvil position": "sexual",
+    "ao dai": "clothes",
+    "aoki densetsu shoot!": "pose",
+    "aomori prefecture": "scene",
+    "apartment": "scene",
+    "aphrodisiac": "sexual",
+    "apollo chocolate": "scene",
+    "apologizing": "pose",
+    "apple": "scene",
+    "apple core": "scene",
+    "apple peel": "scene",
+    "apple pie": "scene",
+    "apple print": "clothes",
+    "apple rabbit": "scene",
+    "applying another's makeup": "clothes",
+    "applying eyeliner": "clothes",
+    "applying eyeshadow": "clothes",
+    "applying lipgloss": "clothes",
+    "applying lipstick": "clothes",
+    "applying makeup": "pose",
+    "applying manicure": "clothes",
+    "applying mascara": "clothes",
+    "applying own makeup": "clothes",
+    "applying pedicure": "clothes",
+    "applying rouge": "clothes",
+    "apricot (fruit)": "scene",
+    "april fools": "scene",
+    "apron": "clothes",
+    "apron grab": "sexual",
+    "aqua ascot": "clothes",
+    "aqua background": "scene",
+    "aqua bowtie": "clothes",
+    "aqua choker": "clothes",
+    "aqua eyes": "face",
+    "aqua eyeshadow": "clothes",
+    "aqua gloves": "clothes",
+    "aqua hair": "body",
+    "aqua hat": "clothes",
+    "aqua lips": "clothes",
+    "aqua mask": "clothes",
+    "aqua neckerchief": "clothes",
+    "aqua necktie": "clothes",
+    "aqua one-piece swimsuit": "clothes",
+    "aqua pupils": "face",
+    "aqua scarf": "clothes",
+    "aqua skin": "body",
+    "aqua sleeves": "clothes",
+    "aqua theme": "effects",
+    "aqua-framed eyewear": "clothes",
+    "aqua-tinted eyewear": "clothes",
+    "aquarium": "scene",
+    "aquarius (drink)": "scene",
+    "aqueduct": "scene",
+    "aquiline nose": "face",
+    "arabesque (pose)": "pose",
+    "arabian clothes": "clothes",
+    "arakawa (tokyo)": "scene",
+    "aran legwear": "clothes",
+    "aran sweater": "clothes",
+    "arare (food)": "scene",
+    "arc de triomphe": "scene",
+    "arcade": "scene",
+    "arched back": "pose",
+    "arched bangs": "body",
+    "arched soles": "body",
+    "archer pose": "pose",
+    "archery dojo": "scene",
+    "archery shooting glove": "clothes",
+    "architecture": "scene",
+    "area 51": "scene",
+    "area no kishi": "pose",
+    "arena": "scene",
+    "areola piercing": "body",
+    "areola slip": "sexual",
+    "areolae": "body",
+    "argentina": "scene",
+    "argyle": "clothes",
+    "argyle background": "scene",
+    "argyle bowtie": "clothes",
+    "argyle choker": "clothes",
+    "argyle scarf": "clothes",
+    "aris dance (meme)": "pose",
+    "arisaema (flower)": "scene",
+    "aristocratic clothes": "clothes",
+    "arizona (state)": "scene",
+    "arizona cardinals": "pose",
+    "arm around neck": "clothes",
+    "arm around shoulder": "limbs",
+    "arm at side": "pose",
+    "arm behind back": "pose",
+    "arm behind head": "pose",
+    "arm belt": "clothes",
+    "arm between breasts": "limbs",
+    "arm cutout": "sexual",
+    "arm garter": "clothes",
+    "arm guards": "clothes",
+    "arm hug": "pose",
+    "arm on another's shoulder": "clothes",
+    "arm out of frame": "scene",
+    "arm out of sleeve": "clothes",
+    "arm ribbon": "clothes",
+    "arm sling": "body",
+    "arm support": "pose",
+    "arm up": "pose",
+    "arm warmers": "clothes",
+    "arm wrestling": "pose",
+    "armband": "clothes",
+    "armbinder": "clothes",
+    "armenia": "scene",
+    "armlet": "clothes",
+    "armor": "clothes",
+    "armored boots": "clothes",
+    "armored dress": "clothes",
+    "armored legwear": "clothes",
+    "armory": "scene",
+    "armpit cutout": "sexual",
+    "armpit focus": "scene",
+    "armpit sex": "sexual",
+    "armpits": "sexual",
+    "arms": "body",
+    "arms around neck": "clothes",
+    "arms at sides": "pose",
+    "arms behind back": "pose",
+    "arms behind head": "pose",
+    "arms bound apart": "sexual",
+    "arms up": "pose",
+    "aroused": "face",
+    "arrow through hair": "body",
+    "arsenal fc": "pose",
+    "arson": "scene",
+    "art deco": "scene",
+    "art gallery": "scene",
+    "art nouveau": "scene",
+    "artbook": "scene",
+    "artemisia argyi": "scene",
+    "artifacts": "scene",
+    "artist glove": "clothes",
+    "artistic error": "scene",
+    "asa no ha (pattern)": "clothes",
+    "ascot": "clothes",
+    "ashita e attack!": "pose",
+    "ashita no joe": "pose",
+    "ashiyu": "scene",
+    "asia league ice hockey": "pose",
+    "asian indian clothes": "clothes",
+    "asparagus": "scene",
+    "asphyxiation": "sexual",
+    "ass": "body",
+    "ass ache": "body",
+    "ass cutout": "sexual",
+    "ass expansion": "body",
+    "ass focus": "body",
+    "ass on glass": "body",
+    "ass onahole": "sexual",
+    "ass ripple": "body",
+    "ass shake": "body",
+    "ass smack": "body",
+    "ass visible through thighs": "body",
+    "ass-to-ass": "pose",
+    "ass-to-mouth": "face",
+    "assassination of john f. kennedy": "scene",
+    "assertive female": "sexual",
+    "assisted rape": "sexual",
+    "assless swimsuit": "clothes",
+    "asteroid": "scene",
+    "aston villa": "pose",
+    "asymmetrical bangs": "body",
+    "asymmetrical breasts": "body",
+    "asymmetrical docking": "pose",
+    "asymmetrical eyes": "face",
+    "asymmetrical hair": "body",
+    "asymmetrical mask": "clothes",
+    "asymmetrical sidelocks": "body",
+    "asymmetrical wings": "body",
+    "atami (shizuoka)": "scene",
+    "atlanta (city)": "scene",
+    "atlanta braves": "pose",
+    "atlanta falcons": "pose",
+    "atlanta hawks": "pose",
+    "atlas fc": "pose",
+    "atmospheric perspective": "scene",
+    "atomic bombings of hiroshima and nagasaki": "scene",
+    "attack no 1": "pose",
+    "attacker you!": "pose",
+    "aurora": "effects",
+    "australia": "pose",
+    "australian football league": "pose",
+    "australian rules football": "pose",
+    "austria": "scene",
+    "austria-hungary": "scene",
+    "autocunnilingus": "sexual",
+    "autofacial": "sexual",
+    "autofellatio": "sexual",
+    "automatic door": "scene",
+    "autopaizuri": "sexual",
+    "autumn": "scene",
+    "averting eyes": "face",
+    "avgn dancing dot mov (meme)": "pose",
+    "aviator cap": "clothes",
+    "aviator glasses": "clothes",
+    "aviator goggles": "clothes",
+    "aviator sunglasses": "clothes",
+    "avispa fukuoka": "pose",
+    "avocado": "scene",
+    "awa odori tokushima": "pose",
+    "awesome face": "face",
+    "axolotl ears": "face",
+    "ayaigasa": "clothes",
+    "ayam hat": "clothes",
+    "azalea (flower)": "scene",
+    "azerbaijan": "scene",
+    "aztec clothes": "clothes",
+    "b. league": "pose",
+    "ba tam": "clothes",
+    "baby bottle": "scene",
+    "baby carry": "pose",
+    "baby steps": "pose",
+    "baby's-breath": "scene",
+    "babydoll": "clothes",
+    "back": "body",
+    "back cutout": "sexual",
+    "back focus": "scene",
+    "back-seamed legwear": "clothes",
+    "back-to-back": "pose",
+    "backboob": "sexual",
+    "backjob": "sexual",
+    "backless outfit": "sexual",
+    "backless panties": "clothes",
+    "backless pants": "clothes",
+    "backlighting": "scene",
+    "backstage": "scene",
+    "backwards hat": "clothes",
+    "bacon": "scene",
+    "bacon-wrapped asparagus": "scene",
+    "bad anatomy": "scene",
+    "bad aspect ratio": "scene",
+    "bad ass": "body",
+    "bad feet": "body",
+    "bad food": "scene",
+    "bad hands": "scene",
+    "bad proportions": "scene",
+    "bad reflection": "scene",
+    "badge": "clothes",
+    "badminton": "pose",
+    "badminton racket": "pose",
+    "bag": "clothes",
+    "bagel": "scene",
+    "bagged fish": "scene",
+    "baghdad": "scene",
+    "bagna cauda": "scene",
+    "bags under eyes": "face",
+    "baguette": "scene",
+    "bahrain": "scene",
+    "bai clothes": "clothes",
+    "bakery": "scene",
+    "baking": "pose",
+    "baking sheet": "scene",
+    "baku (azerbaijan)": "scene",
+    "balaclava": "clothes",
+    "balancing": "pose",
+    "bald": "body",
+    "bald female": "body",
+    "balding": "body",
+    "ball": "pose",
+    "ball bra": "clothes",
+    "ball busting": "sexual",
+    "ball gag": "sexual",
+    "ballet": "pose",
+    "ballet class clothes": "clothes",
+    "ballet slippers": "clothes",
+    "balletcore": "clothes",
+    "ballroom": "scene",
+    "baltimore orioles": "pose",
+    "baltimore ravens": "pose",
+    "bamboo": "scene",
+    "bamboo forest": "scene",
+    "bamboo shoot": "scene",
+    "bamboo steamer": "scene",
+    "banana": "scene",
+    "banana boat": "scene",
+    "banana cream pie": "scene",
+    "banana peel": "scene",
+    "banana popsicle": "scene",
+    "banana slice": "scene",
+    "banana split": "scene",
+    "band uniform": "clothes",
+    "bandage on face": "body",
+    "bandage on nose": "face",
+    "bandage over one eye": "face",
+    "bandaged hand": "clothes",
+    "bandages": "clothes",
+    "bandaid": "clothes",
+    "bandaid on arm": "body",
+    "bandaid on cheek": "body",
+    "bandaid on ear": "body",
+    "bandaid on face": "body",
+    "bandaid on forehead": "body",
+    "bandaid on hand": "clothes",
+    "bandaid on knee": "body",
+    "bandaid on leg": "body",
+    "bandaid on nose": "face",
+    "bandaid on pussy": "body",
+    "bandana": "clothes",
+    "bandana around neck": "clothes",
+    "bandana over mouth": "clothes",
+    "bandeau": "clothes",
+    "bandolier": "clothes",
+    "bangladesh": "scene",
+    "bangladeshi clothes": "clothes",
+    "bangle": "clothes",
+    "bangs pinned back": "body",
+    "bank of china tower": "scene",
+    "banoffee pie": "scene",
+    "bantu knots": "body",
+    "baobab": "scene",
+    "bar (place)": "scene",
+    "bara": "sexual",
+    "barbecue": "scene",
+    "barcelona": "scene",
+    "barcelona sc": "pose",
+    "bare arms": "sexual",
+    "bare back": "sexual",
+    "bare legs": "sexual",
+    "bare shoulders": "sexual",
+    "bare tree": "scene",
+    "barefoot": "sexual",
+    "barefoot sandals (jewelry)": "clothes",
+    "barista": "scene",
+    "barley tea": "scene",
+    "barn": "scene",
+    "bartender": "scene",
+    "baseball (sport)": "pose",
+    "baseball bat": "pose",
+    "baseball cap": "pose",
+    "baseball helmet": "clothes",
+    "baseball jersey": "pose",
+    "baseball mitt": "clothes",
+    "baseball stadium": "scene",
+    "baseball uniform": "pose",
+    "bashlik": "clothes",
+    "basil leaf": "scene",
+    "basilisk time": "pose",
+    "basket": "scene",
+    "basketball (sport)": "pose",
+    "basketball uniform": "pose",
+    "basquash!": "pose",
+    "bastille day": "scene",
+    "bat ears": "face",
+    "bat legwear": "clothes",
+    "bat mask": "clothes",
+    "bat print": "clothes",
+    "bat wings": "body",
+    "bath": "scene",
+    "bathing": "pose",
+    "bathrobe": "clothes",
+    "bathroom": "scene",
+    "bathtub": "scene",
+    "batter": "scene",
+    "battle": "pose",
+    "battle athletes": "pose",
+    "battle of arnhem": "scene",
+    "battle of beda fomm": "scene",
+    "battle of berlin": "scene",
+    "battle of britain": "scene",
+    "battle of caen": "scene",
+    "battle of carentan": "scene",
+    "battle of dien bien phu": "scene",
+    "battle of france": "scene",
+    "battle of hamburger hill": "scene",
+    "battle of jutland": "scene",
+    "battle of kursk": "scene",
+    "battle of leyte gulf": "scene",
+    "battle of midway": "scene",
+    "battle of mogadishu": "scene",
+    "battle of nijmegen": "scene",
+    "battle of okinawa": "scene",
+    "battle of peleliu": "scene",
+    "battle of remagen": "scene",
+    "battle of santa cruz": "scene",
+    "battle of sekigahara": "scene",
+    "battle of sicily": "scene",
+    "battle of stalingrad": "scene",
+    "battle of the bulge": "scene",
+    "battle of the coral sea": "scene",
+    "battle of the dnieper": "scene",
+    "battle of the java sea": "scene",
+    "battle of the kerch peninsula": "scene",
+    "battle of the philippine sea": "scene",
+    "battlefield": "scene",
+    "battleship": "scene",
+    "battoujutsu stance": "pose",
+    "baumkuchen": "scene",
+    "bavarois": "scene",
+    "bayer 04 leverkusen": "pose",
+    "bdsm": "sexual",
+    "beach": "clothes",
+    "beach volleyball": "pose",
+    "beachball": "pose",
+    "bead choker": "clothes",
+    "bead necklace": "clothes",
+    "beads": "clothes",
+    "beanie": "clothes",
+    "beans": "scene",
+    "bear band legwear": "clothes",
+    "bear costume": "clothes",
+    "bear ear headphones": "face",
+    "bear ears": "face",
+    "bear hat": "clothes",
+    "bear mask": "clothes",
+    "bear position": "pose",
+    "bear print": "clothes",
+    "beard": "body",
+    "bearded girl": "body",
+    "bearskin cap": "clothes",
+    "beatnik": "clothes",
+    "beauty mask": "clothes",
+    "beckoning": "limbs",
+    "bedroom": "scene",
+    "bedwetting": "pose",
+    "beehive hairdo": "body",
+    "beer": "scene",
+    "beer mug": "scene",
+    "before feminization": "sexual",
+    "begging": "pose",
+    "begonia (flower)": "scene",
+    "behind bars": "sexual",
+    "beijing": "scene",
+    "belarus": "scene",
+    "belarusian clothes": "clothes",
+    "belgium": "scene",
+    "bell": "clothes",
+    "bell choker": "clothes",
+    "bell pepper": "scene",
+    "bell pepper plant": "scene",
+    "bell pepper slice": "scene",
+    "bell sleeves": "clothes",
+    "bell tower": "scene",
+    "bell-bottoms": "clothes",
+    "bellflower": "scene",
+    "belly": "body",
+    "belly chain": "clothes",
+    "belly dancing": "pose",
+    "belly-to-belly": "pose",
+    "belt": "clothes",
+    "belt bra": "body",
+    "belt charm": "clothes",
+    "belt collar": "clothes",
+    "ben-day dots": "scene",
+    "bendy straw": "scene",
+    "bent back": "pose",
+    "bent over": "sexual",
+    "bento": "scene",
+    "beret": "clothes",
+    "berlaymont building": "scene",
+    "berlin": "scene",
+    "berlin wall": "scene",
+    "berliner fernsehturm": "scene",
+    "berry": "scene",
+    "bespectacled": "clothes",
+    "bestiality": "sexual",
+    "between breasts": "body",
+    "between fingers": "limbs",
+    "between toes": "limbs",
+    "bib collar": "clothes",
+    "biceps": "body",
+    "bicorne": "clothes",
+    "bicycle helmet": "clothes",
+    "big belly": "sexual",
+    "big eyes": "face",
+    "big hair": "body",
+    "bike shorts": "clothes",
+    "biker clothes": "clothes",
+    "bikesuit": "clothes",
+    "bikini": "clothes",
+    "bikini armor": "clothes",
+    "bikini bottom aside": "sexual",
+    "bikini bottom only": "clothes",
+    "bikini bottom pull": "clothes",
+    "bikini briefs": "clothes",
+    "bikini day": "scene",
+    "bikini pull": "sexual",
+    "bikini skirt": "clothes",
+    "bikini top lift": "clothes",
+    "bikini top only": "clothes",
+    "bikini top pull": "clothes",
+    "billiard ball": "pose",
+    "billiard table": "pose",
+    "billiards": "pose",
+    "bimbofication": "sexual",
+    "bindi": "clothes",
+    "biopunk": "effects",
+    "birch tree": "scene",
+    "bird mask": "clothes",
+    "bird of paradise flower": "scene",
+    "bird on shoulder": "clothes",
+    "bird print": "clothes",
+    "bird wings": "body",
+    "birdie the early bird": "scene",
+    "birthday": "scene",
+    "birthday cake": "scene",
+    "birthday party": "scene",
+    "biscuit (bread)": "scene",
+    "bisexual": "sexual",
+    "bisexual female": "sexual",
+    "bisexual male": "sexual",
+    "bishounen": "sexual",
+    "bit gag": "sexual",
+    "bitchsuit": "sexual",
+    "biting": "pose",
+    "biting another's finger": "pose",
+    "biting another's hand": "pose",
+    "biting another's tail": "pose",
+    "biting ass": "pose",
+    "biting breast": "pose",
+    "biting cheek": "pose",
+    "biting ear": "pose",
+    "biting foreskin": "pose",
+    "biting glove": "pose",
+    "biting hair": "body",
+    "biting head": "pose",
+    "biting neck": "clothes",
+    "biting nipple": "body",
+    "biting own finger": "pose",
+    "biting own lip": "pose",
+    "biting own tail": "pose",
+    "biting own thumb": "pose",
+    "biting penis": "pose",
+    "bitten apple": "scene",
+    "bitter melon": "scene",
+    "black ascot": "clothes",
+    "black background": "scene",
+    "black bowtie": "clothes",
+    "black choker": "clothes",
+    "black eyes": "face",
+    "black eyeshadow": "clothes",
+    "black fire": "scene",
+    "black forest cake": "scene",
+    "black gloves": "clothes",
+    "black hair": "body",
+    "black hat": "clothes",
+    "black lips": "clothes",
+    "black lotus": "scene",
+    "black mask": "clothes",
+    "black neckerchief": "clothes",
+    "black necktie": "clothes",
+    "black one-piece swimsuit": "clothes",
+    "black scarf": "clothes",
+    "black sclera": "face",
+    "black skin": "body",
+    "black sleeves": "clothes",
+    "black spaghetti": "scene",
+    "black star burger": "scene",
+    "black tea": "scene",
+    "black theme": "effects",
+    "black wings": "body",
+    "black-eyed susan": "scene",
+    "black-framed eyewear": "clothes",
+    "blackberry (fruit)": "scene",
+    "blake's lotaburger": "scene",
+    "blank eyes": "face",
+    "blazer": "clothes",
+    "bleed through": "scene",
+    "bleeding": "pose",
+    "bleeding heart (flower)": "scene",
+    "blending": "scene",
+    "blind": "face",
+    "blindfold": "sexual",
+    "bling": "clothes",
+    "blingee": "effects",
+    "blinking": "pose",
+    "blocking": "pose",
+    "blonde hair": "body",
+    "blood": "body",
+    "blood in hair": "body",
+    "blood on bandages": "body",
+    "blood on gloves": "clothes",
+    "blood on mask": "clothes",
+    "blood sucking": "pose",
+    "blood tofu": "scene",
+    "bloodshot eyes": "face",
+    "bloody wings": "body",
+    "bloom": "scene",
+    "bloomers": "clothes",
+    "bloomers on head": "clothes",
+    "blouse": "clothes",
+    "blowing": "pose",
+    "blowing bubble gum": "pose",
+    "blowing bubbles": "pose",
+    "blowtorch": "scene",
+    "blue ascot": "clothes",
+    "blue background": "scene",
+    "blue bowtie": "clothes",
+    "blue cheese": "scene",
+    "blue choker": "clothes",
+    "blue eyes": "face",
+    "blue eyeshadow": "clothes",
+    "blue fire": "scene",
+    "blue gloves": "clothes",
+    "blue hair": "body",
+    "blue hat": "clothes",
+    "blue hawaii": "scene",
+    "blue lips": "clothes",
+    "blue mask": "clothes",
+    "blue neckerchief": "clothes",
+    "blue necktie": "clothes",
+    "blue nose": "face",
+    "blue one-piece swimsuit": "clothes",
+    "blue pupils": "face",
+    "blue scarf": "clothes",
+    "blue sclera": "face",
+    "blue skin": "body",
+    "blue sleeves": "clothes",
+    "blue theme": "effects",
+    "blue wings": "body",
+    "blue-framed eyewear": "clothes",
+    "blue-tinted eyewear": "clothes",
+    "bluebell (flower)": "scene",
+    "blueberry": "scene",
+    "blueberry blossoms": "scene",
+    "blueberry print": "clothes",
+    "blueberry tart": "scene",
+    "blunt bangs": "body",
+    "blunt ends": "body",
+    "blurry": "scene",
+    "blurry background": "scene",
+    "blush": "face",
+    "blush stickers": "face",
+    "boar costume": "clothes",
+    "boar mask": "clothes",
+    "boat": "scene",
+    "boater hat": "clothes",
+    "bob cut": "body",
+    "bobby socks": "clothes",
+    "body blush": "body",
+    "body bridge": "pose",
+    "body fur": "body",
+    "body horror": "clothes",
+    "body jewelry": "clothes",
+    "body roll": "pose",
+    "body soaping": "pose",
+    "body writing": "sexual",
+    "bodycon": "clothes",
+    "bodystocking": "clothes",
+    "bodysuit": "clothes",
+    "boho-chic": "clothes",
+    "bok choy": "scene",
+    "bokeh": "scene",
+    "bolivia": "scene",
+    "bolo tie": "clothes",
+    "bologna fc 1909": "pose",
+    "bondage": "sexual",
+    "bondage mask": "clothes",
+    "bondage mittens": "clothes",
+    "bondage outfit": "sexual",
+    "bone mask": "clothes",
+    "bone print": "clothes",
+    "bone-shaped pupils": "face",
+    "boned meat": "scene",
+    "bonnet": "clothes",
+    "bonsai": "scene",
+    "book focus": "scene",
+    "book on head": "clothes",
+    "bookstore": "scene",
+    "boonie hat": "clothes",
+    "boots": "clothes",
+    "border": "scene",
+    "borderless panels": "scene",
+    "bored": "face",
+    "borobudur temple": "scene",
+    "borussia dortmund": "pose",
+    "boshin war": "scene",
+    "bosnia and herzegovina": "scene",
+    "boston": "scene",
+    "boston bruins": "pose",
+    "boston celtics": "pose",
+    "boston red sox": "pose",
+    "bottle": "scene",
+    "bottomless": "sexual",
+    "bougainvillea (flower)": "scene",
+    "boukun habanero": "scene",
+    "bouncing": "pose",
+    "bouncing ass": "body",
+    "bouncing breasts": "pose",
+    "bound arms": "sexual",
+    "bound breasts": "sexual",
+    "bound calves": "sexual",
+    "bound elbows": "sexual",
+    "bound feet": "sexual",
+    "bound fingers": "sexual",
+    "bound knees": "sexual",
+    "bound legs": "sexual",
+    "bound penis": "sexual",
+    "bound tail": "sexual",
+    "bound thighs": "sexual",
+    "bound toes": "sexual",
+    "bound together": "sexual",
+    "bound torso": "sexual",
+    "bound wrists": "sexual",
+    "bouquet": "scene",
+    "boutonniere": "clothes",
+    "bow": "clothes",
+    "bow background": "scene",
+    "bow choker": "clothes",
+    "bow legwear": "clothes",
+    "bow necklace": "clothes",
+    "bow on wing": "body",
+    "bow shimada": "body",
+    "bow swimsuit": "clothes",
+    "bow-shaped hair": "body",
+    "bowed wings": "body",
+    "bowing": "limbs",
+    "bowl": "scene",
+    "bowl cut": "body",
+    "bowl hat": "clothes",
+    "bowlegged pose": "pose",
+    "bowler hat": "clothes",
+    "bowling": "pose",
+    "bowling alley": "scene",
+    "bowling ball": "pose",
+    "bowling glove": "pose",
+    "bowling pin": "pose",
+    "bowtie": "clothes",
+    "box braids": "body",
+    "box of chocolates": "scene",
+    "box tie": "sexual",
+    "boxer briefs": "clothes",
+    "boxers": "clothes",
+    "boxing": "pose",
+    "boxing gloves": "clothes",
+    "boxing ring": "scene",
+    "boy on top": "sexual",
+    "boykisser": "sexual",
+    "boymoder": "sexual",
+    "boyshort panties": "clothes",
+    "bra": "clothes",
+    "bra lift": "sexual",
+    "bra on head": "clothes",
+    "bra pull": "sexual",
+    "bracelet": "clothes",
+    "bracer": "clothes",
+    "bradley center": "scene",
+    "braided bangs": "body",
+    "braided bun": "body",
+    "braided dreadlocks": "body",
+    "braided hair rings": "body",
+    "braided ponytail": "body",
+    "braiding hair": "body",
+    "bramall lane": "scene",
+    "branch": "scene",
+    "branded": "sexual",
+    "brandenburg gate": "scene",
+    "branding iron": "sexual",
+    "bras d'honneur": "pose",
+    "brazen bull": "sexual",
+    "brazier": "scene",
+    "brazil": "pose",
+    "brazil dog dance (meme)": "pose",
+    "bread": "scene",
+    "bread bun": "scene",
+    "bread crust": "scene",
+    "bread eating race": "scene",
+    "bread slice": "scene",
+    "breadfruit": "scene",
+    "break shot": "pose",
+    "breakdance": "pose",
+    "breakfast": "scene",
+    "breaking": "pose",
+    "breaking pasta": "scene",
+    "breast awe": "face",
+    "breast bondage": "sexual",
+    "breast clinging": "pose",
+    "breast conscious": "body",
+    "breast contest": "body",
+    "breast crush": "body",
+    "breast cutouts": "clothes",
+    "breast envy": "body",
+    "breast expansion": "sexual",
+    "breast focus": "scene",
+    "breast implants": "body",
+    "breast lift": "limbs",
+    "breast milk in container": "body",
+    "breast mousepad": "body",
+    "breast padding": "pose",
+    "breast pillow": "body",
+    "breast press": "body",
+    "breast pull": "body",
+    "breast pump": "sexual",
+    "breast punch": "body",
+    "breast reduction": "body",
+    "breast rest": "body",
+    "breast size switch": "body",
+    "breast slip": "sexual",
+    "breast smother": "sexual",
+    "breast sucking": "sexual",
+    "breast suppress": "limbs",
+    "breast torture": "sexual",
+    "breast-to-pectoral docking": "body",
+    "breastfeeding": "sexual",
+    "breastless clothes": "sexual",
+    "breasts": "body",
+    "breasts apart": "body",
+    "breasts day": "scene",
+    "breasts on glass": "body",
+    "breasts on head": "body",
+    "breasts on table": "body",
+    "breasts out": "sexual",
+    "breasts squeezed together": "limbs",
+    "breathing (animated)": "pose",
+    "breathing fire": "scene",
+    "brentford fc": "pose",
+    "brick oven": "scene",
+    "bridal gauntlets": "clothes",
+    "bridal legwear": "clothes",
+    "bridge": "scene",
+    "briefs": "clothes",
+    "bright background": "scene",
+    "brighton & hove albion fc": "pose",
+    "broad shoulders": "clothes",
+    "broccoli": "scene",
+    "brodie helmet": "clothes",
+    "broken egg": "scene",
+    "broken eyewear": "clothes",
+    "broken mask": "clothes",
+    "bromide": "scene",
+    "bronze parrot": "scene",
+    "bronzer": "clothes",
+    "brooch": "clothes",
+    "brooklyn bridge": "scene",
+    "brooklyn nets": "pose",
+    "broom riding": "pose",
+    "broom surfing": "pose",
+    "brown ascot": "clothes",
+    "brown background": "scene",
+    "brown bowtie": "clothes",
+    "brown choker": "clothes",
+    "brown eyes": "face",
+    "brown gloves": "clothes",
+    "brown hair": "body",
+    "brown hat": "clothes",
+    "brown mask": "clothes",
+    "brown neckerchief": "clothes",
+    "brown necktie": "clothes",
+    "brown one-piece swimsuit": "clothes",
+    "brown pupils": "face",
+    "brown scarf": "clothes",
+    "brown sleeves": "clothes",
+    "brown theme": "effects",
+    "brown wings": "body",
+    "brown-framed eyewear": "clothes",
+    "brown-tinted eyewear": "clothes",
+    "brownie (food)": "scene",
+    "bruise": "sexual",
+    "bruised eye": "face",
+    "brushing another's hair": "body",
+    "brushing hair": "pose",
+    "brushing own hair": "body",
+    "bubble": "scene",
+    "bubble background": "scene",
+    "bubble skirt": "clothes",
+    "bubble tea": "scene",
+    "bubble tea challenge": "body",
+    "bucket hat": "clothes",
+    "bucket on head": "clothes",
+    "buckingham palace": "scene",
+    "buckle": "clothes",
+    "budenovka": "clothes",
+    "budget sarashi": "clothes",
+    "budweiser": "scene",
+    "buffalo bills": "pose",
+    "buffalo sabres": "pose",
+    "bugles (food)": "scene",
+    "building": "pose",
+    "building sex": "sexual",
+    "bukkake": "sexual",
+    "bulgaria": "scene",
+    "bulgarian clothes": "clothes",
+    "bulge": "body",
+    "bulges touching": "sexual",
+    "bulging eyes": "face",
+    "bullfighting": "pose",
+    "bullying": "pose",
+    "bumping": "pose",
+    "bun cover": "body",
+    "bun with braided base": "body",
+    "bunching hair": "body",
+    "bundesliga": "pose",
+    "bundt cake": "scene",
+    "bunker": "scene",
+    "bunkyo (tokyo)": "scene",
+    "bunny day": "scene",
+    "bunsen burner": "scene",
+    "burdock root": "scene",
+    "burger": "scene",
+    "burger king": "scene",
+    "buri hamachi": "pose",
+    "burj al arab": "scene",
+    "burj khalifa": "scene",
+    "burkina faso": "scene",
+    "burlesque": "clothes",
+    "burn scar": "sexual",
+    "burning": "pose",
+    "burning building": "scene",
+    "burning photo": "scene",
+    "burnt": "sexual",
+    "burnt hair": "body",
+    "bursting breasts": "body",
+    "buruma": "clothes",
+    "buruma aside": "sexual",
+    "buruma pull": "sexual",
+    "bus interior": "scene",
+    "bus stop": "scene",
+    "bush": "scene",
+    "business suit": "clothes",
+    "bust chart": "body",
+    "bust cup": "sexual",
+    "bust measuring": "pose",
+    "bustier": "clothes",
+    "bustle": "clothes",
+    "butler": "scene",
+    "butt crack": "body",
+    "butt plug": "sexual",
+    "butter": "scene",
+    "butter knife": "scene",
+    "buttercup (flower)": "scene",
+    "butterfly": "scene",
+    "butterfly background": "scene",
+    "butterfly hat ornament": "clothes",
+    "butterfly mask": "clothes",
+    "butterfly print": "clothes",
+    "butterfly ring": "clothes",
+    "butterfly sitting": "pose",
+    "butterfly vibrator": "sexual",
+    "butterfly wings": "body",
+    "butterfly-shaped pupils": "face",
+    "buttjob": "sexual",
+    "button badge": "clothes",
+    "button eyes": "face",
+    "buttoned cuffs": "clothes",
+    "buttons": "clothes",
+    "buzz cut": "body",
+    "byakugan": "face",
+    "byzantine clothes": "clothes",
+    "byzantine empire": "scene",
+    "c.c. lemon": "scene",
+    "cabbage": "scene",
+    "cacao fruit": "scene",
+    "cactus": "scene",
+    "cadbury": "scene",
+    "caesar (drink)": "scene",
+    "cafe": "scene",
+    "cafe au lait": "scene",
+    "cafeteria": "scene",
+    "cage": "sexual",
+    "cage interior": "sexual",
+    "caipirinha (meme)": "pose",
+    "caipirinha dears dance (meme)": "pose",
+    "cake": "scene",
+    "cake batter": "scene",
+    "cake pan": "scene",
+    "cake pop": "scene",
+    "cake stand": "scene",
+    "calendar (medium)": "scene",
+    "calflet": "clothes",
+    "calgary flames": "pose",
+    "california": "scene",
+    "calla lily": "scene",
+    "calpis": "scene",
+    "cambodia": "scene",
+    "camellia": "scene",
+    "camellia print": "clothes",
+    "cameltoe": "body",
+    "cameo (jewelry)": "clothes",
+    "cameroon": "scene",
+    "camisole": "clothes",
+    "camouflage": "clothes",
+    "camouflage headwear": "clothes",
+    "camouflage legwear": "clothes",
+    "camouflage scarf": "clothes",
+    "camp nou": "scene",
+    "campaign hat": "clothes",
+    "campfire": "scene",
+    "camping": "pose",
+    "can": "scene",
+    "can't choose your own family": "scene",
+    "canada": "scene",
+    "canada day": "scene",
+    "canadian football league": "pose",
+    "canal": "scene",
+    "cancan dance": "pose",
+    "candle": "scene",
+    "candlelight": "effects",
+    "candy": "scene",
+    "candy apple": "scene",
+    "candy cane": "scene",
+    "candy cigarette": "scene",
+    "candy store": "scene",
+    "cane": "clothes",
+    "canele": "scene",
+    "canna lily": "scene",
+    "canned coffee": "scene",
+    "canned fish": "scene",
+    "canned food": "scene",
+    "canned tea": "scene",
+    "cannibalism": "scene",
+    "cannoli": "scene",
+    "cantaloupe": "scene",
+    "canton tower": "scene",
+    "canyon": "scene",
+    "cape": "clothes",
+    "cape lift": "sexual",
+    "capelet": "clothes",
+    "cappuccino": "scene",
+    "capri pants": "clothes",
+    "captain tsubasa": "pose",
+    "car interior": "scene",
+    "caramel": "scene",
+    "caramelldansen (meme)": "pose",
+    "card (medium)": "scene",
+    "card background": "scene",
+    "card between breasts": "body",
+    "cardigan": "clothes",
+    "cardigan vest": "clothes",
+    "caressing testicles": "sexual",
+    "cargo skirt": "clothes",
+    "carl's jr.": "scene",
+    "carnation": "scene",
+    "carnival mask": "clothes",
+    "carnivorous plant": "scene",
+    "carolina hurricanes": "pose",
+    "carolina panthers": "pose",
+    "carousel": "scene",
+    "carried breast rest": "pose",
+    "carrot": "scene",
+    "carrot cake": "scene",
+    "carrot necklace": "clothes",
+    "carrot slice": "scene",
+    "carrot sticks": "scene",
+    "carry me": "limbs",
+    "carrying": "pose",
+    "carrying over shoulder": "pose",
+    "carrying under arm": "pose",
+    "carson shearer's dance (meme)": "pose",
+    "carving": "pose",
+    "cashew": "scene",
+    "casino": "scene",
+    "cassock": "clothes",
+    "castella (food)": "scene",
+    "castle": "scene",
+    "casual": "clothes",
+    "casual one-piece swimsuit": "clothes",
+    "cat breakdancing (meme)": "pose",
+    "cat cafe": "scene",
+    "cat costume": "clothes",
+    "cat day": "scene",
+    "cat ear headphones": "face",
+    "cat ear legwear": "clothes",
+    "cat ears": "face",
+    "cat eye-framed eyewear": "clothes",
+    "cat hat": "clothes",
+    "cat mask": "clothes",
+    "cat on shoulder": "clothes",
+    "cat paws": "clothes",
+    "cat-shaped pupils": "face",
+    "catcher's mask": "clothes",
+    "catching": "pose",
+    "catharanthus (flower)": "scene",
+    "cathedral": "scene",
+    "cathedral of santa eulalia": "scene",
+    "catheter": "sexual",
+    "cattail": "scene",
+    "caught": "sexual",
+    "cauldron": "scene",
+    "cauliflower": "scene",
+    "caustics": "scene",
+    "cavalier hat": "clothes",
+    "cave": "scene",
+    "cave paintings": "effects",
+    "caviar": "scene",
+    "cbt": "sexual",
+    "ccc threesome": "sexual",
+    "ceara sc": "pose",
+    "cectarine": "scene",
+    "ceiling light": "effects",
+    "cellphone strap": "clothes",
+    "celtic fc": "pose",
+    "censored": "scene",
+    "center opening": "sexual",
+    "center-flap bangs": "body",
+    "century egg (food)": "scene",
+    "cephalopod eyes": "face",
+    "cerastium": "scene",
+    "cereal": "scene",
+    "cerezo osaka": "pose",
+    "cervical penetration": "sexual",
+    "cervix": "body",
+    "cf monterrey": "pose",
+    "chads dancing to california gurls (meme)": "pose",
+    "chain": "sexual",
+    "chain necklace": "clothes",
+    "chain of perversion": "scene",
+    "chained": "sexual",
+    "chamomile": "scene",
+    "chamomile tea": "scene",
+    "champagne": "scene",
+    "champagne coupe": "scene",
+    "champagne flute": "scene",
+    "chanchanko (clothes)": "clothes",
+    "chandelier": "effects",
+    "chang'e": "scene",
+    "changing room": "scene",
+    "changmingsuo": "clothes",
+    "changpao": "clothes",
+    "chaps": "clothes",
+    "character chart": "scene",
+    "character counter request": "character",
+    "character doll": "effects",
+    "character hat ornament": "clothes",
+    "character mask": "clothes",
+    "character single": "scene",
+    "character-themed food": "scene",
+    "charcoal": "scene",
+    "charizard pose": "pose",
+    "charlotte bobcats": "pose",
+    "charlotte cake": "scene",
+    "charlotte hornets": "pose",
+    "charm (object)": "clothes",
+    "chart": "scene",
+    "chasenmage": "body",
+    "chasing": "pose",
+    "chastity belt": "sexual",
+    "chastity bra": "sexual",
+    "chastity cage": "sexual",
+    "chatelaine": "clothes",
+    "che vuoi? (italian gesture)": "limbs",
+    "cheating (relationship)": "sexual",
+    "checkerboard cookie": "scene",
+    "checkered": "clothes",
+    "checkered ascot": "clothes",
+    "checkered background": "scene",
+    "checkered bikini": "clothes",
+    "checkered bowtie": "clothes",
+    "checkered headwear": "clothes",
+    "checkered legwear": "clothes",
+    "checkered mask": "clothes",
+    "checkered neckerchief": "clothes",
+    "checkered sleeves": "clothes",
+    "checkers and rally's": "scene",
+    "cheek pinching": "limbs",
+    "cheek poking": "limbs",
+    "cheek squash": "limbs",
+    "cheek-to-breast": "pose",
+    "cheek-to-cheek": "pose",
+    "cheering": "pose",
+    "cheerleader": "clothes",
+    "cheese": "scene",
+    "cheese curls": "scene",
+    "cheese fries": "scene",
+    "cheese puffs": "scene",
+    "cheese wheel": "scene",
+    "cheese-kun": "scene",
+    "cheesecake": "scene",
+    "cheesestick": "scene",
+    "cheetos": "scene",
+    "chef": "scene",
+    "chef hat": "clothes",
+    "chelsea fc": "pose",
+    "chemise": "clothes",
+    "chernobyl": "scene",
+    "cherry": "scene",
+    "cherry background": "scene",
+    "cherry blossom chiffon cake": "scene",
+    "cherry blossom print": "clothes",
+    "cherry blossoms": "scene",
+    "cherry pie": "scene",
+    "cherry print": "clothes",
+    "cherry tomato": "scene",
+    "chest binder": "sexual",
+    "chest harness": "clothes",
+    "chest sarashi": "clothes",
+    "chest stand": "pose",
+    "chest stand handstand": "pose",
+    "chestnut": "scene",
+    "chestnut mouth": "face",
+    "chewing": "pose",
+    "chewing gum": "scene",
+    "chiaroscuro": "scene",
+    "chiba (city)": "scene",
+    "chiba lotte marines": "pose",
+    "chiba prefecture": "scene",
+    "chibi inset": "scene",
+    "chicago": "scene",
+    "chicago bears": "pose",
+    "chicago blackhawks": "pose",
+    "chicago bulls": "pose",
+    "chicago cubs": "pose",
+    "chicago fire": "pose",
+    "chicago white sox": "pose",
+    "chicken (food)": "scene",
+    "chicken feet (food)": "scene",
+    "chicken leg": "scene",
+    "chicken mask": "clothes",
+    "chicken nuggets": "scene",
+    "chicken wing": "scene",
+    "chicory (flower)": "scene",
+    "chiffon cake": "scene",
+    "chikan": "sexual",
+    "chikuwa": "scene",
+    "child carry": "pose",
+    "child's drawing": "pose",
+    "chile": "pose",
+    "chilean clothes": "clothes",
+    "chili dog": "scene",
+    "chili pepper": "scene",
+    "china": "scene",
+    "chinese civil war": "scene",
+    "chinese clothes": "clothes",
+    "chinese empire": "scene",
+    "chinese food": "scene",
+    "chinese knot": "clothes",
+    "chinese lantern (plant)": "scene",
+    "chinese new year": "scene",
+    "chinese spoon": "scene",
+    "chinstrap": "clothes",
+    "chipi chipi chapa chapa (meme)": "pose",
+    "chips (food)": "scene",
+    "chireiden": "scene",
+    "chitose ame": "scene",
+    "chiyoda (tokyo)": "scene",
+    "choco fashion": "scene",
+    "choco girl": "clothes",
+    "choco monaka jumbo": "scene",
+    "choco pie": "scene",
+    "chocolate": "scene",
+    "chocolate almond": "scene",
+    "chocolate banana": "scene",
+    "chocolate bar": "scene",
+    "chocolate bread": "scene",
+    "chocolate cake": "scene",
+    "chocolate chip": "scene",
+    "chocolate chip cookie": "scene",
+    "chocolate clothes": "scene",
+    "chocolate coin": "scene",
+    "chocolate cornet": "scene",
+    "chocolate curls": "scene",
+    "chocolate donut": "scene",
+    "chocolate egg": "scene",
+    "chocolate fondue": "scene",
+    "chocolate fountain": "scene",
+    "chocolate framboise": "scene",
+    "chocolate hair": "body",
+    "chocolate icing": "scene",
+    "chocolate making": "pose",
+    "chocolate marquise": "scene",
+    "chocolate milk": "scene",
+    "chocolate on body": "scene",
+    "chocolate on breasts": "body",
+    "chocolate pie": "scene",
+    "chocolate rabbit": "scene",
+    "chocolate strawberry": "scene",
+    "chocolate syrup": "scene",
+    "chocolate tart": "scene",
+    "chocolate truffle": "scene",
+    "chokecherry": "scene",
+    "choker": "clothes",
+    "choking on object": "pose",
+    "chonmage": "body",
+    "choo choo train": "pose",
+    "chopped spring onion": "scene",
+    "choppy bangs": "body",
+    "chopstick rest": "scene",
+    "chopsticks": "scene",
+    "christ the redeemer": "scene",
+    "christmas": "scene",
+    "christmas cake": "scene",
+    "christmas tree": "scene",
+    "chromatic aberration": "scene",
+    "chrysanthemum": "scene",
+    "chrysanthemum print": "clothes",
+    "chrysler building": "scene",
+    "chubu centrair international airport": "scene",
+    "chunichi dragons": "pose",
+    "chuo (tokyo)": "scene",
+    "chupa chups": "scene",
+    "church": "scene",
+    "church of the savior on blood": "scene",
+    "churro": "scene",
+    "chuseok": "scene",
+    "cigarette holder": "clothes",
+    "cincinnati bengals": "pose",
+    "cincinnati reds": "pose",
+    "cinco de mayo": "scene",
+    "cinderella bust": "body",
+    "cingulum militare": "clothes",
+    "cinnamon roll": "scene",
+    "cinnamon stick": "scene",
+    "circle dance": "pose",
+    "circle formation": "pose",
+    "circle hands": "limbs",
+    "circlet": "clothes",
+    "cirno day": "scene",
+    "city": "scene",
+    "cityscape": "scene",
+    "clamp": "sexual",
+    "clamps": "sexual",
+    "clapping": "pose",
+    "classic lolita": "clothes",
+    "classroom": "scene",
+    "claw hair clip": "clothes",
+    "claw pose": "limbs",
+    "claw ring": "clothes",
+    "cleaning": "pose",
+    "cleaning eyewear": "clothes",
+    "cleavage": "sexual",
+    "cleavage cutout": "sexual",
+    "cleave gag": "sexual",
+    "cleaver": "scene",
+    "cleft of venus": "body",
+    "clematis (flower)": "scene",
+    "clenched hand": "limbs",
+    "clenched hands": "limbs",
+    "clenched teeth": "face",
+    "cleveland cavaliers": "pose",
+    "cliff": "scene",
+    "climbing": "pose",
+    "cling": "pose",
+    "clipping toenails": "clothes",
+    "clitoral penetration": "sexual",
+    "clitoral piercing": "body",
+    "clitoral suction vibrator": "sexual",
+    "clitoris": "body",
+    "clitoris clamp": "sexual",
+    "clitoris leash": "sexual",
+    "clitoris pull": "body",
+    "clitoris pump": "sexual",
+    "clitoris ring": "body",
+    "clitoris slip": "sexual",
+    "clitoris torture": "sexual",
+    "clitoris tweak": "body",
+    "clitoroplasty": "sexual",
+    "clivia": "scene",
+    "cloaca": "body",
+    "cloak": "clothes",
+    "cloche hat": "clothes",
+    "clock eyes": "face",
+    "clock tower": "scene",
+    "clone": "character",
+    "close-up": "scene",
+    "closed eyes": "face",
+    "closet": "scene",
+    "closing door": "scene",
+    "cloth glansjob": "sexual",
+    "clothed after sex": "sexual",
+    "clothed female nude female": "sexual",
+    "clothed female nude male": "sexual",
+    "clothed male nude female": "sexual",
+    "clothed male nude male": "sexual",
+    "clothed sex": "sexual",
+    "clothes down": "sexual",
+    "clothes focus": "effects",
+    "clothes gag": "clothes",
+    "clothes grab": "sexual",
+    "clothes in front": "limbs",
+    "clothes on and off": "sexual",
+    "clothes shop": "scene",
+    "clothing aside": "sexual",
+    "clothing cutout": "clothes",
+    "cloud": "scene",
+    "cloud background": "scene",
+    "cloud focus": "scene",
+    "cloud hair": "body",
+    "clove": "scene",
+    "clover": "scene",
+    "clover (flower)": "scene",
+    "clover print": "clothes",
+    "clover-shaped pupils": "face",
+    "clown mask": "clothes",
+    "clown nose": "face",
+    "club america": "pose",
+    "club atletico boca juniors": "pose",
+    "club atletico de madrid": "pose",
+    "club atletico penarol": "pose",
+    "club atletico river plate": "pose",
+    "club atletico tucuman": "pose",
+    "club deportivo guadalajara": "pose",
+    "club leon": "pose",
+    "club olimpia": "pose",
+    "club penguin dance (meme)": "pose",
+    "club universidad de chile": "pose",
+    "clubroom": "scene",
+    "cn tower": "scene",
+    "coal": "scene",
+    "coat": "clothes",
+    "coca-cola": "scene",
+    "cock ring": "sexual",
+    "cocked eyebrow": "face",
+    "cockpit": "scene",
+    "cockscomb (flower)": "scene",
+    "cocktail": "scene",
+    "cocktail flower": "scene",
+    "cocktail glass": "scene",
+    "cocktail umbrella": "scene",
+    "coconut": "scene",
+    "coconut tree": "scene",
+    "code geass": "body",
+    "coffee": "scene",
+    "coffee beans": "scene",
+    "coffee blossom": "scene",
+    "coffee grinder": "scene",
+    "coffee mug": "scene",
+    "coffee pot": "scene",
+    "coffee press": "scene",
+    "coif": "clothes",
+    "coin bangs": "body",
+    "coke-bottle glasses": "clothes",
+    "cola shake (meme)": "pose",
+    "cold war": "scene",
+    "collage": "scene",
+    "collage background": "scene",
+    "collar": "sexual",
+    "collar chain (jewelry)": "clothes",
+    "collar grab": "sexual",
+    "collar tips (jewelry)": "clothes",
+    "collar tug": "sexual",
+    "collarbone": "clothes",
+    "collared cape": "clothes",
+    "collared capelet": "clothes",
+    "collared coat": "clothes",
+    "collared crop top": "clothes",
+    "collared dress": "clothes",
+    "collared leotard": "clothes",
+    "collared shirt": "clothes",
+    "collared shrug": "clothes",
+    "collared vest": "clothes",
+    "colo colo": "pose",
+    "cologne cathedral": "scene",
+    "colombia": "scene",
+    "colombian clothes": "clothes",
+    "colonel sanders": "scene",
+    "color connection": "effects",
+    "color coordination": "effects",
+    "color drain": "face",
+    "color guide": "effects",
+    "color switch": "effects",
+    "color trace": "effects",
+    "color-coded": "effects",
+    "colorado": "scene",
+    "colorado avalanche": "pose",
+    "colorado rockies": "pose",
+    "colored bangs": "body",
+    "colored extremities": "limbs",
+    "colored eyelashes": "clothes",
+    "colored inner hair": "body",
+    "colored lineart": "effects",
+    "colored nipples": "body",
+    "colored pussy": "body",
+    "colored shadow": "effects",
+    "colored skin": "body",
+    "colored stripes": "clothes",
+    "colored tips": "body",
+    "colorful": "effects",
+    "colorful background": "scene",
+    "colosseum": "scene",
+    "columbine (flower)": "scene",
+    "columbus crew": "pose",
+    "column lineup": "scene",
+    "comb": "body",
+    "comb over": "body",
+    "comforting": "pose",
+    "compact (cosmetics)": "clothes",
+    "compensated molestation": "sexual",
+    "competition swimsuit": "clothes",
+    "complementary colors": "effects",
+    "completely nude": "sexual",
+    "compound eyes": "face",
+    "compressed breasts": "body",
+    "compression shirt": "clothes",
+    "compression sleeve": "clothes",
+    "concentrating": "pose",
+    "condensed milk": "scene",
+    "condiment packet": "scene",
+    "condom": "sexual",
+    "condom in mouth": "face",
+    "condom left inside": "sexual",
+    "cone hair bun": "body",
+    "confederate states of america": "scene",
+    "confident": "face",
+    "confused": "face",
+    "congratulations": "scene",
+    "conjoined": "sexual",
+    "consadole sapporo": "pose",
+    "consensual tentacles": "sexual",
+    "conservatory": "scene",
+    "constellation print": "clothes",
+    "constricted pupils": "face",
+    "construction site": "scene",
+    "contact lens": "clothes",
+    "contemporary": "effects",
+    "contemporary traditional clothes": "clothes",
+    "contrapposto": "pose",
+    "contrast collar": "clothes",
+    "control tower": "scene",
+    "convenience store": "scene",
+    "convenient breasts": "body",
+    "convenient hair": "body",
+    "convention": "scene",
+    "converse": "clothes",
+    "conveyor belt sushi": "scene",
+    "cookie": "scene",
+    "cookie cutter": "scene",
+    "cooking": "pose",
+    "cooking oil": "scene",
+    "cool colors": "effects",
+    "cooling tower": "scene",
+    "coolish": "scene",
+    "cooperative breast smother": "sexual",
+    "cooperative fellatio": "sexual",
+    "cooperative footjob": "sexual",
+    "cooperative handjob": "sexual",
+    "cooperative naizuri": "body",
+    "cooperative paizuri": "sexual",
+    "cooperative pussyjob": "sexual",
+    "coors field": "scene",
+    "copa america": "pose",
+    "copa america centenario": "pose",
+    "corn": "scene",
+    "corn dog": "scene",
+    "cornflower": "scene",
+    "cornrows": "body",
+    "coronavirus pandemic": "scene",
+    "corrupted file": "scene",
+    "corrupted twitter file": "scene",
+    "corsage": "clothes",
+    "corset": "clothes",
+    "corsica": "scene",
+    "cosmetics": "clothes",
+    "cosmic brownies": "scene",
+    "cosmos (flower)": "scene",
+    "cosplay": "clothes",
+    "cossack dance": "pose",
+    "costa rica": "scene",
+    "costume combination": "effects",
+    "costume switch": "effects",
+    "cote d'ivoire": "scene",
+    "cotton candy": "scene",
+    "coughing": "pose",
+    "coughing flowers": "scene",
+    "country lolita": "clothes",
+    "country ma'am": "scene",
+    "courtroom": "scene",
+    "cover": "scene",
+    "cover page": "scene",
+    "covered face": "clothes",
+    "covered navel": "body",
+    "covered nipples": "body",
+    "covered penetration": "sexual",
+    "covered penis": "body",
+    "covered testicles": "body",
+    "covering anus": "sexual",
+    "covering ass": "sexual",
+    "covering breasts": "sexual",
+    "covering crotch": "sexual",
+    "covering face": "sexual",
+    "covering head": "sexual",
+    "covering nipples": "limbs",
+    "covering one eye": "sexual",
+    "covering own ears": "sexual",
+    "covering own eyes": "sexual",
+    "covering own mouth": "sexual",
+    "covering privates": "sexual",
+    "cow costume": "clothes",
+    "cow ears": "face",
+    "cow mask": "clothes",
+    "cow print": "clothes",
+    "cow print gloves": "clothes",
+    "cowboy boots": "clothes",
+    "cowboy hat": "clothes",
+    "cowboy shot": "scene",
+    "cowboy western": "clothes",
+    "cowering": "pose",
+    "cowgirl position": "sexual",
+    "cpr": "body",
+    "cr flamengo": "pose",
+    "cr vasco da gama": "pose",
+    "crab": "scene",
+    "crack of light": "effects",
+    "cracked mask": "clothes",
+    "cracker": "scene",
+    "craspedia (flower)": "scene",
+    "crawling": "pose",
+    "crazy": "face",
+    "crazy eyes": "face",
+    "crazy smile": "face",
+    "crazy straw": "scene",
+    "cream": "scene",
+    "cream cheese": "scene",
+    "cream cornet": "scene",
+    "cream on body": "scene",
+    "cream puff": "scene",
+    "crease": "scene",
+    "creature": "character",
+    "creature as food": "scene",
+    "creature focus": "effects",
+    "creature on shoulder": "clothes",
+    "cremation": "scene",
+    "creme egg": "scene",
+    "crepe": "scene",
+    "crepe cake": "scene",
+    "crescent choker": "clothes",
+    "crescent hat ornament": "clothes",
+    "crescent necklace": "clothes",
+    "crescent print": "clothes",
+    "crescent-shaped pupils": "face",
+    "crested hair": "body",
+    "crew cut": "body",
+    "crew neck": "clothes",
+    "crimean war": "scene",
+    "crinoline": "clothes",
+    "criss-cross back-straps": "clothes",
+    "criss-cross halter": "clothes",
+    "criss-cross straps": "clothes",
+    "croatia": "scene",
+    "croatian clothes": "clothes",
+    "crocs": "clothes",
+    "crocus (flower)": "scene",
+    "croissant": "scene",
+    "crooked eyewear": "clothes",
+    "crop top": "clothes",
+    "cropped arms": "scene",
+    "cropped head": "scene",
+    "cropped jacket": "clothes",
+    "cropped legs": "scene",
+    "cropped shoulders": "scene",
+    "cropped torso": "scene",
+    "croquembouche": "scene",
+    "croquet": "pose",
+    "croquette": "scene",
+    "cross background": "scene",
+    "cross choker": "clothes",
+    "cross game": "pose",
+    "cross manage": "pose",
+    "cross necklace": "clothes",
+    "cross print": "clothes",
+    "cross tie": "clothes",
+    "cross-eyed": "face",
+    "cross-laced footwear": "clothes",
+    "cross-laced gloves": "clothes",
+    "cross-laced legwear": "clothes",
+    "cross-laced sandals": "clothes",
+    "cross-laced shoes": "clothes",
+    "cross-laced sleeves": "clothes",
+    "cross-laced slit": "clothes",
+    "cross-section": "sexual",
+    "cross-shaped pupils": "face",
+    "crossdressing": "sexual",
+    "crossdressing (ftm)": "sexual",
+    "crossdressing (mtf)": "sexual",
+    "crossdressing under clothes (mtf)": "sexual",
+    "crossed ankles": "pose",
+    "crossed arms": "pose",
+    "crossed bangs": "body",
+    "crossed fingers": "limbs",
+    "crossed legs": "pose",
+    "crosshair pupils": "face",
+    "crosshatching": "scene",
+    "crossover": "character",
+    "crosswalk": "scene",
+    "crotch cutout": "sexual",
+    "crotch focus": "effects",
+    "crotch grab": "sexual",
+    "crotch rope": "sexual",
+    "crotch rub": "sexual",
+    "crotchless": "clothes",
+    "crotchless bloomers": "clothes",
+    "crotchless buruma": "clothes",
+    "crotchless leotard": "clothes",
+    "crotchless panties": "clothes",
+    "crotchless pants": "clothes",
+    "crotchless pantyhose": "clothes",
+    "crotchless swimsuit": "clothes",
+    "crow mask": "clothes",
+    "crowd": "character",
+    "crown": "clothes",
+    "crown braid": "body",
+    "crown-shaped pupils": "face",
+    "crucifixion": "pose",
+    "crumbs": "scene",
+    "crushing": "pose",
+    "cruz azul": "pose",
+    "crying": "pose",
+    "crypto.com arena": "scene",
+    "crystal hair": "body",
+    "crystal wings": "body",
+    "cuba": "scene",
+    "cubicle": "scene",
+    "cubism": "effects",
+    "cucumber": "scene",
+    "cuddling": "pose",
+    "cuddling handjob": "sexual",
+    "cue stick": "pose",
+    "cuff links": "clothes",
+    "cuffs": "sexual",
+    "cuffs-to-collar": "sexual",
+    "cultural revolution": "scene",
+    "culver's": "scene",
+    "cum": "sexual",
+    "cum bath": "sexual",
+    "cum in ass": "sexual",
+    "cum in clothes": "sexual",
+    "cum in cup": "sexual",
+    "cum in mouth": "sexual",
+    "cum in navel": "sexual",
+    "cum in pussy": "sexual",
+    "cum in throat": "sexual",
+    "cum in urethra": "sexual",
+    "cum inflation": "sexual",
+    "cum on armpits": "sexual",
+    "cum on ass": "sexual",
+    "cum on back": "sexual",
+    "cum on body": "sexual",
+    "cum on breasts": "sexual",
+    "cum on chest": "sexual",
+    "cum on clothes": "sexual",
+    "cum on eyewear": "sexual",
+    "cum on feet": "sexual",
+    "cum on fingers": "sexual",
+    "cum on food": "sexual",
+    "cum on hair": "sexual",
+    "cum on mask": "clothes",
+    "cum on pectorals": "sexual",
+    "cum on pussy": "sexual",
+    "cum on stomach": "sexual",
+    "cum on tongue": "sexual",
+    "cum pool": "sexual",
+    "cum swap": "sexual",
+    "cumdrip": "sexual",
+    "cumdump": "sexual",
+    "cummerbund": "clothes",
+    "cunnilingus": "sexual",
+    "cunnilingus gesture": "limbs",
+    "cunt busting": "body",
+    "cuntboy": "sexual",
+    "cuntboy with cuntboy": "sexual",
+    "cuntboy with female": "sexual",
+    "cuntboy with male": "sexual",
+    "cup": "scene",
+    "cupcake": "scene",
+    "cupless bikini": "clothes",
+    "cupless bra": "clothes",
+    "cupping": "pose",
+    "cupping glass": "scene",
+    "cupping hands": "limbs",
+    "curled fingers": "limbs",
+    "curling": "pose",
+    "curling iron": "body",
+    "curly eyebrows": "face",
+    "curly hair": "body",
+    "currant": "scene",
+    "curry": "scene",
+    "curry rice": "scene",
+    "currywurst": "scene",
+    "curtained hair": "body",
+    "curtsey": "limbs",
+    "curvy": "sexual",
+    "custard": "scene",
+    "custard apple": "scene",
+    "cut-in": "scene",
+    "cutoff jeans": "clothes",
+    "cuts": "body",
+    "cutting": "pose",
+    "cutting another's hair": "body",
+    "cutting board": "scene",
+    "cutting hair": "body",
+    "cutting own hair": "body",
+    "cyber fashion": "clothes",
+    "cyber sigilism": "effects",
+    "cybergoth": "clothes",
+    "cyberlox": "body",
+    "cyberpunk": "effects",
+    "cyclamen": "scene",
+    "cymbidium": "scene",
+    "cyprus": "scene",
+    "czech clothes": "clothes",
+    "czech republic": "scene",
+    "czechoslovakia": "scene",
+    "d-day": "scene",
+    "dab (dance)": "pose",
+    "daffodil": "scene",
+    "dahlia": "scene",
+    "dai clothes": "clothes",
+    "daifuku": "scene",
+    "daikon": "scene",
+    "dairy queen": "scene",
+    "daisy (flower)": "scene",
+    "daisy chain (sex)": "sexual",
+    "daiya no ace": "pose",
+    "dakimakura (medium)": "character",
+    "dalachi (headdress)": "clothes",
+    "dallas cowboys": "pose",
+    "dallas mavericks": "pose",
+    "dam": "scene",
+    "dance robot dance (vocaloid)": "pose",
+    "dance studio": "scene",
+    "dancing": "pose",
+    "dancing arona (meme)": "pose",
+    "dancing kasukabe tsumugi (meme)": "pose",
+    "dancing pallbearers (meme)": "pose",
+    "dancing toothless (meme)": "pose",
+    "dandelion": "scene",
+    "dandelion coffee": "scene",
+    "dango": "scene",
+    "danish clothes": "clothes",
+    "danyaji": "body",
+    "dao fu": "scene",
+    "dappled moonlight": "effects",
+    "dappled sunlight": "effects",
+    "darjeeling tea": "scene",
+    "dark": "effects",
+    "dark areolae": "body",
+    "dark background": "scene",
+    "dark chocolate": "scene",
+    "dark labia": "body",
+    "dark nipples": "body",
+    "dark persona": "effects",
+    "dark skin": "body",
+    "dark-skinned female": "body",
+    "dark-skinned male": "body",
+    "darkness": "effects",
+    "dash kappei": "pose",
+    "dashed eyes": "face",
+    "date (fruit)": "scene",
+    "date pun": "scene",
+    "daten route": "pose",
+    "dating": "pose",
+    "dawn": "effects",
+    "day": "effects",
+    "dayflower": "scene",
+    "dazzle paint": "clothes",
+    "ddd threesome": "sexual",
+    "de'ang clothes": "clothes",
+    "decantering": "pose",
+    "decensored": "scene",
+    "decoden": "clothes",
+    "decora": "clothes",
+    "decorating baked goods": "pose",
+    "deel": "clothes",
+    "deep penetration": "sexual",
+    "deep wound": "body",
+    "deepthroat": "sexual",
+    "deer ears": "face",
+    "deerstalker": "clothes",
+    "default fortnite dance (meme)": "pose",
+    "defloration": "sexual",
+    "dekopon (fruit)": "scene",
+    "demon wings": "body",
+    "denim shorts": "clothes",
+    "denmark": "pose",
+    "denver": "scene",
+    "denver broncos": "pose",
+    "denver nuggets": "pose",
+    "depressed": "face",
+    "depth of field": "scene",
+    "derivative work": "scene",
+    "desert": "scene",
+    "desk lamp": "effects",
+    "despair": "face",
+    "dessert": "scene",
+    "detached collar": "clothes",
+    "detached leggings": "clothes",
+    "detached pants": "clothes",
+    "detached sleeves": "clothes",
+    "detached wings": "body",
+    "determined": "face",
+    "detexted": "scene",
+    "detroit": "scene",
+    "detroit lions": "pose",
+    "detroit pistons": "pose",
+    "detroit red wings": "pose",
+    "deviruchi hat": "clothes",
+    "dia de muertos": "scene",
+    "diadem": "clothes",
+    "diagonal bangs": "body",
+    "diagonal stripes": "clothes",
+    "diagonal-striped background": "scene",
+    "diagonal-striped legwear": "clothes",
+    "diagonal-striped neckerchief": "clothes",
+    "diagram": "scene",
+    "diamond mouth": "face",
+    "diamond-shaped pupils": "face",
+    "dianthus": "scene",
+    "dianzi": "clothes",
+    "diaper": "sexual",
+    "diaper changing": "pose",
+    "dice necklace": "clothes",
+    "dieselpunk": "effects",
+    "diffraction spikes": "scene",
+    "digging": "pose",
+    "digimon focus": "effects",
+    "digitigrade": "body",
+    "dilated pupils": "face",
+    "dildo": "sexual",
+    "dildo gag": "sexual",
+    "dildo harness": "sexual",
+    "dildo riding": "sexual",
+    "dildo under mask": "sexual",
+    "dildo under panties": "sexual",
+    "dim lighting": "effects",
+    "dim sum": "scene",
+    "dimples of venus": "body",
+    "diner": "scene",
+    "dining room": "scene",
+    "dinner": "scene",
+    "dio brando's pose": "pose",
+    "diorama": "scene",
+    "dip (dance move)": "pose",
+    "dirndl": "clothes",
+    "dirt road": "scene",
+    "dirty feet": "body",
+    "dirty legwear": "clothes",
+    "dirty mask": "clothes",
+    "dirty talk": "sexual",
+    "disappointed": "face",
+    "disdain": "face",
+    "disembodied hand": "character",
+    "disembodied penis": "body",
+    "disgust": "face",
+    "dishes": "scene",
+    "dishwashing": "pose",
+    "dismemberment": "sexual",
+    "dispersion (optics)": "effects",
+    "disposable coffee cup": "scene",
+    "disproportionate retribution": "scene",
+    "dissolving": "pose",
+    "distortion": "scene",
+    "distraction dance": "pose",
+    "distress": "face",
+    "distress hand signal": "limbs",
+    "dithered background": "scene",
+    "dithering": "scene",
+    "dive": "pose",
+    "divine spirit mausoleum": "scene",
+    "diving": "pose",
+    "diving helmet": "clothes",
+    "diving mask": "clothes",
+    "diving mask on head": "clothes",
+    "diving mask removed": "clothes",
+    "diving suit": "clothes",
+    "dixie cup hat": "clothes",
+    "dock": "scene",
+    "doctor": "body",
+    "dodgeball (sport)": "pose",
+    "dodger stadium": "scene",
+    "dodging": "pose",
+    "doe-foot applicator": "clothes",
+    "dog costume": "clothes",
+    "dog ears": "face",
+    "dog hat": "clothes",
+    "dog mask": "clothes",
+    "dog on shoulder": "clothes",
+    "dog penis": "body",
+    "dog pussy": "body",
+    "dog tags": "clothes",
+    "doggystyle": "sexual",
+    "dogtooth violet (flower)": "scene",
+    "dogwood (flower)": "scene",
+    "dojikko pose": "limbs",
+    "doll": "character",
+    "doll joints": "clothes",
+    "dolphin hat ornament": "clothes",
+    "dolphin penis": "body",
+    "dolphin shorts": "clothes",
+    "dome of the rock": "scene",
+    "dominator (bdsm)": "sexual",
+    "dominatrix": "sexual",
+    "dominican republic": "scene",
+    "domino mask": "clothes",
+    "domino's pizza": "scene",
+    "donald duck sailor hat": "clothes",
+    "donbei dance": "pose",
+    "dondurma (ice cream)": "scene",
+    "doner kebab": "scene",
+    "dongpo jin (headwear)": "clothes",
+    "donut": "scene",
+    "donut day": "scene",
+    "donut hair bun": "body",
+    "doolittle raid": "scene",
+    "door": "scene",
+    "door knocker": "scene",
+    "doorbell": "scene",
+    "doorway": "scene",
+    "doosan bears": "pose",
+    "dorayaki": "scene",
+    "dorfic": "effects",
+    "doritos": "scene",
+    "dorsiflexion": "pose",
+    "dot mouth": "face",
+    "dot nose": "face",
+    "dotera (clothes)": "clothes",
+    "dotted background": "scene",
+    "double \\m/": "limbs",
+    "double \\n/": "limbs",
+    "double amputee": "sexual",
+    "double anal": "sexual",
+    "double bun": "body",
+    "double dildo": "sexual",
+    "double exposure": "scene",
+    "double finger gun": "limbs",
+    "double fisting": "sexual",
+    "double footjob": "sexual",
+    "double handjob": "sexual",
+    "double happiness": "clothes",
+    "double l": "limbs",
+    "double luo ji": "body",
+    "double luo ji corners toward head": "body",
+    "double number four (asl)": "limbs",
+    "double penetration": "sexual",
+    "double thumbs down": "limbs",
+    "double thumbs up": "limbs",
+    "double v": "limbs",
+    "double vaginal": "sexual",
+    "double vertical stripe": "clothes",
+    "double-breasted": "clothes",
+    "double-parted bangs": "body",
+    "double-stroke eyebrows": "face",
+    "dough": "scene",
+    "dough scraper": "scene",
+    "doujin cover": "scene",
+    "dovefucking": "body",
+    "downblouse": "sexual",
+    "downpants": "sexual",
+    "downscaled": "scene",
+    "doyagao": "face",
+    "dr pepper": "scene",
+    "dragging": "pose",
+    "dragon ball": "scene",
+    "dragon boat": "scene",
+    "dragon boat festival": "scene",
+    "dragon dance": "scene",
+    "dragon dildo": "sexual",
+    "dragon fruit": "scene",
+    "dragon mask": "clothes",
+    "dragon wings": "body",
+    "dragonfly wings": "body",
+    "dragoon helmet": "clothes",
+    "drama layer": "scene",
+    "drawing (action)": "pose",
+    "drawing (object)": "pose",
+    "drawing on another's face": "pose",
+    "drawn eyes": "face",
+    "drawn wings": "body",
+    "dreadlocks": "body",
+    "dreaming": "pose",
+    "dress": "clothes",
+    "dress aside": "sexual",
+    "dress flower": "clothes",
+    "dress lift": "sexual",
+    "dress pull": "sexual",
+    "dress shirt": "clothes",
+    "dress shoes": "clothes",
+    "dress swimsuit": "clothes",
+    "dress tug": "sexual",
+    "dressing": "pose",
+    "dressing room": "clothes",
+    "dried jujube": "scene",
+    "drill hair": "body",
+    "drill sidelocks": "body",
+    "drink": "scene",
+    "drinking": "pose",
+    "drinking glass": "scene",
+    "drinking pee": "sexual",
+    "drinking straw": "scene",
+    "dripping": "pose",
+    "driving": "pose",
+    "drooling": "pose",
+    "drop shadow": "scene",
+    "dropping": "pose",
+    "drowning": "pose",
+    "drugs": "body",
+    "drunk": "face",
+    "dry humping": "pose",
+    "drydock": "scene",
+    "drying": "pose",
+    "dual persona": "character",
+    "dual wielding": "pose",
+    "dubai": "scene",
+    "dublin": "scene",
+    "duck (food)": "scene",
+    "duck mask": "clothes",
+    "duffel coat": "clothes",
+    "dumpling": "scene",
+    "dunce cap": "clothes",
+    "dungeon": "sexual",
+    "dunhuang dance": "pose",
+    "dunhuang style": "clothes",
+    "dunkirk evacuation": "scene",
+    "duplicate": "scene",
+    "dusk": "effects",
+    "dust plug": "clothes",
+    "dusty miller": "scene",
+    "dutch angle": "scene",
+    "dutch clothes": "clothes",
+    "dvd cover": "scene",
+    "dx": "face",
+    "dying": "pose",
+    "e-kid fashion": "clothes",
+    "ear chain": "clothes",
+    "ear cleaning": "pose",
+    "ear covers": "clothes",
+    "ear cuffs": "clothes",
+    "ear focus": "body",
+    "ear ornament": "clothes",
+    "ear piercing": "face",
+    "ear protection": "face",
+    "ear sex": "sexual",
+    "ear wiggle": "face",
+    "earclip": "clothes",
+    "earflap beanie": "clothes",
+    "earl grey tea": "scene",
+    "earmuffs": "clothes",
+    "earphones": "clothes",
+    "earpiece": "clothes",
+    "earrings": "clothes",
+    "ears down": "face",
+    "ears through headwear": "face",
+    "ears under headwear": "face",
+    "east asian architecture": "scene",
+    "east germany": "scene",
+    "easter": "scene",
+    "easter egg": "scene",
+    "easter island": "scene",
+    "easy breezy": "pose",
+    "easytoon (medium)": "scene",
+    "eating": "pose",
+    "eating and drinking from body": "sexual",
+    "eating during class": "scene",
+    "eating hair": "body",
+    "eating non-food": "scene",
+    "eavesdropping": "pose",
+    "ec bahia": "pose",
+    "ec vitoria": "pose",
+    "eclair (food)": "scene",
+    "ecstasy": "face",
+    "ecuador": "pose",
+    "edelweiss (flower)": "scene",
+    "edinburgh (city)": "scene",
+    "edmonton oilers": "pose",
+    "edo jidai": "scene",
+    "edwardian": "clothes",
+    "eel": "scene",
+    "egasumi": "clothes",
+    "egg (food)": "scene",
+    "egg carton": "scene",
+    "egg laying": "pose",
+    "egg tart": "scene",
+    "egg vibrator": "sexual",
+    "egg yolk": "scene",
+    "eggnog": "scene",
+    "eggplant": "scene",
+    "eggshell": "scene",
+    "eggshell hat": "clothes",
+    "egypt": "scene",
+    "ehime prefecture": "scene",
+    "eientei": "scene",
+    "eiffel tower": "scene",
+    "eintracht frankfurt": "pose",
+    "ejaculating while penetrated": "sexual",
+    "ejaculation": "sexual",
+    "el castillo": "scene",
+    "el salvador": "scene",
+    "elbow gloves": "clothes",
+    "elbow sleeve": "clothes",
+    "elbowing": "sexual",
+    "electric eyes": "face",
+    "electrocution": "sexual",
+    "elizabeth tower": "scene",
+    "elizabethan": "clothes",
+    "embarrassed": "face",
+    "embers": "effects",
+    "emo art": "effects",
+    "emo fashion": "clothes",
+    "empanada": "scene",
+    "emphasis lines": "scene",
+    "empire state building": "scene",
+    "empty eyes": "sexual",
+    "en pointe": "body",
+    "enema": "sexual",
+    "energy hair": "body",
+    "energy wings": "body",
+    "england": "scene",
+    "english breakfast": "scene",
+    "enmaided": "effects",
+    "enoki mushroom": "scene",
+    "envy": "face",
+    "epaulettes": "clothes",
+    "epiphyllum": "scene",
+    "erect clitoris": "sexual",
+    "erection": "body",
+    "erection under clothes": "body",
+    "essex face": "face",
+    "estadio santiago bernabeu": "scene",
+    "estonia": "scene",
+    "estonian clothes": "clothes",
+    "estrogen": "sexual",
+    "ethiopia": "scene",
+    "euro 2008": "pose",
+    "euro 2012": "pose",
+    "euro 2016": "pose",
+    "euro 2020": "pose",
+    "euro 2024": "pose",
+    "eustoma": "scene",
+    "evening": "effects",
+    "everton fc": "pose",
+    "everyone": "character",
+    "evian": "scene",
+    "evil grin": "face",
+    "evil smile": "face",
+    "excalibur face": "face",
+    "excited": "face",
+    "exhausted": "face",
+    "exhibitionism": "sexual",
+    "exif thumbnail surprise": "scene",
+    "exploded cosmetics": "clothes",
+    "explosion": "scene",
+    "exposed teeth": "body",
+    "expression 35": "face",
+    "expression chart": "face",
+    "expressionless": "face",
+    "expressive hair": "body",
+    "expressive wings": "body",
+    "extra arms": "sexual",
+    "extra breasts": "sexual",
+    "extra digits": "scene",
+    "extra ears": "face",
+    "extra eyes": "face",
+    "extra hands": "limbs",
+    "extra penises": "sexual",
+    "extra pupils": "face",
+    "eye beam": "face",
+    "eye color switch": "effects",
+    "eye contact": "pose",
+    "eye focus": "face",
+    "eye mask": "clothes",
+    "eye poke": "face",
+    "eye pop": "face",
+    "eye reflection": "face",
+    "eye sex": "sexual",
+    "eye trail": "face",
+    "eyeball": "face",
+    "eyebrow cut": "face",
+    "eyebrow piercing": "face",
+    "eyebrow razor": "face",
+    "eyebrow stubble": "face",
+    "eyebrows": "face",
+    "eyebrows hidden by hair": "face",
+    "eyebrows visible through mask": "clothes",
+    "eyelash curler": "clothes",
+    "eyelashes": "clothes",
+    "eyelid": "body",
+    "eyelid speculum": "sexual",
+    "eyeliner": "clothes",
+    "eyepatch": "face",
+    "eyes on wings": "body",
+    "eyes out of frame": "scene",
+    "eyes visible through hair": "body",
+    "eyeshadow": "clothes",
+    "eyeshadow under eye": "clothes",
+    "eyeshield 21": "pose",
+    "eyewear around neck": "clothes",
+    "eyewear hang": "clothes",
+    "eyewear in mouth": "clothes",
+    "eyewear on head": "clothes",
+    "eyewear on headwear": "clothes",
+    "eyewear strap": "clothes",
+    "eyewear switch": "clothes",
+    "eyewear view": "clothes",
+    "face between breasts": "body",
+    "face chain": "clothes",
+    "face jewel": "clothes",
+    "face of the people who sank all their money into the fx (meme)": "face",
+    "face punch": "sexual",
+    "face stretching": "pose",
+    "face to breasts": "body",
+    "face to pecs": "body",
+    "face-to-face": "pose",
+    "faceless": "face",
+    "facepaint": "pose",
+    "facepalm": "limbs",
+    "faceplant": "pose",
+    "facial": "sexual",
+    "facial expression training": "face",
+    "facial hair": "body",
+    "facial hair through mask": "clothes",
+    "factory": "scene",
+    "fading": "pose",
+    "fading border": "scene",
+    "fainting": "pose",
+    "fairy kei": "clothes",
+    "fairy wings": "body",
+    "fake animal ears": "clothes",
+    "fake cover": "scene",
+    "fake eyelashes": "face",
+    "fake mustache": "body",
+    "fake nose": "face",
+    "fake phone screenshot": "scene",
+    "fake photograph": "scene",
+    "fake screenshot": "scene",
+    "fake scrollbar": "scene",
+    "fake tail": "clothes",
+    "fake wings": "body",
+    "falconry glove": "clothes",
+    "falkland islands": "scene",
+    "falklands war": "scene",
+    "fallen tree": "scene",
+    "falling": "pose",
+    "family": "scene",
+    "family bonding": "scene",
+    "fan speaking": "pose",
+    "fanged bangs": "body",
+    "fanning": "pose",
+    "fanning crotch": "pose",
+    "fanning face": "pose",
+    "fanny pack": "clothes",
+    "fanta": "scene",
+    "fare gate": "scene",
+    "farm": "scene",
+    "farming": "scene",
+    "fascinator": "clothes",
+    "fashion": "clothes",
+    "fast food": "scene",
+    "fat": "sexual",
+    "fat mons": "body",
+    "father's day": "scene",
+    "fatter than canon": "effects",
+    "faux figurine": "scene",
+    "faux retro artstyle": "effects",
+    "faux traditional media": "scene",
+    "fc anzhi makhachkala": "pose",
+    "fc barcelona": "pose",
+    "fc bayern munchen": "pose",
+    "fc cophenhagen": "pose",
+    "fc internazionale milano": "pose",
+    "fc porto": "pose",
+    "fc schalke 04": "pose",
+    "fc shakhtar donetsk": "pose",
+    "fc tokyo": "pose",
+    "fc zenit": "pose",
+    "fdd threesome": "sexual",
+    "fear": "body",
+    "feast": "scene",
+    "feather boa": "clothes",
+    "feather hair": "body",
+    "feather necklace": "clothes",
+    "feather-trimmed sleeves": "clothes",
+    "feathered wings": "body",
+    "fed by viewer": "pose",
+    "fedora": "clothes",
+    "feeding": "pose",
+    "feeding viewer": "scene",
+    "feet": "sexual",
+    "feet only": "body",
+    "feet out of frame": "scene",
+    "feixianji (hairstyle)": "body",
+    "felching": "sexual",
+    "fellatio": "sexual",
+    "fellatio gesture": "limbs",
+    "fellatio under mask": "clothes",
+    "female butler": "sexual",
+    "female ejaculation": "sexual",
+    "female focus": "character",
+    "female footjob": "sexual",
+    "female masturbation": "sexual",
+    "female on futa": "sexual",
+    "female pov": "clothes",
+    "female service cap": "clothes",
+    "femboy hooters (meme)": "sexual",
+    "femdom": "sexual",
+    "femdom rape": "sexual",
+    "feminization": "sexual",
+    "fencing": "pose",
+    "fengguan": "clothes",
+    "fenway park": "scene",
+    "fern": "scene",
+    "ferret ears": "face",
+    "ferris wheel": "scene",
+    "festoon (necklace)": "clothes",
+    "fetal position": "pose",
+    "fez hat": "clothes",
+    "ffc threesome": "sexual",
+    "ffd threesome": "sexual",
+    "fff threesome": "sexual",
+    "ffm threesome": "sexual",
+    "ffo threesome": "sexual",
+    "fidgeting": "limbs",
+    "field": "scene",
+    "field cap": "clothes",
+    "field hockey": "pose",
+    "fiery background": "scene",
+    "fiery hair": "body",
+    "fiery tail": "scene",
+    "fiery wings": "body",
+    "fig": "scene",
+    "fig sign": "limbs",
+    "fighting": "pose",
+    "fighting stance": "pose",
+    "figure four sitting": "pose",
+    "figure skating": "pose",
+    "filet-o-fish": "scene",
+    "filipino clothes": "clothes",
+    "film grain": "scene",
+    "fine art parody": "scene",
+    "finger bow": "clothes",
+    "finger cots": "clothes",
+    "finger counting": "limbs",
+    "finger frame": "limbs",
+    "finger gun": "limbs",
+    "finger heart": "limbs",
+    "finger on eyewear": "clothes",
+    "finger puppet": "clothes",
+    "finger sucking": "pose",
+    "finger tattoo": "clothes",
+    "fingering": "sexual",
+    "fingering through clothes": "sexual",
+    "fingering through panties": "sexual",
+    "fingerless gloves": "clothes",
+    "fingernails": "clothes",
+    "fingersmile": "face",
+    "finland": "scene",
+    "finnish clothes": "clothes",
+    "fir tree": "scene",
+    "fire": "scene",
+    "fire body": "scene",
+    "fire extinguisher": "scene",
+    "fire flower": "scene",
+    "fire hydrant": "scene",
+    "fire on chest": "scene",
+    "fire play": "sexual",
+    "fireball": "scene",
+    "firecrackers": "scene",
+    "fireflies": "scene",
+    "firemaking": "scene",
+    "fireman's carry": "pose",
+    "fireplace": "scene",
+    "fireworks": "scene",
+    "fireworks print": "clothes",
+    "firing": "pose",
+    "first aid": "body",
+    "first battle of el alamein": "scene",
+    "first indochina war": "scene",
+    "first sino-japanese war": "scene",
+    "fish (food)": "scene",
+    "fish and chips": "scene",
+    "fish mask": "clothes",
+    "fish mint (plant)": "scene",
+    "fish skeleton": "scene",
+    "fish-shaped pupils": "face",
+    "fishbowl helmet": "clothes",
+    "fisheye": "scene",
+    "fishing": "pose",
+    "fishnet gloves": "clothes",
+    "fishnet leggings": "clothes",
+    "fishnet legwear": "clothes",
+    "fishnet pantyhose": "clothes",
+    "fishnet sleeves": "clothes",
+    "fishnet socks": "clothes",
+    "fishnet thighhighs": "clothes",
+    "fishnets": "clothes",
+    "fist bump": "limbs",
+    "fist in hand": "limbs",
+    "fist pump": "limbs",
+    "fisting": "sexual",
+    "fitness gym": "scene",
+    "fitting room": "scene",
+    "fivesome": "sexual",
+    "fk crvena zvezda": "pose",
+    "flaccid": "body",
+    "flag": "scene",
+    "flag background": "scene",
+    "flag print": "clothes",
+    "flailing": "pose",
+    "flame painter (medium)": "scene",
+    "flame print": "scene",
+    "flame-tipped tail": "scene",
+    "flamenco": "pose",
+    "flamethrower": "scene",
+    "flaming eyes": "face",
+    "flammable symbol": "scene",
+    "flapper girl": "clothes",
+    "flapping": "pose",
+    "flare": "scene",
+    "flaring": "scene",
+    "flash": "scene",
+    "flashing": "pose",
+    "flashing eyes": "face",
+    "flashlight": "effects",
+    "flat ass": "body",
+    "flat cap": "clothes",
+    "flat chastity cage": "sexual",
+    "flat chest": "body",
+    "flat chest grab": "limbs",
+    "flat color": "effects",
+    "flat envy": "body",
+    "flat top chef hat": "clothes",
+    "flats": "clothes",
+    "flattop": "body",
+    "flax (flower)": "scene",
+    "fleur-de-lis": "clothes",
+    "flexing": "pose",
+    "flight attendant hat": "clothes",
+    "flip-flops": "clothes",
+    "flipaclip (medium)": "scene",
+    "flipped hair": "body",
+    "flipping food": "scene",
+    "flirting": "pose",
+    "floating": "pose",
+    "floating breasts": "body",
+    "floating castle": "scene",
+    "floating city": "scene",
+    "floating hair": "body",
+    "floating island": "scene",
+    "floating scarf": "clothes",
+    "flogger": "sexual",
+    "floodlights": "effects",
+    "floor lamp": "effects",
+    "floppy ears": "face",
+    "floral arch": "scene",
+    "floral background": "scene",
+    "floral print": "clothes",
+    "florence (city)": "scene",
+    "florence cathedral": "scene",
+    "florida (location)": "scene",
+    "flossing (dance)": "pose",
+    "flour": "scene",
+    "flourish (design)": "effects",
+    "flower": "scene",
+    "flower bed": "scene",
+    "flower bracelet": "scene",
+    "flower choker": "clothes",
+    "flower field": "scene",
+    "flower focus": "effects",
+    "flower in mouth": "scene",
+    "flower necklace": "clothes",
+    "flower of life (pattern)": "clothes",
+    "flower on head": "scene",
+    "flower on liquid": "scene",
+    "flower pot": "scene",
+    "flower shop": "scene",
+    "flower symbol": "scene",
+    "flower trim": "clothes",
+    "flower-shaped hair": "body",
+    "flower-shaped pupils": "face",
+    "fluffy hair": "body",
+    "fluffy legwear": "clothes",
+    "fluminense fc": "pose",
+    "flustered": "face",
+    "flying": "pose",
+    "flying button": "body",
+    "fogged glasses": "clothes",
+    "fold-over gloves": "clothes",
+    "folded": "sexual",
+    "folded ponytail": "body",
+    "foliage": "scene",
+    "folk dance": "pose",
+    "fondant au chocolat": "scene",
+    "fondue": "scene",
+    "food": "scene",
+    "food as clothes": "scene",
+    "food awe": "face",
+    "food between breasts": "scene",
+    "food fight": "scene",
+    "food focus": "scene",
+    "food girls": "scene",
+    "food insertion": "sexual",
+    "food on body": "scene",
+    "food on breasts": "body",
+    "food on head": "clothes",
+    "food packaging": "scene",
+    "food print": "clothes",
+    "food stand": "scene",
+    "food truck": "scene",
+    "food wrapper": "scene",
+    "food-themed background": "scene",
+    "food-themed clothes": "scene",
+    "food-themed eyewear": "clothes",
+    "food-themed hair": "body",
+    "food-themed hair ornament": "scene",
+    "food-themed hat ornament": "clothes",
+    "foodgasm": "face",
+    "foodification": "effects",
+    "foot dangle": "body",
+    "foot focus": "clothes",
+    "foot on another's breast": "body",
+    "foot out of frame": "scene",
+    "foot pussy": "body",
+    "foot worship": "sexual",
+    "footjob": "sexual",
+    "footjob from behind": "sexual",
+    "footjob under table": "sexual",
+    "footjob with boots": "sexual",
+    "footjob with footwear": "sexual",
+    "footjob with legwear": "sexual",
+    "footjob with sandals": "sexual",
+    "footjob with shoes": "sexual",
+    "footwear": "body",
+    "footwear focus": "effects",
+    "footwear ribbon": "clothes",
+    "forbidden city": "scene",
+    "force-feeding": "sexual",
+    "forced dressing": "pose",
+    "forced feminization": "sexual",
+    "forced lactation": "body",
+    "forced smile": "face",
+    "forced to watch": "sexual",
+    "forehead": "body",
+    "forehead mark": "body",
+    "forehead protector": "clothes",
+    "forehead-to-forehead": "pose",
+    "foreshortening": "pose",
+    "foreskin": "body",
+    "forest": "scene",
+    "forest of magic": "scene",
+    "forget-me-not (flower)": "scene",
+    "fork": "scene",
+    "forked eyebrows": "face",
+    "formal clothes": "clothes",
+    "former capital": "scene",
+    "forniphilia": "sexual",
+    "forsythia": "scene",
+    "fortaleza ec": "pose",
+    "fountain": "scene",
+    "four leaf clover hairstyle": "body",
+    "four o'clock (flower)": "scene",
+    "four-leaf clover necklace": "clothes",
+    "foursome": "sexual",
+    "fourth of july": "scene",
+    "fox ears": "face",
+    "fox hat": "clothes",
+    "fox mask": "clothes",
+    "fox shadow puppet": "limbs",
+    "foxglove": "scene",
+    "framed breasts": "body",
+    "france": "scene",
+    "franco-prussian war": "scene",
+    "freediving": "pose",
+    "freesia (flower)": "scene",
+    "french clothes": "clothes",
+    "french cruller": "scene",
+    "french fries": "scene",
+    "french girly": "clothes",
+    "french guiana": "scene",
+    "french revolution": "scene",
+    "french toast": "scene",
+    "fried chicken": "scene",
+    "fried egg": "scene",
+    "fried fish": "scene",
+    "fried oyster": "scene",
+    "fried rice": "scene",
+    "friendship charm": "clothes",
+    "frilled bikini": "clothes",
+    "frilled choker": "clothes",
+    "frilled collar": "clothes",
+    "frilled gloves": "clothes",
+    "frilled hair tubes": "body",
+    "frilled hat": "clothes",
+    "frilled one-piece swimsuit": "clothes",
+    "frilled shirt": "clothes",
+    "frilled sleeves": "clothes",
+    "frilled thigh strap": "clothes",
+    "frills": "clothes",
+    "fringe trim": "clothes",
+    "frog mask": "clothes",
+    "frogtie": "sexual",
+    "from above": "scene",
+    "from behind": "scene",
+    "from below": "scene",
+    "from outside": "scene",
+    "from side": "scene",
+    "front braid": "body",
+    "front ponytail": "body",
+    "front-seamed legwear": "clothes",
+    "frontless outfit": "sexual",
+    "frottage": "sexual",
+    "frown": "face",
+    "frozen": "sexual",
+    "fruit": "scene",
+    "fruit as cup": "scene",
+    "fruit background": "scene",
+    "fruit bowl": "scene",
+    "fruit hat ornament": "clothes",
+    "fruit pattern": "clothes",
+    "fruit punch (drink)": "scene",
+    "fruit sandwich": "scene",
+    "fruit tart": "scene",
+    "fruit tree": "scene",
+    "fruitcake": "scene",
+    "frustrated": "face",
+    "frutiger aero": "effects",
+    "frutiger metro": "effects",
+    "frying pan": "scene",
+    "fuchsia (flower)": "scene",
+    "fuchu (tokyo)": "scene",
+    "fucked silly": "sexual",
+    "fudge": "scene",
+    "fujisawa (city)": "scene",
+    "fukkireta": "pose",
+    "fukui prefecture": "scene",
+    "fukumage": "body",
+    "fukuoka (city)": "scene",
+    "fukuoka prefecture": "scene",
+    "fukuoka softbank hawks": "pose",
+    "fukushima prefecture": "scene",
+    "full body": "scene",
+    "full mouth": "scene",
+    "full nelson": "sexual",
+    "full scorpion": "pose",
+    "full-face blush": "face",
+    "full-package futanari": "sexual",
+    "fundoshi": "clothes",
+    "funfetti cake": "scene",
+    "fur choker": "clothes",
+    "fur coat": "clothes",
+    "fur collar": "clothes",
+    "fur hat": "clothes",
+    "fur scarf": "clothes",
+    "fur trim": "clothes",
+    "fur-trimmed choker": "clothes",
+    "fur-trimmed coat": "clothes",
+    "fur-trimmed collar": "clothes",
+    "fur-trimmed gloves": "clothes",
+    "fur-trimmed legwear": "clothes",
+    "fur-trimmed scarf": "clothes",
+    "fur-trimmed sleeves": "clothes",
+    "furikake (food)": "scene",
+    "furisode": "clothes",
+    "furisode sleeves": "clothes",
+    "furnace": "scene",
+    "furrification": "effects",
+    "furrowed brow": "face",
+    "fushimi inari taisha": "scene",
+    "fusion": "effects",
+    "fusuma": "scene",
+    "futa on male": "sexual",
+    "futa with cuntboy": "sexual",
+    "futa with female": "sexual",
+    "futa with futa": "sexual",
+    "futa with male": "sexual",
+    "futa with newhalf": "sexual",
+    "futa without pussy": "sexual",
+    "futanari": "sexual",
+    "futanari masturbation": "sexual",
+    "futasub": "sexual",
+    "futou": "clothes",
+    "g-string": "clothes",
+    "g-suit": "clothes",
+    "gag": "sexual",
+    "gag harness": "sexual",
+    "gag under mask": "clothes",
+    "gaiwan": "scene",
+    "gakuran": "clothes",
+    "galia melon": "scene",
+    "gamba osaka": "pose",
+    "game asset": "scene",
+    "game controller print": "clothes",
+    "game screenshot": "scene",
+    "game screenshot background": "scene",
+    "gangbang": "sexual",
+    "gangnam style": "pose",
+    "ganguro": "clothes",
+    "gaping nipples": "body",
+    "garage": "scene",
+    "garden": "scene",
+    "garden of the sun": "scene",
+    "gardenia (flower)": "scene",
+    "gardening": "pose",
+    "garlic": "scene",
+    "garrison cap": "clothes",
+    "garrote (torture instrument)": "sexual",
+    "garter belt": "clothes",
+    "garter straps": "clothes",
+    "gas mask": "clothes",
+    "gas station": "scene",
+    "gat (hat)": "clothes",
+    "gate": "scene",
+    "gateball": "pose",
+    "gathers": "clothes",
+    "gato dance": "pose",
+    "gatorade": "scene",
+    "gauntlets": "clothes",
+    "gaza": "scene",
+    "gazebo": "scene",
+    "gear eyes": "face",
+    "gear hat ornament": "clothes",
+    "gear-shaped pupils": "face",
+    "geass": "face",
+    "gel banana": "scene",
+    "gelatin": "scene",
+    "gelato": "scene",
+    "gem": "clothes",
+    "gender dysphoria": "sexual",
+    "gender request": "character",
+    "gender transition timeline": "sexual",
+    "gender transitioning": "sexual",
+    "gender transitioning (ftm)": "sexual",
+    "gender transitioning (mtf)": "sexual",
+    "genderswap": "sexual",
+    "genderswap (ftm)": "effects",
+    "genderswap (mtf)": "effects",
+    "gendou pose": "pose",
+    "genista (flower)": "scene",
+    "genjiguruma": "clothes",
+    "genkan": "scene",
+    "gentiana (flower)": "scene",
+    "georgia (country)": "scene",
+    "georgia (state)": "scene",
+    "georgia max coffee": "scene",
+    "georgian clothes": "clothes",
+    "georgian era": "clothes",
+    "geranium": "scene",
+    "gerbera": "scene",
+    "german clothes": "clothes",
+    "germany": "scene",
+    "get down (meme)": "pose",
+    "geta": "clothes",
+    "geyser": "scene",
+    "ghana": "scene",
+    "ghost costume": "clothes",
+    "ghost hands": "body",
+    "ghost mask": "clothes",
+    "ghost pose": "pose",
+    "giant": "sexual",
+    "giant killing": "pose",
+    "giant tree": "scene",
+    "giantess": "sexual",
+    "gif artifacts": "scene",
+    "gifu prefecture": "scene",
+    "gigantic ass": "body",
+    "gigantic breasts": "body",
+    "gigantic penis": "body",
+    "gigantic testicles": "body",
+    "giggling": "pose",
+    "gimp mask": "sexual",
+    "gimp suit": "sexual",
+    "ginga e kickoff!!": "pose",
+    "ginger root": "scene",
+    "gingerbread cookie": "scene",
+    "gingerbread house": "scene",
+    "gingerbread man": "scene",
+    "gingham": "clothes",
+    "gingham ascot": "clothes",
+    "gingham background": "scene",
+    "gingham legwear": "clothes",
+    "ginkgo nut": "scene",
+    "ginkgo tree": "scene",
+    "ginza wako": "scene",
+    "giorno giovanna's pose": "pose",
+    "giraffe mask": "clothes",
+    "girl on top": "sexual",
+    "girlmoder": "sexual",
+    "girly boy": "sexual",
+    "giving": "pose",
+    "giving birth": "sexual",
+    "glacier": "scene",
+    "gladiator sandals": "clothes",
+    "gladiolus": "scene",
+    "glands of montgomery": "body",
+    "glansjob": "sexual",
+    "glansplasty": "sexual",
+    "glaring": "pose",
+    "glasgow smile": "face",
+    "glass": "scene",
+    "glass door": "scene",
+    "glass eye": "face",
+    "glasses": "clothes",
+    "glasses case": "clothes",
+    "glasses day": "scene",
+    "glaze lily": "scene",
+    "glazed donut": "scene",
+    "glitch": "scene",
+    "glitch art": "effects",
+    "glitter": "clothes",
+    "glitter makeup": "clothes",
+    "gloom (expression)": "face",
+    "gloriosa (flower)": "scene",
+    "glory hole": "sexual",
+    "glory wall": "sexual",
+    "glove bow": "clothes",
+    "glove cuffs": "clothes",
+    "glove cutout": "clothes",
+    "glove in mouth": "clothes",
+    "glove pull": "clothes",
+    "gloves": "clothes",
+    "glowing": "pose",
+    "glowing eye": "face",
+    "glowing eyes": "face",
+    "glowing hair": "body",
+    "glowing headgear": "effects",
+    "glowing mask": "clothes",
+    "glowing mouth": "face",
+    "glowing wings": "body",
+    "glowstick": "effects",
+    "gluhwein": "scene",
+    "goat ears": "face",
+    "goat's tongue": "sexual",
+    "goatee": "body",
+    "goblin mask": "clothes",
+    "goggles": "clothes",
+    "goggles around neck": "clothes",
+    "gokkun": "sexual",
+    "gold choker": "clothes",
+    "gold mask": "clothes",
+    "gold necklace": "clothes",
+    "gold one-piece swimsuit": "clothes",
+    "gold trim": "clothes",
+    "golden apple": "scene",
+    "golden gate bridge": "scene",
+    "golden shower": "sexual",
+    "golden state warriors": "pose",
+    "golden trumpet": "scene",
+    "goldfish scooping": "pose",
+    "golf": "pose",
+    "golf ball": "pose",
+    "golf club": "pose",
+    "good couple day": "scene",
+    "good meat day": "scene",
+    "good thighhighs day": "scene",
+    "good times burgers & frozen custard": "scene",
+    "googly eyes": "face",
+    "goose (food)": "scene",
+    "gooseberry": "scene",
+    "gorget": "clothes",
+    "gorilla mask": "clothes",
+    "goshoguruma": "clothes",
+    "goth fashion": "clothes",
+    "gothic lolita": "clothes",
+    "gothic punk": "clothes",
+    "gourd": "scene",
+    "gourd blossom": "scene",
+    "grabbing": "limbs",
+    "grabbing another's ass": "sexual",
+    "grabbing another's breast": "sexual",
+    "grabbing another's ear": "face",
+    "grabbing another's hair": "body",
+    "grabbing another's skirt": "sexual",
+    "grabbing another's sleeve": "clothes",
+    "grabbing another's tongue": "limbs",
+    "grabbing another's wing": "body",
+    "grabbing own ass": "body",
+    "grabbing own breast": "sexual",
+    "grabbing own wing": "body",
+    "gracidea": "scene",
+    "gradient": "scene",
+    "gradient ascot": "clothes",
+    "gradient background": "scene",
+    "gradient bowtie": "clothes",
+    "gradient eyes": "face",
+    "gradient eyeshadow": "clothes",
+    "gradient filter": "effects",
+    "gradient hair": "body",
+    "gradient legwear": "clothes",
+    "gradient neckerchief": "clothes",
+    "gradient scarf": "clothes",
+    "gradient sleeves": "clothes",
+    "gradient theme": "effects",
+    "gradient wings": "body",
+    "gradient-tinted eyewear": "clothes",
+    "grand canyon": "scene",
+    "grand scale": "scene",
+    "granulated sugar": "scene",
+    "grape hat ornament": "clothes",
+    "grape hyacinth": "scene",
+    "grape stomping": "scene",
+    "grapefruit": "scene",
+    "grapes": "scene",
+    "grass": "scene",
+    "grass lily": "scene",
+    "grasslands": "scene",
+    "grater": "scene",
+    "graveyard": "scene",
+    "gravy boat": "scene",
+    "greaser fashion": "clothes",
+    "great burnet": "scene",
+    "great pyramid of giza": "scene",
+    "great sphinx of giza": "scene",
+    "great wall of china": "scene",
+    "greater western sydney giants": "pose",
+    "greco-roman clothes": "clothes",
+    "greece": "scene",
+    "greek toe": "body",
+    "green apple": "scene",
+    "green ascot": "clothes",
+    "green background": "scene",
+    "green bean": "scene",
+    "green bell pepper": "scene",
+    "green bowtie": "clothes",
+    "green choker": "clothes",
+    "green eyes": "face",
+    "green eyeshadow": "clothes",
+    "green fire": "scene",
+    "green gloves": "clothes",
+    "green hair": "body",
+    "green hat": "clothes",
+    "green lips": "clothes",
+    "green mask": "clothes",
+    "green neckerchief": "clothes",
+    "green necktie": "clothes",
+    "green one-piece swimsuit": "clothes",
+    "green pupils": "face",
+    "green scarf": "clothes",
+    "green sclera": "face",
+    "green skin": "body",
+    "green sleeves": "clothes",
+    "green tea": "scene",
+    "green theme": "effects",
+    "green wall": "scene",
+    "green wings": "body",
+    "green-framed eyewear": "clothes",
+    "green-tinted eyewear": "clothes",
+    "greenhouse": "scene",
+    "greenland": "scene",
+    "gremio fbpa": "pose",
+    "grey ascot": "clothes",
+    "grey background": "scene",
+    "grey bowtie": "clothes",
+    "grey choker": "clothes",
+    "grey eyes": "face",
+    "grey eyeshadow": "clothes",
+    "grey gloves": "clothes",
+    "grey hair": "body",
+    "grey hat": "clothes",
+    "grey lips": "clothes",
+    "grey mask": "clothes",
+    "grey neckerchief": "clothes",
+    "grey necktie": "clothes",
+    "grey one-piece swimsuit": "clothes",
+    "grey pupils": "face",
+    "grey scarf": "clothes",
+    "grey skin": "body",
+    "grey sleeves": "clothes",
+    "grey theme": "effects",
+    "grey wings": "body",
+    "grey-framed eyewear": "clothes",
+    "grey-tinted eyewear": "clothes",
+    "greyscale": "effects",
+    "greyscale with colored background": "scene",
+    "grid background": "scene",
+    "grid print": "clothes",
+    "griddle": "scene",
+    "griddy (dance)": "pose",
+    "grill": "scene",
+    "grilled fish": "scene",
+    "grilling": "pose",
+    "grills": "clothes",
+    "grimace": "face",
+    "grimace (mcdonald's)": "scene",
+    "grin": "face",
+    "grind fiction": "effects",
+    "gris swimsuit": "clothes",
+    "groceries": "scene",
+    "grocery store": "scene",
+    "groin": "body",
+    "groin tendon": "body",
+    "groping": "sexual",
+    "groping motion": "limbs",
+    "groucho glasses": "clothes",
+    "group hug": "pose",
+    "group picture": "scene",
+    "group profile": "scene",
+    "group sex": "sexual",
+    "grunge (fashion)": "clothes",
+    "guapi mao": "clothes",
+    "guatemala": "scene",
+    "guava (fruit)": "scene",
+    "guided breast grab": "sexual",
+    "guided crotch grab": "sexual",
+    "guided pectoral grab": "sexual",
+    "guided penetration": "sexual",
+    "guilt": "face",
+    "guimpe": "clothes",
+    "guinness (beer)": "scene",
+    "gulf war": "scene",
+    "gumball": "scene",
+    "gun": "body",
+    "gun in pussy": "body",
+    "gunkanmaki": "scene",
+    "gunma prefecture": "scene",
+    "gunpowder": "scene",
+    "guro": "sexual",
+    "gurokawa": "clothes",
+    "guy fawkes mask": "clothes",
+    "guyana": "scene",
+    "gyaru": "clothes",
+    "gyaru makeup": "clothes",
+    "gyaru v": "limbs",
+    "gyaruo": "clothes",
+    "gyate gyate": "face",
+    "gym": "scene",
+    "gym shorts": "clothes",
+    "gym storeroom": "scene",
+    "gym uniform": "clothes",
+    "gymnastics": "pose",
+    "gynecomastia": "sexual",
+    "gyotaku (medium)": "scene",
+    "gyouza no manshuu": "scene",
+    "gyu-kaku": "scene",
+    "gyuudon": "scene",
+    "habanero pepper": "scene",
+    "habanero-tan": "scene",
+    "hachimaki": "clothes",
+    "hadeko": "clothes",
+    "hagia sophia": "scene",
+    "haikyuu!!": "pose",
+    "hair": "body",
+    "hair around arms": "body",
+    "hair around ear": "body",
+    "hair around horn": "body",
+    "hair around neck": "body",
+    "hair around own leg": "body",
+    "hair beads": "clothes",
+    "hair bell": "body",
+    "hair between eyes": "body",
+    "hair bikini": "body",
+    "hair bobbles": "clothes",
+    "hair bow": "clothes",
+    "hair brush": "body",
+    "hair color switch": "effects",
+    "hair down": "body",
+    "hair dryer": "body",
+    "hair ears": "face",
+    "hair extensions": "body",
+    "hair flaps": "body",
+    "hair flip": "body",
+    "hair flower": "clothes",
+    "hair focus": "effects",
+    "hair hanging down": "body",
+    "hair horns": "body",
+    "hair in own mouth": "body",
+    "hair intakes": "body",
+    "hair ornament": "clothes",
+    "hair over breasts": "body",
+    "hair over crotch": "body",
+    "hair over eyes": "body",
+    "hair over one breast": "body",
+    "hair over one eye": "body",
+    "hair over shoulder": "clothes",
+    "hair pulled back": "body",
+    "hair ribbon": "clothes",
+    "hair rings": "body",
+    "hair rollers": "clothes",
+    "hair scarf": "body",
+    "hair scrunchie": "clothes",
+    "hair slicked back": "body",
+    "hair spread out": "body",
+    "hair stick": "clothes",
+    "hair straightener": "body",
+    "hair tie": "clothes",
+    "hair tubes": "clothes",
+    "hair up": "body",
+    "hair weapon": "body",
+    "hair wings": "body",
+    "hairband": "clothes",
+    "hairclip": "clothes",
+    "hairdressing": "pose",
+    "hairjob": "sexual",
+    "hairpods": "body",
+    "haiti": "scene",
+    "hajime no ippo": "pose",
+    "hakama": "clothes",
+    "hakama pants": "clothes",
+    "hakama pull": "sexual",
+    "hakama short skirt": "clothes",
+    "hakama skirt": "clothes",
+    "hakodate (city)": "scene",
+    "hakugyokurou": "scene",
+    "hakurei shrine": "scene",
+    "halation pupils": "face",
+    "half crown braid": "body",
+    "half eye mask": "clothes",
+    "half gloves": "clothes",
+    "half mask": "clothes",
+    "half up braid": "body",
+    "half up half down braid": "body",
+    "half updo": "body",
+    "half-closed eyes": "face",
+    "halftone": "scene",
+    "halftone background": "scene",
+    "halifax mooseheads": "pose",
+    "halloween": "scene",
+    "hallway": "scene",
+    "halter dress": "clothes",
+    "halter leotard": "clothes",
+    "halter shirt": "clothes",
+    "halterneck": "clothes",
+    "ham": "scene",
+    "hamburger steak": "scene",
+    "hamburglar": "scene",
+    "hamster dance": "pose",
+    "hanafuda": "scene",
+    "hanamaru sensation": "pose",
+    "hanami": "scene",
+    "hanbok": "clothes",
+    "hand between own legs": "limbs",
+    "hand chains": "clothes",
+    "hand eye": "limbs",
+    "hand fan": "clothes",
+    "hand focus": "scene",
+    "hand gesture duo": "limbs",
+    "hand glasses": "limbs",
+    "hand hair": "clothes",
+    "hand in bra": "limbs",
+    "hand in own hair": "body",
+    "hand in pocket": "limbs",
+    "hand jewel": "clothes",
+    "hand milking": "pose",
+    "hand mirror": "clothes",
+    "hand mouth": "limbs",
+    "hand of benediction": "limbs",
+    "hand on another's arm": "limbs",
+    "hand on another's ass": "limbs",
+    "hand on another's back": "limbs",
+    "hand on another's cheek": "limbs",
+    "hand on another's chest": "limbs",
+    "hand on another's chin": "limbs",
+    "hand on another's crotch": "limbs",
+    "hand on another's ear": "limbs",
+    "hand on another's face": "limbs",
+    "hand on another's foot": "limbs",
+    "hand on another's hand": "limbs",
+    "hand on another's head": "limbs",
+    "hand on another's hip": "limbs",
+    "hand on another's knee": "limbs",
+    "hand on another's leg": "limbs",
+    "hand on another's neck": "limbs",
+    "hand on another's shoulder": "limbs",
+    "hand on another's stomach": "limbs",
+    "hand on another's thigh": "limbs",
+    "hand on another's waist": "limbs",
+    "hand on another's wing": "body",
+    "hand on eyewear": "clothes",
+    "hand on headwear": "limbs",
+    "hand on mask": "clothes",
+    "hand on own arm": "limbs",
+    "hand on own ass": "limbs",
+    "hand on own cheek": "limbs",
+    "hand on own chest": "limbs",
+    "hand on own chin": "limbs",
+    "hand on own crotch": "limbs",
+    "hand on own ear": "limbs",
+    "hand on own elbow": "limbs",
+    "hand on own face": "limbs",
+    "hand on own foot": "limbs",
+    "hand on own forehead": "limbs",
+    "hand on own head": "limbs",
+    "hand on own hip": "limbs",
+    "hand on own knee": "limbs",
+    "hand on own leg": "limbs",
+    "hand on own neck": "limbs",
+    "hand on own shoulder": "limbs",
+    "hand on own stomach": "limbs",
+    "hand on own thigh": "limbs",
+    "hand puppets": "clothes",
+    "hand tattoo": "clothes",
+    "hand under swimsuit": "clothes",
+    "handcuffs": "sexual",
+    "handjob": "sexual",
+    "handjob gesture": "limbs",
+    "handkerchief": "clothes",
+    "handprint": "clothes",
+    "hands": "body",
+    "hands in opposite sleeves": "clothes",
+    "hands in pockets": "limbs",
+    "hands on another's ass": "body",
+    "hands on another's cheeks": "limbs",
+    "hands on another's chest": "limbs",
+    "hands on another's crotch": "limbs",
+    "hands on another's face": "limbs",
+    "hands on another's head": "limbs",
+    "hands on another's hips": "limbs",
+    "hands on another's knees": "limbs",
+    "hands on another's leg": "limbs",
+    "hands on another's neck": "limbs",
+    "hands on another's shoulder": "limbs",
+    "hands on another's shoulders": "limbs",
+    "hands on another's stomach": "limbs",
+    "hands on another's thighs": "limbs",
+    "hands on another's waist": "limbs",
+    "hands on feet": "limbs",
+    "hands on headwear": "clothes",
+    "hands on own arms": "limbs",
+    "hands on own ass": "body",
+    "hands on own cheeks": "limbs",
+    "hands on own chest": "limbs",
+    "hands on own chin": "limbs",
+    "hands on own crotch": "limbs",
+    "hands on own face": "limbs",
+    "hands on own feet": "limbs",
+    "hands on own head": "limbs",
+    "hands on own hips": "limbs",
+    "hands on own knees": "limbs",
+    "hands on own legs": "limbs",
+    "hands on own neck": "limbs",
+    "hands on own shoulders": "limbs",
+    "hands on own stomach": "limbs",
+    "hands on own thighs": "limbs",
+    "handsfree paizuri": "sexual",
+    "handstand": "pose",
+    "hanfu": "clothes",
+    "hangar": "scene",
+    "hanged": "pose",
+    "hanging": "pose",
+    "hanging breasts": "body",
+    "hanging food": "scene",
+    "hanging plant": "scene",
+    "hanshin tigers": "pose",
+    "hanten (clothes)": "clothes",
+    "hanukkah": "scene",
+    "hanwha eagles": "pose",
+    "haori": "clothes",
+    "haori himo": "clothes",
+    "happi": "clothes",
+    "happy": "face",
+    "happy birthday": "scene",
+    "happy easter": "scene",
+    "happy halloween": "scene",
+    "happy new year": "scene",
+    "happy sex": "sexual",
+    "happy valentine": "scene",
+    "har gow": "scene",
+    "harbor": "scene",
+    "hard hat": "clothes",
+    "hard rock stadium": "scene",
+    "hard-translated": "scene",
+    "hardboiled egg": "scene",
+    "hare hare yukai": "pose",
+    "harem outfit": "clothes",
+    "harmful spikes": "sexual",
+    "harness": "clothes",
+    "harpy": "body",
+    "harukana receive": "pose",
+    "has adversarial noise revision": "scene",
+    "has artifacted revision": "scene",
+    "has bad revision": "scene",
+    "has censored revision": "scene",
+    "has cropped revision": "scene",
+    "has downscaled revision": "scene",
+    "has lossy revision": "scene",
+    "has watermarked revision": "scene",
+    "hat": "clothes",
+    "hat basket": "clothes",
+    "hat bow": "clothes",
+    "hat feather": "clothes",
+    "hat flower": "clothes",
+    "hat loss": "clothes",
+    "hat on chest": "clothes",
+    "hat ornament": "clothes",
+    "hat over eyes": "clothes",
+    "hat over one eye": "clothes",
+    "hat ribbon": "clothes",
+    "hat tassel": "clothes",
+    "hat tip": "limbs",
+    "hat with ears": "clothes",
+    "hatching": "pose",
+    "hatching (texture)": "scene",
+    "hatsune miku": "character",
+    "have to pee": "sexual",
+    "hawaii": "scene",
+    "hawaiian clothes": "clothes",
+    "hawthorn (plant)": "scene",
+    "hazelnut": "scene",
+    "hazmat suit": "clothes",
+    "head and hip pose": "pose",
+    "head back": "pose",
+    "head between breasts": "body",
+    "head bump": "body",
+    "head chain": "clothes",
+    "head down": "pose",
+    "head on ass": "body",
+    "head on chest": "pose",
+    "head on hand": "limbs",
+    "head out of frame": "scene",
+    "head rest": "limbs",
+    "head tilt": "pose",
+    "head wings": "body",
+    "head wreath": "clothes",
+    "headband": "clothes",
+    "headdress": "clothes",
+    "headlamp": "clothes",
+    "headlight": "effects",
+    "headpat": "limbs",
+    "headphones": "clothes",
+    "headphones around neck": "clothes",
+    "headphones on breasts": "body",
+    "headpiece": "clothes",
+    "heads together": "pose",
+    "headscarf": "clothes",
+    "headset": "clothes",
+    "headstand": "pose",
+    "headwear switch": "effects",
+    "healing": "pose",
+    "heart": "scene",
+    "heart (organ)": "body",
+    "heart ahoge": "body",
+    "heart antenna hair": "body",
+    "heart arms": "limbs",
+    "heart background": "scene",
+    "heart choker": "clothes",
+    "heart collar": "clothes",
+    "heart hair bun": "body",
+    "heart hands": "limbs",
+    "heart hands duo": "limbs",
+    "heart hands quartet": "limbs",
+    "heart hands trio": "limbs",
+    "heart hat ornament": "clothes",
+    "heart in mouth": "face",
+    "heart necklace": "clothes",
+    "heart ring choker": "clothes",
+    "heart straw": "scene",
+    "heart tail": "limbs",
+    "heart tail duo": "limbs",
+    "heart wings": "body",
+    "heart-shaped box": "scene",
+    "heart-shaped cake": "scene",
+    "heart-shaped chocolate": "scene",
+    "heart-shaped eyes": "face",
+    "heart-shaped eyewear": "clothes",
+    "heart-shaped hair": "body",
+    "heart-shaped mouth": "face",
+    "heart-shaped pupils": "face",
+    "heartbreak haircut": "body",
+    "heated rivalry": "pose",
+    "heather (flower)": "scene",
+    "heaven condition": "scene",
+    "heavy breathing": "pose",
+    "heavy chromatic aberration": "scene",
+    "heavy lens flare": "scene",
+    "heinz": "scene",
+    "heisei retro": "clothes",
+    "heliconia": "scene",
+    "helicopter hair": "body",
+    "hellebore": "scene",
+    "helltaker dance": "pose",
+    "helm": "clothes",
+    "hemerocallis": "scene",
+    "henna": "clothes",
+    "hennin": "clothes",
+    "henohenomoheji": "face",
+    "henshin pose": "pose",
+    "hepatica (flower)": "scene",
+    "herb": "scene",
+    "herbal tea": "scene",
+    "heropin": "sexual",
+    "heterochromia": "face",
+    "hev suit": "clothes",
+    "hibiscus": "scene",
+    "hidden file": "scene",
+    "hiding": "pose",
+    "hifu": "scene",
+    "high collar": "clothes",
+    "high contrast": "scene",
+    "high dynamic range": "scene",
+    "high five": "limbs",
+    "high heel boots": "clothes",
+    "high heels": "clothes",
+    "high ponytail": "body",
+    "high side ponytail": "body",
+    "high tops": "clothes",
+    "high up": "scene",
+    "high-low skirt": "clothes",
+    "high-waist skirt": "clothes",
+    "highleg bikini": "clothes",
+    "highleg one-piece swimsuit": "clothes",
+    "highlighter (makeup)": "clothes",
+    "highway": "scene",
+    "hijab": "clothes",
+    "hijiki (seaweed)": "scene",
+    "hikimayu": "clothes",
+    "hiking": "pose",
+    "hill": "scene",
+    "hime cut": "body",
+    "hime gyaru": "clothes",
+    "hime lolita": "clothes",
+    "himeji castle": "scene",
+    "himekaji": "clothes",
+    "hina ningyou": "scene",
+    "hinamatsuri": "scene",
+    "hip dips": "body",
+    "hip focus": "scene",
+    "hip hop": "clothes",
+    "hip vent": "sexual",
+    "hiphighs": "clothes",
+    "hippie": "clothes",
+    "hips": "body",
+    "hipster": "clothes",
+    "hiroshima (city)": "scene",
+    "hiroshima peace memorial": "scene",
+    "hiroshima prefecture": "scene",
+    "hiroshima touyou carp": "pose",
+    "hishimochi": "scene",
+    "historical connection": "scene",
+    "historical event": "scene",
+    "historical name connection": "scene",
+    "hitachi magic wand": "sexual",
+    "hitchhiking": "pose",
+    "hitting": "pose",
+    "hiyashi chuuka": "scene",
+    "hiyayakko (food)": "scene",
+    "hobble": "sexual",
+    "hockey helmet": "pose",
+    "hockey mask": "pose",
+    "hockey puck": "pose",
+    "hockey stick": "pose",
+    "hockey sweater": "pose",
+    "hogtie": "sexual",
+    "hogtie carry": "sexual",
+    "hokkai": "scene",
+    "hokkaido nippon-ham fighters": "pose",
+    "hokkaido prefecture": "scene",
+    "hokuto no ken": "scene",
+    "holding": "limbs",
+    "holding anchor": "limbs",
+    "holding animal": "limbs",
+    "holding another's ankle": "limbs",
+    "holding another's arm": "limbs",
+    "holding another's finger": "limbs",
+    "holding another's foot": "limbs",
+    "holding another's hair": "limbs",
+    "holding another's leg": "limbs",
+    "holding another's tail": "limbs",
+    "holding another's wrist": "limbs",
+    "holding arrow": "limbs",
+    "holding axe": "limbs",
+    "holding badminton racket": "limbs",
+    "holding bag": "limbs",
+    "holding ball": "limbs",
+    "holding bamboo steamer": "limbs",
+    "holding bandages": "limbs",
+    "holding bandaid": "limbs",
+    "holding barcode scanner": "limbs",
+    "holding basket": "limbs",
+    "holding bass guitar": "limbs",
+    "holding baton (weapon)": "limbs",
+    "holding behind back": "limbs",
+    "holding belt": "limbs",
+    "holding bento": "limbs",
+    "holding bird": "limbs",
+    "holding blanket": "limbs",
+    "holding bomb": "limbs",
+    "holding bone": "limbs",
+    "holding book": "limbs",
+    "holding bottle": "limbs",
+    "holding bouquet": "limbs",
+    "holding bow (music)": "limbs",
+    "holding bow (weapon)": "limbs",
+    "holding bowl": "limbs",
+    "holding box": "limbs",
+    "holding branch": "limbs",
+    "holding briefcase": "limbs",
+    "holding broom": "limbs",
+    "holding bucket": "limbs",
+    "holding bullet": "limbs",
+    "holding burger": "limbs",
+    "holding butterfly net": "limbs",
+    "holding cable": "limbs",
+    "holding cage": "limbs",
+    "holding cake": "limbs",
+    "holding camera": "limbs",
+    "holding can": "limbs",
+    "holding candle": "limbs",
+    "holding candlestand": "limbs",
+    "holding candy": "limbs",
+    "holding candy apple": "limbs",
+    "holding cane": "limbs",
+    "holding cannon": "limbs",
+    "holding card": "limbs",
+    "holding carrot": "limbs",
+    "holding cat": "limbs",
+    "holding chainsaw": "limbs",
+    "holding chakram": "limbs",
+    "holding chalk": "limbs",
+    "holding chess piece": "limbs",
+    "holding chocolate": "limbs",
+    "holding chopsticks": "limbs",
+    "holding cigar": "limbs",
+    "holding cigarette": "limbs",
+    "holding cigarette pack": "limbs",
+    "holding cleaver": "limbs",
+    "holding clothes hanger": "limbs",
+    "holding clover": "limbs",
+    "holding club": "limbs",
+    "holding coat": "limbs",
+    "holding cocktail shaker": "limbs",
+    "holding coffee pot": "limbs",
+    "holding coin": "limbs",
+    "holding collar": "limbs",
+    "holding comb": "limbs",
+    "holding compact": "limbs",
+    "holding computer keyboard": "limbs",
+    "holding computer mouse": "limbs",
+    "holding condom": "limbs",
+    "holding controller": "limbs",
+    "holding cookie": "limbs",
+    "holding cooking pot": "limbs",
+    "holding cotton candy": "limbs",
+    "holding crayon": "limbs",
+    "holding creature": "limbs",
+    "holding crepe": "limbs",
+    "holding cross": "limbs",
+    "holding crossbow": "limbs",
+    "holding crowbar": "limbs",
+    "holding crown": "limbs",
+    "holding crystal": "limbs",
+    "holding cup": "limbs",
+    "holding dagger": "limbs",
+    "holding detached head": "limbs",
+    "holding dice": "limbs",
+    "holding diploma": "limbs",
+    "holding dog": "limbs",
+    "holding doll": "limbs",
+    "holding donut": "limbs",
+    "holding drawing": "limbs",
+    "holding drawing tablet": "limbs",
+    "holding drink": "limbs",
+    "holding drink carton": "limbs",
+    "holding drinking straw": "limbs",
+    "holding drumsticks": "limbs",
+    "holding dumbbell": "limbs",
+    "holding duster": "limbs",
+    "holding dustpan": "limbs",
+    "holding earphones": "limbs",
+    "holding earrings": "limbs",
+    "holding ears": "face",
+    "holding egg": "limbs",
+    "holding ema": "limbs",
+    "holding energy gun": "limbs",
+    "holding envelope": "limbs",
+    "holding eyeball": "limbs",
+    "holding feather": "limbs",
+    "holding fish": "limbs",
+    "holding fishing rod": "limbs",
+    "holding flail": "limbs",
+    "holding flamethrower": "limbs",
+    "holding flashlight": "limbs",
+    "holding flower": "limbs",
+    "holding flower pot": "limbs",
+    "holding flute": "limbs",
+    "holding folder": "limbs",
+    "holding food": "limbs",
+    "holding fork": "limbs",
+    "holding frog": "limbs",
+    "holding fruit": "limbs",
+    "holding frying pan": "limbs",
+    "holding gem": "limbs",
+    "holding glass door": "scene",
+    "holding gloves": "clothes",
+    "holding glowstick": "limbs",
+    "holding gohei": "limbs",
+    "holding golf club": "limbs",
+    "holding gourd": "limbs",
+    "holding grenade": "limbs",
+    "holding guitar": "limbs",
+    "holding gun": "limbs",
+    "holding hair brush": "limbs",
+    "holding hair dryer": "limbs",
+    "holding hair ornament": "limbs",
+    "holding hair tie": "limbs",
+    "holding halloween bucket": "limbs",
+    "holding hammer": "limbs",
+    "holding handheld game console": "limbs",
+    "holding handkerchief": "limbs",
+    "holding hands": "limbs",
+    "holding headphones": "limbs",
+    "holding heart (organ)": "limbs",
+    "holding hose": "limbs",
+    "holding ice cream": "limbs",
+    "holding ice cream cone": "limbs",
+    "holding id card": "limbs",
+    "holding instrument": "limbs",
+    "holding jewelry": "limbs",
+    "holding juice box": "limbs",
+    "holding jump rope": "limbs",
+    "holding kettle": "limbs",
+    "holding key": "limbs",
+    "holding knife": "limbs",
+    "holding knife behind back": "limbs",
+    "holding kunai": "limbs",
+    "holding ladle": "limbs",
+    "holding lantern": "limbs",
+    "holding laptop": "limbs",
+    "holding lead pipe": "limbs",
+    "holding leaf": "limbs",
+    "holding legwear": "limbs",
+    "holding letter": "limbs",
+    "holding lighter": "limbs",
+    "holding lipstick tube": "limbs",
+    "holding lyre": "limbs",
+    "holding mace": "limbs",
+    "holding machete": "limbs",
+    "holding magazine": "limbs",
+    "holding magazine (weapon)": "limbs",
+    "holding magnifying glass": "limbs",
+    "holding mahjong tile": "limbs",
+    "holding makeup brush": "clothes",
+    "holding makeup palette": "clothes",
+    "holding mallet": "limbs",
+    "holding manga": "limbs",
+    "holding maracas": "limbs",
+    "holding marker": "limbs",
+    "holding mask": "limbs",
+    "holding megaphone": "limbs",
+    "holding microphone": "limbs",
+    "holding microphone stand": "limbs",
+    "holding milk carton": "limbs",
+    "holding mini person": "limbs",
+    "holding mirror": "limbs",
+    "holding missile": "limbs",
+    "holding mistletoe": "limbs",
+    "holding money": "limbs",
+    "holding mop": "limbs",
+    "holding mp3 player": "limbs",
+    "holding mushroom": "limbs",
+    "holding nail": "limbs",
+    "holding necklace": "limbs",
+    "holding newspaper": "limbs",
+    "holding notebook": "limbs",
+    "holding notepad": "limbs",
+    "holding nunchaku": "limbs",
+    "holding oar": "limbs",
+    "holding ofuda": "limbs",
+    "holding omikuji": "limbs",
+    "holding own ankle": "limbs",
+    "holding own foot": "limbs",
+    "holding own hair": "limbs",
+    "holding own leg": "limbs",
+    "holding own tail": "limbs",
+    "holding own wrist": "limbs",
+    "holding paddle": "limbs",
+    "holding paint palette": "limbs",
+    "holding paintbrush": "limbs",
+    "holding paper": "limbs",
+    "holding pastry bag": "limbs",
+    "holding pen": "limbs",
+    "holding pencil": "limbs",
+    "holding petal": "limbs",
+    "holding phone": "limbs",
+    "holding photo": "limbs",
+    "holding pickaxe": "limbs",
+    "holding pill": "limbs",
+    "holding pillow": "limbs",
+    "holding pinwheel": "limbs",
+    "holding pitchfork": "limbs",
+    "holding pizza": "limbs",
+    "holding plant": "limbs",
+    "holding plate": "limbs",
+    "holding plectrum": "limbs",
+    "holding pocket watch": "limbs",
+    "holding pocky": "limbs",
+    "holding pointer": "limbs",
+    "holding polearm": "limbs",
+    "holding pom poms": "limbs",
+    "holding popsicle": "limbs",
+    "holding power drill": "limbs",
+    "holding pregnancy test": "limbs",
+    "holding pumpkin": "limbs",
+    "holding quill": "limbs",
+    "holding rabbit": "limbs",
+    "holding racket": "limbs",
+    "holding rattle": "limbs",
+    "holding razor": "limbs",
+    "holding removed eyewear": "clothes",
+    "holding ribbon": "limbs",
+    "holding riding crop": "limbs",
+    "holding ring": "limbs",
+    "holding rock": "limbs",
+    "holding rocket launcher": "limbs",
+    "holding ruler": "limbs",
+    "holding sack": "limbs",
+    "holding sandwich": "limbs",
+    "holding saucer": "limbs",
+    "holding saw": "limbs",
+    "holding saxophone": "limbs",
+    "holding scalpel": "limbs",
+    "holding scepter": "limbs",
+    "holding scissors": "limbs",
+    "holding screwdriver": "limbs",
+    "holding scroll": "limbs",
+    "holding seashell": "limbs",
+    "holding sex toy": "limbs",
+    "holding sheath": "limbs",
+    "holding sheet": "limbs",
+    "holding shield": "limbs",
+    "holding shirt": "limbs",
+    "holding shorts": "limbs",
+    "holding shovel": "limbs",
+    "holding shower head": "limbs",
+    "holding sickle": "limbs",
+    "holding skateboard": "limbs",
+    "holding sketchbook": "limbs",
+    "holding skewer": "limbs",
+    "holding skull": "limbs",
+    "holding slingshot": "limbs",
+    "holding smoking pipe": "limbs",
+    "holding snake": "limbs",
+    "holding snow globe": "limbs",
+    "holding sock": "limbs",
+    "holding spatula": "limbs",
+    "holding sponge": "limbs",
+    "holding spoon": "limbs",
+    "holding spork": "limbs",
+    "holding stethoscope": "limbs",
+    "holding stick": "limbs",
+    "holding stopwatch": "limbs",
+    "holding string": "limbs",
+    "holding stuffed toy": "limbs",
+    "holding stylus": "limbs",
+    "holding suitcase": "limbs",
+    "holding surfboard": "limbs",
+    "holding swim ring": "limbs",
+    "holding swimsuit": "limbs",
+    "holding sword": "limbs",
+    "holding syringe": "limbs",
+    "holding tablet pc": "limbs",
+    "holding tank shell": "limbs",
+    "holding tanzaku": "limbs",
+    "holding teapot": "limbs",
+    "holding telescope": "limbs",
+    "holding tennis racket": "limbs",
+    "holding test tube": "limbs",
+    "holding thermometer": "limbs",
+    "holding ticket": "limbs",
+    "holding tissue": "limbs",
+    "holding tongs": "limbs",
+    "holding toothbrush": "limbs",
+    "holding torch": "limbs",
+    "holding torpedo": "limbs",
+    "holding towel": "limbs",
+    "holding toy": "limbs",
+    "holding toy gun": "limbs",
+    "holding tray": "limbs",
+    "holding tripod": "limbs",
+    "holding trombone": "limbs",
+    "holding trophy": "limbs",
+    "holding trowel": "limbs",
+    "holding trumpet": "limbs",
+    "holding turret": "limbs",
+    "holding turtle": "limbs",
+    "holding turtle shell": "limbs",
+    "holding ukulele": "limbs",
+    "holding umbrella": "limbs",
+    "holding underwear": "limbs",
+    "holding unworn boots": "limbs",
+    "holding unworn cape": "limbs",
+    "holding unworn clothes": "limbs",
+    "holding unworn dress": "limbs",
+    "holding unworn hat": "limbs",
+    "holding unworn helmet": "limbs",
+    "holding unworn jacket": "limbs",
+    "holding unworn necktie": "limbs",
+    "holding unworn sandals": "limbs",
+    "holding unworn scarf": "limbs",
+    "holding unworn shoes": "limbs",
+    "holding unworn skirt": "limbs",
+    "holding vegetable": "limbs",
+    "holding vial": "limbs",
+    "holding violin": "limbs",
+    "holding walkie-talkie": "limbs",
+    "holding wallet": "limbs",
+    "holding water gun": "limbs",
+    "holding watering can": "limbs",
+    "holding weapon": "limbs",
+    "holding whisk": "limbs",
+    "holding whistle": "limbs",
+    "holding wig": "limbs",
+    "holding with feet": "limbs",
+    "holding with gesture": "limbs",
+    "holding with tail": "limbs",
+    "holding wreath": "limbs",
+    "holding wrench": "limbs",
+    "hole in face": "face",
+    "hollow mask": "clothes",
+    "hollow mouth": "face",
+    "holly": "scene",
+    "holly hat ornament": "clothes",
+    "hollyhock": "scene",
+    "hollywood sign": "scene",
+    "holy roman empire": "scene",
+    "honduras": "scene",
+    "honey": "scene",
+    "honey cake donut": "scene",
+    "honey day": "scene",
+    "honey dipper": "scene",
+    "honeycomb (pattern)": "clothes",
+    "honeycomb background": "scene",
+    "honeydew (fruit)": "scene",
+    "honeypot": "scene",
+    "hong kong": "scene",
+    "hongbao": "scene",
+    "honggaitou": "clothes",
+    "hood": "clothes",
+    "hood down": "sexual",
+    "hoodie": "clothes",
+    "hoop": "pose",
+    "hoop earrings": "clothes",
+    "hooters": "scene",
+    "hopping": "pose",
+    "horizon": "scene",
+    "horizontal pupils": "face",
+    "hormone replacement therapy": "sexual",
+    "horn band legwear": "clothes",
+    "horn ornament": "clothes",
+    "horned helmet": "clothes",
+    "horned mask": "clothes",
+    "horned melon": "scene",
+    "horns pose": "limbs",
+    "horrified": "face",
+    "horse dildo": "sexual",
+    "horse ears": "face",
+    "horse mask": "clothes",
+    "horse penis": "body",
+    "horse pussy": "body",
+    "horse racing track": "scene",
+    "horseback riding": "pose",
+    "hoshiai no sora": "pose",
+    "hoshino ruby dance": "pose",
+    "hospital": "body",
+    "hot cross bun": "scene",
+    "hot dog": "scene",
+    "hot plate": "scene",
+    "hot sauce": "scene",
+    "hotel": "scene",
+    "hotel room": "scene",
+    "houndstooth": "clothes",
+    "house": "scene",
+    "houston": "scene",
+    "houston astros": "pose",
+    "houston dynamo": "pose",
+    "houston rockets": "pose",
+    "houston texans": "pose",
+    "hue shifting": "scene",
+    "hug": "pose",
+    "hug and suck": "sexual",
+    "hug from behind": "pose",
+    "huge afro": "body",
+    "huge ahoge": "body",
+    "huge ass": "body",
+    "huge bowtie": "clothes",
+    "huge breasts": "body",
+    "huge clitoris": "sexual",
+    "huge dildo": "sexual",
+    "huge eyebrows": "face",
+    "huge nipples": "body",
+    "huge penis": "body",
+    "huge testicles": "body",
+    "hugging object": "pose",
+    "hugging own legs": "pose",
+    "hugging tail": "pose",
+    "hula": "pose",
+    "human ashtray": "sexual",
+    "human chair": "sexual",
+    "human dog": "sexual",
+    "human furniture": "sexual",
+    "human table": "sexual",
+    "human toilet": "sexual",
+    "humanization": "effects",
+    "humbler": "sexual",
+    "humiliation": "sexual",
+    "humping": "pose",
+    "hungarian clothes": "clothes",
+    "hungary": "scene",
+    "hunger hallucination": "scene",
+    "hungry": "scene",
+    "hurricane glass": "scene",
+    "hurt expressions of your wife practice": "face",
+    "hut": "scene",
+    "hyacinth": "scene",
+    "hydrangea": "scene",
+    "hydrokinesis": "scene",
+    "hyogo prefecture": "scene",
+    "hyottoko mask": "clothes",
+    "hysterectomy": "sexual",
+    "hysterectomy scar": "sexual",
+    "ibaraki prefecture": "scene",
+    "icchae popotan": "pose",
+    "ice": "scene",
+    "ice cream": "scene",
+    "ice cream cake": "scene",
+    "ice cream cone": "scene",
+    "ice cream float": "scene",
+    "ice cream sandwich": "scene",
+    "ice cream scoop (utensil)": "scene",
+    "ice cream stand": "scene",
+    "ice flower": "scene",
+    "ice hockey": "pose",
+    "ice play": "sexual",
+    "ice sculpture": "scene",
+    "ice skating": "pose",
+    "ice wings": "body",
+    "iced tea": "scene",
+    "iceland": "scene",
+    "ichigo daifuku": "scene",
+    "ichimegasa": "clothes",
+    "icing": "scene",
+    "icon (computing)": "scene",
+    "idle animation": "pose",
+    "idol clothes": "clothes",
+    "iei": "scene",
+    "if they mated": "effects",
+    "igeta (pattern)": "clothes",
+    "ike! ina-chuu takkyuubu": "pose",
+    "ikea shark": "sexual",
+    "ikura (food)": "scene",
+    "imagawayaki": "scene",
+    "image macro (meme)": "scene",
+    "image sample": "scene",
+    "imageboard colors": "scene",
+    "imagining": "pose",
+    "imitating": "pose",
+    "imminent anal": "sexual",
+    "imminent penetration": "sexual",
+    "imminent rape": "sexual",
+    "imminent torture": "sexual",
+    "imminent vaginal": "sexual",
+    "impaled": "sexual",
+    "implied cunnilingus": "sexual",
+    "implied fellatio": "sexual",
+    "implied fingering": "sexual",
+    "implied footjob": "sexual",
+    "implied futanari": "sexual",
+    "implied masturbation": "sexual",
+    "implied sex": "sexual",
+    "implied yaoi": "sexual",
+    "implied yuri": "sexual",
+    "impossible shirt": "body",
+    "impossible swimsuit": "clothes",
+    "impregnation": "sexual",
+    "impressionism": "scene",
+    "in cage": "sexual",
+    "in cell": "sexual",
+    "in container": "sexual",
+    "in food": "scene",
+    "in legwear": "clothes",
+    "in orbit": "scene",
+    "in tree": "scene",
+    "in umbrella": "pose",
+    "in-n-out burger": "scene",
+    "in-universe location": "scene",
+    "inarizushi": "scene",
+    "inazuma eleven (series)": "pose",
+    "incan clothes": "clothes",
+    "incest": "sexual",
+    "inconvenient breasts": "body",
+    "incredibly absurdres": "scene",
+    "index finger raised": "limbs",
+    "index fingers together": "limbs",
+    "india": "scene",
+    "indian style": "pose",
+    "indiana": "scene",
+    "indiana pacers": "pose",
+    "indianapolis colts": "pose",
+    "indonesia": "pose",
+    "indonesian clothes": "clothes",
+    "indoors": "scene",
+    "industrial": "scene",
+    "infirmary": "scene",
+    "inflation": "sexual",
+    "inrou": "clothes",
+    "insect wings": "body",
+    "inseki": "sexual",
+    "inset border": "scene",
+    "instant ramen": "scene",
+    "instant soba": "scene",
+    "instant udon": "scene",
+    "intentional jpeg artifacts": "scene",
+    "inter miami cf": "pose",
+    "interlocked fingers": "pose",
+    "internal cumshot": "sexual",
+    "internet overdose": "pose",
+    "internet yamero": "pose",
+    "intestine hair": "body",
+    "intestines": "body",
+    "inteyvat flower (genshin impact)": "scene",
+    "intravenous drip": "body",
+    "inugami-ke no ichizoku pose": "pose",
+    "invasion of normandy": "scene",
+    "invasion stripes": "clothes",
+    "inverted bob": "body",
+    "inverted colors": "effects",
+    "inverted nipples": "body",
+    "inward v": "limbs",
+    "iowa": "scene",
+    "iran": "scene",
+    "iran-iraq war": "scene",
+    "iranian clothes": "clothes",
+    "iraq": "scene",
+    "iraq war": "scene",
+    "ireland": "scene",
+    "iridescent": "effects",
+    "iris (flower)": "scene",
+    "iron maiden": "sexual",
+    "irrumatio": "sexual",
+    "ishidaki": "sexual",
+    "ishikawa prefecture": "scene",
+    "island": "scene",
+    "isometric": "scene",
+    "israel": "scene",
+    "israel-hamas war": "scene",
+    "istanbul": "scene",
+    "itabashi (tokyo)": "scene",
+    "italian (niigata)": "scene",
+    "italian clothes": "clothes",
+    "italy": "scene",
+    "ivy": "scene",
+    "iwate prefecture": "scene",
+    "iwo jima": "scene",
+    "ixia (flower)": "scene",
+    "izakaya": "scene",
+    "j. league": "pose",
+    "jack box": "scene",
+    "jack in the box (restaurant)": "scene",
+    "jack-o'-lantern": "scene",
+    "jack-o'-lantern hat ornament": "clothes",
+    "jacket": "clothes",
+    "jacket on shoulders": "clothes",
+    "jackfruit": "scene",
+    "jade vine": "scene",
+    "jalapeno pepper": "scene",
+    "jam": "scene",
+    "jamaica": "scene",
+    "jammers": "clothes",
+    "japan": "scene",
+    "japanese clothes": "clothes",
+    "japanese food": "scene",
+    "japari bun": "scene",
+    "jar": "scene",
+    "jar cake": "scene",
+    "jasmine (flower)": "scene",
+    "java apple": "scene",
+    "jeans": "clothes",
+    "jef united": "pose",
+    "jelly bean": "scene",
+    "jelly donut (food)": "scene",
+    "jellyfish cut": "body",
+    "jersey": "pose",
+    "jersey maid": "clothes",
+    "jerusalem": "scene",
+    "jester cap": "clothes",
+    "jetty": "scene",
+    "jewel butt plug": "sexual",
+    "jiao bei jiu": "scene",
+    "jiaozi": "scene",
+    "jin (headwear)": "clothes",
+    "jingasa": "clothes",
+    "jinggu ji (hairstyle)": "body",
+    "jingle bell": "clothes",
+    "jirai kei": "clothes",
+    "jirou (ramen)": "scene",
+    "jitome": "face",
+    "jo lolita": "clothes",
+    "jockstrap": "clothes",
+    "joints": "body",
+    "jojo pose": "pose",
+    "jollibee": "scene",
+    "jollibee (mascot)": "scene",
+    "jonathan joestar's pose": "pose",
+    "jordan": "scene",
+    "josou seme": "sexual",
+    "jpeg artifacts": "scene",
+    "jr central towers": "scene",
+    "jubilo iwata": "pose",
+    "judas cradle": "sexual",
+    "judo": "pose",
+    "jue (vessel)": "scene",
+    "jug (bottle)": "scene",
+    "juggling": "pose",
+    "juggling club": "pose",
+    "juice": "scene",
+    "juice box": "scene",
+    "jujube (fruit)": "scene",
+    "juliet sleeves": "clothes",
+    "jumeok-bap": "scene",
+    "jumping": "pose",
+    "jumpsuit": "clothes",
+    "jungle": "scene",
+    "junkyard": "scene",
+    "juventus fc": "pose",
+    "kabaddi": "pose",
+    "kabayaki": "scene",
+    "kabuto (helmet)": "clothes",
+    "kadomatsu": "scene",
+    "kagami mochi": "scene",
+    "kagawa prefecture": "scene",
+    "kagome (pattern)": "clothes",
+    "kagoshima prefecture": "scene",
+    "kamaboko": "scene",
+    "kamakura (city)": "scene",
+    "kamchatka lily": "scene",
+    "kame house": "scene",
+    "kamina pose": "limbs",
+    "kamina shades": "clothes",
+    "kaminarimon": "scene",
+    "kamogawa (chiba)": "scene",
+    "kanagawa prefecture": "scene",
+    "kanazawa (city)": "scene",
+    "kanda shrine": "scene",
+    "kani-san wiener": "scene",
+    "kanji focus": "effects",
+    "kankaku shadan": "sexual",
+    "kanoko (pattern)": "clothes",
+    "kansas city chiefs": "pose",
+    "kanzashi": "clothes",
+    "kaohsiung": "scene",
+    "kappa mask": "clothes",
+    "karakalpak clothes": "clothes",
+    "karakusa (pattern)": "clothes",
+    "karashi mentaiko": "scene",
+    "karawamage": "body",
+    "kashima antlers": "pose",
+    "kashiwa mochi": "scene",
+    "kashiwa mochi (food)": "scene",
+    "kashiwa reysol": "pose",
+    "katsu (food)": "scene",
+    "katsudon (food)": "scene",
+    "katsuo no tataki": "scene",
+    "katsuyamamage": "body",
+    "kawagoe (saitama)": "scene",
+    "kawasaki (kanagawa)": "scene",
+    "kawasaki frontale": "pose",
+    "kazakh clothes": "clothes",
+    "kazakhstan": "scene",
+    "kaze no daichi": "pose",
+    "kbo league": "pose",
+    "keffiyeh": "clothes",
+    "kefir": "scene",
+    "kemari": "pose",
+    "kemonomimi mode": "face",
+    "kendo mask": "clothes",
+    "kenya": "scene",
+    "kepi": "clothes",
+    "kerria japonica": "scene",
+    "kesa": "clothes",
+    "ketchup": "scene",
+    "ketchup bottle": "scene",
+    "kettle": "scene",
+    "kettle helm": "clothes",
+    "key choker": "clothes",
+    "key necklace": "clothes",
+    "kfc": "scene",
+    "kia tigers": "pose",
+    "kicking": "sexual",
+    "kidnapping": "pose",
+    "kigurumi": "clothes",
+    "kikkoumon": "clothes",
+    "kikumon": "clothes",
+    "kill me dance": "pose",
+    "kilt": "clothes",
+    "kiltie loafers": "clothes",
+    "kimchi": "scene",
+    "kimono": "clothes",
+    "kimono down": "sexual",
+    "kimono lift": "sexual",
+    "kimono pull": "sexual",
+    "kimono skirt": "clothes",
+    "kinky hair": "body",
+    "kinoko no yama": "scene",
+    "kinpira gobo": "scene",
+    "kippah": "clothes",
+    "kirigami": "scene",
+    "kiritanpo (food)": "scene",
+    "kishimen hair": "body",
+    "kiss": "pose",
+    "kiss day": "scene",
+    "kissing foot": "body",
+    "kissing hair": "body",
+    "kissing neck": "clothes",
+    "kissing through mask": "clothes",
+    "kita (tokyo)": "scene",
+    "kitchen": "scene",
+    "kitchen scale": "scene",
+    "kitkat": "scene",
+    "kitsune dance": "pose",
+    "kitsune no mado": "limbs",
+    "kitsune udon": "scene",
+    "kiwi (fruit)": "scene",
+    "kiwi print": "clothes",
+    "kiwi slice": "scene",
+    "knee boots": "clothes",
+    "knee pads": "clothes",
+    "knee strap": "clothes",
+    "knee up": "pose",
+    "kneehighs": "clothes",
+    "kneeing": "sexual",
+    "kneeling": "pose",
+    "kneepit sex": "sexual",
+    "kneepits": "body",
+    "knees": "body",
+    "knees apart feet together": "pose",
+    "knees out of frame": "scene",
+    "knees to chest": "sexual",
+    "knees together feet apart": "pose",
+    "knees up": "pose",
+    "knife": "scene",
+    "knife in hair": "body",
+    "knit leg warmers": "clothes",
+    "knit legwear": "clothes",
+    "knit pantyhose": "clothes",
+    "knit socks": "clothes",
+    "knit thighhighs": "clothes",
+    "knitting": "pose",
+    "knocking": "pose",
+    "knotted penis": "body",
+    "knotting": "sexual",
+    "knuckle hair": "clothes",
+    "kobe": "scene",
+    "kobeya uniform": "scene",
+    "kochi prefecture": "scene",
+    "kodomo no hi": "scene",
+    "kogal": "clothes",
+    "koi dance": "pose",
+    "koinobori": "scene",
+    "kojitsunagi (pattern)": "clothes",
+    "kokoshnik": "clothes",
+    "kongou pose": "pose",
+    "konnyaku (food)": "scene",
+    "konpeitou": "scene",
+    "korea": "scene",
+    "korean clothes": "clothes",
+    "korean food": "scene",
+    "korean war": "scene",
+    "kosovo": "scene",
+    "kote": "clothes",
+    "koto (tokyo)": "scene",
+    "kotoyoro": "scene",
+    "kourindou": "scene",
+    "krispy kreme": "scene",
+    "kuala lumpur": "scene",
+    "kubrick stare": "face",
+    "kudoyama (town)": "scene",
+    "kuji-in": "limbs",
+    "kujo jotaro's pose": "pose",
+    "kujou karen pose": "pose",
+    "kumamoto castle": "scene",
+    "kumamoto prefecture": "scene",
+    "kuomintang": "scene",
+    "kure (city)": "scene",
+    "kuroko no basuke": "pose",
+    "kurokote": "clothes",
+    "kusatsu (city)": "scene",
+    "kyojin no hoshi": "pose",
+    "kyoto (city)": "scene",
+    "kyoto prefecture": "scene",
+    "kyoto sanga f.c.": "pose",
+    "kyrgyz clothes": "clothes",
+    "kyrgyzstan": "scene",
+    "l hand": "limbs",
+    "la liga": "pose",
+    "labia": "body",
+    "labia clamps": "sexual",
+    "labiaplasty": "sexual",
+    "laboratory": "scene",
+    "lace": "clothes",
+    "lace background": "scene",
+    "lace choker": "clothes",
+    "lace gloves": "clothes",
+    "lace legwear": "clothes",
+    "lace pantyhose": "clothes",
+    "lace socks": "clothes",
+    "lace thighhighs": "clothes",
+    "lace trim": "clothes",
+    "lace-trimmed ascot": "clothes",
+    "lace-trimmed choker": "clothes",
+    "lace-trimmed collar": "clothes",
+    "lace-trimmed gloves": "clothes",
+    "lace-trimmed leg warmers": "clothes",
+    "lace-trimmed leggings": "clothes",
+    "lace-trimmed legwear": "clothes",
+    "lace-trimmed pantyhose": "clothes",
+    "lace-trimmed sleeves": "clothes",
+    "lace-trimmed socks": "clothes",
+    "lace-trimmed thighhighs": "clothes",
+    "lace-up boots": "clothes",
+    "lace-up legwear": "clothes",
+    "lacrosse": "pose",
+    "lactating into container": "body",
+    "lactation": "sexual",
+    "lactation through clothes": "sexual",
+    "ladle": "scene",
+    "ladybug wings": "body",
+    "lake": "scene",
+    "lamp": "clothes",
+    "lamppost": "effects",
+    "landing": "pose",
+    "landscape": "scene",
+    "lantana (flower)": "scene",
+    "lantern": "scene",
+    "lantern on liquid": "scene",
+    "lanyard": "clothes",
+    "lao gan ma": "scene",
+    "laos": "scene",
+    "lap dance": "pose",
+    "lapel pin": "clothes",
+    "lapels": "clothes",
+    "lappet": "clothes",
+    "large areolae": "body",
+    "large breasts": "body",
+    "large buttons": "clothes",
+    "large clitoris": "sexual",
+    "large head wings": "body",
+    "large insertion": "sexual",
+    "large nose": "face",
+    "large penis": "body",
+    "large testicles": "body",
+    "lariat (necklace)": "clothes",
+    "larkspur (flower)": "scene",
+    "las vegas": "scene",
+    "las vegas raiders": "pose",
+    "lasagne": "scene",
+    "latex": "sexual",
+    "latex gloves": "clothes",
+    "latex legwear": "clothes",
+    "latte art": "scene",
+    "latvia": "scene",
+    "laughing": "pose",
+    "launching": "pose",
+    "laurel crown": "clothes",
+    "lava": "scene",
+    "lava cake": "scene",
+    "lavender (flower)": "scene",
+    "lay's (potato chips)": "scene",
+    "layer cake": "scene",
+    "layered gloves": "clothes",
+    "layered kimono": "clothes",
+    "layered legwear": "clothes",
+    "layered sleeves": "clothes",
+    "lazy eye": "face",
+    "leaf": "scene",
+    "leaf background": "scene",
+    "leaf bikini": "clothes",
+    "leaf hat ornament": "clothes",
+    "leaf necklace": "clothes",
+    "leaf print": "clothes",
+    "leaning": "pose",
+    "leaning back": "pose",
+    "leaning forward": "pose",
+    "leaning tower of pisa": "scene",
+    "leash": "sexual",
+    "leash on penis": "sexual",
+    "leash pull": "sexual",
+    "leather gloves": "clothes",
+    "leather mask": "clothes",
+    "lecturing": "pose",
+    "left-to-right manga": "scene",
+    "leg belt": "clothes",
+    "leg cutout": "sexual",
+    "leg focus": "effects",
+    "leg lift": "pose",
+    "leg lock": "pose",
+    "leg ribbon": "clothes",
+    "leg up": "pose",
+    "leg warmers": "clothes",
+    "leg wings": "body",
+    "leggings": "clothes",
+    "legjob": "sexual",
+    "legs": "body",
+    "legs apart": "pose",
+    "legs bound apart": "sexual",
+    "legs over head": "sexual",
+    "legs up": "sexual",
+    "legskin": "clothes",
+    "legwear": "body",
+    "legwear bell": "clothes",
+    "legwear garter": "clothes",
+    "lei": "clothes",
+    "leicester city fc": "pose",
+    "lemon": "scene",
+    "lemon blossoms": "scene",
+    "lemon cake": "scene",
+    "lemon meringue pie": "scene",
+    "lemon print": "clothes",
+    "lemon slice": "scene",
+    "lemon torture": "sexual",
+    "lemonade": "scene",
+    "lens eye": "face",
+    "lens flare": "scene",
+    "leopard print": "clothes",
+    "leotard": "clothes",
+    "leotard aside": "sexual",
+    "leotard pull": "sexual",
+    "lesbians doing makeup (meme)": "clothes",
+    "letter pose": "pose",
+    "letterboxed": "scene",
+    "letterman jacket": "clothes",
+    "lettuce": "scene",
+    "lgbt (4chan)": "sexual",
+    "lgbt pride": "sexual",
+    "liangbatou": "body",
+    "liberia": "scene",
+    "library": "scene",
+    "libya": "scene",
+    "licking": "pose",
+    "licking another's cheek": "pose",
+    "licking another's face": "pose",
+    "licking another's hair": "body",
+    "licking armpit": "sexual",
+    "licking blade": "pose",
+    "licking breast": "pose",
+    "licking cum": "pose",
+    "licking ear": "pose",
+    "licking eye": "pose",
+    "licking finger": "pose",
+    "licking floor": "pose",
+    "licking foot": "sexual",
+    "licking leg": "pose",
+    "licking navel": "pose",
+    "licking nipple": "pose",
+    "licking panties": "pose",
+    "licking testicle": "sexual",
+    "licking thigh": "pose",
+    "lifting": "pose",
+    "lifting covers": "sexual",
+    "liga mx": "pose",
+    "light areolae": "body",
+    "light hawk wings": "body",
+    "light persona": "effects",
+    "light rays": "effects",
+    "light smile": "face",
+    "light-skinned soles": "body",
+    "lighter": "scene",
+    "lighthouse": "scene",
+    "lighting match": "scene",
+    "lightning": "scene",
+    "lightning background": "scene",
+    "lightning bolt necklace": "clothes",
+    "lightning bolt-shaped pupils": "face",
+    "ligne claire": "scene",
+    "ligue 1": "pose",
+    "lilac": "scene",
+    "lily (flower)": "scene",
+    "lily of the valley": "scene",
+    "lily pad": "scene",
+    "lily print": "clothes",
+    "lime (fruit)": "scene",
+    "lime slice": "scene",
+    "limited palette": "effects",
+    "linea alba": "body",
+    "linear hatching": "scene",
+    "lineart": "scene",
+    "lineup": "scene",
+    "lingerie": "clothes",
+    "lion dance": "scene",
+    "lion ears": "face",
+    "lion mask": "clothes",
+    "lip balm": "clothes",
+    "lipgloss": "clothes",
+    "lips": "clothes",
+    "lipstick": "clothes",
+    "lipstick mark": "clothes",
+    "lipstick mark on another's lips": "clothes",
+    "lipstick mark on anus": "clothes",
+    "lipstick mark on arm": "clothes",
+    "lipstick mark on armpit": "clothes",
+    "lipstick mark on ass": "clothes",
+    "lipstick mark on back": "clothes",
+    "lipstick mark on background": "clothes",
+    "lipstick mark on breast": "clothes",
+    "lipstick mark on cat": "clothes",
+    "lipstick mark on chest": "clothes",
+    "lipstick mark on cigarette": "clothes",
+    "lipstick mark on clothes": "clothes",
+    "lipstick mark on collarbone": "clothes",
+    "lipstick mark on condom": "clothes",
+    "lipstick mark on cup": "clothes",
+    "lipstick mark on dildo": "clothes",
+    "lipstick mark on ear": "clothes",
+    "lipstick mark on face": "clothes",
+    "lipstick mark on foot": "clothes",
+    "lipstick mark on forehead": "clothes",
+    "lipstick mark on hair": "clothes",
+    "lipstick mark on hand": "clothes",
+    "lipstick mark on leg": "clothes",
+    "lipstick mark on lips": "clothes",
+    "lipstick mark on mouth": "clothes",
+    "lipstick mark on neck": "clothes",
+    "lipstick mark on penis": "clothes",
+    "lipstick mark on phone": "clothes",
+    "lipstick mark on photo": "clothes",
+    "lipstick mark on pussy": "clothes",
+    "lipstick mark on shoulder": "clothes",
+    "lipstick mark on stomach": "clothes",
+    "lipstick mark on testicles": "clothes",
+    "lipstick ring": "clothes",
+    "lipstick tube": "clothes",
+    "lipstick writing": "clothes",
+    "lipton": "scene",
+    "liquid hair": "body",
+    "liquid wings": "body",
+    "liquor": "scene",
+    "lithuania": "scene",
+    "lithuanian clothes": "clothes",
+    "little caesar": "scene",
+    "little caesars": "scene",
+    "live2d": "scene",
+    "liver": "body",
+    "liverpool fc": "pose",
+    "living hair": "body",
+    "living room": "scene",
+    "loaf of bread": "scene",
+    "loafers": "clothes",
+    "lobster": "scene",
+    "location request": "scene",
+    "locked arms": "pose",
+    "locker room": "scene",
+    "locket": "clothes",
+    "loco moco": "scene",
+    "log": "scene",
+    "logo": "scene",
+    "loincloth": "clothes",
+    "loli": "sexual",
+    "lolita fashion": "clothes",
+    "lollipop": "scene",
+    "lombard street": "scene",
+    "london": "scene",
+    "lone nape hair": "body",
+    "lonely": "face",
+    "long bangs": "body",
+    "long coat": "clothes",
+    "long eyebrows": "face",
+    "long fingernails": "clothes",
+    "long hair": "body",
+    "long labia": "body",
+    "long legs": "body",
+    "long neck": "clothes",
+    "long nipples": "body",
+    "long nose": "face",
+    "long pointy ears": "face",
+    "long skirt": "clothes",
+    "long sleeves": "clothes",
+    "long spout teapot": "scene",
+    "long toenails": "body",
+    "long tongue": "body",
+    "longan": "scene",
+    "longevity peach bun": "scene",
+    "longpao": "clothes",
+    "look-alike": "character",
+    "looking": "pose",
+    "looking afar": "pose",
+    "looking around": "face",
+    "looking at another": "face",
+    "looking at breasts": "face",
+    "looking at creature": "face",
+    "looking at crotch": "face",
+    "looking at hand": "face",
+    "looking at hands": "face",
+    "looking at mirror": "face",
+    "looking at object": "face",
+    "looking at penis": "face",
+    "looking at phone": "face",
+    "looking at pussy": "face",
+    "looking at self": "face",
+    "looking at viewer": "pose",
+    "looking back": "pose",
+    "looking down": "pose",
+    "looking for glasses": "clothes",
+    "looking outside": "face",
+    "looking over eyewear": "clothes",
+    "looking through own legs": "face",
+    "looking to the side": "pose",
+    "looking up": "pose",
+    "looping animation": "scene",
+    "loose bowtie": "clothes",
+    "loose hair strand": "body",
+    "loose necktie": "clothes",
+    "loose socks": "clothes",
+    "loquat": "scene",
+    "lorgnette": "clothes",
+    "los angeles": "scene",
+    "los angeles angels": "pose",
+    "los angeles clippers": "pose",
+    "los angeles dodgers": "pose",
+    "los angeles kings": "pose",
+    "los angeles lakers": "pose",
+    "los angeles rams": "pose",
+    "lossless-lossy": "scene",
+    "lossy-lossless": "scene",
+    "lotion": "sexual",
+    "lotion bottle": "sexual",
+    "lotus": "scene",
+    "lotus position": "pose",
+    "lotus root": "scene",
+    "louisiana": "scene",
+    "louvre pyramid": "scene",
+    "love hotel": "scene",
+    "love train": "sexual",
+    "love&joy": "pose",
+    "low neckline": "clothes",
+    "low poly": "effects",
+    "low ponytail": "body",
+    "low side ponytail": "body",
+    "low twin braids": "body",
+    "low twintails": "body",
+    "low wings": "body",
+    "low-braided long hair": "body",
+    "low-cut armhole": "sexual",
+    "low-tied long hair": "body",
+    "low-tied sidelocks": "body",
+    "lower body": "scene",
+    "lowleg bikini": "clothes",
+    "lowleg pants": "clothes",
+    "lowleg shorts": "clothes",
+    "lowleg skirt": "clothes",
+    "lube": "sexual",
+    "luchador mask": "clothes",
+    "lumen field": "scene",
+    "lunar tear": "scene",
+    "lunch": "scene",
+    "lunchbox": "scene",
+    "lungs": "body",
+    "luo ji (hairstyle)": "body",
+    "lupinus (flower)": "scene",
+    "luqaimat": "scene",
+    "luxembourg": "scene",
+    "luxor obelisk": "scene",
+    "lychee": "scene",
+    "lying": "pose",
+    "m eyebrows": "face",
+    "m&m's": "scene",
+    "m1 helmet": "clothes",
+    "m43 field cap": "clothes",
+    "macarena (dance)": "pose",
+    "macaron": "scene",
+    "macaron tower": "scene",
+    "macau": "scene",
+    "machu picchu": "scene",
+    "madagascar": "scene",
+    "madeleine": "scene",
+    "madrid": "scene",
+    "maebari": "clothes",
+    "magatama": "clothes",
+    "magatama necklace": "clothes",
+    "magazine cover": "scene",
+    "magnolia": "scene",
+    "maid": "clothes",
+    "maid bikini": "clothes",
+    "maid cafe": "scene",
+    "maid day": "scene",
+    "maid headdress": "clothes",
+    "maitake dance": "pose",
+    "maizuru (city)": "scene",
+    "major": "pose",
+    "major 2nd": "pose",
+    "major injury underreaction": "body",
+    "major league baseball": "pose",
+    "major league soccer": "pose",
+    "makai (touhou)": "scene",
+    "makeup": "clothes",
+    "makeup brush": "clothes",
+    "makeup palette": "clothes",
+    "makeup sponge": "clothes",
+    "makisu": "scene",
+    "makizushi": "scene",
+    "malawi": "scene",
+    "malaysia": "scene",
+    "malaysian clothes": "clothes",
+    "male focus": "character",
+    "male futanari": "sexual",
+    "male maid": "sexual",
+    "male masturbation": "sexual",
+    "male on futa": "sexual",
+    "male penetrated": "sexual",
+    "male swimwear": "clothes",
+    "male underwear": "clothes",
+    "male underwear pull": "sexual",
+    "male with breasts": "sexual",
+    "male-female symbol": "sexual",
+    "mall": "scene",
+    "mamemaki": "scene",
+    "mamezara": "scene",
+    "manba gyaru": "clothes",
+    "manboobs": "sexual",
+    "manchester city fc": "pose",
+    "manchester united": "pose",
+    "manchu clothes": "clothes",
+    "mandarin collar": "clothes",
+    "mandarin orange": "scene",
+    "mandoline (utensil)": "scene",
+    "manga cover": "scene",
+    "manga day": "scene",
+    "mangekyou sharingan": "face",
+    "mango": "scene",
+    "mangosteen": "scene",
+    "mao cap": "clothes",
+    "maple leaf": "scene",
+    "maple leaf print": "clothes",
+    "maple syrup": "scene",
+    "mapo tofu": "scene",
+    "marble (toy)": "pose",
+    "marble background": "scene",
+    "marble cake (food)": "scene",
+    "marble chocolate": "scene",
+    "marching": "pose",
+    "marcille breakdance (meme)": "pose",
+    "margarita": "scene",
+    "margherita pizza": "scene",
+    "marigold": "scene",
+    "marijuana": "scene",
+    "marina": "scene",
+    "marine day": "scene",
+    "mario golf": "pose",
+    "mario hoops 3-on-3": "pose",
+    "mario strikers (series)": "pose",
+    "mario tennis": "pose",
+    "maritime port": "scene",
+    "maritozzo": "scene",
+    "market": "scene",
+    "market stall": "scene",
+    "marmalade": "scene",
+    "marquee lights": "clothes",
+    "marseille": "scene",
+    "marsh marigold": "scene",
+    "marshmallow": "scene",
+    "martini": "scene",
+    "marumage": "body",
+    "mary janes": "clothes",
+    "maryland": "scene",
+    "mascara": "clothes",
+    "mascara wand": "clothes",
+    "mashed potatoes": "scene",
+    "mask": "clothes",
+    "mask around neck": "clothes",
+    "mask around one ear": "clothes",
+    "mask bikini": "clothes",
+    "mask lift": "clothes",
+    "mask on belt": "clothes",
+    "mask on breasts": "clothes",
+    "mask on crotch": "clothes",
+    "mask on hat": "clothes",
+    "mask on head": "clothes",
+    "mask on shoulder": "clothes",
+    "mask over one eye": "clothes",
+    "mask pull": "clothes",
+    "masked": "clothes",
+    "masochism": "sexual",
+    "masquerade mask": "clothes",
+    "massachusetts": "scene",
+    "mastectomy": "sexual",
+    "mastectomy scar": "sexual",
+    "masturbation": "sexual",
+    "masturbation through clothes": "sexual",
+    "masturbation under clothes": "sexual",
+    "masu": "scene",
+    "matchbook": "scene",
+    "matchbox": "scene",
+    "matchstick": "scene",
+    "material growth": "clothes",
+    "mating (animal)": "sexual",
+    "mating press": "sexual",
+    "matsu symbol": "clothes",
+    "matsudo (chiba)": "scene",
+    "matsue castle": "scene",
+    "matsuyama (ehime)": "scene",
+    "mature female": "sexual",
+    "mature male": "sexual",
+    "mayan clothes": "clothes",
+    "mayonnaise": "scene",
+    "mayonnaise bottle": "scene",
+    "mcbling": "clothes",
+    "mcc threesome": "sexual",
+    "mcdonald's": "scene",
+    "mcnugget buddy": "scene",
+    "md5 mismatch": "scene",
+    "mdd threesome": "sexual",
+    "me!me!me! dance (meme)": "pose",
+    "meadow": "scene",
+    "meal": "scene",
+    "meandros": "clothes",
+    "measuring": "pose",
+    "measuring cup": "scene",
+    "meat": "scene",
+    "meat day": "scene",
+    "meat floss": "scene",
+    "meat grinder": "scene",
+    "meatball": "scene",
+    "mecha focus": "effects",
+    "mecha on girl": "sexual",
+    "mecha pilot suit": "clothes",
+    "mechanical eyes": "face",
+    "mechanical hair": "body",
+    "mechanical hands": "clothes",
+    "mechanical tentacles": "sexual",
+    "mechanical wings": "body",
+    "mechanization": "effects",
+    "medallion": "clothes",
+    "median furrow": "body",
+    "medici collar": "clothes",
+    "medium breasts": "body",
+    "medium hair": "body",
+    "megalobox": "pose",
+    "megamac": "scene",
+    "megastructure": "scene",
+    "meiji (brand)": "scene",
+    "meiji schoolgirl uniform": "clothes",
+    "melbourne": "scene",
+    "melbourne victory fc": "pose",
+    "melon": "scene",
+    "melon bread": "scene",
+    "melon soda": "scene",
+    "melting": "pose",
+    "memphis grizzlies": "pose",
+    "menma": "scene",
+    "menorah": "scene",
+    "menpu": "clothes",
+    "menu": "scene",
+    "meringue": "scene",
+    "merry christmas": "scene",
+    "mesa": "scene",
+    "mesmerizer (vocaloid)": "pose",
+    "mess kit": "scene",
+    "messy hair": "body",
+    "messy room": "scene",
+    "metal collar": "clothes",
+    "metal mask": "clothes",
+    "metal skin": "body",
+    "metoidioplasty": "sexual",
+    "mexican clothes": "clothes",
+    "mexican revolution": "scene",
+    "mexican-american war": "scene",
+    "mexico": "scene",
+    "mexico city": "scene",
+    "mfd threesome": "sexual",
+    "mfo threesome": "sexual",
+    "miami": "scene",
+    "miami heat": "pose",
+    "miami marlins": "pose",
+    "mian guan": "clothes",
+    "miao clothes": "clothes",
+    "michigan": "scene",
+    "micro bikini": "clothes",
+    "micro shorts": "clothes",
+    "microskirt": "clothes",
+    "microwave": "scene",
+    "mid-autumn festival": "scene",
+    "midair": "pose",
+    "middle finger": "limbs",
+    "middle part": "body",
+    "middle w": "limbs",
+    "midriff": "sexual",
+    "midriff sarashi": "clothes",
+    "mie prefecture": "scene",
+    "miko": "clothes",
+    "miku day": "scene",
+    "milan": "scene",
+    "milan cathedral": "scene",
+    "milestone celebration": "scene",
+    "military base": "scene",
+    "military goth": "clothes",
+    "military hat": "clothes",
+    "military lolita": "clothes",
+    "military uniform": "clothes",
+    "milk": "scene",
+    "milk bag": "scene",
+    "milk bottle": "scene",
+    "milk carton": "scene",
+    "milk churn": "scene",
+    "milk mustache": "scene",
+    "milk tea": "scene",
+    "milking machine": "sexual",
+    "milkshake": "scene",
+    "mille-feuille": "scene",
+    "milwaukee brewers": "pose",
+    "milwaukee bucks": "pose",
+    "mimosa (flower)": "scene",
+    "minaret": "scene",
+    "minato (tokyo)": "scene",
+    "mind break": "sexual",
+    "mind control": "pose",
+    "mind reading": "pose",
+    "mini crown": "clothes",
+    "mini flag": "scene",
+    "mini hat": "clothes",
+    "mini santa hat": "clothes",
+    "mini shako cap": "clothes",
+    "mini top hat": "clothes",
+    "mini wings": "body",
+    "mini witch hat": "clothes",
+    "miniboy": "sexual",
+    "minigirl": "sexual",
+    "minimalism": "scene",
+    "miniskirt": "clothes",
+    "minna no golf": "pose",
+    "minnesota": "scene",
+    "minnesota timberwolves": "pose",
+    "minnesota twins": "pose",
+    "minnesota vikings": "pose",
+    "minnesota wild": "pose",
+    "mino boushi": "clothes",
+    "minoan clothes": "clothes",
+    "mint": "scene",
+    "mirror": "clothes",
+    "mirror glaze": "scene",
+    "mismatched eyebrows": "face",
+    "mismatched eyelashes": "clothes",
+    "mismatched eyeshadow": "clothes",
+    "mismatched gloves": "clothes",
+    "mismatched irises": "face",
+    "mismatched legwear": "clothes",
+    "mismatched pupils": "face",
+    "mismatched sclera": "face",
+    "mismatched sleeves": "clothes",
+    "miso soup": "scene",
+    "missing eye": "face",
+    "missing headwear": "clothes",
+    "missing legwear": "clothes",
+    "missing tail": "effects",
+    "missing thumbnail": "scene",
+    "missing wings": "body",
+    "missionary": "sexual",
+    "mister donut": "scene",
+    "mistletoe": "scene",
+    "misty lake": "scene",
+    "misunderstanding": "pose",
+    "mito hollyhock": "pose",
+    "mitre": "clothes",
+    "mitsumame": "scene",
+    "mittens": "clothes",
+    "mixed signals": "scene",
+    "mixed-sex bathing": "pose",
+    "mixer (cooking)": "scene",
+    "mixue": "scene",
+    "miyagi prefecture": "scene",
+    "miyazaki prefecture": "scene",
+    "mizu happi": "clothes",
+    "mizura": "body",
+    "mmc threesome": "sexual",
+    "mmd threesome": "sexual",
+    "mmf threesome": "sexual",
+    "mmm threesome": "sexual",
+    "mmo threesome": "sexual",
+    "moai": "scene",
+    "moaning": "pose",
+    "mob cap": "clothes",
+    "mob face": "face",
+    "mochi": "scene",
+    "mochi mochi dance": "pose",
+    "mochitsuki": "scene",
+    "mod fashion": "clothes",
+    "mode gakuen cocoon tower": "scene",
+    "model building": "pose",
+    "moero! top striker": "pose",
+    "mohawk": "body",
+    "moire": "scene",
+    "mojito": "scene",
+    "moldova": "scene",
+    "mole on breast": "body",
+    "molestation": "sexual",
+    "molotov cocktail": "scene",
+    "momiji manjuu": "scene",
+    "monaco (city)": "scene",
+    "money gesture": "limbs",
+    "money-shaped pupils": "face",
+    "mongkhon": "clothes",
+    "mongolia": "scene",
+    "mongolian clothes": "clothes",
+    "monk shoes": "clothes",
+    "monkey costume": "clothes",
+    "monkey ears": "face",
+    "monkey mask": "clothes",
+    "monochrome": "effects",
+    "monochrome background": "scene",
+    "monocle": "clothes",
+    "monokini": "clothes",
+    "mons pubis": "body",
+    "monster": "character",
+    "monster energy": "scene",
+    "monster focus": "scene",
+    "monsterification": "effects",
+    "mont blanc (food)": "scene",
+    "mont st-michel": "scene",
+    "montedio yamagata": "pose",
+    "montenegro": "scene",
+    "montreal canadiens": "pose",
+    "montreal expos": "pose",
+    "moon": "scene",
+    "moon gate": "scene",
+    "moon print": "clothes",
+    "moon rabbit": "scene",
+    "moon-shaped pupils": "face",
+    "moonbeam": "effects",
+    "mooncake": "scene",
+    "moonflower (flower)": "scene",
+    "mooning": "pose",
+    "moonlight": "effects",
+    "moonwalk": "pose",
+    "more muscular than canon": "effects",
+    "morgue": "scene",
+    "mori kei": "clothes",
+    "morinaga (brand)": "scene",
+    "morinaga chocoball": "scene",
+    "morioka": "scene",
+    "moriya shrine": "scene",
+    "morning": "scene",
+    "morning after": "scene",
+    "morning glory": "scene",
+    "morning glory print": "clothes",
+    "morocco": "scene",
+    "mortarboard": "clothes",
+    "mos burger": "scene",
+    "mosaic art": "scene",
+    "mosaic background": "scene",
+    "moscow": "scene",
+    "moscow kremlin": "scene",
+    "mosque": "scene",
+    "moss": "scene",
+    "motel": "scene",
+    "moth wings": "body",
+    "mother's day": "scene",
+    "motion blur": "scene",
+    "motion lines": "scene",
+    "motorcycle helmet": "clothes",
+    "motteke! serafuku": "pose",
+    "mount fuji": "scene",
+    "mount rushmore": "scene",
+    "mountain": "scene",
+    "mountain dew": "scene",
+    "mountain focus": "effects",
+    "mounting": "sexual",
+    "mouse costume": "clothes",
+    "mouse ears": "face",
+    "mouse mask": "clothes",
+    "mouth": "face",
+    "mouth drool": "face",
+    "mouth focus": "effects",
+    "mouth mask": "clothes",
+    "mouth veil": "clothes",
+    "mouth-related": "face",
+    "move chart": "scene",
+    "movie theater": "scene",
+    "mozambique": "scene",
+    "mp3 player": "clothes",
+    "mr. fullswing": "pose",
+    "muay thai": "pose",
+    "muff": "clothes",
+    "muffin": "scene",
+    "mug": "scene",
+    "mulberry": "scene",
+    "mullet": "body",
+    "multi-tied hair": "body",
+    "multicolor-tinted eyewear": "clothes",
+    "multicolored": "clothes",
+    "multicolored ascot": "clothes",
+    "multicolored background": "scene",
+    "multicolored bowtie": "clothes",
+    "multicolored eyes": "face",
+    "multicolored eyeshadow": "clothes",
+    "multicolored gloves": "clothes",
+    "multicolored hair": "body",
+    "multicolored headwear": "clothes",
+    "multicolored leg warmers": "clothes",
+    "multicolored leggings": "clothes",
+    "multicolored legwear": "clothes",
+    "multicolored lips": "clothes",
+    "multicolored pantyhose": "clothes",
+    "multicolored scarf": "clothes",
+    "multicolored skin": "body",
+    "multicolored sleeves": "clothes",
+    "multicolored socks": "clothes",
+    "multicolored stripes": "clothes",
+    "multicolored thighhighs": "clothes",
+    "multicolored wings": "body",
+    "multiple 4koma": "scene",
+    "multiple anal": "sexual",
+    "multiple boys": "character",
+    "multiple braids": "body",
+    "multiple dogs": "character",
+    "multiple expressions": "face",
+    "multiple girls": "character",
+    "multiple insertions": "sexual",
+    "multiple monochrome": "scene",
+    "multiple others": "character",
+    "multiple penis fellatio": "sexual",
+    "multiple persona": "character",
+    "multiple reverse traps": "sexual",
+    "multiple scoops": "scene",
+    "multiple theme colors": "effects",
+    "multiple traps": "sexual",
+    "multiple views": "character",
+    "multiple wings": "body",
+    "multitasking": "pose",
+    "mundane made awesome": "scene",
+    "muneate": "clothes",
+    "muscle awe": "face",
+    "muscular": "sexual",
+    "muscular female": "sexual",
+    "muscular male": "sexual",
+    "muscular other": "sexual",
+    "museum": "scene",
+    "mushroom": "scene",
+    "music video": "scene",
+    "musical note print": "clothes",
+    "musical note-shaped pupils": "face",
+    "mustache": "body",
+    "mustard": "scene",
+    "mustard bottle": "scene",
+    "muted colors": "effects",
+    "mutilation": "sexual",
+    "mutual breast sucking": "body",
+    "mutual masturbation": "sexual",
+    "mutual tail biting": "pose",
+    "muzzle flash": "effects",
+    "myanmar": "scene",
+    "myouren temple": "scene",
+    "mystical high collar": "clothes",
+    "nabe": "scene",
+    "nae nae (dance)": "pose",
+    "nagaimo (food)": "scene",
+    "nagano prefecture": "scene",
+    "nagasaki (city)": "scene",
+    "nagasaki prefecture": "scene",
+    "nagoya (city)": "scene",
+    "nagoya castle": "scene",
+    "nagoya grampus": "pose",
+    "naha city": "scene",
+    "nail (hardware) torture": "sexual",
+    "nail art": "clothes",
+    "nail biting": "pose",
+    "nail ornament": "clothes",
+    "nail polish": "clothes",
+    "nail polish bottle": "clothes",
+    "nail polish brush": "clothes",
+    "naizuri": "sexual",
+    "nakano (tokyo)": "scene",
+    "naked apron": "sexual",
+    "naked bandage": "sexual",
+    "naked cape": "sexual",
+    "naked capelet": "sexual",
+    "naked chocolate": "sexual",
+    "naked cloak": "sexual",
+    "naked coat": "sexual",
+    "naked hoodie": "sexual",
+    "naked jacket": "sexual",
+    "naked overalls": "sexual",
+    "naked ribbon": "sexual",
+    "naked robe": "sexual",
+    "naked scarf": "sexual",
+    "naked sheet": "sexual",
+    "naked shirt": "sexual",
+    "naked suspenders": "sexual",
+    "naked tabard": "sexual",
+    "naked towel": "sexual",
+    "namagashi": "scene",
+    "namek": "scene",
+    "nameless hill": "scene",
+    "namibia": "scene",
+    "nanakusa-no-sekku": "scene",
+    "nantaimori": "sexual",
+    "nanzen-ji aqueduct": "scene",
+    "nape": "clothes",
+    "napkin": "scene",
+    "naples": "scene",
+    "napoleonic wars": "scene",
+    "nara (city)": "scene",
+    "nara prefecture": "scene",
+    "narrow waist": "body",
+    "narrowed eyes": "face",
+    "naruto (series)": "body",
+    "narutomaki": "scene",
+    "nashi pear": "scene",
+    "national basketball association": "pose",
+    "national diet building": "scene",
+    "national football league": "pose",
+    "national hockey league": "pose",
+    "native american clothes": "clothes",
+    "native american headdress": "clothes",
+    "nattou": "scene",
+    "naturally detached hair": "body",
+    "nature": "scene",
+    "naughty face": "sexual",
+    "navel": "body",
+    "navel cutout": "sexual",
+    "navel focus": "scene",
+    "navel sex": "sexual",
+    "nazca lines": "scene",
+    "nba jam": "pose",
+    "neapolitan palette": "effects",
+    "nearly naked apron": "sexual",
+    "neck": "clothes",
+    "neck bell": "clothes",
+    "neck focus": "effects",
+    "neck ribbon": "clothes",
+    "neck ribbon grab": "clothes",
+    "neck ring": "clothes",
+    "neck ruff": "clothes",
+    "neck tassel": "clothes",
+    "neck violin": "sexual",
+    "neck warmer": "clothes",
+    "neckerchief": "clothes",
+    "neckerchief grab": "clothes",
+    "necklace": "clothes",
+    "necktie": "clothes",
+    "necktie between breasts": "clothes",
+    "necktie grab": "sexual",
+    "necktie on head": "clothes",
+    "neckwear grab": "clothes",
+    "necrophilia": "sexual",
+    "needle torture": "sexual",
+    "negative": "effects",
+    "negative space": "scene",
+    "neglect play": "sexual",
+    "nejiri hachimaki": "clothes",
+    "nekonyan dance": "pose",
+    "nelson's column": "scene",
+    "nemophila (flower)": "scene",
+    "nengajou": "scene",
+    "neo-classical clothes": "clothes",
+    "neon palette": "effects",
+    "nepal": "scene",
+    "nerine (flower)": "scene",
+    "nerunerunerune": "scene",
+    "nervous": "face",
+    "nestle": "scene",
+    "netherlands": "pose",
+    "netorare": "sexual",
+    "neuschwanstein castle": "scene",
+    "nevada": "scene",
+    "new england patriots": "pose",
+    "new jersey": "scene",
+    "new national stadium": "scene",
+    "new orleans pelicans": "pose",
+    "new orleans saints": "pose",
+    "new year": "scene",
+    "new york (state)": "scene",
+    "new york city": "scene",
+    "new york giants": "pose",
+    "new york islanders": "pose",
+    "new york jets": "pose",
+    "new york knicks": "pose",
+    "new york mets": "pose",
+    "new york rangers": "pose",
+    "new york yankees": "pose",
+    "new zealand": "scene",
+    "newcastle united fc": "pose",
+    "newhalf with female": "sexual",
+    "newhalf with male": "sexual",
+    "newhalf with newhalf": "sexual",
+    "newsboy cap": "clothes",
+    "newspaper": "scene",
+    "newsprint background": "scene",
+    "niagara falls": "scene",
+    "nian (mythology)": "scene",
+    "nicaragua": "scene",
+    "nigella": "scene",
+    "nigeria": "scene",
+    "nigerian clothes": "clothes",
+    "night": "effects",
+    "nightcap": "clothes",
+    "nightclub": "scene",
+    "nightgown": "clothes",
+    "nightshade (flower)": "scene",
+    "nigirizushi": "scene",
+    "nihonga": "scene",
+    "nihongami": "body",
+    "niigata prefecture": "scene",
+    "nimono": "scene",
+    "ninja mask": "clothes",
+    "ninja toes": "body",
+    "nipple bar": "body",
+    "nipple bells": "body",
+    "nipple chain": "sexual",
+    "nipple clamps": "sexual",
+    "nipple cutout": "sexual",
+    "nipple flick": "body",
+    "nipple hair": "body",
+    "nipple indents": "body",
+    "nipple injection": "body",
+    "nipple leash": "sexual",
+    "nipple lock": "body",
+    "nipple penetration": "sexual",
+    "nipple piercing": "body",
+    "nipple plug": "body",
+    "nipple press": "body",
+    "nipple pull": "sexual",
+    "nipple push": "body",
+    "nipple ribbon": "body",
+    "nipple ring dress": "clothes",
+    "nipple rings": "body",
+    "nipple rub": "body",
+    "nipple sleeves": "clothes",
+    "nipple slip": "sexual",
+    "nipple stretcher": "body",
+    "nipple tag": "body",
+    "nipple torture": "sexual",
+    "nipple tweak": "sexual",
+    "nipple-to-nipple": "pose",
+    "nipples": "sexual",
+    "nippon professional baseball": "pose",
+    "no (gesture)": "limbs",
+    "no animal ears": "effects",
+    "no anus": "body",
+    "no bra": "sexual",
+    "no choker": "clothes",
+    "no detached sleeves": "clothes",
+    "no earrings": "effects",
+    "no eyebrows": "face",
+    "no eyes": "face",
+    "no eyewear": "clothes",
+    "no facial mark": "effects",
+    "no fire": "scene",
+    "no gloves": "clothes",
+    "no horns": "effects",
+    "no humans": "character",
+    "no lineart": "scene",
+    "no mask": "clothes",
+    "no mouth": "face",
+    "no necklace": "clothes",
+    "no necktie": "clothes",
+    "no neckwear": "clothes",
+    "no nipples": "body",
+    "no nose": "face",
+    "no one's around to help (meme)": "pose",
+    "no panties": "sexual",
+    "no pants": "sexual",
+    "no pupils": "face",
+    "no pussy": "body",
+    "no scarf": "clothes",
+    "no sclera": "face",
+    "no shirt": "sexual",
+    "no shoes": "body",
+    "no tattoo": "effects",
+    "no testicles": "sexual",
+    "noh mask": "clothes",
+    "non-alcoholic beer": "scene",
+    "non-binary flag": "sexual",
+    "non-repeating animation": "scene",
+    "nonowa": "face",
+    "nontraditional miko": "clothes",
+    "noodles": "scene",
+    "noogie": "limbs",
+    "noppo bread": "scene",
+    "nori (seaweed)": "scene",
+    "norigae": "clothes",
+    "north carolina": "scene",
+    "north korea": "scene",
+    "north macedonia": "scene",
+    "northern ireland": "scene",
+    "norway": "scene",
+    "norwegian clothes": "clothes",
+    "nose": "face",
+    "nose blush": "face",
+    "nose bubble": "face",
+    "nose hook": "sexual",
+    "nose mask": "clothes",
+    "nose pads": "clothes",
+    "nose picking": "pose",
+    "nose piercing": "face",
+    "nose ring": "face",
+    "nose shade": "face",
+    "nose stud": "face",
+    "nosebleed": "face",
+    "nosejob": "sexual",
+    "noses touching": "pose",
+    "notched ear": "face",
+    "notre dame de paris": "scene",
+    "nova scotia": "scene",
+    "novelty glasses": "clothes",
+    "ntt docomo yoyogi building": "scene",
+    "nuclear powerplant": "scene",
+    "nude": "sexual",
+    "nude cover": "sexual",
+    "nude filter": "scene",
+    "nude modeling": "sexual",
+    "nue day": "scene",
+    "numa numa (meme)": "pose",
+    "numazu": "scene",
+    "number four (asl)": "limbs",
+    "nun": "clothes",
+    "nurse": "body",
+    "nurse cap": "clothes",
+    "nursing bra": "body",
+    "nursing handjob": "sexual",
+    "nut (food)": "scene",
+    "nyan-nyan dance": "pose",
+    "nyotaimori": "sexual",
+    "o o": "face",
+    "o-ring": "clothes",
+    "o-ring bikini": "clothes",
+    "o-ring bottom": "clothes",
+    "o-ring choker": "clothes",
+    "o-ring collar": "clothes",
+    "o-ring legwear": "clothes",
+    "o-ring top": "clothes",
+    "o3o": "face",
+    "oasis": "scene",
+    "obese": "sexual",
+    "obi": "clothes",
+    "obiage": "clothes",
+    "obidome": "clothes",
+    "obijime": "clothes",
+    "object behind ear": "face",
+    "object focus": "scene",
+    "object insertion": "sexual",
+    "object on breast": "body",
+    "object on head": "clothes",
+    "object on pectorals": "body",
+    "objectification": "effects",
+    "obliques": "body",
+    "obon": "scene",
+    "observatory": "scene",
+    "occhahoi": "scene",
+    "ocean": "scene",
+    "ochazuke (food)": "scene",
+    "oddloop": "pose",
+    "oden": "scene",
+    "oekaki": "scene",
+    "off shoulder": "sexual",
+    "off-shoulder bikini": "clothes",
+    "off-shoulder coat": "clothes",
+    "off-shoulder dress": "clothes",
+    "off-shoulder jacket": "clothes",
+    "off-shoulder leotard": "clothes",
+    "off-shoulder one-piece swimsuit": "clothes",
+    "off-shoulder shirt": "clothes",
+    "off-shoulder sweater": "clothes",
+    "off-topic": "scene",
+    "office": "scene",
+    "office siren": "clothes",
+    "official art": "scene",
+    "official wallpaper": "scene",
+    "ohhoai": "face",
+    "ohikaenasutte": "limbs",
+    "ohio": "scene",
+    "ohogao": "face",
+    "oil lamp": "effects",
+    "oil rig": "scene",
+    "oita prefecture": "scene",
+    "ojou-sama pose": "pose",
+    "ok sign": "limbs",
+    "okaya city": "scene",
+    "okayama prefecture": "scene",
+    "okinawa prefecture": "scene",
+    "oklahoma city thunder": "pose",
+    "okobo": "clothes",
+    "okonomiyaki": "scene",
+    "okosama lunch": "scene",
+    "okosozukin": "clothes",
+    "okra": "scene",
+    "oktoberfest": "scene",
+    "old town square (prague)": "scene",
+    "old-fashioned donut": "scene",
+    "old-fashioned swimsuit": "clothes",
+    "oleander": "scene",
+    "olive": "scene",
+    "olympics": "pose",
+    "olympique lyonnais": "pose",
+    "omake": "scene",
+    "omelet": "scene",
+    "omiya ardija": "pose",
+    "omurice": "scene",
+    "on animal": "pose",
+    "on back": "pose",
+    "on banana": "scene",
+    "on bed": "pose",
+    "on boat": "pose",
+    "on bus": "pose",
+    "on car": "pose",
+    "on chair": "pose",
+    "on couch": "pose",
+    "on desk": "pose",
+    "on floor": "pose",
+    "on flower": "pose",
+    "on ground": "pose",
+    "on head": "pose",
+    "on lap": "pose",
+    "on motorcycle": "pose",
+    "on one knee": "pose",
+    "on person": "pose",
+    "on roof": "pose",
+    "on side": "sexual",
+    "on stomach": "pose",
+    "on stool": "pose",
+    "on table": "pose",
+    "on train": "pose",
+    "on truck": "pose",
+    "on umbrella": "pose",
+    "on van": "pose",
+    "on weapon": "pose",
+    "onahole": "sexual",
+    "one breast out": "sexual",
+    "one ear down": "face",
+    "one eye closed": "face",
+    "one man army": "scene",
+    "one outs": "pose",
+    "one side up": "body",
+    "one world trade center": "scene",
+    "one-eyed": "face",
+    "one-piece swimsuit": "clothes",
+    "one-piece swimsuit pull": "sexual",
+    "onee gyaru": "clothes",
+    "oni mask": "clothes",
+    "onigiri": "scene",
+    "onion": "scene",
+    "onion rings": "scene",
+    "onomichi (city)": "scene",
+    "onsen": "scene",
+    "ooarai (ibaraki)": "scene",
+    "ooarai marine tower": "scene",
+    "oof threesome": "sexual",
+    "ookiku furikabutte": "pose",
+    "oom threesome": "sexual",
+    "opaque glasses": "clothes",
+    "open bra": "sexual",
+    "open clothes": "sexual",
+    "open coat": "sexual",
+    "open collar": "sexual",
+    "open door": "scene",
+    "open hand": "limbs",
+    "open hands": "limbs",
+    "open hoodie": "sexual",
+    "open in internet explorer": "scene",
+    "open in winamp": "scene",
+    "open jacket": "sexual",
+    "open kimono": "sexual",
+    "open mouth": "face",
+    "open pants": "sexual",
+    "open robe": "sexual",
+    "open shirt": "sexual",
+    "open shorts": "sexual",
+    "open skirt": "sexual",
+    "open towel": "sexual",
+    "open vest": "sexual",
+    "open-toe boots": "clothes",
+    "open-toe shoes": "clothes",
+    "opening": "pose",
+    "opening door": "scene",
+    "opera cake": "scene",
+    "opera glasses": "clothes",
+    "operation crossroads": "scene",
+    "operation market garden": "scene",
+    "operation ten-gou": "scene",
+    "oppai challenge": "body",
+    "optical illusion": "scene",
+    "oracle park": "scene",
+    "oral": "sexual",
+    "oral invitation": "limbs",
+    "oral sandwich": "sexual",
+    "orange (fruit)": "scene",
+    "orange ascot": "clothes",
+    "orange background": "scene",
+    "orange blossoms": "scene",
+    "orange bowtie": "clothes",
+    "orange choker": "clothes",
+    "orange eyes": "face",
+    "orange eyeshadow": "clothes",
+    "orange gloves": "clothes",
+    "orange hair": "body",
+    "orange hat": "clothes",
+    "orange juice": "scene",
+    "orange justice (dance)": "pose",
+    "orange lips": "clothes",
+    "orange mask": "clothes",
+    "orange neckerchief": "clothes",
+    "orange necktie": "clothes",
+    "orange one-piece swimsuit": "clothes",
+    "orange pepper": "scene",
+    "orange print": "clothes",
+    "orange pupils": "face",
+    "orange scarf": "clothes",
+    "orange sclera": "face",
+    "orange skin": "body",
+    "orange sleeves": "clothes",
+    "orange slice": "scene",
+    "orange theme": "effects",
+    "orange-framed eyewear": "clothes",
+    "orange-tinted eyewear": "clothes",
+    "orangette": "scene",
+    "orangina": "scene",
+    "orchid": "scene",
+    "orchid fingers": "limbs",
+    "oregon": "scene",
+    "oreo": "scene",
+    "organs": "body",
+    "orgasm denial": "sexual",
+    "orgy": "sexual",
+    "oriental pearl tower": "scene",
+    "orientation play": "sexual",
+    "orix buffaloes": "pose",
+    "orlando magic": "pose",
+    "ornate border": "scene",
+    "ornate ring": "clothes",
+    "osaka (city)": "scene",
+    "osaka castle": "scene",
+    "osaka prefecture": "scene",
+    "osechi": "scene",
+    "oseledets": "body",
+    "osmanthus": "scene",
+    "osmanthus cake": "scene",
+    "otaku room": "scene",
+    "otaru (hokkaido)": "scene",
+    "other focus": "character",
+    "otoshidama": "scene",
+    "otsu (city)": "scene",
+    "ottawa senators": "pose",
+    "ottoman empire": "scene",
+    "ouji fashion": "clothes",
+    "our lady of the assumption": "scene",
+    "out of character": "effects",
+    "out of frame": "character",
+    "out-of-frame censoring": "scene",
+    "outdoors": "scene",
+    "outline": "scene",
+    "outside border": "scene",
+    "outstretched arm": "pose",
+    "outstretched arms": "pose",
+    "outstretched hand": "pose",
+    "outstretched leg": "pose",
+    "oven": "scene",
+    "oven mitts": "clothes",
+    "over shoulder": "clothes",
+    "over the knee": "pose",
+    "over-kneehighs": "clothes",
+    "over-rim eyewear": "clothes",
+    "overall skirt": "clothes",
+    "overalls": "clothes",
+    "overcoat": "clothes",
+    "overexposure": "scene",
+    "overlighting": "scene",
+    "oversized breast cup": "body",
+    "oversized food": "scene",
+    "oversized wings": "body",
+    "overskirt": "clothes",
+    "owl mask": "clothes",
+    "own hands clasped": "limbs",
+    "own hands together": "pose",
+    "oxfords": "clothes",
+    "oxygen mask": "clothes",
+    "oyakodon (food)": "scene",
+    "oyster": "scene",
+    "oyster pail": "scene",
+    "pac-man eyes": "face",
+    "padlocked collar": "clothes",
+    "paduka": "clothes",
+    "paeraengi": "clothes",
+    "paffendorf": "pose",
+    "pagoda": "scene",
+    "paifang": "scene",
+    "pain": "sexual",
+    "painterly": "scene",
+    "painting (action)": "pose",
+    "painting toenails": "clothes",
+    "paisley": "clothes",
+    "paizuri": "sexual",
+    "paizuri on lap": "sexual",
+    "paizuri over clothes": "sexual",
+    "paizuri under clothes": "sexual",
+    "pajamas": "clothes",
+    "pajamas pull": "sexual",
+    "pakistan": "scene",
+    "pakistani clothes": "clothes",
+    "palace of the parliament": "scene",
+    "palace of versailles": "scene",
+    "palacio de carlos v": "scene",
+    "palanquin ship": "scene",
+    "pale colors": "effects",
+    "pale skin": "body",
+    "palestine": "scene",
+    "palestinian clothes": "clothes",
+    "palette hat ornament": "clothes",
+    "palette swap": "effects",
+    "palm tree": "scene",
+    "palm-fist greeting": "limbs",
+    "palm-fist tap": "limbs",
+    "palms": "limbs",
+    "panama": "scene",
+    "panamanian clothes": "clothes",
+    "pancake": "scene",
+    "pancake stack": "scene",
+    "panda costume": "clothes",
+    "panda ears": "face",
+    "panda mask": "clothes",
+    "panda print": "clothes",
+    "paneled background": "scene",
+    "pangya": "pose",
+    "panicking": "pose",
+    "panorama": "scene",
+    "pansy": "scene",
+    "pant suit": "clothes",
+    "panties": "clothes",
+    "panties aside": "sexual",
+    "panties day": "scene",
+    "panties on breasts": "body",
+    "panties on head": "clothes",
+    "pants": "clothes",
+    "pants pull": "sexual",
+    "pants rolled up": "sexual",
+    "pantsing": "pose",
+    "panty gag": "sexual",
+    "panty lift": "sexual",
+    "panty mask": "clothes",
+    "panty pull": "sexual",
+    "pantyhose": "clothes",
+    "pantyhose pull": "sexual",
+    "pantyhose under shorts": "clothes",
+    "pantyshot": "sexual",
+    "papa john's": "scene",
+    "papakha": "clothes",
+    "papaya": "scene",
+    "paper": "clothes",
+    "paper background": "scene",
+    "paper child": "scene",
+    "paper cutout": "scene",
+    "paper lantern": "scene",
+    "paper on head": "clothes",
+    "papercraft": "scene",
+    "para para": "pose",
+    "paraguay": "pose",
+    "paralysis": "body",
+    "parfait": "scene",
+    "paris": "scene",
+    "paris saint-germain": "pose",
+    "park": "scene",
+    "parking garage": "scene",
+    "parking lot": "scene",
+    "parma fc": "pose",
+    "parmesan cheese": "scene",
+    "parsley": "scene",
+    "parted bangs": "body",
+    "parted hair": "body",
+    "parted lips": "face",
+    "parthenon": "scene",
+    "partially blind": "face",
+    "partially colored": "effects",
+    "partially fingerless gloves": "clothes",
+    "partially underwater shot": "scene",
+    "partially visible vulva": "body",
+    "party": "scene",
+    "party hat": "clothes",
+    "pasqueflower": "scene",
+    "passion flower": "scene",
+    "passion fruit": "scene",
+    "pasta": "scene",
+    "pastel colors": "effects",
+    "pastel goth": "clothes",
+    "pasties": "clothes",
+    "pastry": "scene",
+    "pastry bag": "scene",
+    "pastry box": "scene",
+    "patchwork skin": "body",
+    "path": "scene",
+    "patterned": "clothes",
+    "patterned background": "clothes",
+    "patterned clothing": "clothes",
+    "patterned hair": "clothes",
+    "patting": "pose",
+    "patting back": "limbs",
+    "pauldrons": "clothes",
+    "paw gloves": "clothes",
+    "paw pose": "limbs",
+    "paw print": "clothes",
+    "paw print background": "scene",
+    "paw print palms": "clothes",
+    "paw sleeves": "clothes",
+    "paw-shaped pupils": "face",
+    "pea pod": "scene",
+    "peach": "scene",
+    "peach blossom": "scene",
+    "peach hat ornament": "clothes",
+    "peach slice": "scene",
+    "peacoat": "clothes",
+    "peaked cap": "clothes",
+    "peanut": "scene",
+    "peanut butter": "scene",
+    "peanut mouth": "face",
+    "pear": "scene",
+    "pear blossom": "scene",
+    "pearl harbor": "scene",
+    "pearl necklace": "clothes",
+    "pearl thong": "clothes",
+    "peas": "scene",
+    "pecan": "scene",
+    "pecjob": "sexual",
+    "pectoral focus": "scene",
+    "pectoral grab": "sexual",
+    "pectorals": "sexual",
+    "peeing": "sexual",
+    "peeing on viewer": "sexual",
+    "peeing self": "sexual",
+    "peeking": "sexual",
+    "peel (tool)": "scene",
+    "peeler": "scene",
+    "peeling": "pose",
+    "peephole": "scene",
+    "pegging": "sexual",
+    "peking duck (food)": "scene",
+    "pelt": "clothes",
+    "pelvic curtain": "clothes",
+    "pen spinning": "pose",
+    "pen-pineapple-apple-pen": "pose",
+    "pencil case": "clothes",
+    "pendant": "clothes",
+    "pendant choker": "clothes",
+    "penetration gesture": "limbs",
+    "penghu tianho temple": "scene",
+    "penguin costume": "clothes",
+    "penguin hat": "clothes",
+    "penis": "body",
+    "penis awe": "face",
+    "penis focus": "scene",
+    "penis measuring": "pose",
+    "penis peek": "sexual",
+    "penis pump": "sexual",
+    "penis reduction": "sexual",
+    "penis sheath": "clothes",
+    "penis tentacle": "sexual",
+    "penis to breast": "body",
+    "penis under breasts": "body",
+    "penis under mask": "clothes",
+    "penises touching": "sexual",
+    "pensive": "face",
+    "pentacle": "clothes",
+    "pentas (flower)": "scene",
+    "peony (flower)": "scene",
+    "peony print": "clothes",
+    "people": "character",
+    "pepper (spice)": "scene",
+    "pepper mill": "scene",
+    "pepper shaker": "scene",
+    "pepperoni": "scene",
+    "pepsi": "scene",
+    "pepsi ice cucumber": "scene",
+    "perennial (flower)": "scene",
+    "perineum": "body",
+    "periwinkle (flower)": "scene",
+    "perky breasts": "body",
+    "perky goth": "clothes",
+    "perpendicular paizuri": "sexual",
+    "persian speedwell": "scene",
+    "persib bandung": "pose",
+    "persija jakarta": "pose",
+    "persimmon": "scene",
+    "person between breasts": "body",
+    "persona eyes": "face",
+    "personality switch": "effects",
+    "personification": "effects",
+    "perspective": "body",
+    "peru": "scene",
+    "peruvian clothes": "clothes",
+    "perverted excuse": "scene",
+    "perverted utility": "scene",
+    "pet cone": "clothes",
+    "pet play": "sexual",
+    "pet walking": "pose",
+    "petal print": "clothes",
+    "petals": "scene",
+    "petals on liquid": "scene",
+    "peter pan collar": "clothes",
+    "petra (jordan)": "scene",
+    "petronas twin towers": "scene",
+    "petticoat": "clothes",
+    "petting": "pose",
+    "petunia (flower)": "scene",
+    "pfc cska moscow": "pose",
+    "phallic symbol": "sexual",
+    "phalloplasty": "sexual",
+    "pharmacy": "scene",
+    "philadelphia 76ers": "pose",
+    "philadelphia eagles": "pose",
+    "philadelphia flyers": "pose",
+    "philippines": "scene",
+    "phimosis": "body",
+    "phoenix (arizona)": "scene",
+    "phoenix suns": "pose",
+    "phone booth": "scene",
+    "phone in pussy": "body",
+    "phonecard (medium)": "scene",
+    "photo (medium)": "scene",
+    "photo (object)": "character",
+    "photo background": "scene",
+    "photo-referenced": "scene",
+    "photomosaic": "scene",
+    "photorealistic": "scene",
+    "piano print": "clothes",
+    "pickelhaube": "clothes",
+    "pickle": "scene",
+    "picnic": "scene",
+    "picnic basket": "scene",
+    "picture hat": "clothes",
+    "pie": "scene",
+    "pier": "scene",
+    "pierced wings": "body",
+    "piercing": "sexual",
+    "pieris japonica": "scene",
+    "pierogi": "scene",
+    "pig costume": "clothes",
+    "pig ears": "face",
+    "pig mask": "clothes",
+    "pig penis": "body",
+    "pigeon pose": "pose",
+    "pigeon-toed": "pose",
+    "piggyback": "pose",
+    "pikachu ears": "face",
+    "piledriver (sex)": "sexual",
+    "pill": "body",
+    "pillarboxed": "scene",
+    "pillbox hat": "clothes",
+    "pillory": "sexual",
+    "pillow humping": "sexual",
+    "pillow straddling": "pose",
+    "pilot helmet": "clothes",
+    "pin legs": "pose",
+    "pina colada": "scene",
+    "pinata": "scene",
+    "pince-nez": "clothes",
+    "pinching": "pose",
+    "pinching gesture": "limbs",
+    "pinching sleeves": "clothes",
+    "pine tree": "scene",
+    "pineapple": "scene",
+    "pineapple print": "clothes",
+    "pineapple slice": "scene",
+    "pineberry (fruit)": "scene",
+    "ping pong (manga)": "pose",
+    "pink ascot": "clothes",
+    "pink background": "scene",
+    "pink bowtie": "clothes",
+    "pink choker": "clothes",
+    "pink eyes": "face",
+    "pink eyeshadow": "clothes",
+    "pink fire": "scene",
+    "pink gloves": "clothes",
+    "pink hair": "body",
+    "pink hat": "clothes",
+    "pink lips": "clothes",
+    "pink mask": "clothes",
+    "pink neckerchief": "clothes",
+    "pink necktie": "clothes",
+    "pink nose": "face",
+    "pink one-piece swimsuit": "clothes",
+    "pink pupils": "face",
+    "pink scarf": "clothes",
+    "pink sclera": "face",
+    "pink skin": "body",
+    "pink sleeves": "clothes",
+    "pink theme": "effects",
+    "pink wings": "body",
+    "pink-framed eyewear": "clothes",
+    "pink-tinted eyewear": "clothes",
+    "pinky out": "limbs",
+    "pinky swear": "limbs",
+    "pinstripe pattern": "clothes",
+    "pipelining": "pose",
+    "piranha plant": "scene",
+    "pirate hat": "clothes",
+    "pistachio": "scene",
+    "pitcher plant": "scene",
+    "pitching": "pose",
+    "pith helmet": "clothes",
+    "pittsburgh penguins": "pose",
+    "pittsburgh pirates": "pose",
+    "pittsburgh steelers": "pose",
+    "pixel art": "scene",
+    "pixel eyes": "face",
+    "pixel sunglasses": "clothes",
+    "pixel-perfect duplicate": "scene",
+    "pixie cut": "body",
+    "pizza": "scene",
+    "pizza box": "scene",
+    "pizza delivery": "scene",
+    "pizza hut": "scene",
+    "pizza slice": "scene",
+    "pizza toast": "scene",
+    "plague doctor mask": "clothes",
+    "plaid": "clothes",
+    "plaid ascot": "clothes",
+    "plaid background": "scene",
+    "plaid bowtie": "clothes",
+    "plaid choker": "clothes",
+    "plaid skirt": "clothes",
+    "plaid sleeves": "clothes",
+    "plain": "scene",
+    "planet": "scene",
+    "planetarium": "scene",
+    "plant": "scene",
+    "plant boy": "scene",
+    "plant cell": "scene",
+    "plant focus": "scene",
+    "plant girl": "scene",
+    "plant hair": "body",
+    "plant monster": "scene",
+    "plant roots": "scene",
+    "plant wings": "body",
+    "plantar flexion": "pose",
+    "planter": "scene",
+    "plastic skin": "body",
+    "plastron (necklace)": "clothes",
+    "plate": "scene",
+    "plate stack": "scene",
+    "platform boots": "clothes",
+    "platform footwear": "clothes",
+    "platform heels": "clothes",
+    "platform sandals": "clothes",
+    "platform shoes": "clothes",
+    "playboy bunny": "clothes",
+    "player 2": "effects",
+    "playground": "scene",
+    "playing": "pose",
+    "playing card": "scene",
+    "playing games": "pose",
+    "playing instrument": "pose",
+    "playing sports": "pose",
+    "playing video games": "pose",
+    "playing with another's hair": "body",
+    "playing with own hair": "body",
+    "pleading eyes": "face",
+    "pleated shorts": "clothes",
+    "pleated skirt": "clothes",
+    "plug gag": "sexual",
+    "plugging ears": "face",
+    "plugsuit (evangelion)": "clothes",
+    "plum": "scene",
+    "plum blossom print": "clothes",
+    "plum blossoms": "scene",
+    "plumeria": "scene",
+    "plump": "sexual",
+    "plunging neckline": "clothes",
+    "pocari sweat": "scene",
+    "pocket": "clothes",
+    "pocket square": "clothes",
+    "pocket watch": "clothes",
+    "pocky": "scene",
+    "pocky day": "scene",
+    "poinsettia": "scene",
+    "pointed mask": "clothes",
+    "pointillism": "scene",
+    "pointing": "limbs",
+    "pointing at another": "limbs",
+    "pointing at self": "limbs",
+    "pointing at viewer": "limbs",
+    "pointing down": "limbs",
+    "pointing forward": "limbs",
+    "pointing spider-man (meme)": "limbs",
+    "pointing up": "limbs",
+    "pointy boots": "clothes",
+    "pointy breasts": "body",
+    "pointy ears": "face",
+    "pointy hair": "body",
+    "pointy nose": "face",
+    "pointy shoes": "clothes",
+    "poke ball": "scene",
+    "poke ball background": "scene",
+    "pokedance (meme)": "pose",
+    "pokefication": "effects",
+    "pokemon focus": "effects",
+    "pokemon on shoulder": "clothes",
+    "poking": "pose",
+    "poking another's breast": "limbs",
+    "poking own breast": "limbs",
+    "poland": "scene",
+    "polar opposites": "scene",
+    "pole dancing": "pose",
+    "police hat": "clothes",
+    "polish clothes": "clothes",
+    "polishing": "pose",
+    "polka dot": "clothes",
+    "polka dot background": "scene",
+    "polka dot bikini": "clothes",
+    "polka dot bowtie": "clothes",
+    "polka dot leggings": "clothes",
+    "polka dot legwear": "clothes",
+    "polka dot pantyhose": "clothes",
+    "polka dot scarf": "clothes",
+    "polka dot sleeves": "clothes",
+    "polka dot socks": "clothes",
+    "polka dot swimsuit": "clothes",
+    "polka dot thighhighs": "clothes",
+    "pom pom (clothes)": "clothes",
+    "pomegranate": "scene",
+    "pomegranate flower": "scene",
+    "pompadour": "body",
+    "pon de chocolat": "scene",
+    "pon de lion": "scene",
+    "pon de ring": "scene",
+    "pon de strawberry": "scene",
+    "poncho": "clothes",
+    "pond": "scene",
+    "ponification": "effects",
+    "pony play": "sexual",
+    "pool": "scene",
+    "poolside": "scene",
+    "poorly drawn": "scene",
+    "pop socket": "clothes",
+    "popcorn": "scene",
+    "popped collar": "clothes",
+    "poppy (flower)": "scene",
+    "popsicle": "scene",
+    "popsicle stick": "scene",
+    "pork": "scene",
+    "porkpie hat": "clothes",
+    "portal (object)": "scene",
+    "portcullis": "scene",
+    "portland (oregon)": "scene",
+    "portland trail blazers": "pose",
+    "portrait": "face",
+    "portugal": "pose",
+    "portuguese clothes": "clothes",
+    "portulaca": "scene",
+    "pose": "pose",
+    "post orgasm torture": "sexual",
+    "postcard": "scene",
+    "poster (medium)": "scene",
+    "pot": "scene",
+    "potato": "scene",
+    "potato chips": "scene",
+    "potato flower": "scene",
+    "potentilla": "scene",
+    "pothos (plant)": "scene",
+    "potted plant": "scene",
+    "pouncing": "pose",
+    "pound cake": "scene",
+    "pouring": "pose",
+    "pout": "pose",
+    "pov": "character",
+    "pov doorway": "scene",
+    "pov peephole": "scene",
+    "powder puff": "clothes",
+    "power bottom": "sexual",
+    "power fist": "limbs",
+    "power plant": "scene",
+    "power symbol-shaped pupils": "face",
+    "powerful breasts": "body",
+    "prague": "scene",
+    "praise the sun": "pose",
+    "praying": "pose",
+    "predicament bondage": "sexual",
+    "pregnant": "sexual",
+    "prehensile hair": "body",
+    "premier league": "pose",
+    "preppy fashion": "clothes",
+    "presenting own body": "sexual",
+    "presidential office building": "scene",
+    "pretzel": "scene",
+    "priest": "clothes",
+    "primary colors": "effects",
+    "primera division (argentina)": "pose",
+    "primrose (flower)": "scene",
+    "princess carry": "pose",
+    "pringles": "scene",
+    "print ascot": "clothes",
+    "print bikini": "clothes",
+    "print boots": "clothes",
+    "print bow": "clothes",
+    "print bowtie": "clothes",
+    "print choker": "clothes",
+    "print eyepatch": "clothes",
+    "print gloves": "clothes",
+    "print hakama": "clothes",
+    "print headwear": "clothes",
+    "print kimono": "clothes",
+    "print leggings": "clothes",
+    "print mask": "clothes",
+    "print neckerchief": "clothes",
+    "print necktie": "clothes",
+    "print panties": "clothes",
+    "print pantyhose": "clothes",
+    "print ribbon": "clothes",
+    "print sandals": "clothes",
+    "print shirt": "clothes",
+    "print shoes": "clothes",
+    "print shorts": "clothes",
+    "print sleeves": "clothes",
+    "print slippers": "clothes",
+    "print socks": "clothes",
+    "print swimsuit": "clothes",
+    "print thighhighs": "clothes",
+    "print umbrella": "clothes",
+    "pripyat": "scene",
+    "prism": "effects",
+    "prison": "sexual",
+    "prison cell": "scene",
+    "pro golfer saru": "pose",
+    "profile": "face",
+    "programming": "pose",
+    "projected inset": "scene",
+    "projectile lactation": "body",
+    "prone bone": "sexual",
+    "prostate": "body",
+    "prostate massager": "sexual",
+    "prostate milking": "sexual",
+    "prostitution": "sexual",
+    "prostration": "pose",
+    "protea (flower)": "scene",
+    "protecting": "pose",
+    "prussia": "scene",
+    "pseudopenis": "body",
+    "pubic hair": "body",
+    "public bondage": "sexual",
+    "public indecency": "sexual",
+    "public nudity": "sexual",
+    "public restroom": "scene",
+    "public use": "sexual",
+    "public vibrator": "sexual",
+    "puckered anus": "body",
+    "pudding": "scene",
+    "pudding a la mode": "scene",
+    "puerto rico": "scene",
+    "puff and slash sleeves": "clothes",
+    "puffy cheeks": "face",
+    "puffy chest": "sexual",
+    "puffy detached sleeves": "clothes",
+    "puffy long sleeves": "clothes",
+    "puffy nipples": "body",
+    "puffy short sleeves": "clothes",
+    "puffy sleeves": "clothes",
+    "pull out": "sexual",
+    "pulling": "pose",
+    "pulling off legwear": "clothes",
+    "pump": "sexual",
+    "pumpkin": "scene",
+    "pumpkin dance (meme)": "pose",
+    "pumpkin hat": "clothes",
+    "pumpkin hat ornament": "clothes",
+    "pumpkin mask": "clothes",
+    "pumpkin pie": "scene",
+    "pumps": "clothes",
+    "punch-out!!": "pose",
+    "punching": "sexual",
+    "punjabi clothes": "clothes",
+    "punk": "clothes",
+    "punk lolita": "clothes",
+    "puraore! pride of orange": "pose",
+    "puritan collar": "clothes",
+    "purple background": "scene",
+    "purple eyes": "face",
+    "purple eyeshadow": "clothes",
+    "purple fire": "scene",
+    "purple gloves": "clothes",
+    "purple hair": "body",
+    "purple hat": "clothes",
+    "purple lips": "clothes",
+    "purple mask": "clothes",
+    "purple one-piece swimsuit": "clothes",
+    "purple pupils": "face",
+    "purple sclera": "face",
+    "purple skin": "body",
+    "purple sleeves": "clothes",
+    "purple theme": "effects",
+    "purple-framed eyewear": "clothes",
+    "purple-tinted eyewear": "clothes",
+    "pushing": "pose",
+    "pussy": "body",
+    "pussy focus": "effects",
+    "pussy juice": "sexual",
+    "pussy juice in mouth": "face",
+    "pussy juice puddle": "body",
+    "pussy juice trail": "body",
+    "pussy peek": "sexual",
+    "pussy tentacle": "sexual",
+    "pussyjob": "sexual",
+    "putting on gloves": "clothes",
+    "putting on headwear": "clothes",
+    "putting on legwear": "clothes",
+    "putting on mask": "clothes",
+    "pyrokinesis": "scene",
+    "qatar": "scene",
+    "qi lolita": "clothes",
+    "qingdai guanmao": "clothes",
+    "qingxin flower": "scene",
+    "qipao": "clothes",
+    "qixi festival": "scene",
+    "quad braids": "body",
+    "quad drills": "body",
+    "quad hair rings": "body",
+    "quad tails": "body",
+    "quadfold": "pose",
+    "quadruple amputee": "sexual",
+    "quadruple wielding": "pose",
+    "quality": "scene",
+    "quebec": "scene",
+    "quebec maritimes junior hockey league": "pose",
+    "quebec nordiques": "pose",
+    "quiff": "body",
+    "quin tails": "body",
+    "quince blossoms": "scene",
+    "rabbit": "scene",
+    "rabbit background": "scene",
+    "rabbit choker": "clothes",
+    "rabbit costume": "clothes",
+    "rabbit ear headphones": "face",
+    "rabbit ear legwear": "clothes",
+    "rabbit ears": "face",
+    "rabbit hairstyle": "body",
+    "rabbit hat": "clothes",
+    "rabbit mask": "clothes",
+    "rabbit on shoulder": "clothes",
+    "rabbit pose": "limbs",
+    "rabbit vibrator": "sexual",
+    "rabbit-shaped pupils": "face",
+    "raccoon dancing in a circle (meme)": "pose",
+    "raccoon ears": "face",
+    "raccoon mask": "clothes",
+    "raccoon tails (hairstyle)": "body",
+    "racetrack": "scene",
+    "racing": "pose",
+    "racing suit": "clothes",
+    "racket": "pose",
+    "radiation symbol-shaped pupils": "face",
+    "radish": "scene",
+    "rafflesia (flower)": "scene",
+    "raglan sleeves": "clothes",
+    "railroad crossing": "scene",
+    "railroad tracks": "scene",
+    "rain": "scene",
+    "rainbow": "effects",
+    "rainbow background": "scene",
+    "rainbow cake": "scene",
+    "rainbow eyes": "face",
+    "rainbow hair": "body",
+    "rainbow legwear": "clothes",
+    "rainbow order": "effects",
+    "rainbow wings": "body",
+    "rainbow-tinted eyewear": "clothes",
+    "raincoat": "clothes",
+    "raindrop cake": "scene",
+    "rainforest": "scene",
+    "raised eyebrow": "face",
+    "raised eyebrows": "face",
+    "raised fist": "limbs",
+    "raised inner eyebrows": "face",
+    "raisin (fruit)": "scene",
+    "rambutan": "scene",
+    "ramen": "scene",
+    "ramune": "scene",
+    "ran ran ru": "pose",
+    "ranguage": "scene",
+    "ranunculus": "scene",
+    "rape": "sexual",
+    "rape face": "face",
+    "rapeseed blossoms": "scene",
+    "rappelling": "pose",
+    "rare cheesecake": "scene",
+    "rash guard": "clothes",
+    "raspberry": "scene",
+    "raver": "clothes",
+    "raw egg": "scene",
+    "raw meat": "scene",
+    "reach-around": "sexual",
+    "reaching": "limbs",
+    "reading": "pose",
+    "real betis": "pose",
+    "real madrid": "pose",
+    "real world location": "scene",
+    "realistic": "scene",
+    "recipe (object)": "scene",
+    "reclining": "pose",
+    "record store": "scene",
+    "recording": "pose",
+    "rectangular eyewear": "clothes",
+    "rectangular mouth": "face",
+    "rectangular pupils": "face",
+    "red ascot": "clothes",
+    "red background": "scene",
+    "red bean paste": "scene",
+    "red bean pie": "scene",
+    "red bowtie": "clothes",
+    "red bull": "scene",
+    "red choker": "clothes",
+    "red eagles hokkaido": "pose",
+    "red eyes": "face",
+    "red eyeshadow": "clothes",
+    "red ginger (flower)": "scene",
+    "red gloves": "clothes",
+    "red hair": "body",
+    "red hat": "clothes",
+    "red lips": "clothes",
+    "red mask": "clothes",
+    "red neckerchief": "clothes",
+    "red necktie": "clothes",
+    "red nose": "face",
+    "red one-piece swimsuit": "clothes",
+    "red pepper": "scene",
+    "red pupils": "face",
+    "red scarf": "clothes",
+    "red sclera": "face",
+    "red skin": "body",
+    "red sleeves": "clothes",
+    "red theme": "effects",
+    "red velvet cake": "scene",
+    "red wings": "body",
+    "red-framed eyewear": "clothes",
+    "red-tinted eyewear": "clothes",
+    "reference photo": "scene",
+    "reference sheet": "scene",
+    "reference work": "scene",
+    "refinery": "scene",
+    "reflected worlds": "scene",
+    "reflection": "scene",
+    "reflection focus": "effects",
+    "refraction": "effects",
+    "refrigerator": "scene",
+    "regency era": "clothes",
+    "regression (psychology)": "sexual",
+    "rei no himo": "body",
+    "rei no pool": "scene",
+    "reichstag": "scene",
+    "reimu (flower)": "scene",
+    "reindeer costume": "clothes",
+    "relationship graph": "scene",
+    "reloading": "pose",
+    "remembrance day": "scene",
+    "remote control vibrator": "sexual",
+    "removing eyewear": "clothes",
+    "removing glove": "clothes",
+    "removing helmet": "clothes",
+    "removing legwear": "clothes",
+    "removing mask": "clothes",
+    "removing pantyhose": "clothes",
+    "removing sock": "clothes",
+    "removing thighhigh": "clothes",
+    "renaissance": "scene",
+    "renaissance clothes": "clothes",
+    "repairing": "pose",
+    "resisting": "pose",
+    "resized": "scene",
+    "respirator": "clothes",
+    "restaurant": "scene",
+    "resting": "pose",
+    "retrofuturism": "effects",
+    "revealing clothes": "sexual",
+    "reverse bikini armor": "clothes",
+    "reverse bunnysuit": "clothes",
+    "reverse cowgirl position": "sexual",
+    "reverse footjob": "sexual",
+    "reverse netorare": "sexual",
+    "reverse nursing handjob": "sexual",
+    "reverse outfit": "clothes",
+    "reverse paizuri": "body",
+    "reverse palettes": "effects",
+    "reverse prayer": "sexual",
+    "reverse ryona": "sexual",
+    "reverse spitroast": "sexual",
+    "reverse squatting cowgirl position": "sexual",
+    "reverse suspended congress": "sexual",
+    "reverse trap": "sexual",
+    "reverse upright straddle": "sexual",
+    "reverse-jointed legs": "body",
+    "reversed": "scene",
+    "revision": "scene",
+    "revolved head-to-knee pose": "pose",
+    "rhinestone": "clothes",
+    "rhodesia": "scene",
+    "rhododendron": "scene",
+    "rhythmic gymnastics": "pose",
+    "ribbed leg warmers": "clothes",
+    "ribbed legwear": "clothes",
+    "ribbed pantyhose": "clothes",
+    "ribbed sleeves": "clothes",
+    "ribbed socks": "clothes",
+    "ribbed sweater": "clothes",
+    "ribbed thighhighs": "clothes",
+    "ribbon": "pose",
+    "ribbon baton": "pose",
+    "ribbon choker": "clothes",
+    "ribbon hair": "body",
+    "ribbon of saint george": "scene",
+    "ribbon trim": "clothes",
+    "ribbon-trimmed gloves": "clothes",
+    "ribbon-trimmed legwear": "clothes",
+    "ribbon-trimmed sleeves": "clothes",
+    "ribs": "body",
+    "ribs (food)": "scene",
+    "rice": "scene",
+    "rice cooker": "scene",
+    "rice hat": "clothes",
+    "rice on face": "scene",
+    "rice paddy": "scene",
+    "rice porridge": "scene",
+    "riding": "pose",
+    "riding crop": "sexual",
+    "riding machine": "sexual",
+    "right-to-left comic": "scene",
+    "rimless eyewear": "clothes",
+    "rin stripper dance (meme)": "pose",
+    "rina-chan board": "clothes",
+    "ring": "clothes",
+    "ring gag": "sexual",
+    "ring necklace": "clothes",
+    "ringed eyes": "face",
+    "ringlets": "body",
+    "rinnegan": "face",
+    "rio de janeiro": "scene",
+    "ripping": "pose",
+    "risotto": "scene",
+    "rito": "body",
+    "river": "scene",
+    "riviere (necklace)": "clothes",
+    "road": "scene",
+    "roaring": "pose",
+    "roast chicken": "scene",
+    "roasted sweet potato": "scene",
+    "roasting": "pose",
+    "robe": "clothes",
+    "robe slip": "sexual",
+    "robot ears": "face",
+    "robot joints": "body",
+    "robot x laserbeam": "pose",
+    "rockabilly": "clothes",
+    "rockefeller center": "scene",
+    "rococo movement": "clothes",
+    "roe": "scene",
+    "rogatywka": "clothes",
+    "rokku gyaru": "clothes",
+    "role reversal": "effects",
+    "roller coaster": "scene",
+    "rolling": "pose",
+    "rolling eyes": "face",
+    "rolling pin": "scene",
+    "rolling sleeves up": "clothes",
+    "roman clothes": "clothes",
+    "roman empire": "scene",
+    "romance of the three kingdoms": "scene",
+    "romania": "scene",
+    "romanian clothes": "clothes",
+    "romantic period": "clothes",
+    "rome (city)": "scene",
+    "romper": "clothes",
+    "ronald mcdonald": "scene",
+    "roningasa": "clothes",
+    "rooftop": "scene",
+    "root beer": "scene",
+    "roots (hair)": "body",
+    "rope": "sexual",
+    "rope braid": "body",
+    "rope bridge": "scene",
+    "rope walking": "sexual",
+    "rose": "scene",
+    "rose background": "scene",
+    "rose bush": "scene",
+    "rose hip tea": "scene",
+    "rose petals": "scene",
+    "rose print": "clothes",
+    "rosemary (herb)": "scene",
+    "rotated": "scene",
+    "rotational symmetry": "scene",
+    "rotting": "pose",
+    "rou-kyuu-bu!": "pose",
+    "rouge (makeup)": "clothes",
+    "rough sex": "sexual",
+    "roulette animation": "scene",
+    "roulette roulette": "pose",
+    "round collar": "clothes",
+    "round eyewear": "clothes",
+    "rounded collar": "clothes",
+    "rounded corners": "scene",
+    "rowboat": "scene",
+    "rowing": "pose",
+    "rubber boots": "clothes",
+    "rubber day": "scene",
+    "rubber gloves": "clothes",
+    "rubber hose (style)": "effects",
+    "rubbing": "pose",
+    "rudbeckia": "scene",
+    "ruffling hair": "body",
+    "rugby": "pose",
+    "rugby ball": "pose",
+    "ruining the glorious moment": "scene",
+    "ruins": "scene",
+    "running": "pose",
+    "running track": "scene",
+    "runny makeup": "clothes",
+    "runny nose": "face",
+    "runway": "scene",
+    "runway fashion": "clothes",
+    "ruppelbend": "pose",
+    "rural": "scene",
+    "russia": "pose",
+    "russian civil war": "scene",
+    "russian clothes": "clothes",
+    "russian empire": "scene",
+    "russo-japanese war": "scene",
+    "russo-turkish war (1877-1878)": "scene",
+    "russo-ukrainian war": "scene",
+    "rusty trombone": "sexual",
+    "ryona": "sexual",
+    "ryusuimon": "clothes",
+    "ryuusou": "clothes",
+    "saboten pose": "pose",
+    "sacramento kings": "pose",
+    "sad": "face",
+    "sad cat dance (meme)": "pose",
+    "sad smile": "face",
+    "saddle shoes": "clothes",
+    "sadism": "sexual",
+    "safari jacket": "clothes",
+    "safety glasses": "clothes",
+    "safflower": "scene",
+    "saga prefecture": "scene",
+    "sagan tosu": "pose",
+    "sagging breasts": "body",
+    "sagrada familia": "scene",
+    "sailboat": "scene",
+    "sailor": "clothes",
+    "sailor bikini": "clothes",
+    "sailor collar": "clothes",
+    "sailor dress": "clothes",
+    "sailor hat": "clothes",
+    "sailor shirt": "clothes",
+    "saint patrick's day": "scene",
+    "saint petersburg": "scene",
+    "saishi": "clothes",
+    "saitama (city)": "scene",
+    "saitama prefecture": "scene",
+    "saitama seibu lions": "pose",
+    "sajkaca": "clothes",
+    "sakazuki": "scene",
+    "sake": "scene",
+    "sakura french": "scene",
+    "sakura miku": "character",
+    "sakura mochi": "scene",
+    "sakuramon": "clothes",
+    "salad": "scene",
+    "salar de uyuni": "scene",
+    "sallet": "clothes",
+    "salon": "scene",
+    "salsa": "scene",
+    "salt": "scene",
+    "salt flats": "scene",
+    "salt shaker": "scene",
+    "salute": "limbs",
+    "sam browne belt": "clothes",
+    "samba": "pose",
+    "sami clothes": "clothes",
+    "san antonio spurs": "pose",
+    "san diego": "scene",
+    "san diego padres": "pose",
+    "san francisco": "scene",
+    "san francisco 49ers": "pose",
+    "san francisco giants": "pose",
+    "san jose sharks": "pose",
+    "sandals": "clothes",
+    "sandersonia (flower)": "scene",
+    "sandogasa": "clothes",
+    "sandwich": "scene",
+    "sandwich cookie": "scene",
+    "sanfrecce hiroshima": "pose",
+    "sangtu": "body",
+    "sanjeok": "scene",
+    "sanpaku": "face",
+    "sanssouci palace": "scene",
+    "sant'elmo": "scene",
+    "santa claus": "scene",
+    "santa costume": "clothes",
+    "santa hat": "clothes",
+    "santa mask": "clothes",
+    "santos fc": "pose",
+    "santos laguna": "pose",
+    "sao paulo fc": "pose",
+    "sapling": "scene",
+    "sapporo (city)": "scene",
+    "sarashi": "clothes",
+    "sarong": "clothes",
+    "sasebo": "scene",
+    "sash": "clothes",
+    "sashimi": "scene",
+    "saturated": "effects",
+    "saturated background": "effects",
+    "saturday night fever": "limbs",
+    "sauce": "scene",
+    "saucer": "scene",
+    "saudi arabia": "pose",
+    "sauna": "scene",
+    "sausage": "scene",
+    "savannah": "scene",
+    "saw sawing": "scene",
+    "sayagata": "clothes",
+    "sc corinthians paulista": "pose",
+    "scales": "body",
+    "scan": "scene",
+    "scan artifacts": "scene",
+    "scanlines": "scene",
+    "scapular": "clothes",
+    "scar": "sexual",
+    "scar across eyebrow": "face",
+    "scar on nose": "face",
+    "scared": "face",
+    "scarf": "clothes",
+    "scarf choker": "clothes",
+    "scarf grab": "clothes",
+    "scarf over mouth": "clothes",
+    "scarf tying": "pose",
+    "scarlet devil mansion": "scene",
+    "scat": "sexual",
+    "scene fashion": "clothes",
+    "scenery": "scene",
+    "schoenbrunn palace": "scene",
+    "school": "scene",
+    "school gateway": "scene",
+    "school gym": "scene",
+    "school hat": "clothes",
+    "school swimsuit": "clothes",
+    "school uniform": "clothes",
+    "scolding": "pose",
+    "scone": "scene",
+    "scoop neck": "clothes",
+    "scorpion pose": "pose",
+    "scotland": "pose",
+    "scottish clothes": "clothes",
+    "scouter": "clothes",
+    "scowl": "face",
+    "scrambled egg": "scene",
+    "scrape": "body",
+    "scratches": "body",
+    "scratching": "pose",
+    "screaming": "pose",
+    "screenshot background": "scene",
+    "screenshot redraw": "scene",
+    "screentones": "scene",
+    "scrotoplasty": "sexual",
+    "scrunchie": "body",
+    "se palmeiras": "pose",
+    "seafloor": "scene",
+    "seal costume": "clothes",
+    "seamed legwear": "clothes",
+    "searching": "pose",
+    "seating chart": "scene",
+    "seattle": "scene",
+    "seattle kraken": "pose",
+    "seattle mariners": "pose",
+    "seattle seahawks": "pose",
+    "seattle supersonics": "pose",
+    "seaweed": "scene",
+    "second battle of el alamein": "scene",
+    "second sino-japanese war": "scene",
+    "security shutter": "scene",
+    "seductive smile": "face",
+    "see-through clothes": "sexual",
+    "see-through gloves": "clothes",
+    "see-through hair": "body",
+    "see-through legwear": "clothes",
+    "see-through leotard": "clothes",
+    "see-through mask": "clothes",
+    "see-through raincoat": "clothes",
+    "see-through scarf": "clothes",
+    "see-through silhouette": "effects",
+    "see-through sleeves": "clothes",
+    "seed": "scene",
+    "seigaiha": "clothes",
+    "seitei jujiryou": "scene",
+    "seiza": "pose",
+    "self bondage": "sexual",
+    "self fisting": "sexual",
+    "selfcest": "sexual",
+    "semi-circular eyewear": "clothes",
+    "semi-rimless eyewear": "clothes",
+    "senbei": "scene",
+    "sendai (city)": "scene",
+    "senegal": "scene",
+    "sengoku jidai": "scene",
+    "sensory deprivation": "sexual",
+    "sentient scarf": "clothes",
+    "seoul": "scene",
+    "sepak takraw": "pose",
+    "sepia": "effects",
+    "serafuku": "clothes",
+    "serbia": "pose",
+    "serbian clothes": "clothes",
+    "serie a": "pose",
+    "serious": "face",
+    "serving dome": "scene",
+    "serving spatula": "scene",
+    "sesame seeds": "scene",
+    "setsubun": "scene",
+    "severed hair": "body",
+    "severed limb": "body",
+    "sewer": "scene",
+    "sewing": "pose",
+    "sex": "sexual",
+    "sex doll": "sexual",
+    "sex from behind": "sexual",
+    "sex machine": "sexual",
+    "sex reassignment surgery": "sexual",
+    "sex shop": "scene",
+    "sex slave": "sexual",
+    "sex toy": "sexual",
+    "sexual": "body",
+    "sexually suggestive": "sexual",
+    "shack": "scene",
+    "shackles": "sexual",
+    "shade": "effects",
+    "shaded face": "face",
+    "shading eyes": "pose",
+    "shadow": "effects",
+    "shadow hands": "body",
+    "shadow puppet": "limbs",
+    "shaka sign": "limbs",
+    "shaking": "pose",
+    "shako cap": "clothes",
+    "shakshuka": "scene",
+    "shakunetsu no takkyuu musume": "pose",
+    "shamoji": "scene",
+    "shampoo": "body",
+    "shampoo hat": "clothes",
+    "shanghai": "scene",
+    "shanzha (fruit)": "scene",
+    "shaped lollipop": "scene",
+    "shared scarf": "clothes",
+    "sharing": "pose",
+    "sharingan": "face",
+    "shark print": "scene",
+    "sharp toenails": "clothes",
+    "shaved ice": "scene",
+    "shaving": "pose",
+    "shawl": "clothes",
+    "shed": "scene",
+    "sheep costume": "clothes",
+    "sheep ears": "face",
+    "sheffield united fc": "pose",
+    "shelf bra": "body",
+    "shell bikini": "clothes",
+    "shell necklace": "clothes",
+    "shendyt": "clothes",
+    "shenzhen": "scene",
+    "shibari": "sexual",
+    "shibari marks": "sexual",
+    "shibari over clothes": "sexual",
+    "shibari under clothes": "sexual",
+    "shibarikini": "sexual",
+    "shibuya (tokyo)": "scene",
+    "shibuya 109": "scene",
+    "shichi-go-san": "scene",
+    "shichirin": "scene",
+    "shiga prefecture": "scene",
+    "shiitake": "scene",
+    "shikairo days dance (meme)": "pose",
+    "shima (pattern)": "clothes",
+    "shimane prefecture": "scene",
+    "shimekazari": "scene",
+    "shimenawa": "clothes",
+    "shimizu s-pulse": "pose",
+    "shin guards": "clothes",
+    "shin strap": "clothes",
+    "shinagawa (tokyo)": "scene",
+    "shining needle castle": "scene",
+    "shinjuku (tokyo)": "scene",
+    "shinjuku park tower": "scene",
+    "shinkon santaku": "scene",
+    "shinora": "clothes",
+    "shiny legwear": "clothes",
+    "shiny skin": "body",
+    "ship": "scene",
+    "shipping (fandom)": "pose",
+    "shippou (pattern)": "clothes",
+    "shipyard": "scene",
+    "shiroko oddloop dance": "pose",
+    "shirt": "clothes",
+    "shirt aside": "sexual",
+    "shirt lift": "sexual",
+    "shirt on shoulders": "clothes",
+    "shirt pull": "sexual",
+    "shirt slip": "sexual",
+    "shirt stay": "clothes",
+    "shirt tug": "sexual",
+    "shirtwaist": "clothes",
+    "shish kebab": "scene",
+    "shitajiki (medium)": "scene",
+    "shizuoka prefecture": "scene",
+    "shocker (gesture)": "limbs",
+    "shoe diva": "effects",
+    "shoe pull": "sexual",
+    "shoes": "clothes",
+    "shoot dance (meme)": "pose",
+    "shooting gallery": "scene",
+    "shooting range": "scene",
+    "shop": "scene",
+    "shoplifting": "pose",
+    "shopping": "pose",
+    "shopping basket": "scene",
+    "shopping cart": "scene",
+    "shore": "scene",
+    "short bangs": "body",
+    "short eyebrows": "face",
+    "short hair": "body",
+    "short hair with long locks": "body",
+    "short jumpsuit": "clothes",
+    "short kimono": "clothes",
+    "short over long sleeves": "clothes",
+    "short ponytail": "body",
+    "short shorts": "clothes",
+    "short side ponytail": "body",
+    "short sleeves": "clothes",
+    "short twintails": "body",
+    "short-sleeved coat": "clothes",
+    "short-sleeved jacket": "clothes",
+    "short-sleeved sweater": "clothes",
+    "shortcake": "scene",
+    "shorter than canon": "effects",
+    "shorts": "clothes",
+    "shorts aside": "sexual",
+    "shorts pull": "sexual",
+    "shorts under skirt": "clothes",
+    "shosei": "clothes",
+    "shot glass": "scene",
+    "shota": "sexual",
+    "shou (symbol)": "clothes",
+    "shouji": "scene",
+    "shoulder bag": "clothes",
+    "shoulder belt": "clothes",
+    "shoulder blades": "clothes",
+    "shoulder carry": "pose",
+    "shoulder cutout": "sexual",
+    "shoulder massage": "clothes",
+    "shoulder necklace": "clothes",
+    "shoulder pads": "clothes",
+    "shoulder phone": "clothes",
+    "shoulder sash": "clothes",
+    "shoulder-to-shoulder": "pose",
+    "shoulders": "body",
+    "shouryouuma": "scene",
+    "shouten pegasus mix mori": "body",
+    "shouting": "pose",
+    "shower (place)": "scene",
+    "shower cap": "clothes",
+    "showering": "scene",
+    "showgirl skirt": "clothes",
+    "shrimp": "scene",
+    "shrimp tempura": "scene",
+    "shrimp tie": "sexual",
+    "shrine": "scene",
+    "shrug (clothing)": "clothes",
+    "shrugging": "limbs",
+    "shuangyaji": "body",
+    "shufa guan": "clothes",
+    "shukusei!! loli-kami requiem": "pose",
+    "shumai (food)": "scene",
+    "shushing": "limbs",
+    "shutter shades": "clothes",
+    "shy": "face",
+    "side braid": "body",
+    "side cape": "clothes",
+    "side cutout": "sexual",
+    "side handle teapot": "scene",
+    "side ponytail": "body",
+    "side slit": "sexual",
+    "side-seamed legwear": "clothes",
+    "side-tie bikini bottom": "clothes",
+    "side-tie legwear": "clothes",
+    "sideboob": "sexual",
+    "sidecut": "body",
+    "sideless outfit": "sexual",
+    "sidelighting": "scene",
+    "sidelocks": "body",
+    "sidelocks tied back": "body",
+    "sidewalk": "scene",
+    "sideways": "scene",
+    "sideways glance": "face",
+    "sideways hat": "clothes",
+    "sideways mouth": "face",
+    "sideways perpendicular paizuri": "sexual",
+    "siege of bastogne": "scene",
+    "siege of odessa": "scene",
+    "siege of sevastopol": "scene",
+    "sigh": "face",
+    "silent comic": "scene",
+    "silent princess": "scene",
+    "silhouette": "scene",
+    "silk flower (genshin impact)": "scene",
+    "silkpunk": "effects",
+    "silver choker": "clothes",
+    "silver necklace": "clothes",
+    "silver one-piece swimsuit": "clothes",
+    "silver skin": "body",
+    "silver trim": "clothes",
+    "simon shades": "clothes",
+    "simple background": "scene",
+    "simulated armpit sex": "sexual",
+    "simulated bukkake": "sexual",
+    "simulated cunnilingus": "sexual",
+    "simulated facial": "sexual",
+    "simulated fellatio": "sexual",
+    "simulated fingering": "sexual",
+    "simulated footjob": "sexual",
+    "simulated handjob": "sexual",
+    "simulated masturbation": "sexual",
+    "simulated paizuri": "sexual",
+    "simulated testicle stimulation": "sexual",
+    "simulated thigh sex": "sexual",
+    "singapore": "scene",
+    "singing": "pose",
+    "single braid": "body",
+    "single breast curtain": "body",
+    "single detached sleeve": "clothes",
+    "single drill": "body",
+    "single earring": "face",
+    "single elbow glove": "clothes",
+    "single eyebrow": "face",
+    "single fingerless glove": "clothes",
+    "single glove": "clothes",
+    "single hair bun": "body",
+    "single hair intake": "body",
+    "single hair ring": "body",
+    "single hair tube": "body",
+    "single head wing": "body",
+    "single knee pad": "clothes",
+    "single mechanical eye": "face",
+    "single sidelock": "body",
+    "single sleeve": "clothes",
+    "single wing": "body",
+    "single-shoulder dress": "clothes",
+    "single-shoulder shirt": "clothes",
+    "single-shoulder sweater": "clothes",
+    "sink": "scene",
+    "sinking": "pose",
+    "sitting": "pose",
+    "sitting in tree": "scene",
+    "sitting on face": "sexual",
+    "sitting on head": "pose",
+    "sitting on lap": "pose",
+    "sitting on person": "pose",
+    "sitting on shoulder": "pose",
+    "sizzler plate": "scene",
+    "skating": "pose",
+    "skating rink": "scene",
+    "skeletal wings": "body",
+    "skeleton flower (plant)": "scene",
+    "skeptical": "face",
+    "sketch": "scene",
+    "sketch background": "scene",
+    "sketching": "pose",
+    "ski goggles": "clothes",
+    "skiing": "pose",
+    "skinny": "sexual",
+    "skinny dipping": "pose",
+    "skipping": "pose",
+    "skirt": "clothes",
+    "skirt around ankles": "sexual",
+    "skirt around one leg": "sexual",
+    "skirt lift": "sexual",
+    "skirt pull": "sexual",
+    "skirt rolled up": "sexual",
+    "skirt suit": "clothes",
+    "skirt tug": "sexual",
+    "skull choker": "clothes",
+    "skull fucking": "sexual",
+    "skull hat ornament": "clothes",
+    "skull mask": "clothes",
+    "skull necklace": "clothes",
+    "skull-shaped pupils": "face",
+    "sky focus": "effects",
+    "sky surfing": "pose",
+    "skyscraper": "scene",
+    "slam dunk (series)": "pose",
+    "slapping": "pose",
+    "slapping breasts": "body",
+    "slapping with breasts": "body",
+    "slashing": "pose",
+    "slave": "sexual",
+    "slave market": "sexual",
+    "slavic clothes": "clothes",
+    "sleep mask": "clothes",
+    "sleep molestation": "sexual",
+    "sleep talking": "pose",
+    "sleeping": "pose",
+    "sleepy": "face",
+    "sleeve cuffs": "clothes",
+    "sleeved leotard": "clothes",
+    "sleeveless": "sexual",
+    "sleeveless coat": "clothes",
+    "sleeveless dress": "clothes",
+    "sleeveless duster": "clothes",
+    "sleeveless hoodie": "clothes",
+    "sleeveless jacket": "clothes",
+    "sleeveless kimono": "clothes",
+    "sleeveless shirt": "clothes",
+    "sleeveless sweater": "clothes",
+    "sleeveless turtleneck": "clothes",
+    "sleeves past fingers": "clothes",
+    "sleeves past wrists": "clothes",
+    "sleeves pushed up": "sexual",
+    "sleeves rolled up": "sexual",
+    "sliced cheese": "scene",
+    "sliced egg": "scene",
+    "sliced meat": "scene",
+    "sliding": "pose",
+    "sliding doors": "scene",
+    "slightly naughty expressions practice": "face",
+    "slim legs": "body",
+    "slime (creature)": "character",
+    "slime hair": "body",
+    "slimification": "effects",
+    "slingshot swimsuit": "clothes",
+    "slippers": "clothes",
+    "slipping": "pose",
+    "slit pupils": "face",
+    "slit throat (gesture)": "limbs",
+    "slouching": "pose",
+    "slovak clothes": "clothes",
+    "slovakia": "scene",
+    "slovenia": "scene",
+    "slums": "scene",
+    "slushie": "scene",
+    "small breasts": "body",
+    "small chastity cage": "sexual",
+    "small nipples": "body",
+    "small penis": "sexual",
+    "small testicles": "body",
+    "smeared lipstick": "clothes",
+    "smelling": "sexual",
+    "smelling ass": "body",
+    "smelling clothes": "sexual",
+    "smelling feet": "sexual",
+    "smelling flower": "scene",
+    "smelling hair": "body",
+    "smelling pantyhose": "sexual",
+    "smelling underwear": "sexual",
+    "smile": "face",
+    "smiley face": "face",
+    "smirk": "face",
+    "smirnoff (vodka)": "scene",
+    "smoke from nose": "face",
+    "smoked cheese": "scene",
+    "smokey eyeshadow": "clothes",
+    "smoking": "pose",
+    "smother": "sexual",
+    "smug": "face",
+    "snack": "scene",
+    "snake hair": "body",
+    "snake mask": "clothes",
+    "snake mouth": "face",
+    "snake necklace": "clothes",
+    "snake penis": "body",
+    "snake print": "clothes",
+    "snakefruit": "scene",
+    "snapdragon": "scene",
+    "sneakers": "clothes",
+    "sneezing": "pose",
+    "snickers (brand)": "scene",
+    "snifter": "scene",
+    "snorkel mask": "clothes",
+    "snow": "scene",
+    "snowbell (flower)": "scene",
+    "snowdrop (flower)": "scene",
+    "snowflake background": "scene",
+    "snowflake pupils": "face",
+    "snowflakes": "scene",
+    "snowing": "pose",
+    "soaking feet": "body",
+    "soapland": "scene",
+    "soba": "scene",
+    "sobbing": "pose",
+    "soccer": "pose",
+    "soccer ball": "pose",
+    "soccer field": "scene",
+    "soccer spirits": "pose",
+    "soccer uniform": "pose",
+    "social media composition": "scene",
+    "sock pull": "sexual",
+    "socks": "clothes",
+    "soda": "scene",
+    "soda bottle": "scene",
+    "soda can": "scene",
+    "soda fountain": "scene",
+    "sofmap": "scene",
+    "sofmap background": "scene",
+    "soft focus": "effects",
+    "soft serve": "scene",
+    "softboiled egg": "scene",
+    "softenni": "pose",
+    "soju": "scene",
+    "solarpunk": "effects",
+    "soles": "body",
+    "solid circle eyes": "face",
+    "solid circle pupils": "face",
+    "solid color thumbnail": "scene",
+    "solid eyes": "face",
+    "solid oval eyes": "face",
+    "solo": "character",
+    "solo focus": "character",
+    "sombrero": "clothes",
+    "songkok": "clothes",
+    "songkran": "scene",
+    "songpyeon": "scene",
+    "sonic's drive-in": "scene",
+    "soran bushi": "pose",
+    "souffle (food)": "scene",
+    "souffle pancake": "scene",
+    "soumen": "scene",
+    "sounding": "sexual",
+    "soup": "scene",
+    "south africa": "scene",
+    "south korea": "scene",
+    "soviet": "scene",
+    "soy sauce": "scene",
+    "soy sauce bottle": "scene",
+    "space": "scene",
+    "space elevator": "scene",
+    "space helmet": "clothes",
+    "space needle": "scene",
+    "space print": "clothes",
+    "space station": "scene",
+    "spacecraft interior": "scene",
+    "spaghetti": "scene",
+    "spaghetti and meatballs": "scene",
+    "spain": "scene",
+    "spanish civil war": "scene",
+    "spanish clothes": "clothes",
+    "spanish-american war": "scene",
+    "spanked": "sexual",
+    "spanking": "sexual",
+    "sparkle": "scene",
+    "sparkle background": "scene",
+    "sparkle print": "clothes",
+    "sparkling eyes": "face",
+    "sparks": "scene",
+    "spasskaya tower": "scene",
+    "spathiphyllum": "scene",
+    "spats (footwear)": "clothes",
+    "spatula": "scene",
+    "spear mint tea": "scene",
+    "speckled areolae": "body",
+    "speed lines": "scene",
+    "spider lily": "scene",
+    "spider lily print": "clothes",
+    "spider web": "scene",
+    "spider web background": "scene",
+    "spiderwort (flower)": "scene",
+    "spiked bracelet": "clothes",
+    "spiked choker": "clothes",
+    "spiked collar": "clothes",
+    "spiked dildo": "sexual",
+    "spiked gloves": "clothes",
+    "spiked hair": "body",
+    "spiked legwear": "clothes",
+    "spiked mask": "clothes",
+    "spiked penis": "body",
+    "spikes": "clothes",
+    "spill": "scene",
+    "spilling": "pose",
+    "spine (medium)": "scene",
+    "spinning": "pose",
+    "spiral background": "scene",
+    "spiral-only eyes": "face",
+    "spitroast": "sexual",
+    "spitting": "pose",
+    "splashing": "pose",
+    "splatoonification": "effects",
+    "splatter background": "scene",
+    "split": "pose",
+    "split crop": "scene",
+    "split mouth": "face",
+    "split ponytail": "body",
+    "split theme": "effects",
+    "split-color hair": "body",
+    "sponge cake": "scene",
+    "spooky dance": "pose",
+    "spoon": "scene",
+    "spooning": "sexual",
+    "spork": "scene",
+    "sport club do recife": "pose",
+    "sports bikini": "clothes",
+    "sports drink": "scene",
+    "sports sandals": "clothes",
+    "sportswear": "pose",
+    "spot color": "effects",
+    "spotlight": "effects",
+    "spotted hair": "body",
+    "sprain": "body",
+    "spraying": "pose",
+    "spread anus": "body",
+    "spread arms": "pose",
+    "spread ass": "body",
+    "spread eagle position": "pose",
+    "spread fingers": "limbs",
+    "spread legs": "pose",
+    "spread pussy": "body",
+    "spread pussy under clothes": "body",
+    "spread toes": "body",
+    "spreader bar": "sexual",
+    "spreading another's pussy": "body",
+    "spreading own pussy": "body",
+    "spring onion": "scene",
+    "springsuit": "clothes",
+    "sprinkles": "scene",
+    "sprout": "scene",
+    "sprout-shaped pupils": "face",
+    "spurs": "clothes",
+    "square neckline": "clothes",
+    "squash": "scene",
+    "squatting": "pose",
+    "squatting cowgirl position": "sexual",
+    "squeeze bottle": "scene",
+    "squeezing": "pose",
+    "squiggle eyes": "face",
+    "squinting": "pose",
+    "squirrel ears": "face",
+    "squirting liquid": "pose",
+    "ss lazio": "pose",
+    "ssc napoli": "pose",
+    "st. basil's cathedral": "scene",
+    "st. louis blues": "pose",
+    "st. louis cardinals": "pose",
+    "st. peter's basilica": "scene",
+    "st. peter's square": "scene",
+    "stab": "body",
+    "stable": "scene",
+    "stacking": "pose",
+    "stadium": "scene",
+    "staff room": "scene",
+    "stage": "scene",
+    "stage lights": "effects",
+    "stahlhelm": "clothes",
+    "stalking": "pose",
+    "standing": "pose",
+    "standing missionary": "sexual",
+    "standing on bed": "pose",
+    "standing on chair": "pose",
+    "standing on desk": "pose",
+    "standing on one leg": "pose",
+    "standing on roof": "pose",
+    "standing on shoulder": "pose",
+    "standing sex": "sexual",
+    "standing split": "pose",
+    "star (sky)": "scene",
+    "star (symbol)": "scene",
+    "star choker": "clothes",
+    "star hands": "limbs",
+    "star hat ornament": "clothes",
+    "star necklace": "clothes",
+    "star print": "clothes",
+    "star symbol background": "scene",
+    "star-shaped eyewear": "clothes",
+    "star-shaped hair": "body",
+    "star-shaped pupils": "face",
+    "starbucks": "scene",
+    "starbucks siren": "scene",
+    "starfruit": "scene",
+    "staring": "pose",
+    "starry hair": "body",
+    "starry sky": "effects",
+    "starry sky background": "scene",
+    "starry sky print": "clothes",
+    "station necklace": "clothes",
+    "stationary restraints": "sexual",
+    "stats": "scene",
+    "statue of liberty": "scene",
+    "steak": "scene",
+    "stealth bondage": "sexual",
+    "stealth masturbation": "sexual",
+    "stealth paizuri": "sexual",
+    "stealth sex": "sexual",
+    "steam": "scene",
+    "steam from nose": "face",
+    "steamed bun": "scene",
+    "steampunk": "clothes",
+    "steepled fingers": "limbs",
+    "step and repeat": "scene",
+    "stepped on": "sexual",
+    "steppee focus": "effects",
+    "stepping": "pose",
+    "stereogram": "scene",
+    "stick": "scene",
+    "sticker": "clothes",
+    "sticker on face": "clothes",
+    "sticky rice": "scene",
+    "stifled laugh": "face",
+    "stiletto heels": "clothes",
+    "still life": "scene",
+    "stilt house": "scene",
+    "stinky tofu": "scene",
+    "stippling (texture)": "scene",
+    "stirring": "pose",
+    "stirrup legwear": "clothes",
+    "stitched mouth": "face",
+    "stitches": "body",
+    "stockholm": "scene",
+    "stocks": "sexual",
+    "stole": "clothes",
+    "stollen": "scene",
+    "stomach": "body",
+    "stomach (organ)": "body",
+    "stomach bulge": "sexual",
+    "stomach cutout": "sexual",
+    "stomach day": "scene",
+    "stomach focus": "effects",
+    "stomach punch": "sexual",
+    "stomping": "pose",
+    "stone mask": "clothes",
+    "stone walkway": "scene",
+    "stonehenge": "scene",
+    "stonehenge turret network": "scene",
+    "stop (gesture)": "limbs",
+    "storage room": "scene",
+    "stove": "scene",
+    "straddling": "pose",
+    "straddling paizuri": "sexual",
+    "straight hair": "body",
+    "straight-arm salute": "limbs",
+    "straight-on": "scene",
+    "strangling": "sexual",
+    "strangling with hair": "body",
+    "strap lift": "sexual",
+    "strap pull": "sexual",
+    "strap slip": "sexual",
+    "strap-on": "sexual",
+    "strapless": "clothes",
+    "strapless bikini": "clothes",
+    "strapless bottom": "clothes",
+    "strapless bra": "clothes",
+    "strapless dress": "clothes",
+    "strapless leotard": "clothes",
+    "strapless one-piece swimsuit": "clothes",
+    "strapless shirt": "clothes",
+    "strappado": "sexual",
+    "strappy heels": "body",
+    "straw cape": "clothes",
+    "straw hat": "clothes",
+    "strawberry": "scene",
+    "strawberry background": "scene",
+    "strawberry blossoms": "scene",
+    "strawberry cake": "scene",
+    "strawberry chocolate": "scene",
+    "strawberry juice": "scene",
+    "strawberry milk": "scene",
+    "strawberry necklace": "clothes",
+    "strawberry parfait": "scene",
+    "strawberry pie": "scene",
+    "strawberry print": "clothes",
+    "strawberry shortcake": "scene",
+    "strawberry slice": "scene",
+    "strawberry swiss roll": "scene",
+    "strawberry syrup": "scene",
+    "strawberry tart": "scene",
+    "streaked hair": "body",
+    "streaking": "pose",
+    "stream": "scene",
+    "street": "scene",
+    "streetwear": "clothes",
+    "stretching": "pose",
+    "string around finger": "clothes",
+    "string bikini": "clothes",
+    "string of fate": "clothes",
+    "stringer": "clothes",
+    "strip club": "scene",
+    "striped": "clothes",
+    "striped ascot": "clothes",
+    "striped background": "scene",
+    "striped bikini": "clothes",
+    "striped bowtie": "clothes",
+    "striped choker": "clothes",
+    "striped gloves": "clothes",
+    "striped hair": "body",
+    "striped neckerchief": "clothes",
+    "striped one-piece swimsuit": "clothes",
+    "striped scarf": "clothes",
+    "striped shirt": "clothes",
+    "striped sleeves": "clothes",
+    "stroking own chin": "limbs",
+    "struggling": "pose",
+    "stubble": "body",
+    "stuck in the past": "scene",
+    "stud earrings": "clothes",
+    "studded choker": "clothes",
+    "studded collar": "clothes",
+    "studded legwear": "clothes",
+    "studded mask": "clothes",
+    "studio": "scene",
+    "studs": "clothes",
+    "studying": "pose",
+    "style parody": "scene",
+    "suama (food)": "scene",
+    "subcul jirai": "clothes",
+    "submarine": "scene",
+    "subsurface scattering": "scene",
+    "suburb": "scene",
+    "subway": "scene",
+    "subway (company)": "scene",
+    "subway entrance": "scene",
+    "subway station": "scene",
+    "succulent plant": "scene",
+    "sucking": "pose",
+    "sucking own breasts": "pose",
+    "suction cup dildo": "sexual",
+    "sudachi (fruit)": "scene",
+    "sugar bowl": "scene",
+    "sugar cube": "scene",
+    "sugar song and bitter step": "pose",
+    "suginami (tokyo)": "scene",
+    "suit": "clothes",
+    "suit jacket": "clothes",
+    "sukajan": "clothes",
+    "sukiyaki": "scene",
+    "sulking": "pose",
+    "sumerian clothes": "clothes",
+    "sumi-e": "scene",
+    "sumida (tokyo)": "scene",
+    "summer festival": "scene",
+    "summoning": "pose",
+    "sumo": "pose",
+    "sun": "effects",
+    "sun hat": "clothes",
+    "sun necklace": "clothes",
+    "sun rockers shibuya": "pose",
+    "sunbathing": "pose",
+    "sunbeam": "effects",
+    "sunburst background": "scene",
+    "sundae": "scene",
+    "sunflower": "scene",
+    "sunflower print": "clothes",
+    "sunglasses": "clothes",
+    "sunlight": "effects",
+    "sunrise": "effects",
+    "sunset": "effects",
+    "suntory": "scene",
+    "super bowl": "pose",
+    "super bowl lx": "pose",
+    "super bowl xlvi": "pose",
+    "superflat": "effects",
+    "superhero costume": "clothes",
+    "superhero landing": "pose",
+    "superman exposure": "pose",
+    "supermarket": "scene",
+    "surcoat": "clothes",
+    "surfing": "pose",
+    "surgery": "body",
+    "surgical mask": "clothes",
+    "surprised": "face",
+    "surreal": "scene",
+    "surrounded by feet": "body",
+    "sushi": "scene",
+    "sushi geta": "scene",
+    "suspended congress": "sexual",
+    "suspender skirt": "clothes",
+    "suspenders": "clothes",
+    "suspension": "sexual",
+    "susuki grass": "scene",
+    "suwa city": "scene",
+    "suzu castella (food)": "scene",
+    "swallowing": "pose",
+    "swan mask": "clothes",
+    "sway back": "pose",
+    "swaying": "pose",
+    "sweatband": "clothes",
+    "sweater": "clothes",
+    "sweater dress": "clothes",
+    "sweater guard": "clothes",
+    "sweater lift": "sexual",
+    "sweater vest": "clothes",
+    "sweatpants": "clothes",
+    "sweden": "scene",
+    "swedish clothes": "clothes",
+    "sweeping": "pose",
+    "sweet flower": "scene",
+    "sweet lolita": "clothes",
+    "sweet pea": "scene",
+    "sweet potato": "scene",
+    "sweet potato cake": "scene",
+    "sweets": "scene",
+    "swept bangs": "body",
+    "swim briefs": "clothes",
+    "swim cap": "clothes",
+    "swim trunks": "clothes",
+    "swimming": "pose",
+    "swimsuit": "clothes",
+    "swimsuit aside": "sexual",
+    "swimsuit costume": "clothes",
+    "swimsuit cover-up": "clothes",
+    "swimsuit under clothes": "clothes",
+    "swing": "pose",
+    "swing!!": "pose",
+    "swinging (relationship)": "pose",
+    "swinging another": "pose",
+    "swinging arm": "pose",
+    "swinging arms": "pose",
+    "swinging baseball bat": "pose",
+    "swinging golf club": "pose",
+    "swinging legs": "pose",
+    "swinging object": "pose",
+    "swinging on rope": "pose",
+    "swinging on swing": "pose",
+    "swinging tennis racket": "pose",
+    "swinging weapon": "pose",
+    "swirl lollipop": "scene",
+    "swiss cheese": "scene",
+    "swiss clothes": "clothes",
+    "swiss roll": "scene",
+    "switzerland": "scene",
+    "sword art online": "scene",
+    "sword over shoulder": "clothes",
+    "sybian": "sexual",
+    "sydney": "scene",
+    "sydney harbour bridge": "scene",
+    "sydney opera house": "scene",
+    "symbol-shaped hair": "body",
+    "symbol-shaped pupils": "face",
+    "symmetrical docking": "pose",
+    "symmetrical hand pose": "pose",
+    "symmetry": "scene",
+    "synagogue": "scene",
+    "synthwave": "effects",
+    "syria": "scene",
+    "syrian civil war": "scene",
+    "syringe": "body",
+    "syrup": "scene",
+    "t t": "face",
+    "t-pose": "pose",
+    "t-shirt": "clothes",
+    "tabard": "clothes",
+    "tabasco": "scene",
+    "tabi": "clothes",
+    "table": "clothes",
+    "table humping": "sexual",
+    "table tennis": "pose",
+    "table tennis paddle": "pose",
+    "tachi-e": "scene",
+    "tachikawa (tokyo)": "scene",
+    "taco": "scene",
+    "taco bell": "scene",
+    "tail": "sexual",
+    "tail focus": "effects",
+    "tail fondling": "pose",
+    "tail insertion": "sexual",
+    "tail lock": "pose",
+    "tail masturbation": "sexual",
+    "tail ornament": "clothes",
+    "tail wagging": "pose",
+    "tailcoat": "clothes",
+    "tailjob": "sexual",
+    "taipei": "scene",
+    "taipei 101": "scene",
+    "taiping rebellion": "scene",
+    "taito (tokyo)": "scene",
+    "taiwan": "scene",
+    "taiwanese clothes": "clothes",
+    "taiyaki": "scene",
+    "taiyou whales": "pose",
+    "taj mahal": "scene",
+    "tajik clothes": "clothes",
+    "tajikistan": "scene",
+    "take your pick": "sexual",
+    "takehara (hiroshima)": "scene",
+    "takenoko no sato": "scene",
+    "takeout container": "scene",
+    "tako-san wiener": "scene",
+    "takoyaki": "scene",
+    "takuan": "scene",
+    "tales of (series)": "scene",
+    "talking": "pose",
+    "tall image": "scene",
+    "taller than canon": "effects",
+    "tally": "sexual",
+    "tam o' shanter": "clothes",
+    "tamagokake gohan": "scene",
+    "tamagoyaki": "scene",
+    "tamagoyaki pan": "scene",
+    "tamarind": "scene",
+    "tampa bay buccaneers": "pose",
+    "tampa bay lightning": "pose",
+    "tampa bay rays": "pose",
+    "tan": "sexual",
+    "tanabata": "scene",
+    "tang jin (headwear)": "clothes",
+    "tanghulu": "scene",
+    "tango": "pose",
+    "tangyuan": "scene",
+    "tangzhuang": "clothes",
+    "tank helmet": "clothes",
+    "tank interior": "scene",
+    "tank top": "clothes",
+    "tankini": "clothes",
+    "tanlines": "sexual",
+    "tanzaku": "scene",
+    "tap dance": "pose",
+    "tape gag": "sexual",
+    "tareme": "face",
+    "taro (food)": "scene",
+    "tart (food)": "scene",
+    "tartare (food)": "scene",
+    "tassel": "clothes",
+    "tassel necklace": "clothes",
+    "tasting": "pose",
+    "tasuki": "clothes",
+    "tatar clothes": "clothes",
+    "tate eboshi": "clothes",
+    "tatewaku": "clothes",
+    "tattoo": "effects",
+    "taue odori": "pose",
+    "taunting": "pose",
+    "taut shirt": "clothes",
+    "tavern": "scene",
+    "tawawa challenge": "body",
+    "tea": "scene",
+    "tea ceremony": "scene",
+    "tea party": "scene",
+    "tea set": "scene",
+    "tea strainer": "scene",
+    "teaching": "pose",
+    "teacup": "scene",
+    "teamwork (sexual)": "sexual",
+    "teapot": "scene",
+    "teapot warmer": "scene",
+    "teardrop-framed glasses": "clothes",
+    "tears": "face",
+    "teasing": "pose",
+    "tecate": "scene",
+    "techwear": "clothes",
+    "tecmo super bowl": "pose",
+    "teddy (lingerie)": "clothes",
+    "teddy bear sex": "sexual",
+    "teekyuu": "pose",
+    "tegaki": "scene",
+    "temperature play": "sexual",
+    "temple": "scene",
+    "tempura": "scene",
+    "tenga": "sexual",
+    "tengai (hat)": "clothes",
+    "tengu mask": "clothes",
+    "tennis": "pose",
+    "tennis ball": "pose",
+    "tennis no ouji-sama": "pose",
+    "tennis racket": "pose",
+    "tennis uniform": "pose",
+    "tenshi kaiwai": "clothes",
+    "tentacle clothes": "sexual",
+    "tentacle gagged": "sexual",
+    "tentacle hair": "body",
+    "tentacle on penis": "sexual",
+    "tentacle pit": "sexual",
+    "tentacle sex": "sexual",
+    "tentacles": "sexual",
+    "tentacles in thighhighs": "sexual",
+    "tentacles on male": "sexual",
+    "tentacles under clothes": "sexual",
+    "tenugui": "clothes",
+    "tequila": "scene",
+    "terrine (food)": "scene",
+    "testicle clamps": "sexual",
+    "testicle crusher": "sexual",
+    "testicle sucking": "sexual",
+    "testicle weights": "sexual",
+    "testicles": "body",
+    "testicles touching": "sexual",
+    "testosterone": "sexual",
+    "tet offensive": "scene",
+    "texas": "scene",
+    "texas league": "pose",
+    "texas rangers": "pose",
+    "text background": "scene",
+    "text focus": "scene",
+    "text in eyes": "face",
+    "text in mouth": "face",
+    "text messaging": "pose",
+    "thai clothes": "clothes",
+    "thailand": "scene",
+    "thank you": "scene",
+    "thanksgiving": "scene",
+    "the king (burger king)": "scene",
+    "the last supper": "scene",
+    "the monkey (dance)": "pose",
+    "the pose": "body",
+    "the viewer": "character",
+    "theater": "scene",
+    "theft": "pose",
+    "thermite grenade": "scene",
+    "thermos": "scene",
+    "thick arms": "body",
+    "thick eyebrows": "face",
+    "thick thighs": "body",
+    "thigh boots": "clothes",
+    "thigh cutout": "sexual",
+    "thigh focus": "scene",
+    "thigh ribbon": "clothes",
+    "thigh sex": "sexual",
+    "thigh straddling": "pose",
+    "thigh strap": "clothes",
+    "thighband pantyhose": "clothes",
+    "thighhighs": "clothes",
+    "thighlet": "clothes",
+    "thighs": "body",
+    "thimble": "clothes",
+    "thinking": "pose",
+    "thinner than canon": "effects",
+    "third eye": "face",
+    "third indochina war": "scene",
+    "third-party extraction": "scene",
+    "third-party watermark": "scene",
+    "thistle": "scene",
+    "thobe": "clothes",
+    "thong": "clothes",
+    "thong bikini": "clothes",
+    "three-quarter sleeves": "clothes",
+    "three-toned background": "scene",
+    "threesome": "sexual",
+    "through bars": "sexual",
+    "through door": "scene",
+    "through portal": "scene",
+    "throwing": "pose",
+    "thumb hole sleeves": "clothes",
+    "thumb sucking": "pose",
+    "thumbnail collage": "scene",
+    "thumbnail surprise": "scene",
+    "thumbprint cookie": "scene",
+    "thumbs down": "limbs",
+    "thumbs up": "limbs",
+    "tiananmen square": "scene",
+    "tiara": "clothes",
+    "tibetan clothes": "clothes",
+    "tickle torture": "sexual",
+    "tickling": "pose",
+    "tickling feet": "pose",
+    "tie clip": "clothes",
+    "tied breast": "body",
+    "tied nipples": "body",
+    "tiered tray": "scene",
+    "tiger costume": "clothes",
+    "tiger ears": "face",
+    "tiger lily": "scene",
+    "tiger print": "clothes",
+    "tiger stripes": "clothes",
+    "tights day": "scene",
+    "tigres uanl": "pose",
+    "tigridia": "scene",
+    "tileable": "scene",
+    "tilted headwear": "clothes",
+    "tim hortons": "scene",
+    "time paradox": "character",
+    "times square": "scene",
+    "tiny anus": "body",
+    "tiptoe kiss": "pose",
+    "tiptoes": "pose",
+    "tiramisu": "scene",
+    "toast": "scene",
+    "toast in mouth": "scene",
+    "toaster": "scene",
+    "toblerone": "scene",
+    "toca toca toca dance (meme)": "pose",
+    "tochigi prefecture": "scene",
+    "toddlercon": "sexual",
+    "toe cleavage": "body",
+    "toe grab": "body",
+    "toe ring": "body",
+    "toe scrunch": "pose",
+    "toe seam": "body",
+    "toe socks": "clothes",
+    "toe sucking": "pose",
+    "toeless legwear": "clothes",
+    "toenail polish": "clothes",
+    "toenails": "body",
+    "toes": "body",
+    "tofu": "scene",
+    "togetsukyou bridge": "scene",
+    "tohato caramel corn": "scene",
+    "toilet stall": "scene",
+    "tokin hat": "clothes",
+    "tokoname city": "scene",
+    "tokoroten-tsuki": "scene",
+    "tokushima prefecture": "scene",
+    "tokyo": "scene",
+    "tokyo big sight": "scene",
+    "tokyo city hall": "scene",
+    "tokyo skytree": "scene",
+    "tokyo tower": "scene",
+    "tokyo verdy": "pose",
+    "tokyo yakult swallows": "pose",
+    "tomato": "scene",
+    "tomato plant": "scene",
+    "tomato sauce": "scene",
+    "tomb": "scene",
+    "tomboy": "sexual",
+    "tongs": "scene",
+    "tongue": "body",
+    "tongue clamp": "sexual",
+    "too many cats": "character",
+    "too many lipstick marks": "clothes",
+    "too many scoops": "scene",
+    "too many sex toys": "sexual",
+    "too many tentacles": "sexual",
+    "tooth necklace": "clothes",
+    "tooth pulling": "sexual",
+    "tootsweets": "scene",
+    "top hat": "clothes",
+    "top pull": "sexual",
+    "top-down bottom-up": "sexual",
+    "topiary": "scene",
+    "topknot": "body",
+    "topless female": "sexual",
+    "topless male": "sexual",
+    "toppo": "scene",
+    "toque blanche": "clothes",
+    "torch": "scene",
+    "torii": "scene",
+    "torioigasa": "clothes",
+    "torn ascot": "clothes",
+    "torn clothes": "clothes",
+    "torn gloves": "clothes",
+    "torn hat": "clothes",
+    "torn leg warmers": "clothes",
+    "torn leggings": "clothes",
+    "torn legwear": "clothes",
+    "torn mask": "clothes",
+    "torn pantyhose": "clothes",
+    "torn scarf": "clothes",
+    "torn sleeves": "clothes",
+    "torn socks": "clothes",
+    "torn swimsuit": "clothes",
+    "torn thighhighs": "clothes",
+    "torn wings": "body",
+    "torogao": "sexual",
+    "toronto": "scene",
+    "toronto blue jays": "pose",
+    "toronto maple leafs": "pose",
+    "toronto raptors": "pose",
+    "torso grab": "sexual",
+    "tortilla chips": "scene",
+    "tortoiseshell-framed eyewear": "clothes",
+    "torture": "sexual",
+    "torture dance": "pose",
+    "torture instruments": "sexual",
+    "toshima (tokyo)": "scene",
+    "tottenham hotspur fc": "pose",
+    "tottori prefecture": "scene",
+    "touch (manga)": "pose",
+    "touching": "pose",
+    "touhoku rakuten golden eagles": "pose",
+    "touhou": "scene",
+    "towel around neck": "clothes",
+    "towel slip": "sexual",
+    "tower": "scene",
+    "tower of salvation (tales)": "scene",
+    "tower of the sun": "scene",
+    "town": "scene",
+    "town square": "scene",
+    "toyama city": "scene",
+    "toyama prefecture": "scene",
+    "track and field": "pose",
+    "track marks": "body",
+    "track suit": "clothes",
+    "trad goth": "clothes",
+    "traditional bowtie": "clothes",
+    "traditional greek clothes": "clothes",
+    "traditional japanese patterns": "scene",
+    "traditional media": "scene",
+    "traditional nun": "clothes",
+    "trafalgar square": "scene",
+    "traffic cone on head": "clothes",
+    "train interior": "scene",
+    "train station": "scene",
+    "train station platform": "scene",
+    "training": "pose",
+    "trampling": "body",
+    "trampling table": "sexual",
+    "trans rights": "sexual",
+    "transamerica pyramid": "scene",
+    "transgender day of visibility": "sexual",
+    "transgender flag": "sexual",
+    "transgender flag print": "sexual",
+    "transgender symbol": "sexual",
+    "transparent background": "scene",
+    "transparent wings": "body",
+    "transphobia": "sexual",
+    "trap": "sexual",
+    "trap door": "scene",
+    "traumatized": "face",
+    "tray": "scene",
+    "tree": "scene",
+    "tree focus": "effects",
+    "tree hollow": "scene",
+    "tree shade": "scene",
+    "tree stump": "scene",
+    "treehouse": "scene",
+    "trembling": "pose",
+    "trench": "scene",
+    "trench coat": "clothes",
+    "tress ribbon": "clothes",
+    "tri braids": "body",
+    "tri drills": "body",
+    "tri hair rings": "body",
+    "tri tails": "body",
+    "triadic colors": "effects",
+    "triangle background": "scene",
+    "triangle hair bun with corners toward head": "body",
+    "triangle hands": "limbs",
+    "triangle mouth": "face",
+    "triangle print": "clothes",
+    "triangle-shaped pupils": "face",
+    "triangular eyewear": "clothes",
+    "triangular headpiece": "clothes",
+    "tribadism": "sexual",
+    "tribadism gesture": "limbs",
+    "trick or treat": "scene",
+    "tricorne": "clothes",
+    "trilby": "clothes",
+    "trim marks": "scene",
+    "trinidad and tobago": "scene",
+    "triple amputee": "sexual",
+    "triple anal": "sexual",
+    "triple bun": "body",
+    "triple penetration": "sexual",
+    "triple vaginal": "sexual",
+    "triple wielding": "pose",
+    "triplefold": "pose",
+    "tripping": "body",
+    "triptych (art)": "scene",
+    "troll face": "face",
+    "trolling": "pose",
+    "troonjak": "sexual",
+    "tropical drink": "scene",
+    "tropicana field": "scene",
+    "truffle (mushroom)": "scene",
+    "trump tower": "scene",
+    "trumpet creeper": "scene",
+    "tsuki ni kawatte oshioki yo": "limbs",
+    "tsukimi": "scene",
+    "tsukimi burger": "scene",
+    "tsukimi dango": "scene",
+    "tsunokakushi": "clothes",
+    "tsurime": "face",
+    "tsutenkaku": "scene",
+    "tube socks": "clothes",
+    "tube top": "clothes",
+    "tuberose": "scene",
+    "tucking hair": "pose",
+    "tudor": "clothes",
+    "tulip": "scene",
+    "tulip hat": "clothes",
+    "tulsa drillers": "pose",
+    "tundra": "scene",
+    "tunic": "clothes",
+    "tunisia": "scene",
+    "tunnel": "scene",
+    "tupet": "scene",
+    "turban": "clothes",
+    "turing love": "pose",
+    "turkey (country)": "scene",
+    "turkey (food)": "scene",
+    "turkey leg": "scene",
+    "turkish clothes": "clothes",
+    "turkmenistan": "scene",
+    "turn pale": "face",
+    "turnip": "scene",
+    "turtleneck": "clothes",
+    "turtleneck bodysuit": "clothes",
+    "turtleneck dress": "clothes",
+    "turtleneck jacket": "clothes",
+    "turtleneck one-piece swimsuit": "clothes",
+    "turtleneck shirt": "clothes",
+    "turtleneck sweater": "clothes",
+    "tutu": "clothes",
+    "tuxedo": "clothes",
+    "twee fashion": "clothes",
+    "twerking": "pose",
+    "twice cooked pork": "scene",
+    "twilight": "effects",
+    "twin braids": "body",
+    "twin drills": "body",
+    "twincest": "sexual",
+    "twintails": "body",
+    "twintails day": "scene",
+    "twirling hair": "limbs",
+    "twisted torso": "pose",
+    "twitching": "pose",
+    "two side up": "body",
+    "two-finger salute": "limbs",
+    "two-footed footjob": "sexual",
+    "two-handed handjob": "sexual",
+    "two-tone ascot": "clothes",
+    "two-tone background": "scene",
+    "two-tone bowtie": "clothes",
+    "two-tone eyes": "face",
+    "two-tone eyeshadow": "clothes",
+    "two-tone eyewear": "clothes",
+    "two-tone hair": "body",
+    "two-tone legwear": "clothes",
+    "two-tone lips": "clothes",
+    "two-tone neckerchief": "clothes",
+    "two-tone scarf": "clothes",
+    "two-tone skin": "body",
+    "two-tone sleeves": "clothes",
+    "tying": "pose",
+    "tying footwear": "pose",
+    "tying hair": "body",
+    "typing": "pose",
+    "typo": "scene",
+    "uc sampdoria": "pose",
+    "ucc coffee": "scene",
+    "uchikake": "clothes",
+    "uchiwa (medium)": "clothes",
+    "uchuu kei": "clothes",
+    "udon": "scene",
+    "uefa champions league": "pose",
+    "uefa euros": "pose",
+    "ufo day": "scene",
+    "ugoku ugoku": "pose",
+    "uirou (food)": "scene",
+    "ukiyo-e": "scene",
+    "ukraine": "pose",
+    "ukrainian clothes": "clothes",
+    "ultraviolet light": "effects",
+    "uluru": "scene",
+    "umafication": "effects",
+    "umaibou": "scene",
+    "umbrella": "clothes",
+    "umbrella riding": "pose",
+    "umeboshi": "scene",
+    "umeda sky building": "scene",
+    "unadon (food)": "scene",
+    "unaligned breasts": "body",
+    "unamused": "face",
+    "unbirthing": "sexual",
+    "unbuttoned": "sexual",
+    "uncensored": "scene",
+    "uncongealed tofu": "scene",
+    "under tree": "scene",
+    "under-rim eyewear": "clothes",
+    "underboob": "sexual",
+    "underboob cutout": "sexual",
+    "underbust": "clothes",
+    "underbutt": "body",
+    "undercut": "body",
+    "underlighting": "scene",
+    "undersized breast cup": "body",
+    "underwater": "scene",
+    "underwater city": "scene",
+    "underwater sex": "sexual",
+    "underwear only": "sexual",
+    "undone ascot": "clothes",
+    "undone neckerchief": "clothes",
+    "undone sarashi": "clothes",
+    "undressing": "sexual",
+    "uneven eyes": "face",
+    "uneven footing": "pose",
+    "uneven gloves": "clothes",
+    "uneven legwear": "clothes",
+    "uneven sleeves": "clothes",
+    "uneven twintails": "body",
+    "unfinished": "scene",
+    "unibrow": "face",
+    "unicorn mask": "clothes",
+    "unitard": "clothes",
+    "united arab emirates": "scene",
+    "united kingdom": "scene",
+    "united states": "scene",
+    "united states capitol": "scene",
+    "unmasking": "clothes",
+    "unmoving pattern": "scene",
+    "unsheathing": "pose",
+    "untied bikini bottom": "sexual",
+    "untied bikini top": "sexual",
+    "untying": "sexual",
+    "unusually open eyes": "face",
+    "unworn choker": "clothes",
+    "unworn eyewear": "clothes",
+    "unworn gloves": "clothes",
+    "unworn hat": "clothes",
+    "unworn headwear": "clothes",
+    "unworn helmet": "clothes",
+    "unworn mask": "clothes",
+    "unworn neckerchief": "clothes",
+    "unworn necklace": "clothes",
+    "unworn necktie": "clothes",
+    "unworn scarf": "clothes",
+    "unzipped": "sexual",
+    "unzipping": "sexual",
+    "unzipping with mouth": "pose",
+    "up sleeve": "clothes",
+    "upper body": "scene",
+    "upright 69": "sexual",
+    "upright straddle": "sexual",
+    "upscaled": "scene",
+    "upside-down": "pose",
+    "upside-down cake": "scene",
+    "upskirt": "sexual",
+    "upturned eyes": "face",
+    "urawa red diamonds": "pose",
+    "urethral beads": "sexual",
+    "urethral insertion": "sexual",
+    "uroko (pattern)": "clothes",
+    "uruguay": "pose",
+    "us citta di palermo": "pose",
+    "usagi manjuu": "scene",
+    "used condom": "sexual",
+    "used condom on penis": "sexual",
+    "usekh collar": "clothes",
+    "ushanka": "clothes",
+    "uso da": "face",
+    "utah": "scene",
+    "utah jazz": "pose",
+    "utensil rack": "scene",
+    "uterus": "body",
+    "uwabaki": "clothes",
+    "uwu": "face",
+    "uygur clothes": "clothes",
+    "uzbek clothes": "clothes",
+    "uzbekistan": "scene",
+    "v": "limbs",
+    "v arms": "pose",
+    "v over eye": "limbs",
+    "v over mouth": "limbs",
+    "v-neck": "clothes",
+    "v-shaped eyebrows": "face",
+    "vaginal": "sexual",
+    "vaginal object insertion": "sexual",
+    "vaginoplasty": "sexual",
+    "valencia cf": "pose",
+    "valentine": "scene",
+    "vancouver canucks": "pose",
+    "vancouver grizzlies": "pose",
+    "vanishing point": "scene",
+    "vanity table": "clothes",
+    "vaporwave": "effects",
+    "variations": "scene",
+    "vatican": "scene",
+    "vector circles": "effects",
+    "vector trace": "scene",
+    "vegalta sendai": "pose",
+    "vegas golden knights": "pose",
+    "vegetable": "scene",
+    "vehicalization": "effects",
+    "vehicle focus": "scene",
+    "vehicle interior": "scene",
+    "veil": "clothes",
+    "veiny breasts": "body",
+    "veiny penis": "body",
+    "venezuela": "scene",
+    "venice": "scene",
+    "venus bikini": "clothes",
+    "venus flytrap": "scene",
+    "versatile slime penetration": "sexual",
+    "vertical stripes": "clothes",
+    "vertical-striped background": "scene",
+    "vertical-striped scarf": "clothes",
+    "very dark skin": "body",
+    "very long hair": "body",
+    "very low bun": "body",
+    "very short hair": "body",
+    "very wide shot": "scene",
+    "vest": "clothes",
+    "vhs artifacts": "scene",
+    "vibrator": "sexual",
+    "vibrator in anus": "sexual",
+    "vibrator in thigh strap": "sexual",
+    "vibrator in thighhighs": "sexual",
+    "vibrator on nipple": "sexual",
+    "vibrator on penis": "sexual",
+    "vibrator under clothes": "sexual",
+    "vibrator under panties": "sexual",
+    "vibrator under pantyhose": "sexual",
+    "victorian": "clothes",
+    "victory day": "scene",
+    "victory over japan day": "scene",
+    "victory pose": "limbs",
+    "video": "scene",
+    "video game cover": "scene",
+    "vienna": "scene",
+    "viennetta": "scene",
+    "viet lolita": "clothes",
+    "vietnam": "scene",
+    "vietnam war": "scene",
+    "vietnamese clothes": "clothes",
+    "viewfinder": "scene",
+    "vignetting": "scene",
+    "village": "scene",
+    "villain pose": "pose",
+    "vines": "scene",
+    "vinok": "clothes",
+    "violet (flower)": "scene",
+    "virtual pet (toy)": "clothes",
+    "visby": "scene",
+    "visor cap": "clothes",
+    "vissel kobe": "pose",
+    "visual kei": "clothes",
+    "vita (vitasoy)": "scene",
+    "vitiligo": "body",
+    "vladivostok": "scene",
+    "vodka": "scene",
+    "void face": "face",
+    "voile": "scene",
+    "volcano": "scene",
+    "volleyball (sport)": "pose",
+    "vomiting": "pose",
+    "vore": "sexual",
+    "voyeurism": "sexual",
+    "vulcan salute": "limbs",
+    "w": "limbs",
+    "w arms": "pose",
+    "wa lolita": "clothes",
+    "wading": "pose",
+    "wafer": "scene",
+    "wafer stick": "scene",
+    "waffle": "scene",
+    "waffle cone": "scene",
+    "wagashi": "scene",
+    "waifu2x": "scene",
+    "waist cape": "clothes",
+    "waist hug": "pose",
+    "waist measuring": "pose",
+    "waist sash": "clothes",
+    "waistcoat": "clothes",
+    "waiter": "scene",
+    "waiting": "pose",
+    "waitress": "clothes",
+    "wakamezake": "sexual",
+    "wakayama prefecture": "scene",
+    "wakkanai": "scene",
+    "wales": "scene",
+    "walk cycle": "pose",
+    "walk-in": "sexual",
+    "walking": "pose",
+    "walking on wall": "pose",
+    "wall lamp": "effects",
+    "wall-eyed": "face",
+    "wallet": "clothes",
+    "wallet chain": "clothes",
+    "wallpaper": "scene",
+    "wallpaper forced": "scene",
+    "walnut": "scene",
+    "waltz (dance)": "pose",
+    "wand lighter": "scene",
+    "want want": "scene",
+    "war in afghanistan": "scene",
+    "warabi": "scene",
+    "warabimochi": "scene",
+    "waraji": "clothes",
+    "warbonnet": "clothes",
+    "warehouse": "scene",
+    "wariza": "pose",
+    "warm colors": "effects",
+    "warming": "pose",
+    "wartenberg wheel": "sexual",
+    "wasabi": "scene",
+    "washing": "pose",
+    "washington commanders": "pose",
+    "washington d.c.": "scene",
+    "washington monument": "scene",
+    "washington nationals": "pose",
+    "washington wizards": "pose",
+    "washinomiya shrine": "scene",
+    "wasteland": "scene",
+    "watch": "clothes",
+    "watch fob": "clothes",
+    "watching": "pose",
+    "watching television": "pose",
+    "watchtower": "scene",
+    "water": "scene",
+    "water caltrop": "scene",
+    "water gun": "scene",
+    "water lily flower": "scene",
+    "water polo": "pose",
+    "water torture": "sexual",
+    "water volleyball": "pose",
+    "watercolor background": "scene",
+    "watercolor effect": "effects",
+    "waterfall": "scene",
+    "watering": "pose",
+    "watermelon": "scene",
+    "watermelon bar": "scene",
+    "watermelon print": "clothes",
+    "waterpark": "scene",
+    "watson cross": "pose",
+    "wave print": "clothes",
+    "waving": "limbs",
+    "wavy hair": "body",
+    "wavy mouth": "face",
+    "wax play": "sexual",
+    "weapon": "body",
+    "weapon background": "scene",
+    "weapon focus": "scene",
+    "weapon over shoulder": "clothes",
+    "weapon shop": "scene",
+    "weasel mask": "clothes",
+    "web address": "scene",
+    "wedding": "pose",
+    "wedding cake": "scene",
+    "wedding ring": "clothes",
+    "wedge heels": "clothes",
+    "wedgie": "body",
+    "weighing breasts": "body",
+    "weirdcore": "effects",
+    "welding": "pose",
+    "welding mask": "clothes",
+    "well": "scene",
+    "wendy (wendy's)": "scene",
+    "wendy's": "scene",
+    "westminster palace": "scene",
+    "wet": "scene",
+    "wet clothes": "scene",
+    "wet dress": "scene",
+    "wet hair": "body",
+    "wet panties": "scene",
+    "wet shirt": "scene",
+    "wet skirt": "scene",
+    "wet swimsuit": "scene",
+    "wet towel": "scene",
+    "wetland": "scene",
+    "wetsuit": "clothes",
+    "wharf": "scene",
+    "whataburger": "scene",
+    "wheat field": "scene",
+    "whimsy twee": "clothes",
+    "whip": "sexual",
+    "whip (dance)": "pose",
+    "whip marks": "sexual",
+    "whipped cream": "scene",
+    "whipping": "sexual",
+    "whipping hair": "body",
+    "whisk": "scene",
+    "whiskey": "scene",
+    "whisking": "pose",
+    "whispering": "pose",
+    "whistle around neck": "clothes",
+    "whistle!": "pose",
+    "whistling": "pose",
+    "white ascot": "clothes",
+    "white background": "scene",
+    "white bowtie": "clothes",
+    "white chocolate": "scene",
+    "white choker": "clothes",
+    "white day": "scene",
+    "white eyes": "face",
+    "white eyeshadow": "clothes",
+    "white fire": "scene",
+    "white gloves": "clothes",
+    "white hair": "body",
+    "white hat": "clothes",
+    "white house": "scene",
+    "white lips": "clothes",
+    "white mask": "clothes",
+    "white neckerchief": "clothes",
+    "white necktie": "clothes",
+    "white one-piece swimsuit": "clothes",
+    "white phosphorus": "scene",
+    "white pupils": "face",
+    "white rabbit candy": "scene",
+    "white russian (drink)": "scene",
+    "white scarf": "clothes",
+    "white skin": "body",
+    "white sleeves": "clothes",
+    "white strawberry": "scene",
+    "white theme": "effects",
+    "white trim": "clothes",
+    "white wings": "body",
+    "white-framed eyewear": "clothes",
+    "whole face": "face",
+    "wide hips": "body",
+    "wide image": "scene",
+    "wide shot": "scene",
+    "wide sleeves": "clothes",
+    "wide-eyed": "face",
+    "widescreen": "scene",
+    "widow's peak": "body",
+    "wig": "clothes",
+    "wildfire": "scene",
+    "willis tower": "scene",
+    "willow": "scene",
+    "wilted flower": "scene",
+    "wimple": "clothes",
+    "wince": "face",
+    "wind chime focus": "scene",
+    "wind glider": "body",
+    "windmill": "scene",
+    "window": "scene",
+    "window shadow": "effects",
+    "wine": "scene",
+    "wine glass": "scene",
+    "wing biting": "body",
+    "wing censor": "body",
+    "wing collar": "clothes",
+    "wing ears": "body",
+    "wing hold": "body",
+    "wing hug": "pose",
+    "wing ornament": "clothes",
+    "wing piercing": "body",
+    "wing print": "clothes",
+    "wing ribbon": "body",
+    "wing tattoo": "body",
+    "wing umbrella": "body",
+    "wing-shaped bow": "body",
+    "winged": "clothes",
+    "winged arms": "body",
+    "winged bag": "body",
+    "winged boots": "clothes",
+    "winged footwear": "body",
+    "winged hairband": "body",
+    "winged hat": "body",
+    "winged helmet": "clothes",
+    "winged sandals": "clothes",
+    "winged shoes": "clothes",
+    "winged slippers": "clothes",
+    "winged umbrella": "body",
+    "wingjob": "body",
+    "wings": "body",
+    "wings through clothes": "body",
+    "wingtip collar": "clothes",
+    "winnipeg blue bombers": "pose",
+    "winnipeg jets": "pose",
+    "winter clothes": "clothes",
+    "winter coat": "clothes",
+    "wishcore": "clothes",
+    "wispy bangs": "body",
+    "wisteria": "scene",
+    "witch hat": "clothes",
+    "wither rose": "scene",
+    "wizard hat": "clothes",
+    "wok": "scene",
+    "wolf cut": "body",
+    "wolf ears": "face",
+    "wolf hat": "clothes",
+    "wolf mask": "clothes",
+    "wolfsbane (flower)": "scene",
+    "women's day": "scene",
+    "wonton": "scene",
+    "wooden bridge": "scene",
+    "wooden door": "scene",
+    "wooden horse": "sexual",
+    "wooden lantern": "effects",
+    "work boots": "clothes",
+    "working": "pose",
+    "workshop": "scene",
+    "world baseball classic": "pose",
+    "world cup": "pose",
+    "world trade center": "scene",
+    "world war i": "scene",
+    "world war ii": "scene",
+    "worm (dance)": "pose",
+    "worried": "face",
+    "wotagei": "pose",
+    "woven hatching": "scene",
+    "wreath": "scene",
+    "wrestling": "pose",
+    "wrestling mask": "clothes",
+    "wrestling ring": "scene",
+    "wringing": "pose",
+    "wringing clothes": "sexual",
+    "wrist cuffs": "clothes",
+    "wrist cutting": "pose",
+    "wrist flower": "clothes",
+    "wrist ruff": "clothes",
+    "wrist scrunchie": "clothes",
+    "wrist wings": "body",
+    "wristband": "clothes",
+    "wrists bound apart": "sexual",
+    "wristwatch": "clothes",
+    "writing": "pose",
+    "wrong foot": "body",
+    "wyoming": "scene",
+    "x anus": "body",
+    "x arms": "limbs",
+    "x fingers": "limbs",
+    "x hair ornament": "clothes",
+    "x mouth": "face",
+    "x x": "face",
+    "x-cross (bdsm)": "sexual",
+    "x-ray": "sexual",
+    "x-ray glasses": "clothes",
+    "x-shaped pupils": "face",
+    "x<": "face",
+    "x3": "face",
+    "xd": "face",
+    "xi zhi lang": "scene",
+    "xiangyun": "clothes",
+    "xiangyun print": "clothes",
+    "xiezhi guan": "clothes",
+    "xinzhongshi": "clothes",
+    "y2k fashion": "clothes",
+    "yabi fashion": "clothes",
+    "yagasuri": "clothes",
+    "yakiniku": "scene",
+    "yakisoba": "scene",
+    "yakisobapan": "scene",
+    "yakitori": "scene",
+    "yakult": "scene",
+    "yamagata prefecture": "scene",
+    "yamaguchi prefecture": "scene",
+    "yamanashi prefecture": "scene",
+    "yami kawaii": "clothes",
+    "yaoi": "sexual",
+    "yaopei": "clothes",
+    "yasukuni shrine": "scene",
+    "yatai": "scene",
+    "yawning": "pose",
+    "yebisu": "scene",
+    "yellow apple": "scene",
+    "yellow ascot": "clothes",
+    "yellow background": "scene",
+    "yellow bowtie": "clothes",
+    "yellow choker": "clothes",
+    "yellow eyes": "face",
+    "yellow eyeshadow": "clothes",
+    "yellow gloves": "clothes",
+    "yellow hat": "clothes",
+    "yellow lips": "clothes",
+    "yellow mask": "clothes",
+    "yellow neckerchief": "clothes",
+    "yellow necktie": "clothes",
+    "yellow one-piece swimsuit": "clothes",
+    "yellow pepper": "scene",
+    "yellow pupils": "face",
+    "yellow raincoat": "clothes",
+    "yellow scarf": "clothes",
+    "yellow sclera": "face",
+    "yellow skin": "body",
+    "yellow sleeves": "clothes",
+    "yellow theme": "effects",
+    "yellow wings": "body",
+    "yellow-framed eyewear": "clothes",
+    "yellow-tinted eyewear": "clothes",
+    "yi clothes": "clothes",
+    "yoga": "pose",
+    "yoga pants": "clothes",
+    "yogurt": "scene",
+    "yoke (bdsm)": "sexual",
+    "yokhoe (food)": "scene",
+    "yokohama": "scene",
+    "yokohama b-corsairs": "pose",
+    "yokohama dena baystars": "pose",
+    "yokohama f. marinos": "pose",
+    "yokohama landmark tower": "scene",
+    "yokosuka": "scene",
+    "yokozuwari": "pose",
+    "yomiuri giants": "pose",
+    "yonic symbol": "sexual",
+    "yosakoi": "pose",
+    "yoshinoya (restaurant)": "scene",
+    "youkai mountain": "scene",
+    "youkan (food)": "scene",
+    "yuanbao": "body",
+    "yuanbao ji (hairstyle)": "body",
+    "yugake": "clothes",
+    "yugoslavia": "scene",
+    "yuiwata": "body",
+    "yukata": "clothes",
+    "yukata lift": "sexual",
+    "yukiwa (pattern)": "clothes",
+    "yule log (cake)": "scene",
+    "yume kawaii": "clothes",
+    "yunomi": "scene",
+    "yuri": "sexual",
+    "yurie mouth": "face",
+    "yuubari king melon": "scene",
+    "yuzu (fruit)": "scene",
+    "z-move trainer pose": "pose",
+    "zebra mask": "clothes",
+    "zebra print": "clothes",
+    "zenra": "sexual",
+    "zettai ryouiki": "sexual",
+    "zha cai (food)": "scene",
+    "zhouzi jin (headwear)": "clothes",
+    "zhuang clothes": "clothes",
+    "zhuang hat": "clothes",
+    "zimbabwe": "scene",
+    "zinnia": "scene",
+    "zipper": "clothes",
+    "zipper legwear": "clothes",
+    "zipper pull tab": "clothes",
+    "zipping": "pose",
+    "zippo lighter": "scene",
+    "zombie pose": "pose",
+    "zombification": "effects",
+    "zongzi": "scene",
+    "zoo": "scene",
+    "zoom layer": "character",
+    "zouni soup": "scene",
+    "zouri": "clothes",
+    "zui zui dance": "pose",
+    "zweigen kanazawa": "pose"
+  };
+  var TAG_CATEGORY_RULES = [
+    { id: "sexual", keywords: ["ahegao", "anal", "anus", "aroused", "ass", "asshole", "bdsm", "bestiality", "blowjob", "blowjobs", "bondage", "boobs", "bottomless", "breast", "breasts", "bukkake", "buttplug", "cleavage", "clit", "clitoris", "cock", "cowgirl", "creampie", "cum", "cumming", "cumshot", "cunnilingus", "deepthroat", "dick", "dildo", "dildos", "doggystyle", "dominatrix", "downblouse", "ejaculating", "ejaculation", "enema", "erection", "exhibitionism", "exposed", "facial", "fellatio", "femdom", "fetish", "fingering", "fisting", "footjob", "foursome", "frottage", "futa", "futanari", "gangbang", "genitalia", "grope", "groping", "handjob", "hentai", "incest", "inserted", "insertion", "kink", "kinky", "lewd", "lingerie", "masochism", "masturbating", "masturbation", "missionary", "molestation", "naked", "necrophilia", "nipple", "nipples", "nude", "nudity", "onahole", "orgasm", "orgy", "paizuri", "pantyshot", "peeing", "pegging", "penetrate", "penetrated", "penetration", "penis", "phallic", "porn", "pornographic", "pussy", "rape", "raped", "sadism", "scat", "scissoring", "scrotum", "semen", "sex", "sexual", "sexy", "sideboob", "spanking", "spitroast", "tentacle", "tentacles", "testicle", "testicles", "threesome", "tits", "topless", "tribadism", "underboob", "undressed", "undressing", "upskirt", "urination", "vagina", "vaginal", "vibrator", "vibrators", "vore", "voyeurism", "vulva", "whipping", "yaoi", "yuri", "zoophilia"] },
+    { id: "limbs", keywords: ["arm", "armband", "armpit", "armpits", "arms", "arms behind back", "beckoning", "bracelet", "clapping", "clasp", "clasped", "clench", "clenched", "elbow", "elbows", "facepalm", "finger", "finger heart", "fingering", "fingerless", "fingernail", "fingernails", "fingers", "fingertip", "fingertips", "fist", "fist bump", "fist pump", "fists", "forearm", "forearms", "gesture", "gestures", "grab", "grabbing", "groping", "hand", "handcuffed", "handcuffs", "handheld", "handjob", "hands", "hands on hips", "hands up", "heart hands", "held", "high five", "hold", "holding", "holding hands", "knuckle", "knuckles", "manicure", "nail polish", "outstretched", "palm", "palms", "peace sign", "pinch", "pinching", "pinky", "point", "pointing", "raised fist", "reach", "reaching", "salute", "shoulder", "shoulders", "shrugging", "shushing", "thumb", "thumbs", "wave", "waving", "wrist", "wristband", "wrists"] },
+    { id: "pose", keywords: ["standing", "stand", "sitting", "sit", "seated", "kneeling", "kneel", "crouching", "crouch", "squatting", "squat", "lying", "lying down", "reclining", "reclined", "prone", "supine", "straddling", "straddle", "leaning", "bent over", "bending", "bowing", "arching", "arched", "slouching", "hunched", "stretching", "flexing", "tiptoes", "tiptoe", "yoga", "handstand", "headstand", "cartwheel", "somersault", "backflip", "backbend", "splits", "split", "prostration", "prostrating", "seiza", "wariza", "yokozuwari", "pose", "posing", "posture", "running", "run", "jogging", "walking", "walk", "marching", "striding", "jumping", "jump", "hopping", "hop", "leaping", "bouncing", "crawling", "crawl", "climbing", "climb", "swinging", "sliding", "rolling", "spinning", "twirling", "dancing", "dance", "skipping", "skip", "swimming", "swim", "floating", "flying", "falling", "diving", "tumbling", "flipping", "balancing", "balance", "hanging", "hang", "carrying", "carry", "piggyback", "kicking", "punching", "pushing", "pulling", "curtsy", "genuflect", "lunging", "sprawling", "sprawl", "pirouette"] },
+    { id: "clothes", keywords: ["dress", "gown", "shirt", "blouse", "sweater", "sweatshirt", "hoodie", "jacket", "coat", "overcoat", "raincoat", "trench", "vest", "waistcoat", "cardigan", "tunic", "poncho", "cape", "cloak", "robe", "bathrobe", "apron", "overalls", "jumpsuit", "bodysuit", "leotard", "catsuit", "corset", "bustier", "camisole", "chemise", "babydoll", "lingerie", "bra", "panties", "underwear", "boxers", "briefs", "jockstrap", "thong", "garters", "stockings", "socks", "leggings", "tights", "pantyhose", "thighhighs", "kneehighs", "skirt", "miniskirt", "shorts", "pants", "trousers", "jeans", "kilt", "sarong", "tutu", "petticoat", "bloomers", "footwear", "shoes", "boots", "sandals", "slippers", "sneakers", "heels", "loafers", "moccasins", "hat", "hats", "cap", "beanie", "beret", "fedora", "helmet", "crown", "tiara", "headband", "headdress", "headscarf", "turban", "hijab", "veil", "scarf", "necktie", "bowtie", "ascot", "choker", "collar", "necklace", "pendant", "locket", "earrings", "bracelet", "bangle", "brooch", "cufflinks", "ring", "gloves", "mittens", "gauntlets", "wristband", "belt", "suspenders", "harness", "buckle", "buttons", "zipper", "ribbon", "bow", "lace", "frills", "sequins", "jewelry", "eyewear", "glasses", "goggles", "sunglasses", "monocle", "mask", "makeup", "lipstick", "eyeliner", "eyeshadow", "mascara", "blush", "cosmetics", "swimsuit", "swimwear", "bikini", "monokini", "tankini", "wetsuit", "uniform", "costume", "tuxedo", "suit", "kimono", "yukata", "hakama", "hanbok", "qipao", "sari", "clothes"] },
+    { id: "face", keywords: ["beard", "blush", "cheek", "cheeks", "chin", "complexion", "crying", "dimple", "dimples", "drool", "ear", "earlobe", "ears", "expression", "eye", "eyebrow", "eyebrows", "eyelash", "eyelashes", "eyelid", "eyelids", "eyes", "face", "faces", "facial", "fang", "fangs", "forehead", "freckle", "freckles", "frown", "glare", "glaring", "goatee", "grin", "gums", "iris", "irises", "jaw", "jaws", "lick", "licking", "lip", "lips", "moustache", "mouth", "mouths", "mustache", "muzzle", "nose", "noses", "nostril", "nostrils", "pout", "pupil", "pupils", "saliva", "scowl", "scream", "screaming", "sideburns", "smile", "smiles", "smirk", "snout", "squint", "tears", "teeth", "tongue", "tooth", "tusk", "tusks", "whisker", "whiskers", "wince", "wink", "winking"] },
+    { id: "body", keywords: ["abdomen", "abs", "ahoge", "albino", "anal", "ankle", "anus", "areola", "arm", "armpit", "arms", "ass", "back", "bald", "balding", "bangs", "belly", "braid", "braids", "breast", "breasts", "buttocks", "cheek", "chest", "chin", "cleavage", "clitoris", "collarbone", "crotch", "ear", "ears", "elbow", "eye", "eyebrow", "eyebrows", "eyelash", "eyelashes", "eyelid", "eyes", "face", "facial", "fang", "feather", "feet", "finger", "fingernail", "fingers", "forehead", "freckles", "fur", "groin", "hair", "hairstyle", "hand", "hands", "heel", "hip", "hips", "horn", "horns", "iris", "jaw", "knee", "labia", "leg", "legs", "lip", "lips", "mole", "mouth", "muscle", "nape", "navel", "neck", "nipple", "nose", "nostril", "palm", "pectoral", "penis", "perineum", "ponytail", "pubic", "pupil", "pussy", "scar", "sclera", "scrotum", "shin", "shoulder", "shoulders", "sideboob", "skin", "spine", "stomach", "tail", "tails", "tan", "tattoo", "teeth", "tentacle", "testicle", "thigh", "thighs", "throat", "thumb", "toe", "toenail", "toes", "tongue", "tooth", "torso", "underboob", "vagina", "waist", "wing", "wings", "wrist"] },
+    { id: "character", keywords: ["1girl", "1boy", "1other", "2girls", "2boys", "2others", "3girls", "3boys", "3others", "4girls", "4boys", "4others", "5girls", "5boys", "5others", "6girls", "6boys", "6others", "multiple girls", "multiple boys", "multiple others", "solo focus", "solo", "male focus", "female focus", "other focus", "character counter", "gender request", "no humans", "dual persona", "multiple persona", "multiple views", "out of frame", "disembodied hand", "crossover", "look-alike", "too many cats", "multiple dogs", "dakimakura", "zoom layer", "character focus"] },
+    { id: "scene", keywords: ["background", "backgrounds", "backdrop", "scenery", "landscape", "cityscape", "horizon", "skyline", "perspective", "composition", "silhouette", "reflection", "shadow", "bokeh", "panorama", "foreground", "city", "town", "village", "countryside", "rural", "urban", "suburb", "street", "road", "highway", "alley", "sidewalk", "path", "trail", "bridge", "tunnel", "railway", "railroad", "harbor", "dock", "pier", "port", "seaside", "beach", "shore", "coast", "bay", "ocean", "sea", "underwater", "river", "lake", "pond", "stream", "waterfall", "swamp", "forest", "jungle", "rainforest", "grassland", "meadow", "field", "farmland", "farm", "garden", "greenhouse", "park", "mountain", "peak", "hill", "cliff", "canyon", "valley", "desert", "glacier", "volcano", "cave", "island", "sky", "sunrise", "sunset", "sunlight", "daylight", "moonlight", "twilight", "dusk", "dawn", "night", "midnight", "morning", "evening", "starry", "galaxy", "nebula", "aurora", "rainbow", "cloud", "cloudy", "weather", "storm", "thunderstorm", "lightning", "rain", "snowy", "snowfall", "blizzard", "fog", "mist", "haze", "wind", "breeze", "eclipse", "meteor", "planet", "moon", "space", "interior", "indoors", "outdoor", "outdoors", "room", "bedroom", "kitchen", "bathroom", "classroom", "hallway", "rooftop", "balcony", "courtyard", "building", "architecture", "house", "cabin", "castle", "palace", "temple", "shrine", "church", "cathedral", "mosque", "pagoda", "tower", "skyscraper", "ruins", "factory", "dam", "cemetery", "window", "gate", "festival", "holiday", "celebration", "fireworks"] },
+    { id: "effects", keywords: ["light", "lighting", "backlight", "backlighting", "sidelighting", "underlighting", "overlighting", "spotlight", "lamplight", "candlelight", "moonlight", "sunlight", "starlight", "firelight", "headlight", "floodlight", "glow", "glowing", "glowstick", "luminous", "illumination", "illuminated", "radiance", "radiant", "shimmer", "sparkle", "glint", "gleam", "flare", "bloom", "chiaroscuro", "caustics", "refraction", "reflection", "rays", "sunbeam", "moonbeam", "aurora", "twilight", "dusk", "dawn", "sunset", "sunrise", "night", "dark", "darkness", "shadow", "shadows", "shade", "silhouette", "overexposure", "underexposure", "exposure", "neon", "lantern", "color", "colored", "colorful", "monochrome", "greyscale", "sepia", "pastel", "palette", "hue", "saturation", "saturated", "desaturated", "gradient", "iridescent", "chromatic", "anaglyph", "tint", "vignette", "vignetting", "duotone", "muted", "vibrant", "vivid", "filter", "filters", "filtered", "blur", "bokeh", "focus", "defocus", "lens", "distortion", "aberration", "halftone", "dither", "glitch", "pixelated", "posterize", "grain", "scanline", "vhs", "crt", "watercolor", "lineart", "surreal", "stylized", "aesthetic", "retro", "vaporwave", "synthwave", "cyberpunk", "steampunk", "low poly", "cel shading", "pixel art"] }
+  ];
+
+  // src/renderer/tag-categories.ts
+  var TAG_CATEGORY_LABELS = {
+    character: "Character",
+    body: "Body",
+    face: "Face",
+    clothes: "Clothes",
+    limbs: "Limbs and Hands",
+    sexual: "Sexual",
+    pose: "Pose",
+    scene: "Scene",
+    effects: "Effects",
+    other: "Other"
+  };
+  function normalize(tag) {
+    return String(tag).toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  }
+  function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  var RULE_MATCHERS = TAG_CATEGORY_RULES.map((rule) => ({
+    id: rule.id,
+    res: rule.keywords.map((k) => new RegExp(`(?:^|[^a-z0-9])${escapeRegex(k)}(?:$|[^a-z0-9])`))
+  }));
+  function categorizeTag(tag) {
+    const t = normalize(tag);
+    if (!t) return "other";
+    const seeded = TAG_CATEGORY_SEEDS[t];
+    if (seeded) return seeded;
+    for (const rule of RULE_MATCHERS) {
+      if (rule.res.some((re) => re.test(t))) return rule.id;
+    }
+    return "other";
+  }
+  function groupTagsByCategory(tags) {
+    const buckets = /* @__PURE__ */ new Map();
+    for (const tag of tags) {
+      const id = categorizeTag(tag);
+      const list = buckets.get(id);
+      if (list) list.push(tag);
+      else buckets.set(id, [tag]);
+    }
+    const groups2 = [];
+    for (const id of TAG_CATEGORY_ORDER) {
+      const list = buckets.get(id);
+      if (list && list.length) groups2.push({ id, label: TAG_CATEGORY_LABELS[id], tags: list });
+    }
+    return groups2;
   }
 
   // src/renderer/view.ts
   var viewMode2 = "grid";
   var stickyCompareImages = [];
+  var TAG_SORTING_KEY = "dts-tag-sorting";
+  var tagSortingActive = getBool(TAG_SORTING_KEY);
+  var subjectSelectedTags = /* @__PURE__ */ new Set();
+  var subjectSelectionBase = null;
   var singleIndex = 0;
   var ctxMenuEl = null;
   var commonLanguages = ["English"];
   var autoSelectNewLanguage = true;
-  var getEntries6 = () => [];
+  var getEntries7 = () => [];
   var getEntryByBase4 = () => void 0;
   var getDirHandleRef = () => null;
   var addEntryFromNewFileRef = async () => null;
   var getMasterTagModeActive = () => false;
   var getCardTagSortMode = () => "default";
-  var getGalleryFilter2 = () => ({ base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, exactMatch: false });
+  var getGalleryFilter2 = () => ({ base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, originalsView: false, exactMatch: false });
   var getIsolatedFlagActive = () => false;
   var getShowTagCountBadges = () => false;
   var getEntryMeta2 = () => ({});
@@ -9494,13 +19789,13 @@ Image: ${entry.imgName}`,
       filterMatchCount.style.display = "none";
     }
   }
-  var VIEW_TRANSITION_ORDER = ["grid", "compact", "single", "disabled"];
+  var VIEW_TRANSITION_ORDER = ["grid", "compact", "single", "disabled", "originals"];
   function viewContainerFor(mode) {
     if (mode === "compact") return compactGrid;
     if (mode === "single") return singleViewEl;
     return galleryGrid;
   }
-  function switchView(mode) {
+  function switchView(mode, opts) {
     if (mode !== "single" && seqActive) {
       seqActive = false;
       seqQueue = [];
@@ -9513,8 +19808,10 @@ Image: ${entry.imgName}`,
       viewCompactBtn.classList.toggle("active", mode === "compact");
       viewSingleBtn.classList.toggle("active", mode === "single");
       viewDisabledBtn.classList.toggle("active", mode === "disabled");
+      viewOriginalsBtn.classList.toggle("active", mode === "originals");
       getGalleryFilter2().disabledView = mode === "disabled";
-      galleryGrid.style.display = mode === "grid" || mode === "disabled" ? "" : "none";
+      getGalleryFilter2().originalsView = mode === "originals";
+      galleryGrid.style.display = mode === "grid" || mode === "disabled" || mode === "originals" ? "" : "none";
       compactGrid.style.display = mode === "compact" ? "grid" : "none";
       compactCompareArea.style.display = mode === "compact" && stickyCompareImages.length > 0 ? "block" : "none";
       singleViewEl.style.display = mode === "single" ? "block" : "none";
@@ -9526,12 +19823,13 @@ Image: ${entry.imgName}`,
     const html = document.documentElement;
     const oldEl = viewContainerFor(prevMode);
     const newEl = viewContainerFor(mode);
-    if (html.classList.contains("motion-off") || prevMode === mode || oldEl === newEl) {
+    if (html.classList.contains("motion-off") || prevMode === mode || oldEl === newEl || opts && opts.instant) {
       applyState();
       return;
     }
     const swipe = html.classList.contains("motion-swipe");
     const movingForward = VIEW_TRANSITION_ORDER.indexOf(mode) > VIEW_TRANSITION_ORDER.indexOf(prevMode);
+    if (mapPan(movingForward ? 1 : -1, "view", oldEl, () => viewContainerFor(mode), applyState)) return;
     const outClass = swipe ? movingForward ? "view-swipe-out-left" : "view-swipe-out-right" : "view-fade-out";
     const inClass = swipe ? movingForward ? "view-swipe-in-right" : "view-swipe-in-left" : "view-fade-out";
     oldEl.classList.add(outClass);
@@ -9541,7 +19839,7 @@ Image: ${entry.imgName}`,
       const shownEl = viewContainerFor(mode);
       shownEl.classList.add(inClass);
       requestAnimationFrame(() => requestAnimationFrame(() => shownEl.classList.remove(inClass)));
-    }, 100);
+    }, transitionMsOf(oldEl));
   }
   var galleryChunkObserver = null;
   var compactChunkObserver = null;
@@ -9754,7 +20052,7 @@ Image: ${entry.imgName}`,
       const img = document.createElement("img");
       img.src = e.objectUrl;
       const rm = document.createElement("button");
-      rm.textContent = "\u2715";
+      setIconLabel(rm, "\u2715");
       rm.title = "Remove from comparison";
       rm.addEventListener("click", () => toggleStickyCompare(e.base));
       cell.appendChild(img);
@@ -9843,7 +20141,7 @@ Image: ${entry.imgName}`,
     if (e.meta && e.meta.locked) {
       const lockBadge = document.createElement("div");
       lockBadge.className = "lock-badge";
-      lockBadge.textContent = "\u{1F512}";
+      setIconLabel(lockBadge, "\u{1F512}");
       lockBadge.title = "Locked \u2014 mass tools (Quick Merge, Master Tags, bulk WD14, etc.) skip this image";
       thumbwrap.appendChild(lockBadge);
     }
@@ -9858,7 +20156,7 @@ Image: ${entry.imgName}`,
     if (e.meta && e.meta.note) {
       const noteBadge = document.createElement("div");
       noteBadge.className = "note-badge";
-      noteBadge.textContent = "\u{1F4DD}";
+      setIconLabel(noteBadge, "\u{1F4DD}");
       noteBadge.title = "Click to edit note";
       noteBadge.addEventListener("click", (ev) => {
         ev.stopPropagation();
@@ -9952,9 +20250,6 @@ Image: ${entry.imgName}`,
     card.appendChild(tagbox);
     return card;
   }
-  var singleZoom = 100;
-  var singlePanX = 0;
-  var singlePanY = 0;
   var lastSingleBase = null;
   function renderMultiCompareView() {
     singleViewEl.innerHTML = "";
@@ -10077,7 +20372,7 @@ Image: ${entry.imgName}`,
     header.className = "ctx-header";
     header.textContent = entry.imgName || entry.base;
     menu.appendChild(header);
-    addCtxItem(menu, `Remove "${tag}" from this image`, () => {
+    addContextMenuItem(menu, `Remove "${tag}" from this image`, () => {
       removeTagFromEntry(entry, tag);
       closeTagContextMenu();
       renderMultiCompareView();
@@ -10285,7 +20580,18 @@ Image: ${entry.imgName}`,
       }
       return wrap;
     }
-    panel.appendChild(sectionLabel("Text"));
+    const sections = document.createElement("div");
+    sections.className = "seq-sections";
+    panel.appendChild(sections);
+    function newSection(title) {
+      const el = document.createElement("div");
+      el.className = "seq-section";
+      el.appendChild(sectionLabel(title));
+      sections.appendChild(el);
+      return el;
+    }
+    let sec;
+    sec = newSection("Text");
     function togglePair(a, b) {
       const row = document.createElement("div");
       row.style.cssText = "display:flex; gap:6px; margin:4px 0;";
@@ -10306,7 +20612,7 @@ Image: ${entry.imgName}`,
     const soundRow = toggleRow("Sound effects", d.soundEffects, (v) => {
       d.soundEffects = v;
     });
-    panel.appendChild(togglePair(hasTextRow, soundRow));
+    sec.appendChild(togglePair(hasTextRow, soundRow));
     const textSub = document.createElement("div");
     textSub.className = "seq-text-sub";
     textSub.style.display = d.hasText ? "" : "none";
@@ -10358,10 +20664,10 @@ Image: ${entry.imgName}`,
     addLangRow.appendChild(addLangInput);
     addLangRow.appendChild(addLangBtn);
     textSub.appendChild(addLangRow);
-    panel.appendChild(textSub);
-    panel.appendChild(sectionLabel("Censorship"));
+    sec.appendChild(textSub);
+    sec = newSection("Censorship");
     const censorWrap = document.createElement("div");
-    panel.appendChild(censorWrap);
+    sec.appendChild(censorWrap);
     const typeBox = checkGrid(2);
     for (const o of CENSOR_TYPE_OPTIONS) {
       typeBox.appendChild(toggleRow(o.label, d.censorTypes.has(o.tag), (v) => {
@@ -10385,8 +20691,8 @@ Image: ${entry.imgName}`,
       }));
     }
     renderCensor();
-    panel.appendChild(typeBox);
-    panel.appendChild(sectionLabel("Perspective"));
+    sec.appendChild(typeBox);
+    sec = newSection("Perspective");
     const perspBox = checkGrid();
     for (const p of perspectiveOptionTags()) {
       const label = p === "close-up" ? "Close-up" : cap(p.replace(/^from /, ""));
@@ -10395,19 +20701,19 @@ Image: ${entry.imgName}`,
         else d.perspectives.delete(p);
       }));
     }
-    panel.appendChild(perspBox);
-    panel.appendChild(sectionLabel("Indicator"));
+    sec.appendChild(perspBox);
+    sec = newSection("Indicator");
     const monoRowOuter = toggleRow("Monochrome", d.monochrome, (v) => {
       d.monochrome = v;
     });
     const comicRow = toggleRow("Comic", d.isComic, (v) => {
       d.isComic = v;
     });
-    panel.appendChild(togglePair(monoRowOuter, comicRow));
-    panel.appendChild(toggleRow("Multiple views", d.multipleViews, (v) => {
+    sec.appendChild(togglePair(monoRowOuter, comicRow));
+    sec.appendChild(toggleRow("Multiple views", d.multipleViews, (v) => {
       d.multipleViews = v;
     }));
-    panel.appendChild(radioRow("seq-koma", [
+    sec.appendChild(radioRow("seq-koma", [
       { value: "", label: "Not koma" },
       ...KOMA_OPTIONS.map((k) => ({ value: k, label: k }))
     ], d.koma, (v) => {
@@ -10432,22 +20738,21 @@ Image: ${entry.imgName}`,
     panel.appendChild(confirmBtn);
     emitPreview();
   }
-  var singleImgEl = null;
-  function applySingleTransform() {
-    if (singleImgEl) singleImgEl.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom / 100})`;
+  function recordZoom(pct) {
+    if (pct > (folderStats.zoom_max || 0)) {
+      folderStats.zoom_max = pct;
+      saveFolderStats();
+      checkAchievements();
+    }
   }
-  function buildSingleImgSide(e, hooks, opts) {
-    const imgSide = document.createElement("div");
-    imgSide.className = "single-img-side";
-    imgSide.style.position = "relative";
-    imgSide.style.overflow = "hidden";
+  function buildSinglePreview(e) {
+    const box = document.createElement("div");
+    box.className = "single-preview";
+    box.title = "Click to view full size";
     const img = document.createElement("img");
     img.src = e.objectUrl;
     img.draggable = false;
-    img.style.transformOrigin = "center center";
-    img.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom / 100})`;
-    img.style.cursor = "grab";
-    imgSide.appendChild(img);
+    box.appendChild(img);
     const menuBtn = document.createElement("button");
     menuBtn.className = "img-menu-btn";
     menuBtn.style.left = "10px";
@@ -10459,91 +20764,67 @@ Image: ${entry.imgName}`,
       ev.stopPropagation();
       openImageOptionsMenu(e, ev.clientX, ev.clientY);
     });
-    imgSide.appendChild(menuBtn);
+    box.appendChild(menuBtn);
     const statusIconsEl = buildStatusIconsEl(e);
     statusIconsEl.style.left = "10px";
     statusIconsEl.style.top = "38px";
-    imgSide.appendChild(statusIconsEl);
-    const mvBadgesSingle = buildMergeVoidBadgesEl(e);
-    if (mvBadgesSingle) {
-      mvBadgesSingle.style.position = "absolute";
-      mvBadgesSingle.style.left = "10px";
-      mvBadgesSingle.style.bottom = "10px";
-      imgSide.appendChild(mvBadgesSingle);
+    box.appendChild(statusIconsEl);
+    const mvBadges = buildMergeVoidBadgesEl(e);
+    if (mvBadges) {
+      mvBadges.style.position = "absolute";
+      mvBadges.style.left = "10px";
+      mvBadges.style.bottom = "10px";
+      box.appendChild(mvBadges);
     }
-    function applyTransform() {
-      img.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom / 100})`;
-      if (opts && opts.clampPan) {
-        const r = img.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) {
-          const c = imgSide.getBoundingClientRect();
-          let dx = 0, dy = 0;
-          if (r.width <= c.width) dx = c.left + c.width / 2 - (r.left + r.width / 2);
-          else if (r.left > c.left) dx = c.left - r.left;
-          else if (r.right < c.right) dx = c.right - r.right;
-          if (r.height <= c.height) dy = c.top + c.height / 2 - (r.top + r.height / 2);
-          else if (r.top > c.top) dy = c.top - r.top;
-          else if (r.bottom < c.bottom) dy = c.bottom - r.bottom;
-          if (dx || dy) {
-            singlePanX += dx;
-            singlePanY += dy;
-            img.style.transform = `translate(${singlePanX}px, ${singlePanY}px) scale(${singleZoom / 100})`;
-          }
-        }
+    const hint = document.createElement("div");
+    hint.className = "single-preview-hint";
+    hint.textContent = "Click to view full size";
+    box.appendChild(hint);
+    box.addEventListener("click", () => showImageLightbox(e.objectUrl, recordZoom));
+    return box;
+  }
+  function renderSinglePos(total) {
+    singlePos.innerHTML = "";
+    if (!total) {
+      singlePos.textContent = "0 / 0";
+      return;
+    }
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.className = "single-pos-input";
+    inp.value = String(singleIndex + 1);
+    inp.title = "Type an image number and press Enter to jump";
+    inp.setAttribute("inputmode", "numeric");
+    inp.setAttribute("aria-label", "Image number");
+    const commit = () => {
+      const n = parseInt(inp.value, 10);
+      if (!isFinite(n)) {
+        inp.value = String(singleIndex + 1);
+        return;
       }
-    }
-    if (opts && opts.clampPan) img.addEventListener("load", () => applyTransform());
-    function zoomBy(delta, clientX, clientY) {
-      const prevZoom = singleZoom;
-      singleZoom = Math.min(400, Math.max(100, singleZoom + delta));
-      if (singleZoom === prevZoom) return;
-      if (hooks) hooks.setZoomUI(singleZoom);
-      applyTransform();
-      if (singleZoom > (folderStats.zoom_max || 0)) {
-        folderStats.zoom_max = singleZoom;
-        saveFolderStats();
-        checkAchievements();
-      }
-    }
-    let isPanning = false, panStartX = 0, panStartY = 0, panOrigX = 0, panOrigY = 0;
-    imgSide.addEventListener("contextmenu", (ev) => ev.preventDefault());
-    imgSide.addEventListener("pointerdown", (ev) => {
-      if (ev.button === 0 || ev.button === 2) {
-        isPanning = true;
-        panStartX = ev.clientX;
-        panStartY = ev.clientY;
-        panOrigX = singlePanX;
-        panOrigY = singlePanY;
-        imgSide.setPointerCapture(ev.pointerId);
-        img.style.cursor = "grabbing";
+      const target = Math.min(total, Math.max(1, n)) - 1;
+      if (target !== singleIndex) {
+        singleIndex = target;
+        renderSingleView();
+      } else inp.value = String(singleIndex + 1);
+    };
+    inp.addEventListener("keydown", (ev) => {
+      ev.stopPropagation();
+      if (ev.key === "Enter") {
         ev.preventDefault();
+        commit();
+        inp.blur();
+      } else if (ev.key === "Escape") {
+        inp.value = String(singleIndex + 1);
+        inp.blur();
       }
     });
-    imgSide.addEventListener("pointermove", (ev) => {
-      if (isPanning) {
-        singlePanX = panOrigX + (ev.clientX - panStartX);
-        singlePanY = panOrigY + (ev.clientY - panStartY);
-        applyTransform();
-      }
-    });
-    imgSide.addEventListener("pointerup", (ev) => {
-      if (isPanning) {
-        isPanning = false;
-        img.style.cursor = "grab";
-        try {
-          imgSide.releasePointerCapture(ev.pointerId);
-        } catch (err) {
-        }
-      }
-    });
-    imgSide.addEventListener("wheel", (ev) => {
-      ev.preventDefault();
-      const delta = ev.deltaY < 0 ? 20 : -20;
-      zoomBy(delta, ev.clientX, ev.clientY);
-    }, { passive: false });
-    attachPinchZoom(imgSide, (delta) => zoomBy(delta));
-    singleImgEl = img;
-    return imgSide;
+    inp.addEventListener("blur", commit);
+    const tot = document.createElement("span");
+    tot.className = "single-pos-total";
+    tot.textContent = "/ " + total;
+    singlePos.appendChild(inp);
+    singlePos.appendChild(tot);
   }
   function renderSingleView() {
     if (masterSelectedImages.size > 1 && !seqActive) {
@@ -10560,11 +20841,12 @@ Image: ${entry.imgName}`,
         const entry = seqEntry;
         const wrap2 = document.createElement("div");
         wrap2.className = "single-wrap";
-        const seqSide = buildSingleImgSide(entry, void 0, { clampPan: true });
-        seqSide.style.minHeight = "0";
+        const seqPreview = buildSinglePreview(entry);
+        seqPreview.style.flex = "none";
+        seqPreview.style.maxWidth = "100%";
         const imgCol = document.createElement("div");
-        imgCol.style.cssText = "flex:1; min-width:0; display:flex; flex-direction:column; gap:8px;";
-        imgCol.appendChild(seqSide);
+        imgCol.style.cssText = "flex:0 0 38%; max-width:38%; min-width:0; display:flex; flex-direction:column; gap:8px;";
+        imgCol.appendChild(seqPreview);
         const nameEl2 = document.createElement("div");
         nameEl2.className = "single-name";
         nameEl2.style.cssText = "padding:0 2px;";
@@ -10581,18 +20863,6 @@ Image: ${entry.imgName}`,
         previewBox.appendChild(previewChips);
         imgCol.appendChild(previewBox);
         wrap2.appendChild(imgCol);
-        let seqDownX = 0, seqDownY = 0;
-        const seqImg = seqSide.querySelector("img");
-        if (seqImg) {
-          seqImg.addEventListener("pointerdown", (ev) => {
-            seqDownX = ev.clientX;
-            seqDownY = ev.clientY;
-          });
-          seqImg.addEventListener("click", (ev) => {
-            if (Math.hypot(ev.clientX - seqDownX, ev.clientY - seqDownY) > 6) return;
-            showImageLightbox(entry.objectUrl);
-          });
-        }
         const panel2 = document.createElement("div");
         panel2.className = "single-panel seq-panel";
         panel2.style.position = "relative";
@@ -10649,9 +20919,10 @@ Image: ${entry.imgName}`,
     const list = filteredEntries();
     if (singleIndex >= list.length) singleIndex = list.length - 1;
     if (singleIndex < 0) singleIndex = 0;
-    singlePos.textContent = list.length ? `${singleIndex + 1} / ${list.length}` : "0 / 0";
+    renderSinglePos(list.length);
     singlePrevBtn.disabled = list.length === 0 || singleIndex <= 0;
     singleNextBtn.disabled = list.length === 0 || singleIndex >= list.length - 1;
+    const restoreScroll = list[singleIndex]?.base === lastSingleBase ? capturePanelScroll(singleViewEl) : null;
     singleViewEl.innerHTML = "";
     if (list.length === 0) {
       const empty = document.createElement("div");
@@ -10661,69 +20932,16 @@ Image: ${entry.imgName}`,
       return;
     }
     const e = list[singleIndex];
-    if (e.base !== lastSingleBase) {
-      singleZoom = 100;
-      singlePanX = 0;
-      singlePanY = 0;
-      lastSingleBase = e.base;
-    }
+    lastSingleBase = e.base;
     const wrap = document.createElement("div");
     wrap.className = "single-wrap";
-    wrap.appendChild(buildSingleImgSide(e, { setZoomUI: (z) => {
-      zoomSlider.value = String(z);
-      zoomVal.textContent = z + "%";
-    } }));
+    wrap.appendChild(buildSinglePreview(e));
     const panel = document.createElement("div");
-    panel.className = "single-panel";
+    panel.className = "single-panel single-panel-main";
     const nameEl = document.createElement("div");
     nameEl.className = "single-name";
     nameEl.textContent = e.imgName + (e.width ? ` \xB7 ${e.width}\xD7${e.height}` : "") + ` \xB7 ${e.tags.length} tags`;
     panel.appendChild(nameEl);
-    const zoomRow = document.createElement("div");
-    zoomRow.className = "modal-zoom-row";
-    zoomRow.style.cssText = "display:flex; gap:8px; align-items:center;";
-    const zoomLabel = document.createElement("span");
-    zoomLabel.style.cssText = "font-size:11px; color:var(--text-faint);";
-    zoomLabel.textContent = "Zoom";
-    const zoomSlider = document.createElement("input");
-    zoomSlider.type = "range";
-    zoomSlider.min = "100";
-    zoomSlider.max = "400";
-    zoomSlider.step = "10";
-    zoomSlider.value = String(singleZoom);
-    zoomSlider.style.flex = "1";
-    const zoomVal = document.createElement("span");
-    zoomVal.style.cssText = "font-family:var(--mono); font-size:11px; min-width:42px; text-align:right;";
-    zoomVal.textContent = singleZoom + "%";
-    zoomSlider.addEventListener("input", () => {
-      singleZoom = parseInt(zoomSlider.value, 10);
-      zoomVal.textContent = singleZoom + "%";
-      applySingleTransform();
-      if (singleZoom > (folderStats.zoom_max || 0)) {
-        folderStats.zoom_max = singleZoom;
-        saveFolderStats();
-        checkAchievements();
-      }
-    });
-    const zoomResetBtn = document.createElement("button");
-    zoomResetBtn.textContent = "Reset";
-    zoomResetBtn.addEventListener("click", () => {
-      singleZoom = 100;
-      singlePanX = 0;
-      singlePanY = 0;
-      zoomSlider.value = "100";
-      zoomVal.textContent = "100%";
-      applySingleTransform();
-    });
-    zoomRow.appendChild(zoomLabel);
-    zoomRow.appendChild(zoomSlider);
-    zoomRow.appendChild(zoomVal);
-    zoomRow.appendChild(zoomResetBtn);
-    panel.appendChild(zoomRow);
-    const zoomHint = document.createElement("div");
-    zoomHint.style.cssText = "font-size:10.5px; color:var(--text-faint);";
-    zoomHint.textContent = "Click and drag (either button) to pan. Scroll the mouse wheel over the image to zoom.";
-    panel.appendChild(zoomHint);
     if (e.disabled) {
       const badge = document.createElement("div");
       badge.className = "single-disabled-badge";
@@ -10737,16 +20955,13 @@ Image: ${entry.imgName}`,
       panel.appendChild(noteVis);
     }
     const singleTagIndex = buildTagIndex();
-    const chiprow = document.createElement("div");
-    chiprow.className = "chiprow";
-    for (const tag of orderedTagsForDisplay(e, singleTagIndex)) {
-      chiprow.appendChild(buildChip2(e, tag, () => {
-        renderSingleView();
-        refreshRightPanels();
-        refreshStats();
-      }, singleTagIndex));
-    }
-    panel.appendChild(chiprow);
+    const singleChipOnChange = () => {
+      renderSingleView();
+      refreshRightPanels();
+      refreshStats();
+    };
+    panel.appendChild(buildTagSortBar(e, singleChipOnChange));
+    panel.appendChild(buildChipsBlock(e, singleTagIndex, singleChipOnChange));
     const addInput = document.createElement("input");
     addInput.type = "text";
     addInput.className = "addtag-input";
@@ -10767,19 +20982,34 @@ Image: ${entry.imgName}`,
     panel.appendChild(addInput);
     const btnRow = document.createElement("div");
     btnRow.className = "single-btn-row";
-    const toggleBtn = document.createElement("button");
-    if (e.disabled) {
-      toggleBtn.textContent = "Restore to dataset";
-      toggleBtn.className = "primary";
-    } else {
-      toggleBtn.textContent = "Disable (move to /Disabled)";
-      toggleBtn.className = "danger-ghost";
+    if (!e.original) {
+      const toggleBtn = document.createElement("button");
+      if (e.disabled) {
+        toggleBtn.textContent = "Restore to dataset";
+        toggleBtn.className = "primary";
+      } else {
+        toggleBtn.textContent = "Disable (move to /Disabled)";
+        toggleBtn.className = "danger-ghost";
+      }
+      toggleBtn.addEventListener("click", () => moveEntry(e, !e.disabled));
+      btnRow.appendChild(toggleBtn);
     }
-    toggleBtn.addEventListener("click", () => moveEntry(e, !e.disabled));
-    btnRow.appendChild(toggleBtn);
     panel.appendChild(btnRow);
     wrap.appendChild(panel);
     singleViewEl.appendChild(wrap);
+    if (restoreScroll) restoreScroll();
+  }
+  function capturePanelScroll(host) {
+    const panelTop = host.querySelector(".single-panel")?.scrollTop ?? 0;
+    const ancestors = [];
+    for (let el = host.parentElement; el; el = el.parentElement) {
+      if (el.scrollTop) ancestors.push([el, el.scrollTop]);
+    }
+    return () => {
+      const panel = host.querySelector(".single-panel");
+      if (panel) panel.scrollTop = panelTop;
+      for (const [el, top] of ancestors) el.scrollTop = top;
+    };
   }
   function computeIsolatedTagSet(tagIndex) {
     const set = /* @__PURE__ */ new Set();
@@ -10787,6 +21017,334 @@ Image: ${entry.imgName}`,
       if (imgs.size <= 2) set.add(tag);
     }
     return set;
+  }
+  function buildTagSortBar(entry, onChange) {
+    const bar = document.createElement("div");
+    bar.className = "tagcat-bar";
+    bar.appendChild(buildTagSortToggle(onChange));
+    if (tagSortingActive) bar.appendChild(buildAddSubjectButton(entry, onChange));
+    return bar;
+  }
+  function buildTagSortToggle(onToggle) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tagcat-toggle" + (tagSortingActive ? " active" : "");
+    setIconLabel(btn, tagSortingActive ? "\u{1F3F7} Tag sorting: on" : "\u{1F3F7} Tag sorting");
+    btn.title = tagSortingActive ? "Stop grouping tags by category" : "Group tags by prompt-field category (Character, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects, Other)";
+    btn.addEventListener("click", () => {
+      tagSortingActive = !tagSortingActive;
+      setBool(TAG_SORTING_KEY, tagSortingActive);
+      onToggle();
+    });
+    return btn;
+  }
+  function buildChipsBlock(entry, tagIndex, onChange) {
+    const ordered = orderedTagsForDisplay(entry, tagIndex);
+    if (!tagSortingActive) {
+      const chiprow = document.createElement("div");
+      chiprow.className = "chiprow";
+      for (const tag of ordered) chiprow.appendChild(buildChip2(entry, tag, onChange, tagIndex));
+      return chiprow;
+    }
+    const subjects = entry.meta?.tagSubjects || [];
+    if (subjects.length) return buildSubjectTree(entry, ordered, tagIndex, onChange);
+    const wrap = document.createElement("div");
+    wrap.className = "tagcat-groups";
+    for (const group of groupTagsByCategory(ordered)) {
+      const seg = document.createElement("div");
+      seg.className = "tagcat-seg";
+      const head = document.createElement("div");
+      head.className = "tagcat-head";
+      const name = document.createElement("span");
+      name.className = "tagcat-name";
+      name.textContent = group.label;
+      const count = document.createElement("span");
+      count.className = "tagcat-count";
+      count.textContent = String(group.tags.length);
+      head.appendChild(name);
+      head.appendChild(count);
+      seg.appendChild(head);
+      const chiprow = document.createElement("div");
+      chiprow.className = "chiprow";
+      for (const tag of group.tags) chiprow.appendChild(buildChip2(entry, tag, onChange, tagIndex));
+      seg.appendChild(chiprow);
+      wrap.appendChild(seg);
+    }
+    return wrap;
+  }
+  function ensureEntryMeta(entry) {
+    if (!entry.meta) entry.meta = {};
+    return entry.meta;
+  }
+  function persistEntryMeta(entry) {
+    getEntryMeta2()[entry.base] = ensureEntryMeta(entry);
+    saveEntryMetaRef2();
+  }
+  var subjectIdCounter = 1;
+  function nextSubjectId() {
+    return "subj-" + Date.now().toString(36) + "-" + (subjectIdCounter++).toString(36);
+  }
+  function buildAddSubjectButton(entry, onChange) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tagsub-addsubject";
+    btn.textContent = "\uFF0B Add subject";
+    btn.title = "Split this image's tags into named subjects (e.g. Girl 1, Girl 2)";
+    btn.addEventListener("click", () => {
+      const meta = ensureEntryMeta(entry);
+      const subjects = meta.tagSubjects || (meta.tagSubjects = []);
+      subjects.push({ id: nextSubjectId(), name: `Subject ${subjects.length + 1}`, subheaders: [] });
+      persistEntryMeta(entry);
+      onChange();
+    });
+    return btn;
+  }
+  function assignTagsToSubject(entry, tags, subjectId) {
+    const meta = ensureEntryMeta(entry);
+    const assign = meta.tagAssign || (meta.tagAssign = {});
+    for (const t of tags) assign[t] = subjectId;
+    persistEntryMeta(entry);
+  }
+  function buildSubjectTree(entry, ordered, tagIndex, onChange) {
+    const meta = ensureEntryMeta(entry);
+    const subjects = meta.tagSubjects;
+    const assign = meta.tagAssign || (meta.tagAssign = {});
+    if (subjectSelectionBase !== entry.base) {
+      subjectSelectionBase = entry.base;
+      subjectSelectedTags = /* @__PURE__ */ new Set();
+    }
+    const validIds = new Set(subjects.map((s) => s.id));
+    const defaultId = subjects[0].id;
+    const bySubject = /* @__PURE__ */ new Map();
+    for (const tag of ordered) {
+      const sid = assign[tag] && validIds.has(assign[tag]) ? assign[tag] : defaultId;
+      let cats = bySubject.get(sid);
+      if (!cats) {
+        cats = /* @__PURE__ */ new Map();
+        bySubject.set(sid, cats);
+      }
+      const cat = categorizeTag(tag);
+      const list = cats.get(cat);
+      if (list) list.push(tag);
+      else cats.set(cat, [tag]);
+    }
+    const root = document.createElement("div");
+    root.className = "tagsub-tree";
+    if (subjectSelectedTags.size) root.appendChild(buildMoveToolbar(entry, subjects, onChange));
+    for (const subject of subjects) {
+      root.appendChild(buildSubjectBlock(entry, subject, bySubject.get(subject.id), tagIndex, onChange));
+    }
+    return root;
+  }
+  function buildMoveToolbar(entry, subjects, onChange) {
+    const bar = document.createElement("div");
+    bar.className = "tagsub-movetoolbar";
+    const count = document.createElement("span");
+    count.className = "tagsub-movecount";
+    count.textContent = `${subjectSelectedTags.size} selected`;
+    bar.appendChild(count);
+    const flyout = document.createElement("div");
+    flyout.className = "tagsub-moveflyout";
+    flyout.style.display = "none";
+    for (const s of subjects) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = s.name || "(unnamed)";
+      b.addEventListener("click", () => {
+        const tags = Array.from(subjectSelectedTags);
+        subjectSelectedTags = /* @__PURE__ */ new Set();
+        assignTagsToSubject(entry, tags, s.id);
+        onChange();
+      });
+      flyout.appendChild(b);
+    }
+    const moveBtn = document.createElement("button");
+    moveBtn.type = "button";
+    moveBtn.className = "tagsub-movebtn";
+    setIconLabel(moveBtn, "Move tags to: \u25BE");
+    moveBtn.addEventListener("click", () => {
+      flyout.style.display = flyout.style.display === "none" ? "flex" : "none";
+    });
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "tagsub-moveclear";
+    clearBtn.textContent = "Clear";
+    clearBtn.addEventListener("click", () => {
+      subjectSelectedTags = /* @__PURE__ */ new Set();
+      onChange();
+    });
+    bar.appendChild(moveBtn);
+    bar.appendChild(flyout);
+    bar.appendChild(clearBtn);
+    return bar;
+  }
+  function buildSubjectBlock(entry, subject, cats, tagIndex, onChange) {
+    const block = document.createElement("div");
+    block.className = "tagsub-subject";
+    const dropHere = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      block.classList.remove("drop-hover");
+      const payload = ev.dataTransfer?.getData("text/plain") || "";
+      const tags = payload.split("\n").filter(Boolean);
+      if (!tags.length) return;
+      subjectSelectedTags = /* @__PURE__ */ new Set();
+      assignTagsToSubject(entry, tags, subject.id);
+      onChange();
+    };
+    block.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      block.classList.add("drop-hover");
+    });
+    block.addEventListener("dragleave", () => block.classList.remove("drop-hover"));
+    block.addEventListener("drop", dropHere);
+    const head = document.createElement("div");
+    head.className = "tagsub-subject-head";
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "tagsub-name";
+    nameInput.value = subject.name;
+    nameInput.title = "Name this subject (e.g. Girl 1)";
+    nameInput.setAttribute("aria-label", "Subject name");
+    nameInput.addEventListener("keydown", (ev) => ev.stopPropagation());
+    nameInput.addEventListener("input", () => {
+      subject.name = nameInput.value;
+    });
+    nameInput.addEventListener("change", () => persistEntryMeta(entry));
+    nameInput.addEventListener("blur", () => persistEntryMeta(entry));
+    head.appendChild(nameInput);
+    const actions = document.createElement("div");
+    actions.className = "tagsub-head-actions";
+    const addSub = document.createElement("button");
+    addSub.type = "button";
+    addSub.textContent = "\uFF0B Subheader";
+    addSub.title = "Add a category subheader under this subject";
+    addSub.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      openSubheaderPicker(entry, subject, ev.clientX, ev.clientY, onChange);
+    });
+    actions.appendChild(addSub);
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "tagsub-del";
+    setIconLabel(del, "\u2715");
+    del.title = "Remove this subject (its tags fall back to the first subject)";
+    del.addEventListener("click", () => removeSubject(entry, subject.id, onChange));
+    actions.appendChild(del);
+    head.appendChild(actions);
+    block.appendChild(head);
+    const present = cats || /* @__PURE__ */ new Map();
+    const catIds = /* @__PURE__ */ new Set([...present.keys(), ...subject.subheaders]);
+    const orderedCats = TAG_CATEGORY_ORDER.filter((c) => catIds.has(c));
+    if (!orderedCats.length) {
+      const empty = document.createElement("div");
+      empty.className = "tagsub-empty";
+      empty.textContent = "No tags here yet \u2014 drag chips onto this subject, or add a subheader.";
+      block.appendChild(empty);
+      return block;
+    }
+    for (const cat of orderedCats) {
+      const sub = document.createElement("div");
+      sub.className = "tagsub-sub";
+      sub.addEventListener("dragover", (ev) => {
+        ev.preventDefault();
+      });
+      sub.addEventListener("drop", dropHere);
+      const subHead = document.createElement("div");
+      subHead.className = "tagsub-sub-head";
+      const catName = document.createElement("span");
+      catName.className = "tagsub-cat";
+      catName.textContent = TAG_CATEGORY_LABELS[cat] || cat;
+      const countEl = document.createElement("span");
+      countEl.className = "tagsub-count";
+      const tags = present.get(cat) || [];
+      countEl.textContent = String(tags.length);
+      subHead.appendChild(catName);
+      subHead.appendChild(countEl);
+      sub.appendChild(subHead);
+      const chiprow = document.createElement("div");
+      chiprow.className = "chiprow";
+      if (!tags.length) {
+        const none = document.createElement("span");
+        none.className = "tagsub-empty";
+        none.textContent = "\u2014";
+        chiprow.appendChild(none);
+      }
+      for (const tag of tags) {
+        const chip = buildChip2(entry, tag, onChange, tagIndex);
+        chip.classList.add("tagsub-chip");
+        if (subjectSelectedTags.has(tag)) chip.classList.add("tagsub-selected");
+        chip.draggable = true;
+        chip.addEventListener("dragstart", (ev) => {
+          const payload = subjectSelectedTags.has(tag) ? Array.from(subjectSelectedTags).join("\n") : tag;
+          ev.dataTransfer?.setData("text/plain", payload);
+          if (ev.dataTransfer) ev.dataTransfer.effectAllowed = "move";
+        });
+        chip.addEventListener("click", (ev) => {
+          if (!ev.shiftKey) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (subjectSelectedTags.has(tag)) subjectSelectedTags.delete(tag);
+          else subjectSelectedTags.add(tag);
+          onChange();
+        }, true);
+        chiprow.appendChild(chip);
+      }
+      sub.appendChild(chiprow);
+      block.appendChild(sub);
+    }
+    return block;
+  }
+  function openSubheaderPicker(entry, subject, x, y, onChange) {
+    document.querySelectorAll(".tagsub-picker").forEach((el) => el.remove());
+    const menu = document.createElement("div");
+    menu.className = "ctx-menu tagsub-picker";
+    const header = document.createElement("div");
+    header.className = "ctx-header";
+    header.textContent = "Add subheader";
+    menu.appendChild(header);
+    let any = false;
+    for (const cat of TAG_CATEGORY_ORDER) {
+      if (subject.subheaders.includes(cat)) continue;
+      any = true;
+      addContextMenuItem(menu, TAG_CATEGORY_LABELS[cat] || cat, () => {
+        subject.subheaders.push(cat);
+        persistEntryMeta(entry);
+        menu.remove();
+        onChange();
+      });
+    }
+    if (!any) {
+      const none = document.createElement("div");
+      none.className = "ctx-item";
+      none.textContent = "All categories added";
+      menu.appendChild(none);
+    }
+    document.body.appendChild(menu);
+    positionMenu(menu, x, y);
+    const onOutside = (ev) => {
+      if (!menu.contains(ev.target)) {
+        menu.remove();
+        document.removeEventListener("click", onOutside, true);
+      }
+    };
+    setTimeout(() => document.addEventListener("click", onOutside, true), 0);
+  }
+  function removeSubject(entry, subjectId, onChange) {
+    const meta = ensureEntryMeta(entry);
+    const subjects = meta.tagSubjects || [];
+    const idx = subjects.findIndex((s) => s.id === subjectId);
+    if (idx === -1) return;
+    subjects.splice(idx, 1);
+    if (meta.tagAssign) {
+      for (const [tag, sid] of Object.entries(meta.tagAssign)) if (sid === subjectId) delete meta.tagAssign[tag];
+    }
+    if (!subjects.length) {
+      meta.tagAssign = {};
+      subjectSelectedTags = /* @__PURE__ */ new Set();
+    }
+    persistEntryMeta(entry);
+    onChange();
   }
   function orderedTagsForDisplay(entry, tagIndex) {
     let tags = entry.tags.slice();
@@ -10924,8 +21482,43 @@ Image: ${entry.imgName}`,
   var modalCloseTimer = null;
   var modalLayerTimer = null;
   var currentModalBase = null;
+  function modalSourceEl(base) {
+    if (!base) return null;
+    const sel = `.card[data-base="${CSS.escape(base)}"] .thumbwrap, .compact-card[data-base="${CSS.escape(base)}"]`;
+    const el = document.querySelector(sel);
+    if (el && el.offsetParent) {
+      const r = el.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < window.innerHeight && r.width > 0) return el;
+    }
+    return null;
+  }
+  function aimModalAt(base) {
+    const card = modalCardInner;
+    const src = modalSourceEl(base);
+    if (!src || !document.documentElement.classList.contains("motion-swipe")) {
+      card.style.removeProperty("--from-x");
+      card.style.removeProperty("--from-y");
+      card.style.removeProperty("--from-s");
+      return;
+    }
+    const prevTransition = card.style.transition;
+    card.style.transition = "none";
+    card.style.transform = "none";
+    const rest = card.getBoundingClientRect();
+    card.style.transform = "";
+    const s = src.getBoundingClientRect();
+    card.style.setProperty("--from-x", `${s.left + s.width / 2 - (rest.left + rest.width / 2)}px`);
+    card.style.setProperty("--from-y", `${s.top + s.height / 2 - (rest.top + rest.height / 2)}px`);
+    card.style.setProperty("--from-s", String(Math.max(0.08, Math.min(1, s.width / rest.width))));
+    void card.offsetWidth;
+    card.style.transition = prevTransition;
+  }
+  function pageModalTo(entry, dir) {
+    if (!mapPan(dir, "page", modalCardInner, () => modalCardInner, () => openImageCardModal(entry))) openImageCardModal(entry);
+  }
   function openImageCardModal(entry, opts) {
     const isHoverPreview = !!(opts && opts.hover);
+    const wasShowing = imageCardModal.classList.contains("modal-visible");
     if (modalCloseTimer) {
       clearTimeout(modalCloseTimer);
       modalCloseTimer = null;
@@ -10939,12 +21532,13 @@ Image: ${entry.imgName}`,
       currentModalBase = entry.base;
     }
     imageCardModal.style.display = "flex";
+    if (!wasShowing) aimModalAt(entry.base);
     imageCardModal.classList.add("modal-anim-layers");
     if (modalLayerTimer) clearTimeout(modalLayerTimer);
     modalLayerTimer = setTimeout(() => {
       modalLayerTimer = null;
       imageCardModal.classList.remove("modal-anim-layers");
-    }, 240);
+    }, transitionMsOf(modalCardInner) + 60);
     requestAnimationFrame(() => requestAnimationFrame(() => imageCardModal.classList.add("modal-visible")));
     if (!isHoverPreview) {
       folderStats.card_modal_opens = (folderStats.card_modal_opens || 0) + 1;
@@ -10954,13 +21548,14 @@ Image: ${entry.imgName}`,
   }
   function closeImageCardModal() {
     if (modalCloseTimer) clearTimeout(modalCloseTimer);
+    aimModalAt(currentModalBase);
     imageCardModal.classList.remove("modal-visible");
     modalCloseTimer = setTimeout(() => {
       imageCardModal.style.display = "none";
       modalCardInner.innerHTML = "";
       currentModalBase = null;
       modalCloseTimer = null;
-    }, 180);
+    }, Math.max(180, transitionMsOf(modalCardInner)));
   }
   function pixelEditMime(name) {
     const lower = (name || "").toLowerCase();
@@ -10982,17 +21577,15 @@ Image: ${entry.imgName}`,
     try {
       prevBytes = new Uint8Array(await (await entry.imgHandle.getFile()).arrayBuffer());
     } catch (err) {
-      toast(`Could not read the image: ${err?.message || err}`, 4200);
+      toastError("Could not read the image", err);
       return false;
     }
     const prevW = entry.width || 0, prevH = entry.height || 0;
     const bytes = new Uint8Array(await blob.arrayBuffer());
     try {
-      const writable = await entry.imgHandle.createWritable();
-      await writable.write(bytes);
-      await writable.close();
+      await writeBytes(entry.imgHandle, bytes);
     } catch (err) {
-      toast(`Could not save the edited image: ${err?.message || err}`, 4200);
+      toastError("Could not save the edited image", err);
       return false;
     }
     try {
@@ -11030,7 +21623,7 @@ Image: ${entry.imgName}`,
     try {
       bmp = await createImageBitmap(await entry.imgHandle.getFile());
     } catch (err) {
-      toast(`Could not read the image: ${err?.message || err}`, 4200);
+      toastError("Could not read the image", err);
       return;
     }
     const canvas = document.createElement("canvas");
@@ -11123,7 +21716,7 @@ Image: ${entry.imgName}`,
       try {
         bmp = await createImageBitmap(await entry.imgHandle.getFile());
       } catch (err) {
-        toast(`Could not read the image: ${err?.message || err}`, 4200);
+        toastError("Could not read the image", err);
         return null;
       }
       const canvas = document.createElement("canvas");
@@ -11179,17 +21772,13 @@ Image: ${entry.imgName}`,
       const tags = (entry.tags || []).slice();
       try {
         const imgHandle = await dir.getFileHandle(imgName, { create: true });
-        const iw = await imgHandle.createWritable();
-        await iw.write(bytes);
-        await iw.close();
+        await writeBytes(imgHandle, bytes);
         const txtHandle = await dir.getFileHandle(`${base}.txt`, { create: true });
-        const tw = await txtHandle.createWritable();
-        await tw.write(tags.map((t) => t.replace(/ /g, "_")).join(","));
-        await tw.close();
+        await writeBytes(txtHandle, tags.map((t) => t.replace(/ /g, "_")).join(","));
         const created = await addEntryFromNewFileRef(base, imgHandle, imgName, txtHandle, true, tags, false);
         if (created) markDirty(created);
       } catch (err) {
-        toast(`Could not save the isolated image: ${err?.message || err}`, 4200);
+        toastError("Could not save the isolated image", err);
         return;
       }
       recordIsolateChange(`Isolated region of ${entry.imgName} as ${imgName}`, base, {
@@ -11271,7 +21860,10 @@ Image: ${entry.imgName}`,
       void isolateSelection();
     });
   }
+  var lastModalBase = null;
   function renderImageCardModal(entry) {
+    const restoreScroll = entry.base === lastModalBase && modalCardInner.childElementCount ? capturePanelScroll(modalCardInner) : null;
+    lastModalBase = entry.base;
     modalCardInner.innerHTML = "";
     const imgSide = document.createElement("div");
     imgSide.className = "single-img-side";
@@ -11343,7 +21935,7 @@ Image: ${entry.imgName}`,
     panel.style.position = "relative";
     const closeBtn = document.createElement("button");
     closeBtn.className = "modal-close-btn ghost-close";
-    closeBtn.textContent = "\u2715 Close";
+    setIconLabel(closeBtn, "\u2715 Close");
     closeBtn.addEventListener("click", closeImageCardModal);
     panel.appendChild(closeBtn);
     const nameText = entry.imgName + (entry.width ? ` \xB7 ${entry.width}\xD7${entry.height}` : "") + ` \xB7 ${entry.tags.length} tags`;
@@ -11374,16 +21966,16 @@ Image: ${entry.imgName}`,
       const navRow = document.createElement("div");
       navRow.className = "modal-card-nav";
       const prevBtn = document.createElement("button");
-      prevBtn.textContent = "\u2039 Prev";
+      setIconLabel(prevBtn, "\u2039 Prev");
       prevBtn.disabled = modalNavIdx <= 0;
-      prevBtn.addEventListener("click", () => openImageCardModal(modalNavList[modalNavIdx - 1]));
+      prevBtn.addEventListener("click", () => pageModalTo(modalNavList[modalNavIdx - 1], -1));
       const posEl = document.createElement("span");
       posEl.className = "single-pos";
       posEl.textContent = `${modalNavIdx + 1} / ${modalNavList.length}`;
       const nextBtn = document.createElement("button");
-      nextBtn.textContent = "Next \u203A";
+      setIconLabel(nextBtn, "Next \u203A");
       nextBtn.disabled = modalNavIdx >= modalNavList.length - 1;
-      nextBtn.addEventListener("click", () => openImageCardModal(modalNavList[modalNavIdx + 1]));
+      nextBtn.addEventListener("click", () => pageModalTo(modalNavList[modalNavIdx + 1], 1));
       navRow.appendChild(prevBtn);
       navRow.appendChild(posEl);
       navRow.appendChild(nextBtn);
@@ -11426,19 +22018,19 @@ Image: ${entry.imgName}`,
       editRow.className = "modal-edit-row";
       editRow.style.cssText = "display:flex; gap:8px; align-items:center;";
       const rotLeftBtn = document.createElement("button");
-      rotLeftBtn.textContent = "\u27F2 Rotate";
+      setIconLabel(rotLeftBtn, "\u27F2 Rotate");
       rotLeftBtn.title = "Rotate 90\xB0 counter-clockwise (rewrites the file)";
       rotLeftBtn.addEventListener("click", () => {
         void rotateEntryImage(entry, -1);
       });
       const rotRightBtn = document.createElement("button");
-      rotRightBtn.textContent = "\u27F3 Rotate";
+      setIconLabel(rotRightBtn, "\u27F3 Rotate");
       rotRightBtn.title = "Rotate 90\xB0 clockwise (rewrites the file)";
       rotRightBtn.addEventListener("click", () => {
         void rotateEntryImage(entry, 1);
       });
       const cropBtn = document.createElement("button");
-      cropBtn.textContent = "\u2702 Crop";
+      setIconLabel(cropBtn, "\u2702 Crop");
       cropBtn.title = "Select a region to keep (rewrites the file)";
       cropBtn.addEventListener("click", () => startCropMode(entry, imgSide, img, editRow, zoomRow));
       editRow.appendChild(rotLeftBtn);
@@ -11466,34 +22058,22 @@ Image: ${entry.imgName}`,
       renderCurrentView();
     });
     panel.appendChild(addInput);
-    const chiprow = document.createElement("div");
-    chiprow.className = "chiprow";
-    for (const tag of orderedTagsForDisplay(entry, modalTagIndex)) {
-      chiprow.appendChild(buildChip2(entry, tag, () => {
-        renderImageCardModal(entry);
-        renderCurrentView();
-        refreshRightPanels();
-        refreshStats();
-      }, modalTagIndex));
-    }
-    panel.appendChild(chiprow);
+    const modalChipOnChange = () => {
+      renderImageCardModal(entry);
+      renderCurrentView();
+      refreshRightPanels();
+      refreshStats();
+    };
+    panel.appendChild(buildTagSortBar(entry, modalChipOnChange));
+    panel.appendChild(buildChipsBlock(entry, modalTagIndex, modalChipOnChange));
     modalCardInner.appendChild(imgSide);
     modalCardInner.appendChild(panel);
+    if (restoreScroll) restoreScroll();
   }
   function tokenizeTag(tag) {
     const parts = tag.split(/[\s_\-]+/).map((p) => p.trim()).filter(Boolean);
     const uniq = Array.from(new Set(parts));
     return uniq.length > 1 ? uniq : [];
-  }
-  function addCtxItem(menu, label, onClick) {
-    const btn = document.createElement("button");
-    btn.className = "ctx-item";
-    btn.textContent = label;
-    btn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      onClick(ev);
-    });
-    menu.appendChild(btn);
   }
   function openTagContextMenu(entry, tag, x, y) {
     closeTagContextMenu();
@@ -11505,15 +22085,15 @@ Image: ${entry.imgName}`,
     header.className = "ctx-header";
     header.textContent = `${tag} \xB7 ${set.size} image${set.size === 1 ? "" : "s"}`;
     menu.appendChild(header);
-    addCtxItem(menu, "Show all images WITH this tag", () => {
+    addContextMenuItem(menu, "Show all images WITH this tag", () => {
       setContainsFilter2(tag);
       closeTagContextMenu();
     });
-    addCtxItem(menu, "Show all images WITHOUT this tag", () => {
+    addContextMenuItem(menu, "Show all images WITHOUT this tag", () => {
       setExcludesFilter2(tag);
       closeTagContextMenu();
     });
-    addCtxItem(menu, "\u{1F4D6} Tag Details", () => {
+    addContextMenuItem(menu, "\u{1F4D6} Tag Details", () => {
       closeTagContextMenu();
       openTagDetails(tag);
     });
@@ -11540,7 +22120,7 @@ Image: ${entry.imgName}`,
       renameRow.appendChild(renameInput);
       menu.appendChild(renameRow);
       const flagged = entry.meta && entry.meta.flaggedTags && entry.meta.flaggedTags.includes(tag);
-      addCtxItem(menu, flagged ? "\u{1F6A9} Unflag this tag on this image" : "\u{1F6A9} Flag this tag for review (this image)", () => {
+      addContextMenuItem(menu, flagged ? "\u{1F6A9} Unflag this tag on this image" : "\u{1F6A9} Flag this tag for review (this image)", () => {
         if (!entry.meta) entry.meta = {};
         if (!entry.meta.flaggedTags) entry.meta.flaggedTags = [];
         if (flagged) entry.meta.flaggedTags = entry.meta.flaggedTags.filter((t) => t !== tag);
@@ -11549,6 +22129,7 @@ Image: ${entry.imgName}`,
         saveEntryMetaRef2();
         closeTagContextMenu();
         renderCurrentView();
+        refreshStats();
       });
     }
     const words = tokenizeTag(tag);
@@ -11613,19 +22194,19 @@ Image: ${entry.imgName}`,
     if (meta.mergeImmune && meta.antivoid) {
       const b = document.createElement("div");
       b.className = "mv-badge";
-      b.textContent = "\u270B";
+      setIconLabel(b, "\u270B");
       b.title = "Antimmunized \u2014 exempt from BOTH merge and void rules";
       wrap.appendChild(b);
     } else if (meta.mergeImmune) {
       const b = document.createElement("div");
       b.className = "mv-badge";
-      b.textContent = "\u{1F6AB}";
+      setIconLabel(b, "\u{1F6AB}");
       b.title = "Merge Immunized \u2014 merge rules never rewrite this image's tags";
       wrap.appendChild(b);
     } else {
       const b = document.createElement("div");
       b.className = "mv-badge";
-      b.textContent = "\u{1F7E2}";
+      setIconLabel(b, "\u{1F7E2}");
       b.title = "Antivoid \u2014 void rules never remove tags from this image";
       wrap.appendChild(b);
     }
@@ -11639,24 +22220,18 @@ Image: ${entry.imgName}`,
       const statusText = state === null ? "Not indicated" : state ? "Yes" : "No";
       const badge = document.createElement("div");
       badge.className = "status-icon-badge";
-      badge.textContent = `${emoji}${glyph}`;
+      setIconLabel(badge, `${emoji}${glyph}`);
       badge.title = `${label}: ${statusText}` + (matchedTags.length ? `: ${matchedTags.join(", ")}` : "");
       wrap.appendChild(badge);
     }
     return wrap;
   }
   function saveCommonLanguages() {
-    try {
-      localStorage.setItem("dts-common-languages", JSON.stringify(commonLanguages));
-    } catch (e) {
-    }
+    setJSON("dts-common-languages", commonLanguages);
   }
   (function loadCommonLanguages() {
-    try {
-      const saved = JSON.parse(localStorage.getItem("dts-common-languages") || "null");
-      if (Array.isArray(saved) && saved.length) commonLanguages = saved;
-    } catch (e) {
-    }
+    const saved = getJSON("dts-common-languages", null);
+    if (Array.isArray(saved) && saved.length) commonLanguages = saved;
   })();
   var FLAG_COLORS = ["#e8a33d", "#e2637a", "#6fb8d1", "#7fbf8f", "#a683e0"];
   var KOMA_OPTIONS = ["1koma", "2koma", "3koma", "4koma"];
@@ -11683,10 +22258,7 @@ Image: ${entry.imgName}`,
     visRow.appendChild(visCb);
     visRow.appendChild(document.createTextNode(" Always show on card"));
     menu.appendChild(visRow);
-    const saveBtn = document.createElement("button");
-    saveBtn.className = "primary ctx-item";
-    saveBtn.textContent = "Save note";
-    saveBtn.addEventListener("click", () => {
+    addContextMenuItem(menu, "Save note", () => {
       const wasEmpty = !entry.meta.note;
       entry.meta.note = noteArea.value;
       entry.meta.noteAlwaysVisible = visCb.checked;
@@ -11700,8 +22272,7 @@ Image: ${entry.imgName}`,
       toast("Note saved.");
       closeTagContextMenu();
       renderCurrentView();
-    });
-    menu.appendChild(saveBtn);
+    }, { className: "primary" });
     document.body.appendChild(menu);
     ctxMenuEl = menu;
     positionMenu(menu, window.innerWidth / 2 - 140, window.innerHeight / 2 - 100);
@@ -11717,22 +22288,11 @@ Image: ${entry.imgName}`,
     header.className = "ctx-header";
     header.textContent = `${entry.imgName} \xB7 ${entry.tags.length} tag${entry.tags.length === 1 ? "" : "s"}`;
     menu.appendChild(header);
-    const wd14Btn = document.createElement("button");
-    wd14Btn.className = "ctx-item";
-    wd14Btn.textContent = "\u{1F40D} WD14 Tag";
-    wd14Btn.title = "Tag this image with WD14 (via ComfyUI)";
-    wd14Btn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
+    addContextMenuItem(menu, "\u{1F40D} WD14 Tag", () => {
       closeTagContextMenu();
       tagSingleImageWithWd14(entry);
-    });
-    menu.appendChild(wd14Btn);
-    const seqBtn = document.createElement("button");
-    seqBtn.className = "ctx-item";
-    seqBtn.textContent = "\u25B6 Sequential from here";
-    seqBtn.title = "Enter sequential mode starting at this image (walks the current filter image by image)";
-    seqBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
+    }, { title: "Tag this image with WD14 (via ComfyUI)" });
+    addContextMenuItem(menu, "\u25B6 Sequential from here", () => {
       closeTagContextMenu();
       const list = filteredEntries();
       let startIdx = list.findIndex((e) => e.base === entry.base);
@@ -11746,24 +22306,14 @@ Image: ${entry.imgName}`,
       seqPanelForcedCollapse = !getRightPanelCollapsedRef();
       setRightPanelCollapsedRef(true);
       switchView("single");
-    });
-    menu.appendChild(seqBtn);
-    const toggleDisableBtn = document.createElement("button");
-    toggleDisableBtn.className = "ctx-item";
-    toggleDisableBtn.textContent = entry.disabled ? "\u21A9 Restore" : "\u{1F5D1} Disable";
-    toggleDisableBtn.title = entry.disabled ? "Restore this image to the dataset root" : "Move this image to /Disabled";
-    toggleDisableBtn.addEventListener("click", async (ev) => {
-      ev.stopPropagation();
-      await moveEntry(entry, !entry.disabled);
-      closeTagContextMenu();
-    });
-    menu.appendChild(toggleDisableBtn);
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "ctx-item ctx-item-danger";
-    deleteBtn.textContent = "\u274C Delete permanently";
-    deleteBtn.title = "Permanently delete this image and its tags from disk \u2014 cannot be undone";
-    deleteBtn.addEventListener("click", async (ev) => {
-      ev.stopPropagation();
+    }, { title: "Enter sequential mode starting at this image (walks the current filter image by image)" });
+    if (!entry.original) {
+      addContextMenuItem(menu, entry.disabled ? "\u21A9 Restore" : "\u{1F5D1} Disable", async () => {
+        await moveEntry(entry, !entry.disabled);
+        closeTagContextMenu();
+      }, { title: entry.disabled ? "Restore this image to the dataset root" : "Move this image to /Disabled" });
+    }
+    addContextMenuItem(menu, "\u274C Delete permanently", async () => {
       closeTagContextMenu();
       const ok = await showConfirmModal(
         `Permanently delete "${entry.imgName}" and its tags? This cannot be undone \u2014 the files are removed from disk, not moved to Disabled/.`,
@@ -11771,8 +22321,7 @@ Image: ${entry.imgName}`,
       );
       if (!ok) return;
       await deleteEntryPermanentlyRef(entry);
-    });
-    menu.appendChild(deleteBtn);
+    }, { title: "Permanently delete this image and its tags from disk \u2014 cannot be undone", className: "ctx-item-danger" });
     const draft = {
       hasText: entry.tags.includes("text") || getForeignLangTags(entry).length > 0,
       isJapanese: entry.tags.includes("text"),
@@ -11878,7 +22427,7 @@ Image: ${entry.imgName}`,
           syncTextPanelTags();
         });
         const rm = document.createElement("button");
-        rm.textContent = "\u2715";
+        setIconLabel(rm, "\u2715");
         rm.title = "Remove from common languages";
         rm.addEventListener("click", (ev) => {
           ev.stopPropagation();
@@ -11975,66 +22524,43 @@ Image: ${entry.imgName}`,
     sepAntimmunize.className = "ctx-sep";
     sepAntimmunize.textContent = "Antimmunize options";
     menu.appendChild(sepAntimmunize);
-    const toggleMergeImmuneBtn = document.createElement("button");
-    toggleMergeImmuneBtn.className = "ctx-item";
     function mergeImmuneLabel() {
       return entry.meta.mergeImmune ? "\u{1F6AB} Un-Merge-Immunize" : "\u{1F6AB} Merge Immunize";
     }
-    toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
-    toggleMergeImmuneBtn.title = "Merge rules will never rewrite this image's tags";
-    toggleMergeImmuneBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      entry.meta.mergeImmune = !entry.meta.mergeImmune;
-      getEntryMeta2()[entry.base] = entry.meta;
-      saveEntryMetaRef2();
-      toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
-      toggleAntimmunizeBtn.textContent = antimmunizeLabel();
-      renderCurrentView();
-    });
-    menu.appendChild(toggleMergeImmuneBtn);
-    const toggleAntivoidBtn = document.createElement("button");
-    toggleAntivoidBtn.className = "ctx-item";
     function antivoidLabel() {
       return entry.meta.antivoid ? "\u{1F7E2} Un-Antivoid" : "\u{1F7E2} Antivoid";
     }
-    toggleAntivoidBtn.textContent = antivoidLabel();
-    toggleAntivoidBtn.title = "Void rules will never remove tags from this image";
-    toggleAntivoidBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      entry.meta.antivoid = !entry.meta.antivoid;
-      getEntryMeta2()[entry.base] = entry.meta;
-      saveEntryMetaRef2();
-      toggleAntivoidBtn.textContent = antivoidLabel();
-      toggleAntimmunizeBtn.textContent = antimmunizeLabel();
-      renderCurrentView();
-    });
-    menu.appendChild(toggleAntivoidBtn);
-    const toggleAntimmunizeBtn = document.createElement("button");
-    toggleAntimmunizeBtn.className = "ctx-item";
     function antimmunizeLabel() {
       return entry.meta.mergeImmune && entry.meta.antivoid ? "\u270B Un-Antimmunize" : "\u270B Antimmunize";
     }
-    toggleAntimmunizeBtn.title = "Shortcut for toggling Merge Immunize and Antivoid together";
-    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
-    toggleAntimmunizeBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
+    const toggleMergeImmuneBtn = addContextMenuItem(menu, mergeImmuneLabel(), () => {
+      entry.meta.mergeImmune = !entry.meta.mergeImmune;
+      getEntryMeta2()[entry.base] = entry.meta;
+      saveEntryMetaRef2();
+      setIconLabel(toggleMergeImmuneBtn, mergeImmuneLabel());
+      setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
+      renderCurrentView();
+    }, { title: "Merge rules will never rewrite this image's tags" });
+    const toggleAntivoidBtn = addContextMenuItem(menu, antivoidLabel(), () => {
+      entry.meta.antivoid = !entry.meta.antivoid;
+      getEntryMeta2()[entry.base] = entry.meta;
+      saveEntryMetaRef2();
+      setIconLabel(toggleAntivoidBtn, antivoidLabel());
+      setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
+      renderCurrentView();
+    }, { title: "Void rules will never remove tags from this image" });
+    const toggleAntimmunizeBtn = addContextMenuItem(menu, antimmunizeLabel(), () => {
       const bothOn = entry.meta.mergeImmune && entry.meta.antivoid;
       entry.meta.mergeImmune = !bothOn;
       entry.meta.antivoid = !bothOn;
       getEntryMeta2()[entry.base] = entry.meta;
       saveEntryMetaRef2();
-      toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
-      toggleAntivoidBtn.textContent = antivoidLabel();
-      toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+      setIconLabel(toggleMergeImmuneBtn, mergeImmuneLabel());
+      setIconLabel(toggleAntivoidBtn, antivoidLabel());
+      setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
       renderCurrentView();
-    });
-    menu.appendChild(toggleAntimmunizeBtn);
-    const removeAllTagsBtn = document.createElement("button");
-    removeAllTagsBtn.className = "ctx-item ctx-item-danger";
-    removeAllTagsBtn.textContent = "\u{1F5D1}\uFE0F Remove all tags";
-    removeAllTagsBtn.title = "Remove every tag from this image at once";
-    removeAllTagsBtn.addEventListener("click", async (ev) => {
-      ev.stopPropagation();
+    }, { title: "Shortcut for toggling Merge Immunize and Antivoid together" });
+    addContextMenuItem(menu, "\u{1F5D1}\uFE0F Remove all tags", async () => {
       if (entry.tags.length === 0) {
         toast("This image has no tags to remove.");
         return;
@@ -12047,22 +22573,9 @@ Image: ${entry.imgName}`,
       removeAllTagsFromEntry(entry);
       header.textContent = `${entry.imgName} \xB7 ${entry.tags.length} tag${entry.tags.length === 1 ? "" : "s"}`;
       renderCurrentView();
-    });
-    menu.appendChild(removeAllTagsBtn);
-    const resetEditsBtn = document.createElement("button");
-    resetEditsBtn.className = "ctx-item";
-    resetEditsBtn.textContent = "\u23EE Reset edits";
-    resetEditsBtn.title = "Reset this image to its earliest known tag state";
-    resetEditsBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      resetImageEdits(entry);
-    });
-    menu.appendChild(resetEditsBtn);
-    const statusBtn = document.createElement("button");
-    statusBtn.className = "ctx-item";
-    statusBtn.textContent = "\u24D8 Status details";
-    statusBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
+    }, { title: "Remove every tag from this image at once", className: "ctx-item-danger" });
+    addContextMenuItem(menu, "\u23EE Reset edits", () => resetImageEdits(entry), { title: "Reset this image to its earliest known tag state" });
+    addContextMenuItem(menu, "\u24D8 Status details", () => {
       closeTagContextMenu();
       const rows = getEntryStatusIndicators(entry).map(({ emoji, state, label, matchedTags }) => {
         const stateText = state === null ? "Not indicated" : state ? "Yes" : "No";
@@ -12071,23 +22584,16 @@ Image: ${entry.imgName}`,
       }).join("");
       showInfoModal(rows, "Image status");
     });
-    menu.appendChild(statusBtn);
-    const toggleLockBtn = document.createElement("button");
-    toggleLockBtn.className = "ctx-item";
     function lockLabel() {
       return entry.meta.locked ? "\u{1F513} Unlock" : "\u{1F512} Lock";
     }
-    toggleLockBtn.textContent = lockLabel();
-    toggleLockBtn.title = "Skip mass tools (Quick Merge, Master Tags, bulk WD14, etc.) for this image";
-    toggleLockBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
+    const toggleLockBtn = addContextMenuItem(menu, lockLabel(), () => {
       entry.meta.locked = !entry.meta.locked;
       getEntryMeta2()[entry.base] = entry.meta;
       saveEntryMetaRef2();
-      toggleLockBtn.textContent = lockLabel();
+      setIconLabel(toggleLockBtn, lockLabel());
       renderCurrentView();
-    });
-    menu.appendChild(toggleLockBtn);
+    }, { title: "Skip mass tools (Quick Merge, Master Tags, bulk WD14, etc.) for this image" });
     const sep2 = document.createElement("div");
     sep2.className = "ctx-sep";
     sep2.textContent = "Flag for review";
@@ -12170,10 +22676,7 @@ Image: ${entry.imgName}`,
     visRow.appendChild(visCb);
     visRow.appendChild(document.createTextNode(" Always show on card"));
     menu.appendChild(visRow);
-    const saveNoteBtn = document.createElement("button");
-    saveNoteBtn.className = "primary ctx-item";
-    saveNoteBtn.textContent = "Save note";
-    saveNoteBtn.addEventListener("click", () => {
+    addContextMenuItem(menu, "Save note", () => {
       const wasEmpty = !entry.meta.note;
       entry.meta.note = noteArea.value;
       entry.meta.noteAlwaysVisible = visCb.checked;
@@ -12187,8 +22690,7 @@ Image: ${entry.imgName}`,
       toast("Note saved.");
       closeTagContextMenu();
       renderCurrentView();
-    });
-    menu.appendChild(saveNoteBtn);
+    }, { className: "primary" });
     document.body.appendChild(menu);
     ctxMenuEl = menu;
     positionMenu(menu, x, y);
@@ -12215,7 +22717,7 @@ Image: ${entry.imgName}`,
   var getHideTagsRef = () => false;
   var seqPanelForcedCollapse = false;
   function initView(deps) {
-    getEntries6 = deps.getEntries;
+    getEntries7 = deps.getEntries;
     getEntryByBase4 = deps.getEntryByBase;
     getDirHandleRef = deps.getDirHandle;
     addEntryFromNewFileRef = deps.addEntryFromNewFile;
@@ -12235,33 +22737,21 @@ Image: ${entry.imgName}`,
     getHideTagsRef = deps.getHideTags;
     langAutoSelectToggle.addEventListener("change", () => {
       autoSelectNewLanguage = langAutoSelectToggle.checked;
-      try {
-        localStorage.setItem("dts-lang-autoselect", autoSelectNewLanguage ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-lang-autoselect", autoSelectNewLanguage);
     });
     (function initLangAutoSelectPref() {
       let on = true;
-      try {
-        on = localStorage.getItem("dts-lang-autoselect") !== "0";
-      } catch (e) {
-      }
+      on = getBool("dts-lang-autoselect", true);
       autoSelectNewLanguage = on;
       langAutoSelectToggle.checked = on;
     })();
     let hideTags = false;
-    try {
-      hideTags = localStorage.getItem("dts-hide-tags") === "1";
-    } catch (e) {
-    }
-    btnHideTags.textContent = hideTags ? "\u{1F441} Show tags" : "\u{1F648} Hide tags";
+    hideTags = getBool("dts-hide-tags");
+    setIconLabel(btnHideTags, hideTags ? "\u{1F441} Show tags" : "\u{1F648} Hide tags");
     btnHideTags.addEventListener("click", () => {
       hideTags = !hideTags;
-      try {
-        localStorage.setItem("dts-hide-tags", hideTags ? "1" : "0");
-      } catch (e) {
-      }
-      btnHideTags.textContent = hideTags ? "\u{1F441} Show tags" : "\u{1F648} Hide tags";
+      setBool("dts-hide-tags", hideTags);
+      setIconLabel(btnHideTags, hideTags ? "\u{1F441} Show tags" : "\u{1F648} Hide tags");
       renderCurrentView();
     });
     viewGridBtn.addEventListener("click", () => switchView("grid"));
@@ -12275,7 +22765,7 @@ Image: ${entry.imgName}`,
     btnUnlockAll.addEventListener("click", () => {
       const meta = getEntryMeta2();
       let count = 0;
-      for (const e of getEntries6()) {
+      for (const e of getEntries7()) {
         if (!e.meta || !e.meta.locked) continue;
         e.meta.locked = false;
         meta[e.base] = e.meta;
@@ -12290,7 +22780,7 @@ Image: ${entry.imgName}`,
       renderCurrentView();
     });
     btnRenameAllImages.addEventListener("click", async () => {
-      const count = getEntries6().length;
+      const count = getEntries7().length;
       if (count === 0) {
         toast("No images loaded.");
         return;
@@ -12303,6 +22793,7 @@ Image: ${entry.imgName}`,
       await renameAllEntriesSequentially();
     });
     viewDisabledBtn.addEventListener("click", () => switchView("disabled"));
+    viewOriginalsBtn.addEventListener("click", () => switchView("originals"));
     viewDisabledBtn.addEventListener("dragover", (ev) => {
       ev.preventDefault();
       viewDisabledBtn.classList.add("drag-over");
@@ -12320,9 +22811,14 @@ Image: ${entry.imgName}`,
         checkAchievements();
       }
     });
-    function pageSingle(delta) {
+    function pageSingle(delta, fromKeyboard = false) {
       const html = document.documentElement;
-      if (!html.classList.contains("motion-swipe") || html.classList.contains("motion-off")) {
+      const step = () => {
+        singleIndex += delta;
+        renderSingleView();
+      };
+      if (!fromKeyboard && mapPan(delta, "page", singleViewEl, () => singleViewEl, step)) return;
+      if (fromKeyboard || !html.classList.contains("motion-swipe") || html.classList.contains("motion-off")) {
         singleIndex += delta;
         renderSingleView();
         return;
@@ -12336,7 +22832,7 @@ Image: ${entry.imgName}`,
         renderSingleView();
         singleViewEl.classList.add(inClass);
         requestAnimationFrame(() => requestAnimationFrame(() => singleViewEl.classList.remove(inClass)));
-      }, 100);
+      }, transitionMsOf(singleViewEl));
     }
     singlePrevBtn.addEventListener("click", () => pageSingle(-1));
     singleNextBtn.addEventListener("click", () => pageSingle(1));
@@ -12358,16 +22854,16 @@ Image: ${entry.imgName}`,
           return;
         }
         if (viewMode2 === "single") {
-          switchView("grid");
+          switchView("grid", { instant: true });
           return;
         }
       }
       if (viewMode2 === "single" && !ctxMenuEl) {
         if (ev.key === "ArrowLeft" && !singlePrevBtn.disabled) {
-          pageSingle(-1);
+          pageSingle(-1, true);
         }
         if (ev.key === "ArrowRight" && !singleNextBtn.disabled) {
-          pageSingle(1);
+          pageSingle(1, true);
         }
       }
     });
@@ -12444,16 +22940,17 @@ Image: ${entry.imgName}`,
     document.documentElement.classList.toggle("touch-device", isTouchDevice2);
     let dirHandle = null;
     let disabledDirHandle = null;
+    let originalDirHandle = null;
     let entries = [];
     let entryByBase = /* @__PURE__ */ new Map();
-    let galleryFilter = { base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, exactMatch: false };
+    let galleryFilter = { base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, originalsView: false, exactMatch: false };
+    let filterModeDropdownCtrl = null;
     let gallerySortMode = "filename";
     let gallerySortDir = "asc";
     let isolatedFlagActive = false;
     let cardTagSortMode = "default";
     let masterTagModeActive = false;
     let entryMeta = {};
-    const IMAGE_EXT = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"];
     btnResetZoom.addEventListener("click", (ev) => {
       ev.stopPropagation();
       resetAppZoom();
@@ -12514,7 +23011,7 @@ Image: ${entry.imgName}`,
       const premium = PREMIUM_THEMES.find((t) => t.id === chosen);
       if (premium && !ownedThemes.includes(chosen)) {
         toast(`"${premium.name}" is locked \u2014 buy it in the Shop first.`);
-        themeSelect.value = localStorage.getItem("dts-theme") || "studio";
+        themeSelect.value = getString("dts-theme") || "studio";
         themeDropdownCtrl.refreshLabel();
         return;
       }
@@ -12522,11 +23019,7 @@ Image: ${entry.imgName}`,
       updateRefineThemeButton();
     });
     (function initTheme() {
-      let saved = "studio";
-      try {
-        saved = localStorage.getItem("dts-theme") || "studio";
-      } catch (e) {
-      }
+      const saved = getString("dts-theme", "studio");
       themeSelect.value = saved;
       themeDropdownCtrl.refreshLabel();
       if (!window.__dtsPreThemed) {
@@ -12535,10 +23028,7 @@ Image: ${entry.imgName}`,
         document.documentElement.classList.toggle("theme-refined", refinedThemes.includes(saved));
         if (saved === "custom") {
           let hasCustom = false;
-          try {
-            hasCustom = !!localStorage.getItem("dts-custom-theme");
-          } catch (e) {
-          }
+          hasCustom = !!getString("dts-custom-theme");
           if (!hasCustom) setTimeout(openThemeCustomPanel, 0);
         }
       }
@@ -12566,17 +23056,11 @@ Image: ${entry.imgName}`,
         custom[inp.dataset.varKey] = inp.value;
         document.documentElement.style.setProperty(inp.dataset.varKey, inp.value);
       });
-      try {
-        localStorage.setItem("dts-custom-theme", JSON.stringify(custom));
-      } catch (e) {
-      }
+      setJSON("dts-custom-theme", custom);
       document.documentElement.setAttribute("data-theme", "custom");
       themeSelect.value = "custom";
       themeDropdownCtrl.refreshLabel();
-      try {
-        localStorage.setItem("dts-theme", "custom");
-      } catch (e) {
-      }
+      setString("dts-theme", "custom");
       toast("Custom theme saved.");
       folderStats.theme_customized = true;
       saveFolderStats();
@@ -12596,9 +23080,72 @@ Image: ${entry.imgName}`,
       }
       appVersionEl.textContent = APP_VERSION ? "v" + APP_VERSION : "";
     })();
+    const TAB_MAP_ORDER = ["datasets", "gallery", "master", "stats", "synthdat"];
+    const onShell = (t) => t === "gallery" || t === "master";
+    const tabIsActive = (t) => ({
+      datasets: tabDatasetManager,
+      gallery: tabGallery,
+      master: tabMasterTags,
+      stats: tabStats,
+      synthdat: tabSynthDat
+    })[t]?.classList.contains("active") ?? false;
+    const PRELOAD_BAND_PX = 90;
+    const tabBarEl = document.getElementById("tabBar");
+    const preloadedTabs = /* @__PURE__ */ new Set();
+    let preloadQueued = false;
+    const whenIdle = (cb) => "requestIdleCallback" in window ? window.requestIdleCallback(cb, { timeout: 120 }) : setTimeout(cb, 0);
+    function preloadHeavyTabs() {
+      if (preloadQueued) return;
+      preloadQueued = true;
+      whenIdle(() => {
+        if (!tabIsActive("stats") && !preloadedTabs.has("stats")) {
+          renderStatsTab();
+          preloadedTabs.add("stats");
+        }
+        whenIdle(() => {
+          preloadQueued = false;
+          if (!tabIsActive("datasets") && !preloadedTabs.has("datasets")) {
+            void renderDatasetManagerTab();
+            preloadedTabs.add("datasets");
+          }
+        });
+      });
+    }
+    document.addEventListener("pointermove", (ev) => {
+      if (preloadedTabs.size >= 2) return;
+      if (ev.clientY <= tabBarEl.getBoundingClientRect().bottom + PRELOAD_BAND_PX) preloadHeavyTabs();
+    }, { passive: true });
+    const stalePreload = (ev) => {
+      if (ev.target instanceof Element && ev.target.closest("#tabBar")) return;
+      preloadedTabs.clear();
+    };
+    document.addEventListener("pointerdown", stalePreload, true);
+    document.addEventListener("keydown", stalePreload, true);
+    let swallowTabClickUntil = 0;
+    tabBarEl.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0 || ev.pointerType === "touch") return;
+      const btn = ev.target.closest(".tab-btn");
+      if (!btn) return;
+      swallowTabClickUntil = performance.now() + 800;
+      btn.click();
+    });
+    tabBarEl.addEventListener("click", (ev) => {
+      if (!ev.isTrusted || performance.now() > swallowTabClickUntil) return;
+      if (!ev.target.closest(".tab-btn")) return;
+      swallowTabClickUntil = 0;
+      ev.stopImmediatePropagation();
+      ev.preventDefault();
+    }, true);
     function switchTab2(tab, opts) {
       const skipDrawerSync = !!(opts && opts.skipDrawerSync);
       const fadePanes = [datasetManagerTab, statsTab, synthDatTab, normalRightTools, masterTagPanel];
+      const renderShell = () => {
+        if (onShell(tab)) {
+          renderCurrentView();
+          renderMasterSelectionSummary();
+        }
+      };
+      let deferShellRender = false;
       const applyState = () => {
         tabDatasetManager.classList.toggle("active", tab === "datasets");
         tabGallery.classList.toggle("active", tab === "gallery");
@@ -12618,18 +23165,35 @@ Image: ${entry.imgName}`,
         masterTagPanel.classList.toggle("rt-hidden", !masterTagModeActive);
         btnGoToTagOverseer.style.display = masterTagModeActive ? "none" : "";
         btnMasterBack.style.display = masterTagModeActive ? "" : "none";
-        if (tab === "stats") renderStatsTab();
-        if (tab === "datasets") renderDatasetManagerTab();
-        if (tab !== "datasets") {
-          renderCurrentView();
-          renderMasterSelectionSummary();
-        }
+        if (tab === "stats" && !preloadedTabs.has("stats")) renderStatsTab();
+        if (tab === "datasets" && !preloadedTabs.has("datasets")) renderDatasetManagerTab();
+        preloadedTabs.delete(tab);
+        if (!deferShellRender) renderShell();
         repositionRightResizeHandleSoon();
       };
       if (document.documentElement.classList.contains("motion-off")) {
         applyState();
         return;
       }
+      const fromTab = tabDatasetManager.classList.contains("active") ? "datasets" : tabMasterTags.classList.contains("active") ? "master" : tabStats.classList.contains("active") ? "stats" : tabSynthDat.classList.contains("active") ? "synthdat" : "gallery";
+      const regionOf = (t) => {
+        if (onShell(fromTab) && onShell(tab)) return document.getElementById("rightPanelContent");
+        if (onShell(t)) return document.getElementById("shell");
+        return t === "datasets" ? datasetManagerTab : t === "stats" ? statsTab : synthDatTab;
+      };
+      const dir = Math.sign(TAB_MAP_ORDER.indexOf(tab) - TAB_MAP_ORDER.indexOf(fromTab));
+      deferShellRender = true;
+      if (dir && document.documentElement.classList.contains("motion-swipe")) {
+        tabDatasetManager.classList.toggle("active", tab === "datasets");
+        tabGallery.classList.toggle("active", tab === "gallery");
+        tabMasterTags.classList.toggle("active", tab === "master");
+        tabStats.classList.toggle("active", tab === "stats");
+        tabSynthDat.classList.toggle("active", tab === "synthdat");
+      }
+      if (mapPan(dir, "tab", regionOf(fromTab), () => regionOf(tab), applyState, () => {
+        if (tabIsActive(tab)) renderShell();
+      })) return;
+      deferShellRender = false;
       const leaving = fadePanes.filter((el) => el.style.display !== "none");
       leaving.forEach((el) => el.classList.add("tab-fading"));
       setTimeout(() => {
@@ -12640,12 +23204,23 @@ Image: ${entry.imgName}`,
         requestAnimationFrame(() => requestAnimationFrame(() => {
           entering.forEach((el) => el.classList.remove("tab-fading"));
         }));
-      }, 100);
+      }, transitionMsOf(fadePanes[0]));
     }
     tabDatasetManager.addEventListener("click", () => switchTab2("datasets"));
     tabGallery.addEventListener("click", () => switchTab2("gallery"));
+    let overseerExpandedRightPanel = false;
     tabMasterTags.addEventListener("click", () => {
-      switchTab2(tabMasterTags.classList.contains("active") ? "gallery" : "master");
+      if (tabMasterTags.classList.contains("active")) {
+        if (overseerExpandedRightPanel && !rightAside.classList.contains("right-panel-collapsed")) {
+          applyRightPanelCollapsed(true);
+        }
+        overseerExpandedRightPanel = false;
+        switchTab2("gallery");
+        return;
+      }
+      overseerExpandedRightPanel = rightAside.classList.contains("right-panel-collapsed");
+      if (overseerExpandedRightPanel) applyRightPanelCollapsed(false);
+      switchTab2("master");
     });
     tabStats.addEventListener("click", () => switchTab2("stats"));
     tabSynthDat.addEventListener("click", () => switchTab2("synthdat"));
@@ -12663,10 +23238,7 @@ Image: ${entry.imgName}`,
     btnNightMode.addEventListener("click", toggleDayNightModeAndTrack);
     (function initNightMode() {
       let on = false;
-      try {
-        on = localStorage.getItem("dts-night-mode") === "1";
-      } catch (e) {
-      }
+      on = getBool("dts-night-mode");
       if (on && themeSelect.value !== "custom") {
         if (window.__dtsPreThemed) {
           syncNightModeFromPrePaint();
@@ -12690,21 +23262,16 @@ Image: ${entry.imgName}`,
       topbarActions.style.transform = scale < 1 ? `scale(${scale})` : "";
     }
     new ResizeObserver(updateTopbarScale).observe(topbarActions);
+    new MutationObserver(updateTopbarScale).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    document.fonts.addEventListener("loadingdone", updateTopbarScale);
     updateTopbarScale();
     let flyoutClosesOnOutsideClick = true;
     flyoutOutsideCloseToggle.addEventListener("change", () => {
       flyoutClosesOnOutsideClick = flyoutOutsideCloseToggle.checked;
-      try {
-        localStorage.setItem("dts-flyout-outside-close", flyoutClosesOnOutsideClick ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-flyout-outside-close", flyoutClosesOnOutsideClick);
     });
     (function initFlyoutOutsideClosePref() {
-      let on = true;
-      try {
-        on = localStorage.getItem("dts-flyout-outside-close") !== "0";
-      } catch (e) {
-      }
+      const on = getBool("dts-flyout-outside-close", true);
       flyoutClosesOnOutsideClick = on;
       flyoutOutsideCloseToggle.checked = on;
     })();
@@ -12714,9 +23281,9 @@ Image: ${entry.imgName}`,
     }
     let uiAnimationMode = "fade";
     try {
-      const saved = localStorage.getItem("dts-ui-animation-mode");
+      const saved = getString("dts-ui-animation-mode");
       if (saved === "off" || saved === "swipe" || saved === "fade") uiAnimationMode = saved;
-      else if (localStorage.getItem("dts-ui-animations") === "0") uiAnimationMode = "off";
+      else if (!getBool("dts-ui-animations", true)) uiAnimationMode = "off";
     } catch (e) {
     }
     buildPersistentDropdown(uiAnimationsDropdown, [
@@ -12725,10 +23292,7 @@ Image: ${entry.imgName}`,
       { value: "off", label: "Off" }
     ], () => uiAnimationMode, (val) => {
       uiAnimationMode = val;
-      try {
-        localStorage.setItem("dts-ui-animation-mode", val);
-      } catch (e) {
-      }
+      setString("dts-ui-animation-mode", val);
       applyUiAnimationMode(val);
     });
     applyUiAnimationMode(uiAnimationMode);
@@ -12792,17 +23356,10 @@ Image: ${entry.imgName}`,
     let panelsCloseOnOutsideClick = true;
     panelsOutsideCloseToggle.addEventListener("change", () => {
       panelsCloseOnOutsideClick = panelsOutsideCloseToggle.checked;
-      try {
-        localStorage.setItem("dts-panels-outside-close", panelsCloseOnOutsideClick ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-panels-outside-close", panelsCloseOnOutsideClick);
     });
     (function initPanelsOutsideClosePref() {
-      let on = true;
-      try {
-        on = localStorage.getItem("dts-panels-outside-close") !== "0";
-      } catch (e) {
-      }
+      const on = getBool("dts-panels-outside-close", true);
       panelsCloseOnOutsideClick = on;
       panelsOutsideCloseToggle.checked = on;
     })();
@@ -12839,28 +23396,18 @@ Image: ${entry.imgName}`,
     let showTagCountBadges = false;
     tagCountBadgeToggle.addEventListener("change", () => {
       showTagCountBadges = tagCountBadgeToggle.checked;
-      try {
-        localStorage.setItem("dts-tagcount-badges", showTagCountBadges ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-tagcount-badges", showTagCountBadges);
       renderCurrentView();
     });
     (function initTagCountBadgePref() {
-      let on = false;
-      try {
-        on = localStorage.getItem("dts-tagcount-badges") === "1";
-      } catch (e) {
-      }
+      const on = getBool("dts-tagcount-badges");
       showTagCountBadges = on;
       tagCountBadgeToggle.checked = on;
     })();
     dynamicCardsToggle.addEventListener("change", () => {
       if (document.documentElement.classList.contains("touch-device")) return;
       document.documentElement.classList.toggle("dynamic-cards", dynamicCardsToggle.checked);
-      try {
-        localStorage.setItem("dts-dynamic-cards", dynamicCardsToggle.checked ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-dynamic-cards", dynamicCardsToggle.checked);
     });
     (function initDynamicCardsPref() {
       if (document.documentElement.classList.contains("touch-device")) {
@@ -12868,11 +23415,7 @@ Image: ${entry.imgName}`,
         document.documentElement.classList.remove("dynamic-cards");
         return;
       }
-      let on = false;
-      try {
-        on = localStorage.getItem("dts-dynamic-cards") === "1";
-      } catch (e) {
-      }
+      const on = getBool("dts-dynamic-cards");
       dynamicCardsToggle.checked = on;
       document.documentElement.classList.toggle("dynamic-cards", on);
     })();
@@ -12960,11 +23503,7 @@ Image: ${entry.imgName}`,
     });
     settingsCloseBtn.addEventListener("click", () => hidePanel(settingsPanel));
     (function initSettingsSections() {
-      let saved = {};
-      try {
-        saved = JSON.parse(localStorage.getItem(SETTINGS_SECTIONS_KEY) || "{}") || {};
-      } catch (e) {
-      }
+      const saved = getJSON(SETTINGS_SECTIONS_KEY, {});
       document.querySelectorAll("#settingsPanel .settings-section").forEach((section) => {
         const id = section.dataset.section;
         const defaultExpanded = id !== "danger";
@@ -12974,11 +23513,7 @@ Image: ${entry.imgName}`,
         header.addEventListener("click", () => {
           const nowExpanded = !section.classList.contains("expanded");
           section.classList.toggle("expanded", nowExpanded);
-          let state = {};
-          try {
-            state = JSON.parse(localStorage.getItem(SETTINGS_SECTIONS_KEY) || "{}") || {};
-          } catch (e) {
-          }
+          const state = getJSON(SETTINGS_SECTIONS_KEY, {});
           state[id] = nowExpanded;
           saveSettingsSectionState(state);
         });
@@ -12987,10 +23522,7 @@ Image: ${entry.imgName}`,
     async function applyFontZoomFromSlider() {
       const px = fontSizeSlider.value;
       await applyAppZoom(parseInt(px, 10) / 14);
-      try {
-        localStorage.setItem("dts-font-size", px);
-      } catch (e) {
-      }
+      setString("dts-font-size", px);
       if (settingsPanel.style.display === "flex") {
         requestAnimationFrame(() => {
           const rect = btnSettings.getBoundingClientRect();
@@ -13003,36 +23535,22 @@ Image: ${entry.imgName}`,
     });
     fontSizeSlider.addEventListener("change", applyFontZoomFromSlider);
     (function initFontSize() {
-      let px = "14";
-      try {
-        px = localStorage.getItem("dts-font-size") || "14";
-      } catch (e) {
-      }
+      const px = getString("dts-font-size", "14");
       fontSizeSlider.value = px;
       fontSizeVal.textContent = px + "px";
       applyAppZoom(parseInt(px, 10) / 14);
     })();
     powerHighlightToggle.addEventListener("change", () => {
       document.documentElement.classList.toggle("power-highlight", powerHighlightToggle.checked);
-      try {
-        localStorage.setItem("dts-power-highlight", powerHighlightToggle.checked ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-power-highlight", powerHighlightToggle.checked);
     });
     powerFillToggle.addEventListener("change", () => {
       document.documentElement.classList.toggle("power-fill", powerFillToggle.checked);
-      try {
-        localStorage.setItem("dts-power-fill", powerFillToggle.checked ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-power-fill", powerFillToggle.checked);
     });
     (function initPowerHighlight() {
-      let highlightOn = true, fillOn = false;
-      try {
-        highlightOn = localStorage.getItem("dts-power-highlight") !== "0";
-        fillOn = localStorage.getItem("dts-power-fill") === "1";
-      } catch (e) {
-      }
+      const highlightOn = getBool("dts-power-highlight", true);
+      const fillOn = getBool("dts-power-fill");
       powerHighlightToggle.checked = highlightOn;
       powerFillToggle.checked = fillOn;
       document.documentElement.classList.toggle("power-highlight", highlightOn);
@@ -13052,17 +23570,10 @@ Image: ${entry.imgName}`,
     });
     tagAutocompleteToggle.addEventListener("change", () => {
       setTagAutocompleteEnabled(tagAutocompleteToggle.checked);
-      try {
-        localStorage.setItem("dts-tag-autocomplete", tagAutocompleteEnabled ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-tag-autocomplete", tagAutocompleteEnabled);
     });
     (function initTagAutocompletePref() {
-      let on = false;
-      try {
-        on = localStorage.getItem("dts-tag-autocomplete") === "1";
-      } catch (e) {
-      }
+      const on = getBool("dts-tag-autocomplete");
       setTagAutocompleteEnabled(on);
       tagAutocompleteToggle.checked = on;
     })();
@@ -13111,39 +23622,25 @@ Image: ${entry.imgName}`,
         const result = await window.electronAPI.exportAppState(JSON.stringify(state, null, 2));
         toast(result.ok ? `Exported app state to ${result.path}` : result.message || "Export failed.", result.ok ? 5e3 : 4e3);
       } catch (err) {
-        toast("Failed to export app state: " + err.message);
+        toastError("Failed to export app state", err, 2600);
       }
     });
     tooltipsToggle.addEventListener("change", () => {
       tooltipsEnabled = tooltipsToggle.checked;
-      try {
-        localStorage.setItem("dts-tooltips-enabled", tooltipsEnabled ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-tooltips-enabled", tooltipsEnabled);
     });
     (function initTooltipsPref() {
-      let on = true;
-      try {
-        on = localStorage.getItem("dts-tooltips-enabled") !== "0";
-      } catch (e) {
-      }
+      const on = getBool("dts-tooltips-enabled", true);
       tooltipsEnabled = on;
       tooltipsToggle.checked = on;
     })();
     tooltipDelaySlider.addEventListener("input", () => {
       tooltipDelayMs = parseInt(tooltipDelaySlider.value, 10);
       tooltipDelayVal.textContent = tooltipDelayMs + "ms";
-      try {
-        localStorage.setItem("dts-tooltip-delay", String(tooltipDelayMs));
-      } catch (e) {
-      }
+      setInt("dts-tooltip-delay", tooltipDelayMs);
     });
     (function initTooltipDelayPref() {
-      let ms = 1e3;
-      try {
-        ms = parseInt(localStorage.getItem("dts-tooltip-delay") || "1000", 10) || 1e3;
-      } catch (e) {
-      }
+      let ms = getInt("dts-tooltip-delay", 1e3);
       ms = Math.max(100, Math.min(2e3, ms));
       tooltipDelayMs = ms;
       tooltipDelaySlider.value = String(ms);
@@ -13162,21 +23659,21 @@ Image: ${entry.imgName}`,
     btnPurgeAllTags.addEventListener("click", () => {
       purgeConfirmCount++;
       if (purgeConfirmCount === 1) {
-        btnPurgeAllTags.textContent = "\u26A0 Click 2 more times to confirm purge";
+        setIconLabel(btnPurgeAllTags, "\u26A0 Click 2 more times to confirm purge");
         setTimeout(() => {
           if (purgeConfirmCount < 3) {
             purgeConfirmCount = 0;
-            btnPurgeAllTags.textContent = "\u{1F5D1} Purge ALL tags in this folder\u2026";
+            setIconLabel(btnPurgeAllTags, "\u{1F5D1} Purge ALL tags in this folder\u2026");
           }
         }, 4e3);
         return;
       }
       if (purgeConfirmCount === 2) {
-        btnPurgeAllTags.textContent = "\u26A0 Click once more to PERMANENTLY purge everything";
+        setIconLabel(btnPurgeAllTags, "\u26A0 Click once more to PERMANENTLY purge everything");
         return;
       }
       purgeConfirmCount = 0;
-      btnPurgeAllTags.textContent = "\u{1F5D1} Purge ALL tags in this folder\u2026";
+      setIconLabel(btnPurgeAllTags, "\u{1F5D1} Purge ALL tags in this folder\u2026");
       const affected = [];
       for (const e of entries) {
         if (e.disabled) continue;
@@ -13230,6 +23727,7 @@ Image: ${entry.imgName}`,
       setDisabledDirHandle: (h) => {
         disabledDirHandle = h;
       },
+      getOriginalDirHandle: () => originalDirHandle,
       reindexEntry: (oldBase, newBase) => {
         const entry = entryByBase.get(oldBase);
         if (entry) {
@@ -13245,7 +23743,8 @@ Image: ${entry.imgName}`,
       refreshStats: () => refreshStats(),
       refreshAllUI: () => refreshAllUI(),
       renderCurrentView: () => renderCurrentView(),
-      applyIsolateDirection: (affected, direction) => applyIsolateDirection(affected, direction)
+      applyIsolateDirection: (affected, direction) => applyIsolateDirection(affected, direction),
+      applyFlaggedReviewDirection: (affected, direction) => applyFlaggedReviewDirection(affected, direction)
     });
     initTagIndex({
       getEntries: () => entries,
@@ -13253,7 +23752,10 @@ Image: ${entry.imgName}`,
       getGallerySortMode: () => gallerySortMode,
       getGallerySortDir: () => gallerySortDir,
       resetSingleIndex: () => resetSingleIndex3(),
-      renderCurrentView: () => renderCurrentView()
+      renderCurrentView: () => renderCurrentView(),
+      refreshFilterModeUI: () => filterModeDropdownCtrl?.refreshLabel(),
+      isFilterModeLocked: () => filterModeLock.checked,
+      markTagReviewed: (tag) => markTagReviewed(tag)
     });
     initMasterTagControl({
       getEntries: () => entries,
@@ -13283,6 +23785,7 @@ Image: ${entry.imgName}`,
       applyRenameDirection: (affected, direction) => applyRenameDirection(affected, direction),
       applyPixelDirection: (affected, direction) => applyPixelDirection(affected, direction),
       applyIsolateDirection: (affected, direction) => applyIsolateDirection(affected, direction),
+      applyFlaggedReviewDirection: (affected, direction) => applyFlaggedReviewDirection(affected, direction),
       moveEntry: (entry, toDisabled) => moveEntry(entry, toDisabled),
       trackStat: (key, amount) => trackStat(key, amount),
       checkAchievements: () => checkAchievements(),
@@ -13297,6 +23800,12 @@ Image: ${entry.imgName}`,
       markRulesDirty: () => markRulesDirty(),
       recordChange: (type, summary, affected, extra) => recordChange(type, summary, affected, extra),
       refreshAllUI: () => refreshAllUI()
+    });
+    initBucketImages({
+      getDirHandle: () => dirHandle,
+      getEntries: () => entries,
+      reload: () => loadFolder(),
+      saveAllDirty: (silent) => saveAllDirty(silent)
     });
     initView({
       getEntries: () => entries,
@@ -13316,18 +23825,14 @@ Image: ${entry.imgName}`,
       deleteEntryPermanently: (entry) => deleteEntryPermanently(entry),
       setRightPanelCollapsed: (collapsed) => applyRightPanelCollapsed(collapsed),
       getRightPanelCollapsed: () => rightAside.classList.contains("right-panel-collapsed"),
-      getHideTags: () => localStorage.getItem("dts-hide-tags") === "1"
+      getHideTags: () => getBool("dts-hide-tags")
     });
     function baseName(name) {
       const i = name.lastIndexOf(".");
       return i === -1 ? name : name.slice(0, i);
     }
-    function isImageFile2(name) {
-      const lower = name.toLowerCase();
-      return IMAGE_EXT.some((ext) => lower.endsWith(ext));
-    }
     btnOpen.addEventListener("click", async () => {
-      if (!window.showDirectoryPicker) {
+      if (!hasDirectoryPicker()) {
         toast("Your browser does not support folder access. Use Chrome or Edge, opened as a normal tab (not an embedded preview).", 5e3);
         return;
       }
@@ -13347,6 +23852,7 @@ Image: ${entry.imgName}`,
         toast("Could not load that folder \u2014 it may be invalid, moved, or missing permission. Try again.", 4200);
         dirHandle = null;
         disabledDirHandle = null;
+        originalDirHandle = null;
         entries = [];
         entryByBase.clear();
         btnAddFavorite.disabled = true;
@@ -13355,6 +23861,7 @@ Image: ${entry.imgName}`,
         resetUndoRedo();
         masterSelectedImages.clear();
         resetStickyCompare();
+        resetReviewFlagged();
         updateUndoRedoButtons();
         dropHint.style.display = "flex";
         dropHintWrap.style.display = "block";
@@ -13363,13 +23870,13 @@ Image: ${entry.imgName}`,
       }
       maybePromptAddDataset(picked);
     });
-    async function scanDirInto(handle, disabled) {
+    async function scanDirInto(handle, disabled, original = false) {
       const imageHandles = /* @__PURE__ */ new Map();
       const txtHandles = /* @__PURE__ */ new Map();
       for await (const h of handle.values()) {
         if (h.kind !== "file") continue;
         const name = h.name;
-        if (isImageFile2(name)) {
+        if (isImageFile(name)) {
           imageHandles.set(baseName(name), { handle: h, name });
         } else if (name.toLowerCase().endsWith(".txt")) {
           txtHandles.set(baseName(name), { handle: h, name });
@@ -13393,10 +23900,10 @@ Image: ${entry.imgName}`,
             tags = [];
           }
         }
-        await buildEntry(base, img.handle, img.name, txtHandle, txtExisted, tags, disabled);
+        await buildEntry(base, img.handle, img.name, txtHandle, txtExisted, tags, disabled, original);
       }
     }
-    async function buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled) {
+    async function buildEntry(base, imgHandle, imgName, txtHandle, txtExisted, tags, disabled, original = false) {
       const file = await imgHandle.getFile();
       const objectUrl = URL.createObjectURL(file);
       const entry = {
@@ -13410,6 +23917,7 @@ Image: ${entry.imgName}`,
         tags,
         dirty: false,
         disabled,
+        original,
         // Default meta for an entry created OUTSIDE the normal folder-scan path
         // (e.g. SynthDat's addEntryFromNewFile) — loadFolder()'s own post-scan
         // loop overwrites this from the persisted _dts_meta.json (or stamps a
@@ -13420,7 +23928,7 @@ Image: ${entry.imgName}`,
         meta: { flaggedTags: [], note: "", noteAlwaysVisible: false, locked: false, mergeImmune: false, antivoid: false, dateAdded: Date.now() }
       };
       entries.push(entry);
-      entryByBase.set(base, entry);
+      if (!(original && entryByBase.has(base))) entryByBase.set(base, entry);
       loadImageDimensions(entry);
       return entry;
     }
@@ -13434,7 +23942,7 @@ Image: ${entry.imgName}`,
     }
     async function deleteEntryFilesAndState(entry) {
       if (!dirHandle) return false;
-      const sourceDir = entry.disabled ? disabledDirHandle : dirHandle;
+      const sourceDir = entry.original ? originalDirHandle : entry.disabled ? disabledDirHandle : dirHandle;
       if (!sourceDir) return false;
       try {
         await sourceDir.removeEntry(entry.imgName);
@@ -13455,6 +23963,37 @@ Image: ${entry.imgName}`,
       }
       return true;
     }
+    function markTagReviewed(tag) {
+      const affected = [];
+      for (const e of entries) {
+        const flagged = e.meta?.flaggedTags;
+        if (!flagged || !flagged.includes(tag)) continue;
+        const prevFlagged = flagged.slice();
+        const newFlagged = flagged.filter((t) => t !== tag);
+        if (!e.meta) e.meta = {};
+        e.meta.flaggedTags = newFlagged;
+        entryMeta[e.base] = e.meta;
+        affected.push({ base: e.base, prevFlagged, newFlagged });
+      }
+      if (affected.length === 0) return 0;
+      saveEntryMeta();
+      recordChange("unflag-review", `Marked "${tag}" reviewed \u2014 unflagged from ${affected.length} image(s).`, affected);
+      return affected.length;
+    }
+    function applyFlaggedReviewDirection(affected, direction) {
+      let count = 0;
+      for (const a of affected) {
+        const e = entryByBase.get(a.base);
+        const target = direction === "undo" ? a.prevFlagged : a.newFlagged;
+        if (!e || !target) continue;
+        if (!e.meta) e.meta = {};
+        e.meta.flaggedTags = target.slice();
+        entryMeta[e.base] = e.meta;
+        count++;
+      }
+      if (count) saveEntryMeta();
+      return count;
+    }
     async function applyIsolateDirection(affected, direction) {
       let count = 0;
       for (const a of affected) {
@@ -13467,13 +24006,9 @@ Image: ${entry.imgName}`,
         } else {
           try {
             const imgHandle = await dirHandle.getFileHandle(st.imgName, { create: true });
-            const iw = await imgHandle.createWritable();
-            await iw.write(st.bytes);
-            await iw.close();
+            await writeBytes(imgHandle, st.bytes);
             const txtHandle = await dirHandle.getFileHandle(a.base + ".txt", { create: true });
-            const tw = await txtHandle.createWritable();
-            await tw.write(st.tags.map((t) => t.replace(/ /g, "_")).join(","));
-            await tw.close();
+            await writeBytes(txtHandle, st.tags.map((t) => t.replace(/ /g, "_")).join(","));
             const existing = entryByBase.get(a.base);
             if (existing) {
               try {
@@ -13583,9 +24118,7 @@ Image: ${entry.imgName}`,
       if (!dirHandle) return;
       try {
         const handle = await dirHandle.getFileHandle(META_FILE_NAME, { create: true });
-        const writable = await handle.createWritable();
-        await writable.write(JSON.stringify(entryMeta, null, 2));
-        await writable.close();
+        await writeBytes(handle, JSON.stringify(entryMeta, null, 2));
       } catch (err) {
       }
     }
@@ -13596,12 +24129,14 @@ Image: ${entry.imgName}`,
       entries = [];
       entryByBase.clear();
       disabledDirHandle = null;
+      originalDirHandle = null;
       btnAddFavorite.disabled = !dirHandle;
       btnUnloadDataset.disabled = !dirHandle;
       btnReloadDataset.disabled = !dirHandle;
       resetUndoRedo();
       masterSelectedImages.clear();
       resetStickyCompare();
+      resetReviewFlagged();
       updateUndoRedoButtons();
       [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
       await scanDirInto(dirHandle, false);
@@ -13610,6 +24145,13 @@ Image: ${entry.imgName}`,
         await scanDirInto(disabledDirHandle, true);
       } catch (e) {
         disabledDirHandle = null;
+        originalDirHandle = null;
+      }
+      try {
+        originalDirHandle = await dirHandle.getDirectoryHandle("original_images", { create: false });
+        await scanDirInto(originalDirHandle, true, true);
+      } catch (e) {
+        originalDirHandle = null;
       }
       try {
         const legacyUnsavedApprovedDir = await dirHandle.getDirectoryHandle("Unsaved Approved", { create: false });
@@ -13630,11 +24172,12 @@ Image: ${entry.imgName}`,
       dropHint.style.display = entries.length ? "none" : "flex";
       dropHintWrap.style.display = entries.length ? "none" : "block";
       galleryToolbar.style.display = entries.length ? "flex" : "none";
-      galleryFilter = { base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, exactMatch: filterExactToggle.checked };
+      galleryFilter = { base: "all", terms: [], mode: filterModeLock.checked ? galleryFilter.mode : "AND", excludes: "", disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
       filterInput.value = "";
       excludeBadge.style.display = "none";
       [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach((b) => b.classList.remove("active"));
       filterAllBtn.classList.add("active");
+      filterModeDropdownCtrl?.refreshLabel();
       resetSingleIndex3();
       switchView(viewMode2 === "compact" ? "compact" : "grid");
       await loadEditLogForFolder();
@@ -13659,6 +24202,7 @@ Image: ${entry.imgName}`,
       exitSequentialDetail();
       dirHandle = null;
       disabledDirHandle = null;
+      originalDirHandle = null;
       entries = [];
       entryByBase.clear();
       btnAddFavorite.disabled = true;
@@ -13667,16 +24211,18 @@ Image: ${entry.imgName}`,
       resetUndoRedo();
       masterSelectedImages.clear();
       resetStickyCompare();
+      resetReviewFlagged();
       updateUndoRedoButtons();
       [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
       dropHint.style.display = "flex";
       dropHintWrap.style.display = "block";
       galleryToolbar.style.display = "none";
-      galleryFilter = { base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, exactMatch: filterExactToggle.checked };
+      galleryFilter = { base: "all", terms: [], mode: filterModeLock.checked ? galleryFilter.mode : "AND", excludes: "", disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
       filterInput.value = "";
       excludeBadge.style.display = "none";
       [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach((b) => b.classList.remove("active"));
       filterAllBtn.classList.add("active");
+      filterModeDropdownCtrl?.refreshLabel();
       resetSingleIndex3();
       switchView("grid");
       await loadEditLogForFolder();
@@ -13700,7 +24246,7 @@ Image: ${entry.imgName}`,
       await loadFolder();
     }
     btnReloadDataset.addEventListener("click", reloadDataset);
-    buildPersistentDropdown(
+    filterModeDropdownCtrl = buildPersistentDropdown(
       filterModeDropdown,
       [
         { value: "AND", label: "AND", title: "Show images containing ALL of the searched tags" },
@@ -13764,7 +24310,7 @@ Image: ${entry.imgName}`,
       }
     }
     try {
-      const savedGalleryColumns = localStorage.getItem(GALLERY_COLUMNS_KEY);
+      const savedGalleryColumns = getString(GALLERY_COLUMNS_KEY);
       if (savedGalleryColumns) galleryColumns = savedGalleryColumns;
     } catch (e) {
     }
@@ -13784,10 +24330,7 @@ Image: ${entry.imgName}`,
       () => galleryColumns,
       (val) => {
         galleryColumns = val;
-        try {
-          localStorage.setItem(GALLERY_COLUMNS_KEY, val);
-        } catch (e) {
-        }
+        setString(GALLERY_COLUMNS_KEY, val);
         applyGalleryColumnOverride();
         if (val !== "auto") {
           folderStats.gallery_columns_forced = true;
@@ -13807,25 +24350,19 @@ Image: ${entry.imgName}`,
       if (val === "gallery-left") shellEl.classList.add("layout-gallery-left");
       else if (val === "gallery-right") shellEl.classList.add("layout-gallery-right");
       panelLayout = val;
-      try {
-        localStorage.setItem("dts-panel-layout", val);
-      } catch (e) {
-      }
+      setString("dts-panel-layout", val);
       applyRightPanelCollapsedArrow();
       repositionRightResizeHandleSoon();
     }
     (function initPanelLayout() {
       let saved = "standard";
-      try {
-        saved = localStorage.getItem("dts-panel-layout") || "standard";
-      } catch (e) {
-      }
+      saved = getString("dts-panel-layout", "standard");
       applyPanelLayout(saved);
     })();
     function applyRightPanelCollapsedArrow() {
       const collapsed = rightAside.classList.contains("right-panel-collapsed");
       const flipped = rightPanelIsFlipped();
-      btnRightPanelCollapse.textContent = collapsed ? flipped ? "\u203A" : "\u2039" : flipped ? "\u2039" : "\u203A";
+      setIconLabel(btnRightPanelCollapse, collapsed ? flipped ? "\u203A" : "\u2039" : flipped ? "\u2039" : "\u203A");
       btnRightPanelCollapse.title = collapsed ? "Show this panel" : "Hide this panel";
     }
     function applyRightPanelCollapsed(collapsed) {
@@ -13833,17 +24370,11 @@ Image: ${entry.imgName}`,
       rightAside.classList.toggle("right-panel-collapsed", collapsed);
       applyRightPanelCollapsedArrow();
       repositionRightResizeHandleSoon();
-      try {
-        localStorage.setItem("dts-right-panel-collapsed", collapsed ? "1" : "0");
-      } catch (e) {
-      }
+      setBool("dts-right-panel-collapsed", collapsed);
     }
     (function initRightPanelCollapsed() {
       let saved = false;
-      try {
-        saved = localStorage.getItem("dts-right-panel-collapsed") === "1";
-      } catch (e) {
-      }
+      saved = getBool("dts-right-panel-collapsed");
       applyRightPanelCollapsed(saved);
     })();
     btnRightPanelCollapse.addEventListener("click", () => {
@@ -13882,10 +24413,7 @@ Image: ${entry.imgName}`,
     }
     (function initRightPanelWidth() {
       let saved = NaN;
-      try {
-        saved = parseInt(localStorage.getItem(RIGHT_PANEL_WIDTH_KEY) || "", 10);
-      } catch (e) {
-      }
+      saved = getInt(RIGHT_PANEL_WIDTH_KEY, NaN);
       applyRightPanelWidth(isNaN(saved) ? rightPanelWidth : saved);
       repositionRightResizeHandle();
     })();
@@ -13908,10 +24436,7 @@ Image: ${entry.imgName}`,
         document.removeEventListener("mouseup", onUp);
         shellEl.style.transition = "";
         rightPanelResizeHandle.classList.remove("resizing");
-        try {
-          localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(rightPanelWidth));
-        } catch (e) {
-        }
+        setInt(RIGHT_PANEL_WIDTH_KEY, rightPanelWidth);
       }
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
@@ -13925,12 +24450,13 @@ Image: ${entry.imgName}`,
     }
     gallerySortDirBtn.addEventListener("click", () => {
       gallerySortDir = gallerySortDir === "asc" ? "desc" : "asc";
-      gallerySortDirBtn.textContent = gallerySortDir === "asc" ? "\u25B2 Asc" : "\u25BC Desc";
+      setIconLabel(gallerySortDirBtn, gallerySortDir === "asc" ? "\u25B2 Asc" : "\u25BC Desc");
       renderCurrentView();
     });
     initTagDetails();
     initRandomFacts();
     initClickFlash();
+    initFontRefit();
     initInfoButtons();
     initHelp();
     initMenuKeyboardNav(() => {
@@ -13993,21 +24519,17 @@ Image: ${entry.imgName}`,
       const activeHandle = dirHandle;
       let added = 0, skipped = 0;
       for (const file of Array.from(files)) {
-        if (!isImageFile2(file.name)) {
+        if (!isImageFile(file.name)) {
           skipped++;
           continue;
         }
         try {
           const imgName = await uniqueDatasetFileName(activeHandle, file.name);
           const imgHandle = await activeHandle.getFileHandle(imgName, { create: true });
-          const writable = await imgHandle.createWritable();
-          await writable.write(file);
-          await writable.close();
+          await writeBytes(imgHandle, file);
           try {
             const txtHandle = await activeHandle.getFileHandle(imgName.replace(/\.[^.]+$/, "") + ".txt", { create: true });
-            const txtWritable = await txtHandle.createWritable();
-            await txtWritable.write("");
-            await txtWritable.close();
+            await writeBytes(txtHandle, "");
           } catch {
           }
           added++;

@@ -6,9 +6,16 @@
 <title>Osmium Workshop — local-first dataset tag editor</title>
 <meta name="description" content="A portable, local-first dataset tag editor for AI training images. Undoable edit logging, retroactive rule-based tag correction, WD14 autotagging, and direct ComfyUI syncing, all offline, in one binary." />
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- The app's own bundled faces (OFL, Latin subsets, synced into demo/ by
+     scripts/sync-site.js): the site's Chakra Petch / IBM Plex Sans /
+     JetBrains Mono, plus every theme's faces for the theme picker. Nothing
+     is fetched from Google; only faces actually in use download. -->
+<link rel="stylesheet" href="demo/fonts/fonts.css">
+<!-- Theme picker support, loaded before first paint so a saved theme never
+     flashes the default: the app's night-mode math (generated), then the
+     saved-theme painter. -->
+<script src="assets/night-palette.js"></script>
+<script src="assets/site-theme.js"></script>
 <style>
   /* Registered so --night is an animatable <number>, not an opaque token —
      required for the transition below to interpolate it frame by frame
@@ -20,12 +27,24 @@
   }
   :root{
     --night:0;
-    /* Time-based, not scroll-linked: html.night (toggled by JS at a fixed
-       scrollY threshold, see script below) flips this 0→1 and this
-       transition spends a real 1s getting there regardless of scroll
-       speed — matches how every other dark-mode toggle reads, rather than
-       coupling the fade's pace to how fast someone happens to be scrolling. */
-    transition:--night 1s linear;
+    /* Time-based, not scroll-linked: html.night (toggled by JS at the
+       #features boundary, see script below) flips this 0→1 and the page
+       recolors over a fixed --night-dur whatever the scroll speed.
+       One curve for EVERYTHING — ground, text, lines and accents all move
+       together, starting the instant the boundary is crossed. (It used to
+       run a linear 1s with background/text compressed into a ~165ms window
+       at the midpoint and accents smeared across the whole second, so the
+       page did nothing for ~420ms, then jolted, while the accents drifted on
+       their own schedule.) A strong ease-in-out keeps the unavoidable
+       low-contrast middle (text and ground passing each other) to a brief
+       instant, while the eased ends make the shift read as deliberate. */
+    --night-dur:.72s;
+    --night-ease:cubic-bezier(0.77, 0, 0.175, 1);
+    transition:--night var(--night-dur) var(--night-ease);
+    /* Type: overridable per theme by assets/site-theme.js. */
+    --f-display:'Chakra Petch',sans-serif;
+    --f-body:'IBM Plex Sans',system-ui,sans-serif;
+    --f-mono:'JetBrains Mono',monospace;
     /* Light and dark endpoints per token. Dark values are each token's own
        light value with HSL lightness inverted (100−L) — the same mechanism
        Osmium Workshop's own night-mode uses on its themes, not an unrelated
@@ -44,34 +63,17 @@
     --green-l:#3f9d4f;       --green-d:#62c072;
     --blue-l:#3b76d6;        --blue-d:#5f8fdd;
 
-    /* A steep, not linear, curve for background AND text alike. Text
-       committing to its target color quickly isn't enough on its own: a
-       BACKGROUND that still spends real time at ~50% gray has mediocre
-       contrast against text of *either* color while it's there (measured
-       3.99:1 against fully-committed light text — still under 4.5:1) — the
-       danger zone isn't "which color is text right now", it's "how long
-       does the background itself sit at medium gray". So both move on the
-       same fast curve: a clamp() centered on night=0.5 that saturates
-       within roughly 1/6th of the 1s transition either side (about 165ms
-       of the full second, worst-instant contrast ~1:1 but brief — see the
-       Python contrast sweep this was checked against) — still a real
-       crossfade, not a hard cut, just compressed into a fraction of the
-       transition instead of smeared across the whole second. Accent colors
-       (red/green/blue) aren't body text and stay on the full smooth --night
-       curve — no contrast floor to protect there. */
-    --night-fast:clamp(0, calc((var(--night) - 0.5) * 6), 1);
-
-    /* The only things every rule in this file actually reads. Background
-       and text both mix on --night-fast; only the accents use the raw,
-       smooth --night. One driving number recolors the whole page, nothing
-       downstream needs to know an animation is happening. */
-    --ground:color-mix(in srgb, var(--ground-l), var(--ground-d) calc(var(--night-fast) * 100%));
-    --ground-dim:color-mix(in srgb, var(--ground-dim-l), var(--ground-dim-d) calc(var(--night-fast) * 100%));
-    --card:color-mix(in srgb, var(--card-l), var(--card-d) calc(var(--night-fast) * 100%));
-    --ink:color-mix(in srgb, var(--ink-l), var(--ink-d) calc(var(--night-fast) * 100%));
-    --ink-soft:color-mix(in srgb, var(--ink-soft-l), var(--ink-soft-d) calc(var(--night-fast) * 100%));
-    --line:color-mix(in srgb, var(--line-l), var(--line-d) calc(var(--night-fast) * 100%));
-    --line-strong:color-mix(in srgb, var(--line-strong-l), var(--line-strong-d) calc(var(--night-fast) * 100%));
+    /* The only things every rule in this file actually reads: each token
+       mixes its light/dark endpoint on the one --night curve. The endpoints
+       (-l/-d) are overridden inline by assets/site-theme.js when a visitor
+       picks an app theme. */
+    --ground:color-mix(in srgb, var(--ground-l), var(--ground-d) calc(var(--night) * 100%));
+    --ground-dim:color-mix(in srgb, var(--ground-dim-l), var(--ground-dim-d) calc(var(--night) * 100%));
+    --card:color-mix(in srgb, var(--card-l), var(--card-d) calc(var(--night) * 100%));
+    --ink:color-mix(in srgb, var(--ink-l), var(--ink-d) calc(var(--night) * 100%));
+    --ink-soft:color-mix(in srgb, var(--ink-soft-l), var(--ink-soft-d) calc(var(--night) * 100%));
+    --line:color-mix(in srgb, var(--line-l), var(--line-d) calc(var(--night) * 100%));
+    --line-strong:color-mix(in srgb, var(--line-strong-l), var(--line-strong-d) calc(var(--night) * 100%));
     --red:color-mix(in srgb, var(--red-l), var(--red-d) calc(var(--night) * 100%));
     --green:color-mix(in srgb, var(--green-l), var(--green-d) calc(var(--night) * 100%));
     --blue:color-mix(in srgb, var(--blue-l), var(--blue-d) calc(var(--night) * 100%));
@@ -81,6 +83,9 @@
     --ease-out:cubic-bezier(0.23, 1, 0.32, 1);
   }
   html.night{ --night:1; }
+  /* First paint and bfcache restores land in the right mode without playing
+     the shift (a reload halfway down the page shouldn't fade in). */
+  :root.night-instant{ transition:none; }
   /* html.night is toggled by JS (see bottom of file) the instant scroll
      reaches #features ("The tools you'll actually use") — a real DOM
      position, not a percentage of page height or a guessed pixel, so it
@@ -98,22 +103,13 @@
   @media (prefers-reduced-motion: reduce){
     :root{ transition:none; }
   }
-  /* Applied for one frame by JS when a fast/flung scroll already lands well
-     past the threshold before the crossing is even detected (rAF-throttled
-     sampling means a fling can jump straight from "well above" to "well
-     below" with no frame in between) — without this, that fling would still
-     play the full 1s fade from a scroll position the user has already left,
-     reading as "still light" for a second after they've stopped at the
-     bottom. Forces an instant flip instead; ordinary scrolling never
-     triggers it, so the animated fade is untouched. */
-  :root.night-snap{ transition:none; }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
   body{
     margin:0;
     background:var(--ground);
     color:var(--ink);
-    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    font-family:var(--f-body);
     font-size:16px;
     line-height:1.6;
     -webkit-font-smoothing:antialiased;
@@ -121,8 +117,8 @@
   ::selection{background:var(--ink); color:var(--ground);}
   a{color:inherit;}
   .wrap{max-width:1180px; margin:0 auto; padding:0 32px;}
-  .display{font-family:'Chakra Petch',sans-serif; letter-spacing:-0.01em;}
-  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:var(--f-display); letter-spacing:-0.01em;}
+  .mono{font-family:var(--f-mono);}
 
   /* ---------- background rings, shared texture ---------- */
   .rings{
@@ -148,7 +144,7 @@
   }
   .brand{display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--ink);}
   .brand svg{display:block;}
-  .brand-name{font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
+  .brand-name{font-family:var(--f-display); font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
   nav.links{display:flex; align-items:center; gap:28px;}
   .nav-ctas{display:flex; align-items:center; gap:10px;}
   nav.links a{font-size:0.9rem; text-decoration:none; color:var(--ink-soft); transition:color .15s;}
@@ -160,16 +156,68 @@
   nav.links a.active{color:var(--ink); font-weight:600;}
   .btn{
     display:inline-flex; align-items:center; gap:8px;
-    font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:0.92rem;
+    font-family:var(--f-display); font-weight:600; font-size:0.92rem;
     padding:11px 20px; border-radius:var(--radius);
     text-decoration:none; border:1px solid var(--ink); white-space:nowrap;
     transition:transform .15s ease, box-shadow .15s ease;
   }
   .btn-primary{background:var(--ink); color:var(--ground);}
-  .btn-primary:hover{transform:translateY(-1px); box-shadow:0 6px 0 -2px var(--line-strong), 0 4px 14px rgba(0,0,0,.18);}
+  .btn-primary:hover{transform:translateY(-1px); box-shadow:0 8px 20px -6px color-mix(in srgb, var(--ink) 40%, transparent);}
   .btn-ghost{background:transparent; color:var(--ink); border-color:var(--line-strong);}
   .btn-ghost:hover{border-color:var(--ink);}
   .btn-sm{padding:8px 14px; font-size:0.82rem;}
+
+  /* ---------- theme picker (try the app's themes on this page) ---------- */
+  .theme-pick{position:relative;}
+  .theme-pick-btn{
+    display:inline-flex; align-items:center; gap:9px;
+    font-family:var(--f-display); font-weight:600; font-size:0.82rem; color:var(--ink);
+    padding:8px 12px; background:transparent; border:1px solid var(--line-strong); border-radius:var(--radius);
+    cursor:pointer; white-space:nowrap; transition:border-color .15s ease;
+  }
+  .theme-pick-btn:hover, .theme-pick-btn[aria-expanded="true"]{border-color:var(--ink);}
+  .theme-pick-btn:focus-visible, .tp-opt:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+  .tp-sw{display:inline-flex;}
+  .tp-sw i{width:11px; height:11px; border-radius:50%; box-shadow:0 0 0 1.5px var(--card); background:var(--line);}
+  .tp-sw i + i{margin-left:-3px;}
+  .tp-label{color:var(--ink-soft); font-weight:500;}
+  .tp-caret{width:10px; height:10px; transition:transform .2s var(--ease-out);}
+  .theme-pick-btn[aria-expanded="true"] .tp-caret{transform:rotate(180deg);}
+  .theme-pick-menu{
+    position:absolute; right:0; top:calc(100% + 8px); z-index:30;
+    width:min(470px, calc(100vw - 32px));
+    background:var(--card); border:1px solid var(--line-strong); border-radius:var(--radius);
+    box-shadow:0 18px 44px -12px rgba(0,0,0,.35); padding:12px;
+    transform-origin:top right; opacity:0; transform:translateY(-4px) scale(.97); visibility:hidden;
+    transition:opacity .16s var(--ease-out), transform .16s var(--ease-out), visibility 0s linear .16s;
+  }
+  .theme-pick-menu.open{opacity:1; transform:none; visibility:visible; transition:opacity .16s var(--ease-out), transform .16s var(--ease-out);}
+  .tp-head{font-family:var(--f-mono); font-size:0.72rem; color:var(--ink-soft); margin:2px 6px 10px;}
+  .tp-list{display:grid; grid-template-columns:1fr 1fr; gap:2px; max-height:min(60vh, 440px); overflow-y:auto;}
+  .tp-opt{
+    display:flex; align-items:center; gap:10px; width:100%;
+    padding:8px 10px; background:none; border:0; border-radius:var(--radius);
+    color:var(--ink); font:inherit; font-size:0.86rem; text-align:left; cursor:pointer;
+  }
+  .tp-opt:hover{background:var(--ground-dim);}
+  .tp-opt[aria-selected="true"]{background:var(--ground-dim); font-weight:600;}
+  .tp-opt[aria-selected="true"]::after{content:''; margin-left:auto; width:6px; height:6px; border-radius:50%; background:var(--ink);}
+  .tp-opt .tp-sw i{box-shadow:0 0 0 1.5px var(--card);}
+  .tp-foot{font-size:0.76rem; color:var(--ink-soft); margin:10px 6px 2px;}
+  /* Picking a theme reveals it as a circle growing out of the picker —
+     the new look spreads from where the choice was made. Set by the picker
+     script only when View Transitions exist and motion is allowed; the
+     choice itself never depends on it. */
+  ::view-transition-old(root){animation:none;}
+  ::view-transition-new(root){animation:siteThemeReveal .62s cubic-bezier(0.23, 1, 0.32, 1) both;}
+  @keyframes siteThemeReveal{
+    from{clip-path:circle(0px at var(--reveal-x, 50%) var(--reveal-y, 0px));}
+    to{clip-path:circle(var(--reveal-r, 150vmax) at var(--reveal-x, 50%) var(--reveal-y, 0px));}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .theme-pick-menu, .theme-pick-menu.open{transition:opacity .16s linear, visibility 0s;}
+    .theme-pick-menu{transform:none;}
+  }
 
   /* ---------- hero ---------- */
   .hero{position:relative; padding:96px 0 80px; overflow:hidden;}
@@ -179,7 +227,7 @@
   }
   .kicker-chip{
     display:inline-flex; align-items:center; gap:8px;
-    font-family:'JetBrains Mono',monospace; font-size:0.78rem; letter-spacing:0.03em;
+    font-family:var(--f-mono); font-size:0.78rem; letter-spacing:0.03em;
     color:var(--ink-soft); border:1px solid var(--line-strong); border-radius:999px;
     padding:5px 12px 5px 8px; margin-bottom:26px;
   }
@@ -202,12 +250,12 @@
      visitor to take. A plain underlined link reads as the secondary path
      it is. */
   .hero-cta-secondary{
-    font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:0.92rem;
+    font-family:var(--f-display); font-weight:600; font-size:0.92rem;
     color:var(--ink-soft); text-decoration:underline; text-underline-offset:3px;
     transition:color .15s;
   }
   .hero-cta-secondary:hover{color:var(--ink);}
-  .hero-meta{display:flex; gap:22px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft);}
+  .hero-meta{display:flex; gap:22px; flex-wrap:wrap; font-family:var(--f-mono); font-size:0.78rem; color:var(--ink-soft);}
   .hero-meta strong{color:var(--ink); font-weight:600;}
   /* The tagger itself needs nothing beyond this app. Generation (SynthDat
      Overseer, Comfy Bridge) is the one place that pulls in an external
@@ -248,7 +296,7 @@
   /* ---------- section scaffolding ---------- */
   section{position:relative; padding:88px 0;}
   .section-head{max-width:640px; margin-bottom:54px;}
-  h2{font-family:'Chakra Petch',sans-serif; font-size:clamp(1.7rem,2.6vw,2.3rem); font-weight:600; margin:0 0 14px; line-height:1.15;}
+  h2{font-family:var(--f-display); font-size:clamp(1.7rem,2.6vw,2.3rem); font-weight:600; margin:0 0 14px; line-height:1.15;}
   .section-head p{color:var(--ink-soft); font-size:1.02rem; max-width:60ch; margin:0;}
   .rule{height:1px; background:var(--line); border:0; margin:0;}
 
@@ -260,7 +308,7 @@
   .proof-frame .node-corner{position:absolute; width:9px; height:9px; background:var(--ink); transform:rotate(45deg); z-index:3;}
   .nc-tl{top:-5px; left:-5px;} .nc-tr{top:-5px; right:-5px;}
   .nc-bl{bottom:-5px; left:-5px;} .nc-br{bottom:-5px; right:-5px;}
-  .proof-cap{display:flex; justify-content:space-between; align-items:baseline; margin-top:14px; font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:var(--ink-soft);}
+  .proof-cap{display:flex; justify-content:space-between; align-items:baseline; margin-top:14px; font-family:var(--f-mono); font-size:0.76rem; color:var(--ink-soft);}
   /* One screenshot on screen at a time, swiped between — the old grid dump
      of all five at once (auto-fit minmax) read as visual clutter this far
      down the page. Native scroll-snap does the swipe/momentum for free on
@@ -307,7 +355,7 @@
   /* ---------- inter-section teaser line ---------- */
   .transition-line{ padding-top:56px; }
   .transition-line p{
-    max-width:640px; margin:0; font-family:'Chakra Petch',sans-serif; letter-spacing:-0.01em;
+    max-width:640px; margin:0; font-family:var(--f-display); letter-spacing:-0.01em;
     font-size:1.3rem; font-weight:600; color:var(--ink);
   }
 
@@ -321,7 +369,7 @@
   .conn-row.rev .conn-diagram{order:2;}
   .conn-diagram{aspect-ratio:1/1; }
   .conn-diagram svg{width:100%; height:100%;}
-  .conn-copy h3{font-family:'Chakra Petch',sans-serif; font-size:1.45rem; margin:0 0 10px; font-weight:600;}
+  .conn-copy h3{font-family:var(--f-display); font-size:1.45rem; margin:0 0 10px; font-weight:600;}
   .conn-copy p{color:var(--ink-soft); margin:0; max-width:56ch;}
   /* A real screenshot slotted under a feature row that has one to show —
      full width, capped so it doesn't stretch absurdly thin at very wide
@@ -377,7 +425,7 @@
   .app-item:last-child{border-bottom:1px solid var(--line);}
   .app-item .head{display:flex; align-items:baseline; gap:12px; margin-bottom:6px;}
   .app-item .swatch{width:9px; height:9px; border-radius:50%; flex:none;}
-  .app-item h3{font-family:'Chakra Petch',sans-serif; font-size:1.15rem; margin:0; font-weight:600;}
+  .app-item h3{font-family:var(--f-display); font-size:1.15rem; margin:0; font-weight:600;}
   .app-item p{margin:0; color:var(--ink-soft); font-size:0.95rem; padding-left:21px;}
   .app-item .app-dl{margin:14px 0 0 21px;}
   .app-item-ctas{display:flex; gap:10px; flex-wrap:wrap; margin:14px 0 0 21px;}
@@ -388,7 +436,7 @@
   .demo-bar{
     display:flex; align-items:center; gap:9px;
     padding:10px 16px; border-bottom:1px solid var(--line-strong);
-    font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:var(--ink-soft);
+    font-family:var(--f-mono); font-size:0.76rem; color:var(--ink-soft);
   }
   .demo-bar-dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent); flex:none;}
   .demo-bar a{margin-left:auto; text-decoration:none; color:var(--ink-soft); border-bottom:1px solid var(--line-strong);}
@@ -404,7 +452,7 @@
     border:1px solid var(--line-strong); background:var(--card);
     padding:32px; text-align:center;
   }
-  .demo-fallback strong{display:block; font-family:'Chakra Petch',sans-serif; font-size:1.1rem; margin-bottom:8px;}
+  .demo-fallback strong{display:block; font-family:var(--f-display); font-size:1.1rem; margin-bottom:8px;}
   .demo-fallback p{color:var(--ink-soft); margin:0; max-width:52ch; margin-inline:auto;}
   .demo-fallback a{color:var(--ink);}
   @media (max-width:640px){
@@ -413,7 +461,7 @@
 
   footer{border-top:1px solid var(--line); padding:44px 0; margin-top:20px;}
   .footer-row{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;}
-  .footer-brand{display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft);}
+  .footer-brand{display:flex; align-items:center; gap:10px; font-family:var(--f-mono); font-size:0.78rem; color:var(--ink-soft);}
   .footer-links{display:flex; gap:22px; font-size:0.85rem;}
   .footer-links a{text-decoration:none; color:var(--ink-soft);}
   .footer-links a:hover{color:var(--ink);}
@@ -432,6 +480,8 @@
   }
   @media (max-width:520px){
     .nav-ctas .btn-ghost{display:none;}
+    .tp-label, .tp-name{display:none;}
+    .tp-list{grid-template-columns:1fr;}
   }
   @media (max-width:420px){
     .brand-name{font-size:1rem;}
@@ -496,6 +546,19 @@
       <a href="#apps">Three apps</a>
     </nav>
     <div class="nav-ctas">
+      <div class="theme-pick">
+        <button type="button" class="theme-pick-btn" id="themePickBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="themePickMenu" title="Try the app's themes on this page">
+          <span class="tp-sw" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="tp-label">Theme</span>
+          <span class="tp-name" id="themePickName">Osmium</span>
+          <svg class="tp-caret" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="theme-pick-menu" id="themePickMenu">
+          <p class="tp-head">The app's 26 themes, on this page</p>
+          <div class="tp-list" id="themePickList" role="listbox" aria-label="Site theme"></div>
+          <p class="tp-foot">Scroll past the demo and you'll see each theme's night mode, the same inversion the app uses.</p>
+        </div>
+      </div>
       <a class="btn btn-ghost btn-sm" href="#demo">Try it right here</a>
       <a class="btn btn-primary btn-sm" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download <span data-latest-ver>v1.6.0</span></a>
     </div>
@@ -803,7 +866,7 @@
     <div class="wrap">
       <div class="section-head">
         <h2>Visual customizability</h2>
-        <p>26 themes, common to legendary, plus a night mode that sits on top of whichever one you're using. Same app, same density. Just your palette on top.</p>
+        <p>26 themes, common to legendary, and each one is a whole look: its own typefaces, button and tag shapes, textures, and hover effects, not just a palette swap. Night mode sits on top of whichever one you're using and keeps every label readable. Don't take the screenshots' word for it: pick one from the <strong>Theme</strong> menu up top and this page wears it.</p>
       </div>
       <div class="stair-wrap">
         <figure class="stair-shot s1">
@@ -998,25 +1061,37 @@
   function measure(){
     threshold = featuresSection.getBoundingClientRect().top + window.scrollY;
   }
-  // How far past the threshold a single rAF-throttled sample is allowed to
-  // land before we treat it as a fling that skipped over the crossing
-  // rather than an ordinary scroll caught mid-transition.
-  var SNAP_DISTANCE = 250;
+  // Hysteresis: once night, it takes scrolling this far back above the
+  // boundary to go day again, so resting a scroll right on the line can't
+  // strobe the page between modes. Every crossing plays the same shift at
+  // the same speed; there's no fast-scroll special case any more (the old
+  // "snap on a fling" made the same crossing sometimes fade, sometimes cut).
+  var HYSTERESIS = 96;
+  var root = document.documentElement;
   var wasNight = false;
   var ticking = false;
+  // Until the visitor's first own input, any crossing is the BROWSER
+  // scrolling (an anchor jump like /#apps, scroll restoration on reload) —
+  // the page should simply be in the right mode, not fade into it. Input
+  // only, no timer: html{scroll-behavior:smooth} makes an anchor load a
+  // long SMOOTH scroll that can cross the boundary well after 'load', and
+  // every scroll a visitor causes starts with one of these events anyway
+  // (nav links included — they're a pointerdown first).
+  var settled = false;
+  function settle(){ settled = true; }
+  ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(function(t){
+    window.addEventListener(t, settle, { once: true, passive: true, capture: true });
+  });
   function apply(){
-    var isNight = window.scrollY >= threshold;
-    if (isNight !== wasNight && Math.abs(window.scrollY - threshold) > SNAP_DISTANCE) {
-      var root = document.documentElement;
-      root.classList.add('night-snap');
+    var y = window.scrollY;
+    var isNight = wasNight ? y >= threshold - HYSTERESIS : y >= threshold;
+    if (isNight !== wasNight && !settled){
+      root.classList.add('night-instant');
       root.classList.toggle('night', isNight);
-      // Force layout so the transition:none above is actually committed
-      // before the class flips back off, otherwise the browser can coalesce
-      // both class changes into one style recalc and animate anyway.
       void root.offsetHeight;
-      root.classList.remove('night-snap');
+      requestAnimationFrame(function(){ root.classList.remove('night-instant'); });
     } else {
-      document.documentElement.classList.toggle('night', isNight);
+      root.classList.toggle('night', isNight);
     }
     wasNight = isNight;
     ticking = false;
@@ -1027,8 +1102,16 @@
       requestAnimationFrame(apply);
     }
   }
-  measure();
-  apply();
+  // Land in the right mode without animating (reload or anchor link below
+  // the boundary, or a back/forward-cache restore).
+  function applyInstant(){
+    root.classList.add('night-instant');
+    measure(); apply();
+    void root.offsetHeight;
+    requestAnimationFrame(function(){ root.classList.remove('night-instant'); });
+  }
+  applyInstant();
+  window.addEventListener('pageshow', function(e){ if (e.persisted) applyInstant(); });
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', function(){ measure(); apply(); });
   // window's own 'resize' only fires when the BROWSER WINDOW changes size —
@@ -1048,6 +1131,122 @@
   if ('ResizeObserver' in window) {
     new ResizeObserver(function(){ measure(); apply(); }).observe(document.body);
   }
+})();
+
+(function(){
+  // Theme picker: lets a visitor wear any of the app's themes on this page
+  // (and in the embedded demo). Theme data is assets/themes.json, generated
+  // from the app's styles.css; painting/persistence is assets/site-theme.js.
+  var btn = document.getElementById('themePickBtn');
+  var menu = document.getElementById('themePickMenu');
+  var list = document.getElementById('themePickList');
+  var nameEl = document.getElementById('themePickName');
+  if (!btn || !window.OsmiumSiteTheme) return;
+  var OSMIUM_SWATCH = ['#f4f4f1', '#3b76d6', '#3f9d4f'];
+  var themes = null, loading = null;
+  function load(){
+    return loading || (loading = fetch('assets/themes.json').then(function(r){ return r.json(); })
+      .then(function(t){
+        // Osmium (the site's own look) leads; the rest keep the app's order.
+        themes = t.filter(function(x){ return x.id === 'osmium'; }).concat(t.filter(function(x){ return x.id !== 'osmium'; }));
+        return themes;
+      }));
+  }
+  function currentId(){ var c = OsmiumSiteTheme.current(); return c ? c.id : 'osmium'; }
+  function paintSwatches(host, colors){
+    var dots = host.querySelectorAll('i');
+    for (var i = 0; i < dots.length; i++) dots[i].style.background = colors[i];
+  }
+  function showCurrent(){
+    var c = OsmiumSiteTheme.current();
+    nameEl.textContent = c ? c.name.replace(/\s*\((dark|light)\)$/, '') : 'Osmium';
+    paintSwatches(btn, c ? c.swatch : OSMIUM_SWATCH);
+  }
+  function render(){
+    list.innerHTML = '';
+    var cur = currentId();
+    themes.forEach(function(t){
+      var opt = document.createElement('button');
+      opt.type = 'button';
+      opt.className = 'tp-opt';
+      opt.setAttribute('role', 'option');
+      opt.setAttribute('aria-selected', String(t.id === cur));
+      opt.dataset.id = t.id;
+      opt.innerHTML = '<span class="tp-sw" aria-hidden="true"><i></i><i></i><i></i></span><span></span>';
+      opt.lastChild.textContent = t.id === 'osmium' ? 'Osmium (this site)' : t.name.replace(/\s*\((dark|light)\)$/, '');
+      paintSwatches(opt, [t.vars['--bg-base'], t.vars['--accent-manual'], t.vars['--accent-flair']]);
+      opt.addEventListener('click', function(){ pick(t); });
+      list.appendChild(opt);
+    });
+  }
+  function isOpen(){ return menu.classList.contains('open'); }
+  function open(){
+    load().then(function(){
+      render();
+      menu.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      var sel = list.querySelector('[aria-selected="true"]') || list.firstChild;
+      if (sel) sel.focus();
+    });
+  }
+  function close(refocus){
+    menu.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
+    if (refocus) btn.focus();
+  }
+  // The embedded demo IS the app: it shares this origin's localStorage, so
+  // it boots in the picked theme, and a demo already on screen switches too.
+  function syncDemo(id){
+    try {
+      localStorage.setItem('dts-theme', id);
+      var frame = document.getElementById('demoFrame');
+      var doc = frame && frame.getAttribute('src') && frame.contentDocument;
+      if (doc && doc.documentElement) doc.documentElement.setAttribute('data-theme', id);
+    } catch(e){}
+  }
+  function pick(theme){
+    close(true);
+    if (theme.id === currentId()) return;
+    var change = function(){ OsmiumSiteTheme.use(theme); showCurrent(); };
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (document.startViewTransition && !reduce){
+      var r = btn.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+      var root = document.documentElement;
+      root.style.setProperty('--reveal-x', x + 'px');
+      root.style.setProperty('--reveal-y', y + 'px');
+      root.style.setProperty('--reveal-r', Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y)) + 'px');
+      document.startViewTransition(change);
+    } else {
+      change();
+    }
+    syncDemo(theme.id);
+  }
+  // Warm the (small) theme list the moment the pointer heads for the picker,
+  // so the menu opens without waiting on the network.
+  btn.addEventListener('pointerenter', load, { once: true });
+  btn.addEventListener('focus', load, { once: true });
+  btn.addEventListener('click', function(){ if (isOpen()) close(false); else open(); });
+  document.addEventListener('pointerdown', function(e){
+    if (isOpen() && !menu.contains(e.target) && !btn.contains(e.target)) close(false);
+  });
+  menu.addEventListener('keydown', function(e){
+    var opts = Array.prototype.slice.call(list.querySelectorAll('.tp-opt'));
+    var i = opts.indexOf(document.activeElement);
+    var cols = getComputedStyle(list).gridTemplateColumns.split(' ').length;
+    var to = null;
+    if (e.key === 'Escape'){ e.preventDefault(); close(true); return; }
+    if (e.key === 'ArrowDown') to = i + cols;
+    else if (e.key === 'ArrowUp') to = i - cols;
+    else if (e.key === 'ArrowRight') to = i + 1;
+    else if (e.key === 'ArrowLeft') to = i - 1;
+    else if (e.key === 'Home') to = 0;
+    else if (e.key === 'End') to = opts.length - 1;
+    else if (e.key === 'Tab'){ close(false); return; }
+    if (to === null) return;
+    e.preventDefault();
+    opts[Math.max(0, Math.min(opts.length - 1, to))].focus();
+  });
+  showCurrent();
 })();
 
 (function(){

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Osmium Workshop — Live Demo</title>
 <meta name="robots" content="noindex">
+<link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="styles.css">
 <script>
 // Applies the saved theme (+ custom overrides + night mode) to <html>
@@ -20,6 +21,79 @@
 // base variable values (needed to invert them for night mode) rather than
 // nothing at all.
 (function(){
+  // Night palette: the ONE implementation of night mode's color math, shared
+  // by this pre-paint pass and themes.ts's toggleDayNightMode (which calls
+  // window.__dtsNightPalette) — there is no second copy to keep in sync.
+  // Step 1: flip every theme var's HSL lightness (100 - L), hue/saturation
+  // kept. Step 2, contrast guard: a mid-lightness accent (L~50) barely moves
+  // under the flip and can land on a ground that just went light, so every
+  // text-like var is walked away from the new ground, same hue/saturation,
+  // until it clears its floor (primary 7:1, muted + accents 4.5:1 since
+  // accents are used as text, faint 3:1) against the panel and raised
+  // surfaces, and each accent against its own -dim tint too.
+  // The GitHub Pages site reuses this exact block: scripts/sync-site.js
+  // copies everything between the night-palette markers into
+  // docs/assets/night-palette.js, so keep it self-contained.
+  /* night-palette:begin */
+  var VARS =['--bg-base','--bg-panel','--bg-elevated','--bg-elevated-2','--border-soft','--border-strong',
+    '--text-primary','--text-muted','--text-faint','--accent-auto','--accent-auto-dim','--accent-manual',
+    '--accent-manual-dim','--accent-danger','--accent-success','--accent-flair'];
+  var FLOORS = { '--text-primary': 7, '--text-muted': 4.5, '--text-faint': 3, '--accent-auto': 4.5,
+    '--accent-manual': 4.5, '--accent-danger': 4.5, '--accent-success': 4.5, '--accent-flair': 4.5 };
+  var TINT = { '--accent-auto': '--accent-auto-dim', '--accent-manual': '--accent-manual-dim' };
+  function hexToHsl(hex){
+    var r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+    var max=Math.max(r,g,b), min=Math.min(r,g,b), h, s, l=(max+min)/2;
+    if (max===min){ h=0; s=0; } else {
+      var d=max-min; s = l>0.5 ? d/(2-max-min) : d/(max+min);
+      switch(max){ case r: h=(g-b)/d+(g<b?6:0); break; case g: h=(b-r)/d+2; break; default: h=(r-g)/d+4; }
+      h/=6;
+    }
+    return [h*360, s*100, l*100];
+  }
+  function hslToHex(h,s,l){
+    h/=360; s/=100; l/=100; var r,g,b;
+    if (s===0){ r=g=b=l; } else {
+      var hue2rgb=function(p,q,t){ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
+      var q = l<0.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
+      r=hue2rgb(p,q,h+1/3); g=hue2rgb(p,q,h); b=hue2rgb(p,q,h-1/3);
+    }
+    var toHex=function(x){ return Math.round(x*255).toString(16).padStart(2,'0'); };
+    return '#'+toHex(r)+toHex(g)+toHex(b);
+  }
+  function luminance(hex){
+    var c = [1,3,5].map(function(i){
+      var v = parseInt(hex.slice(i,i+2),16)/255;
+      return v <= 0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4);
+    });
+    return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2];
+  }
+  function contrast(a, b){
+    var A = luminance(a), B = luminance(b);
+    return (Math.max(A,B)+0.05) / (Math.min(A,B)+0.05);
+  }
+  // readHex(key) -> the var's current DAY value as #rrggbb.
+  window.__dtsNightPalette = function(readHex){
+    var out = {}, i;
+    for (i = 0; i < VARS.length; i++){
+      var hsl = hexToHsl(readHex(VARS[i]));
+      out[VARS[i]] = hslToHex(hsl[0], hsl[1], 100 - hsl[2]);
+    }
+    var groundGoesLight = hexToHsl(out['--bg-panel'])[2] > 50;
+    for (var key in FLOORS){
+      var grounds = [out['--bg-panel'], out['--bg-elevated']];
+      if (TINT[key]) grounds.push(out[TINT[key]]);
+      var worst = function(hex){ var m = Infinity; for (var j = 0; j < grounds.length; j++) m = Math.min(m, contrast(hex, grounds[j])); return m; };
+      var fg = hexToHsl(out[key]), l = fg[2], hex = out[key];
+      while (worst(hex) < FLOORS[key] && l > 0 && l < 100){
+        l = groundGoesLight ? Math.max(0, l - 1) : Math.min(100, l + 1);
+        hex = hslToHex(fg[0], fg[1], l);
+      }
+      out[key] = hex;
+    }
+    return out;
+  };
+  /* night-palette:end */
   try {
     var root = document.documentElement;
     var theme = localStorage.getItem('dts-theme') || 'studio';
@@ -41,9 +115,6 @@
     if (localStorage.getItem('dts-no-flourish-tilt') === '1') root.classList.add('no-flourish-tilt');
     if (localStorage.getItem('dts-no-flourish-ambient') === '1') root.classList.add('no-flourish-ambient');
     if (localStorage.getItem('dts-night-mode') === '1'){
-      var VARS = ['--bg-base','--bg-panel','--bg-elevated','--bg-elevated-2','--border-soft','--border-strong',
-        '--text-primary','--text-muted','--text-faint','--accent-auto','--accent-auto-dim','--accent-manual',
-        '--accent-manual-dim','--accent-danger','--accent-success','--accent-flair'];
       var canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
       function toHex6(c){
         ctx.fillStyle = '#000000'; ctx.fillStyle = c;
@@ -53,33 +124,9 @@
         if (m){ var toH = function(n){ return Number(n).toString(16).padStart(2,'0'); }; return '#'+toH(m[1])+toH(m[2])+toH(m[3]); }
         return '#000000';
       }
-      function hexToHsl(hex){
-        var r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
-        var max=Math.max(r,g,b), min=Math.min(r,g,b), h, s, l=(max+min)/2;
-        if (max===min){ h=0; s=0; } else {
-          var d=max-min; s = l>0.5 ? d/(2-max-min) : d/(max+min);
-          switch(max){ case r: h=(g-b)/d+(g<b?6:0); break; case g: h=(b-r)/d+2; break; default: h=(r-g)/d+4; }
-          h/=6;
-        }
-        return [h*360, s*100, l*100];
-      }
-      function hslToHex(h,s,l){
-        h/=360; s/=100; l/=100; var r,g,b;
-        if (s===0){ r=g=b=l; } else {
-          var hue2rgb=function(p,q,t){ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
-          var q = l<0.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
-          r=hue2rgb(p,q,h+1/3); g=hue2rgb(p,q,h); b=hue2rgb(p,q,h-1/3);
-        }
-        var toHex=function(x){ return Math.round(x*255).toString(16).padStart(2,'0'); };
-        return '#'+toHex(r)+toHex(g)+toHex(b);
-      }
       var computed = getComputedStyle(root);
-      for (var i = 0; i < VARS.length; i++){
-        var key = VARS[i];
-        var dayHex = toHex6((computed.getPropertyValue(key) || '#000000').trim());
-        var hsl = hexToHsl(dayHex);
-        root.style.setProperty(key, hslToHex(hsl[0], hsl[1], 100 - hsl[2]));
-      }
+      var pal = window.__dtsNightPalette(function(key){ return toHex6((computed.getPropertyValue(key) || '#000000').trim()); });
+      for (var key in pal) root.style.setProperty(key, pal[key]);
       root.classList.add('night-mode');
     }
     window.__dtsPreThemed = true;
@@ -88,6 +135,76 @@
 </script>
 </head>
 <body>
+<!-- UI icon sprite: every <use href="#i-…"> in the app points here. Drawings
+     live only in this block; the glyph → id map is src/renderer/icons.ts. -->
+<svg id="iconSprite" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l2 2h8.8A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="6.3"/><path d="M12 2.8v2.9M12 18.3v2.9M2.8 12h2.9M18.3 12h2.9M5.5 5.5l2 2M16.5 16.5l2 2M5.5 18.5l2-2M16.5 7.5l2-2"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.6 4.2a4.6 4.6 0 0 0-5.4 6L3.8 15.6a1.9 1.9 0 0 0 2.7 2.7l5.4-5.4a4.6 4.6 0 0 0 6-5.4l-2.9 2.9-2.5-.6-.6-2.5z"/></symbol>
+  <symbol id="i-telescope" viewBox="0 0 24 24"><path d="M3.6 13.2 15.2 6.8l2.1 3.8L5.7 17z"/><path d="M15.2 6.8l2.6-1.4 2.1 3.8-2.6 1.4"/><path d="M10.6 14.6 8 20.5M10.6 14.6l2.8 5.9"/></symbol>
+  <symbol id="i-log" viewBox="0 0 24 24"><path d="M7.5 4h10.5a2 2 0 0 1 2 2v1.5h-4"/><path d="M16 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1.5h9.5"/><path d="M7.5 4A2 2 0 0 0 5.5 6v10.5"/><path d="M9 9.5h4M9 13h4"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.3 0 1.9-.9 1.6-2-.3-1.2.4-2.2 1.7-2.2h2.1a3.1 3.1 0 0 0 3.1-3.1C20.5 7.1 16.7 3.5 12 3.5z"/><circle cx="7.6" cy="11.2" r="1.1"/><circle cx="10.4" cy="7.6" r="1.1"/><circle cx="15" cy="8" r="1.1"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><path d="M12 14.5v2"/></symbol>
+  <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 7.7-1.6"/><path d="M12 14.5v2"/></symbol>
+  <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 5.5H5V7a3 3 0 0 0 3 3M16 5.5h3V7a3 3 0 0 1-3 3"/><path d="M12 13v3.5M8.5 20.5h7M10 16.5h4l.6 4h-5.2z"/></symbol>
+  <symbol id="i-coins" viewBox="0 0 24 24"><ellipse cx="9" cy="7" rx="5.5" ry="2.5"/><path d="M3.5 7v4.5C3.5 12.9 6 14 9 14s5.5-1.1 5.5-2.5V7"/><ellipse cx="15" cy="13.5" rx="5.5" ry="2.5"/><path d="M9.5 13.5V18c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5v-4.5"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.6A7.6 7.6 0 1 1 9.4 4.5a6 6 0 0 0 10.1 10.1z"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.9.8c0 1.7-2.5 2.2-2.5 3.8"/><path d="M12 17.2v.1"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.5" r="1.7"/><path d="M20.5 15.5l-4.8-4.8L6 19.5"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16.5V11M12 16.5V6.5M17 16.5v-8"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9.5 3.5h5M10.5 3.5v5.2L5.2 17.8a1.8 1.8 0 0 0 1.6 2.7h10.4a1.8 1.8 0 0 0 1.6-2.7L13.5 8.7V3.5"/><path d="M7.6 14h8.8"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5.5 21V4"/><path d="M5.5 4.5h11.5l-2.2 4 2.2 4H5.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="M20 20l-4.7-4.7"/></symbol>
+  <symbol id="i-dice" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M8.5 8.5h.01M15.5 15.5h.01M12 12h.01M15.5 8.5h.01M8.5 15.5h.01"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 12s3.3-6 9-6c1.6 0 3 .5 4.2 1.1M21 12s-3.3 6-9 6c-1.6 0-3-.5-4.2-1.1"/><path d="M4 4l16 16"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-hash" viewBox="0 0 24 24"><path d="M9.5 4 8 20M16 4l-1.5 16M4.5 9h15M4 15h15"/></symbol>
+  <symbol id="i-x-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="6.5" cy="17.5" r="2.5"/><path d="M8.6 8 20 18M8.6 16 20 6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="16" rx="2"/><path d="M9.5 3.5h5v2.5h-5z"/><path d="M8.5 10.5h7M8.5 14h7M8.5 17.5h4"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5"/><path d="M5 20h14"/></symbol>
+  <symbol id="i-bucket" viewBox="0 0 24 24"><path d="M4 9h16l-1.8 10a1.5 1.5 0 0 1-1.5 1.2H7.3a1.5 1.5 0 0 1-1.5-1.2z"/><path d="M8 9l3-5M16 9l-3-5"/><path d="M9.5 13v4M14.5 13v4"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4.5 9.5 9 5"/><path d="M4.5 9.5H14a5.5 5.5 0 0 1 0 11h-3"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l4.5-4.5L15 5"/><path d="M19.5 9.5H10a5.5 5.5 0 0 0 0 11h3"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.5 1.5 0 0 1 0 2.1l-6.2 6.2a1.5 1.5 0 0 1-2.1 0z"/><circle cx="8" cy="8" r="1.4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6.5v-2h5v2"/><path d="M6.5 6.5l1 13a1.5 1.5 0 0 0 1.5 1.4h6a1.5 1.5 0 0 0 1.5-1.4l1-13"/><path d="M10 10.5v6M14 10.5v6"/></symbol>
+  <symbol id="i-shield-off" viewBox="0 0 24 24"><path d="M12 3.5 19 6v5.5c0 4.3-3 7.5-7 9-4-1.5-7-4.7-7-9V6z"/><path d="M9 9l6 6"/></symbol>
+  <symbol id="i-shield-plus" viewBox="0 0 24 24"><path d="M12 3.5 19 6v5.5c0 4.3-3 7.5-7 9-4-1.5-7-4.7-7-9V6z"/><path d="M12 9v6M9 12h6"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 12.5V6.5a1.5 1.5 0 0 1 3 0V11M11 11V5a1.5 1.5 0 0 1 3 0v6M14 11V6.5a1.5 1.5 0 0 1 3 0v7.5a6.5 6.5 0 0 1-6.5 6.5h-.4a6 6 0 0 1-4.6-2.2l-2-2.4a1.5 1.5 0 0 1 2.3-1.9L8 15.5"/></symbol>
+  <symbol id="i-wand" viewBox="0 0 24 24"><path d="M4 20 14.5 9.5"/><path d="M14.5 9.5l2-2"/><path d="M17.5 2.8v2.4M20.2 5.5h-2.4M19.6 10l-1.2-1M13.5 4l1 1.2"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.3L4 8.5"/><path d="M4 4v4.5h4.5"/><path d="M4 13a8 8 0 0 0 14.3 4.3L20 15.5"/><path d="M20 20v-4.5h-4.5"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4 4.5v5h5"/><path d="M4.6 9.5A8 8 0 1 1 4 13"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7.5 5v14l11-7z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/></symbol>
+  <symbol id="i-check-square" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 12.5l2.7 2.7L16 9.5"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3.5v4M15 3.5v4"/><path d="M6.5 7.5h11V11a5.5 5.5 0 0 1-11 0z"/><path d="M12 16.5v4"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M14 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V10"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-3.5 1 1-3.5z"/></symbol>
+  <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5 8h14l-1 12.5H6z"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8.5h14V12M12 8v12.5"/><path d="M12 8c-1.5-4-5.5-3.5-4.5-1 .4 1 2.5 1 4.5 1zM12 8c1.5-4 5.5-3.5 4.5-1-.4 1-2.5 1-4.5 1z"/></symbol>
+  <symbol id="i-hammer" viewBox="0 0 24 24"><path d="M13 8 4.5 16.5a2 2 0 0 0 3 3L16 11"/><path d="M11 5.5l3-1.5 6 6-1.5 3-2-2L14 13.5 10.5 10 13 7.5z"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12h.01"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12 2.5-6h4"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6.5c-1.8-1.4-4.3-2-7.5-2v14c3.2 0 5.7.6 7.5 2 1.8-1.4 4.3-2 7.5-2v-14c-3.2 0-5.7.6-7.5 2z"/><path d="M12 6.5v14"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11.5L20 7.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 4v5h7V4"/><path d="M7.5 20v-6.5h9V20"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 21.5 20h-19z"/><path d="M12 10v4.5M12 17.5v.1"/></symbol>
+  <symbol id="i-skip-back" viewBox="0 0 24 24"><path d="M18 5.5v13L9.5 12z"/><path d="M6 5.5v13"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M4.5 5.5h15v10h-8.5l-4.5 4v-4h-2z"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2.2 4.8-4.8 2.2 2.2-4.8z"/></symbol>
+  <symbol id="i-gem" viewBox="0 0 24 24"><path d="M6.5 4.5h11L21 9l-9 11L3 9z"/><path d="M3 9h18M9.5 4.5 8 9l4 11 4-11-1.5-4.5"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></symbol>
+  <symbol id="i-caret-down" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></symbol>
+  <symbol id="i-caret-up" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M10 7l5 5-5 5"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M14 7l-5 5 5 5"/></symbol>
+  <symbol id="i-rotate-cw" viewBox="0 0 24 24"><path d="M20 4.5v5h-5"/><path d="M19.4 9.5A8 8 0 1 0 20 13"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4.2 4.2L18.5 7.5"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8.5h15M15.5 5l3.5 3.5-3.5 3.5"/><path d="M20 15.5H5M8.5 12 5 15.5 8.5 19"/></symbol>
+</defs></svg>
 
 <div id="app">
   <header id="topbar">
@@ -97,10 +214,10 @@
     </div>
       <div class="actions" id="topbarActions">
         <div class="header-cat" id="fileCatWrap">
-          <button class="header-cat-btn primary" id="fileCatBtn" title="Open, save, undo/redo">📁 File ▾</button>
+          <button class="header-cat-btn primary" id="fileCatBtn" title="Open, save, undo/redo"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-folder"></use></svg>File<svg class="ic ic-trail" aria-hidden="true"><use href="#i-caret-down"></use></svg></button>
           <div class="header-cat-flyout" id="fileCatFlyout" style="display:none;">
             <button id="btnOpen" class="primary" title="Choose a folder of images with matching .txt caption files">Open dataset folder</button>
-            <button id="btnFavorites" title="Favorite folders for quick access">★ Favorites</button>
+            <button id="btnFavorites" title="Favorite folders for quick access"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-star"></use></svg>Favorites</button>
             <button id="btnSave" disabled title="Write all unsaved tag changes to disk">Save changes <span id="dirtyCount">(0)</span></button>
             <button id="btnUndo" disabled title="Undo the last tag edit">Undo</button>
             <button id="btnRedo" disabled title="Redo the last undone edit">Redo</button>
@@ -108,13 +225,13 @@
             <button id="btnUnloadDataset" disabled title="Close the current dataset and return to the empty state">Unload dataset</button>
           </div>
         </div>
-        <button id="btnSettings" title="Settings">⚙️ Settings</button>
-        <button id="btnLeftDrawerToggle" class="drawer-toggle" title="Open filters &amp; tags panel">☰</button>
-        <button id="btnRightDrawerToggle" class="drawer-toggle" title="Open tools panel">🔧</button>
-        <button id="btnOverseerDrawerToggle" class="drawer-toggle" title="Open Tag Overseer panel">🔭</button>
-        <button id="btnLog" title="View the edit history log for this folder">📜 Log</button>
+        <button id="btnSettings" title="Settings"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-settings"></use></svg>Settings</button>
+        <button id="btnLeftDrawerToggle" class="drawer-toggle" title="Open filters &amp; tags panel"><svg class="ic" aria-hidden="true"><use href="#i-menu"></use></svg></button>
+        <button id="btnRightDrawerToggle" class="drawer-toggle" title="Open tools panel"><svg class="ic" aria-hidden="true"><use href="#i-wrench"></use></svg></button>
+        <button id="btnOverseerDrawerToggle" class="drawer-toggle" title="Open Tag Overseer panel"><svg class="ic" aria-hidden="true"><use href="#i-telescope"></use></svg></button>
+        <button id="btnLog" title="View the edit history log for this folder"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-log"></use></svg>Log</button>
         <div class="header-cat">
-          <button class="header-cat-btn" id="personalizationCatBtn" title="Themes, colors, achievements, shop">🎨 Personalization ▾</button>
+          <button class="header-cat-btn" id="personalizationCatBtn" title="Themes, colors, achievements, shop"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-palette"></use></svg>Personalization<svg class="ic ic-trail" aria-hidden="true"><use href="#i-caret-down"></use></svg></button>
           <div class="header-cat-flyout" id="personalizationCatFlyout" style="display:none;">
             <div class="pdrop" id="themeDropdown" title="Theme"></div>
             <select id="themeSelect" title="Theme" style="display:none;">
@@ -146,33 +263,34 @@
               <option value="celestial-gold">🔒 Celestial Gold</option>
               <option value="custom">Custom…</option>
             </select>
-            <button id="btnThemeCustomize" title="Customize theme colors">🎨 Colors</button>
-            <button id="btnAchievements" title="Achievements">🏆 <span id="walletDisplay">0</span></button>
-            <button id="btnShop" title="Theme shop">💰 Shop</button>
-            <button id="btnResetZoom" title="Reset app zoom/font size (Ctrl+0 also works)">↺ Reset Zoom</button>
+            <button id="btnThemeCustomize" title="Customize theme colors"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-palette"></use></svg>Colors</button>
+            <button id="btnAchievements" title="Achievements"><svg class="ic" aria-hidden="true"><use href="#i-trophy"></use></svg> <span id="walletDisplay">0</span></button>
+            <button id="btnShop" title="Theme shop"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-coins"></use></svg>Shop</button>
+            <button id="btnResetZoom" title="Reset app zoom/font size (Ctrl+0 also works)"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-rotate"></use></svg>Reset Zoom</button>
           </div>
         </div>
-        <button id="btnNightMode" title="Night mode">🌙</button>
+        <button id="btnNightMode" title="Night mode"><svg class="ic" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button id="btnResetEdibits" class="danger-ghost" title="Debug: reset Edibits to 0">Reset Edibits</button>
         <button id="btnResetAchievements" class="danger-ghost" title="Debug: reset achievement progress for this folder">Reset Achievements</button>
-        <button id="btnQuit" class="danger-ghost" title="Quit the app">✕ Quit</button>
+        <button id="btnQuit" class="danger-ghost" title="Quit the app"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-x"></use></svg>Quit</button>
       </div>
-      <button id="btnHelp" class="topbar-help-btn" title="Help &amp; documentation">❓ <span class="help-btn-label">Help</span></button>
+      <button id="btnHelp" class="topbar-help-btn" title="Help &amp; documentation"><svg class="ic" aria-hidden="true"><use href="#i-help"></use></svg> <span class="help-btn-label">Help</span></button>
   </header>
 
   <nav id="tabBar">
-    <button id="tabDatasetManager" class="tab-btn">📁 Datasets</button>
-    <button id="tabGallery" class="tab-btn active">🖼 Gallery</button>
-    <button id="tabMasterTags" class="tab-btn">🔭 Tag Overseer</button>
-    <button id="tabStats" class="tab-btn">📊 Editing Stats</button>
-    <button id="tabSynthDat" class="tab-btn">🧪 SynthDat Overseer</button>
+    <button id="tabDatasetManager" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-folder"></use></svg>Datasets</button>
+    <button id="tabGallery" class="tab-btn active"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-image"></use></svg>Gallery</button>
+    <button id="tabMasterTags" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-telescope"></use></svg>Tag Overseer</button>
+    <button id="tabStats" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-chart"></use></svg>Editing Stats</button>
+    <button id="tabSynthDat" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-flask"></use></svg>SynthDat Overseer</button>
   </nav>
 
   <div id="datasetManagerTab" style="display:none;">
+    <div id="dmTabBar" class="dm-tab-bar"></div>
     <div class="dm-toolbar">
       <div class="dm-toolbar-left">
-        <button id="dmGridBtn" class="dm-view-btn active" title="Grid view">▦ Grid</button>
-        <button id="dmListBtn" class="dm-view-btn" title="List view">☰ List</button>
+        <button id="dmGridBtn" class="dm-view-btn active" title="Grid view"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-grid"></use></svg>Grid</button>
+        <button id="dmListBtn" class="dm-view-btn" title="List view"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-menu"></use></svg>List</button>
       </div>
       <div class="dm-toolbar-right">
         <span class="dm-sort-label">Sort:</span>
@@ -191,9 +309,14 @@
         <input type="text" id="filterInput" placeholder="Show images containing tag(s)… e.g. red hair, blue eyes">
         <div id="filterSuggestions" class="filter-suggestions" style="display:none;"></div>
         <div class="filter-help-row">
-          <span title="How multiple comma-separated tags combine">AND</span>
+          <span title="How multiple comma-separated tags combine">Boolean</span>
           <div class="pdrop" id="filterModeDropdown"></div>
-          <button id="btnClearFilter" title="Clear all filters">Clear filter</button>
+          <div class="filter-lock-clear">
+            <label class="ach-toggle-row filter-mode-lock" title="Keep this filter mode even when Tag Pruner's mirror search or Clear filter would normally reset it to AND">
+              <input type="checkbox" id="filterModeLock"><span>Lock</span>
+            </label>
+            <button id="btnClearFilter" title="Clear all filters">Clear filter</button>
+          </div>
         </div>
         <label class="ach-toggle-row" title="When on, a term only matches a tag that equals it exactly — searching &quot;dress&quot; won't also match &quot;black dress&quot; or &quot;frilly dress&quot;">
           <input type="checkbox" id="filterExactToggle"><span>Exact tag match</span>
@@ -204,9 +327,10 @@
           <button id="filterDirty" title="Show only images with unsaved changes">Unsaved</button>
         </div>
         <div class="exclude-badge" id="excludeBadge">
-          Excluding "<b id="excludeBadgeText"></b>" <button id="excludeBadgeClear" title="Clear exclude filter">✕</button>
+          Excluding "<b id="excludeBadgeText"></b>" <button id="excludeBadgeClear" title="Clear exclude filter"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg></button>
         </div>
-        <button id="btnFlagIsolated" title="Highlight rarely-used tags that might need review">🚩 Flag isolated tags</button>
+        <button id="btnFlagIsolated" title="Highlight rarely-used tags that might need review"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-flag"></use></svg>Flag isolated tags</button>
+        <button id="btnReviewFlagged" title="Swap the TAGS list for every tag flagged for review, each with a Reviewed button that clears it everywhere (undoable)"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-flag"></use></svg>Review flagged tags</button>
       </div>
 
       <div class="field-block">
@@ -231,7 +355,7 @@
            the mobile media query), so this whole block renders exactly as
            it always did outside that breakpoint. -->
       <div class="field-block" id="tagFamilyGroup" style="flex:1; min-height:0;">
-        <button id="btnOpenTagFrequencyList" class="dock-list-open-btn primary" title="Browse the full tag list">🔍 Browse tags</button>
+        <button id="btnOpenTagFrequencyList" class="dock-list-open-btn primary" title="Browse the full tag list"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-search"></use></svg>Browse tags</button>
         <!-- Sort row travels INTO the modal together with the list itself
              (openDockListModal('Tags', tagFamilyListArea) below) — it's the
              list's own sort controls, useless sitting outside the modal
@@ -240,10 +364,10 @@
              mobile-only display flip is unaffected by the extra div). -->
         <div id="tagFamilyListArea" class="dock-list-area">
           <div class="left-sort-row">
-            <h3 class="panel-title">TAGS</h3>
+            <h3 class="panel-title" id="tagListTitle">TAGS</h3>
             <div class="pdrop" id="leftSortDropdown"></div>
-            <button id="leftSortDirBtn" title="Toggle ascending/descending">▼</button>
-            <button id="btnResetFamilyOrder" title="Reset the manual drag order of keyword families back to default">↺</button>
+            <button id="leftSortDirBtn" title="Toggle ascending/descending"><svg class="ic" aria-hidden="true"><use href="#i-caret-down"></use></svg></button>
+            <button id="btnResetFamilyOrder" title="Reset the manual drag order of keyword families back to default"><svg class="ic" aria-hidden="true"><use href="#i-rotate"></use></svg></button>
           </div>
           <div id="tagFrequencyList"></div>
         </div>
@@ -257,7 +381,7 @@
         <div class="small">
           Click <b>File → Open dataset folder</b> above to get started.
         </div>
-        <button id="btnRandomFact" style="margin-top:6px;">🎲 Tell me a useless fact</button>
+        <button id="btnRandomFact" style="margin-top:6px;"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-dice"></use></svg>Tell me a useless fact</button>
         <div id="randomFactDisplay" class="small" style="display:none; max-width:480px;"></div>
       </div>
       </div>
@@ -267,20 +391,21 @@
           <button id="viewGridBtn" class="active" title="Grid view">Grid</button>
           <button id="viewCompactBtn" title="Compact view — smaller thumbnails, shift-click to compare">Compact</button>
           <button id="viewSingleBtn" title="Single image view — one at a time, with zoom/pan">Single</button>
-          <button id="btnUnlockAll" title="Unlock every locked image in this dataset, so mass tools (Quick Merge, Master Tags, bulk WD14, etc.) can affect them again">🔓 Unlock all</button>
-          <button id="btnHideTags" title="Hide the tag chips and add-field on every card — useful when sorting against a filter (e.g. everything without 1girl) so what IS and ISN'T missing stays visually obvious; tags stay editable via the card modal">🙈 Hide tags</button>
-          <button id="btnRenameAllImages" title="Rename every loaded image (+ its .txt) to a simple zero-padded 1-N sequence — active dataset first, then Disabled/, continuing the same count">🔢 Rename all</button>
-          <button id="viewDisabledBtn" title="Disabled images">❌ Disabled</button>
+          <button id="btnUnlockAll" title="Unlock every locked image in this dataset, so mass tools (Quick Merge, Master Tags, bulk WD14, etc.) can affect them again"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-unlock"></use></svg>Unlock all</button>
+          <button id="btnHideTags" title="Hide the tag chips and add-field on every card — useful when sorting against a filter (e.g. everything without 1girl) so what IS and ISN'T missing stays visually obvious; tags stay editable via the card modal"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-eye-off"></use></svg>Hide tags</button>
+          <button id="btnRenameAllImages" title="Rename every loaded image (+ its .txt) to a simple zero-padded 1-N sequence — active dataset first, then Disabled/, continuing the same count"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-hash"></use></svg>Rename all</button>
+          <button id="viewDisabledBtn" title="Disabled images"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-x-circle"></use></svg>Disabled</button>
+          <button id="viewOriginalsBtn" title="Original (pre-bucketing) images — moved here by the Bucket Images tool"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-image"></use></svg>Originals</button>
         </div>
         <span id="filterMatchCount" style="display:none;"></span>
         <div class="gallery-sort">
           <div class="pdrop" id="gallerySortDropdown"></div>
-          <button id="gallerySortDirBtn" title="Toggle ascending/descending">▲ Asc</button>
+          <button id="gallerySortDirBtn" title="Toggle ascending/descending"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-caret-up"></use></svg>Asc</button>
         </div>
         <div id="singleNav">
-          <button id="singlePrevBtn" title="Previous image (← key)">‹ Prev</button>
+          <button id="singlePrevBtn" title="Previous image (← key)"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-chevron-left"></use></svg>Prev</button>
           <span class="single-pos" id="singlePos">0 / 0</span>
-          <button id="singleNextBtn" title="Next image (→ key)">Next ›</button>
+          <button id="singleNextBtn" title="Next image (→ key)">Next<svg class="ic ic-trail" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
         </div>
       </div>
 
@@ -289,7 +414,7 @@
       <div id="compactGrid" style="display:none;"></div>
       <div id="compactCompareArea" class="compact-compare-area" style="display:none;">
         <div class="compact-compare-header">
-          <span>🔗 Comparing <span id="compareCount">0</span> image(s) — shift-click another card to add it</span>
+          <span><svg class="ic ic-lead" aria-hidden="true"><use href="#i-link"></use></svg>Comparing <span id="compareCount">0</span> image(s) — shift-click another card to add it</span>
           <button id="btnClearCompare" title="Remove all images from the comparison table">Clear comparison</button>
         </div>
         <div id="compactCompareTable" class="compact-compare-table"></div>
@@ -301,8 +426,8 @@
     <aside id="right">
 
       <div id="rightPanelHeaderRow">
-        <button id="btnRightPanelCollapse" class="panel-collapse-arrow" title="Hide this panel">›</button>
-        <button id="btnGoToTagOverseer" class="right-panel-header-action" title="Switch to Tag Overseer">🔭 Tag Overseer</button>
+        <button id="btnRightPanelCollapse" class="panel-collapse-arrow" title="Hide this panel"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+        <button id="btnGoToTagOverseer" class="right-panel-header-action" title="Switch to Tag Overseer"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-telescope"></use></svg>Tag Overseer</button>
         <button id="btnMasterBack" class="right-panel-header-action" style="display:none;" title="Back to normal tools">← Gallery tools</button>
       </div>
 
@@ -310,12 +435,12 @@
       <div id="normalRightTools">
       <div class="tool-section" data-dock-id="tagPruner" data-resizable="true">
         <div class="sec-head"><span class="dot manual"></span><span class="t">Tag Pruner</span><button type="button" class="info-btn dock-info-btn" id="infoTagPrunerDesc" title="About Tag Pruner">ⓘ</button></div>
-        <template id="infoTagPrunerDescContent">Search or browse all tags and hand-pick any for the merge/void tool below. Leave the search empty to browse everything. Nothing is selected automatically. Each box's selection (and its 🔍/Clear) is independent — a tag picked in one won't show up in another, so you can browse several keyword families side by side.</template>
+        <template id="infoTagPrunerDescContent">Search or browse all tags and hand-pick any for the merge/void tool below. Leave the search empty to browse everything. Nothing is selected automatically. Each box's selection (and its<svg class="ic ic-trail" aria-hidden="true"><use href="#i-search"></use></svg>/Clear) is independent — a tag picked in one won't show up in another, so you can browse several keyword families side by side.</template>
         <div class="dock-scroll-body">
           <div class="dock-controls-area">
-          <div class="sec-head dock-desc-hide-mobile"><span class="d">Search or browse all tags and hand-pick any for the merge/void tool below. Leave the search empty to browse everything. Nothing is selected automatically. Each box's selection (and its 🔍/Clear) is independent — a tag picked in one won't show up in another, so you can browse several keyword families side by side.</span></div>
+          <div class="sec-head dock-desc-hide-mobile"><span class="d">Search or browse all tags and hand-pick any for the merge/void tool below. Leave the search empty to browse everything. Nothing is selected automatically. Each box's selection (and its<svg class="ic ic-trail" aria-hidden="true"><use href="#i-search"></use></svg>/Clear) is independent — a tag picked in one won't show up in another, so you can browse several keyword families side by side.</span></div>
           <button id="btnAddTagPruner" title="Add another independent Tag Pruner search box">+ Add another Tag Pruner</button>
-          <button id="btnOpenTagPrunerList" class="dock-list-open-btn primary" title="Search or browse tags to select for merge/void">✂️ Prune tags</button>
+          <button id="btnOpenTagPrunerList" class="dock-list-open-btn primary" title="Search or browse tags to select for merge/void"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-scissors"></use></svg>Prune tags</button>
           </div>
           <div id="tagPrunerList" class="dock-list-area"></div>
         </div>
@@ -331,7 +456,7 @@
           <span>Also apply to Disabled images right now&nbsp;<button type="button" class="info-btn" id="infoIncludeDisabled" title="More about this checkbox">ⓘ</button></span>
         </label>
         <template id="infoIncludeDisabledContent">The Retroactive Merge/Void dock below no longer catches up Disabled images automatically — its standing rules only affect Gallery images going forward — so this checkbox is the only way a Disabled image gets this specific merge/void; it'll also pick up any future rule changes once restored to the Gallery.</template>
-        <button id="btnOpenUnifyVoidList" class="dock-list-open-btn primary" title="View selected tags and apply">📋 View selection</button>
+        <button id="btnOpenUnifyVoidList" class="dock-list-open-btn primary" title="View selected tags and apply"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-list"></use></svg>View selection</button>
         </div>
         <div id="unifyVoidRows" class="dock-list-area">
           <div class="selection-summary">No tags selected yet.</div>
@@ -358,9 +483,43 @@
               </ul>
           </template>
           <button id="btnAddCanonicalRule" title="Add a new merge or void rule by hand">+ New rule</button>
-          <button id="btnOpenCanonicalTagsList" class="dock-list-open-btn primary" title="View and manage standing rules">📋 View rules</button>
+          <button id="btnOpenCanonicalTagsList" class="dock-list-open-btn primary" title="View and manage standing rules"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-list"></use></svg>View rules</button>
           </div>
           <div id="canonicalTagsList" class="dock-list-area"></div>
+        </div>
+      </div>
+
+      <div class="tool-section" data-dock-id="bucketImages">
+        <div class="sec-head"><span class="dot manual"></span><span class="t">Bucket Images</span><button type="button" class="info-btn dock-info-btn" id="infoBucketImages" title="About Bucket Images">ⓘ</button></div>
+        <template id="infoBucketImagesContent">
+          <p>Crops and resizes every Gallery image to the nearest training bucket — the same aspect-ratio bucketing Anima-TrainFlow uses — so a LoRA trainer doesn't have to. The crop is head-first: a u2net saliency model decides what to keep.</p>
+          <ul>
+            <li><b>Originals are kept.</b> Each image is moved into an <code>original_images/</code> folder (treated as disabled, shown under the <b>Originals</b> view next to Disabled) and its bucketed copy is written back to the dataset root as PNG.</li>
+            <li><b>Captions follow the copy.</b> The bucketed image keeps the same name stem, so it inherits the caption; the original keeps a duplicate <code>.txt</code>.</li>
+            <li><b>Already-bucketed images are left alone</b> — anything already at a valid bucket size is kept as-is and never moved.</li>
+            <li><b>Revert</b> deletes the bucketed copies and moves the originals back to the Gallery.</li>
+          </ul>
+          <p>The bucketing model is ~176 MB and downloads once from this app's GitHub release.</p>
+        </template>
+        <div class="dock-scroll-body">
+          <div class="dock-controls-area">
+            <div class="bucket-model-row">
+              <span id="bucketModelStatusText" class="d">Checking model…</span>
+              <button id="btnBucketDownloadModel" class="dock-list-open-btn primary" style="display:none;"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-download"></use></svg>Download model (176 MB)</button>
+            </div>
+            <div class="bucket-params-row">
+              <label>Min side <input type="number" id="bucketSideMin" value="256" min="64" step="64"></label>
+              <label>Max side <input type="number" id="bucketSideMax" value="1024" min="64" step="64"></label>
+              <label>Step <input type="number" id="bucketSideStep" value="64" min="16" step="16"></label>
+            </div>
+            <label class="ach-toggle-row bucket-gpu-row" title="Run the u2net saliency model on the GPU via DirectML when available, falling back to CPU automatically">
+              <input type="checkbox" id="bucketGpu" checked>
+              <span> Prefer GPU</span>
+            </label>
+            <button id="btnBucketRun" class="primary" title="Crop + resize every Gallery image to its nearest bucket"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-bucket"></use></svg>Bucket images</button>
+            <button id="btnBucketRevert" title="Undo bucketing: delete the bucketed copies and restore the originals"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-undo"></use></svg>Revert bucketing</button>
+          </div>
+          <div id="bucketLog" class="dock-list-area bucket-log"></div>
         </div>
       </div>
 
@@ -368,13 +527,13 @@
 
       <div id="masterTagPanel" class="rt-hidden">
         <div class="tool-section">
-          <div class="sec-head"><span class="t">🏷 Master Tag Control</span><button type="button" class="info-btn dock-info-btn" id="infoMasterTagControlDesc" title="About Master Tag Control">ⓘ</button></div>
+          <div class="sec-head"><span class="t"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-tag"></use></svg>Master Tag Control</span><button type="button" class="info-btn dock-info-btn" id="infoMasterTagControlDesc" title="About Master Tag Control">ⓘ</button></div>
           <template id="infoMasterTagControlDescContent">Click images in the gallery to select them (checkboxes appear on cards while this tab is active). Then apply operations here. Or click a thumbnail below to select/deselect it.</template>
           <div class="dock-scroll-body">
           <div class="dock-controls-area">
           <div class="sec-head dock-desc-hide-mobile" style="margin-top:-8px;"><span class="d">Click images in the gallery to select them (checkboxes appear on cards while this tab is active). Then apply operations here.</span></div>
           <div class="sec-head dock-desc-hide-mobile"><span class="d">Or click a thumbnail below to select/deselect it:</span></div>
-          <button id="btnOpenMasterMiniGrid" class="dock-list-open-btn primary" title="Browse and select images by thumbnail">🖼 Select images</button>
+          <button id="btnOpenMasterMiniGrid" class="dock-list-open-btn always-visible primary" title="Pop the thumbnail grid out into a bigger window">⛶ Pop out grid</button>
           <div class="selection-summary" id="masterSelectionSummary">No images selected yet.</div>
           <div class="mtc-btn-row">
             <button id="btnMasterSelectAll" title="Select every image currently visible in the gallery">Select all visible</button>
@@ -383,32 +542,32 @@
           <div class="sec-head" style="margin-bottom:8px;"><span class="d">Everything below applies to the selected images, unless noted otherwise.</span></div>
           <div id="masterMiniGrid" class="master-mini-grid dock-list-area" style="margin-bottom:8px;"></div>
           <div class="mtc-btn-row">
-            <button id="btnMasterDisableSelected" title="Move the selected images to Disabled/ — restorable, unlike Delete below">🗑 Disable</button>
-            <button id="btnMasterDeleteSelected" class="danger-ghost" title="Permanently delete the selected images and their tags from disk — cannot be undone. Locked images are skipped.">❌ Delete</button>
+            <button id="btnMasterDisableSelected" title="Move the selected images to Disabled/ — restorable, unlike Delete below"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-trash"></use></svg>Disable</button>
+            <button id="btnMasterDeleteSelected" class="danger-ghost" title="Permanently delete the selected images and their tags from disk — cannot be undone. Locked images are skipped."><svg class="ic ic-lead" aria-hidden="true"><use href="#i-x-circle"></use></svg>Delete</button>
           </div>
           <div class="mtc-btn-row">
-            <button id="btnMasterLockSelected" title="Lock the selected images so mass tools (Master Tags, bulk WD14, etc.) skip them">🔒 Lock</button>
-            <button id="btnMasterUnlockSelected" title="Unlock the selected images">🔓 Unlock</button>
+            <button id="btnMasterLockSelected" title="Lock the selected images so mass tools (Master Tags, bulk WD14, etc.) skip them"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-lock"></use></svg>Lock</button>
+            <button id="btnMasterUnlockSelected" title="Unlock the selected images"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-unlock"></use></svg>Unlock</button>
           </div>
           <div class="sec-head" style="margin-top:4px;"><span class="d">Retroactive Merge/Void exceptions — a permanent per-image setting, unlike Lock (which only skips mass tools):</span></div>
           <div class="immunize-row">
-            <button id="btnMasterMergeImmunizeToggle" title="Merge rules will never rewrite tags on the selected images">🚫 Merge Immunize</button>
+            <button id="btnMasterMergeImmunizeToggle" title="Merge rules will never rewrite tags on the selected images"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-shield-off"></use></svg>Merge Immunize</button>
           </div>
           <div class="immunize-row">
-            <button id="btnMasterAntivoidToggle" title="Void rules will never remove tags from the selected images">🟢 Antivoid</button>
+            <button id="btnMasterAntivoidToggle" title="Void rules will never remove tags from the selected images"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-shield-plus"></use></svg>Antivoid</button>
           </div>
           <div class="immunize-row">
-            <button id="btnMasterAntimmunizeToggle" title="Shortcut for both Merge Immunize AND Antivoid at once, on the selected images">✋ Antimmunize</button>
+            <button id="btnMasterAntimmunizeToggle" title="Shortcut for both Merge Immunize AND Antivoid at once, on the selected images"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-hand"></use></svg>Antimmunize</button>
           </div>
           </div>
           </div>
         </div>
 
         <div class="tool-section">
-          <div class="sec-head"><span class="t">🐍 WD14 Autotagger</span></div>
+          <div class="sec-head"><span class="t"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-wand"></use></svg>WD14 Autotagger</span></div>
           <div class="sec-head" style="margin-top:-8px;"><span class="d">Sends selected image(s) to a WD14 Tagger node on a running ComfyUI instance (or, where available, an on-device model) and drops the result tags onto each card.</span></div>
           <div style="display:flex; gap:8px;">
-            <button id="btnWd14TagSelected" class="primary" style="white-space:normal;" title="Tag every selected image using the settings below">🐍 Tag selected images with WD14</button>
+            <button id="btnWd14TagSelected" class="primary" style="white-space:normal;" title="Tag every selected image using the settings below"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-wand"></use></svg>Tag selected images with WD14</button>
           </div>
           <div id="wd14Status" class="sec-head" style="margin-top:2px; display:none;">
             <span class="d"></span>
@@ -419,7 +578,7 @@
             <span> Apply tags automatically (skip the review step)</span>
           </label>
           <details class="wd14-settings">
-            <summary>⚙️ WD14 settings</summary>
+            <summary><svg class="ic ic-lead" aria-hidden="true"><use href="#i-settings"></use></svg>WD14 settings</summary>
             <!-- wd14ModeRow: hidden entirely unless window.Wd14Local exists
                  (mobile w/ the local-WD14 native plugin) — see wd14-tagger.ts's
                  hasLocalWd14. Desktop never sees this. -->
@@ -436,7 +595,7 @@
               <div class="gtt-label">Model</div>
               <div class="apply-row">
                 <select id="wd14ModelSelect"></select>
-                <button id="btnWd14RefreshModels" title="Fetch the current model list from ComfyUI">🔄</button>
+                <button id="btnWd14RefreshModels" title="Fetch the current model list from ComfyUI"><svg class="ic" aria-hidden="true"><use href="#i-refresh"></use></svg></button>
               </div>
             </div>
             <div id="wd14LocalFields" style="display:none;">
@@ -447,10 +606,10 @@
               <div id="wd14LocalCatalog" class="wd14-local-model-list"></div>
               <div class="gtt-label" style="margin-top:8px;">Or add a model from its HuggingFace repo</div>
               <input type="text" id="wd14LocalAddRepo" placeholder="e.g. SmilingWolf/wd-swinv2-tagger-v3, or a full huggingface.co URL">
-              <button id="btnWd14LocalDownload" class="primary" title="Fetch model.onnx and selected_tags.csv straight from that repo">⬇ Download model</button>
+              <button id="btnWd14LocalDownload" class="primary" title="Fetch model.onnx and selected_tags.csv straight from that repo"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-download"></use></svg>Download model</button>
               <div id="wd14LocalDownloadStatus" class="wd14-download-status" style="display:none;"></div>
               <div class="gtt-label" style="margin-top:8px;">Already have a copy? (e.g. from your ComfyUI-WD14-Tagger install)</div>
-              <button id="btnWd14LocalImport" title="Pick an existing model.onnx and its tags .csv from disk instead of downloading a fresh copy" style="display:none;">📂 Import existing files…</button>
+              <button id="btnWd14LocalImport" title="Pick an existing model.onnx and its tags .csv from disk instead of downloading a fresh copy" style="display:none;"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-folder"></use></svg>Import existing files…</button>
             </div>
             <div class="gtt-row">
               <div>
@@ -586,8 +745,8 @@
             <label class="field-block" title="How strongly the 2nd pass changes the 1st pass's result — higher fixes more but can drift further from it."><span>Pass 2 denoise</span><input type="number" id="synthDatDenoise2" step="0.05" value="0.6"></label>
             <label class="field-block" title="How far into sampling ControlNet stays active, as a fraction of total steps. Lower values let the LoRA take over sooner for a less rigid pose match. (ControlNet's own Strength/Start % are still set in the ControlNet section — this one's here because it's really a generation-timing knob, closely tied to Pass 2's denoise above.)"><span>ControlNet end %</span><input type="number" id="synthDatLLLiteEndPercent" step="0.05" value="0.3"></label>
             <div class="synthdat-lora-row">
-              <button id="btnSynthDatGenerate" class="primary">▶ Generate</button>
-              <button id="btnSynthDatStop" class="danger-ghost" disabled title="Interrupt the generation currently running">⏹ Stop</button>
+              <button id="btnSynthDatGenerate" class="primary"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-play"></use></svg>Generate</button>
+              <button id="btnSynthDatStop" class="danger-ghost" disabled title="Interrupt the generation currently running"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-stop"></use></svg>Stop</button>
             </div>
           </div>
           <div class="synthdat-col">
@@ -612,14 +771,14 @@
             <div class="sec-head"><span class="d">Accept adds this image + its tags to the dataset. Reject still saves it, but straight into the dataset's Disabled/ folder — out of the way, but recoverable later like any other disabled image.</span></div>
             <div class="synthdat-lora-row" id="synthDatStripHairFaceRow"><label class="ach-toggle-row" title="Hair and Face tags are usually left out of a character LoRA's own caption, since the trigger word already implies them."><input type="checkbox" id="synthDatStripHairFace" checked><span>Exclude Hair &amp; Face from saved tags</span></label></div>
             <div class="sec-head"><span class="t" style="font-size:11px;">Tags this will save:</span></div>
-            <div class="synthdat-lora-row"><label class="ach-toggle-row" title="Compound keeps every tag already in the list below and only adds ones WD14 catches that aren't already there (a tag both you and WD14 agree on, like 'dress', just stays 'dress' once). Overwrite throws out the whole list below and replaces it with exactly what WD14 returns for the output image."><input type="checkbox" id="synthDatReinterrogateOverwrite"><span>Overwrite instead of compounding (replaces the whole list below with WD14's output tags)</span></label><button id="btnViewWd14TransferList" title="See the tag lists SynthDat's reference-image tag-assignment picker knows — what it auto-suggests as Pose / Limbs / Scene / Sexual and leaves unskipped">📋 Transfer list</button></div>
-            <button id="btnSynthDatReinterrogateOutput" disabled title="Run WD14 on the actual generated image (not the reference) — useful since the model sometimes adds details you never prompted for (e.g. it draws a pond and throws in lily pads on its own).">🐍 Re-interrogate output with WD14</button>
+            <div class="synthdat-lora-row"><label class="ach-toggle-row" title="Compound keeps every tag already in the list below and only adds ones WD14 catches that aren't already there (a tag both you and WD14 agree on, like 'dress', just stays 'dress' once). Overwrite throws out the whole list below and replaces it with exactly what WD14 returns for the output image."><input type="checkbox" id="synthDatReinterrogateOverwrite"><span>Overwrite instead of compounding (replaces the whole list below with WD14's output tags)</span></label><button id="btnViewWd14TransferList" title="See the tag lists SynthDat's reference-image tag-assignment picker knows — what it auto-suggests as Pose / Limbs / Scene / Sexual and leaves unskipped"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-list"></use></svg>Transfer list</button></div>
+            <button id="btnSynthDatReinterrogateOutput" disabled title="Run WD14 on the actual generated image (not the reference) — useful since the model sometimes adds details you never prompted for (e.g. it draws a pond and throws in lily pads on its own)."><svg class="ic ic-lead" aria-hidden="true"><use href="#i-wand"></use></svg>Re-interrogate output with WD14</button>
             <div id="synthDatReinterrogateResult" class="synthdat-wd14-result" style="display:none;"></div>
             <div id="synthDatTagPreview" class="synthdat-tag-card" title="Click × to drop a tag from what gets saved, or click a merge suggestion to fold it into your dataset's existing canonical spelling"></div>
             <div class="synthdat-lora-row"><label class="ach-toggle-row" title="Names this image the next number in the dataset's own zero-padded sequence (matching whatever width the existing sequence already uses) instead of the default synth_&lt;timestamp&gt; name — only meaningful if this dataset already uses simple numbered filenames."><input type="checkbox" id="synthDatRenameOnAccept"><span>Rename this image to match dataset conventions?</span></label></div>
             <div class="synthdat-lora-row">
-              <button id="btnSynthDatAccept" class="primary" disabled title="Copy this image + its tags into the loaded dataset">✅ Accept into dataset</button>
-              <button id="btnSynthDatReject" class="danger-ghost" disabled title="Save this result straight into the dataset's Disabled folder instead of the main dataset">❌ Reject</button>
+              <button id="btnSynthDatAccept" class="primary" disabled title="Copy this image + its tags into the loaded dataset"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-check-circle"></use></svg>Accept into dataset</button>
+              <button id="btnSynthDatReject" class="danger-ghost" disabled title="Save this result straight into the dataset's Disabled folder instead of the main dataset"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-x-circle"></use></svg>Reject</button>
             </div>
           </div>
         </div>
@@ -630,8 +789,8 @@
           <div class="sec-head"><span class="t">ComfyUI connection</span></div>
           <label class="field-block" title="Independent from Tag Overseer's WD14 host — some setups run generation and tagging through different addresses/tunnels."><span>Host</span><input type="text" id="synthDatHost" placeholder="http://127.0.0.1:8188"></label>
           <div class="synthdat-lora-row">
-            <button id="btnSynthDatConnect" title="Test connectivity to this ComfyUI host">🔌 Connect</button>
-            <button id="btnSynthDatRefreshModels" title="Reload model/LoRA lists from ComfyUI">🔄 Refresh models</button>
+            <button id="btnSynthDatConnect" title="Test connectivity to this ComfyUI host"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-plug"></use></svg>Connect</button>
+            <button id="btnSynthDatRefreshModels" title="Reload model/LoRA lists from ComfyUI"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-refresh"></use></svg>Refresh models</button>
           </div>
           <div id="synthDatConnStatus" class="synthdat-warning" style="display:none;"></div>
         </div>
@@ -663,8 +822,8 @@
             </div>
           </div>
           <div id="synthDatResizedPreviewLabel" class="synthdat-resized-preview-label" style="display:none;"></div>
-          <button id="btnSynthDatPickImage" class="primary">🖼 Choose reference image…</button>
-          <button id="btnSynthDatInterrogate" disabled title="Run WD14 on the reference image">🐍 Interrogate with WD14</button>
+          <button id="btnSynthDatPickImage" class="primary"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-image"></use></svg>Choose reference image…</button>
+          <button id="btnSynthDatInterrogate" disabled title="Run WD14 on the reference image"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-wand"></use></svg>Interrogate with WD14</button>
           <div id="synthDatWd14Result" class="synthdat-wd14-result" style="display:none;"></div>
           <div id="synthDatTagAssign" class="synthdat-tag-assign" title="Each tag defaults to a suggestion (based on Danbooru's own posture/gesture/hands tag groups) — click a different button to reassign it, or leave it on Skip."></div>
           <div class="synthdat-lora-row"><label class="ach-toggle-row" title="Compound adds these tags onto whatever's already in Pose/Limbs/Sexual. Clear first wipes each of those three fields before adding this image's tags — use it when the previous image's pose has nothing to do with this one."><input type="checkbox" id="synthDatMigrateClearFirst"><span>Clear existing Pose/Limbs/Sexual tags first</span></label></div>
@@ -708,9 +867,9 @@
            via btnSynthDatPromptPanelToggle (always-visible edge tab, styles.css)
            since scrolling the docks column above would otherwise scroll a
            same-column panel out of reach too. -->
-      <button type="button" id="btnSynthDatPromptPanelToggle" title="Open prompt fields">‹ 📝 Prompt fields</button>
+      <button type="button" id="btnSynthDatPromptPanelToggle" title="Open prompt fields"><svg class="ic" aria-hidden="true"><use href="#i-chevron-left"></use></svg> <svg class="ic ic-lead" aria-hidden="true"><use href="#i-note"></use></svg>Prompt fields</button>
       <div class="tool-section" id="synthDatPromptFieldsDock" style="display:none;">
-        <div class="sec-head"><span class="t">Prompt fields</span><button type="button" id="btnSynthDatPromptPanelClose" class="panel-collapse-arrow" title="Collapse">›</button></div>
+        <div class="sec-head"><span class="t">Prompt fields</span><button type="button" id="btnSynthDatPromptPanelClose" class="panel-collapse-arrow" title="Collapse"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></div>
           <div class="synthdat-lora-row"><label class="ach-toggle-row" title="For a prompt you've already written out in full and don't want to split apart — everything below except the two trigger words and Negative folds into one box instead."><input type="checkbox" id="synthDatUnifiedPromptMode"><span>Use a single unified prompt box</span></label></div>
           <label class="field-block" id="synthDatUnifiedPromptRow" style="display:none;" title="Your whole ready-made prompt, comma-separated — sent (and saved) exactly as typed, alongside the two trigger words below."><span>Prompt</span><textarea id="synthDatUnifiedPrompt" rows="8"></textarea></label>
           <label class="field-block" title="The Main LoRA's own trigger word — this is what actually invokes its style."><span>Global (Main LoRA trigger word)</span><textarea id="synthDatGlobal" rows="2"></textarea></label>
@@ -769,7 +928,7 @@
   </div>
 
   <div id="achievementsPanel" class="theme-panel log-panel" style="display:none;">
-    <div class="theme-panel-head">🏆 Achievements — <span id="achWallet">0</span> Edibits</div>
+    <div class="theme-panel-head"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-trophy"></use></svg>Achievements — <span id="achWallet">0</span> Edibits</div>
     <label class="ach-toggle-row">
       <input type="checkbox" id="achPopupsToggle" checked>
       <span>Show popup when unlocked (stats always track regardless)</span>
@@ -779,11 +938,11 @@
   </div>
 
   <div id="shopPanel" class="theme-panel log-panel" style="display:none;">
-    <div class="theme-panel-head">🛍 Theme Shop — <span id="shopWallet">0</span> Edibits</div>
+    <div class="theme-panel-head"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-bag"></use></svg>Theme Shop — <span id="shopWallet">0</span> Edibits</div>
     <div id="shopList" class="shop-list"></div>
-    <button id="btnFreeEdibits" class="primary" title="Get a small random amount of Edibits">🎁 Beg for free Edibits</button>
+    <button id="btnFreeEdibits" class="primary" title="Get a small random amount of Edibits"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-gift"></use></svg>Beg for free Edibits</button>
     <div class="shop-bottom-row">
-      <button id="btnRefineTheme" class="ghost-close" title="Upgrade the current theme to have epic/legendary-tier button effects">🔨 Refine Theme</button>
+      <button id="btnRefineTheme" class="ghost-close" title="Upgrade the current theme to have epic/legendary-tier button effects"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-hammer"></use></svg>Refine Theme</button>
       <button id="shopCloseBtn" class="ghost-close">Close</button>
     </div>
   </div>
@@ -795,10 +954,10 @@
   </div>
 
   <div id="settingsPanel" class="theme-panel log-panel" style="display:none;">
-    <div class="theme-panel-head">⚙️ Settings</div>
+    <div class="theme-panel-head"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-settings"></use></svg>Settings</div>
 
     <div class="settings-section" data-section="appearance">
-      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Appearance</span></button>
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></span><span>Appearance</span></button>
       <div class="settings-section-body">
         <div class="settings-row">
           <span>Font size</span>
@@ -817,10 +976,11 @@
           <span style="font-size:11px; color:var(--text-faint);">Sort tags within each card</span>
           <div class="pdrop" id="cardTagSortDropdown"></div>
         </div>
-        <label class="ach-toggle-row" id="dynamicCardsRow">
+        <label class="ach-toggle-row" id="dynamicCardsRow" title="Arranges cards top-down, then left-to-right — it fills a whole column top to bottom before starting the next column, not row by row like the uniform grid. Sort order still applies to the underlying list; reversing Asc/Desc genuinely reverses it, but where a card lands follows this top-down-then-across order, not a plain top-to-bottom reading order.">
           <input type="checkbox" id="dynamicCardsToggle">
           <span>Dynamic card heights (masonry-style grid instead of uniform rows)</span>
         </label>
+        <div class="theme-panel-note">Arranges cards top-down, then left-to-right (fills each column before moving to the next) — sort order still applies, but it won't read top-to-bottom like the uniform grid.</div>
         <div class="theme-panel-note">Discrete mode</div>
         <div class="settings-row">
           <button id="btnDiscreteToggle" title="Blur every image thumbnail (privacy mode)">Blur all images</button>
@@ -828,7 +988,7 @@
         </div>
         <label class="ach-toggle-row">
           <input type="checkbox" id="suppressThemeFlourishesToggle">
-          <span>Suppress Theme Flourishes (hide the Shop's 🔨 Refine Theme button, and turn off epic/legendary-tier hover-fill/card-tilt effects on every theme — whether it's naturally that tier or individually refined)</span>
+          <span>Suppress Theme Flourishes (hide the Shop's<svg class="ic ic-lead ic-trail" aria-hidden="true"><use href="#i-hammer"></use></svg>Refine Theme button, and turn off epic/legendary-tier hover-fill/card-tilt effects on every theme — whether it's naturally that tier or individually refined)</span>
         </label>
         <div class="theme-panel-note">Visual flourishes — for motion sensitivity, when you just want a theme's colors. Static per-theme textures/glows are unaffected by any of these.</div>
         <label class="ach-toggle-row">
@@ -847,7 +1007,7 @@
     </div>
 
     <div class="settings-section" data-section="power-tools">
-      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Power Tools</span></button>
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></span><span>Power Tools</span></button>
       <div class="settings-section-body">
         <label class="ach-toggle-row">
           <input type="checkbox" id="powerHighlightToggle" checked>
@@ -860,7 +1020,7 @@
         <div class="settings-row">
           <span style="font-size:11px; color:var(--text-faint);">Mark any field or button elsewhere in the app as a power tool so it picks up the highlight above. Built-ins can't be unmarked.</span>
         </div>
-        <button id="btnStartPowerToolPicker">🎯 Mark a field as power tool…</button>
+        <button id="btnStartPowerToolPicker"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-target"></use></svg>Mark a field as power tool…</button>
         <div class="theme-panel-note">All power tools currently in effect:</div>
         <div id="powerToolList" class="power-tool-list"></div>
         <button id="btnResetCustomPowerTools" class="danger-ghost">Reset custom power tool marks</button>
@@ -868,7 +1028,7 @@
     </div>
 
     <div class="settings-section" data-section="tagging">
-      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Tagging &amp; Autocomplete</span></button>
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></span><span>Tagging &amp; Autocomplete</span></button>
       <div class="settings-section-body">
         <label class="ach-toggle-row">
           <input type="checkbox" id="tagAutocompleteToggle">
@@ -891,7 +1051,7 @@
     </div>
 
     <div class="settings-section" data-section="saving">
-      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Saving</span></button>
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></span><span>Saving</span></button>
       <div class="settings-section-body">
         <label class="ach-toggle-row">
           <input type="checkbox" id="autosaveToggle">
@@ -901,7 +1061,7 @@
     </div>
 
     <div class="settings-section" data-section="performance">
-      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Performance</span></button>
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></span><span>Performance</span></button>
       <div class="settings-section-body">
         <label class="ach-toggle-row">
           <input type="checkbox" id="hwAccelToggle" checked>
@@ -911,7 +1071,7 @@
     </div>
 
     <div class="settings-section" data-section="layout">
-      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Layout &amp; Panels</span></button>
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></span><span>Layout &amp; Panels</span></button>
       <div class="settings-section-body">
         <label class="ach-toggle-row">
           <input type="checkbox" id="flyoutOutsideCloseToggle" checked>
@@ -943,31 +1103,31 @@
         </div>
         <div class="theme-panel-note">Right-sidebar panels</div>
         <div class="settings-row">
-          <span style="font-size:11px; color:var(--text-faint);">Drag ☰ to reorder, ▼ to collapse, drag the bottom edge to resize.</span>
+          <span style="font-size:11px; color:var(--text-faint);">Drag<svg class="ic ic-lead ic-trail" aria-hidden="true"><use href="#i-menu"></use></svg>to reorder,<svg class="ic ic-lead ic-trail" aria-hidden="true"><use href="#i-caret-down"></use></svg>to collapse, drag the bottom edge to resize.</span>
         </div>
-        <button id="btnResetDockLayout">↺ Reset panel layout</button>
+        <button id="btnResetDockLayout"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-rotate"></use></svg>Reset panel layout</button>
       </div>
     </div>
 
     <div class="settings-section" data-section="updates">
-      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Updates &amp; Sharing</span></button>
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></span><span>Updates &amp; Sharing</span></button>
       <div class="settings-section-body">
         <div class="settings-row">
           <span style="font-size:11px; color:var(--text-faint);">Restart the app to instantly pick up the latest files — no need to quit and reopen by hand.</span>
         </div>
-        <button id="btnRestartApp" class="primary">🔄 Restart app</button>
+        <button id="btnRestartApp" class="primary"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-refresh"></use></svg>Restart app</button>
         <div class="theme-panel-note">Troubleshooting</div>
         <div class="settings-row">
           <span style="font-size:11px; color:var(--text-faint);">Writes a text file (settings, theme, panel layout, whether a dataset is loaded, etc.) next to the app, named with the current date and time — attach it when reporting a bug so the app's state at the time is known, not guessed at.</span>
         </div>
-        <button id="btnExportAppState">🩺 Export app state</button>
+        <button id="btnExportAppState"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-pulse"></use></svg>Export app state</button>
       </div>
     </div>
 
     <div class="settings-section danger-section" data-section="danger">
-      <button type="button" class="settings-section-header"><span class="settings-section-arrow">▸</span><span>Danger Zone</span></button>
+      <button type="button" class="settings-section-header"><span class="settings-section-arrow"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></span><span>Danger Zone</span></button>
       <div class="settings-section-body">
-        <button id="btnPurgeAllTags" class="danger-ghost">🗑 Purge ALL tags in this folder…</button>
+        <button id="btnPurgeAllTags" class="danger-ghost"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-trash"></use></svg>Purge ALL tags in this folder…</button>
       </div>
     </div>
 
@@ -984,8 +1144,8 @@
 
   <div id="helpModal" class="modal-backdrop" style="display:none;">
     <div class="modal-card help-modal-card">
-      <button id="helpCloseBtn" class="modal-close-btn ghost-close" title="Close">✕</button>
-      <button id="helpTocToggle" class="help-toc-toggle ghost-close" title="Contents">☰</button>
+      <button id="helpCloseBtn" class="modal-close-btn ghost-close" title="Close"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      <button id="helpTocToggle" class="help-toc-toggle ghost-close" title="Contents"><svg class="ic" aria-hidden="true"><use href="#i-menu"></use></svg></button>
       <nav id="helpToc" class="help-toc"></nav>
       <div id="helpContent" class="help-content"></div>
     </div>
@@ -1002,10 +1162,8 @@
      call site), and if electronAPI is still undefined when that runs,
      app.js throws synchronously and aborts the REST of its own init code
      for the rest of the page load — including every button's click
-     listener, btnOpen's ("Open dataset folder") among them. A re-sync of
-     this file from renderer/index.html re-adds only the app.js tag; if
-     you're pasting demo-shim.js's tag back in by hand, it goes BEFORE this
-     one. -->
+     listener, btnOpen's ("Open dataset folder") among them. Written by
+     scripts/sync-site.js; don't hand-edit (re-run the script). -->
 <script src="demo-shim.js"></script>
 <script src="app.js"></script>
 </body>

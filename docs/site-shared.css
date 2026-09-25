@@ -12,13 +12,16 @@
    these are long-form text pages with no natural "arrival point" like the
    landing page's #features section, and a forced color shift mid-read is
    more likely to be disruptive than a nice touch on a page meant to be
-   read top to bottom. Static light theme only. */
+   read top to bottom. Static day look only — but a theme picked on the
+   landing page (assets/site-theme.js) carries over here too, day values
+   only (the page is marked data-static-theme). */
 :root{
   --ground:#f4f4f1;      --ground-dim:#ececE7;   --card:#ffffff;
   --ink:#141412;         --ink-soft:#4a4a45;
   --line:#d9d9d3;        --line-strong:#b7b7ae;
   --red:#e14b3a; --green:#3f9d4f; --blue:#3b76d6;
   --radius:2px; --measure:70ch;
+  --f-display:'Chakra Petch',sans-serif; --f-body:'IBM Plex Sans',system-ui,sans-serif; --f-mono:'JetBrains Mono',monospace;
 }
 *{box-sizing:border-box;}
 html{scroll-behavior:smooth;}
@@ -26,7 +29,7 @@ body{
   margin:0;
   background:var(--ground);
   color:var(--ink);
-  font-family:'IBM Plex Sans',system-ui,sans-serif;
+  font-family:var(--f-body);
   font-size:16px;
   line-height:1.6;
   -webkit-font-smoothing:antialiased;
@@ -34,8 +37,8 @@ body{
 ::selection{background:var(--ink); color:var(--ground);}
 a{color:inherit;}
 .wrap{max-width:1180px; margin:0 auto; padding:0 32px;}
-.display{font-family:'Chakra Petch',sans-serif; letter-spacing:-0.01em;}
-.mono{font-family:'JetBrains Mono',monospace;}
+.display{font-family:var(--f-display); letter-spacing:-0.01em;}
+.mono{font-family:var(--f-mono);}
 
 /* ---------- nav ---------- */
 header{
@@ -49,7 +52,7 @@ header{
 }
 .brand{display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--ink);}
 .brand svg{display:block;}
-.brand-name{font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
+.brand-name{font-family:var(--f-display); font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
 nav.links{display:flex; align-items:center; gap:28px;}
 .nav-ctas{display:flex; align-items:center; gap:10px;}
 nav.links a{font-size:0.9rem; text-decoration:none; color:var(--ink-soft); transition:color .15s;}
@@ -57,7 +60,7 @@ nav.links a:hover{color:var(--ink);}
 nav.links a.active{color:var(--ink); font-weight:600;}
 .btn{
   display:inline-flex; align-items:center; gap:8px;
-  font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:0.92rem;
+  font-family:var(--f-display); font-weight:600; font-size:0.92rem;
   padding:11px 20px; border-radius:var(--radius);
   text-decoration:none; border:1px solid var(--ink); white-space:nowrap;
   transition:transform .15s ease, box-shadow .15s ease;
@@ -89,7 +92,7 @@ nav.links a.active{color:var(--ink); font-weight:600;}
 /* ---------- footer ---------- */
 footer{border-top:1px solid var(--line); padding:44px 0; margin-top:20px;}
 .footer-row{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;}
-.footer-brand{display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft);}
+.footer-brand{display:flex; align-items:center; gap:10px; font-family:var(--f-mono); font-size:0.78rem; color:var(--ink-soft);}
 .footer-links{display:flex; gap:22px; font-size:0.85rem;}
 .footer-links a{text-decoration:none; color:var(--ink-soft);}
 .footer-links a:hover{color:var(--ink);}

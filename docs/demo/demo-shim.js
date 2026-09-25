@@ -18,8 +18,17 @@
 (function () {
   'use strict';
   window.electronAPI = {
+    // Every main-process EVENT hook the renderer subscribes to at startup
+    // (preload.js's on* surface) needs a no-op here, or the unguarded
+    // subscription throws and aborts app.js's init — Bucket Images'
+    // onBucketDownloadProgress did exactly that once it shipped, silently
+    // breaking the whole demo until this list caught up. Add new on* hooks
+    // here when preload.js grows one.
     onSynthdatPreviewFrame() {},
     onSynthdatProgress() {},
+    onBucketDownloadProgress() {},
+    onWd14LocalDownloadProgress() {},
+    onRequestClose() {},
     synthdatStopGeneration() {},
     // SynthDat Overseer's model-list refresh runs unconditionally at tab
     // init (unlike every other ComfyUI/ WD14 call, which is guarded behind

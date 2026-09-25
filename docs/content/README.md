@@ -67,8 +67,8 @@ Three related apps share this repository (and much of their renderer code):
    with bottom-sheet panels, tag editing straight from the image modal, and storage through
    Android's Storage Access Framework (a folder you pick stays accessible across restarts). It
    also does on-device WD14 tagging, downloading the model on first use, plus tagging and
-   generation against your own ComfyUI instance over the network. Distributed as a sideloadable
-   APK through GitHub Releases, not the Play Store.
+   generation against your own ComfyUI instance over the network. **Still in development — no
+   public APK yet**; build it from source (see below) if you want to try it.
 3. **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
    featuring a built-in workflow: no node graph to navigate, every generation saves straight to
    disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
@@ -92,11 +92,13 @@ Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
   switches to masonry layout on mixed-size sets.
 - **Compact** — dense thumbnails for scanning large folders fast. Hover to preview tags, or
   Shift-click two cards to compare them side by side.
-- **Single** — one image at a time, up to 400% zoom, with drag-pan and arrow keys. Use it to
-  inspect fine details (text, hands, artifacts) before training.
+- **Single** — one image at a time: a compact preview beside a roomy tag panel, with arrow keys
+  and a type-a-number jump box. Click the preview for a full-size zoom/pan view to inspect fine
+  details (text, hands, artifacts) before training.
 - **Disabled** — a quarantine tab for images pulled out of the active set (drag a card onto it).
   Tags stay editable the whole time, and you can restore anytime. Good for maybes you're not
   ready to delete.
+- **Originals** — the pre-bucketing originals kept by Bucket Images (below).
 
 Clicking any image opens a floating, zoomable, pannable card modal without losing your place in
 the grid. On desktop that modal also has **⟲/⟳ Rotate** and **✂ Crop** — real pixel edits that
@@ -107,9 +109,13 @@ cropped region as a *new* image instead, leaving the source untouched.
 - **Chips** (on every card) — click one for filter-by-presence, the Tag Details wiki lookup, a
   review flag, or its keyword family. Type into "+ add tag" and hit Enter to add one. × removes
   it.
-- **Filter sidebar** (left) — multi-tag AND/OR/XOR/NOT search plus All/Untagged/Unsaved quick
-  filters, **Flag isolated tags** (tags on ≤2 images), draggable family sort. Handy for finding
-  images fast, and for hunting down typos.
+- **Tag Sorting** (Single view + image modal) — groups an image's chips into Character, Body,
+  Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects and Other. For multi-character
+  images, split tags into named subjects with their own category subheaders.
+- **Filter sidebar** (left) — multi-tag AND/OR/XOR/NOT search (with a Lock to keep the mode)
+  plus All/Untagged/Unsaved quick filters, **Flag isolated tags** (tags on ≤2 images), draggable
+  family sort. Handy for finding images fast, and for hunting down typos. **Review flagged tags**
+  lists every tag flagged for review across the dataset, with a one-click, undoable "Reviewed".
 - **Tag Pruner** (right sidebar) — hand-pick tag sets, then **Unify** (merge into one name) or
   **Void** (delete). Confirmed, undoable, logged. Run several independent instances for unrelated
   tag families. 🔍 Mirror previews the affected images in the gallery before you commit. Use it
@@ -119,6 +125,9 @@ cropped region as a *new* image instead, leaving the source untouched.
   hand-type a tag a rule covers, and it gets blocked with a pointer back to the rule. Pause a
   rule, or a single tag within it, to restore originals. Per-image Immunize and Antivoid
   exemptions cover the rest. Use it so a cleanup never has to be repeated.
+- **Bucket Images** (right sidebar) — crops and resizes every image to its nearest LoRA training
+  bucket, subject-first via a u2net saliency model (GPU with CPU fallback; ~176 MB, downloaded on
+  first use). Originals move to `original_images/` and can be restored with one click.
 - **Master Tag Control** (tab) — check off a batch of images, then run one tool across all of
   them: add or remove tags, add a tag only where another tag is already present, rename a tag
   dataset-wide, find-and-replace, or delete the selection outright. Use it for bulk passes, like
@@ -186,15 +195,21 @@ when five good images need to become fifty. (Also needs the ComfyUI node pack �
 ## Themes & the shop economy
 
 26 themes total: 5 free and 21 in the **💰 Shop** (common → legendary, 40–750 Edibits).
-Every theme pairs a palette with a real flourish: texture, animation, or button shape. Epic and
-legendary tiers add a hover/click button-fill effect on top.
+Each theme is a whole look, not just a palette: its own bundled typefaces, button and tag
+shapes, panel materials and textures, active-tab marker, and a matching stroke style for the
+app's icon set. Epic and legendary tiers add a hover/click button-fill and a card lift, drawn
+in that theme's own style.
 
 - **🏆 Achievements** (55+, per-folder) pay out **Edibits** to spend in the Shop — a "beg for
   free Edibits" button covers shortfalls. Use them to unlock themes by using the app.
 - **Motion-sensitivity controls** (Settings ▸ Appearance) — kill all motion or just hover-fill,
   card tilt, or ambient animation. Use them if effects distract or discomfort you.
 - **🎨 Colors** — recolor any theme live, save as your own "Custom" theme.
-- **🌙 Night mode** — inverts each theme's colors directly.
+- **🌙 Night mode** — inverts each theme's colors directly, then nudges any text or accent
+  color that would come out too faint, so every theme stays readable at night.
+- **Swipe animation mode** (Settings ▸ Layout & Panels) — treats the app as one map: tabs,
+  gallery views, and images slide in the direction they actually sit, and the image card grows
+  out of the thumbnail you clicked.
 
 ---
 
@@ -323,9 +338,10 @@ The renderer was ported from a single ~5,500-line untyped script into TypeScript
 ~17 feature modules. `src/renderer/index.ts` is one top-level IIFE (it can't `export` from inside
 itself) acting as the composition root: it owns core cross-cutting state (`entries`, `dirHandle`,
 `entryByBase`, ...) and wires every extracted module together via a small injected-`deps` object
-passed to that module's own `init*(deps)` call — never a circular import. Every extracted module
-still carries `// @ts-nocheck`. Real type annotations are a possible future increment, one
-module at a time.
+passed to that module's own `init*(deps)` call — never a circular import. The renderer is fully
+type-annotated now (`strict: true`, shared types in `src/renderer/types.ts`) — there is no
+`// @ts-nocheck` anywhere. The main process and preload are strict too, against a shared IPC
+contract in `src/ipc-types.ts`.
 
 This repo is set up for **Serena** (MCP) — semantic code navigation plus a persistent
 project-memory graph (`mem:core` and onward, project name `osmium-workshop-electron`, rooted

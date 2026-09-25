@@ -9,8 +9,17 @@
 :root{
   --pop-dur: 130ms; --pop-ease: cubic-bezier(.22,.85,.32,1);
   --panel-dur: 160ms; --tab-dur: 110ms;
+  /* Swipe-mode slides (html.motion-swipe): a directional push travels a whole
+     pane width, which reads as a jerk on the built-in ease-out or the lighter
+     --pop-ease at --tab-dur's 110ms. It gets the large-surface duration and a
+     strong ease-out (cubic-bezier(0.23, 1, 0.32, 1)) that front-loads the
+     travel and decelerates into place. index.ts/view.ts read --swipe-dur back
+     out of the computed style (shared-ui.ts's transitionMsOf) so the JS swap
+     delay can never drift from the CSS transition the way the old hardcoded
+     100ms did against a 110ms --tab-dur. */
+  --swipe-dur: 160ms; --swipe-ease: cubic-bezier(0.23, 1, 0.32, 1);
 }
-html.motion-off{ --pop-dur: 0ms; --panel-dur: 0ms; --tab-dur: 0ms; }
+html.motion-off{ --pop-dur: 0ms; --panel-dur: 0ms; --tab-dur: 0ms; --swipe-dur: 0ms; }
 
 /* Tab/sidebar-pane transition (index.ts's switchTab()) — Datasets/Editing
    Stats/the right-sidebar Master Tag Control swap all animate OUT, THEN swap
@@ -42,6 +51,14 @@ html.motion-swipe #datasetManagerTab.tab-fading{ opacity: 1; transform: translat
 html.motion-swipe #statsTab.tab-fading,
 html.motion-swipe #normalRightTools.tab-fading,
 html.motion-swipe #masterTagPanel.tab-fading{ opacity: 1; transform: translateX(100%); }
+/* Swipe slides travel further than a fade, so in Swipe mode the panes take the
+   large-surface duration and the strong --swipe-ease instead of the fade's
+   --tab-dur/--pop-ease. Only the timing changes; the transition property list
+   above stays shared. */
+html.motion-swipe #datasetManagerTab, html.motion-swipe #statsTab,
+html.motion-swipe #normalRightTools, html.motion-swipe #masterTagPanel{
+  transition-duration: var(--swipe-dur); transition-timing-function: var(--swipe-ease);
+}
 
 /* Gallery view mode (Grid/Compact/Single/Disabled) and single-mode
    prev/next paging — same sequential animate-out/swap/animate-in shape as
@@ -56,21 +73,85 @@ html.motion-swipe .view-swipe-out-left{ opacity: 1; transform: translateX(-100%)
 html.motion-swipe .view-swipe-out-right{ opacity: 1; transform: translateX(100%); }
 html.motion-swipe .view-swipe-in-right{ opacity: 1; transform: translateX(100%); }
 html.motion-swipe .view-swipe-in-left{ opacity: 1; transform: translateX(-100%); }
+html.motion-swipe #galleryGrid, html.motion-swipe #compactGrid, html.motion-swipe #singleView{
+  transition-duration: var(--swipe-dur); transition-timing-function: var(--swipe-ease);
+}
 
-/* Image card modal — Swipe mode turns its scale-in-from-center into a
-   bottom-sheet-style slide up from off-screen, in place of the default
-   .modal-card scale(0.96)->scale(1) declared further down.
-   Compositing details that keep the slide at full frame rate:
-   translate3d() makes the whole flight a one-time compositor move of an
-   already-rasterized layer, no per-frame repainting of the large modal
-   content. will-change: transform is NOT set statically here — view.ts
-   adds it for the transition and resets it after (applied-at-start/
-   reset-at-end layer discipline), so the modal isn't a permanent resident
-   of the compositor's GPU memory. */
-html.motion-swipe .modal-card{ transform: translate3d(0, 100%, 0); }
-html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translate3d(0, 0, 0); }
+/* ---------- Swipe map ----------
+   Swipe mode treats the app as one map (mapPan(), shared-ui.ts): tabs in
+   tab-bar order along the x-axis, Gallery's views as a strip inside the
+   Gallery chunk, images as a strip inside Single view and the image modal,
+   and the modal itself on the depth axis — lifted out of its card.
+   A pan is a View Transition over the ONE region that differs
+   (view-transition-name: map-pane, set per move from JS): the outgoing and
+   incoming snapshots travel together by exactly one region width, so the
+   two chunks read as a single sheet sliding under a fixed frame. The group
+   clips to the region's box, so a right-column pan never paints over the
+   gallery beside it. Everything outside the region (topbar, tab bar, shared
+   panels) stays in the root snapshot and holds still.
+   Timing: iOS push curve (--ease-drawer), 260ms for tab/view chunks, 200ms
+   for an image-to-image step (a smaller semantic move). Keyboard paging
+   and Escape skip the pan entirely (view.ts). */
+:root{ --map-dur: 260ms; --map-ease: cubic-bezier(0.32, 0.72, 0, 1); }
+html[data-map-kind="page"]{ --map-dur: 200ms; }
+::view-transition-group(map-pane){ animation: none; overflow: clip; }
+::view-transition-image-pair(map-pane){ isolation: auto; }
+::view-transition-old(map-pane), ::view-transition-new(map-pane){
+  animation-duration: var(--map-dur); animation-timing-function: var(--map-ease);
+  animation-fill-mode: both; mix-blend-mode: normal;
+  height: 100%; object-fit: none; object-position: left top;
+}
+html[data-map-dir="fwd"]::view-transition-old(map-pane){ animation-name: mapOutToLeft; }
+html[data-map-dir="fwd"]::view-transition-new(map-pane){ animation-name: mapInFromRight; }
+html[data-map-dir="back"]::view-transition-old(map-pane){ animation-name: mapOutToRight; }
+html[data-map-dir="back"]::view-transition-new(map-pane){ animation-name: mapInFromLeft; }
+@keyframes mapOutToLeft{ from{ transform: translateX(0); } to{ transform: translateX(-100%); } }
+@keyframes mapInFromRight{ from{ transform: translateX(100%); } to{ transform: translateX(0); } }
+@keyframes mapOutToRight{ from{ transform: translateX(0); } to{ transform: translateX(100%); } }
+@keyframes mapInFromLeft{ from{ transform: translateX(-100%); } to{ transform: translateX(0); } }
+/* Chrome that changed with the move (active tab, active view button)
+   settles in the same beat as the pan instead of the UA's slower fade. */
+html[data-map-dir]::view-transition-old(root), html[data-map-dir]::view-transition-new(root){
+  animation-duration: var(--map-dur); animation-timing-function: var(--map-ease);
+}
+
+/* Image card modal — depth axis. view.ts's aimModalAt() sets --from-x/-y/-s
+   to the source card's thumbnail, so under Swipe the modal grows out of the
+   card it was opened from and shrinks back into it on close; with no
+   visible source the defaults give a short 32px rise at 0.96.
+   Compositing: translate3d() + scale keep the flight a compositor move of
+   an already-rasterized layer. will-change is NOT static — view.ts adds it
+   for the transition only (applied-at-start/reset-at-end), so the large
+   modal isn't a permanent resident of GPU memory. */
+html.motion-swipe .modal-card{
+  transform: translate3d(var(--from-x, 0px), var(--from-y, 32px), 0) scale(var(--from-s, 0.96));
+  transition-duration: var(--map-dur); transition-timing-function: var(--map-ease);
+}
+html.motion-swipe .modal-backdrop{ transition-duration: var(--map-dur); transition-timing-function: var(--map-ease); }
+html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translate3d(0, 0, 0) scale(1); }
   /* Transition-only layer promotion (see view.ts openImageCardModal). */
   html.motion-swipe #imageCardModal.modal-anim-layers .modal-card{ will-change: transform; }
+
+/* Swipe mode is opt-in, but prefers-reduced-motion still wins: the map pan
+   and the modal's flight drop their movement and keep a plain crossfade
+   (fewer/gentler, not none — the change stays marked). The fallback
+   out-then-in classes (engines without View Transitions) do the same. */
+@keyframes mapFadeOut{ to{ opacity: 0; } }
+@keyframes mapFadeIn{ from{ opacity: 0; } }
+@media (prefers-reduced-motion: reduce){
+  html[data-map-dir]::view-transition-old(map-pane){ animation-name: mapFadeOut; animation-duration: 150ms; }
+  html[data-map-dir]::view-transition-new(map-pane){ animation-name: mapFadeIn; animation-duration: 150ms; }
+  html.motion-swipe #datasetManagerTab.tab-fading,
+  html.motion-swipe #statsTab.tab-fading,
+  html.motion-swipe #normalRightTools.tab-fading,
+  html.motion-swipe #masterTagPanel.tab-fading{ transform: none; opacity: 0; }
+  html.motion-swipe .view-swipe-out-left,
+  html.motion-swipe .view-swipe-out-right,
+  html.motion-swipe .view-swipe-in-right,
+  html.motion-swipe .view-swipe-in-left{ transform: none; opacity: 0; }
+  html.motion-swipe .modal-card{ transform: scale(0.96); }
+  html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: scale(1); }
+}
 
 :root, html[data-theme="studio"]{
     --bg-base:#16151c;
@@ -90,29 +171,84 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --accent-danger:#e2637a;
     --accent-success:#7fbf8f;
     --accent-flair:#b98fd6;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Schibsted Grotesk', 'Segoe UI', system-ui, sans-serif;
     --radius: 6px;
+
+    /* ---- Element grammar ----
+       Non-color tokens every theme may set, consumed by the shared component
+       rules further down (button, .chip, .card, .tool-section, .brand,
+       .tab-btn, headings, checkbox, scrollbar). Declared here once, on the
+       same element as every theme block, so a theme that sets none of them
+       (Custom) inherits Studio's grammar. These are NOT in THEME_VARS: they
+       are shapes and faces, not colors, so night mode's HSL inversion has
+       nothing to do with them. */
+    --display: var(--sans);   /* brand lockup */
+    --head-font: var(--sans); /* dock/section titles */
+    --tab-font: var(--sans);
+    --brand-size: 17px; --brand-weight: 800; --brand-track: -0.015em; --brand-case: none;
+    --tab-size: 12.5px; --tab-track: 0; --tab-case: none;
+    --head-size: 12.5px; --head-weight: 700; --head-track: 0; --head-case: none;
+    --head-color: var(--text-primary);
+    --btn-weight: 500; --btn-track: 0; --btn-case: none;
+    --r-ctl: var(--radius); --r-chip: 5px; --r-card: 8px; --r-panel: 10px;
+    --r-check: 4px; --r-scroll: 6px;
+    --card-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    /* Icon grammar (the sprite in index.html, src/renderer/icons.ts): one
+       drawing set, restroked per theme. */
+    --icon-stroke: 1.75; --icon-cap: round; --icon-join: round;
+    /* Premium hover-fill + card-lift (epic/legendary themes, or any theme
+       bought up via Refine Theme). Each theme restates these in its own
+       material, so a refined theme gets ITS version of the effect, not a
+       generic one. --fx-w is the hover resting fill (a scaleX factor); the
+       click flash (flairClickFlash) always floods to 1. */
+    --fx-fill: var(--accent-flair); --fx-o: 0.22; --fx-top: 0; --fx-h: 100%; --fx-w: 0.75;
+    --fx-card-t: translateY(-3px); --fx-card-s: 0 10px 22px rgba(0,0,0,0.4);
   }
+  /* Studio — the workbench. Machined panels (a lit top edge, a darker
+     floor), labels that read like drawer tags: tight grotesk heads, tags
+     set as square-cornered mono labels instead of pills. */
+  html[data-theme="studio"] .tool-section,
+  html[data-theme="studio"] .settings-section{
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 5%, transparent), 0 1px 0 rgba(0,0,0,0.25);
+  }
+  html[data-theme="studio"] #topbar{ border-bottom: 1px solid var(--border-strong); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-flair) 55%, transparent); }
+  html[data-theme="studio"] .tab-btn.active{ color: var(--text-primary); border-bottom-color: var(--accent-flair); }
+  html[data-theme="studio"] button.primary{ box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent-manual) 30%, transparent); }
+  html[data-theme="studio"] .brand span.tag{ border: 1px solid color-mix(in srgb, var(--accent-auto) 35%, transparent); }
 
   /* ================= Themes =================
-     Each theme carries its own --accent-flair (a third accent hue, distinct
-     from --accent-auto/--accent-manual) used for navigational chrome — the
-     active tab underline and the expanded-settings-section arrow — so that
-     even the app's baseline UI reads differently theme to theme, not just
-     the bits each theme explicitly decorates. --accent-flair participates
-     in day/night HSL inversion and the Custom theme editor like every other
-     THEME_VARS entry (see themes.ts) — never hardcode it, always add it to
-     new themes.
-     A handful of shared keyframes below (flairPulse/flairDrift/flairSweep)
-     are reused across multiple themes with different colors via each
-     theme's own var(...) references, instead of one-off animations per
-     theme, to keep this file from ballooning. */
+     Each theme is a material, not a tint: it keeps its own color tokens
+     (untouched by this layer) and restates the element grammar above in the
+     vocabulary of the world its name already names — its own faces
+     (renderer/fonts, OFL), control and tag shapes, active-tab marker, panel
+     surface, and premium-effect tokens.
+     Rules:
+     - Ground textures go on #gallery (the one pane that shows its own
+       ground), never on body — every pane is opaque, so a body texture
+       never renders.
+     - Textures derive from theme vars through color-mix(), never a literal
+       rgba, so night mode's HSL inversion carries them too.
+     - Never set border-color/background/box-shadow in a theme's bare `.chip`
+       or `.card` rule — at (0,2,1) that beats the state classes
+       (.chip-match/.chip-isolated/.chip-flagged-review, .card.dirty/
+       .untagged) and silently hides them. Selected chips use
+       `.chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review)`.
+     - Never set colors in a theme's bare `button` rule: it outranks
+       button.primary/.danger-ghost and every classed button.
+     - Tab markers use background/box-shadow, never ::after — epic/legendary
+       themes use every button's ::after for the premium hover-fill.
+     Every theme carries its own --accent-flair (a third accent hue, distinct
+     from --accent-auto/--accent-manual) used for navigational chrome —
+     never hardcode it, always add it to new themes (it's in THEME_VARS).
+     A handful of shared keyframes below are reused across themes with
+     different colors via each theme's own var(...) references. */
 
   @keyframes flairPulse{ 0%,100%{ opacity:0.5; } 50%{ opacity:1; } }
   @keyframes flairDrift{ 0%{ background-position: 0% 0%, 100% 100%; } 100%{ background-position: 100% 100%, 0% 0%; } }
   @keyframes flairSweep{ 0%{ transform: translateX(-140%) skewX(-12deg); } 100%{ transform: translateX(140%) skewX(-12deg); } }
   @keyframes flairShimmer{ 0%{ background-position: -200% 0; } 100%{ background-position: 200% 0; } }
+  @keyframes flairSlide{ 0%{ background-position: 0% 0%; } 100%{ background-position: 200% 0%; } }
   /* `--flair-play` gates every ambient flair* animation below in one place:
      each such rule ends with `animation-play-state: var(--flair-play);`
      instead of only the shorthand, so the Settings "Disable ambient
@@ -140,6 +276,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   #galleryGrid.anchor-resolving .card, #galleryGrid.anchor-resolving .compact-card,
   #compactGrid.anchor-resolving .compact-card{ content-visibility: visible !important; }
 
+  /* ---- Cyberpunk — street HUD. Oxanium throughout, hard square corners,
+     HUD corner brackets on every panel instead of a border box, and a
+     chromatic-split brand lockup. ---- */
   html[data-theme="cyberpunk"]{
     --bg-base:#05060f;
     --bg-panel:#0b0e1e;
@@ -157,25 +296,56 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --accent-danger:#ff3860;
     --accent-success:#39ff9c;
     --accent-flair:#ff2fb0;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 3px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Oxanium', 'Segoe UI', system-ui, sans-serif;
+    --radius: 0px;
+    --brand-size: 18px; --brand-weight: 700; --brand-track: 0.14em; --brand-case: uppercase;
+    --tab-case: uppercase; --tab-track: 0.12em; --tab-size: 11.5px;
+    --head-case: uppercase; --head-track: 0.14em; --head-size: 11.5px; --head-color: var(--accent-manual);
+    --btn-weight: 600; --btn-track: 0.04em;
+    --r-chip: 0px; --r-card: 0px; --r-panel: 0px; --r-check: 0px; --r-scroll: 0px;
+    --card-shadow: none;
+    --fx-fill: repeating-linear-gradient(0deg, var(--accent-auto) 0 1px, transparent 1px 3px); --fx-o: 0.55; --fx-w: 1;
+    --fx-card-t: translateY(-2px); --fx-card-s: -2px 0 0 var(--accent-manual), 2px 0 0 var(--accent-auto), 0 12px 26px rgba(0,0,0,0.55);
+    --icon-stroke: 1.75; --icon-cap: square; --icon-join: miter;
   }
-  html[data-theme="cyberpunk"] body{
-    background-image:
-      linear-gradient(rgba(34,230,255,0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,47,176,0.04) 1px, transparent 1px);
-    background-size: 100% 34px, 34px 100%;
+  html[data-theme="cyberpunk"] .brand{
+    text-shadow: 1.5px 0 0 color-mix(in srgb, var(--accent-auto) 80%, transparent), -1.5px 0 0 color-mix(in srgb, var(--accent-manual) 80%, transparent);
   }
-  html[data-theme="cyberpunk"] .brand{ font-family: var(--sans); font-weight: 800; letter-spacing:1px; text-transform: uppercase; animation: flairPulse 3.2s ease-in-out infinite; animation-play-state: var(--flair-play); }
-  html[data-theme="cyberpunk"] .brand span.tag{  }
-  html[data-theme="cyberpunk"] button.primary{  }
-  html[data-theme="cyberpunk"] button.primary:hover:not(:disabled){  }
-  html[data-theme="cyberpunk"] .chip.selected{  }
-  html[data-theme="cyberpunk"] .card{ transition: box-shadow .15s ease; }
-  html[data-theme="cyberpunk"] .card:hover{ box-shadow: 0 0 0 1px rgba(34,230,255,0.4), 0 0 18px rgba(255,47,176,0.18); }
-  html[data-theme="cyberpunk"] .insp-name{ }
+  html[data-theme="cyberpunk"] .brand span.tag{ text-shadow: none; }
+  html[data-theme="cyberpunk"] #topbar{ border-bottom: 1px solid var(--accent-auto); box-shadow: 0 3px 0 -2px var(--accent-manual); }
+  /* HUD brackets: four L-shaped corner ticks painted as background layers,
+     so the panel keeps its own box and nothing is clipped. */
+  html[data-theme="cyberpunk"] .tool-section,
+  html[data-theme="cyberpunk"] .settings-section{
+    --hud: color-mix(in srgb, var(--accent-manual) 70%, transparent);
+    background:
+      linear-gradient(var(--hud), var(--hud)) top left / 10px 1px no-repeat,
+      linear-gradient(var(--hud), var(--hud)) top left / 1px 10px no-repeat,
+      linear-gradient(var(--hud), var(--hud)) top right / 10px 1px no-repeat,
+      linear-gradient(var(--hud), var(--hud)) top right / 1px 10px no-repeat,
+      linear-gradient(var(--hud), var(--hud)) bottom left / 10px 1px no-repeat,
+      linear-gradient(var(--hud), var(--hud)) bottom left / 1px 10px no-repeat,
+      linear-gradient(var(--hud), var(--hud)) bottom right / 10px 1px no-repeat,
+      linear-gradient(var(--hud), var(--hud)) bottom right / 1px 10px no-repeat,
+      var(--bg-elevated);
+    border-color: color-mix(in srgb, var(--border-strong) 45%, transparent);
+  }
+  html[data-theme="cyberpunk"] .tab-btn.active{
+    color: var(--accent-manual); border-bottom-color: var(--accent-auto);
+    background: linear-gradient(to top, color-mix(in srgb, var(--accent-manual) 12%, transparent), transparent 70%);
+  }
+  html[data-theme="cyberpunk"] button.primary{ background: color-mix(in srgb, var(--accent-manual) 14%, var(--bg-panel)); }
+  html[data-theme="cyberpunk"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+    box-shadow: inset 3px 0 0 var(--accent-auto);
+  }
+  html[data-theme="cyberpunk"] .card{ transition: transform .12s ease, box-shadow .12s ease; }
+  html[data-theme="cyberpunk"] .card:hover{ box-shadow: 0 0 0 1px var(--accent-manual); }
 
+  /* ---- Oriental — lacquerware. Shippori Mincho lockup and section titles
+     over Zen Kaku Gothic body text, a double gold-leaf rule under the
+     topbar, a cinnabar seal for the brand tag, and a seigaiha wave lattice
+     pressed faintly into the ground. ---- */
   html[data-theme="oriental"]{
     --bg-base:#140d0a;
     --bg-panel:#1c1210;
@@ -193,21 +363,52 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --accent-danger:#b5333f;
     --accent-success:#8fae6b;
     --accent-flair:#7a9e6e;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: Georgia, 'Songti SC', 'Noto Serif', 'Times New Roman', serif;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Zen Kaku Gothic New', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Shippori Mincho', Georgia, serif;
+    --head-font: 'Shippori Mincho', Georgia, serif;
+    --tab-font: 'Shippori Mincho', Georgia, serif;
     --radius: 2px;
+    --brand-size: 20px; --brand-weight: 700; --brand-track: 0.04em;
+    --tab-size: 13.5px; --tab-track: 0.04em;
+    --head-size: 14px; --head-track: 0.04em; --head-color: var(--accent-auto);
+    --r-chip: 1px; --r-card: 2px; --r-panel: 2px; --r-check: 1px; --r-scroll: 0px;
+    --card-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-auto) 22%, transparent);
+    --fx-fill: var(--accent-manual); --fx-o: 0.3;
+    --fx-card-t: translateY(-2px); --fx-card-s: inset 0 0 0 1px var(--accent-auto), 0 10px 20px rgba(0,0,0,0.45);
   }
-  html[data-theme="oriental"] .brand{ font-family: var(--sans); font-style: italic; font-size: 19px; letter-spacing:1px; }
-  html[data-theme="oriental"] #topbar{ border-bottom: 2px solid var(--accent-auto); }
+  html[data-theme="oriental"] #gallery{
+    --wave: color-mix(in srgb, var(--accent-auto) 11%, transparent);
+    background-image:
+      radial-gradient(circle at 50% 100%, transparent 0 30%, var(--wave) 30% 34%, transparent 34% 50%, var(--wave) 50% 54%, transparent 54% 70%, var(--wave) 70% 74%, transparent 74%),
+      radial-gradient(circle at 50% 100%, transparent 0 30%, var(--wave) 30% 34%, transparent 34% 50%, var(--wave) 50% 54%, transparent 54% 70%, var(--wave) 70% 74%, transparent 74%);
+    background-size: 56px 28px, 56px 28px;
+    background-position: 0 0, 28px 14px;
+  }
+  html[data-theme="oriental"] #topbar{
+    border-bottom: 1px solid var(--accent-auto);
+    box-shadow: 0 3px 0 -1px var(--bg-panel), 0 4px 0 -1px color-mix(in srgb, var(--accent-auto) 60%, transparent);
+  }
+  html[data-theme="oriental"] .brand span.tag{
+    background: var(--accent-manual); color: var(--text-primary); border-radius: 1px;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 35%, transparent);
+  }
+  html[data-theme="oriental"] button.danger-ghost{ color: color-mix(in srgb, var(--accent-danger) 55%, var(--text-primary)); font-weight: 700; }
   html[data-theme="oriental"] .tool-section,
-  html[data-theme="oriental"] .card,
   html[data-theme="oriental"] .inspector-box,
   html[data-theme="oriental"] .single-panel{
-    box-shadow: inset 0 0 0 1px rgba(212,162,78,0.28);
+    background: linear-gradient(180deg, var(--bg-elevated), color-mix(in srgb, var(--bg-elevated) 70%, var(--bg-base)));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-auto) 26%, transparent);
   }
-  html[data-theme="oriental"] button.primary{ box-shadow: inset 0 0 0 1px rgba(212,162,78,0.5); }
-  html[data-theme="oriental"] .chip.selected{ box-shadow: inset 0 0 0 1px rgba(212,162,78,0.5); }
+  html[data-theme="oriental"] .tab-btn.active{ color: var(--text-primary); border-bottom-color: var(--accent-manual); }
+  html[data-theme="oriental"] button.primary{ box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-auto) 50%, transparent); }
+  html[data-theme="oriental"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-auto) 50%, transparent);
+  }
 
+  /* ---- Subway — transit signage. Overpass (the highway-sign face), a
+     white header carrying the four route lines as a hard-edged strip,
+     route-pill tabs, and station-sign section titles. ---- */
   html[data-theme="subway"]{
     --bg-base:#eef6ff;
     --bg-panel:#ffffff;
@@ -225,31 +426,47 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --accent-danger:#ff3f6c;
     --accent-success:#20b876;
     --accent-flair:#7a5cff;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: 'Trebuchet MS', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --radius: 14px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Overpass', 'Trebuchet MS', 'Segoe UI', sans-serif;
+    --radius: 14px; --r-ctl: 999px;
+    --brand-size: 19px; --brand-weight: 900; --brand-track: -0.02em;
+    --tab-size: 12.5px; --tab-track: 0.01em;
+    --head-size: 12px; --head-weight: 800; --head-case: uppercase; --head-track: 0.08em;
+    --btn-weight: 600;
+    --r-chip: 999px; --r-card: 14px; --r-panel: 14px; --r-check: 5px; --r-scroll: 999px;
+    --card-shadow: 0 4px 14px color-mix(in srgb, var(--text-primary) 8%, transparent);
+    --fx-fill: linear-gradient(90deg, var(--accent-auto) 0 25%, var(--accent-danger) 25% 50%, var(--accent-manual) 50% 75%, var(--accent-success) 75%);
+    --fx-o: 1; --fx-top: calc(100% - 3px); --fx-h: 3px; --fx-w: 1;
+    --fx-card-t: translateY(-4px); --fx-card-s: 0 14px 28px color-mix(in srgb, var(--text-primary) 16%, transparent);
+    --icon-stroke: 2.25;
   }
-  html[data-theme="subway"] .brand{ font-weight:800; }
   html[data-theme="subway"] #topbar{
-    background: linear-gradient(90deg, #ff9f1c 0%, #ff3f8e 33%, #2ec4f1 66%, #35d488 100%);
+    background: var(--bg-panel);
     border-bottom: none;
+    background-image: linear-gradient(90deg, var(--accent-auto) 0 25%, var(--accent-danger) 25% 50%, var(--accent-manual) 50% 75%, var(--accent-success) 75%);
+    background-size: 100% 6px; background-position: bottom; background-repeat: no-repeat;
+    padding-bottom: 14px;
   }
-  html[data-theme="subway"] .brand{ color:#ffffff; }
-  html[data-theme="subway"] .brand span.tag{ background: rgba(255,255,255,0.28); color:#ffffff; box-shadow:none; }
-  html[data-theme="subway"] #topbar button{ background: rgba(255,255,255,0.9); color:#14213d; border-color: transparent; }
-  html[data-theme="subway"] #topbar button:hover:not(:disabled){ background:#ffffff; }
-  html[data-theme="subway"] .card{ box-shadow: 0 4px 14px rgba(20,33,61,0.08); }
-  html[data-theme="subway"] .chip{ font-weight:600; }
-  html[data-theme="subway"] .card .thumbwrap{ border-radius: 10px 10px 0 0; }
+  html[data-theme="subway"] .brand span.tag{ background: var(--text-primary); color: var(--bg-panel); border-radius: 999px; padding: 2px 8px; }
+  html[data-theme="subway"] .tab-btn{ border-radius: 999px; margin: 6px 0; padding: 5px 14px; border-bottom: none; }
+  /* White stays literal: it sits on a saturated accent fill, which night
+     mode only darkens, so it keeps its contrast in both modes. */
+  html[data-theme="subway"] .tab-btn.active{ background: var(--accent-flair); color: #ffffff; }
+  html[data-theme="subway"] .tab-btn:hover:not(:disabled):not(.active){ background: var(--bg-elevated-2); }
+  /* Station markers: each dock's status dot becomes a ringed stop on the line. */
+  html[data-theme="subway"] .dot{ width: 9px; height: 9px; box-shadow: 0 0 0 2px var(--bg-elevated), 0 0 0 3.5px var(--text-primary); margin: 0 3px; }
+  html[data-theme="subway"] .tool-section{ border-color: var(--border-soft); box-shadow: 0 2px 8px color-mix(in srgb, var(--text-primary) 5%, transparent); }
+  html[data-theme="subway"] .card .thumbwrap{ border-radius: 13px 13px 0 0; }
+  html[data-theme="subway"] .chip{ font-weight: 600; }
+  html[data-theme="subway"] button.primary{ background: var(--accent-manual); color: var(--text-primary); border-color: var(--accent-manual); }
+  html[data-theme="subway"] button.primary:hover:not(:disabled){ background: color-mix(in srgb, var(--accent-manual) 82%, var(--text-primary)); }
 
-  /* Osmium — the app's own brand palette (same tokens as the GitHub Pages
-     landing page: off-white ground, near-black ink, red/green/blue accent
-     triad). Deliberately restrained: no shimmer/tilt/glow flourishes like
-     the shop-tier themes get — "sleek" is the brief, and a quiet flat theme
-     reads more premium here than another animated one would. The one
-     signature touch is the topbar's thin tri-color underline (below),
-     echoing the landing mark's own RGB stripe rather than inventing a new
-     motif. */
+  /* ---- Osmium — the app's own brand (same tokens and faces as the GitHub
+     Pages landing page: off-white ground, near-black ink, red/green/blue
+     triad; Chakra Petch lockup, IBM Plex Sans body, JetBrains Mono tags).
+     Deliberately restrained: ink-solid primary buttons, ink-inverted
+     selected tags and tabs, and one signature — the hard-edged RGB strip
+     under the topbar, echoing the landing mark's own stripe. ---- */
   html[data-theme="osmium"]{
     --bg-base:#f4f4f1;
     --bg-panel:#ffffff;
@@ -267,19 +484,23 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --accent-danger:#c9372a;
     --accent-success:#3f9d4f;
     --accent-flair:#3f9d4f;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 4px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Chakra Petch', 'Segoe UI', sans-serif;
+    --head-font: 'Chakra Petch', 'Segoe UI', sans-serif;
+    --tab-font: 'Chakra Petch', 'Segoe UI', sans-serif;
+    --radius: 3px;
+    --brand-size: 19px; --brand-weight: 700; --brand-track: 0.01em;
+    --tab-size: 12.5px; --tab-case: uppercase; --tab-track: 0.08em;
+    --head-size: 12px; --head-weight: 700; --head-case: uppercase; --head-track: 0.08em;
+    --r-chip: 3px; --r-card: 4px; --r-panel: 4px; --r-check: 2px; --r-scroll: 2px;
+    --card-shadow: none;
+    --fx-fill: linear-gradient(90deg, var(--accent-auto) 0 33.33%, var(--accent-success) 33.33% 66.66%, var(--accent-manual) 66.66%);
+    --fx-o: 1; --fx-top: calc(100% - 2px); --fx-h: 2px; --fx-w: 1;
+    --fx-card-t: translateY(-2px); --fx-card-s: 0 8px 18px color-mix(in srgb, var(--text-primary) 14%, transparent);
+    --icon-stroke: 1.6; --icon-cap: square; --icon-join: miter;
   }
-  /* Quiet neutral topbar edge (not the generic accent-flair border every
-     other theme gets) plus a thin red/green/blue strip directly under it —
-     the same three swatches as the landing page's own corner mark, in the
-     same left-to-right order, as a hard-edged tricolor bar rather than a
-     blend so it reads as the mark, not a gradient. */
-  html[data-theme="osmium"] #topbar{
-    border-bottom: 1px solid var(--border-strong);
-    position: relative;
-  }
+  html[data-theme="osmium"] #topbar{ border-bottom: 1px solid var(--border-strong); position: relative; }
   html[data-theme="osmium"] #topbar::after{
     content:'';
     position:absolute; left:0; right:0; bottom:-2px; height:2px;
@@ -289,359 +510,858 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       var(--accent-manual) 66.66%, var(--accent-manual) 100%);
     pointer-events: none;
   }
+  html[data-theme="osmium"] .brand span.tag{ background: var(--text-primary); color: var(--bg-panel); }
+  html[data-theme="osmium"] .tab-btn.active{ color: var(--text-primary); border-bottom-color: var(--text-primary); }
+  html[data-theme="osmium"] button.primary{ background: var(--text-primary); color: var(--bg-panel); border-color: var(--text-primary); }
+  html[data-theme="osmium"] button.primary:hover:not(:disabled){ background: var(--accent-manual); border-color: var(--accent-manual); }
+  html[data-theme="osmium"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+    background: var(--text-primary); color: var(--bg-panel); border-color: var(--text-primary);
+  }
+  html[data-theme="osmium"] .tool-section{ background: var(--bg-panel); border-color: var(--border-strong); }
 
+  /* ---- Terminal — a phosphor CRT. VT323 for the lockup, tabs and section
+     prompts (each dock title reads as a `>` prompt), JetBrains Mono for
+     everything else; zero radius; selected tabs and tags render inverted
+     like a TUI highlight; faint scanlines. ---- */
   html[data-theme="terminal"]{
     --bg-base:#050805; --bg-panel:#0a120a; --bg-elevated:#0f1c0f; --bg-elevated-2:#142614;
     --border-soft:#1f4a1f88; --border-strong:#2f6b2f; --text-primary:#ccffcc; --text-muted:#6fbf6f;
     --text-faint:#3f7f3f; --accent-auto:#ffcc00; --accent-auto-dim:#4a3c00; --accent-manual:#00ff66;
     --accent-manual-dim:#003b16; --accent-danger:#ff5555; --accent-success:#00ff66; --accent-flair:#ffcc00;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --display: 'VT323', 'JetBrains Mono', monospace;
+    --head-font: 'VT323', 'JetBrains Mono', monospace;
+    --tab-font: 'VT323', 'JetBrains Mono', monospace;
     --radius: 0px;
+    --brand-size: 26px; --brand-weight: 400; --brand-track: 0.02em;
+    --tab-size: 18px; --tab-case: uppercase; --tab-track: 0.04em;
+    --head-size: 18px; --head-weight: 400; --head-case: uppercase; --head-track: 0.04em; --head-color: var(--accent-manual);
+    --btn-weight: 500;
+    --r-chip: 0px; --r-card: 0px; --r-panel: 0px; --r-check: 0px; --r-scroll: 0px;
+    --card-shadow: none;
+    --fx-fill: var(--accent-manual); --fx-o: 0.25; --fx-w: 1;
+    --fx-card-t: none; --fx-card-s: 0 0 0 1px var(--accent-manual);
+    --icon-stroke: 2; --icon-cap: square; --icon-join: miter;
   }
-  html[data-theme="terminal"] body{
-    background-image: linear-gradient(rgba(0,255,102,0.035) 50%, transparent 50%);
+  html[data-theme="terminal"] #gallery{
+    background-image: linear-gradient(color-mix(in srgb, var(--accent-manual) 9%, transparent) 50%, transparent 50%);
     background-size: 100% 3px;
   }
-  html[data-theme="terminal"] .card, html[data-theme="terminal"] .tool-section{ border-radius: 2px; }
+  html[data-theme="terminal"] .brand,
+  html[data-theme="terminal"] .sec-head .t{ text-shadow: 0 0 6px color-mix(in srgb, var(--accent-manual) 45%, transparent); }
+  html[data-theme="terminal"] .sec-head .t::before{ content: '> '; color: var(--accent-auto); }
+  html[data-theme="terminal"] #topbar{ border-bottom: 1px dashed var(--border-strong); }
+  html[data-theme="terminal"] #tabBar{ border-bottom: 1px dashed var(--border-strong); }
+  html[data-theme="terminal"] .tab-btn{ padding-top: 7px; padding-bottom: 7px; }
+  html[data-theme="terminal"] .tab-btn.active{ background: var(--accent-manual); color: var(--bg-base); border-bottom-color: var(--accent-manual); }
+  html[data-theme="terminal"] .tool-section{ border-style: dashed; border-color: var(--border-strong); }
+  html[data-theme="terminal"] button.primary{ background: var(--accent-manual); color: var(--bg-base); }
+  html[data-theme="terminal"] button.primary:hover:not(:disabled){ background: var(--accent-auto); border-color: var(--accent-auto); }
+  html[data-theme="terminal"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+    background: var(--accent-manual); color: var(--bg-base); border-color: var(--accent-manual);
+  }
+  html[data-theme="terminal"] ::selection{ background: var(--accent-auto); color: var(--bg-base); }
 
+  /* ---- Sakura Dusk — washi and petals. Zen Maru Gothic (rounded), paper
+     fibre ground, pill tags, petal-shaped tag selection, soft pill tabs. ---- */
   html[data-theme="sakura"]{
     --bg-base:#241a20; --bg-panel:#2e2027; --bg-elevated:#3a2830; --bg-elevated-2:#46313a;
     --border-soft:#6b455688; --border-strong:#8a5a72; --text-primary:#ffe3ef; --text-muted:#d99cb8;
     --text-faint:#a06a84; --accent-auto:#ffb8d9; --accent-auto-dim:#4a2c38; --accent-manual:#c9a6ff;
     --accent-manual-dim:#352840; --accent-danger:#ff6e91; --accent-success:#a6e3b8; --accent-flair:#ffe3ef;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 16px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Zen Maru Gothic', 'Segoe UI', system-ui, sans-serif;
+    --radius: 16px; --r-ctl: 999px;
+    --brand-size: 19px; --brand-weight: 700; --brand-track: 0.02em;
+    --tab-size: 13px;
+    --head-size: 13.5px; --head-color: var(--accent-auto);
+    --r-chip: 999px; --r-card: 18px; --r-panel: 18px; --r-check: 6px; --r-scroll: 999px;
+    --card-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    --fx-fill: var(--accent-auto); --fx-o: 0.22;
+    --fx-card-t: translateY(-3px) rotate(0.4deg); --fx-card-s: 0 12px 24px rgba(0,0,0,0.35);
+    --icon-stroke: 1.6;
   }
-  html[data-theme="sakura"] .brand{ letter-spacing: 0.4px; }
-  html[data-theme="sakura"] body{
-    background-image: radial-gradient(circle at 12% 8%, rgba(255,184,217,0.09), transparent 40%),
-      radial-gradient(circle at 88% 22%, rgba(255,184,217,0.07), transparent 36%),
-      radial-gradient(circle at 40% 85%, rgba(255,184,217,0.06), transparent 34%);
+  html[data-theme="sakura"] #gallery{
+    background-image:
+      repeating-linear-gradient(33deg, color-mix(in srgb, var(--accent-auto) 7%, transparent) 0 1px, transparent 1px 7px),
+      repeating-linear-gradient(-58deg, color-mix(in srgb, var(--text-primary) 4%, transparent) 0 1px, transparent 1px 11px);
   }
-  html[data-theme="sakura"] .card{ transition: transform 0.15s ease; }
+  html[data-theme="sakura"] #topbar{ border-bottom: 1px solid var(--border-strong); }
+  html[data-theme="sakura"] #tabBar{ padding-top: 5px; padding-bottom: 5px; gap: 6px; border-bottom-color: var(--border-strong); }
+  html[data-theme="sakura"] .tab-btn{ border-radius: 999px; border-bottom: none; padding: 6px 15px; }
+  html[data-theme="sakura"] .tab-btn.active{ background: var(--accent-auto-dim); color: var(--accent-auto); }
+  /* Petal cut: the selected tag drops its pill for a petal (two round
+     lobes, two pointed tips). */
+  html[data-theme="sakura"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){ border-radius: 14px 2px 14px 2px; }
+  html[data-theme="sakura"] .card .thumbwrap{ border-radius: 17px 17px 0 0; }
+  html[data-theme="sakura"] .card{ transition: transform 0.18s ease, box-shadow 0.18s ease; }
   html[data-theme="sakura"] .card:hover{ transform: translateY(-2px); }
 
+  /* ---- Bioluminescent Deep — the abyss, lit from below. Sora, panels
+     lit from their floor, and a photophore (a lit dot) marking the active
+     tab instead of an underline. ---- */
   html[data-theme="bioluminescent"]{
     --bg-base:#03080d; --bg-panel:#061119; --bg-elevated:#0a1a26; --bg-elevated-2:#0f2432;
     --border-soft:#164a5a88; --border-strong:#1f6b80; --text-primary:#d6fbff; --text-muted:#6fc9d6;
     --text-faint:#3f7f8c; --accent-auto:#7b5bff; --accent-auto-dim:#241a4a; --accent-manual:#26e0c9;
     --accent-manual-dim:#0a3a34; --accent-danger:#ff5f8f; --accent-success:#26e0c9; --accent-flair:#4fd6ff;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Sora', 'Segoe UI', system-ui, sans-serif;
     --radius: 11px;
+    --brand-size: 17px; --brand-weight: 600; --brand-track: -0.01em;
+    --tab-size: 12px;
+    --head-size: 12.5px; --head-weight: 600; --head-color: var(--accent-flair);
+    --btn-weight: 400;
+    --r-chip: 999px; --r-card: 14px; --r-panel: 14px; --r-check: 5px; --r-scroll: 999px;
+    --card-shadow: 0 8px 20px rgba(0,0,0,0.45);
+    --fx-fill: linear-gradient(to top, var(--accent-manual), transparent); --fx-o: 0.35; --fx-w: 1;
+    --fx-card-t: translateY(-3px); --fx-card-s: 0 12px 28px color-mix(in srgb, var(--accent-manual) 22%, transparent);
   }
-  html[data-theme="bioluminescent"] .card:hover{  }
-  html[data-theme="bioluminescent"] button.primary{  }
-  html[data-theme="bioluminescent"] .brand span.tag{ animation: flairPulse 2.6s ease-in-out infinite; animation-play-state: var(--flair-play); }
-  html[data-theme="bioluminescent"] body{
-    background-image: radial-gradient(circle at 20% 90%, rgba(38,224,201,0.06), transparent 40%),
-      radial-gradient(circle at 75% 15%, rgba(123,91,255,0.05), transparent 35%);
+  html[data-theme="bioluminescent"] #gallery{
+    background-image: linear-gradient(to top, color-mix(in srgb, var(--accent-manual) 11%, transparent), transparent 45%);
+  }
+  html[data-theme="bioluminescent"] #topbar{ border-bottom: 1px solid var(--border-soft); }
+  html[data-theme="bioluminescent"] .tool-section{
+    background: linear-gradient(to top, color-mix(in srgb, var(--accent-manual) 16%, var(--bg-elevated)), var(--bg-elevated) 70%);
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent-manual) 55%, transparent);
+  }
+  html[data-theme="bioluminescent"] .tab-btn.active{
+    color: var(--text-primary); border-bottom-color: transparent;
+    background: radial-gradient(circle at 50% calc(100% - 4px), var(--accent-flair) 0 2.5px, color-mix(in srgb, var(--accent-flair) 30%, transparent) 3.5px, transparent 9px);
+  }
+  html[data-theme="bioluminescent"] .brand span.tag{ color: var(--text-primary); animation: flairPulse 2.6s ease-in-out infinite; animation-play-state: var(--flair-play); }
+  html[data-theme="bioluminescent"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+    box-shadow: inset 0 0 8px color-mix(in srgb, var(--accent-manual) 35%, transparent);
   }
 
+  /* ---- Royal Amethyst (epic) — a gilded jewel box. Cinzel capitals for
+     the lockup, tabs and titles over Figtree, a double gilt rule under the
+     topbar, gold-framed panels and tags. ---- */
   html[data-theme="amethyst"]{
     --bg-base:#170b26; --bg-panel:#1f0f31; --bg-elevated:#28143d; --bg-elevated-2:#331a4b;
     --border-soft:#4a2a6688; --border-strong:#6b3d94; --text-primary:#f1e6ff; --text-muted:#b79cd6;
     --text-faint:#7d68a0; --accent-auto:#e8c468; --accent-auto-dim:#4a3a1a; --accent-manual:#c9a6ff;
     --accent-manual-dim:#3a2a50; --accent-danger:#ff6e91; --accent-success:#a6e3b8; --accent-flair:#e8c468;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 10px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Figtree', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Cinzel', Georgia, serif;
+    --head-font: 'Cinzel', Georgia, serif;
+    --tab-font: 'Cinzel', Georgia, serif;
+    --radius: 3px;
+    --brand-size: 19px; --brand-weight: 700; --brand-track: 0.06em;
+    --tab-size: 12.5px; --tab-track: 0.06em;
+    --head-size: 13px; --head-track: 0.06em; --head-color: var(--accent-flair);
+    --r-chip: 3px; --r-card: 4px; --r-panel: 4px; --r-check: 2px; --r-scroll: 2px;
+    --card-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 20%, transparent);
+    --fx-fill: linear-gradient(90deg, color-mix(in srgb, var(--accent-flair) 40%, transparent), var(--accent-flair));
+    --fx-o: 1; --fx-top: calc(100% - 2px); --fx-h: 2px; --fx-w: 1;
+    --fx-card-t: translateY(-3px); --fx-card-s: inset 0 0 0 1px var(--accent-flair), 0 12px 26px rgba(0,0,0,0.45);
+    --icon-stroke: 1.4;
   }
-  html[data-theme="amethyst"] .brand{ }
-  html[data-theme="amethyst"] .card, html[data-theme="amethyst"] .tool-section{
-    box-shadow: inset 0 0 0 1px rgba(232,196,104,0.2);
+  html[data-theme="amethyst"] .brand{ color: var(--accent-flair); }
+  html[data-theme="amethyst"] #topbar{
+    border-bottom: 1px solid var(--accent-flair);
+    box-shadow: 0 3px 0 -1px var(--bg-panel), 0 4px 0 -1px color-mix(in srgb, var(--accent-flair) 55%, transparent);
   }
-  html[data-theme="amethyst"] button.primary{  }
-  html[data-theme="amethyst"] #topbar{ position: relative; overflow: hidden; }
-  html[data-theme="amethyst"] #topbar::after{
-    content:''; position:absolute; top:0; left:0; width:40%; height:100%;
-    background: linear-gradient(90deg, transparent, rgba(232,196,104,0.14), transparent);
-    animation: flairSweep 6s ease-in-out infinite;
-    animation-play-state: var(--flair-play);
-    pointer-events: none;
+  html[data-theme="amethyst"] .tool-section,
+  html[data-theme="amethyst"] .settings-section{
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 20%, transparent), inset 0 0 0 4px var(--bg-elevated), inset 0 0 0 5px color-mix(in srgb, var(--accent-flair) 9%, transparent);
+  }
+  html[data-theme="amethyst"] .tab-btn.active{ color: var(--accent-flair); border-bottom-color: var(--accent-flair); }
+  html[data-theme="amethyst"] button.primary{ box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 45%, transparent); }
+  html[data-theme="amethyst"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 55%, transparent);
   }
 
+  /* ---- Solar Flare (legendary) — photosphere. Anybody at heavy weight,
+     uppercase, a heat-gradient rule under the header, primary buttons that
+     glow from the core outward, a corona breaking over the top edge. ---- */
   html[data-theme="solarflare"]{
     --bg-base:#1a0800; --bg-panel:#231000; --bg-elevated:#2e1600; --bg-elevated-2:#3a1d00;
     --border-soft:#5c2c0088; --border-strong:#7a3d00; --text-primary:#fff1e0; --text-muted:#e0a675;
     --text-faint:#a67650; --accent-auto:#ffd166; --accent-auto-dim:#4a3200; --accent-manual:#ff6a1f;
     --accent-manual-dim:#4a2200; --accent-danger:#ff4d4d; --accent-success:#8fbf7f; --accent-flair:#ffd166;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 5px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Anybody', 'Segoe UI', system-ui, sans-serif;
+    --radius: 4px;
+    --brand-size: 19px; --brand-weight: 900; --brand-track: 0.02em; --brand-case: uppercase;
+    --tab-size: 12px; --tab-case: uppercase; --tab-track: 0.08em;
+    --head-size: 12.5px; --head-weight: 800; --head-case: uppercase; --head-track: 0.06em; --head-color: var(--accent-flair);
+    --btn-weight: 600;
+    --r-chip: 3px; --r-card: 6px; --r-panel: 6px; --r-check: 3px; --r-scroll: 3px;
+    --card-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-flair)); --fx-o: 0.35; --fx-w: 1;
+    --fx-card-t: translateY(-4px); --fx-card-s: 0 14px 30px color-mix(in srgb, var(--accent-manual) 28%, transparent);
+    --icon-stroke: 2.1;
   }
-  html[data-theme="solarflare"] body{
-    background-image: radial-gradient(circle at 50% 0%, rgba(255,106,31,0.08), transparent 60%);
+  html[data-theme="solarflare"] #gallery{
+    background-image: radial-gradient(ellipse 80% 45% at 50% -8%, color-mix(in srgb, var(--accent-manual) 14%, transparent), transparent 70%);
   }
-  html[data-theme="solarflare"] button.primary{  animation: flairPulse 2.4s ease-in-out infinite; animation-play-state: var(--flair-play); }
-  html[data-theme="solarflare"] .card:hover{  }
+  html[data-theme="solarflare"] #topbar{
+    border-bottom: none;
+    background-image: linear-gradient(90deg, var(--accent-manual), var(--accent-flair) 50%, var(--accent-manual));
+    background-size: 100% 2px; background-position: bottom; background-repeat: no-repeat;
+  }
+  /* Flare: the active tab burns up from its edge. */
+  html[data-theme="solarflare"] .tab-btn.active{
+    color: var(--accent-flair); border-bottom-color: var(--accent-manual);
+    background: radial-gradient(ellipse 70% 90% at 50% 100%, color-mix(in srgb, var(--accent-manual) 35%, transparent), transparent 70%);
+  }
+  html[data-theme="solarflare"] button.primary{
+    background: radial-gradient(ellipse at 50% 120%, color-mix(in srgb, var(--accent-manual) 45%, var(--accent-manual-dim)), var(--accent-manual-dim) 70%);
+  }
+  html[data-theme="solarflare"] .tool-section{ border-top-color: color-mix(in srgb, var(--accent-manual) 45%, var(--border-soft)); }
 
   /* ---- 20 additional shop themes ---- */
 
+  /* ---- Midnight Ocean — the nautical chart. Barlow Semi Condensed,
+     chart-grid ground, and every panel framed by a double neatline the way
+     a chart's border is. ---- */
   html[data-theme="midnight-ocean"]{
     --bg-base:#040c14; --bg-panel:#071827; --bg-elevated:#0c2436; --bg-elevated-2:#123247;
     --border-soft:#1c4a6688; --border-strong:#2c6e94; --text-primary:#e3f4ff; --text-muted:#7fa8c2;
     --text-faint:#4d7086; --accent-auto:#f2a65a; --accent-auto-dim:#4a2f14; --accent-manual:#3ddbd9;
     --accent-manual-dim:#0f3a3a; --accent-danger:#ff6b6b; --accent-success:#5fd88f; --accent-flair:#f2a65a;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 6px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Barlow Semi Condensed', 'Segoe UI', system-ui, sans-serif;
+    --radius: 2px;
+    --brand-size: 19px; --brand-weight: 600; --brand-track: 0.03em;
+    --tab-size: 13.5px; --tab-case: uppercase; --tab-track: 0.1em;
+    --head-size: 13px; --head-weight: 600; --head-case: uppercase; --head-track: 0.12em; --head-color: var(--accent-manual);
+    --r-chip: 2px; --r-card: 2px; --r-panel: 2px; --r-check: 1px; --r-scroll: 0px;
+    --card-shadow: none;
+    --fx-fill: var(--accent-flair); --fx-o: 0.22;
+    --fx-card-t: translateY(-2px); --fx-card-s: 0 0 0 1px var(--accent-manual), 0 10px 22px rgba(0,0,0,0.45);
+    --icon-stroke: 1.6;
   }
-  html[data-theme="midnight-ocean"] .card:hover{  }
   html[data-theme="midnight-ocean"] #gallery{
-    background-image: linear-gradient(to top, rgba(61,219,217,0.05), transparent 140px);
+    background-image:
+      linear-gradient(color-mix(in srgb, var(--accent-manual) 9%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--accent-manual) 9%, transparent) 1px, transparent 1px);
+    background-size: 96px 96px;
+  }
+  html[data-theme="midnight-ocean"] .tool-section,
+  html[data-theme="midnight-ocean"] .settings-section{
+    box-shadow: inset 0 0 0 3px var(--bg-elevated), inset 0 0 0 4px color-mix(in srgb, var(--border-strong) 55%, transparent);
+  }
+  html[data-theme="midnight-ocean"] #topbar{ border-bottom: 1px solid var(--border-strong); box-shadow: 0 3px 0 -2px var(--border-strong); }
+  html[data-theme="midnight-ocean"] input::placeholder, html[data-theme="midnight-ocean"] textarea::placeholder{ color: var(--text-muted); }
+  /* Sounding line: the active tab's rule carries a plumb tick. */
+  html[data-theme="midnight-ocean"] .tab-btn.active{
+    color: var(--accent-flair); border-bottom-color: var(--accent-flair);
+    background: linear-gradient(var(--accent-flair), var(--accent-flair)) bottom center / 1px 7px no-repeat;
   }
 
+  /* ---- Arctic Frost — pack ice. Albert Sans, crisp hairlines, a lit
+     top edge on every surface like the face of a snow cut, a faint
+     crystalline hatch in the ground. No glass blur. ---- */
   html[data-theme="arctic-frost"]{
     --bg-base:#eef5fb; --bg-panel:#ffffff; --bg-elevated:#f3f9fd; --bg-elevated-2:#e6f1fa;
     --border-soft:#cfe3f2; --border-strong:#a9c9e0; --text-primary:#173049; --text-muted:#4d6d89;
     --text-faint:#8aa5bc; --accent-auto:#5aa9e6; --accent-auto-dim:#dcefff; --accent-manual:#2f7fb8;
     --accent-manual-dim:#d6ecfa; --accent-danger:#e15668; --accent-success:#3fae7c; --accent-flair:#8fd6ff;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 10px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Albert Sans', 'Segoe UI', system-ui, sans-serif;
+    --radius: 6px;
+    --brand-size: 18px; --brand-weight: 800; --brand-track: -0.01em;
+    --tab-size: 12.5px;
+    --head-size: 11.5px; --head-weight: 700; --head-case: uppercase; --head-track: 0.14em; --head-color: var(--accent-manual);
+    --r-chip: 4px; --r-card: 8px; --r-panel: 8px; --r-check: 3px; --r-scroll: 4px;
+    --card-shadow: 0 1px 0 var(--border-soft), 0 4px 12px color-mix(in srgb, var(--accent-manual) 7%, transparent);
+    --fx-fill: linear-gradient(90deg, var(--accent-flair), color-mix(in srgb, var(--accent-flair) 20%, transparent)); --fx-o: 0.5;
+    --fx-card-t: translateY(-3px); --fx-card-s: 0 12px 26px color-mix(in srgb, var(--accent-manual) 16%, transparent);
   }
-  html[data-theme="arctic-frost"] .theme-panel,
+  html[data-theme="arctic-frost"] #gallery{
+    background-image:
+      repeating-linear-gradient(60deg, color-mix(in srgb, var(--accent-auto) 9%, transparent) 0 1px, transparent 1px 22px),
+      repeating-linear-gradient(-60deg, color-mix(in srgb, var(--accent-auto) 9%, transparent) 0 1px, transparent 1px 22px);
+  }
   html[data-theme="arctic-frost"] .tool-section,
-  html[data-theme="arctic-frost"] #right{
-    backdrop-filter: blur(6px);
-    background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+  html[data-theme="arctic-frost"] .theme-panel{
+    background: var(--bg-panel);
+    box-shadow: inset 0 2px 0 var(--accent-flair), 0 2px 8px color-mix(in srgb, var(--accent-manual) 6%, transparent);
   }
-  html[data-theme="arctic-frost"] .card{ box-shadow: inset 0 0 0 1px rgba(90,169,230,0.25); }
+  html[data-theme="arctic-frost"] #topbar{ border-bottom: 1px solid var(--border-strong); box-shadow: 0 1px 0 var(--bg-panel); }
+  html[data-theme="arctic-frost"] .tab-btn.active{ color: var(--accent-manual); border-bottom-color: var(--accent-flair); box-shadow: inset 0 -1px 0 var(--accent-flair); }
 
+  /* ---- Forest Moss — the field guide. Alegreya titles over Alegreya
+     Sans, leaf-cut asymmetric corners, topographic contour lines in the
+     ground. ---- */
   html[data-theme="forest-moss"]{
     --bg-base:#0e130d; --bg-panel:#151d13; --bg-elevated:#1c271a; --bg-elevated-2:#243322;
     --border-soft:#3d5a3688; --border-strong:#547a4c; --text-primary:#e6f0e0; --text-muted:#a3bd97;
     --text-faint:#708a65; --accent-auto:#d7b568; --accent-auto-dim:#463a1c; --accent-manual:#7cb454;
     --accent-manual-dim:#243a1a; --accent-danger:#d9694f; --accent-success:#7cb454; --accent-flair:#d7b568;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Alegreya Sans', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Alegreya', Georgia, serif;
+    --head-font: 'Alegreya', Georgia, serif;
+    --tab-font: 'Alegreya', Georgia, serif;
     --radius: 9px;
+    --brand-size: 21px; --brand-weight: 700; --brand-track: 0;
+    --tab-size: 14px;
+    --head-size: 14.5px; --head-weight: 700; --head-color: var(--accent-flair);
+    --r-ctl: 10px 2px 10px 2px; --r-chip: 9px 1px 9px 1px; --r-card: 18px 3px 18px 3px; --r-panel: 18px 3px 18px 3px;
+    --r-check: 5px 1px 5px 1px; --r-scroll: 6px 2px;
+    --card-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    --fx-fill: var(--accent-manual); --fx-o: 0.25;
+    --fx-card-t: translateY(-3px) rotate(-0.5deg); --fx-card-s: 0 12px 24px rgba(0,0,0,0.45);
   }
-  html[data-theme="forest-moss"] .card, html[data-theme="forest-moss"] .tool-section{
-    border-radius: 14px 6px 14px 6px;
+  html[data-theme="forest-moss"] #gallery{
+    background-image: repeating-radial-gradient(ellipse 120% 80% at 70% 110%, transparent 0 22px, color-mix(in srgb, var(--accent-manual) 13%, transparent) 22px 23px);
   }
-  html[data-theme="forest-moss"] body{
-    background-image: radial-gradient(ellipse at 50% 100%, rgba(124,180,84,0.08), transparent 60%);
-  }
+  html[data-theme="forest-moss"] #topbar{ border-bottom: 1px solid var(--border-strong); }
+  html[data-theme="forest-moss"] .tab-btn.active{ color: var(--accent-flair); border-bottom-color: var(--accent-manual); }
 
+  /* ---- Vintage Paper — a letterpress catalogue. Libre Caslon body, IM
+     Fell small caps for lockup/titles, Courier Prime typewriter tags,
+     index-card tabs, double-ruled section heads. ---- */
   html[data-theme="vintage-paper"]{
     --bg-base:#f2e8d5; --bg-panel:#f9f2e2; --bg-elevated:#efe3c9; --bg-elevated-2:#e8d9b8;
     --border-soft:#c9b48a; --border-strong:#a68e5f; --text-primary:#3b2c1a; --text-muted:#6b5738;
     --text-faint:#8f7c5c; --accent-auto:#a3742f; --accent-auto-dim:#ecd9ad; --accent-manual:#6b4a2f;
     --accent-manual-dim:#e6d3b3; --accent-danger:#a5432f; --accent-success:#5c7a44; --accent-flair:#a5432f;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: Georgia, 'Noto Serif', 'Times New Roman', serif;
-    --radius: 3px;
+    --mono: 'Courier Prime', 'Courier New', monospace;
+    --sans: 'Libre Caslon Text', Georgia, serif;
+    --display: 'IM Fell English SC', Georgia, serif;
+    --head-font: 'IM Fell English SC', Georgia, serif;
+    --tab-font: 'IM Fell English SC', Georgia, serif;
+    --radius: 2px;
+    --brand-size: 23px; --brand-weight: 400; --brand-track: 0.02em;
+    --tab-size: 15px;
+    --head-size: 16px; --head-weight: 400; --head-track: 0.02em;
+    --btn-weight: 400;
+    --r-chip: 1px; --r-card: 2px; --r-panel: 2px; --r-check: 1px; --r-scroll: 0px;
+    --card-shadow: 0 1px 2px color-mix(in srgb, var(--text-primary) 14%, transparent);
+    --fx-fill: var(--accent-flair); --fx-o: 1; --fx-top: calc(100% - 2px); --fx-h: 2px; --fx-w: 1;
+    --fx-card-t: rotate(-0.6deg) translateY(-2px); --fx-card-s: 0 6px 14px color-mix(in srgb, var(--text-primary) 20%, transparent);
+    --icon-stroke: 1.4;
   }
-  html[data-theme="vintage-paper"] body{
-    background-image: repeating-linear-gradient(115deg, rgba(107,74,47,0.025) 0px, rgba(107,74,47,0.025) 1px, transparent 1px, transparent 3px);
+  html[data-theme="vintage-paper"] #gallery{
+    background-image: repeating-linear-gradient(115deg, color-mix(in srgb, var(--accent-manual) 7%, transparent) 0px, color-mix(in srgb, var(--accent-manual) 7%, transparent) 1px, transparent 1px, transparent 3px);
   }
+  html[data-theme="vintage-paper"] #topbar{ border-bottom: 3px double var(--border-strong); }
+  /* Lockup as a printed masthead with a rubber-stamped tag. */
+  html[data-theme="vintage-paper"] .brand span.tag{
+    background: transparent; color: var(--accent-flair); border: 1px solid var(--accent-flair);
+    transform: rotate(-2deg); font-family: var(--mono); font-weight: 700;
+  }
+  html[data-theme="vintage-paper"] #tabBar{ padding-top: 8px; gap: 3px; border-bottom-color: var(--border-strong); background: var(--bg-base); }
+  html[data-theme="vintage-paper"] .tab-btn{
+    border: 1px solid transparent; border-bottom: none; border-radius: 4px 4px 0 0;
+    padding: 7px 14px 6px; margin-bottom: -1px;
+  }
+  html[data-theme="vintage-paper"] .tab-btn.active{
+    background: var(--bg-panel); border-color: var(--border-strong); color: var(--accent-flair); font-weight: 400;
+  }
+  html[data-theme="vintage-paper"] .tool-section .sec-head{ padding-bottom: 6px; border-bottom: 3px double var(--border-soft); }
+  html[data-theme="vintage-paper"] button{ box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-panel) 70%, transparent); }
+  html[data-theme="vintage-paper"] .chip{ border-style: dashed; }
+  html[data-theme="vintage-paper"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){ border-style: solid; }
   html[data-theme="vintage-paper"] .card{ transition: transform 0.15s ease, box-shadow 0.15s ease; }
-  html[data-theme="vintage-paper"] .card:hover{ transform: rotate(-0.6deg) translateY(-2px); box-shadow: 0 6px 14px rgba(59,44,26,0.18); }
+  html[data-theme="vintage-paper"] .card:hover{ transform: rotate(-0.6deg) translateY(-2px); box-shadow: 0 6px 14px color-mix(in srgb, var(--text-primary) 18%, transparent); }
 
+  /* ---- Obsidian — knapped volcanic glass. Michroma (wide) for lockup,
+     tabs and titles over Archivo; chamfered controls and tags; a single
+     gold facet catching light along each panel's top edge. ---- */
   html[data-theme="obsidian"]{
     --bg-base:#0a0a0c; --bg-panel:#111114; --bg-elevated:#18181c; --bg-elevated-2:#212126;
     --border-soft:#33333a88; --border-strong:#4a4a54; --text-primary:#f0f0f2; --text-muted:#9c9ca6;
     --text-faint:#65656e; --accent-auto:#c9c9d4; --accent-auto-dim:#2a2a30; --accent-manual:#7c9cff;
     --accent-manual-dim:#1c2440; --accent-danger:#ff5c5c; --accent-success:#5cd68f; --accent-flair:#e0b060;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Michroma', 'Segoe UI', sans-serif;
+    --head-font: 'Michroma', 'Segoe UI', sans-serif;
+    --tab-font: 'Michroma', 'Segoe UI', sans-serif;
     --radius: 0px;
+    --brand-size: 15px; --brand-weight: 400; --brand-track: 0.06em; --brand-case: uppercase;
+    --tab-size: 10.5px; --tab-case: uppercase; --tab-track: 0.1em;
+    --head-size: 10px; --head-weight: 400; --head-case: uppercase; --head-track: 0.05em;
+    --r-chip: 0px; --r-card: 0px; --r-panel: 0px; --r-check: 0px; --r-scroll: 0px;
+    --card-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent);
+    --fx-fill: linear-gradient(115deg, transparent 25%, var(--accent-flair) 50%, transparent 75%); --fx-o: 0.3; --fx-w: 1;
+    --fx-card-t: translateY(-2px); --fx-card-s: inset 0 1px 0 var(--accent-flair), 0 12px 24px rgba(0,0,0,0.55);
+    --icon-stroke: 1.5; --icon-cap: square; --icon-join: miter;
   }
-  html[data-theme="obsidian"] button{
+  html[data-theme="obsidian"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell){
     clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+    background-image:
+      linear-gradient(to top left, transparent 50%, var(--border-strong) 50% calc(50% + 1.3px), transparent calc(50% + 1.3px)) top left / 6px 6px no-repeat,
+      linear-gradient(to top left, transparent 50%, var(--border-strong) 50% calc(50% + 1.3px), transparent calc(50% + 1.3px)) bottom right / 6px 6px no-repeat;
   }
-  html[data-theme="obsidian"] .card, html[data-theme="obsidian"] .tool-section{ border-radius: 0; }
+  /* The clip eats an outside focus outline — draw it inside instead. */
+  html[data-theme="obsidian"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):focus-visible{ outline: none; box-shadow: inset 0 0 0 2px var(--accent-manual); }
+  html[data-theme="obsidian"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){ box-shadow: inset 0 0 0 1px var(--accent-manual); }
+  html[data-theme="obsidian"] .chip{ clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
+  html[data-theme="obsidian"] .tool-section,
+  html[data-theme="obsidian"] .settings-section{ box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent-flair) 40%, transparent); }
+  html[data-theme="obsidian"] #topbar{ border-bottom: 1px solid var(--border-strong); }
+  /* Facet: a knapped notch of gold under the active tab. */
+  html[data-theme="obsidian"] .tab-btn.active{
+    color: var(--text-primary); border-bottom-color: var(--accent-flair);
+    background: conic-gradient(from 135deg at 50% 0%, var(--accent-flair) 0 90deg, transparent 0) bottom center / 12px 6px no-repeat;
+  }
   html[data-theme="obsidian"] button.primary{ box-shadow: none; border-color: var(--accent-manual); }
 
+  /* ---- Retro Wave — 1984 horizon. Audiowide lockup and titles over
+     Exo 2, sunset bars stepping down under the header, chamfered
+     controls, a synth-grid floor. ---- */
   html[data-theme="retrowave"]{
     --bg-base:#170826; --bg-panel:#1f0e33; --bg-elevated:#2a1442; --bg-elevated-2:#361a54;
     --border-soft:#5a2c8888; --border-strong:#7b3fb5; --text-primary:#fbeaff; --text-muted:#c99ee0;
     --text-faint:#8f6bab; --accent-auto:#00e5ff; --accent-auto-dim:#0a3540; --accent-manual:#ff3ec8;
     --accent-manual-dim:#40122f; --accent-danger:#ff4d6d; --accent-success:#39ff9c; --accent-flair:#00e5ff;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Audiowide', 'Segoe UI', sans-serif;
+    --head-font: 'Audiowide', 'Segoe UI', sans-serif;
     --radius: 1px;
+    --brand-size: 18px; --brand-weight: 400; --brand-track: 0.04em; --brand-case: uppercase;
+    --tab-size: 12.5px; --tab-case: uppercase; --tab-track: 0.08em;
+    --head-size: 12px; --head-weight: 400; --head-case: uppercase; --head-track: 0.08em; --head-color: var(--accent-flair);
+    --btn-weight: 600;
+    --r-chip: 1px; --r-card: 2px; --r-panel: 2px; --r-check: 1px; --r-scroll: 0px;
+    --card-shadow: none;
+    --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-flair)); --fx-o: 0.32; --fx-w: 1;
+    --fx-card-t: translateY(-3px); --fx-card-s: 0 12px 26px color-mix(in srgb, var(--accent-manual) 25%, transparent);
+    --icon-stroke: 1.75; --icon-cap: square; --icon-join: bevel;
   }
-  html[data-theme="retrowave"] body{
+  html[data-theme="retrowave"] #gallery{
     background-image:
-      radial-gradient(ellipse 60% 40% at 50% 0%, rgba(255,62,200,0.10), transparent 70%),
-      repeating-linear-gradient(0deg, rgba(0,229,255,0.05) 0px, transparent 1px, transparent 38px, rgba(0,229,255,0.05) 39px);
+      linear-gradient(to bottom, transparent 55%, color-mix(in srgb, var(--accent-manual) 13%, transparent)),
+      repeating-linear-gradient(0deg, color-mix(in srgb, var(--accent-flair) 11%, transparent) 0px, transparent 1px, transparent 38px, color-mix(in srgb, var(--accent-flair) 11%, transparent) 39px);
   }
-  html[data-theme="retrowave"] button.primary{  }
-  html[data-theme="retrowave"] button{
+  html[data-theme="retrowave"] #topbar{
+    border-bottom: none;
+    background-image:
+      linear-gradient(var(--accent-manual), var(--accent-manual)),
+      linear-gradient(color-mix(in srgb, var(--accent-manual) 70%, var(--accent-flair)), color-mix(in srgb, var(--accent-manual) 70%, var(--accent-flair))),
+      linear-gradient(color-mix(in srgb, var(--accent-manual) 35%, var(--accent-flair)), color-mix(in srgb, var(--accent-manual) 35%, var(--accent-flair)));
+    background-size: 100% 3px, 100% 2px, 100% 1px;
+    background-position: 0 100%, 0 calc(100% - 6px), 0 calc(100% - 11px);
+    background-repeat: no-repeat;
+  }
+  html[data-theme="retrowave"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):not(.tab-btn){
     clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+    background-image:
+      linear-gradient(to top left, transparent 50%, var(--border-strong) 50% calc(50% + 1.3px), transparent calc(50% + 1.3px)) top left / 5px 5px no-repeat,
+      linear-gradient(to top left, transparent 50%, var(--border-strong) 50% calc(50% + 1.3px), transparent calc(50% + 1.3px)) bottom right / 5px 5px no-repeat;
+  }
+  html[data-theme="retrowave"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):not(.tab-btn):focus-visible{ outline: none; box-shadow: inset 0 0 0 2px var(--accent-flair); }
+  html[data-theme="retrowave"] .tab-btn.active{
+    color: var(--text-primary); border-bottom-color: transparent;
+    background: linear-gradient(90deg, var(--accent-manual), var(--accent-flair)) bottom / 100% 2px no-repeat;
   }
 
+  /* ---- Rose Gold — an Art Deco jeweller. Poiret One lockup over Jost,
+     letterspaced capitals for titles, pill controls, stepped deco corners
+     on panels, a polished-metal shimmer on the primary button. ---- */
   html[data-theme="rose-gold"]{
     --bg-base:#fbeef0; --bg-panel:#fff6f6; --bg-elevated:#fbe4e6; --bg-elevated-2:#f6d6d9;
     --border-soft:#eec2c6; --border-strong:#dba2a8; --text-primary:#4a2126; --text-muted:#8a5459;
     --text-faint:#b0838a; --accent-auto:#e0a45c; --accent-auto-dim:#fbe6c8; --accent-manual:#c47a6f;
     --accent-manual-dim:#f5ded9; --accent-danger:#c1495a; --accent-success:#6ba07d; --accent-flair:#e0a45c;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 18px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Jost', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Poiret One', 'Jost', sans-serif;
+    --radius: 18px; --r-ctl: 999px;
+    --brand-size: 24px; --brand-weight: 400; --brand-track: 0.04em;
+    --tab-size: 12px; --tab-case: uppercase; --tab-track: 0.16em;
+    --head-size: 11.5px; --head-weight: 600; --head-case: uppercase; --head-track: 0.2em; --head-color: color-mix(in srgb, var(--accent-manual) 50%, var(--text-primary));
+    --r-chip: 999px; --r-card: 3px; --r-panel: 3px; --r-check: 4px; --r-scroll: 999px;
+    --card-shadow: 0 2px 10px color-mix(in srgb, var(--accent-manual) 10%, transparent);
+    --fx-fill: linear-gradient(110deg, var(--accent-manual), var(--accent-flair) 55%, var(--accent-manual)); --fx-o: 0.3; --fx-w: 1;
+    --fx-card-t: translateY(-3px); --fx-card-s: 0 12px 26px color-mix(in srgb, var(--accent-manual) 22%, transparent);
+    --icon-stroke: 1.35;
   }
+  html[data-theme="rose-gold"] #topbar{ border-bottom: 1px solid var(--accent-flair); box-shadow: 0 3px 0 -2px var(--accent-manual); }
+  html[data-theme="rose-gold"] .tool-section,
+  html[data-theme="rose-gold"] .settings-section{
+    --deco: color-mix(in srgb, var(--accent-flair) 70%, transparent);
+    background:
+      linear-gradient(var(--deco), var(--deco)) top 4px left 4px / 12px 1px no-repeat,
+      linear-gradient(var(--deco), var(--deco)) top 4px left 4px / 1px 12px no-repeat,
+      linear-gradient(var(--deco), var(--deco)) top 4px right 4px / 12px 1px no-repeat,
+      linear-gradient(var(--deco), var(--deco)) top 4px right 4px / 1px 12px no-repeat,
+      var(--bg-elevated);
+  }
+  html[data-theme="rose-gold"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){ color: color-mix(in srgb, var(--accent-manual) 45%, var(--text-primary)); }
+  html[data-theme="rose-gold"] .tab-btn.active{ color: var(--accent-manual); border-bottom-color: var(--accent-flair); }
   html[data-theme="rose-gold"] button.primary{
-    background-image: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.5) 48%, transparent 66%);
+    background-image: linear-gradient(110deg, transparent 30%, color-mix(in srgb, var(--bg-panel) 55%, transparent) 48%, transparent 66%);
     background-size: 220% 100%;
   }
   html[data-theme="rose-gold"] button.primary:hover:not(:disabled){ animation: flairShimmer 1.4s ease infinite; animation-play-state: var(--flair-play); }
 
+  /* ---- Coral Reef — the tide pool. Nunito (rounded terminals), organic
+     asymmetric corners, pill tabs, a drift of bubbles in the ground. ---- */
   html[data-theme="coral-reef"]{
     --bg-base:#04191c; --bg-panel:#082428; --bg-elevated:#0d3237; --bg-elevated-2:#134147;
     --border-soft:#1f636b88; --border-strong:#2c8994; --text-primary:#e3fbfa; --text-muted:#7fc7c4;
     --text-faint:#4f8f8c; --accent-auto:#ffb27a; --accent-auto-dim:#4a2f18; --accent-manual:#ff7f6b;
     --accent-manual-dim:#4a1e18; --accent-danger:#ff5c5c; --accent-success:#4fd6a8; --accent-flair:#4fd6a8;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 12px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Nunito', 'Segoe UI', system-ui, sans-serif;
+    --radius: 12px; --r-ctl: 999px;
+    --brand-size: 19px; --brand-weight: 900; --brand-track: -0.01em;
+    --tab-size: 13px;
+    --head-size: 13.5px; --head-weight: 800; --head-color: var(--accent-auto);
+    --btn-weight: 700;
+    --r-chip: 999px; --r-card: 24px 4px 24px 4px; --r-panel: 24px 4px 24px 4px; --r-check: 6px; --r-scroll: 999px;
+    --card-shadow: 0 6px 16px rgba(0,0,0,0.25);
+    --fx-fill: var(--accent-manual); --fx-o: 0.25;
+    --fx-card-t: translateY(-4px); --fx-card-s: 0 14px 28px rgba(0,0,0,0.4);
+    --icon-stroke: 2;
   }
-  html[data-theme="coral-reef"] .card, html[data-theme="coral-reef"] .tool-section{
-    border-radius: 20px 8px 20px 8px;
+  html[data-theme="coral-reef"] #gallery{
+    --bub: color-mix(in srgb, var(--accent-flair) 22%, transparent);
+    --bub2: color-mix(in srgb, var(--accent-auto) 16%, transparent);
+    background-image:
+      radial-gradient(circle at 23% 67%, transparent 0 7px, var(--bub) 7px 8.5px, transparent 9px),
+      radial-gradient(circle at 71% 18%, transparent 0 4px, var(--bub2) 4px 5px, transparent 5.5px),
+      radial-gradient(circle at 44% 41%, transparent 0 2.5px, var(--bub) 2.5px 3.5px, transparent 4px),
+      radial-gradient(circle at 86% 83%, transparent 0 10px, var(--bub2) 10px 11px, transparent 11.5px);
+    background-size: 373px 541px, 457px 389px, 211px 307px, 613px 701px;
   }
-  html[data-theme="coral-reef"] body{
-    background-image: radial-gradient(circle at 15% 30%, rgba(79,214,168,0.05) 0 6px, transparent 7px),
-      radial-gradient(circle at 82% 65%, rgba(255,127,107,0.05) 0 4px, transparent 5px),
-      radial-gradient(circle at 55% 12%, rgba(79,214,168,0.05) 0 3px, transparent 4px);
-    background-size: 260px 260px, 320px 320px, 200px 200px;
-  }
+  html[data-theme="coral-reef"] #topbar{ border-bottom: 1px solid var(--border-strong); }
+  html[data-theme="coral-reef"] #tabBar{ padding-top: 5px; padding-bottom: 5px; gap: 6px; }
+  html[data-theme="coral-reef"] .tab-btn{ border-radius: 999px; border-bottom: none; padding: 6px 15px; }
+  html[data-theme="coral-reef"] .tab-btn.active{ background: var(--accent-manual-dim); color: var(--accent-manual); }
+  html[data-theme="coral-reef"] .card .thumbwrap{ border-radius: 23px 3px 0 0; }
 
+  /* ---- Toxic Waste — hazard placards. Saira Stencil lockup and titles
+     over Barlow Condensed, hazard tape under the header and along each
+     dock's top edge, placard-solid primary buttons. ---- */
   html[data-theme="toxic-waste"]{
     --bg-base:#0a0f04; --bg-panel:#111c08; --bg-elevated:#182a0c; --bg-elevated-2:#213a10;
     --border-soft:#4a7a1e88; --border-strong:#649c2c; --text-primary:#e6ffcc; --text-muted:#a8d975;
     --text-faint:#749c4d; --accent-auto:#f5ff3d; --accent-auto-dim:#4a4a0a; --accent-manual:#8aff29;
     --accent-manual-dim:#2a4a0c; --accent-danger:#ff4d4d; --accent-success:#8aff29; --accent-flair:#f5ff3d;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 3px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Barlow Condensed', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Saira Stencil One', 'Barlow Condensed', sans-serif;
+    --head-font: 'Saira Stencil One', 'Barlow Condensed', sans-serif;
+    --radius: 2px;
+    --brand-size: 20px; --brand-weight: 400; --brand-track: 0.04em; --brand-case: uppercase;
+    --tab-size: 14px; --tab-case: uppercase; --tab-track: 0.06em;
+    --head-size: 14px; --head-weight: 400; --head-case: uppercase; --head-track: 0.06em; --head-color: var(--accent-flair);
+    --btn-weight: 600; --btn-track: 0.03em;
+    --r-chip: 2px; --r-card: 2px; --r-panel: 2px; --r-check: 1px; --r-scroll: 0px;
+    --card-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-manual) 20%, transparent);
+    --fx-fill: repeating-linear-gradient(-45deg, var(--accent-flair) 0 6px, transparent 6px 12px); --fx-o: 0.3; --fx-w: 1;
+    --fx-card-t: translateY(-3px); --fx-card-s: 0 0 0 1px var(--accent-flair), 0 12px 24px rgba(0,0,0,0.5);
+    --icon-stroke: 2.25; --icon-cap: square; --icon-join: miter;
   }
-  html[data-theme="toxic-waste"] button.primary{ box-shadow: 0 0 12px rgba(138,255,41,0.4), 0 3px 0 rgba(138,255,41,0.15); }
-  html[data-theme="toxic-waste"] .card{ box-shadow: inset 0 -2px 0 rgba(138,255,41,0.2); }
+  html[data-theme="toxic-waste"] #topbar{
+    border-bottom: none;
+    background-image: repeating-linear-gradient(-45deg, var(--accent-flair) 0 8px, var(--bg-base) 8px 16px);
+    background-size: 100% 5px; background-position: bottom; background-repeat: no-repeat;
+    padding-bottom: 13px;
+  }
+  html[data-theme="toxic-waste"] .tool-section{
+    background:
+      repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-flair) 55%, transparent) 0 5px, transparent 5px 10px) top / 100% 3px no-repeat,
+      var(--bg-elevated);
+  }
+  html[data-theme="toxic-waste"] .tab-btn.active{ color: var(--accent-flair); border-bottom-color: var(--accent-manual); }
+  html[data-theme="toxic-waste"] button.primary{ background: var(--accent-manual); color: var(--bg-base); }
+  html[data-theme="toxic-waste"] button.primary:hover:not(:disabled){ background: var(--accent-flair); border-color: var(--accent-flair); }
 
+  /* ---- Lavender Fields — a herbarium sheet. Gilda Display lockup and
+     specimen-label titles over Karla, planted-row stripes in the ground,
+     a short centred mark under the active tab. ---- */
   html[data-theme="lavender-fields"]{
     --bg-base:#f2eefb; --bg-panel:#faf8ff; --bg-elevated:#ece5f9; --bg-elevated-2:#e0d6f4;
     --border-soft:#d1c1ec; --border-strong:#b39fdb; --text-primary:#332648; --text-muted:#6b5a8a;
     --text-faint:#9689b3; --accent-auto:#c98ed6; --accent-auto-dim:#f0dff5; --accent-manual:#7b5ea8;
     --accent-manual-dim:#e5daf5; --accent-danger:#c95a7a; --accent-success:#5c9a7a; --accent-flair:#c98ed6;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 13px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Karla', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Gilda Display', Georgia, serif;
+    --head-font: 'Gilda Display', Georgia, serif;
+    --radius: 8px;
+    --brand-size: 22px; --brand-weight: 400; --brand-track: 0.01em;
+    --tab-size: 12.5px;
+    --head-size: 15px; --head-weight: 400; --head-color: var(--accent-manual);
+    --r-chip: 999px; --r-card: 10px; --r-panel: 10px; --r-check: 4px; --r-scroll: 999px;
+    --card-shadow: 0 2px 8px color-mix(in srgb, var(--accent-manual) 9%, transparent);
+    --fx-fill: var(--accent-flair); --fx-o: 0.28;
+    --fx-card-t: translateY(-3px); --fx-card-s: 0 12px 24px color-mix(in srgb, var(--accent-manual) 18%, transparent);
+    --icon-stroke: 1.5;
   }
-  html[data-theme="lavender-fields"] body{
-    background-image: radial-gradient(circle at 20% 20%, rgba(201,142,214,0.10), transparent 45%),
-      radial-gradient(circle at 80% 70%, rgba(123,94,168,0.07), transparent 40%);
+  html[data-theme="lavender-fields"] #gallery{
+    background-image: repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent-flair) 13%, transparent) 0 14px, transparent 14px 44px);
+  }
+  html[data-theme="lavender-fields"] #topbar{ border-bottom: 1px solid var(--border-strong); }
+  html[data-theme="lavender-fields"] .tool-section{ background: var(--bg-panel); }
+  html[data-theme="lavender-fields"] .tool-section .sec-head{ padding-bottom: 7px; border-bottom: 1px solid var(--border-soft); }
+  html[data-theme="lavender-fields"] .tab-btn.active{
+    color: var(--accent-manual); border-bottom-color: transparent;
+    background: linear-gradient(var(--accent-flair), var(--accent-flair)) bottom center / 36% 2px no-repeat;
   }
 
+  /* ---- Candy Pop — the sweet shop. Fredoka, bouncy pill controls,
+     candy-stripe selected tags, fat pill tabs. ---- */
   html[data-theme="candy-pop"]{
     --bg-base:#fff5fa; --bg-panel:#ffffff; --bg-elevated:#ffe9f4; --bg-elevated-2:#ffdcee;
     --border-soft:#ffc2e0; --border-strong:#ff9fce; --text-primary:#3a1930; --text-muted:#8a4d72;
     --text-faint:#b385a0; --accent-auto:#ffd23f; --accent-auto-dim:#fff3cf; --accent-manual:#ff5fa2;
     --accent-manual-dim:#ffdcee; --accent-danger:#ff4d6d; --accent-success:#3fd9c4; --accent-flair:#ffd23f;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 20px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Fredoka', 'Segoe UI', system-ui, sans-serif;
+    --radius: 20px; --r-ctl: 999px;
+    --brand-size: 22px; --brand-weight: 700; --brand-track: -0.01em;
+    --tab-size: 13.5px;
+    --head-size: 14.5px; --head-weight: 600; --head-color: var(--accent-manual);
+    --r-chip: 999px; --r-card: 22px; --r-panel: 22px; --r-check: 7px; --r-scroll: 999px;
+    --card-shadow: 0 4px 14px color-mix(in srgb, var(--accent-manual) 12%, transparent);
+    --fx-fill: var(--accent-flair); --fx-o: 0.5;
+    --fx-card-t: translateY(-4px) rotate(-1deg); --fx-card-s: 0 14px 26px color-mix(in srgb, var(--accent-manual) 24%, transparent);
+    --icon-stroke: 2.25;
   }
-  html[data-theme="candy-pop"] button{ transition: transform 0.12s cubic-bezier(.34,1.56,.64,1), background 0.12s ease, border-color 0.12s ease; }
-  html[data-theme="candy-pop"] button:hover:not(:disabled){ transform: scale(1.06) translateY(-1px); }
-  html[data-theme="candy-pop"] button:active:not(:disabled){ transform: scale(0.96); }
+  html[data-theme="candy-pop"] #topbar{ border-bottom: 3px solid var(--accent-manual); }
+  html[data-theme="candy-pop"] #tabBar{ padding-top: 6px; padding-bottom: 6px; gap: 6px; }
+  html[data-theme="candy-pop"] .tab-btn{ border-radius: 999px; border-bottom: none; padding: 6px 16px; }
+  html[data-theme="candy-pop"] .tab-btn.active{ background: var(--accent-manual); color: #ffffff; }
+  /* Candy stripe on the wrapper, solid under the text. */
+  html[data-theme="candy-pop"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+    color: var(--text-primary); border: 2px solid transparent; padding: 1px 3px 1px 8px;
+    background:
+      linear-gradient(var(--accent-manual-dim), var(--accent-manual-dim)) padding-box,
+      repeating-linear-gradient(-45deg, var(--accent-manual) 0 3px, var(--bg-panel) 3px 6px) border-box;
+  }
+  html[data-theme="candy-pop"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.chip button):not(.dm-menu-btn){ transition: transform 0.12s cubic-bezier(.34,1.56,.64,1), background 0.12s ease, border-color 0.12s ease; }
+  html[data-theme="candy-pop"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.chip button):not(.dm-menu-btn):hover:not(:disabled){ transform: scale(1.06) translateY(-1px); }
+  html[data-theme="candy-pop"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.chip button):not(.dm-menu-btn):active:not(:disabled){ transform: scale(0.96); }
 
+  /* ---- Copper Forge — the foundry. Big Shoulders stamped capitals over
+     Barlow, brushed-metal panels with four rivets, chamfered plates. ---- */
   html[data-theme="copper-forge"]{
     --bg-base:#120e0b; --bg-panel:#1c1611; --bg-elevated:#261e17; --bg-elevated-2:#33281f;
     --border-soft:#6b4a2e88; --border-strong:#8f6640; --text-primary:#f0e2d0; --text-muted:#c2a184;
     --text-faint:#8f755c; --accent-auto:#c98a4a; --accent-auto-dim:#4a3018; --accent-manual:#b0703f;
     --accent-manual-dim:#3a2414; --accent-danger:#c1493c; --accent-success:#8fae6b; --accent-flair:#c98a4a;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Barlow', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Big Shoulders Display', 'Barlow', sans-serif;
+    --head-font: 'Big Shoulders Display', 'Barlow', sans-serif;
+    --tab-font: 'Big Shoulders Display', 'Barlow', sans-serif;
     --radius: 1px;
+    --brand-size: 22px; --brand-weight: 800; --brand-track: 0.04em; --brand-case: uppercase;
+    --tab-size: 15px; --tab-case: uppercase; --tab-track: 0.06em;
+    --head-size: 15px; --head-weight: 800; --head-case: uppercase; --head-track: 0.06em; --head-color: var(--accent-flair);
+    --r-chip: 1px; --r-card: 1px; --r-panel: 1px; --r-check: 1px; --r-scroll: 0px;
+    --card-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-auto), color-mix(in srgb, var(--accent-auto) 60%, var(--text-primary))); --fx-o: 0.32; --fx-w: 1;
+    --fx-card-t: translateY(-2px); --fx-card-s: 0 0 0 1px var(--accent-flair), 0 12px 24px rgba(0,0,0,0.5);
+    --icon-stroke: 2; --icon-cap: square; --icon-join: bevel;
   }
-  html[data-theme="copper-forge"] body{
-    background-image: repeating-linear-gradient(72deg, rgba(201,138,74,0.03) 0px, rgba(201,138,74,0.03) 1px, transparent 1px, transparent 5px);
+  html[data-theme="copper-forge"] #gallery{
+    background-image: repeating-linear-gradient(72deg, color-mix(in srgb, var(--accent-auto) 7%, transparent) 0px, color-mix(in srgb, var(--accent-auto) 7%, transparent) 1px, transparent 1px, transparent 5px);
   }
-  html[data-theme="copper-forge"] button{
+  html[data-theme="copper-forge"] .tool-section,
+  html[data-theme="copper-forge"] .settings-section{
+    --rivet: radial-gradient(circle, color-mix(in srgb, var(--accent-flair) 75%, var(--text-primary)) 0 1.2px, var(--accent-manual-dim) 1.8px, transparent 2.6px);
+    background:
+      var(--rivet) top 6px left 6px / 6px 6px no-repeat,
+      var(--rivet) top 6px right 6px / 6px 6px no-repeat,
+      var(--rivet) bottom 6px left 6px / 6px 6px no-repeat,
+      var(--rivet) bottom 6px right 6px / 6px 6px no-repeat,
+      repeating-linear-gradient(0deg, color-mix(in srgb, var(--text-primary) 2%, transparent) 0 1px, transparent 1px 3px),
+      var(--bg-elevated);
+  }
+  html[data-theme="copper-forge"] .settings-section{ background-color: var(--bg-elevated); }
+  html[data-theme="copper-forge"] #topbar{ border-bottom: 2px solid var(--accent-manual); }
+  html[data-theme="copper-forge"] .tab-btn.active{ color: var(--accent-flair); border-bottom-color: var(--accent-flair); }
+  html[data-theme="copper-forge"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):not(.tab-btn){
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%);
+    background-image:
+      linear-gradient(to top left, transparent 50%, var(--border-strong) 50% calc(50% + 1.3px), transparent calc(50% + 1.3px)) bottom right / 7px 7px no-repeat;
   }
-  html[data-theme="copper-forge"] button.primary:hover:not(:disabled){  }
+  html[data-theme="copper-forge"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):not(.tab-btn):focus-visible{ outline: none; box-shadow: inset 0 0 0 2px var(--accent-flair); }
 
+  /* ---- Blood Moon — a gothic eclipse. Pirata One blackletter lockup,
+     Eczar titles, Alegreya Sans body, a vignette closing in from the
+     edges. ---- */
   html[data-theme="blood-moon"]{
     --bg-base:#0e0505; --bg-panel:#1a0808; --bg-elevated:#260c0c; --bg-elevated-2:#331010;
     --border-soft:#6b1f1f88; --border-strong:#8f2c2c; --text-primary:#ffe3e3; --text-muted:#d68a8a;
     --text-faint:#9c5c5c; --accent-auto:#ff8f4d; --accent-auto-dim:#4a2c14; --accent-manual:#ff3b3b;
     --accent-manual-dim:#4a1414; --accent-danger:#ff3b3b; --accent-success:#8fae6b; --accent-flair:#ffb300;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 4px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Alegreya Sans', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Pirata One', Georgia, serif;
+    --head-font: 'Eczar', Georgia, serif;
+    --tab-font: 'Eczar', Georgia, serif;
+    --radius: 3px;
+    --brand-size: 25px; --brand-weight: 400; --brand-track: 0.01em;
+    --tab-size: 13.5px;
+    --head-size: 14px; --head-weight: 600; --head-color: var(--text-primary);
+    --r-chip: 2px; --r-card: 3px; --r-panel: 3px; --r-check: 2px; --r-scroll: 2px;
+    --card-shadow: 0 3px 10px rgba(0,0,0,0.5);
+    --fx-fill: var(--accent-manual); --fx-o: 0.3;
+    --fx-card-t: translateY(-3px); --fx-card-s: 0 0 0 1px var(--accent-manual), 0 14px 28px rgba(0,0,0,0.6);
+    --icon-stroke: 1.6;
   }
-  html[data-theme="blood-moon"] .card:hover{  }
-  html[data-theme="blood-moon"] body{
-    background-image: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,0.35) 100%);
+  html[data-theme="blood-moon"] #gallery{
+    background-image: radial-gradient(ellipse at 50% 45%, transparent 38%, color-mix(in srgb, var(--accent-manual) 10%, color-mix(in srgb, var(--bg-base) 70%, transparent)) 100%);
   }
-  html[data-theme="blood-moon"] .brand{ animation: flairPulse 2s ease-in-out infinite; animation-play-state: var(--flair-play); }
+  html[data-theme="blood-moon"] .brand{ color: var(--accent-manual); }
+  html[data-theme="blood-moon"] #topbar{ border-bottom: 1px solid var(--accent-manual); box-shadow: 0 1px 12px -4px color-mix(in srgb, var(--accent-manual) 60%, transparent); }
+  html[data-theme="blood-moon"] .tab-btn.active{ color: var(--accent-flair); border-bottom-color: var(--accent-manual); }
+  html[data-theme="blood-moon"] .sec-head .t::after{
+    content: ''; display: inline-block; width: 5px; height: 5px; margin-left: 7px; vertical-align: 2px;
+    border-radius: 50%; background: var(--accent-manual);
+  }
 
+  /* ---- Twilight Garden (epic) — a night garden. Gloock titles over
+     Figtree, arched (trellis) panel tops, fireflies in the ground. ---- */
   html[data-theme="twilight-garden"]{
     --bg-base:#0c1210; --bg-panel:#131f1a; --bg-elevated:#1a2b24; --bg-elevated-2:#22392f;
     --border-soft:#2f6b5588; --border-strong:#3f8f70; --text-primary:#e3fbe9; --text-muted:#8fc7a5;
     --text-faint:#5f8f74; --accent-auto:#c9a6ff; --accent-auto-dim:#2c1a4a; --accent-manual:#4fd68f;
     --accent-manual-dim:#123a26; --accent-danger:#ff6e91; --accent-success:#4fd68f; --accent-flair:#c9a6ff;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 11px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Figtree', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Gloock', Georgia, serif;
+    --head-font: 'Gloock', Georgia, serif;
+    --radius: 10px;
+    --brand-size: 21px; --brand-weight: 400; --brand-track: 0;
+    --tab-size: 12.5px;
+    --head-size: 15px; --head-weight: 400; --head-color: var(--accent-flair);
+    --r-chip: 999px; --r-card: 30px 30px 6px 6px; --r-panel: 30px 30px 6px 6px; --r-check: 5px; --r-scroll: 999px;
+    --card-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-flair)); --fx-o: 0.28; --fx-w: 1;
+    --fx-card-t: translateY(-4px); --fx-card-s: 0 14px 30px color-mix(in srgb, var(--accent-flair) 18%, transparent);
   }
-  html[data-theme="twilight-garden"] .card:hover{  }
-  html[data-theme="twilight-garden"] button.primary{  }
-  html[data-theme="twilight-garden"] body{
-    background-image: radial-gradient(circle at 18% 22%, rgba(201,166,255,0.5) 0 1.5px, transparent 2px),
-      radial-gradient(circle at 68% 60%, rgba(79,214,143,0.5) 0 1.5px, transparent 2px),
-      radial-gradient(circle at 40% 85%, rgba(201,166,255,0.4) 0 1px, transparent 2px),
-      radial-gradient(circle at 88% 15%, rgba(79,214,143,0.4) 0 1px, transparent 2px);
-    background-size: 300px 300px, 260px 260px, 220px 220px, 340px 340px;
+  html[data-theme="twilight-garden"] #gallery{
+    --ff: color-mix(in srgb, var(--accent-flair) 70%, transparent);
+    --ff2: color-mix(in srgb, var(--accent-manual) 60%, transparent);
+    background-image:
+      radial-gradient(circle at 18% 22%, var(--ff) 0 1.5px, color-mix(in srgb, var(--accent-flair) 14%, transparent) 2px, transparent 9px),
+      radial-gradient(circle at 62% 58%, var(--ff2) 0 1.5px, color-mix(in srgb, var(--accent-manual) 12%, transparent) 2px, transparent 8px),
+      radial-gradient(circle at 37% 83%, var(--ff) 0 1px, color-mix(in srgb, var(--accent-flair) 10%, transparent) 1.5px, transparent 7px);
+    background-size: 419px 367px, 353px 461px, 509px 313px;
+  }
+  html[data-theme="twilight-garden"] #topbar{ border-bottom: 1px solid var(--border-strong); }
+  html[data-theme="twilight-garden"] .tool-section{ padding-top: 18px; padding-left: 18px; padding-right: 18px; }
+  html[data-theme="twilight-garden"] .card .thumbwrap{ border-radius: 29px 29px 0 0; }
+  html[data-theme="twilight-garden"] .tab-btn.active{
+    color: var(--accent-flair); border-bottom-color: transparent;
+    background: radial-gradient(circle at 50% calc(100% - 4px), var(--accent-manual) 0 2.5px, transparent 3.5px);
   }
 
+  /* ---- Aurora Borealis (legendary) — polar night. Epilogue with wide
+     tracked capitals for titles, an aurora curtain rippling along the
+     header's edge and each dock's top, the sky drifting slowly behind. ---- */
   html[data-theme="aurora-borealis"]{
     --bg-base:#05080f; --bg-panel:#0a0f1c; --bg-elevated:#0f1830; --bg-elevated-2:#152040;
     --border-soft:#2c5a6b88; --border-strong:#3f7f94; --text-primary:#e3f7ff; --text-muted:#8fc7d6;
     --text-faint:#5f8fa0; --accent-auto:#a6ff9c; --accent-auto-dim:#1a3a1a; --accent-manual:#7b5bff;
     --accent-manual-dim:#241a4a; --accent-danger:#ff5f8f; --accent-success:#5cffb0; --accent-flair:#5cffb0;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 8px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Epilogue', 'Segoe UI', system-ui, sans-serif;
+    --radius: 7px;
+    --brand-size: 17px; --brand-weight: 800; --brand-track: 0.01em;
+    --tab-size: 12px; --tab-case: uppercase; --tab-track: 0.12em;
+    --head-size: 11.5px; --head-weight: 700; --head-case: uppercase; --head-track: 0.16em; --head-color: var(--accent-flair);
+    --r-chip: 5px; --r-card: 9px; --r-panel: 9px; --r-check: 4px; --r-scroll: 5px;
+    --card-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    --fx-fill: linear-gradient(90deg, var(--accent-auto), var(--accent-flair), var(--accent-manual)); --fx-o: 0.3; --fx-w: 1;
+    --fx-card-t: translateY(-4px); --fx-card-s: 0 14px 30px color-mix(in srgb, var(--accent-flair) 16%, transparent);
+    --aurora: linear-gradient(90deg, var(--accent-auto), var(--accent-flair), var(--accent-manual), var(--accent-flair), var(--accent-auto));
   }
-  html[data-theme="aurora-borealis"] body{
-    background-image: radial-gradient(ellipse at 20% 0%, rgba(166,255,156,0.09), transparent 55%),
-      radial-gradient(ellipse at 80% 10%, rgba(123,91,255,0.1), transparent 55%);
+  html[data-theme="aurora-borealis"] #gallery{
+    background-image: radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--accent-auto) 14%, transparent), transparent 55%),
+      radial-gradient(ellipse at 80% 10%, color-mix(in srgb, var(--accent-manual) 14%, transparent), transparent 55%);
     background-size: 160% 160%, 160% 160%;
     animation: flairDrift 18s ease-in-out infinite alternate;
     animation-play-state: var(--flair-play);
   }
-  html[data-theme="aurora-borealis"] button.primary{  }
-  html[data-theme="aurora-borealis"] .card:hover{  }
+  /* The curtain edge is its own 2px strip pinned to the header's bottom
+     edge. Animating the header's own background-position let the band ride
+     up to mid-height in the packaged app; a pinned pseudo-element can only
+     slide sideways. */
+  html[data-theme="aurora-borealis"] #topbar{ border-bottom: none; position: relative; }
+  html[data-theme="aurora-borealis"] #topbar::after{
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+    background: var(--aurora); background-size: 200% 100%;
+    animation: flairSlide 14s linear infinite;
+    animation-play-state: var(--flair-play);
+    pointer-events: none;
+  }
+  html[data-theme="aurora-borealis"] .tool-section{
+    background: var(--aurora) top / 100% 1px no-repeat, var(--bg-elevated);
+  }
+  /* Curtain: the active tab hangs a short aurora curtain from its edge. */
+  html[data-theme="aurora-borealis"] .tab-btn.active{
+    color: var(--text-primary); border-bottom-color: transparent;
+    background: var(--aurora) bottom / 100% 2px no-repeat,
+      linear-gradient(to top, color-mix(in srgb, var(--accent-flair) 18%, transparent), transparent 75%);
+  }
 
+  /* ---- Celestial Gold (legendary) — a star atlas. Marcellus small caps
+     for lockup and titles over Jost, a starfield, a double hairline
+     beneath the active tab like an ecliptic line. ---- */
   html[data-theme="celestial-gold"]{
     --bg-base:#0a0810; --bg-panel:#120e1c; --bg-elevated:#1a1428; --bg-elevated-2:#241c38;
     --border-soft:#4a3a6688; --border-strong:#6b5494; --text-primary:#fff6e0; --text-muted:#d6c088;
     --text-faint:#9c8a5c; --accent-auto:#ffd166; --accent-auto-dim:#4a3a14; --accent-manual:#e8c468;
     --accent-manual-dim:#4a3a1a; --accent-danger:#ff6e6e; --accent-success:#a6e3b8; --accent-flair:#ffd166;
-    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    --radius: 12px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Jost', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Marcellus SC', Georgia, serif;
+    --head-font: 'Marcellus SC', Georgia, serif;
+    --tab-font: 'Marcellus SC', Georgia, serif;
+    --radius: 12px; --r-ctl: 999px;
+    --brand-size: 18px; --brand-weight: 400; --brand-track: 0.2em;
+    --tab-size: 13.5px; --tab-track: 0.06em;
+    --head-size: 14px; --head-weight: 400; --head-track: 0.08em; --head-color: var(--accent-flair);
+    --r-chip: 999px; --r-card: 12px; --r-panel: 12px; --r-check: 4px; --r-scroll: 999px;
+    --card-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    --fx-fill: radial-gradient(ellipse at 0% 50%, var(--accent-flair), transparent 75%); --fx-o: 0.35; --fx-w: 1;
+    --fx-card-t: translateY(-4px); --fx-card-s: 0 0 0 1px color-mix(in srgb, var(--accent-flair) 60%, transparent), 0 14px 30px rgba(0,0,0,0.5);
+    --icon-stroke: 1.35;
   }
-  html[data-theme="celestial-gold"] body{
-    background-image: radial-gradient(circle at 50% 0%, rgba(255,209,102,0.07), transparent 60%),
-      radial-gradient(circle at 10% 20%, rgba(255,246,224,0.6) 0 1px, transparent 1.5px),
-      radial-gradient(circle at 70% 60%, rgba(255,246,224,0.5) 0 1px, transparent 1.5px),
-      radial-gradient(circle at 40% 80%, rgba(255,246,224,0.4) 0 1px, transparent 1.5px),
-      radial-gradient(circle at 90% 30%, rgba(255,246,224,0.5) 0 1px, transparent 1.5px);
+  html[data-theme="celestial-gold"] #gallery{
+    background-image: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent-flair) 14%, transparent), transparent 60%),
+      radial-gradient(circle at 10% 20%, color-mix(in srgb, var(--text-primary) 60%, transparent) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 70% 60%, color-mix(in srgb, var(--text-primary) 50%, transparent) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 40% 80%, color-mix(in srgb, var(--text-primary) 40%, transparent) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 90% 30%, color-mix(in srgb, var(--text-primary) 50%, transparent) 0 1px, transparent 1.5px);
     background-size: 100% 100%, 240px 240px, 300px 300px, 200px 200px, 260px 260px;
   }
-  html[data-theme="celestial-gold"] .brand{ }
-  html[data-theme="celestial-gold"] button.primary{  }
+  html[data-theme="celestial-gold"] .brand span.tag{ background: transparent; border: 1px solid color-mix(in srgb, var(--accent-flair) 55%, transparent); }
+  html[data-theme="celestial-gold"] #topbar{ border-bottom: 1px solid color-mix(in srgb, var(--accent-flair) 60%, transparent); }
+  html[data-theme="celestial-gold"] .tool-section,
+  html[data-theme="celestial-gold"] .settings-section{
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 16%, transparent);
+  }
+  html[data-theme="celestial-gold"] .tab-btn.active{
+    color: var(--accent-flair); border-bottom-color: transparent;
+    background:
+      linear-gradient(var(--accent-flair), var(--accent-flair)) bottom 4px center / 70% 1px no-repeat,
+      linear-gradient(var(--accent-flair), var(--accent-flair)) bottom 1px center / 40% 1px no-repeat;
+  }
+
+  /* Light grounds: accent-auto on accent-auto-dim (the brand tag, a
+     flagged-for-review chip) falls under 3:1 on every light palette, so
+     those two pick up ink from the theme's own text color instead. */
+  html[data-theme="arctic-frost"] .brand span.tag, html[data-theme="rose-gold"] .brand span.tag,
+  html[data-theme="lavender-fields"] .brand span.tag, html[data-theme="candy-pop"] .brand span.tag,
+  html[data-theme="vintage-paper"] .brand span.tag{ color: var(--text-primary); }
+  html[data-theme="subway"] .chip.chip-flagged-review, html[data-theme="osmium"] .chip.chip-flagged-review,
+  html[data-theme="arctic-frost"] .chip.chip-flagged-review, html[data-theme="vintage-paper"] .chip.chip-flagged-review,
+  html[data-theme="rose-gold"] .chip.chip-flagged-review, html[data-theme="lavender-fields"] .chip.chip-flagged-review,
+  html[data-theme="candy-pop"] .chip.chip-flagged-review{ color: color-mix(in srgb, var(--accent-auto) 40%, var(--text-primary)); }
 
   /* ---- Premium hover-fill effect (epic/legendary tier shop themes only) ----
-     A button fills up with --accent-flair sliding in horizontally from the
-     left to 3/4 width on hover — reserved for the pricier themes as a
+     A button's ::after fills in with the theme's own --fx-fill on hover
+     (its shape, opacity, and resting width come from the --fx-* tokens each
+     theme sets: a gilt underline for Amethyst, scanlines for Cyberpunk, the
+     route strip for Subway, …) — reserved for the pricier themes as a
      purchase-worthy flourish, not applied everywhere (unobtrusive by
      exclusion). Excludes any button that relies on `position: absolute`
      for its own placement (.img-menu-btn — the 3-dot image-options button,
@@ -668,6 +1388,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      this class based on the refinedThemes list). A future new epic/
      legendary theme still gets its own `html[data-theme="..."]` line as
      before; theme-refined only covers themes bought UP to this tier.
+     Because the fill reads the ACTIVE theme's --fx-* tokens, a refined
+     theme gets its own world's version of the effect for free.
 
      Every selector here (native AND theme-refined) also carries
      `:not(.suppress-theme-flourishes)` — the Settings "Suppress Theme
@@ -681,7 +1403,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
   html.theme-refined:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell){
-    position: relative; overflow: hidden; isolation: isolate;
+    /* `overflow: clip`, NOT `hidden`: both clip the ::after flood, but
+       `hidden` makes the button a scroll container, which drops a flex
+       item's automatic min-width/min-height to 0 — so any button in a
+       crowded flex row/column (Clear filter, the Tag sorting pill) got
+       squashed below its own text, padding eaten, on these themes only. */
+    position: relative; overflow: clip; isolation: isolate;
   }
   html[data-theme="amethyst"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
   html[data-theme="solarflare"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
@@ -689,19 +1416,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
   html.theme-refined:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
-    content: ''; position: absolute; left: 0; top: 0; width: 0%; height: 100%;
-    background: var(--accent-flair); opacity: 0.28;
-    transition: width 0.22s cubic-bezier(.2,.8,.3,1), opacity 0.2s ease;
+    content: ''; position: absolute; left: 0; top: var(--fx-top); width: 100%; height: var(--fx-h);
+    background: var(--fx-fill); opacity: var(--fx-o);
+    /* Scaled, not width-animated: the fill runs on the compositor with no
+       per-frame layout. */
+    transform: scaleX(0); transform-origin: left center;
+    transition: transform 0.24s cubic-bezier(.2,.8,.3,1), opacity 0.2s ease;
     z-index: -1; pointer-events: none;
-  }
-  /* Subway Fresh refined via Refine Theme: its hover-fill uses the same
-     rainbow gradient as its power-tool highlight (see "Power-tool
-     highlighting" below) instead of the flat --accent-flair every other
-     refined/epic/legendary theme gets — the [data-theme="subway"] attribute
-     selector outranks the bare html.theme-refined rule above on
-     specificity, so this only needs to override `background`. */
-  html.theme-refined:not(.suppress-theme-flourishes)[data-theme="subway"] button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
-    background: linear-gradient(90deg, #ff9f1c 0%, #ff3f8e 33%, #2ec4f1 66%, #35d488 100%);
   }
   html[data-theme="amethyst"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
   html[data-theme="solarflare"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
@@ -709,50 +1430,50 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
   html.theme-refined:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after{
-    width: 75%;
+    transform: scaleX(var(--fx-w));
   }
   /* Click flash: on an actual click (not just hover), the hover-fill
-     briefly floods to 100% width, then fades out via opacity — independent
+     briefly floods to full width, then fades out via opacity — independent
      of whether the pointer is still over the button afterward. `.fx-flash`
      is added/removed by a tiny generic click listener (shared-ui.ts,
      initClickFlash()) on ANY button, app-wide; it's a no-op everywhere
      except these themes' buttons, since only they have the `::after` box
      above for it to animate — no per-theme JS needed. Once the animation
      ends and the class is removed, the normal :hover-driven width rule
-     above takes back over via its own transition (settles to 75% if still
-     hovered, or 0% if not) — that's the "restores naturally when
+     above takes back over via its own transition (settles to --fx-w if
+     still hovered, or 0% if not) — that's the "restores naturally when
      mouseoff'd and hovered again" behavior. */
   @keyframes flairClickFlash{
-    0%{ width: 0%; opacity: 0.6; }
-    35%{ width: 100%; opacity: 0.6; }
-    100%{ width: 100%; opacity: 0; }
+    0%{ transform: scaleX(0); opacity: 0.6; }
+    35%{ transform: scaleX(1); opacity: 0.6; }
+    100%{ transform: scaleX(1); opacity: 0; }
   }
   .fx-flash::after{ animation: flairClickFlash 0.6s ease forwards; }
   /* Without this, removing `.fx-flash` while still hovering let the ::after
-     box transition straight from the flash's end state (100% width, 0
-     opacity) to the :hover rule's 75% — width barely moves so it read as an
-     instant "reappear" rather than a fill. `.fx-flash-reset` (added right
+     box transition straight from the flash's end state (full scale, 0
+     opacity) to the :hover rule's scale — it barely moves so it read as
+     an instant "reappear" rather than a fill. `.fx-flash-reset` (added right
      after `.fx-flash` is removed, then removed itself one frame later —
-     initClickFlash(), shared-ui.ts) snaps width back to 0% with no
-     transition first, so the width rule that applies once it's gone (75%
-     if still hovered, 0% if not) plays out as a normal fill-in from zero,
-     the same motion a fresh mouseenter would produce. `!important` because
-     it must beat the `:hover` rule's own specificity unconditionally. */
-  .fx-flash-reset::after{ transition: none !important; width: 0% !important; }
+     initClickFlash(), shared-ui.ts) snaps the fill back to zero with no
+     transition first, so the width rule that applies once it's gone
+     (--fx-w if still hovered, 0% if not) plays out as a normal fill-in from
+     zero, the same motion a fresh mouseenter would produce. `!important`
+     because it must beat the `:hover` rule's own specificity
+     unconditionally. */
+  .fx-flash-reset::after{ transition: none !important; transform: scaleX(0) !important; }
 
-  /* Card hover-tilt: Vintage Paper's own one-off flourish (below, in that
-     theme's own block) turned into a second Refine Theme reward alongside
-     the button hover-fill above — same epic/legendary + `.theme-refined`
-     group, so buying one buys both. A flat dark shadow is used here rather
-     than vintage-paper's warm brown one, since this group spans mostly-dark
-     themes (and any light common/uncommon theme someone refines). */
+  /* Card lift: the second Refine Theme reward alongside the button
+     hover-fill above — same epic/legendary + `.theme-refined` group, so
+     buying one buys both. The motion and shadow come from the active
+     theme's --fx-card-t/--fx-card-s (Vintage Paper's tilt, a gilt ring for
+     Amethyst, a HUD offset for Cyberpunk, …). */
   html[data-theme="amethyst"]:not(.suppress-theme-flourishes) .card,
   html[data-theme="solarflare"]:not(.suppress-theme-flourishes) .card,
   html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) .card,
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) .card,
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) .card,
   html.theme-refined:not(.suppress-theme-flourishes) .card{
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    transition: transform 0.2s cubic-bezier(.2,.8,.3,1), box-shadow 0.2s ease;
   }
   html[data-theme="amethyst"]:not(.suppress-theme-flourishes) .card:hover,
   html[data-theme="solarflare"]:not(.suppress-theme-flourishes) .card:hover,
@@ -760,18 +1481,16 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) .card:hover,
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) .card:hover,
   html.theme-refined:not(.suppress-theme-flourishes) .card:hover{
-    transform: rotate(-0.6deg) translateY(-2px);
-    box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+    transform: var(--fx-card-t);
+    box-shadow: var(--fx-card-s);
   }
 
   /* Visual flourishes (Settings): three independent motion-sensitivity
      switches, each killing one NATIVE effect app-wide — regardless of
      whether a theme has it built-in (epic/legendary, Vintage Paper's
      one-off card-tilt) or via Suppress Theme Flourishes/Refine Theme.
-     Deliberately does NOT touch each theme's static, non-animated color
-     accents (glows, gradients, textures) — those aren't a motion trigger,
-     and disabling all of them individually would mean touching nearly
-     every theme's own CSS block rather than one shared switch per effect.
+     Deliberately does NOT touch each theme's static, non-animated
+     material (textures, rules, frames) — those aren't a motion trigger.
      `!important` because these have to beat several more specific
      per-theme `:hover` rules unconditionally. Ambient animations are
      handled separately above via `--flair-play`. */
@@ -804,7 +1523,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
        axis. */
     max-width: calc(100vw - 16px);
     background: var(--bg-elevated-2); border: 1px solid var(--border-strong);
-    border-radius: 10px; padding: 14px; z-index: 455; /* above .modal-backdrop (450) — this class backs every
+    border-radius: var(--r-panel); padding: 14px; z-index: 455; /* above .modal-backdrop (450) — this class backs every
     floating panel (settings, favorites, theme customizer, log, achievements, shop, tag details), any of which
     can be summoned while the image-card modal is open */
     box-shadow: 0 16px 40px rgba(0,0,0,0.5);
@@ -830,7 +1549,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   /* ---------- Collapsible settings sections ---------- */
 
   .settings-section{
-    border: 1px solid var(--border-soft); border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--border-soft); border-radius: var(--r-panel); overflow: hidden;
     flex-shrink: 0; /* overflow:hidden zeroes a flex item's auto min-size, which would
       otherwise let the panel's flexbox squeeze sections below their content height
       instead of the intended behavior: sections stay full height, the PANEL scrolls. */
@@ -901,7 +1620,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .tab-btn{
     background: transparent; border: none; border-bottom: 2px solid transparent;
-    border-radius: 0; padding: 10px 14px; font-size: 12.5px; color: var(--text-muted);
+    border-radius: 0; padding: 10px 14px; font-size: var(--tab-size); color: var(--text-muted);
+    font-family: var(--tab-font); text-transform: var(--tab-case); letter-spacing: var(--tab-track);
   }
   .tab-btn:hover:not(:disabled){ background: var(--bg-elevated); color: var(--text-primary); }
   .tab-btn.active{ color: var(--accent-flair); border-bottom-color: var(--accent-flair); font-weight: 600; }
@@ -914,6 +1634,42 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .dm-toolbar-right{ display: flex; align-items: center; gap: 8px; }
   .dm-sort-label{ font-size: 12px; color: var(--text-muted); }
   .dm-view-btn.active{ color: var(--accent-flair); border-color: var(--accent-flair); }
+
+  /* ---------- Dataset folder tabs (groups), incl. the optional password lock ---------- */
+
+  .dm-tab-bar{ display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 14px; }
+  .dm-tab{
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px; border-radius: 999px; font-size: 12.5px;
+    background: var(--bg-elevated); border: 1px solid var(--border-soft); color: var(--text-muted);
+  }
+  .dm-tab.active{ background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual); font-weight: 600; }
+  .dm-tab-lock{ font-size: 11px; }
+  .dm-tab-menu-btn{
+    padding: 0 2px; min-height: 0; background: transparent; border: none; color: inherit;
+    font-size: 13px; line-height: 1; opacity: .7;
+  }
+  .dm-tab-menu-btn:hover{ opacity: 1; }
+  .dm-tab-add{ padding: 6px 12px; font-weight: 600; }
+
+  .dm-lock-screen{
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 60px 20px; width: 100%; color: var(--text-muted); text-align: center;
+  }
+  .dm-lock-icon{ font-size: 38px; }
+  .dm-lock-msg{ font-size: 13.5px; }
+
+  /* promptText()'s own input (dataset-manager.ts) — reuses .confirm-box's
+     layout, just needs a field between the message and button row. */
+  .dm-prompt-input{
+    width: 100%; margin: 4px 0 4px; padding: 8px 10px; font: inherit; font-size: 13px;
+    background: var(--bg-base); border: 1px solid var(--border-soft); border-radius: 6px; color: var(--text-primary);
+  }
+
+  .dm-move-tab-list{ display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; max-height: 40vh; overflow-y: auto; }
+  .dm-move-tab-row{ text-align: left; padding: 9px 12px; border-radius: 6px; background: var(--bg-base); border: 1px solid var(--border-soft); }
+  .dm-move-tab-row:disabled{ opacity: .5; cursor: default; }
+  .dm-move-tab-row.active{ border-color: var(--accent-manual); color: var(--accent-manual); }
 
   .dm-grid{ display: flex; flex-wrap: wrap; gap: 16px; align-content: flex-start; }
   .dm-grid.dm-list-view{ flex-direction: column; flex-wrap: nowrap; }
@@ -1059,7 +1815,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      away with it — which is the "edge tab scrolled off-screen" bug. The
      scrolling lives one level down in .synthdat-scroll, so the tab's own
      box (and everything pinned to it) never moves. */
-  #synthDatTab{ height: 100%; position: relative; transform: translateZ(0); }
+  /* flex:1 + min-height:0, not height:100%: as a flex item of #app's
+     column, 100% resolved to the WHOLE window height, stacked under the
+     topbar + tab bar — and since this tab is overflow:visible (it doesn't
+     scroll, see above) its min-height:auto refused to shrink, so the page
+     itself overflowed by the header height and grew a second, whole-UI
+     scrollbar. The other tabs escape it only because they scroll themselves. */
+  #synthDatTab{ flex: 1 1 0; min-height: 0; position: relative; transform: translateZ(0); }
   .synthdat-scroll{ height: 100%; overflow-y: scroll; padding: 24px; }
   /* Generation (top, full-width, its own internal 2-col settings/preview
      split — see below) above a single column of the setup docks (ComfyUI
@@ -1135,7 +1897,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      "image loaded" case. */
   .synthdat-ref-preview{
     display: block; width: fit-content; max-width: 100%; max-height: 340px;
-    background: #0f0e13; border-radius: var(--radius); overflow: hidden; margin: 0 auto; cursor: zoom-in;
+    background: var(--bg-base); border-radius: var(--radius); overflow: hidden; margin: 0 auto; cursor: zoom-in;
   }
   /* Reference image + padded/resized preview side by side (each still sized
      to its own image's natural aspect ratio via .synthdat-ref-preview's own
@@ -1281,25 +2043,31 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   /* Custom checkbox — bigger than a native one (18px vs. a browser's usual
      ~13px) and styled to match the app's own controls (rounded, accent-
      colored check) instead of whatever the OS theme happens to render. */
-  .ach-toggle-row input[type="checkbox"]{
+  /* Applied to EVERY checkbox (not just .ach-toggle-row ones) so none falls
+     back to the OS look. Wrapped in :where() = zero specificity, so any
+     class's own size/position (.master-select-cb, .master-mini-cb, …) still
+     wins. The tick is sized in % so it fits any box size. */
+  :where(input[type="checkbox"]){
     appearance: none; -webkit-appearance: none; margin: 0;
-    width: 18px; height: 18px; flex-shrink: 0; position: relative;
-    border: 1.5px solid var(--border-strong); border-radius: 4px;
+    width: 15px; height: 15px; flex-shrink: 0; position: relative; vertical-align: middle;
+    border: 1.5px solid var(--border-strong); border-radius: var(--r-check);
     background: var(--bg-elevated); cursor: pointer;
     transition: background 0.12s ease, border-color 0.12s ease;
   }
-  .ach-toggle-row input[type="checkbox"]:hover{ border-color: var(--accent-manual); }
-  .ach-toggle-row input[type="checkbox"]:checked{
+  :where(input[type="checkbox"]:hover:not(:disabled)){ border-color: var(--accent-manual); }
+  :where(input[type="checkbox"]:checked){
     background: var(--accent-manual); border-color: var(--accent-manual);
   }
-  .ach-toggle-row input[type="checkbox"]:checked::after{
-    content: ''; position: absolute; left: 5px; top: 1px;
-    width: 5px; height: 9px; border: solid var(--bg-base); border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
+  :where(input[type="checkbox"]:checked)::after{
+    content: ''; position: absolute; left: 50%; top: 45%;
+    width: 28%; height: 55%; border: solid var(--bg-base); border-width: 0 2px 2px 0;
+    transform: translate(-50%, -50%) rotate(45deg);
   }
-  .ach-toggle-row input[type="checkbox"]:focus-visible{
+  :where(input[type="checkbox"]:focus-visible){
     outline: 2px solid var(--accent-manual); outline-offset: 1px;
   }
+  :where(input[type="checkbox"]:disabled){ opacity: 0.5; cursor: default; }
+  .ach-toggle-row input[type="checkbox"]{ width: 18px; height: 18px; }
   .ach-list{
     display: flex; flex-direction: column; gap: 8px;
     max-height: 340px; overflow-y: scroll; flex-shrink: 0;
@@ -1391,11 +2159,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   html.power-highlight[data-theme="subway"] .power-tool{
     border: 2px solid transparent !important;
-    border-image: linear-gradient(90deg, #ff9f1c 0%, #ff3f8e 33%, #2ec4f1 66%, #35d488 100%) 1 !important;
+    border-image: linear-gradient(90deg, var(--accent-auto) 0%, var(--accent-danger) 33%, var(--accent-manual) 66%, var(--accent-success) 100%) 1 !important;
     box-shadow: none;
   }
   html.power-highlight.power-fill[data-theme="subway"] .power-tool{
-    background: linear-gradient(90deg, rgba(255,159,28,0.16) 0%, rgba(255,63,142,0.16) 33%, rgba(46,196,241,0.16) 66%, rgba(53,212,136,0.16) 100%) !important;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent-auto) 16%, transparent) 0%, color-mix(in srgb, var(--accent-danger) 16%, transparent) 33%, color-mix(in srgb, var(--accent-manual) 16%, transparent) 66%, color-mix(in srgb, var(--accent-success) 16%, transparent) 100%) !important;
   }
 
   /* ---------- Manual power-tool marking ---------- */
@@ -1453,6 +2221,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   #btnFlagIsolated.active, #btnDiscreteToggle.active{
     background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual);
+  }
+  /* The flagged-for-review list toggle glows orange — the app's own review-flag
+     color, the same --accent-auto the flagged chip uses — so it's obvious the
+     TAGS list has been hijacked. */
+  #btnReviewFlagged.active{
+    background: var(--accent-auto-dim); border-color: var(--accent-auto); color: var(--accent-auto);
+    box-shadow: 0 0 8px var(--accent-auto);
   }
 
   /* ---------- Image options menu (3-dot) ---------- */
@@ -1699,6 +2474,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      only, same reasoning .dock-info-btn used to need. Desktop's dock list
      stays inline exactly as before, no trigger needed. */
   .dock-list-open-btn{ display: none; }
+  /* Master Tag Control's own grid-pop-out button is available at every
+     width, not just the mobile/narrow layout the other dock-list-open-btn
+     triggers are scoped to — its thumbnails are genuinely too small to work
+     with in the docked panel even on a full desktop window, unlike Tag
+     Pruner's plain text list or the other list-only triggers this class
+     also covers. */
+  .dock-list-open-btn.always-visible{ display: block; margin-bottom: 8px; }
 
   .info-modal-box{
     width: min(520px, 88vw); max-height: 76vh; overflow-y: auto;
@@ -1718,7 +2500,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .info-modal-body ul:last-child{ margin-bottom: 0; }
   .info-modal-body b{ color: var(--text-primary); }
 
-  html.discrete-mode .card img, html.discrete-mode .compact-card img, html.discrete-mode .single-img-side img{
+  html.discrete-mode .card img, html.discrete-mode .compact-card img, html.discrete-mode .single-img-side img, html.discrete-mode .single-preview img{
     filter: blur(24px);
   }
   html.discrete-mode .card.discrete-off img, html.discrete-mode .compact-card.discrete-off img{
@@ -1784,9 +2566,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   .brand {
-    font-weight: 600;
-    font-size: 15px;
-    letter-spacing: 0.2px;
+    font-family: var(--display);
+    font-weight: var(--brand-weight);
+    font-size: var(--brand-size);
+    letter-spacing: var(--brand-track);
+    text-transform: var(--brand-case);
+    line-height: 1.05;
     color: var(--text-primary);
     white-space: nowrap;
     /* Stacked (tag pill below the name) instead of side-by-side, so the
@@ -1806,7 +2591,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     color: var(--accent-auto);
     background: var(--accent-auto-dim);
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: var(--r-chip);
+    font-weight: 400; letter-spacing: 0; text-transform: none;
   }
 
   #topbar .actions {
@@ -1845,7 +2631,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .header-cat-btn{ white-space: nowrap; }
   .header-cat-flyout{
     position: fixed; z-index: 350;
-    background: var(--bg-elevated-2); border: 1px solid var(--border-strong); border-radius: 8px;
+    background: var(--bg-elevated-2); border: 1px solid var(--border-strong); border-radius: var(--r-panel);
     padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 210px;
     box-shadow: 0 12px 30px rgba(0,0,0,0.5);
   }
@@ -1865,10 +2651,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   button {
     font-family: var(--sans);
     font-size: 13px;
+    font-weight: var(--btn-weight);
+    letter-spacing: var(--btn-track);
+    text-transform: var(--btn-case);
     color: var(--text-primary);
     background: var(--bg-elevated);
     border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
+    border-radius: var(--r-ctl);
     padding: 7px 13px;
     cursor: pointer;
     transition: background 0.12s ease, border-color 0.12s ease, transform 0.05s ease;
@@ -1885,6 +2674,33 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     justify-content: center;
   }
   button:hover:not(:disabled) { background: var(--bg-elevated-2); border-color: var(--text-faint); }
+
+  /* ---------- Icons ----------
+     Every UI icon is <svg class="ic"><use href="#i-…"></svg> from the
+     sprite at the top of index.html. Sized in em so an icon tracks its
+     label at every font-size zoom; stroke grammar comes from the theme.
+     .ic-lead / .ic-trail replace the space that used to separate a glyph
+     from its words (a leading space collapses inside a flex button). */
+  .ic{
+    width: 1.2em; height: 1.2em; flex-shrink: 0; display: inline-block; vertical-align: -0.24em;
+    fill: none; stroke: currentColor; stroke-width: var(--icon-stroke);
+    stroke-linecap: var(--icon-cap); stroke-linejoin: var(--icon-join); overflow: visible;
+  }
+  .ic-lead{ margin-inline-end: 0.42em; }
+  /* Achievement rarity: one gem drawing, tinted by tier from theme vars (a
+     star for legendary). */
+  .ic.rarity-common{ color: var(--text-faint); }
+  .ic.rarity-uncommon{ color: var(--accent-success); }
+  .ic.rarity-rare{ color: var(--accent-manual); }
+  .ic.rarity-epic{ color: var(--accent-flair); }
+  .ic.rarity-legendary{ color: var(--accent-auto); fill: color-mix(in srgb, var(--accent-auto) 30%, transparent); }
+  .ic-trail{ margin-inline-start: 0.36em; }
+  /* Icon followed by a label span (Help, the Edibits counter): the source
+     space sits between two elements, which a flex button drops. */
+  .ic:not(.ic-lead) + span:not(:empty){ margin-inline-start: 0.4em; }
+  /* Carets/chevrons read as punctuation, not pictures: a notch smaller. */
+  .ic:has(use[href="#i-caret-down"]), .ic:has(use[href="#i-caret-up"]),
+  .ic:has(use[href="#i-chevron-right"]), .ic:has(use[href="#i-chevron-left"]){ width: 0.95em; height: 0.95em; vertical-align: -0.12em; }
   button:active:not(:disabled) { transform: translateY(1px); }
   button:disabled { opacity: 0.35; cursor: default; }
 
@@ -1974,6 +2790,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     flex-direction: column;
     gap: 20px;
     overflow-x: hidden;
+    /* Query container for .icon-fallback-btn's label swap below — keyed to
+       this element specifically because it's the one whose width the drag
+       handle (index.ts's rightPanelResizeHandle, via --right-w) actually
+       controls, not the viewport. */
+    container-type: inline-size;
   }
 
   /* Static, not sticky — sticky was tried here and reverted: a header glued
@@ -2044,10 +2865,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   h3.panel-title {
     margin: 0;
-    font-size: 12px;
-    font-weight: 600;
+    font-family: var(--head-font);
+    font-size: calc(var(--head-size) - 0.5px);
+    font-weight: var(--head-weight);
     color: var(--text-muted);
-    letter-spacing: 0.4px;
+    letter-spacing: var(--head-track);
+    text-transform: var(--head-case);
   }
 
   input[type="text"], textarea {
@@ -2055,6 +2878,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: var(--bg-elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
+    caret-color: var(--accent-manual);
     color: var(--text-primary);
     padding: 8px 10px;
     font-family: var(--sans);
@@ -2136,6 +2960,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .freq-family-header .family-drag-handle{ color: var(--text-faint); font-size: 11px; }
   .freq-family-header.family-dragging{ opacity: 0.4; }
   .freq-family-header.family-drop-target{ background: var(--accent-manual-dim); border-radius: 4px; }
+  /* Empty-state sentence for the TAGS list (no flagged tags, no families).
+     Its own plain block, not .freq-family-header: that class is a flex row
+     styled as an uppercase mono heading, and once a sentence carried an
+     inline icon, flex split it into text | icon | text columns. */
+  .freq-empty{ padding: 6px 8px; font-size: 12px; line-height: 1.45; color: var(--text-muted); }
 
   #tagFrequencyList {
     display: flex; flex-direction: column; gap: 2px;
@@ -2155,6 +2984,23 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .freq-row:hover { background: var(--bg-elevated); color: var(--text-primary); }
   .freq-row .n { color: var(--text-faint); font-size: 11px; }
+
+  /* Flagged-for-review rows (the hijacked TAGS list): tag name + a Reviewed
+     button; a cleared tag stays listed, struck through, for the session. */
+  .review-flag-row .review-flag-tag { color: var(--text-primary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .review-flag-row.reviewed .review-flag-tag { text-decoration: line-through; color: var(--text-faint); }
+  .review-flag-row .review-done-btn {
+    flex-shrink: 0; font-size: 10.5px; padding: 3px 8px; border-radius: 4px; cursor: pointer;
+    background: var(--accent-auto-dim); border: 1px solid var(--accent-auto); color: var(--accent-auto);
+  }
+  .review-flag-row .review-done-btn:hover:not(:disabled) { background: var(--accent-auto); color: var(--bg-base); }
+  .review-flag-row .review-done-btn:disabled { opacity: 0.45; cursor: default; }
+
+  /* Review mode hides the family/count sort controls — they don't apply to a
+     flat flagged-tags list. */
+  #tagFamilyListArea.review-mode .left-sort-row .pdrop,
+  #tagFamilyListArea.review-mode .left-sort-row #leftSortDirBtn,
+  #tagFamilyListArea.review-mode .left-sort-row #btnResetFamilyOrder { display: none; }
 
   /* ---------- Tag inspector (left panel) ---------- */
 
@@ -2253,6 +3099,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     font-family: var(--sans); font-size: 12.5px; color: var(--text-primary); background: var(--bg-elevated);
     border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 6px 9px; cursor: pointer;
     white-space: nowrap;
+    /* Block, not the base button's inline-flex: under flex the label is an
+       anonymous flex item that justify-content:center spills off BOTH
+       edges (and text-overflow can't reach it), so a too-wide label in a
+       wide theme face lost its first letters. */
+    display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
     /* <button>'s own UA default is text-align:center — harmless at full
        width, but once a narrow flex context (e.g. .left-sort-row) forces
        this to shrink+ellipsis (below), a centered label clips evenly from
@@ -2286,9 +3137,15 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .pdrop-item:hover, .pdrop-item:focus-visible{ background: var(--bg-elevated); }
   .pdrop-item.active{ color: var(--accent-manual); font-weight: 600; }
 
-  .filter-help-row{ display: flex; align-items: center; gap: 8px; }
+  .filter-help-row{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .filter-help-row span{ font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
   .filter-help-row button{ font-size: 11px; padding: 5px 9px; }
+  /* Lock + Clear filter wrap as ONE unit, so Clear filter never lands on a
+     line of its own at high zoom. */
+  .filter-lock-clear{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  /* Compact ach-toggle-row, sized to sit in this one-line row. */
+  .ach-toggle-row.filter-mode-lock{ gap: 6px; padding: 4px 8px; user-select: none; }
+  .ach-toggle-row.filter-mode-lock input[type="checkbox"]{ width: 14px; height: 14px; }
 
   .filter-suggestions{
     margin-top: 4px;
@@ -2311,7 +3168,18 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   #singleNav{ display: none; align-items: center; gap: 10px; }
-  .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 64px; text-align:center; }
+  .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 0; text-align:center; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+  /* The image-number field in the Single mode toolbar — type a number, Enter to
+     jump (view.ts renderSinglePos). */
+  /* `input.` prefix is load-bearing: the global `input[type="text"]` rule
+     (width: 100%, 8px 10px padding) outranks a bare class selector. */
+  input.single-pos-input{
+    font-family: var(--mono); font-size: 12px; color: var(--text-primary);
+    background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 4px;
+    padding: 2px 4px; width: 5ch; min-width: 0; box-sizing: content-box; text-align: center; cursor: text;
+  }
+  input.single-pos-input:focus{ border-color: var(--accent-manual); outline: none; }
+  .single-pos-total{ font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
   /* Sequential mode (view.ts): the Confirm button sticks to the panel's
      visible bottom edge so it never needs a scroll to reach; the panel's
      own scroller is .single-panel's overflow, so sticky grounds to that. */
@@ -2329,7 +3197,18 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .single-panel.seq-panel{
     max-height: none; padding: 12px 14px; gap: 7px;
     overflow-y: auto;
+    /* Fill the space beside the image instead of stopping at the base
+       panel's 360px, which left a dead strip to the right. */
+    width: auto; flex: 1 1 auto; min-width: 0; max-width: 980px;
   }
+  /* Category sections flow as columns: column one fills with its own rows,
+     then column two. column-width (not a fixed count) makes it one column
+     whenever the panel is narrower than two 230px tracks, which happens at
+     high font-size zoom or with a narrow window. A section never splits
+     across columns. */
+  .seq-sections{ columns: 230px 2; column-gap: 22px; }
+  .seq-section{ break-inside: avoid; padding-bottom: 10px; }
+  .seq-section > :first-child{ margin-top: 0 !important; }
   .single-panel.seq-panel .ach-toggle-row{
     padding: 4px 8px; gap: 7px;
   }
@@ -2388,10 +3267,46 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .compare-img-cell button{ position: absolute; top: 2px; right: 2px; font-size: 10px; padding: 2px 5px; }
   .compare-cell button{ font-size: 11px; padding: 3px 8px; }
 
+  /* Fixed 3 columns in the docked panel — the panel's own width varies with
+     the resizable right panel (see #right's container-type), so auto-fill
+     used to silently change the column count depending on how wide the
+     panel happened to be dragged. A fixed count keeps thumbnails a
+     predictable, comparable size regardless of panel width; anyone who
+     wants them bigger has the pop-out button (below) for that instead of
+     this view trying to be both. */
   .master-mini-grid{
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 5px; max-height: 240px; overflow-y: scroll; padding: 4px;
     background: var(--bg-base); border-radius: 6px; border: 1px solid var(--border-soft);
+    user-select: none; /* drag-to-select shouldn't also select stray text as the pointer crosses cells */
+  }
+  /* Popped out into openDockListModal()'s bigger box — same element,
+     reparented, so this just needs its own column/height rules for that
+     context. auto-fill with a min cell width instead of a fixed count: at
+     the modal's own max width (640px, see .dock-list-modal-box) a 56px
+     minimum lands at 10 columns, and it naturally shows fewer on a
+     narrower window instead of an explicit count needing its own
+     responsive breakpoints. */
+  .master-mini-grid.dock-list-modal-content{
+    grid-template-columns: repeat(auto-fill, minmax(calc(56px * var(--mini-grid-size, 1)), 1fr));
+    max-height: 68vh;
+  }
+  /* Size row (1x-4x) — only meaningful once the grid has real room to grow
+     into, so it stays hidden in the docked 3-column panel and only shows
+     once popped into the modal. grid-column spans the full row so it reads
+     as a toolbar strip above the thumbnails, not one more cell competing
+     with them for a column. */
+  .mini-grid-size-row{
+    display: none; grid-column: 1 / -1;
+    align-items: center; gap: 6px; padding: 2px 2px 8px;
+    font-size: 11px; color: var(--text-muted);
+  }
+  .master-mini-grid.dock-list-modal-content .mini-grid-size-row{ display: flex; }
+  .mini-grid-size-row button{
+    padding: 3px 10px; font-size: 11px; min-height: 0;
+  }
+  .mini-grid-size-row button.active{
+    background: var(--accent-manual); color: #fff; border-color: var(--accent-manual);
   }
   .master-mini-cell{
     position: relative; aspect-ratio: 1/1; border-radius: 4px; overflow: hidden;
@@ -2490,13 +3405,14 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     content-visibility: auto;
     contain-intrinsic-size: auto 320px;
     border: 1px solid var(--border-soft);
-    border-radius: 8px;
+    border-radius: var(--r-card);
+    box-shadow: var(--card-shadow);
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
   .card.dirty { border-color: var(--accent-auto); }
-  .card.untagged { border-color: #5a2f38; }
+  .card.untagged { border-color: color-mix(in srgb, var(--accent-danger) 45%, var(--border-soft)); }
   .card.disabled-card { opacity: 0.55; }
 
   .card .thumbwrap {
@@ -2546,6 +3462,70 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   .chiprow { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  /* Tag Sorting (view.ts) — Single mode + card modal only. A small pill toggle
+     above the chips, and the category segments it reveals. */
+  .tagcat-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .tagcat-toggle {
+    font-size: 11px; padding: 4px 10px;
+    border-radius: 999px; cursor: pointer;
+    background: var(--bg-elevated); border: 1px solid var(--border-strong); color: var(--text-muted);
+  }
+  .tagcat-toggle:hover { border-color: var(--accent-manual); color: var(--text-primary); }
+  .tagcat-toggle.active {
+    background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual);
+  }
+  .tagcat-groups { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+  .tagcat-seg { display: flex; flex-direction: column; gap: 6px; }
+  .tagcat-head {
+    display: flex; align-items: baseline; gap: 8px;
+    border-bottom: 1px solid var(--border-soft); padding-bottom: 3px;
+  }
+  .tagcat-name {
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--accent-flair);
+  }
+  .tagcat-count { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+
+  /* Multi-subject tree (Tag Sorting, opt-in): user-named subject headers, each
+     with indented category subheaders. Tags are assigned by dragging a chip onto
+     a subject, or shift-clicking chips then "Move tags to:". */
+  .tagsub-tree { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+  .tagsub-addsubject {
+    align-self: flex-start; font-size: 11px; padding: 4px 10px; border-radius: 999px;
+  }
+  .tagsub-subject {
+    display: flex; flex-direction: column; gap: 8px;
+    border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 10px; background: var(--bg-base);
+  }
+  .tagsub-subject.drop-hover { border-color: var(--accent-manual); background: var(--accent-manual-dim); }
+  .tagsub-subject-head { display: flex; align-items: center; gap: 8px; }
+  .tagsub-name {
+    font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text-primary);
+    background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 4px;
+    padding: 3px 6px; min-width: 90px; max-width: 220px; cursor: text;
+  }
+  .tagsub-name:focus { border-color: var(--accent-manual); outline: none; }
+  .tagsub-head-actions { margin-left: auto; display: flex; gap: 6px; }
+  .tagsub-head-actions button { font-size: 11px; padding: 3px 8px; }
+  .tagsub-del { color: var(--accent-danger); }
+  .tagsub-sub { margin-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+  .tagsub-sub-head {
+    display: flex; align-items: baseline; gap: 8px;
+    border-bottom: 1px solid var(--border-soft); padding-bottom: 2px;
+  }
+  .tagsub-cat { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent-flair); }
+  .tagsub-count { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+  .tagsub-empty { font-size: 11px; color: var(--text-faint); font-style: italic; }
+  .tagsub-chip { cursor: grab; }
+  .chip.tagsub-selected { outline: 2px solid var(--accent-manual); outline-offset: 1px; }
+  .tagsub-movetoolbar {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 6px 8px; border: 1px solid var(--accent-manual); border-radius: 6px; background: var(--bg-elevated);
+  }
+  .tagsub-movecount { font-family: var(--mono); font-size: 11px; color: var(--accent-manual); }
+  .tagsub-moveflyout { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tagsub-moveflyout button { font-size: 11px; padding: 3px 8px; }
   /* Read-only chip (no × button) — e.g. the WD14 transfer-list viewer.
      The base .chip's asymmetric padding (9px left / 4px right + 5px gap)
      budgets room for the remove button; without it the label sits visibly
@@ -2557,7 +3537,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     gap: 5px;
     background: var(--bg-elevated);
     border: 1px solid var(--border-soft);
-    border-radius: 12px;
+    border-radius: var(--r-chip);
     padding: 2px 4px 2px 9px;
     font-family: var(--mono);
     font-size: 11px;
@@ -2685,12 +3665,18 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .tool-section {
     background: var(--bg-elevated);
     border: 1px solid var(--border-soft);
-    border-radius: 8px;
+    border-radius: var(--r-panel);
     padding: 14px;
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
+  /* A dock's buttons never outgrow the dock: in wide theme faces
+     (Oxanium, Michroma, VT323…) a nowrap label at a narrow panel width ran
+     past the dock's content box and got its right border clipped. Cap at
+     the container and let the label wrap instead. */
+  #left button, #right button{ max-width: 100%; }
+  .tool-section button:not(.dock-collapse-btn):not(.chip button):not(.pdrop-btn){ white-space: normal; text-wrap: balance; }
   .tool-section .sec-head {
     display: flex;
     flex-wrap: wrap;
@@ -2700,7 +3686,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .dot.auto { background: var(--accent-auto); }
   .dot.manual { background: var(--accent-manual); }
-  .sec-head .t { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+  .sec-head .t {
+    font-family: var(--head-font); font-size: var(--head-size); font-weight: var(--head-weight);
+    letter-spacing: var(--head-track); text-transform: var(--head-case); color: var(--head-color);
+  }
   .sec-head .d { font-size: 11px; color: var(--text-faint); }
   .sec-head .d ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 6px; }
   .sec-head .d li { line-height: 1.4; }
@@ -2725,7 +3714,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     margin: 6px -14px -14px -14px; width: calc(100% + 28px);
     cursor: ns-resize;
     background: repeating-linear-gradient(90deg, var(--border-strong) 0 6px, transparent 6px 12px);
-    opacity: 0.35; border-radius: 0 0 8px 8px;
+    opacity: 0.35; border-radius: 0 0 var(--r-panel) var(--r-panel);
   }
   .dock-resize-handle:hover{ opacity: 0.8; }
 
@@ -2808,7 +3797,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .canonical-rule-add-row{ display: flex; gap: 6px; }
   .canonical-rule-add-row input{ flex: 1; font-size: 12px; }
   .canonical-rule-add-row button{ font-size: 11px; padding: 4px 8px; }
-  .canonical-rule-enable-toggle{ display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+  /* Compact ach-toggle-row — sits in the rule's header row. */
+  .ach-toggle-row.canonical-rule-enable-toggle{ gap: 6px; padding: 4px 8px; white-space: nowrap; }
+  .ach-toggle-row.canonical-rule-enable-toggle input[type="checkbox"]{ width: 14px; height: 14px; }
   .canonical-rule-row.canonical-rule-disabled{ opacity: 0.55; }
   .canonical-rule-row.canonical-rule-disabled .canonical-rule-label{ text-decoration: line-through; }
   .canonical-chip-disabled{ opacity: 0.5; }
@@ -2875,6 +3866,19 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      right edge instead of actually wrapping its own text. */
   .mtc-btn-row{ display:flex; gap:8px; flex-wrap:nowrap; margin:0 0 8px; }
   .mtc-btn-row button{ flex:1 1 0; min-width:0; }
+  /* Long button labels ("Sequential from first/selected", "Select all
+     visible", "Clear selection") have no short form that still reads as a
+     sentence — unlike "Disable"/"Delete" etc., min-width:0 alone just lets
+     the label clip or wrap against #right's own overflow-x:hidden once the
+     panel's dragged narrower than the text needs. Below the threshold,
+     swap to an icon-only span instead of letting that happen; aria-label
+     on the button (set in JS) carries the real meaning in both states, so
+     nothing is lost for a screen reader. */
+  .label-icon{ display:none; font-size:1.05rem; }
+  @container (max-width: 380px){
+    .icon-fallback-btn .label-full{ display:none; }
+    .icon-fallback-btn .label-icon{ display:inline; }
+  }
   .immunize-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
   .selection-summary {
     font-size: 11.5px;
@@ -3019,9 +4023,27 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .single-img-side{
     flex: 1; min-width: 0; min-height: 60vh;
     display: flex; align-items: center; justify-content: center;
-    background: #0f0e13; border-radius: 8px; border: 1px solid var(--border-soft);
+    background: var(--bg-base); border-radius: 8px; border: 1px solid var(--border-soft);
   }
   .single-img-side img{ max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 4px; }
+  /* Normal Single view's image: a small static preview (click opens the
+     fullscreen lightbox). Same dark frame + centered fit as the old big side,
+     just constrained so the tag panel gets the space instead. */
+  .single-preview{
+    flex: 0 0 38%; max-width: 38%; max-height: 42vh; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-base); border-radius: 8px; border: 1px solid var(--border-soft);
+    overflow: hidden; cursor: zoom-in;
+  }
+  .single-preview img{ max-width: 100%; max-height: 42vh; object-fit: contain; border-radius: 4px; pointer-events: none; }
+  .single-preview-hint{
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    font-size: 10.5px; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+    background: rgba(0,0,0,0.55); color: #fff; pointer-events: none; opacity: 0.9;
+  }
+  /* The preview frees horizontal space; widen the panel so chips wrap less and
+     the rest of the Single UI needs far less scrolling. */
+  .single-panel-main{ width: auto; flex: 1; max-height: 82vh; }
   .single-panel{
     width: 360px; flex-shrink: 0; max-height: 85vh; overflow-y: scroll;
     background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: 8px;
@@ -3043,7 +4065,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: var(--bg-base); }
-  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; border: 2px solid var(--bg-base); }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--r-scroll); border: 2px solid var(--bg-base); }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 
   /* Browser-drawn controls that no theme block reaches otherwise: the Settings
@@ -3572,6 +4594,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
     .single-wrap{ flex-direction: column; }
     .single-panel{ width: 100%; }
+    .single-preview{ flex: 0 0 auto; max-width: 100%; max-height: 32vh; }
+    .single-preview img{ max-height: 32vh; }
+    .single-panel-main{ max-height: none; }
 
     /* Help modal was a fixed 230px TOC + content ROW regardless of
        viewport — on a ~92vw-wide phone modal that left barely a sliver for
@@ -3679,3 +4704,51 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       max-width: 100%; box-sizing: border-box;
     }
   }
+
+/* ---------- Bucket Images dock (Gallery right panel) ---------- */
+
+/* The number fields are the ONE input type the global rule
+   (`input[type="text"], textarea`) doesn't cover — without this they render as
+   the browser's default white boxes instead of the theme. Mirrors
+   .wd14-settings' own number-input styling. */
+.bucket-params-row input[type="number"]{
+  font-family: var(--sans); font-size: 12.5px; color: var(--text-primary);
+  background: var(--bg-elevated); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); padding: 6px 9px; box-sizing: border-box;
+  width: 100%; cursor: text;
+}
+.bucket-params-row input[type="number"]:focus{ border-color: var(--accent-manual); outline: none; }
+
+.bucket-model-row{ display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.bucket-model-row .d{ font-size: 11.5px; line-height: 1.4; color: var(--text-muted); }
+.bucket-model-row button{ width: 100%; white-space: normal; }
+
+.bucket-params-row{
+  /* auto-fit so the fields wrap to their own rows instead of squeezing into
+     slivers in the narrow/horizontal dock layout */
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
+  gap: 8px; margin-bottom: 12px;
+}
+.bucket-params-row label{
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 11px; color: var(--text-faint);
+}
+
+/* The Prefer GPU toggle reuses the app's checkbox row look; just needs its own
+   gap above the Bucket images button. */
+.bucket-gpu-row{ margin-bottom: 10px; }
+
+/* Both actions fill the dock's width, so the column reads as a deliberate
+   control stack rather than two stray pills. */
+#btnBucketRun, #btnBucketRevert{ width: 100%; white-space: normal; }
+#btnBucketRevert{ margin-top: 2px; font-size: 12px; }
+
+.bucket-log{
+  font-size: 11px; line-height: 1.55; max-height: 190px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-word;
+  background: var(--bg-base); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 8px 10px;
+}
+.bucket-log:empty{ display: none; }
+.bucket-log .bucket-log-line{ color: var(--text-muted); }
+.bucket-log .bucket-log-line.err{ color: var(--accent-danger); }

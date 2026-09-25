@@ -1,32 +1,32 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-static-theme>
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>User Guide — Osmium Workshop</title>
 <meta name="description" content="A practical, tab-by-tab walkthrough of Osmium Workshop, the local-first dataset tag editor — rendered straight from the repo's own USER_GUIDE.md." />
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="demo/fonts/fonts.css">
+<script src="assets/night-palette.js"></script>
+<script src="assets/site-theme.js"></script>
 <link rel="stylesheet" href="site-shared.css">
 <style>
   /* ---------- doc content ---------- */
   .doc-wrap{ padding:56px 0 96px; }
   .doc-head{ margin-bottom:12px; }
-  .doc-head h1{ font-family:'Chakra Petch',sans-serif; font-size:clamp(1.9rem,3.4vw,2.6rem); font-weight:600; margin:0 0 10px; letter-spacing:-0.01em; }
-  .doc-source-note{ font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--ink-soft); margin:0 0 40px; }
+  .doc-head h1{ font-family:var(--f-display); font-size:clamp(1.9rem,3.4vw,2.6rem); font-weight:600; margin:0 0 10px; letter-spacing:-0.01em; }
+  .doc-source-note{ font-family:var(--f-mono); font-size:0.78rem; color:var(--ink-soft); margin:0 0 40px; }
   .doc-source-note a{ color:var(--ink-soft); text-decoration:underline; }
   .doc-source-note a:hover{ color:var(--ink); }
   #doc-content{ max-width:var(--measure); }
   #doc-content h1{ display:none; } /* the source's own # H1 duplicates .doc-head above it */
-  #doc-content h2{ font-family:'Chakra Petch',sans-serif; font-size:1.5rem; font-weight:600; margin:48px 0 16px; padding-top:24px; border-top:1px solid var(--line); }
+  #doc-content h2{ font-family:var(--f-display); font-size:1.5rem; font-weight:600; margin:48px 0 16px; padding-top:24px; border-top:1px solid var(--line); }
   #doc-content h2:first-child{ margin-top:0; padding-top:0; border-top:none; }
   #doc-content h3{ font-size:1.15rem; font-weight:600; margin:28px 0 12px; }
   #doc-content h4{ font-size:1rem; font-weight:600; margin:20px 0 10px; color:var(--ink-soft); }
   #doc-content p{ color:var(--ink-soft); margin:0 0 16px; line-height:1.7; }
   #doc-content strong{ color:var(--ink); font-weight:600; }
-  #doc-content code{ font-family:'JetBrains Mono',monospace; font-size:0.86em; background:var(--ground-dim); border:1px solid var(--line); border-radius:4px; padding:1px 6px; }
+  #doc-content code{ font-family:var(--f-mono); font-size:0.86em; background:var(--ground-dim); border:1px solid var(--line); border-radius:4px; padding:1px 6px; }
   #doc-content pre{ background:var(--ground-dim); border:1px solid var(--line); border-radius:6px; padding:16px 18px; overflow-x:auto; margin:0 0 20px; }
   #doc-content pre code{ background:none; border:none; padding:0; font-size:0.84rem; line-height:1.6; }
   #doc-content ul, #doc-content ol{ color:var(--ink-soft); margin:0 0 18px; padding-left:24px; line-height:1.7; }
@@ -39,9 +39,9 @@
   #doc-content blockquote p{ margin:0; }
   #doc-content table{ width:100%; border-collapse:collapse; margin:0 0 24px; font-size:0.92rem; }
   #doc-content th, #doc-content td{ text-align:left; padding:9px 12px; border:1px solid var(--line); vertical-align:top; }
-  #doc-content th{ background:var(--ground-dim); font-family:'Chakra Petch',sans-serif; font-weight:600; }
+  #doc-content th{ background:var(--ground-dim); font-family:var(--f-display); font-weight:600; }
   #doc-content img{ max-width:100%; border-radius:4px; border:1px solid var(--line); }
-  .doc-loading{ color:var(--ink-soft); font-family:'JetBrains Mono',monospace; font-size:0.85rem; }
+  .doc-loading{ color:var(--ink-soft); font-family:var(--f-mono); font-size:0.85rem; }
   @media (max-width:640px){
     .doc-wrap{ padding:36px 0 64px; }
   }
