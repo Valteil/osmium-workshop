@@ -435,7 +435,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --btn-weight: 600;
     --r-chip: 999px; --r-card: 14px; --r-panel: 14px; --r-check: 5px; --r-scroll: 999px;
     --card-shadow: 0 4px 14px color-mix(in srgb, var(--text-primary) 8%, transparent);
-    --fx-fill: linear-gradient(90deg, #ff9f1c 0 25%, #ff3f8e 25% 50%, #2ec4f1 50% 75%, #35d488 75%);
+    --fx-fill: linear-gradient(90deg, var(--accent-auto) 0 25%, var(--accent-danger) 25% 50%, var(--accent-manual) 50% 75%, var(--accent-success) 75%);
     --fx-o: 1; --fx-top: calc(100% - 3px); --fx-h: 3px; --fx-w: 1;
     --fx-card-t: translateY(-4px); --fx-card-s: 0 14px 28px color-mix(in srgb, var(--text-primary) 16%, transparent);
     --icon-stroke: 2.25;
@@ -443,12 +443,14 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="subway"] #topbar{
     background: var(--bg-panel);
     border-bottom: none;
-    background-image: linear-gradient(90deg, #ff9f1c 0 25%, #ff3f8e 25% 50%, #2ec4f1 50% 75%, #35d488 75%);
+    background-image: linear-gradient(90deg, var(--accent-auto) 0 25%, var(--accent-danger) 25% 50%, var(--accent-manual) 50% 75%, var(--accent-success) 75%);
     background-size: 100% 6px; background-position: bottom; background-repeat: no-repeat;
     padding-bottom: 14px;
   }
   html[data-theme="subway"] .brand span.tag{ background: var(--text-primary); color: var(--bg-panel); border-radius: 999px; padding: 2px 8px; }
   html[data-theme="subway"] .tab-btn{ border-radius: 999px; margin: 6px 0; padding: 5px 14px; border-bottom: none; }
+  /* White stays literal: it sits on a saturated accent fill, which night
+     mode only darkens, so it keeps its contrast in both modes. */
   html[data-theme="subway"] .tab-btn.active{ background: var(--accent-flair); color: #ffffff; }
   html[data-theme="subway"] .tab-btn:hover:not(:disabled):not(.active){ background: var(--bg-elevated-2); }
   /* Station markers: each dock's status dot becomes a ringed stop on the line. */
@@ -1152,7 +1154,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-size: 15px; --head-weight: 800; --head-case: uppercase; --head-track: 0.06em; --head-color: var(--accent-flair);
     --r-chip: 1px; --r-card: 1px; --r-panel: 1px; --r-check: 1px; --r-scroll: 0px;
     --card-shadow: 0 2px 4px rgba(0,0,0,0.4);
-    --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-auto), color-mix(in srgb, var(--accent-auto) 60%, #fff)); --fx-o: 0.32; --fx-w: 1;
+    --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-auto), color-mix(in srgb, var(--accent-auto) 60%, var(--text-primary))); --fx-o: 0.32; --fx-w: 1;
     --fx-card-t: translateY(-2px); --fx-card-s: 0 0 0 1px var(--accent-flair), 0 12px 24px rgba(0,0,0,0.5);
     --icon-stroke: 2; --icon-cap: square; --icon-join: bevel;
   }
@@ -1161,7 +1163,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   html[data-theme="copper-forge"] .tool-section,
   html[data-theme="copper-forge"] .settings-section{
-    --rivet: radial-gradient(circle, color-mix(in srgb, var(--accent-flair) 75%, #fff) 0 1.2px, var(--accent-manual-dim) 1.8px, transparent 2.6px);
+    --rivet: radial-gradient(circle, color-mix(in srgb, var(--accent-flair) 75%, var(--text-primary)) 0 1.2px, var(--accent-manual-dim) 1.8px, transparent 2.6px);
     background:
       var(--rivet) top 6px left 6px / 6px 6px no-repeat,
       var(--rivet) top 6px right 6px / 6px 6px no-repeat,
@@ -1204,7 +1206,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --icon-stroke: 1.6;
   }
   html[data-theme="blood-moon"] #gallery{
-    background-image: radial-gradient(ellipse at 50% 45%, transparent 38%, color-mix(in srgb, var(--accent-manual) 9%, rgba(0,0,0,0.6)) 100%);
+    background-image: radial-gradient(ellipse at 50% 45%, transparent 38%, color-mix(in srgb, var(--accent-manual) 10%, color-mix(in srgb, var(--bg-base) 70%, transparent)) 100%);
   }
   html[data-theme="blood-moon"] .brand{ color: var(--accent-manual); }
   html[data-theme="blood-moon"] #topbar{ border-bottom: 1px solid var(--accent-manual); box-shadow: 0 1px 12px -4px color-mix(in srgb, var(--accent-manual) 60%, transparent); }
@@ -1895,7 +1897,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      "image loaded" case. */
   .synthdat-ref-preview{
     display: block; width: fit-content; max-width: 100%; max-height: 340px;
-    background: #0f0e13; border-radius: var(--radius); overflow: hidden; margin: 0 auto; cursor: zoom-in;
+    background: var(--bg-base); border-radius: var(--radius); overflow: hidden; margin: 0 auto; cursor: zoom-in;
   }
   /* Reference image + padded/resized preview side by side (each still sized
      to its own image's natural aspect ratio via .synthdat-ref-preview's own
@@ -2157,11 +2159,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   html.power-highlight[data-theme="subway"] .power-tool{
     border: 2px solid transparent !important;
-    border-image: linear-gradient(90deg, #ff9f1c 0%, #ff3f8e 33%, #2ec4f1 66%, #35d488 100%) 1 !important;
+    border-image: linear-gradient(90deg, var(--accent-auto) 0%, var(--accent-danger) 33%, var(--accent-manual) 66%, var(--accent-success) 100%) 1 !important;
     box-shadow: none;
   }
   html.power-highlight.power-fill[data-theme="subway"] .power-tool{
-    background: linear-gradient(90deg, rgba(255,159,28,0.16) 0%, rgba(255,63,142,0.16) 33%, rgba(46,196,241,0.16) 66%, rgba(53,212,136,0.16) 100%) !important;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent-auto) 16%, transparent) 0%, color-mix(in srgb, var(--accent-danger) 16%, transparent) 33%, color-mix(in srgb, var(--accent-manual) 16%, transparent) 66%, color-mix(in srgb, var(--accent-success) 16%, transparent) 100%) !important;
   }
 
   /* ---------- Manual power-tool marking ---------- */
@@ -3410,7 +3412,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     flex-direction: column;
   }
   .card.dirty { border-color: var(--accent-auto); }
-  .card.untagged { border-color: #5a2f38; }
+  .card.untagged { border-color: color-mix(in srgb, var(--accent-danger) 45%, var(--border-soft)); }
   .card.disabled-card { opacity: 0.55; }
 
   .card .thumbwrap {
@@ -4021,7 +4023,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .single-img-side{
     flex: 1; min-width: 0; min-height: 60vh;
     display: flex; align-items: center; justify-content: center;
-    background: #0f0e13; border-radius: 8px; border: 1px solid var(--border-soft);
+    background: var(--bg-base); border-radius: 8px; border: 1px solid var(--border-soft);
   }
   .single-img-side img{ max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 4px; }
   /* Normal Single view's image: a small static preview (click opens the
@@ -4030,7 +4032,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .single-preview{
     flex: 0 0 38%; max-width: 38%; max-height: 42vh; position: relative;
     display: flex; align-items: center; justify-content: center;
-    background: #0f0e13; border-radius: 8px; border: 1px solid var(--border-soft);
+    background: var(--bg-base); border-radius: 8px; border: 1px solid var(--border-soft);
     overflow: hidden; cursor: zoom-in;
   }
   .single-preview img{ max-width: 100%; max-height: 42vh; object-fit: contain; border-radius: 4px; pointer-events: none; }
