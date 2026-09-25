@@ -37,7 +37,12 @@ notes/Systems/Themes-System.md.) ICONS: no emoji or unicode glyph icons in the U
 `setIconLabel(el, text)` instead of `textContent` for any glyph-bearing label, and
 `iconSvg`/`iconHTML` in innerHTML templates (`src/renderer/icons.ts`). Drawings live only in the
 inline sprite at the top of `renderer/index.html`. A new glyph needs both an `EMOJI_ICON` entry and
-a `<symbol id="i-…">`. `PREMIUM_THEMES`' `swatches` array must equal exactly
+a `<symbol id="i-…">`. SITE: `docs/` is GitHub Pages (served from main,
+so a push deploys it). Run `node scripts/sync-site.js` after any renderer, theme or README change.
+It regenerates `docs/demo`, `docs/content`, `docs/assets/themes.json`, and
+`docs/assets/night-palette.js`, the last copied from the night-palette markers in
+`renderer/index.html`. When `preload.js` gains an `on*` hook, stub it in `docs/demo/demo-shim.js`,
+or the demo's init crashes. See notes/Apps/Website.md. `PREMIUM_THEMES`' `swatches` array must equal exactly
 `[--bg-base, --accent-manual, --accent-flair]` for that theme — it's a promise about what the
 theme actually looks like, shown in the shop, sorted by price there. Before adding a broad
 theme-wide `button:not(...)` selector (e.g. a new hover/click effect), grep the file for

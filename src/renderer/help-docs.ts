@@ -376,7 +376,8 @@ export const HELP_SECTIONS: HelpSection[] = [
         rendering onto your integrated GPU instead of competing with ComfyUI's real workload on
         your discrete one. Turning it off forces pure CPU rendering. Takes effect on your next
         launch.</li>
-        <li><b>Layout & Panels</b> — UI animation mode (Fade/Swipe/Off), and "Reset panel layout" if
+        <li><b>Layout & Panels</b> — UI animation mode (Fade/Swipe/Off; Swipe treats the app as one
+        map, so tabs, views and images slide the way they actually sit), and "Reset panel layout" if
         a dock's ${isTouchDevice ? 'collapse state ever gets stuck' : 'drag-reorder or collapse state ever gets into a bad state'}.</li>
         <li><b>Updates & Sharing</b> — "Restart app" reloads the latest files instantly, no manual
         quit/reopen needed. "🩺 Export app state" isn't something you'd normally need — it's a
@@ -388,14 +389,15 @@ export const HELP_SECTIONS: HelpSection[] = [
     id: 'themes',
     title: 'Themes, Shop & Achievements',
     html: `
-      <p>25 themes in total — 4 free, 21 in the 💰 Shop (common through legendary, priced in
-      Edibits, a small in-app currency you earn from achievements). Every theme has its own accent
-      color and at least one real visual flourish beyond its palette. Epic/legendary themes
-      get an extra hover-fill effect on buttons; any cheaper theme can buy that same effect
-      individually via the Shop's "🔨 Refine Theme" button, for the price difference.</p>
+      <p>26 themes in total — 5 free, 21 in the 💰 Shop (common through legendary, priced in
+      Edibits, a small in-app currency you earn from achievements). Each theme is a whole look,
+      not just a palette: its own typefaces, button and tag shapes, panel materials, and active-tab
+      marker, with the icons restroked to match. Epic/legendary themes get an extra hover-fill and
+      card lift in that theme's own style; any cheaper theme can buy them individually via the
+      Shop's "🔨 Refine Theme" button, for the price difference.</p>
       <p>🏆 Achievements (55+, unlocked per dataset folder — a fresh dataset starts with none
       unlocked) pay out Edibits as you use the app's features. 🌙 Night mode is a genuine per-theme
-      color inversion.</p>
+      color inversion that also keeps every text and accent color readable.</p>
       <p>Settings ▸ Appearance has motion-sensitivity controls: <b>Suppress Theme Flourishes</b>
       hides the Refine Theme button and turns off epic/legendary-tier hover-fill/card-tilt
       everywhere — whether a theme has it natively or you bought it via Refine Theme. Three

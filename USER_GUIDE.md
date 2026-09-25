@@ -382,7 +382,13 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
   rendering onto your integrated GPU instead of competing with ComfyUI's real workload on your
   discrete one. Turn it off for pure CPU rendering, or if you'd rather this app use your discrete
   GPU for max smoothness. Takes effect on your next launch.
-- **Layout & Panels** — **UI animation mode**: Fade (default), Swipe (directional slide), or Off.
+- **Layout & Panels** — **UI animation mode**: Fade (default), Swipe, or Off. Swipe treats the
+  app as one map: tabs sit left to right in tab-bar order, the Gallery's views sit in button
+  order inside the Gallery, and images sit in order inside Single view and the image card, so
+  every move slides the way you're actually going (Gallery ↔ Tag Overseer only slides the
+  right-hand column, since the rest is shared). The image card grows out of the thumbnail you
+  opened and shrinks back into it. Arrow-key paging stays instant, and clicking a tab mid-slide
+  switches immediately.
   Also has "Reset panel layout" if a dock's drag-reorder/collapse state ever gets into a bad
   state.
 - **Updates & Sharing** — "Restart app" instantly reloads the latest files without a manual
@@ -396,13 +402,17 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
 ## Themes, Shop & Achievements
 
 26 themes total — 5 free, 21 in the **💰 Shop** (common → legendary, 40–750 Edibits, a small
-in-app currency earned from achievements). Every theme has its own accent color and at least one
-real visual flourish beyond its palette. Epic/legendary themes get an extra hover-fill
-button effect; any cheaper theme can buy that same effect individually via the Shop's
-**🔨 Refine Theme** button for the price difference.
+in-app currency earned from achievements). Each theme is a whole look, not just a palette: its
+own typefaces, button and tag shapes, panel materials and textures, and active-tab marker (Terminal
+Green is a phosphor CRT, Vintage Paper a letterpress catalogue with index-card tabs, Subway Fresh
+transit signage, and so on); the icons restroke to match. Epic/legendary themes get an extra
+hover-fill button effect and card lift, drawn in that theme's own style; any cheaper theme can
+buy them individually via the Shop's **🔨 Refine Theme** button for the price difference.
 
 **🏆 Achievements** (55+, unlocked per-dataset-folder — a fresh dataset starts with none unlocked)
-pay out Edibits. Use them to unlock Shop themes by using the app. **🌙 Night mode** is a genuine per-theme color inversion.
+pay out Edibits. Use them to unlock Shop themes by using the app. **🌙 Night mode** is a genuine
+per-theme color inversion: it flips each color's lightness, then darkens or lightens any text or
+accent that would come out too faint against the new background, so every theme stays readable.
 
 Settings ▸ Appearance has motion-sensitivity controls for all of this: **Suppress Theme
 Flourishes** hides the Refine Theme button and turns off the epic/legendary hover-fill/card-tilt

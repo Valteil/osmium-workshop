@@ -30,7 +30,11 @@
   // until it clears its floor (primary 7:1, muted + accents 4.5:1 since
   // accents are used as text, faint 3:1) against the panel and raised
   // surfaces, and each accent against its own -dim tint too.
-  var VARS = ['--bg-base','--bg-panel','--bg-elevated','--bg-elevated-2','--border-soft','--border-strong',
+  // The GitHub Pages site reuses this exact block: scripts/sync-site.js
+  // copies everything between the night-palette markers into
+  // docs/assets/night-palette.js, so keep it self-contained.
+  /* night-palette:begin */
+  var VARS =['--bg-base','--bg-panel','--bg-elevated','--bg-elevated-2','--border-soft','--border-strong',
     '--text-primary','--text-muted','--text-faint','--accent-auto','--accent-auto-dim','--accent-manual',
     '--accent-manual-dim','--accent-danger','--accent-success','--accent-flair'];
   var FLOORS = { '--text-primary': 7, '--text-muted': 4.5, '--text-faint': 3, '--accent-auto': 4.5,
@@ -88,6 +92,7 @@
     }
     return out;
   };
+  /* night-palette:end */
   try {
     var root = document.documentElement;
     var theme = localStorage.getItem('dts-theme') || 'studio';

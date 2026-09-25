@@ -195,15 +195,21 @@ when five good images need to become fifty. (Also needs the ComfyUI node pack �
 ## Themes & the shop economy
 
 26 themes total: 5 free and 21 in the **💰 Shop** (common → legendary, 40–750 Edibits).
-Every theme pairs a palette with a real flourish: texture, animation, or button shape. Epic and
-legendary tiers add a hover/click button-fill effect on top.
+Each theme is a whole look, not just a palette: its own bundled typefaces, button and tag
+shapes, panel materials and textures, active-tab marker, and a matching stroke style for the
+app's icon set. Epic and legendary tiers add a hover/click button-fill and a card lift, drawn
+in that theme's own style.
 
 - **🏆 Achievements** (55+, per-folder) pay out **Edibits** to spend in the Shop — a "beg for
   free Edibits" button covers shortfalls. Use them to unlock themes by using the app.
 - **Motion-sensitivity controls** (Settings ▸ Appearance) — kill all motion or just hover-fill,
   card tilt, or ambient animation. Use them if effects distract or discomfort you.
 - **🎨 Colors** — recolor any theme live, save as your own "Custom" theme.
-- **🌙 Night mode** — inverts each theme's colors directly.
+- **🌙 Night mode** — inverts each theme's colors directly, then nudges any text or accent
+  color that would come out too faint, so every theme stays readable at night.
+- **Swipe animation mode** (Settings ▸ Layout & Panels) — treats the app as one map: tabs,
+  gallery views, and images slide in the direction they actually sit, and the image card grows
+  out of the thumbnail you clicked.
 
 ---
 
