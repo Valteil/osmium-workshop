@@ -10,6 +10,7 @@
 import { normalRightTools, rightAside, btnResetDockLayout } from './dom';
 import { getJSON, setJSON } from './storage';
 import { toast } from './shared-ui';
+import { setIconLabel } from './icons';
 
 // Matches --panel-dur in styles.css (kept as a plain constant here rather
 // than read from getComputedStyle — this only needs to roughly match, since
@@ -231,7 +232,7 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
 
       const dragHandle = document.createElement('span');
       dragHandle.className = 'dock-drag-handle';
-      dragHandle.textContent = '☰';
+      setIconLabel(dragHandle, '☰');
       dragHandle.title = 'Drag to reorder this panel';
       dragHandle.draggable = true;
       dragHandle.addEventListener('dragstart', (ev) => {
@@ -249,13 +250,13 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
       // (collapses downward) vertically, ◀ (collapses back to the right,
       // toward the edge the width shrinks from) horizontally, matching the
       // usual disclosure-triangle convention rotated for a sideways dock.
-      const collapseGlyph = () => dockCollapsed[id] ? '▶' : (isHorizontal() ? '◀' : '▼');
-      collapseBtn.textContent = collapseGlyph();
+      const collapseGlyph = () => dockCollapsed[id] ? '▸' : (isHorizontal() ? '◀' : '▼');
+      setIconLabel(collapseBtn, collapseGlyph());
       collapseBtn.addEventListener('click', () => {
         dockCollapsed[id] = !dockCollapsed[id];
         saveDockPrefs();
         applyDockCollapse(sec, id, true);
-        collapseBtn.textContent = collapseGlyph();
+        setIconLabel(collapseBtn, collapseGlyph());
       });
 
       controls.appendChild(dragHandle);
@@ -368,7 +369,7 @@ export function createDockManager({ container, storageOrderKey, storageCollapsed
       if (horizontal) sec.style.maxWidth = '';
       applyDockCollapse(sec, sec.dataset.dockId!);
       const collapseBtn = sec.querySelector('.dock-collapse-btn');
-      if (collapseBtn) collapseBtn.textContent = horizontal ? '◀' : '▼';
+      if (collapseBtn) setIconLabel(collapseBtn, horizontal ? '◀' : '▼');
     });
   }
 

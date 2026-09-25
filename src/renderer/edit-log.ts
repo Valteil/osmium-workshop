@@ -7,6 +7,7 @@ import {
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal } from './shared-ui';
 import { folderUnlocked } from './achievements';
+import { setIconLabel } from './icons';
 
 export let editLog: EditLogEntry[] = [];
 export let logIdCounter = 1;
@@ -108,7 +109,7 @@ export async function loadEditLogForFolder(): Promise<void> {
 }
 
 export function updateLogButton(): void {
-  btnLog.textContent = getDirHandle() ? `📜 Log (${editLog.length})` : '📜 Log';
+  setIconLabel(btnLog, getDirHandle() ? `📜 Log (${editLog.length})` : '📜 Log');
 }
 
 function formatLogTime(ts: number): string {
@@ -285,10 +286,10 @@ export function renderLogPanel(): void {
       const actions = document.createElement('div');
       actions.className = 'log-actions';
       const undoBtn = document.createElement('button');
-      undoBtn.textContent = '↩ Undo this';
+      setIconLabel(undoBtn, '↩ Undo this');
       undoBtn.addEventListener('click', () => applyLogEntryDirection(logEntry, 'undo'));
       const redoBtn = document.createElement('button');
-      redoBtn.textContent = '↪ Redo this';
+      setIconLabel(redoBtn, '↪ Redo this');
       redoBtn.className = 'primary';
       redoBtn.addEventListener('click', () => applyLogEntryDirection(logEntry, 'redo'));
       actions.appendChild(undoBtn);
@@ -307,10 +308,10 @@ export function renderLogPanel(): void {
       const actions = document.createElement('div');
       actions.className = 'log-actions';
       const undoBtn = document.createElement('button');
-      undoBtn.textContent = '↩ Undo this';
+      setIconLabel(undoBtn, '↩ Undo this');
       undoBtn.addEventListener('click', () => applyRenameLogEntryDirection(logEntry, 'undo'));
       const redoBtn = document.createElement('button');
-      redoBtn.textContent = '↪ Redo this';
+      setIconLabel(redoBtn, '↪ Redo this');
       redoBtn.className = 'primary';
       redoBtn.addEventListener('click', () => applyRenameLogEntryDirection(logEntry, 'redo'));
       actions.appendChild(undoBtn);
@@ -320,10 +321,10 @@ export function renderLogPanel(): void {
       const actions = document.createElement('div');
       actions.className = 'log-actions';
       const undoBtn = document.createElement('button');
-      undoBtn.textContent = '↩ Undo this';
+      setIconLabel(undoBtn, '↩ Undo this');
       undoBtn.addEventListener('click', () => applyPixelLogEntryDirection(logEntry, 'undo'));
       const redoBtn = document.createElement('button');
-      redoBtn.textContent = '↪ Redo this';
+      setIconLabel(redoBtn, '↪ Redo this');
       redoBtn.className = 'primary';
       redoBtn.addEventListener('click', () => applyPixelLogEntryDirection(logEntry, 'redo'));
       actions.appendChild(undoBtn);
@@ -333,10 +334,10 @@ export function renderLogPanel(): void {
       const actions = document.createElement('div');
       actions.className = 'log-actions';
       const undoBtn = document.createElement('button');
-      undoBtn.textContent = '↩ Undo this';
+      setIconLabel(undoBtn, '↩ Undo this');
       undoBtn.addEventListener('click', () => applyIsolateLogEntryDirection(logEntry, 'undo'));
       const redoBtn = document.createElement('button');
-      redoBtn.textContent = '↪ Redo this';
+      setIconLabel(redoBtn, '↪ Redo this');
       redoBtn.className = 'primary';
       redoBtn.addEventListener('click', () => applyIsolateLogEntryDirection(logEntry, 'redo'));
       actions.appendChild(undoBtn);
@@ -346,10 +347,10 @@ export function renderLogPanel(): void {
       const actions = document.createElement('div');
       actions.className = 'log-actions';
       const undoBtn = document.createElement('button');
-      undoBtn.textContent = '↩ Undo this';
+      setIconLabel(undoBtn, '↩ Undo this');
       undoBtn.addEventListener('click', () => applyReviewLogEntryDirection(logEntry, 'undo'));
       const redoBtn = document.createElement('button');
-      redoBtn.textContent = '↪ Redo this';
+      setIconLabel(redoBtn, '↪ Redo this');
       redoBtn.className = 'primary';
       redoBtn.addEventListener('click', () => applyReviewLogEntryDirection(logEntry, 'redo'));
       actions.appendChild(undoBtn);

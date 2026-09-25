@@ -2,6 +2,7 @@ import { btnHelp, helpModal, helpToc, helpTocToggle, helpContent, helpCloseBtn }
 import { getString, setString } from './storage';
 import { HELP_SECTIONS } from './help-docs';
 import { initInfoButtons, positionMenu, addContextMenuItem } from './shared-ui';
+import { iconize } from './icons';
 
 const HELP_LAST_SECTION_KEY = 'dts-help-last-section';
 
@@ -24,6 +25,7 @@ function renderToc(activeId: string): void {
 function showSection(id: string): void {
   const sec = HELP_SECTIONS.find(s => s.id === id) || HELP_SECTIONS[0];
   helpContent.innerHTML = `<h2>${sec.title}</h2>${sec.html}`;
+  iconize(helpContent);
   helpContent.scrollTop = 0;
   initInfoButtons(helpContent);
   renderToc(sec.id);

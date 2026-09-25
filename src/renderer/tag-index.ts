@@ -8,6 +8,7 @@ import {
 } from './dom';
 import { toast, escapeHtml, buildPersistentDropdown } from './shared-ui';
 import { folderStats, saveFolderStats, checkAchievements } from './achievements';
+import { setIconLabel } from './icons';
 
 export let leftSortMode: LeftSortMode = 'family';
 export let leftSortDir: LeftSortDir = 'desc';
@@ -173,7 +174,7 @@ function renderFlaggedReviewList(): void {
     const empty = document.createElement('div');
     empty.className = 'freq-family-header';
     empty.style.cursor = 'default';
-    empty.textContent = 'No tags flagged for review. Use a tag chip\'s 🚩 menu to flag one.';
+    setIconLabel(empty, 'No tags flagged for review. Use a tag chip\'s 🚩 menu to flag one.');
     tagFrequencyList.appendChild(empty);
     return;
   }
@@ -240,7 +241,7 @@ export function renderTagFrequencyList(index: Map<string, Set<string>>): void {
       header.dataset.word = word;
       const dragHandle = document.createElement('span');
       dragHandle.className = 'family-drag-handle';
-      dragHandle.textContent = '☰';
+      setIconLabel(dragHandle, '☰');
       dragHandle.title = 'Drag to reorder this family';
       header.appendChild(dragHandle);
       const labelSpan = document.createElement('span');
@@ -472,7 +473,7 @@ export function initTagIndex(deps: TagIndexDeps): void {
 
   leftSortDirBtn.addEventListener('click', () => {
     leftSortDir = leftSortDir === 'asc' ? 'desc' : 'asc';
-    leftSortDirBtn.textContent = leftSortDir === 'asc' ? '▲' : '▼';
+    setIconLabel(leftSortDirBtn, leftSortDir === 'asc' ? '▲' : '▼');
     refreshStats();
   });
   btnResetFamilyOrder.addEventListener('click', () => {

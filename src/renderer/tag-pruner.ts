@@ -9,6 +9,7 @@
 // (buildTagIndex, refreshRightPanels) once via initTagPruner().
 import { tagPrunerList, unifyVoidRows } from './dom';
 import { applyUnifyToTags, applyVoidToTags } from './tags-edit';
+import { setIconLabel, iconSvg } from './icons';
 
 interface TagPrunerInstance {
   id: number;
@@ -89,7 +90,7 @@ export function renderTagPruners(): void {
       if (mirrorSourcePrunerId !== null) mirrorToGalleryRef(pruner.selected);
     });
     mirrorLabel.appendChild(mirrorCb);
-    mirrorLabel.appendChild(document.createTextNode('🔍'));
+    mirrorLabel.insertAdjacentHTML('beforeend', iconSvg('search'));
     head.appendChild(mirrorLabel);
 
     const clearBtn = document.createElement('button');
@@ -108,7 +109,7 @@ export function renderTagPruners(): void {
     if (tagPruners.length > 1){
       const rmBtn = document.createElement('button');
       rmBtn.className = 'pruner-remove-btn danger-ghost';
-      rmBtn.textContent = '✕';
+      setIconLabel(rmBtn, '✕');
       rmBtn.title = 'Remove this Tag Pruner';
       rmBtn.addEventListener('click', () => {
         if (mirrorSourcePrunerId === pruner.id) mirrorSourcePrunerId = null;
@@ -145,7 +146,7 @@ function renderMobileTaskSection(): void {
 
   const saveBtn = document.createElement('button');
   saveBtn.className = 'primary';
-  saveBtn.textContent = '💾 Save as task';
+  setIconLabel(saveBtn, '💾 Save as task');
   saveBtn.title = 'Stash the tags currently checked above as a separate merge/void job, and clear the checkboxes to browse for the next one';
   saveBtn.disabled = pruner.selected.size === 0;
   saveBtn.addEventListener('click', () => {

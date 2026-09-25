@@ -8,6 +8,7 @@ import { toast, showPanel, hidePanel } from './shared-ui';
 import { trackStat, checkAchievements } from './achievements';
 import { serializeHandle, isMobileHandle, reviveHandle, requestPermission } from './fs-access';
 import { openDB, idbGetAll, idbAdd, idbDelete } from './idb';
+import { setIconLabel } from './icons';
 
 const FAV_DB_NAME = 'dts-favorites-db';
 const FAV_STORE = 'folders';
@@ -97,7 +98,7 @@ async function renderFavorites(): Promise<void> {
     openBtn.className = 'primary';
     openBtn.addEventListener('click', () => openFavorite(fav));
     const rmBtn = document.createElement('button');
-    rmBtn.textContent = '✕';
+    setIconLabel(rmBtn, '✕');
     rmBtn.className = 'danger-ghost';
     rmBtn.addEventListener('click', async () => {
       await removeFavorite(fav.id);

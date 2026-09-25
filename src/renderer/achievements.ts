@@ -9,6 +9,7 @@ import {
   btnRefineTheme, suppressThemeFlourishesToggle, noFlourishHoverToggle, noFlourishTiltToggle, noFlourishAmbientToggle
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, escapeHtml } from './shared-ui';
+import { setIconLabel, iconSvg, rarityIcon } from './icons';
 import {
   PREMIUM_THEMES, applyTheme, themeAlreadyHasPremiumEffects, refineThemeCost, markThemeRefined,
   refinedThemes
@@ -38,7 +39,6 @@ export function initAchievements(deps: AchievementsDeps): void {
 
 type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 const RARITY_VALUE: Record<Rarity, number> = { common: 10, uncommon: 25, rare: 60, epic: 120, legendary: 250 };
-const RARITY_ICON: Record<Rarity, string> = { common: '⚪', uncommon: '🟢', rare: '🔷', epic: '🟣', legendary: '⭐' };
 
 interface AchievementDef {
   id: string;
@@ -225,9 +225,9 @@ function showAchievementPopup(ach: AchievementDef, reward: number): void {
   const popup = document.createElement('div');
   popup.className = 'ach-popup';
   popup.innerHTML = `
-    <span class="ach-rarity-icon">${RARITY_ICON[ach.rarity] || '⚪'}</span>
+    <span class="ach-rarity-icon">${rarityIcon(ach.rarity)}</span>
     <div class="ach-info">
-      <div class="ach-title">🏆 ${escapeHtml(ach.title)}</div>
+      <div class="ach-title">${iconSvg('trophy', 'ic-lead')}${escapeHtml(ach.title)}</div>
       <div class="ach-desc">${escapeHtml(ach.desc)}</div>
       <div class="ach-reward">${ach.rarity} achievement · +${reward} Edibits</div>
     </div>
@@ -256,9 +256,9 @@ export function renderAchievementsPanel(unlockedOverride?: string[]): void {
     const row = document.createElement('div');
     row.className = 'ach-row ' + (unlocked ? 'unlocked' : 'locked');
     row.innerHTML = `
-      <span class="ach-rarity-icon">${RARITY_ICON[ach.rarity] || '⚪'}</span>
+      <span class="ach-rarity-icon">${rarityIcon(ach.rarity)}</span>
       <div class="ach-info">
-        <div class="ach-title">${unlocked ? '🏆 ' : ''}${escapeHtml(ach.title)}</div>
+        <div class="ach-title">${unlocked ? iconSvg('trophy', 'ic-lead') : ''}${escapeHtml(ach.title)}</div>
         <div class="ach-desc">${escapeHtml(ach.desc)}</div>
         <div class="ach-reward">${unlocked ? 'Unlocked' : 'Locked'} · ${ach.rarity} · +${RARITY_VALUE[ach.rarity]} Edibits</div>
       </div>
@@ -270,6 +270,9 @@ export function renderAchievementsPanel(unlockedOverride?: string[]): void {
 export function updateThemeSelectLocks(): void {
   for (const t of PREMIUM_THEMES){
     const opt = themeSelect.querySelector(`option[value="${t.id}"]`);
+    // Plain text on purpose: the <option> is only the hidden value store
+    // (an <option> can't hold an <svg>). The custom theme menu renders the
+    // 🔒 as an icon via setIconLabel (themes.ts).
     if (opt) opt.textContent = ownedThemes.includes(t.id) ? t.name : `🔒 ${t.name}`;
   }
   refreshThemeDropdownLabel();
@@ -299,7 +302,7 @@ export function renderShopPanel(): void {
     const btn = document.createElement('button');
     if (owned){
       const active = themeSelect.value === t.id;
-      btn.textContent = active ? 'In use ✓' : 'Use';
+      setIconLabel(btn, active ? 'In use ✓' : 'Use');
       btn.disabled = active;
       if (!active){
         btn.addEventListener('click', (ev) => { ev.stopPropagation(); useOwnedTheme(t); });
@@ -364,13 +367,13 @@ export function updateRefineThemeButton(): void {
   btnRefineTheme.style.display = '';
   const currentTheme = themeSelect.value;
   if (themeAlreadyHasPremiumEffects(currentTheme)){
-    btnRefineTheme.textContent = '🔨 Refine Theme (already refined)';
+    setIconLabel(btnRefineTheme, '🔨 Refine Theme (already refined)');
     btnRefineTheme.disabled = true;
     btnRefineTheme.title = 'The current theme already has the epic/legendary button effects.';
     return;
   }
   const cost = refineThemeCost(currentTheme);
-  btnRefineTheme.textContent = `🔨 Refine Theme (${cost} Edibits)`;
+  setIconLabel(btnRefineTheme, `🔨 Refine Theme (${cost} Edibits)`);
   btnRefineTheme.disabled = wallet < cost;
   btnRefineTheme.title = 'Upgrade the current theme to epic/legendary-tier button effects.';
 }

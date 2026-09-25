@@ -25,6 +25,7 @@ import { categorizeTag, groupTagsByCategory, TAG_CATEGORY_ORDER, TAG_CATEGORY_LA
 import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid } from './master-tag-control';
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
+import { setIconLabel } from './icons';
 
 export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
 export let viewMode: ViewMode = 'grid';
@@ -418,7 +419,7 @@ function renderCompactCompareArea(): void {
     const img = document.createElement('img');
     img.src = e.objectUrl;
     const rm = document.createElement('button');
-    rm.textContent = '✕';
+    setIconLabel(rm, '✕');
     rm.title = 'Remove from comparison';
     rm.addEventListener('click', () => toggleStickyCompare(e.base));
     cell.appendChild(img);
@@ -516,7 +517,7 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
   if (e.meta && e.meta.locked){
     const lockBadge = document.createElement('div');
     lockBadge.className = 'lock-badge';
-    lockBadge.textContent = '🔒';
+    setIconLabel(lockBadge, '🔒');
     lockBadge.title = 'Locked — mass tools (Quick Merge, Master Tags, bulk WD14, etc.) skip this image';
     thumbwrap.appendChild(lockBadge);
   }
@@ -531,7 +532,7 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
   if (e.meta && e.meta.note){
     const noteBadge = document.createElement('div');
     noteBadge.className = 'note-badge';
-    noteBadge.textContent = '📝';
+    setIconLabel(noteBadge, '📝');
     noteBadge.title = 'Click to edit note';
     noteBadge.addEventListener('click', (ev) => { ev.stopPropagation(); openNoteEditor(e); });
     thumbwrap.appendChild(noteBadge);
@@ -1542,7 +1543,7 @@ function buildTagSortToggle(onToggle: () => void): HTMLElement {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'tagcat-toggle' + (tagSortingActive ? ' active' : '');
-  btn.textContent = tagSortingActive ? '🏷 Tag sorting: on' : '🏷 Tag sorting';
+  setIconLabel(btn, tagSortingActive ? '🏷 Tag sorting: on' : '🏷 Tag sorting');
   btn.title = tagSortingActive
     ? 'Stop grouping tags by category'
     : 'Group tags by prompt-field category (Character, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects, Other)';
@@ -1691,7 +1692,7 @@ function buildMoveToolbar(entry: Entry, subjects: TagSubject[], onChange: () => 
   const moveBtn = document.createElement('button');
   moveBtn.type = 'button';
   moveBtn.className = 'tagsub-movebtn';
-  moveBtn.textContent = 'Move tags to: ▾';
+  setIconLabel(moveBtn, 'Move tags to: ▾');
   moveBtn.addEventListener('click', () => { flyout.style.display = flyout.style.display === 'none' ? 'flex' : 'none'; });
 
   const clearBtn = document.createElement('button');
@@ -1749,7 +1750,7 @@ function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, 
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'tagsub-del';
-  del.textContent = '✕';
+  setIconLabel(del, '✕');
   del.title = 'Remove this subject (its tags fall back to the first subject)';
   del.addEventListener('click', () => removeSubject(entry, subject.id, onChange));
   actions.appendChild(del);
@@ -2392,7 +2393,7 @@ function renderImageCardModal(entry: Entry): void {
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'modal-close-btn ghost-close';
-  closeBtn.textContent = '✕ Close';
+  setIconLabel(closeBtn, '✕ Close');
   closeBtn.addEventListener('click', closeImageCardModal);
   panel.appendChild(closeBtn);
 
@@ -2448,14 +2449,14 @@ function renderImageCardModal(entry: Entry): void {
     const navRow = document.createElement('div');
     navRow.className = 'modal-card-nav';
     const prevBtn = document.createElement('button');
-    prevBtn.textContent = '‹ Prev';
+    setIconLabel(prevBtn, '‹ Prev');
     prevBtn.disabled = modalNavIdx <= 0;
     prevBtn.addEventListener('click', () => openImageCardModal(modalNavList[modalNavIdx - 1]));
     const posEl = document.createElement('span');
     posEl.className = 'single-pos';
     posEl.textContent = `${modalNavIdx + 1} / ${modalNavList.length}`;
     const nextBtn = document.createElement('button');
-    nextBtn.textContent = 'Next ›';
+    setIconLabel(nextBtn, 'Next ›');
     nextBtn.disabled = modalNavIdx >= modalNavList.length - 1;
     nextBtn.addEventListener('click', () => openImageCardModal(modalNavList[modalNavIdx + 1]));
     navRow.appendChild(prevBtn);
@@ -2499,15 +2500,15 @@ function renderImageCardModal(entry: Entry): void {
     editRow.className = 'modal-edit-row';
     editRow.style.cssText = 'display:flex; gap:8px; align-items:center;';
     const rotLeftBtn = document.createElement('button');
-    rotLeftBtn.textContent = '⟲ Rotate';
+    setIconLabel(rotLeftBtn, '⟲ Rotate');
     rotLeftBtn.title = 'Rotate 90° counter-clockwise (rewrites the file)';
     rotLeftBtn.addEventListener('click', () => { void rotateEntryImage(entry, -1); });
     const rotRightBtn = document.createElement('button');
-    rotRightBtn.textContent = '⟳ Rotate';
+    setIconLabel(rotRightBtn, '⟳ Rotate');
     rotRightBtn.title = 'Rotate 90° clockwise (rewrites the file)';
     rotRightBtn.addEventListener('click', () => { void rotateEntryImage(entry, 1); });
     const cropBtn = document.createElement('button');
-    cropBtn.textContent = '✂ Crop';
+    setIconLabel(cropBtn, '✂ Crop');
     cropBtn.title = 'Select a region to keep (rewrites the file)';
     cropBtn.addEventListener('click', () => startCropMode(entry, imgSide, img, editRow, zoomRow));
     editRow.appendChild(rotLeftBtn);
@@ -2717,19 +2718,19 @@ function buildMergeVoidBadgesEl(e: Entry): HTMLElement | null {
   if (meta.mergeImmune && meta.antivoid){
     const b = document.createElement('div');
     b.className = 'mv-badge';
-    b.textContent = '✋';
+    setIconLabel(b, '✋');
     b.title = 'Antimmunized — exempt from BOTH merge and void rules';
     wrap.appendChild(b);
   } else if (meta.mergeImmune){
     const b = document.createElement('div');
     b.className = 'mv-badge';
-    b.textContent = '🚫';
+    setIconLabel(b, '🚫');
     b.title = 'Merge Immunized — merge rules never rewrite this image\'s tags';
     wrap.appendChild(b);
   } else {
     const b = document.createElement('div');
     b.className = 'mv-badge';
-    b.textContent = '🟢';
+    setIconLabel(b, '🟢');
     b.title = 'Antivoid — void rules never remove tags from this image';
     wrap.appendChild(b);
   }
@@ -2744,7 +2745,7 @@ function buildStatusIconsEl(e: Entry): HTMLElement {
     const statusText = state === null ? 'Not indicated' : (state ? 'Yes' : 'No');
     const badge = document.createElement('div');
     badge.className = 'status-icon-badge';
-    badge.textContent = `${emoji}${glyph}`;
+    setIconLabel(badge, `${emoji}${glyph}`);
     badge.title = `${label}: ${statusText}` + (matchedTags.length ? `: ${matchedTags.join(', ')}` : '');
     wrap.appendChild(badge);
   }
@@ -2997,7 +2998,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
         syncTextPanelTags();
       });
       const rm = document.createElement('button');
-      rm.textContent = '✕';
+      setIconLabel(rm, '✕');
       rm.title = 'Remove from common languages';
       rm.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -3097,8 +3098,8 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     entry.meta!.mergeImmune = !entry.meta!.mergeImmune;
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
-    toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
-    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+    setIconLabel(toggleMergeImmuneBtn, mergeImmuneLabel());
+    setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
     renderCurrentView();
   }, { title: 'Merge rules will never rewrite this image\'s tags' });
 
@@ -3106,8 +3107,8 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     entry.meta!.antivoid = !entry.meta!.antivoid;
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
-    toggleAntivoidBtn.textContent = antivoidLabel();
-    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+    setIconLabel(toggleAntivoidBtn, antivoidLabel());
+    setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
     renderCurrentView();
   }, { title: 'Void rules will never remove tags from this image' });
 
@@ -3117,9 +3118,9 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     entry.meta!.antivoid = !bothOn;
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
-    toggleMergeImmuneBtn.textContent = mergeImmuneLabel();
-    toggleAntivoidBtn.textContent = antivoidLabel();
-    toggleAntimmunizeBtn.textContent = antimmunizeLabel();
+    setIconLabel(toggleMergeImmuneBtn, mergeImmuneLabel());
+    setIconLabel(toggleAntivoidBtn, antivoidLabel());
+    setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
     renderCurrentView();
   }, { title: 'Shortcut for toggling Merge Immunize and Antivoid together' });
 
@@ -3167,7 +3168,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     entry.meta!.locked = !entry.meta!.locked;
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
-    toggleLockBtn.textContent = lockLabel();
+    setIconLabel(toggleLockBtn, lockLabel());
     renderCurrentView();
   }, { title: 'Skip mass tools (Quick Merge, Master Tags, bulk WD14, etc.) for this image' });
 

@@ -96,6 +96,7 @@ import {
 } from './view';
 import { initRandomFacts } from './random-facts';
 import { pickDatasetFolder } from './folder-picker';
+import { setIconLabel } from './icons';
 (function(){
 
   // ---------------- Touch-device detection (mobile port) ----------------
@@ -528,6 +529,12 @@ import { pickDatasetFolder } from './folder-picker';
     topbarActions.style.transform = scale < 1 ? `scale(${scale})` : '';
   }
   new ResizeObserver(updateTopbarScale).observe(topbarActions);
+  // The row's own box doesn't resize when a theme swaps in wider faces, so
+  // the observer above never fires then — re-scale on every theme switch and
+  // whenever a (swap-displayed) webfont finishes loading, or wide-face
+  // themes leave Quit hanging off the edge until the next window resize.
+  new MutationObserver(updateTopbarScale).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  document.fonts.addEventListener('loadingdone', updateTopbarScale);
   updateTopbarScale();
 
   // ---------------- Header category flyouts (File / Personalization) ----------------
@@ -1097,16 +1104,16 @@ import { pickDatasetFolder } from './folder-picker';
   btnPurgeAllTags.addEventListener('click', () => {
     purgeConfirmCount++;
     if (purgeConfirmCount === 1){
-      btnPurgeAllTags.textContent = '⚠ Click 2 more times to confirm purge';
-      setTimeout(() => { if (purgeConfirmCount < 3) { purgeConfirmCount = 0; btnPurgeAllTags.textContent = '🗑 Purge ALL tags in this folder…'; } }, 4000);
+      setIconLabel(btnPurgeAllTags, '⚠ Click 2 more times to confirm purge');
+      setTimeout(() => { if (purgeConfirmCount < 3) { purgeConfirmCount = 0; setIconLabel(btnPurgeAllTags, '🗑 Purge ALL tags in this folder…'); } }, 4000);
       return;
     }
     if (purgeConfirmCount === 2){
-      btnPurgeAllTags.textContent = '⚠ Click once more to PERMANENTLY purge everything';
+      setIconLabel(btnPurgeAllTags, '⚠ Click once more to PERMANENTLY purge everything');
       return;
     }
     purgeConfirmCount = 0;
-    btnPurgeAllTags.textContent = '🗑 Purge ALL tags in this folder…';
+    setIconLabel(btnPurgeAllTags, '🗑 Purge ALL tags in this folder…');
     const affected = [];
     for (const e of entries){
       if (e.disabled) continue;
@@ -1983,7 +1990,7 @@ import { pickDatasetFolder } from './folder-picker';
     // the RIGHT edge in gallery-right layout, so both the resting and
     // collapsed glyphs flip together with it.
     const flipped = rightPanelIsFlipped();
-    btnRightPanelCollapse.textContent = collapsed ? (flipped ? '›' : '‹') : (flipped ? '‹' : '›');
+    setIconLabel(btnRightPanelCollapse, collapsed ? (flipped ? '›' : '‹') : (flipped ? '‹' : '›'));
     btnRightPanelCollapse.title = collapsed ? 'Show this panel' : 'Hide this panel';
   }
   function applyRightPanelCollapsed(collapsed: boolean): void {
@@ -2101,7 +2108,7 @@ import { pickDatasetFolder } from './folder-picker';
   }
   gallerySortDirBtn.addEventListener('click', () => {
     gallerySortDir = gallerySortDir === 'asc' ? 'desc' : 'asc';
-    gallerySortDirBtn.textContent = gallerySortDir === 'asc' ? '▲ Asc' : '▼ Desc';
+    setIconLabel(gallerySortDirBtn, gallerySortDir === 'asc' ? '▲ Asc' : '▼ Desc');
     renderCurrentView();
   });
 

@@ -19,6 +19,7 @@ import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersi
 import { pickDatasetFolder } from './folder-picker';
 import { renderAchievementsPanel, trackStat, checkAchievements } from './achievements';
 import { addFavoriteHandle, removeFavoriteByHandle, isFavorited } from './favorites';
+import { setIconLabel } from './icons';
 
 interface DMRecord {
   id: number;
@@ -330,7 +331,7 @@ function renderTabBar(): void {
     if (group && group.passwordHash){
       const lock = document.createElement('span');
       lock.className = 'dm-tab-lock';
-      lock.textContent = isGroupLocked(id) ? '🔒' : '🔓';
+      setIconLabel(lock, isGroupLocked(id) ? '🔒' : '🔓');
       lock.title = isGroupLocked(id) ? 'Locked' : 'Unlocked for this session';
       tab.appendChild(lock);
     }
@@ -911,7 +912,7 @@ function buildFolderTile(record: DMRecord): HTMLElement {
   if (record.pinned){
     const pin = document.createElement('span');
     pin.className = 'dm-pin-badge';
-    pin.textContent = '★';
+    setIconLabel(pin, '★');
     tile.appendChild(pin);
   }
 
@@ -967,7 +968,7 @@ export async function renderDatasetManagerTab(): Promise<void> {
     lockScreen.className = 'dm-lock-screen';
     const icon = document.createElement('div');
     icon.className = 'dm-lock-icon';
-    icon.textContent = '🔒';
+    setIconLabel(icon, '🔒');
     const msg = document.createElement('div');
     msg.className = 'dm-lock-msg';
     msg.textContent = `"${group.name}" is locked.`;

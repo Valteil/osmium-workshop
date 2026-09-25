@@ -49,6 +49,7 @@ import { getBool, setBool } from './storage';
 import { writeBytes } from './fs-access';
 import { canonicalTagsList, btnAddCanonicalRule } from './dom';
 import { editLog, pushLogEntry } from './edit-log';
+import { setIconLabel, iconSvg } from './icons';
 
 // [{ id, canonical: string|null, children: string[], enabled: boolean,
 //    disabledChildren: string[] }]
@@ -473,7 +474,7 @@ function buildRuleRow(rule: CanonicalRule): HTMLElement {
   } else {
     const label = document.createElement('span');
     label.className = 'canonical-rule-label canonical-rule-void';
-    label.textContent = '🗑 Void (remove entirely)';
+    setIconLabel(label, '🗑 Void (remove entirely)');
     label.title = 'Every ACTIVE child tag below gets removed outright — nothing replaces it.';
     head.appendChild(label);
   }
@@ -503,7 +504,7 @@ function buildRuleRow(rule: CanonicalRule): HTMLElement {
   head.appendChild(enableToggle);
 
   const deleteRuleBtn = document.createElement('button');
-  deleteRuleBtn.textContent = '🗑 Delete rule';
+  setIconLabel(deleteRuleBtn, '🗑 Delete rule');
   deleteRuleBtn.title = 'Remove this whole rule and unmerge/unvoid whatever it affected, using the edit log to restore exactly the tags each image actually had';
   deleteRuleBtn.addEventListener('click', () => {
     // Same restoration as pausing the rule (unmergeChildren()) — deleting it
@@ -613,7 +614,7 @@ export function renderCanonicalTagsList(){
     const header = document.createElement('button');
     header.type = 'button';
     header.className = 'settings-section-header';
-    header.innerHTML = `<span class="settings-section-arrow">▸</span><span>🗑 Void — ${voidTagCount} tag${voidTagCount === 1 ? '' : 's'}</span>`;
+    header.innerHTML = `<span class="settings-section-arrow">${iconSvg('chevron-right')}</span><span>${iconSvg('trash', 'ic-lead')}Void — ${voidTagCount} tag${voidTagCount === 1 ? '' : 's'}</span>`;
     header.addEventListener('click', () => {
       voidSectionExpanded = !section.classList.contains('expanded');
       section.classList.toggle('expanded', voidSectionExpanded);

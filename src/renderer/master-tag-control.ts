@@ -20,6 +20,7 @@ import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
 import { markDirty, recordChange } from './tags-edit';
 import { attachFillAutocomplete } from './tags-autocomplete';
+import { setIconLabel, plainLabel } from './icons';
 
 export let masterSelectedImages = new Set<string>();
 
@@ -32,18 +33,18 @@ export let masterSelectedImages = new Set<string>();
 // in both states — takes the button's existing text as-is, so this can
 // hydrate either a plain static HTML button or one just built in JS.
 function attachIconFallback(btn: HTMLButtonElement, icon: string): void {
-  const label = btn.textContent!.trim();
+  const label = (btn.dataset.iconLabel || btn.textContent || '').trim();
   btn.classList.add('icon-fallback-btn');
-  btn.setAttribute('aria-label', label);
+  btn.setAttribute('aria-label', plainLabel(label));
   btn.textContent = '';
   const full = document.createElement('span');
   full.className = 'label-full';
   full.setAttribute('aria-hidden', 'true');
-  full.textContent = label;
+  setIconLabel(full, label);
   const iconEl = document.createElement('span');
   iconEl.className = 'label-icon';
   iconEl.setAttribute('aria-hidden', 'true');
-  iconEl.textContent = icon;
+  setIconLabel(iconEl, icon);
   btn.appendChild(full);
   btn.appendChild(iconEl);
 }
@@ -241,7 +242,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
     function makeSeqBtn(label: string, icon: string, title: string, from: 'first' | 'selected'): HTMLButtonElement {
       const btn = document.createElement('button');
       btn.title = title;
-      btn.textContent = '▶ ' + label;
+      btn.dataset.iconLabel = '▶ ' + label;
       attachIconFallback(btn, icon);
       btn.addEventListener('click', () => onStartSequentialRef(from));
       return btn;
@@ -422,7 +423,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   function refreshImmunizeToggles(): void {
     for (const t of immunizeToggles){
       const allOn = computeAllHaveFlags(t.flags);
-      t.btn.textContent = allOn ? t.onLabel : t.offLabel;
+      setIconLabel(t.btn, allOn ? t.onLabel : t.offLabel);
       t.btn.title = allOn ? t.onTitle : t.offTitle;
       t.btn.classList.toggle('ghost-secondary', allOn);
     }

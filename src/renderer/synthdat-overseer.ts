@@ -47,6 +47,7 @@ import { moveEntry, markDirty } from './tags-edit';
 import { canonicalRules, activeVoidTagSet, registerVoidRule } from './canonical-tags';
 import { openTagDetails } from './tag-details';
 import { initSynthDatSectionDocks } from './docks';
+import { setIconLabel } from './icons';
 
 // Same key wd14-tagger.ts persists to (Tag Overseer's WD14 settings) — read
 // directly rather than importing that module's private state, so this
@@ -547,7 +548,7 @@ function updateResoWarning(): void {
   const refPortrait = refImageEl.naturalHeight > refImageEl.naturalWidth;
   const targetPortrait = targetH > targetW;
   if (refPortrait !== targetPortrait){
-    synthDatResoWarning.textContent = `⚠ Reference image is ${refPortrait ? 'portrait' : 'landscape'} (${refImageEl.naturalWidth}×${refImageEl.naturalHeight}) but your generation resolution is ${targetPortrait ? 'portrait' : 'landscape'} (${targetW}×${targetH}) — consider swapping Width/Height.`;
+    setIconLabel(synthDatResoWarning, `⚠ Reference image is ${refPortrait ? 'portrait' : 'landscape'} (${refImageEl.naturalWidth}×${refImageEl.naturalHeight}) but your generation resolution is ${targetPortrait ? 'portrait' : 'landscape'} (${targetW}×${targetH}) — consider swapping Width/Height.`);
     synthDatResoWarning.style.display = 'block';
   } else {
     synthDatResoWarning.style.display = 'none';
@@ -870,7 +871,7 @@ async function testSynthdatConnection(): Promise<void> {
   const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'UNETLoader', inputName: 'unet_name' });
   if (res.ok){
     synthDatConnStatus.style.color = 'var(--accent-ok, #3a9)';
-    synthDatConnStatus.textContent = `✓ Connected to ${getHost()}`;
+    setIconLabel(synthDatConnStatus, `✓ Connected to ${getHost()}`);
   } else {
     synthDatConnStatus.style.color = '';
     synthDatConnStatus.textContent = res.error || 'Could not connect.';

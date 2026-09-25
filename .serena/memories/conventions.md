@@ -33,7 +33,11 @@ non-color "element grammar" tokens: faces `--display/--head-font/--tab-font`, sh
 scaleX factor. Defaults live in the `:root, html[data-theme="studio"]` block. Never set `--radius`
 to a pill value; use `--r-ctl`. A theme's bare `.chip`/`.card`/`button` rules must not set colors,
 because they'd outrank the state classes. Bundled OFL fonts are in `renderer/fonts/`. See
-notes/Systems/Themes-System.md.) `PREMIUM_THEMES`' `swatches` array must equal exactly
+notes/Systems/Themes-System.md.) ICONS: no emoji or unicode glyph icons in the UI. Use
+`setIconLabel(el, text)` instead of `textContent` for any glyph-bearing label, and
+`iconSvg`/`iconHTML` in innerHTML templates (`src/renderer/icons.ts`). Drawings live only in the
+inline sprite at the top of `renderer/index.html`. A new glyph needs both an `EMOJI_ICON` entry and
+a `<symbol id="i-…">`. `PREMIUM_THEMES`' `swatches` array must equal exactly
 `[--bg-base, --accent-manual, --accent-flair]` for that theme — it's a promise about what the
 theme actually looks like, shown in the shop, sorted by price there. Before adding a broad
 theme-wide `button:not(...)` selector (e.g. a new hover/click effect), grep the file for

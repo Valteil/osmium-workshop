@@ -28,6 +28,7 @@ import { trackStat, checkAchievements, folderStats, saveFolderStats } from './ac
 import { markDirty, recordChange } from './tags-edit';
 import { masterSelectedImages, renderMasterSelectionSummary } from './master-tag-control';
 import { comfyGetModels, comfyTagImage } from './comfy-client';
+import { setIconLabel } from './icons';
 // Side-effect only: sets window.Wd14Local on desktop (onnxruntime-node via
 // main-process IPC) before hasLocalWd14 below reads it — same "import
 // before the const that depends on its side effect" ordering comfy-
@@ -417,7 +418,7 @@ async function runBatch(entries: Entry[]): Promise<void> {
   running = true;
   cancelRequested = false;
   lastProvider = null;
-  btnWd14TagSelected.textContent = '⏹ Cancel tagging';
+  setIconLabel(btnWd14TagSelected, '⏹ Cancel tagging');
   const results: Wd14ReviewRow[] = [];
   let failCount = 0;
   for (let i = 0; i < entries.length; i++){
@@ -434,7 +435,7 @@ async function runBatch(entries: Entry[]): Promise<void> {
   const engineNote = lastProvider ? ` — on ${lastProvider === 'dml' ? 'GPU' : 'CPU'}` : '';
   setStatus('');
   running = false;
-  btnWd14TagSelected.textContent = '🐍 Tag selected images with WD14';
+  setIconLabel(btnWd14TagSelected, '🐍 Tag selected images with WD14');
 
   if (cancelRequested && results.length === 0){
     toast('WD14 tagging cancelled.');
@@ -521,7 +522,7 @@ async function refreshLocalModels(): Promise<void> {
     row.appendChild(label);
     const delBtn = document.createElement('button');
     delBtn.className = 'danger-ghost';
-    delBtn.textContent = '✕';
+    setIconLabel(delBtn, '✕');
     delBtn.title = 'Delete this downloaded model';
     delBtn.addEventListener('click', async () => {
       await window.Wd14Local!.deleteModel(m.name);
@@ -613,7 +614,7 @@ function renderLocalCatalog(){
     row.appendChild(label);
     const dlBtn = document.createElement('button');
     dlBtn.className = 'primary';
-    dlBtn.textContent = '⬇';
+    setIconLabel(dlBtn, '⬇');
     dlBtn.title = `Download ${entry.repo}`;
     dlBtn.addEventListener('click', () => downloadRepo(resolveHfRepo(entry.repo)!, dlBtn));
     row.appendChild(dlBtn);

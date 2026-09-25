@@ -5,6 +5,7 @@ import {
   themeVarRows, themeCustomPanel, themeSelect
 } from './dom';
 import { hidePanel, showPanel, toast, shrinkTextToFit, refitShrunkText } from './shared-ui';
+import { setIconLabel } from './icons';
 
 export const THEME_VARS = [
   ['--bg-base','Background'],
@@ -260,10 +261,10 @@ export function initThemeDropdown(container: HTMLElement): { refreshLabel: () =>
     return (opt ? opt.textContent : themeSelect.value) + ' ▾';
   }
   function setLabel(): void {
-    btn.textContent = currentLabel();
+    setIconLabel(btn, currentLabel());
     shrinkTextToFit(btn);
   }
-  btn.textContent = currentLabel();
+  setIconLabel(btn, currentLabel());
   let menuEl: HTMLElement | null = null;
   function onOutsideMouseDown(ev: MouseEvent): void {
     // Same html/body exclusion as the header-cat-flyout guard: a select's
@@ -285,7 +286,7 @@ export function initThemeDropdown(container: HTMLElement): { refreshLabel: () =>
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'pdrop-item' + (opt.value === themeSelect.value ? ' active' : '');
-      item.textContent = opt.textContent;
+      setIconLabel(item, opt.textContent || '');
       item.addEventListener('click', (ev) => {
         ev.stopPropagation();
         themeSelect.value = opt.value;

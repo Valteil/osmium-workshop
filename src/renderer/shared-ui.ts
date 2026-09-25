@@ -1,5 +1,6 @@
 import { toastEl, pdropCloseOnSelectToggle, flyoutOutsideCloseToggle, outsideClickSwallowToggle } from './dom';
 import { getBool, setBool } from './storage';
+import { setIconLabel } from './icons';
 
 // ---------------- Pdrop-menu "close after selecting" preference ----------------
 
@@ -117,10 +118,10 @@ export function buildPersistentDropdown(
     return found ? found.label : getValue();
   }
   function setLabel(): void {
-    btn.textContent = currentLabel() + ' ▾';
+    setIconLabel(btn, currentLabel() + ' ▾');
     shrinkTextToFit(btn);
   }
-  btn.textContent = currentLabel() + ' ▾';
+  setIconLabel(btn, currentLabel() + ' ▾');
   let menuEl: HTMLElement | null = null;
   function closeMenu(): void {
     if (menuEl) { menuEl.remove(); menuEl = null; }
@@ -135,7 +136,7 @@ export function buildPersistentDropdown(
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'pdrop-item' + (opt.value === getValue() ? ' active' : '');
-      item.textContent = opt.label;
+      setIconLabel(item, opt.label);
       if (opt.title) item.title = opt.title;
       item.addEventListener('click', (ev: MouseEvent) => {
         ev.stopPropagation();
@@ -230,7 +231,7 @@ export function attachLongPress(el: HTMLElement, callback: (ev: LongPressEvent) 
 
 let _toastTimer: ReturnType<typeof setTimeout> | undefined;
 export function toast(msg: string, ms = 2600): void {
-  toastEl.textContent = msg;
+  setIconLabel(toastEl, msg);
   toastEl.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms);
@@ -251,7 +252,7 @@ export function addContextMenuItem(menu: HTMLElement, label: string, onClick: (e
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'ctx-item' + (opts.className ? ' ' + opts.className : '');
-  btn.textContent = label;
+  setIconLabel(btn, label);
   if (opts.title) btn.title = opts.title;
   btn.addEventListener('click', (ev) => {
     ev.stopPropagation();

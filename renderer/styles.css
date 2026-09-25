@@ -155,6 +155,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --r-ctl: var(--radius); --r-chip: 5px; --r-card: 8px; --r-panel: 10px;
     --r-check: 4px; --r-scroll: 6px;
     --card-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    /* Icon grammar (the sprite in index.html, src/renderer/icons.ts): one
+       drawing set, restroked per theme. */
+    --icon-stroke: 1.75; --icon-cap: round; --icon-join: round;
     /* Premium hover-fill + card-lift (epic/legendary themes, or any theme
        bought up via Refine Theme). Each theme restates these in its own
        material, so a refined theme gets ITS version of the effect, not a
@@ -206,7 +209,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   @keyframes flairDrift{ 0%{ background-position: 0% 0%, 100% 100%; } 100%{ background-position: 100% 100%, 0% 0%; } }
   @keyframes flairSweep{ 0%{ transform: translateX(-140%) skewX(-12deg); } 100%{ transform: translateX(140%) skewX(-12deg); } }
   @keyframes flairShimmer{ 0%{ background-position: -200% 0; } 100%{ background-position: 200% 0; } }
-  @keyframes flairSlide{ 0%{ background-position: 0% 100%; } 100%{ background-position: 200% 100%; } }
+  @keyframes flairSlide{ 0%{ background-position: 0% 0%; } 100%{ background-position: 200% 0%; } }
   /* `--flair-play` gates every ambient flair* animation below in one place:
      each such rule ends with `animation-play-state: var(--flair-play);`
      instead of only the shorthand, so the Settings "Disable ambient
@@ -265,6 +268,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: none;
     --fx-fill: repeating-linear-gradient(0deg, var(--accent-auto) 0 1px, transparent 1px 3px); --fx-o: 0.55; --fx-w: 1;
     --fx-card-t: translateY(-2px); --fx-card-s: -2px 0 0 var(--accent-manual), 2px 0 0 var(--accent-auto), 0 12px 26px rgba(0,0,0,0.55);
+    --icon-stroke: 1.75; --icon-cap: square; --icon-join: miter;
   }
   html[data-theme="cyberpunk"] .brand{
     text-shadow: 1.5px 0 0 color-mix(in srgb, var(--accent-auto) 80%, transparent), -1.5px 0 0 color-mix(in srgb, var(--accent-manual) 80%, transparent);
@@ -395,6 +399,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --fx-fill: linear-gradient(90deg, #ff9f1c 0 25%, #ff3f8e 25% 50%, #2ec4f1 50% 75%, #35d488 75%);
     --fx-o: 1; --fx-top: calc(100% - 3px); --fx-h: 3px; --fx-w: 1;
     --fx-card-t: translateY(-4px); --fx-card-s: 0 14px 28px color-mix(in srgb, var(--text-primary) 16%, transparent);
+    --icon-stroke: 2.25;
   }
   html[data-theme="subway"] #topbar{
     background: var(--bg-panel);
@@ -452,6 +457,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --fx-fill: linear-gradient(90deg, var(--accent-auto) 0 33.33%, var(--accent-success) 33.33% 66.66%, var(--accent-manual) 66.66%);
     --fx-o: 1; --fx-top: calc(100% - 2px); --fx-h: 2px; --fx-w: 1;
     --fx-card-t: translateY(-2px); --fx-card-s: 0 8px 18px color-mix(in srgb, var(--text-primary) 14%, transparent);
+    --icon-stroke: 1.6; --icon-cap: square; --icon-join: miter;
   }
   html[data-theme="osmium"] #topbar{ border-bottom: 1px solid var(--border-strong); position: relative; }
   html[data-theme="osmium"] #topbar::after{
@@ -495,6 +501,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: none;
     --fx-fill: var(--accent-manual); --fx-o: 0.25; --fx-w: 1;
     --fx-card-t: none; --fx-card-s: 0 0 0 1px var(--accent-manual);
+    --icon-stroke: 2; --icon-cap: square; --icon-join: miter;
   }
   html[data-theme="terminal"] #gallery{
     background-image: linear-gradient(color-mix(in srgb, var(--accent-manual) 9%, transparent) 50%, transparent 50%);
@@ -532,6 +539,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: 0 6px 16px rgba(0,0,0,0.2);
     --fx-fill: var(--accent-auto); --fx-o: 0.22;
     --fx-card-t: translateY(-3px) rotate(0.4deg); --fx-card-s: 0 12px 24px rgba(0,0,0,0.35);
+    --icon-stroke: 1.6;
   }
   html[data-theme="sakura"] #gallery{
     background-image:
@@ -608,6 +616,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --fx-fill: linear-gradient(90deg, color-mix(in srgb, var(--accent-flair) 40%, transparent), var(--accent-flair));
     --fx-o: 1; --fx-top: calc(100% - 2px); --fx-h: 2px; --fx-w: 1;
     --fx-card-t: translateY(-3px); --fx-card-s: inset 0 0 0 1px var(--accent-flair), 0 12px 26px rgba(0,0,0,0.45);
+    --icon-stroke: 1.4;
   }
   html[data-theme="amethyst"] .brand{ color: var(--accent-flair); }
   html[data-theme="amethyst"] #topbar{
@@ -643,6 +652,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: 0 2px 6px rgba(0,0,0,0.35);
     --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-flair)); --fx-o: 0.35; --fx-w: 1;
     --fx-card-t: translateY(-4px); --fx-card-s: 0 14px 30px color-mix(in srgb, var(--accent-manual) 28%, transparent);
+    --icon-stroke: 2.1;
   }
   html[data-theme="solarflare"] #gallery{
     background-image: radial-gradient(ellipse 80% 45% at 50% -8%, color-mix(in srgb, var(--accent-manual) 14%, transparent), transparent 70%);
@@ -682,6 +692,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: none;
     --fx-fill: var(--accent-flair); --fx-o: 0.22;
     --fx-card-t: translateY(-2px); --fx-card-s: 0 0 0 1px var(--accent-manual), 0 10px 22px rgba(0,0,0,0.45);
+    --icon-stroke: 1.6;
   }
   html[data-theme="midnight-ocean"] #gallery{
     background-image:
@@ -784,6 +795,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: 0 1px 2px color-mix(in srgb, var(--text-primary) 14%, transparent);
     --fx-fill: var(--accent-flair); --fx-o: 1; --fx-top: calc(100% - 2px); --fx-h: 2px; --fx-w: 1;
     --fx-card-t: rotate(-0.6deg) translateY(-2px); --fx-card-s: 0 6px 14px color-mix(in srgb, var(--text-primary) 20%, transparent);
+    --icon-stroke: 1.4;
   }
   html[data-theme="vintage-paper"] #gallery{
     background-image: repeating-linear-gradient(115deg, color-mix(in srgb, var(--accent-manual) 7%, transparent) 0px, color-mix(in srgb, var(--accent-manual) 7%, transparent) 1px, transparent 1px, transparent 3px);
@@ -830,6 +842,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent);
     --fx-fill: linear-gradient(115deg, transparent 25%, var(--accent-flair) 50%, transparent 75%); --fx-o: 0.3; --fx-w: 1;
     --fx-card-t: translateY(-2px); --fx-card-s: inset 0 1px 0 var(--accent-flair), 0 12px 24px rgba(0,0,0,0.55);
+    --icon-stroke: 1.5; --icon-cap: square; --icon-join: miter;
   }
   html[data-theme="obsidian"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell){
     clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
@@ -872,6 +885,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: none;
     --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-flair)); --fx-o: 0.32; --fx-w: 1;
     --fx-card-t: translateY(-3px); --fx-card-s: 0 12px 26px color-mix(in srgb, var(--accent-manual) 25%, transparent);
+    --icon-stroke: 1.75; --icon-cap: square; --icon-join: bevel;
   }
   html[data-theme="retrowave"] #gallery{
     background-image:
@@ -919,6 +933,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: 0 2px 10px color-mix(in srgb, var(--accent-manual) 10%, transparent);
     --fx-fill: linear-gradient(110deg, var(--accent-manual), var(--accent-flair) 55%, var(--accent-manual)); --fx-o: 0.3; --fx-w: 1;
     --fx-card-t: translateY(-3px); --fx-card-s: 0 12px 26px color-mix(in srgb, var(--accent-manual) 22%, transparent);
+    --icon-stroke: 1.35;
   }
   html[data-theme="rose-gold"] #topbar{ border-bottom: 1px solid var(--accent-flair); box-shadow: 0 3px 0 -2px var(--accent-manual); }
   html[data-theme="rose-gold"] .tool-section,
@@ -957,6 +972,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: 0 6px 16px rgba(0,0,0,0.25);
     --fx-fill: var(--accent-manual); --fx-o: 0.25;
     --fx-card-t: translateY(-4px); --fx-card-s: 0 14px 28px rgba(0,0,0,0.4);
+    --icon-stroke: 2;
   }
   html[data-theme="coral-reef"] #gallery{
     --bub: color-mix(in srgb, var(--accent-flair) 22%, transparent);
@@ -995,6 +1011,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-manual) 20%, transparent);
     --fx-fill: repeating-linear-gradient(-45deg, var(--accent-flair) 0 6px, transparent 6px 12px); --fx-o: 0.3; --fx-w: 1;
     --fx-card-t: translateY(-3px); --fx-card-s: 0 0 0 1px var(--accent-flair), 0 12px 24px rgba(0,0,0,0.5);
+    --icon-stroke: 2.25; --icon-cap: square; --icon-join: miter;
   }
   html[data-theme="toxic-waste"] #topbar{
     border-bottom: none;
@@ -1031,6 +1048,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: 0 2px 8px color-mix(in srgb, var(--accent-manual) 9%, transparent);
     --fx-fill: var(--accent-flair); --fx-o: 0.28;
     --fx-card-t: translateY(-3px); --fx-card-s: 0 12px 24px color-mix(in srgb, var(--accent-manual) 18%, transparent);
+    --icon-stroke: 1.5;
   }
   html[data-theme="lavender-fields"] #gallery{
     background-image: repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent-flair) 13%, transparent) 0 14px, transparent 14px 44px);
@@ -1060,6 +1078,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: 0 4px 14px color-mix(in srgb, var(--accent-manual) 12%, transparent);
     --fx-fill: var(--accent-flair); --fx-o: 0.5;
     --fx-card-t: translateY(-4px) rotate(-1deg); --fx-card-s: 0 14px 26px color-mix(in srgb, var(--accent-manual) 24%, transparent);
+    --icon-stroke: 2.25;
   }
   html[data-theme="candy-pop"] #topbar{ border-bottom: 3px solid var(--accent-manual); }
   html[data-theme="candy-pop"] #tabBar{ padding-top: 6px; padding-bottom: 6px; gap: 6px; }
@@ -1096,6 +1115,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: 0 2px 4px rgba(0,0,0,0.4);
     --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-auto), color-mix(in srgb, var(--accent-auto) 60%, #fff)); --fx-o: 0.32; --fx-w: 1;
     --fx-card-t: translateY(-2px); --fx-card-s: 0 0 0 1px var(--accent-flair), 0 12px 24px rgba(0,0,0,0.5);
+    --icon-stroke: 2; --icon-cap: square; --icon-join: bevel;
   }
   html[data-theme="copper-forge"] #gallery{
     background-image: repeating-linear-gradient(72deg, color-mix(in srgb, var(--accent-auto) 7%, transparent) 0px, color-mix(in srgb, var(--accent-auto) 7%, transparent) 1px, transparent 1px, transparent 5px);
@@ -1142,6 +1162,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: 0 3px 10px rgba(0,0,0,0.5);
     --fx-fill: var(--accent-manual); --fx-o: 0.3;
     --fx-card-t: translateY(-3px); --fx-card-s: 0 0 0 1px var(--accent-manual), 0 14px 28px rgba(0,0,0,0.6);
+    --icon-stroke: 1.6;
   }
   html[data-theme="blood-moon"] #gallery{
     background-image: radial-gradient(ellipse at 50% 45%, transparent 38%, color-mix(in srgb, var(--accent-manual) 9%, rgba(0,0,0,0.6)) 100%);
@@ -1218,12 +1239,17 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     animation: flairDrift 18s ease-in-out infinite alternate;
     animation-play-state: var(--flair-play);
   }
-  html[data-theme="aurora-borealis"] #topbar{
-    border-bottom: none;
-    background-image: var(--aurora);
-    background-size: 200% 2px; background-position: 0% 100%; background-repeat: no-repeat;
+  /* The curtain edge is its own 2px strip pinned to the header's bottom
+     edge. Animating the header's own background-position let the band ride
+     up to mid-height in the packaged app; a pinned pseudo-element can only
+     slide sideways. */
+  html[data-theme="aurora-borealis"] #topbar{ border-bottom: none; position: relative; }
+  html[data-theme="aurora-borealis"] #topbar::after{
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+    background: var(--aurora); background-size: 200% 100%;
     animation: flairSlide 14s linear infinite;
     animation-play-state: var(--flair-play);
+    pointer-events: none;
   }
   html[data-theme="aurora-borealis"] .tool-section{
     background: var(--aurora) top / 100% 1px no-repeat, var(--bg-elevated);
@@ -1256,6 +1282,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --card-shadow: 0 4px 14px rgba(0,0,0,0.4);
     --fx-fill: radial-gradient(ellipse at 0% 50%, var(--accent-flair), transparent 75%); --fx-o: 0.35; --fx-w: 1;
     --fx-card-t: translateY(-4px); --fx-card-s: 0 0 0 1px color-mix(in srgb, var(--accent-flair) 60%, transparent), 0 14px 30px rgba(0,0,0,0.5);
+    --icon-stroke: 1.35;
   }
   html[data-theme="celestial-gold"] #gallery{
     background-image: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent-flair) 14%, transparent), transparent 60%),
@@ -2600,6 +2627,33 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     justify-content: center;
   }
   button:hover:not(:disabled) { background: var(--bg-elevated-2); border-color: var(--text-faint); }
+
+  /* ---------- Icons ----------
+     Every UI icon is <svg class="ic"><use href="#i-…"></svg> from the
+     sprite at the top of index.html. Sized in em so an icon tracks its
+     label at every font-size zoom; stroke grammar comes from the theme.
+     .ic-lead / .ic-trail replace the space that used to separate a glyph
+     from its words (a leading space collapses inside a flex button). */
+  .ic{
+    width: 1.2em; height: 1.2em; flex-shrink: 0; display: inline-block; vertical-align: -0.24em;
+    fill: none; stroke: currentColor; stroke-width: var(--icon-stroke);
+    stroke-linecap: var(--icon-cap); stroke-linejoin: var(--icon-join); overflow: visible;
+  }
+  .ic-lead{ margin-inline-end: 0.42em; }
+  /* Achievement rarity: one gem drawing, tinted by tier from theme vars (a
+     star for legendary). */
+  .ic.rarity-common{ color: var(--text-faint); }
+  .ic.rarity-uncommon{ color: var(--accent-success); }
+  .ic.rarity-rare{ color: var(--accent-manual); }
+  .ic.rarity-epic{ color: var(--accent-flair); }
+  .ic.rarity-legendary{ color: var(--accent-auto); fill: color-mix(in srgb, var(--accent-auto) 30%, transparent); }
+  .ic-trail{ margin-inline-start: 0.36em; }
+  /* Icon followed by a label span (Help, the Edibits counter): the source
+     space sits between two elements, which a flex button drops. */
+  .ic:not(.ic-lead) + span:not(:empty){ margin-inline-start: 0.4em; }
+  /* Carets/chevrons read as punctuation, not pictures: a notch smaller. */
+  .ic:has(use[href="#i-caret-down"]), .ic:has(use[href="#i-caret-up"]),
+  .ic:has(use[href="#i-chevron-right"]), .ic:has(use[href="#i-chevron-left"]){ width: 0.95em; height: 0.95em; vertical-align: -0.12em; }
   button:active:not(:disabled) { transform: translateY(1px); }
   button:disabled { opacity: 0.35; cursor: default; }
 
@@ -2993,6 +3047,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     font-family: var(--sans); font-size: 12.5px; color: var(--text-primary); background: var(--bg-elevated);
     border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 6px 9px; cursor: pointer;
     white-space: nowrap;
+    /* Block, not the base button's inline-flex: under flex the label is an
+       anonymous flex item that justify-content:center spills off BOTH
+       edges (and text-overflow can't reach it), so a too-wide label in a
+       wide theme face lost its first letters. */
+    display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
     /* <button>'s own UA default is text-align:center — harmless at full
        width, but once a narrow flex context (e.g. .left-sort-row) forces
        this to shrink+ellipsis (below), a centered label clips evenly from
@@ -3549,6 +3608,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     flex-direction: column;
     gap: 10px;
   }
+  /* A dock's buttons never outgrow the dock: in wide theme faces
+     (Oxanium, Michroma, VT323…) a nowrap label at a narrow panel width ran
+     past the dock's content box and got its right border clipped. Cap at
+     the container and let the label wrap instead. */
+  #left button, #right button{ max-width: 100%; }
+  .tool-section button:not(.dock-collapse-btn):not(.chip button):not(.pdrop-btn){ white-space: normal; text-wrap: balance; }
   .tool-section .sec-head {
     display: flex;
     flex-wrap: wrap;
