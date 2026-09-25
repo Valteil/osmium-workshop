@@ -358,25 +358,66 @@ import { setIconLabel } from './icons';
   // state with no delay when it's off.
   const TAB_MAP_ORDER = ['datasets', 'gallery', 'master', 'stats', 'synthdat'];
   const onShell = (t: string) => t === 'gallery' || t === 'master';
-  // Hover preload: pointing at the Datasets/Stats tab renders that tab's
-  // (hidden) content ahead of the click, so the switch itself only flips
-  // visibility. Valid only while the pointer stays on that tab — leaving
-  // invalidates it, so nothing edited in the meantime can go stale.
   const tabIsActive = (t: string): boolean => ({
     datasets: tabDatasetManager, gallery: tabGallery, master: tabMasterTags, stats: tabStats, synthdat: tabSynthDat
   } as Record<string, HTMLElement>)[t]?.classList.contains('active') ?? false;
-  let preloadedTab: string | null = null;
-  function preloadTab(tab: string, btn: HTMLElement): void {
-    if (btn.classList.contains('active')) return;
-    if (tab === 'stats') renderStatsTab();
-    else if (tab === 'datasets') void renderDatasetManagerTab();
-    else return;
-    preloadedTab = tab;
+
+  // Zone preload: the moment the pointer is heading for the tabs (anywhere
+  // in the tab bar or the band just under it), the heavy hidden tabs (Stats,
+  // Datasets) render in idle time, so a switch only flips visibility.
+  // Freshness: any pointerdown/keydown outside the tab bar marks the preload
+  // stale (an edit could have happened); it rebuilds on the next pointer move
+  // inside the zone. The zone only covers where the pointer is on its way to
+  // a tab, so the idle renders don't compete with work elsewhere.
+  const PRELOAD_BAND_PX = 90;
+  const tabBarEl = document.getElementById('tabBar')!;
+  const preloadedTabs = new Set<string>();
+  let preloadQueued = false;
+  const whenIdle = (cb: () => void) => ('requestIdleCallback' in window)
+    ? (window as any).requestIdleCallback(cb, { timeout: 120 }) : setTimeout(cb, 0);
+  function preloadHeavyTabs(): void {
+    if (preloadQueued) return;
+    preloadQueued = true;
+    whenIdle(() => {
+      if (!tabIsActive('stats') && !preloadedTabs.has('stats')){ renderStatsTab(); preloadedTabs.add('stats'); }
+      whenIdle(() => {
+        preloadQueued = false;
+        if (!tabIsActive('datasets') && !preloadedTabs.has('datasets')){ void renderDatasetManagerTab(); preloadedTabs.add('datasets'); }
+      });
+    });
   }
-  ([[tabStats, 'stats'], [tabDatasetManager, 'datasets']] as [HTMLElement, string][]).forEach(([btn, tab]) => {
-    btn.addEventListener('pointerenter', () => preloadTab(tab, btn));
-    btn.addEventListener('pointerleave', () => { if (preloadedTab === tab) preloadedTab = null; });
+  document.addEventListener('pointermove', (ev) => {
+    if (preloadedTabs.size >= 2) return;
+    if (ev.clientY <= tabBarEl.getBoundingClientRect().bottom + PRELOAD_BAND_PX) preloadHeavyTabs();
+  }, { passive: true });
+  const stalePreload = (ev: Event) => {
+    if (ev.target instanceof Element && ev.target.closest('#tabBar')) return;
+    preloadedTabs.clear();
+  };
+  document.addEventListener('pointerdown', stalePreload, true);
+  document.addEventListener('keydown', stalePreload, true);
+
+  // Tabs switch on press, not release (like a browser's own tab strip): the
+  // press-to-release half of a click is ~80-120ms of pure waiting. Mouse/pen
+  // only — touch keeps click so a swipe across the scrollable tab bar isn't
+  // read as a switch. The press replays the tab's own click handlers via
+  // .click() (untrusted), and the real click that follows the release is
+  // swallowed so the switch doesn't run twice.
+  let swallowTabClickUntil = 0;
+  tabBarEl.addEventListener('pointerdown', (ev) => {
+    if (ev.button !== 0 || ev.pointerType === 'touch') return;
+    const btn = (ev.target as Element).closest<HTMLElement>('.tab-btn');
+    if (!btn) return;
+    swallowTabClickUntil = performance.now() + 800;
+    btn.click();
   });
+  tabBarEl.addEventListener('click', (ev) => {
+    if (!ev.isTrusted || performance.now() > swallowTabClickUntil) return;
+    if (!(ev.target as Element).closest('.tab-btn')) return;
+    swallowTabClickUntil = 0;
+    ev.stopImmediatePropagation();
+    ev.preventDefault();
+  }, true);
   function switchTab(tab: string, opts?: { skipDrawerSync?: boolean }): void {
     const skipDrawerSync = !!(opts && opts.skipDrawerSync);
     const fadePanes = [datasetManagerTab, statsTab, synthDatTab, normalRightTools, masterTagPanel];
@@ -435,9 +476,10 @@ import { setIconLabel } from './icons';
       // inside the dock content itself.
       btnGoToTagOverseer.style.display = masterTagModeActive ? 'none' : '';
       btnMasterBack.style.display = masterTagModeActive ? '' : 'none';
-      if (tab === 'stats' && preloadedTab !== 'stats') renderStatsTab();
-      if (tab === 'datasets' && preloadedTab !== 'datasets') renderDatasetManagerTab();
-      preloadedTab = null;
+      if (tab === 'stats' && !preloadedTabs.has('stats')) renderStatsTab();
+      if (tab === 'datasets' && !preloadedTabs.has('datasets')) renderDatasetManagerTab();
+      // The tab it lands on is now live — its preload is spent.
+      preloadedTabs.delete(tab);
       if (!deferShellRender) renderShell();
       // #right is hidden (display:none, via #galleryTab above) on every tab
       // except gallery/master — re-measuring the resize handle's position
@@ -469,6 +511,16 @@ import { setIconLabel } from './icons';
     // gallery exactly as it was left (almost always identical), and the
     // rebuild settles in right after — instead of a frozen beat on click.
     deferShellRender = true;
+    // The "you are here" marker answers the press on the same frame, ahead of
+    // the one-frame snapshot the View Transition takes before it can move
+    // anything (applyState sets the same classes again, idempotently).
+    if (dir && document.documentElement.classList.contains('motion-swipe')){
+      tabDatasetManager.classList.toggle('active', tab === 'datasets');
+      tabGallery.classList.toggle('active', tab === 'gallery');
+      tabMasterTags.classList.toggle('active', tab === 'master');
+      tabStats.classList.toggle('active', tab === 'stats');
+      tabSynthDat.classList.toggle('active', tab === 'synthdat');
+    }
     if (mapPan(dir, 'tab', regionOf(fromTab), () => regionOf(tab), applyState, () => {
       if (tabIsActive(tab)) renderShell();
     })) return;

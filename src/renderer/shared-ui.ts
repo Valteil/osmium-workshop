@@ -403,13 +403,21 @@ let activePan: ViewTransitionLike | null = null;
 // until each pan finished. This relays such a click instead: it skips the
 // running pan, and once the live DOM is back it re-hit-tests the same point
 // and clicks what's really there, one frame late rather than never.
+// Only a click PRESSED during the pan is relayed: a press that started the
+// pan (tabs switch on pointerdown) releases mid-pan, and that trailing click
+// must not replay the switch.
 let panClickRelayInstalled = false;
+let pressHitRoot = false;
 function installPanClickRelay(): void {
   if (panClickRelayInstalled) return;
   panClickRelayInstalled = true;
+  document.addEventListener('pointerdown', (ev: PointerEvent) => {
+    pressHitRoot = !!activePan && ev.target === document.documentElement;
+  }, true);
   document.addEventListener('click', (ev: MouseEvent) => {
     const pan = activePan;
-    if (!pan || ev.target !== document.documentElement) return;
+    if (!pan || ev.target !== document.documentElement || !pressHitRoot) return;
+    pressHitRoot = false;
     ev.stopPropagation();
     ev.preventDefault();
     const { clientX: x, clientY: y } = ev;
