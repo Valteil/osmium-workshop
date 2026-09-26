@@ -59,7 +59,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       ${isTouchDevice ? '<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>' : ''}
       <p>To edit tags: ${isTouchDevice ? 'tap' : 'click'} a chip to open its menu (filter by it, look up its wiki definition,
       flag it for review, explore its keyword family), type into a card's "+ add tag" box and
-      press Enter to add one, or ${isTouchDevice ? 'tap' : 'click'} a chip's × to remove it.</p>
+      press Enter to add one (separate several with commas, e.g. "1girl, red eyes, plump", to add
+      them all at once), or ${isTouchDevice ? 'tap' : 'click'} a chip's × to remove it.</p>
       <p><b>🏷 Tag sorting</b> — in ${isTouchDevice ? 'the image modal' : 'Single view and the image modal'}, this pill above
       the tags groups them into labelled categories (Character, Body, Face, Clothes, Limbs and
       Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. With it off, tags still

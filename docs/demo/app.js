@@ -4005,7 +4005,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       ${isTouchDevice ? "<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>" : ""}
       <p>To edit tags: ${isTouchDevice ? "tap" : "click"} a chip to open its menu (filter by it, look up its wiki definition,
       flag it for review, explore its keyword family), type into a card's "+ add tag" box and
-      press Enter to add one, or ${isTouchDevice ? "tap" : "click"} a chip's \xD7 to remove it.</p>
+      press Enter to add one (separate several with commas, e.g. "1girl, red eyes, plump", to add
+      them all at once), or ${isTouchDevice ? "tap" : "click"} a chip's \xD7 to remove it.</p>
       <p><b>\u{1F3F7} Tag sorting</b> \u2014 in ${isTouchDevice ? "the image modal" : "Single view and the image modal"}, this pill above
       the tags groups them into labelled categories (Character, Body, Face, Clothes, Limbs and
       Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. With it off, tags still
@@ -6135,26 +6136,35 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     refreshAllUIRef3();
     toast("Reverted this image to its earliest known state.");
   }
-  function addTagToEntry(entry, tag) {
-    tag = tag.trim().replace(/_/g, " ").replace(/\s+/g, " ");
-    if (!tag) return;
-    if (findBlockingRule(tag, entry)) {
-      toast("This tag is affected by a merge/void rule; please check the dock area for details.", 3600);
-      return;
-    }
-    if (!entry.tags.includes(tag)) {
-      const prevTags = entry.tags.slice();
+  function addTagToEntry(entry, raw) {
+    const parts = raw.split(",").map((t) => t.trim().replace(/_/g, " ").replace(/\s+/g, " ")).filter(Boolean);
+    if (!parts.length) return;
+    const blocked = [];
+    const added = [];
+    const prevTags = entry.tags.slice();
+    for (const tag of parts) {
+      if (findBlockingRule(tag, entry)) {
+        blocked.push(tag);
+        continue;
+      }
+      if (entry.tags.includes(tag) || added.includes(tag)) continue;
       entry.tags.push(tag);
-      markDirty(entry);
-      refreshStatsRef();
-      recordChange(
-        "add-tag",
-        `Added tag "${tag}" to ${entry.imgName}`,
-        [{ base: entry.base, prevTags, newTags: entry.tags.slice() }]
-      );
-      trackStat("tags_added");
-      checkAchievements();
+      added.push(tag);
     }
+    if (blocked.length) {
+      toast(blocked.length === 1 && parts.length === 1 ? "This tag is affected by a merge/void rule; please check the dock area for details." : `Skipped ${blocked.map((t) => `"${t}"`).join(", ")}: affected by a merge/void rule (see the dock area).`, 3600);
+    }
+    if (!added.length) return;
+    markDirty(entry);
+    refreshStatsRef();
+    const what = added.length === 1 ? `tag "${added[0]}"` : `${added.length} tags (${added.join(", ")})`;
+    recordChange(
+      "add-tag",
+      `Added ${what} to ${entry.imgName}`,
+      [{ base: entry.base, prevTags, newTags: entry.tags.slice() }]
+    );
+    trackStat("tags_added", added.length);
+    checkAchievements();
   }
   function removeTagFromEntry(entry, tag) {
     const i = entry.tags.indexOf(tag);
@@ -7078,11 +7088,12 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       const entry = getEntry();
       closeAutocomplete();
       if (!entry) return;
-      addTagToEntryRef(entry, tag);
+      const cut = inputEl.value.lastIndexOf(",");
+      addTagToEntryRef(entry, cut === -1 ? tag : inputEl.value.slice(0, cut) + "," + tag);
       inputEl.value = "";
       rerender();
       refreshRightPanelsRef();
-    });
+    }, true);
   }
   function attachFillAutocomplete(inputEl) {
     attachAutocompleteCore(inputEl, (tag) => {
@@ -7091,7 +7102,11 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       inputEl.dispatchEvent(new Event("input", { bubbles: true }));
     });
   }
-  function attachAutocompleteCore(inputEl, onPick) {
+  function queryOf(inputEl, segmented) {
+    const v = inputEl.value;
+    return (segmented ? v.slice(v.lastIndexOf(",") + 1) : v).trim();
+  }
+  function attachAutocompleteCore(inputEl, onPick, segmented = false) {
     let debounceTimer = null;
     inputEl.addEventListener("input", () => {
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -7099,21 +7114,21 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
         closeAutocomplete();
         return;
       }
-      const raw = inputEl.value.trim();
+      const raw = queryOf(inputEl, segmented);
       if (!raw) {
         closeAutocomplete();
         return;
       }
-      debounceTimer = setTimeout(() => runAutocompleteSearch(inputEl, onPick, raw), 150);
+      debounceTimer = setTimeout(() => runAutocompleteSearch(inputEl, onPick, raw, segmented), 150);
     });
     inputEl.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape") closeAutocomplete();
     });
   }
-  function runAutocompleteSearch(inputEl, onPick, query) {
-    if (inputEl.value.trim() !== query) return;
+  function runAutocompleteSearch(inputEl, onPick, query, segmented = false) {
+    if (queryOf(inputEl, segmented) !== query) return;
     ensureAllTagsLoadedRef().then((allTags) => {
-      if (inputEl.value.trim() !== query) return;
+      if (queryOf(inputEl, segmented) !== query) return;
       const qNorm = query.toLowerCase().replace(/_/g, " ");
       const starts = [];
       const contains = [];
@@ -22946,7 +22961,7 @@ Image: ${entry.imgName}`,
     const addInput = document.createElement("input");
     addInput.type = "text";
     addInput.className = "addtag-input";
-    addInput.placeholder = "+ Add tag, press Enter";
+    addInput.placeholder = "+ Add tags (commas for several), press Enter";
     addInput.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter" && addInput.value.trim()) {
         addTagToEntry(e, addInput.value.trim());
@@ -24071,7 +24086,7 @@ Image: ${entry.imgName}`,
     const addInput = document.createElement("input");
     addInput.type = "text";
     addInput.className = "addtag-input";
-    addInput.placeholder = "+ Add tag, press Enter";
+    addInput.placeholder = "+ Add tags (commas for several), press Enter";
     addInput.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter" && addInput.value.trim()) {
         addTagToEntry(entry, addInput.value.trim());

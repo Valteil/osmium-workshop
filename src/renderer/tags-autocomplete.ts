@@ -206,11 +206,14 @@ export function attachTagAutocomplete(inputEl: HTMLInputElement, getEntry: () =>
     const entry = getEntry();
     closeAutocomplete();
     if (!entry) return;
-    addTagToEntryRef!(entry, tag);
+    // Comma-separated adds ("1girl, red ey" → pick "red eyes"): the pick
+    // completes the LAST segment, and everything typed before it goes in too.
+    const cut = inputEl.value.lastIndexOf(',');
+    addTagToEntryRef!(entry, cut === -1 ? tag : inputEl.value.slice(0, cut) + ',' + tag);
     inputEl.value = '';
     rerender();
     refreshRightPanelsRef!();
-  });
+  }, true);
 }
 
 export function attachFillAutocomplete(inputEl: HTMLInputElement): void {
@@ -273,24 +276,31 @@ function renderListAutocompleteResults(inputEl: HTMLInputElement, results: strin
   positionAutocomplete(inputEl.getBoundingClientRect());
 }
 
-function attachAutocompleteCore(inputEl: HTMLInputElement, onPick: (tag: string) => void): void {
+// `segmented`: search only the text after the last comma (tag-add fields
+// accept "a, b, c"); otherwise the whole value is the query.
+function queryOf(inputEl: HTMLInputElement, segmented: boolean): string {
+  const v = inputEl.value;
+  return (segmented ? v.slice(v.lastIndexOf(',') + 1) : v).trim();
+}
+
+function attachAutocompleteCore(inputEl: HTMLInputElement, onPick: (tag: string) => void, segmented = false): void {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   inputEl.addEventListener('input', () => {
     if (debounceTimer) clearTimeout(debounceTimer);
     if (!tagAutocompleteEnabled) { closeAutocomplete(); return; }
-    const raw = inputEl.value.trim();
+    const raw = queryOf(inputEl, segmented);
     if (!raw) { closeAutocomplete(); return; }
-    debounceTimer = setTimeout(() => runAutocompleteSearch(inputEl, onPick, raw), 150);
+    debounceTimer = setTimeout(() => runAutocompleteSearch(inputEl, onPick, raw, segmented), 150);
   });
   inputEl.addEventListener('keydown', (ev: KeyboardEvent) => {
     if (ev.key === 'Escape') closeAutocomplete();
   });
 }
 
-function runAutocompleteSearch(inputEl: HTMLInputElement, onPick: (tag: string) => void, query: string): void {
-  if (inputEl.value.trim() !== query) return;
+function runAutocompleteSearch(inputEl: HTMLInputElement, onPick: (tag: string) => void, query: string, segmented = false): void {
+  if (queryOf(inputEl, segmented) !== query) return;
   ensureAllTagsLoadedRef!().then(allTags => {
-    if (inputEl.value.trim() !== query) return;
+    if (queryOf(inputEl, segmented) !== query) return;
     const qNorm = query.toLowerCase().replace(/_/g, ' ');
     const starts: [string, { count?: number }][] = [];
     const contains: [string, { count?: number }][] = [];

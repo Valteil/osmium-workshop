@@ -200,9 +200,14 @@ export function resetImageEdits(entry: Entry): void {
   toast('Reverted this image to its earliest known state.');
 }
 
-export function addTagToEntry(entry: Entry, tag: string): void {
-  tag = tag.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
-  if (!tag) return;
+// Commas separate tags: "1girl, red eyes, plump" adds three. Captions are
+// stored comma-separated, so a comma can never be part of a real tag —
+// splitting here covers every "+ add tag" field (cards, modal, Single,
+// sequential) in one place. All the new tags land as ONE edit (one
+// undo step, one log row).
+export function addTagToEntry(entry: Entry, raw: string): void {
+  const parts = raw.split(',').map(t => t.trim().replace(/_/g, ' ').replace(/\s+/g, ' ')).filter(Boolean);
+  if (!parts.length) return;
   // A standing Retroactive Merge/Void rule affecting this exact tag on this
   // exact entry (respecting that rule's own enabled/child-toggle state and
   // this entry's Merge Immunize/Antivoid flags) blocks the add outright
@@ -210,20 +215,28 @@ export function addTagToEntry(entry: Entry, tag: string): void {
   // is a deliberate action, and swapping in something else the user didn't
   // type is more confusing than just saying no. Typing the rule's own
   // canonical tag is never blocked (see findBlockingRule()'s own comment).
-  if (findBlockingRule(tag, entry)){
-    toast('This tag is affected by a merge/void rule; please check the dock area for details.', 3600);
-    return;
-  }
-  if (!entry.tags.includes(tag)){
-    const prevTags = entry.tags.slice();
+  const blocked: string[] = [];
+  const added: string[] = [];
+  const prevTags = entry.tags.slice();
+  for (const tag of parts){
+    if (findBlockingRule(tag, entry)){ blocked.push(tag); continue; }
+    if (entry.tags.includes(tag) || added.includes(tag)) continue;
     entry.tags.push(tag);
-    markDirty(entry);
-    refreshStatsRef();
-    recordChange('add-tag', `Added tag "${tag}" to ${entry.imgName}`,
-      [{ base: entry.base, prevTags, newTags: entry.tags.slice() }]);
-    trackStat('tags_added');
-    checkAchievements();
+    added.push(tag);
   }
+  if (blocked.length){
+    toast(blocked.length === 1 && parts.length === 1
+      ? 'This tag is affected by a merge/void rule; please check the dock area for details.'
+      : `Skipped ${blocked.map(t => `"${t}"`).join(', ')}: affected by a merge/void rule (see the dock area).`, 3600);
+  }
+  if (!added.length) return;
+  markDirty(entry);
+  refreshStatsRef();
+  const what = added.length === 1 ? `tag "${added[0]}"` : `${added.length} tags (${added.join(', ')})`;
+  recordChange('add-tag', `Added ${what} to ${entry.imgName}`,
+    [{ base: entry.base, prevTags, newTags: entry.tags.slice() }]);
+  trackStat('tags_added', added.length);
+  checkAchievements();
 }
 
 export function removeTagFromEntry(entry: Entry, tag: string): void {

@@ -1497,7 +1497,7 @@ function renderSingleView(){
   const addInput = document.createElement('input');
   addInput.type = 'text';
   addInput.className = 'addtag-input';
-  addInput.placeholder = '+ Add tag, press Enter';
+  addInput.placeholder = '+ Add tags (commas for several), press Enter';
   addInput.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && addInput.value.trim()){
       addTagToEntry(e, addInput.value.trim());
@@ -2671,7 +2671,7 @@ function renderImageCardModal(entry: Entry): void {
   const addInput = document.createElement('input');
   addInput.type = 'text';
   addInput.className = 'addtag-input';
-  addInput.placeholder = '+ Add tag, press Enter';
+  addInput.placeholder = '+ Add tags (commas for several), press Enter';
   // The grid card behind this modal was already fully built (its chips are
   // plain rendered text, not live-bound to `entry.tags`) before this modal
   // ever opened — mutating entry.tags here doesn't touch that DOM on its

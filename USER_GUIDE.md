@@ -88,7 +88,8 @@ untouched.
 
 **Editing tags:** click a tag chip to open its context menu (filter by it, open its wiki
 definition, flag it for review, explore its keyword family). Type into a card's "+ add tag" field
-and press Enter to add a new one. Click the × on a chip to remove it.
+and press Enter to add a new one. Separate several with commas (`1girl, red eyes, plump`) to add
+them all at once, as a single undo step. Click the × on a chip to remove it.
 
 **🏷 Tag sorting:** in Single view and the image modal, this pill above the tags groups them into
 labelled categories — Character, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene,
