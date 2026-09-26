@@ -1917,6 +1917,15 @@ function orderedTagsForDisplay(entry: Entry, tagIndex: TagIndex): string[] {
     tags.sort((a,b) => a.localeCompare(b));
   } else if (cardTagSortMode === 'frequency' && tagIndex){
     tags.sort((a,b) => (tagIndex.get(b) ? tagIndex.get(b)!.size : 0) - (tagIndex.get(a) ? tagIndex.get(a)!.size : 0));
+  } else if (cardTagSortMode === 'default'){
+    // Default: the order Tag Sorting shows (Character, Body, Face, …, Other),
+    // just without the headers — so an added tag lands in its place at once.
+    // Applied BEFORE the float below, which is stable: search matches and
+    // flagged isolated tags still jump to the very top of a flat list (each
+    // group kept in category order). The grouped view re-buckets by category
+    // afterwards, so there they lead within their own category instead.
+    // 'added' keeps plain insertion order; alphabetical/frequency stay pure.
+    tags = groupTagsByCategory(tags).flatMap(g => g.tags);
   }
 
   const searchTerms = (getGalleryFilter().terms || []);
@@ -1937,11 +1946,6 @@ function orderedTagsForDisplay(entry: Entry, tagIndex: TagIndex): string[] {
     }
     tags = matched.concat(isolated, rest);
   }
-  // Default: the same order Tag Sorting shows (Character, Body, Face, …,
-  // Other; search matches still first within their category), just without
-  // the headers — so a tag lands in its place the moment it's added.
-  // 'added' keeps plain insertion order; alphabetical/frequency stay pure.
-  if (cardTagSortMode === 'default') tags = groupTagsByCategory(tags).flatMap(g => g.tags);
   return tags;
 }
 

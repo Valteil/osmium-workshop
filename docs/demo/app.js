@@ -23334,6 +23334,8 @@ Image: ${entry.imgName}`,
       tags.sort((a, b) => a.localeCompare(b));
     } else if (cardTagSortMode === "frequency" && tagIndex) {
       tags.sort((a, b) => (tagIndex.get(b) ? tagIndex.get(b).size : 0) - (tagIndex.get(a) ? tagIndex.get(a).size : 0));
+    } else if (cardTagSortMode === "default") {
+      tags = groupTagsByCategory(tags).flatMap((g) => g.tags);
     }
     const searchTerms = getGalleryFilter2().terms || [];
     const isolatedSet = getIsolatedFlagActive() && tagIndex ? computeIsolatedTagSet(tagIndex) : null;
@@ -23349,7 +23351,6 @@ Image: ${entry.imgName}`,
       }
       tags = matched.concat(isolated, rest);
     }
-    if (cardTagSortMode === "default") tags = groupTagsByCategory(tags).flatMap((g) => g.tags);
     return tags;
   }
   function tagDisplayFlags(tag, tagIndex) {
