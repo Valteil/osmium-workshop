@@ -152,6 +152,8 @@ Each theme carries 16 role-named colors. The roles are fixed and the values are 
 
 **The Derived Texture Rule.** Textures, rules and frames mix from theme vars through `color-mix(in srgb, var(--…) N%, transparent)`, never from a literal color, so that night mode's HSL inversion carries them too.
 
+**The Image Mat Rule.** The letterbox behind an image (card thumb, Single preview, image modal) is never a flat void. Each theme sets `--mat`, a background-layer list painted over `bg-base`: a small static motif from its own world, such as Studio's pegboard, Osmium's dot field (the website's screenshot stage), Terminal scanlines, Oriental nashiji gold flakes, a Vintage Paper ledger or a Celestial star chart. Ink stays around 5–15% so the motif reads as material and disappears once the eye lands on the image. It is never animated, and a theme that sets nothing inherits Studio's pegboard.
+
 **The Light-Ground Ink Rule.** On light palettes, `accent-auto` on `accent-auto-dim` falls below 3:1. The brand tag and flagged-review chips on light themes take ink from `text-primary` (or `color-mix(accent-auto 40%, text-primary)`) instead.
 
 ## Typography

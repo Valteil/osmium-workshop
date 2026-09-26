@@ -1497,6 +1497,144 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html.no-flourish-tilt .card:hover{ transform: none !important; }
   html.no-flourish-hover button::after{ display: none !important; }
 
+  /* ---------- Image mats: the letterbox behind every image ----------
+     A fixed-shape frame (the 3:4 card thumb, Single view's preview, the image
+     modal's image side) leaves bare ground wherever the image's aspect ratio
+     doesn't match. Instead of a flat void, each world lays down its own mat:
+     a small, quiet motif drawn from theme vars through color-mix(), so night
+     mode inverts it with everything else (the Derived Texture Rule). Mats are
+     static material, never motion, so no flourish toggle gates them.
+     `--mat` is a background-layer list (image + position/size) painted over
+     `--bg-base` by the three frames' own rules further down. Keep the ink
+     around 8-14%: it should read as texture at a glance and vanish the moment
+     the eye lands on the image. Any theme that sets nothing (Custom
+     included) gets Studio's pegboard. */
+  :root{
+    --mat-ink: color-mix(in srgb, var(--text-primary) 12%, transparent);
+    /* Studio: workbench pegboard, a square grid of drilled holes. */
+    --mat: radial-gradient(circle, var(--mat-ink) 1.1px, transparent 1.6px) 0 0 / 16px 16px;
+  }
+  /* Cyberpunk: fine diagonal HUD hatch in the flair neon. */
+  html[data-theme="cyberpunk"]{
+    --mat: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-flair) 13%, transparent) 0 1px, transparent 1px 7px);
+  }
+  /* Oriental: nashiji, gold flakes sprinkled into lacquer on two offset lattices. */
+  html[data-theme="oriental"]{
+    --mat: radial-gradient(circle, color-mix(in srgb, var(--accent-auto) 26%, transparent) 0.9px, transparent 1.4px) 0 0 / 23px 19px,
+      radial-gradient(circle, color-mix(in srgb, var(--accent-auto) 16%, transparent) 0.7px, transparent 1.2px) 11px 9px / 17px 23px;
+  }
+  /* Subway: station wall tile, 2:1 glazed tiles in stacked bond. */
+  html[data-theme="subway"]{
+    --mat: linear-gradient(color-mix(in srgb, var(--text-primary) 9%, transparent) 1px, transparent 1px) 0 0 / 28px 14px,
+      linear-gradient(90deg, color-mix(in srgb, var(--text-primary) 9%, transparent) 1px, transparent 1px) 0 0 / 28px 14px;
+  }
+  /* Osmium: the brand's own dot field, the same one the website lays under
+     its screenshots. */
+  html[data-theme="osmium"]{
+    --mat: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text-primary) 16%, transparent) 1px, transparent 1.5px) 0 0 / 18px 18px;
+  }
+  /* Terminal: CRT scanlines, the dark field between phosphor rows. */
+  html[data-theme="terminal"]{
+    --mat: repeating-linear-gradient(0deg, color-mix(in srgb, var(--text-primary) 9%, transparent) 0 1px, transparent 1px 3px);
+  }
+  /* Sakura Dusk: petals drifting on washi, sparse and uneven. */
+  html[data-theme="sakura"]{
+    --mat: radial-gradient(ellipse 3px 2px, color-mix(in srgb, var(--accent-flair) 30%, transparent) 60%, transparent 100%) 6px 8px / 41px 37px,
+      radial-gradient(ellipse 2px 3px, color-mix(in srgb, var(--accent-flair) 22%, transparent) 60%, transparent 100%) 25px 27px / 53px 47px;
+  }
+  /* Bioluminescent Deep: marine snow and faint plankton specks. */
+  html[data-theme="bioluminescent"]{
+    --mat: radial-gradient(circle, color-mix(in srgb, var(--accent-manual) 34%, transparent) 0.9px, transparent 1.8px) 3px 5px / 29px 31px,
+      radial-gradient(circle, color-mix(in srgb, var(--accent-success) 20%, transparent) 0.7px, transparent 1.4px) 17px 19px / 43px 37px;
+  }
+  /* Royal Amethyst: gilt argyle, a diamond lattice of hairline gold. */
+  html[data-theme="amethyst"]{
+    --mat: repeating-linear-gradient(45deg, color-mix(in srgb, var(--accent-auto) 13%, transparent) 0 1px, transparent 1px 14px),
+      repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-auto) 13%, transparent) 0 1px, transparent 1px 14px);
+  }
+  /* Solar Flare: corona rings radiating from the frame's center. */
+  html[data-theme="solarflare"]{
+    --mat: repeating-radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--accent-auto) 12%, transparent) 0 1px, transparent 1px 11px);
+  }
+  /* Midnight Ocean: a chart's lat/long grid. */
+  html[data-theme="midnight-ocean"]{
+    --mat: linear-gradient(color-mix(in srgb, var(--accent-manual) 12%, transparent) 1px, transparent 1px) 0 0 / 22px 22px,
+      linear-gradient(90deg, color-mix(in srgb, var(--accent-manual) 12%, transparent) 1px, transparent 1px) 0 0 / 22px 22px;
+  }
+  /* Arctic Frost: crystalline cross-hatch at 60 degrees, like frost on glass. */
+  html[data-theme="arctic-frost"]{
+    --mat: repeating-linear-gradient(60deg, var(--mat-ink) 0 1px, transparent 1px 12px),
+      repeating-linear-gradient(-60deg, var(--mat-ink) 0 1px, transparent 1px 12px);
+  }
+  /* Forest Moss: moss stipple, dense and irregular. */
+  html[data-theme="forest-moss"]{
+    --mat: radial-gradient(circle, color-mix(in srgb, var(--accent-success) 24%, transparent) 0.9px, transparent 1.5px) 0 0 / 9px 11px,
+      radial-gradient(circle, color-mix(in srgb, var(--accent-success) 16%, transparent) 0.8px, transparent 1.4px) 4px 6px / 13px 7px;
+  }
+  /* Vintage Paper: a ledger, ruled lines with one margin rule. */
+  html[data-theme="vintage-paper"]{
+    --mat: linear-gradient(90deg, transparent 22px, color-mix(in srgb, var(--accent-danger) 22%, transparent) 22px 23px, transparent 23px) 0 0 / 100% 100% no-repeat,
+      linear-gradient(transparent 17px, color-mix(in srgb, var(--accent-manual) 16%, transparent) 17px 18px) 0 0 / 100% 18px;
+  }
+  /* Obsidian: conchoidal fracture, long glassy facets in one direction. */
+  html[data-theme="obsidian"]{
+    --mat: repeating-linear-gradient(115deg, color-mix(in srgb, var(--accent-auto) 10%, transparent) 0 1px, transparent 1px 19px),
+      repeating-linear-gradient(115deg, var(--mat-ink) 0 1px, transparent 1px 31px);
+  }
+  /* Retro Wave: the synth grid, magenta on the horizon. */
+  html[data-theme="retrowave"]{
+    --mat: linear-gradient(color-mix(in srgb, var(--accent-flair) 15%, transparent) 1px, transparent 1px) 0 0 / 24px 24px,
+      linear-gradient(90deg, color-mix(in srgb, var(--accent-flair) 15%, transparent) 1px, transparent 1px) 0 0 / 24px 24px;
+  }
+  /* Rose Gold: Art Deco pinstripe, paired hairlines. */
+  html[data-theme="rose-gold"]{
+    --mat: repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent-auto) 16%, transparent) 0 1px, transparent 1px 4px, color-mix(in srgb, var(--accent-auto) 16%, transparent) 4px 5px, transparent 5px 22px);
+  }
+  /* Coral Reef: rising bubbles, open rings rather than dots. */
+  html[data-theme="coral-reef"]{
+    --mat: radial-gradient(circle, transparent 2.4px, color-mix(in srgb, var(--accent-manual) 26%, transparent) 2.6px 3.3px, transparent 3.6px) 4px 6px / 34px 38px,
+      radial-gradient(circle, transparent 1.3px, color-mix(in srgb, var(--accent-manual) 20%, transparent) 1.5px 2px, transparent 2.3px) 20px 24px / 26px 44px;
+  }
+  /* Toxic Waste: hazard stripes, turned right down so they stay a mat. */
+  html[data-theme="toxic-waste"]{
+    --mat: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-auto) 5%, transparent) 0 4px, transparent 4px 16px);
+  }
+  /* Lavender Fields: planted rows, dots set close in the row, rows set apart. */
+  html[data-theme="lavender-fields"]{
+    --mat: radial-gradient(circle, color-mix(in srgb, var(--accent-flair) 28%, transparent) 1px, transparent 1.6px) 0 0 / 18px 7px;
+  }
+  /* Candy Pop: polka dots, big and soft, on two offset grids. */
+  html[data-theme="candy-pop"]{
+    --mat: radial-gradient(circle, color-mix(in srgb, var(--accent-flair) 20%, transparent) 3px, transparent 3.6px) 0 0 / 24px 24px,
+      radial-gradient(circle, color-mix(in srgb, var(--accent-manual) 16%, transparent) 3px, transparent 3.6px) 12px 12px / 24px 24px;
+  }
+  /* Copper Forge: tread plate, raised diagonal bars alternating direction. */
+  html[data-theme="copper-forge"]{
+    --mat: linear-gradient(45deg, transparent 43%, color-mix(in srgb, var(--accent-auto) 11%, transparent) 43% 57%, transparent 57%) 0 0 / 14px 14px,
+      linear-gradient(-45deg, transparent 43%, color-mix(in srgb, var(--accent-auto) 11%, transparent) 43% 57%, transparent 57%) 7px 7px / 14px 14px;
+  }
+  /* Blood Moon: ash drifting under the eclipse, sparse and dim red. */
+  html[data-theme="blood-moon"]{
+    --mat: radial-gradient(circle, color-mix(in srgb, var(--accent-danger) 26%, transparent) 0.8px, transparent 1.4px) 5px 3px / 31px 27px,
+      radial-gradient(circle, var(--mat-ink) 0.7px, transparent 1.3px) 19px 16px / 23px 37px;
+  }
+  /* Twilight Garden: fireflies, a warm point with a soft halo. */
+  html[data-theme="twilight-garden"]{
+    --mat: radial-gradient(circle, color-mix(in srgb, var(--accent-auto) 40%, transparent) 0.8px, color-mix(in srgb, var(--accent-auto) 10%, transparent) 2px, transparent 3.2px) 8px 10px / 47px 43px,
+      radial-gradient(circle, color-mix(in srgb, var(--accent-auto) 24%, transparent) 0.7px, transparent 1.6px) 30px 29px / 37px 53px;
+  }
+  /* Aurora Borealis: faint curtain folds hanging from the top. */
+  html[data-theme="aurora-borealis"]{
+    --mat: linear-gradient(transparent 35%, var(--bg-base)) 0 0 / 100% 100% no-repeat,
+      repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent-success) 11%, transparent) 0 2px, transparent 2px 9px, color-mix(in srgb, var(--accent-flair) 9%, transparent) 9px 10px, transparent 10px 17px);
+  }
+  /* Celestial Gold: a star chart at three magnitudes. */
+  html[data-theme="celestial-gold"]{
+    --mat: radial-gradient(circle, color-mix(in srgb, var(--accent-flair) 55%, transparent) 0.9px, transparent 1.5px) 7px 11px / 61px 53px,
+      radial-gradient(circle, color-mix(in srgb, var(--text-primary) 30%, transparent) 0.6px, transparent 1.1px) 29px 3px / 37px 41px,
+      radial-gradient(circle, color-mix(in srgb, var(--text-primary) 18%, transparent) 0.5px, transparent 1px) 13px 23px / 19px 23px;
+  }
+
   /* ================= End themes ================= */
 
   select#themeSelect{
@@ -3419,7 +3557,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     position: relative;
     width: 100%;
     aspect-ratio: 3 / 4;
-    background: var(--bg-base);
+    background: var(--mat), var(--bg-base);
     cursor: zoom-in;
   }
   .card img {
@@ -4023,7 +4161,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .single-img-side{
     flex: 1; min-width: 0; min-height: 60vh;
     display: flex; align-items: center; justify-content: center;
-    background: var(--bg-base); border-radius: 8px; border: 1px solid var(--border-soft);
+    background: var(--mat), var(--bg-base); border-radius: 8px; border: 1px solid var(--border-soft);
   }
   .single-img-side img{ max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 4px; }
   /* Normal Single view's image: a small static preview (click opens the
@@ -4032,7 +4170,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .single-preview{
     flex: 0 0 38%; max-width: 38%; max-height: 42vh; position: relative;
     display: flex; align-items: center; justify-content: center;
-    background: var(--bg-base); border-radius: 8px; border: 1px solid var(--border-soft);
+    background: var(--mat), var(--bg-base); border-radius: 8px; border: 1px solid var(--border-soft);
     overflow: hidden; cursor: zoom-in;
   }
   .single-preview img{ max-width: 100%; max-height: 42vh; object-fit: contain; border-radius: 4px; pointer-events: none; }
