@@ -394,7 +394,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>26 themes in total — 5 free, 21 in the 💰 Shop (common through legendary, priced in
       Edibits, a small in-app currency you earn from achievements). Each theme is a whole look,
       not just a palette: its own typefaces, button and tag shapes, panel materials, and active-tab
-      marker, with the icons restroked to match. Epic/legendary themes get an extra hover-fill and
+      marker, with the icons restroked to match. Even the empty space around an image gets a faint
+      pattern from the theme's world. Locked themes show 🔒 in the theme menu: picking one keeps your
+      current theme and tells you its Shop price. Epic/legendary themes get an extra hover-fill and
       card lift in that theme's own style; any cheaper theme can buy them individually via the
       Shop's "🔨 Refine Theme" button, for the price difference.</p>
       <p>🏆 Achievements (55+, unlocked per dataset folder — a fresh dataset starts with none

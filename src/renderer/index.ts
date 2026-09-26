@@ -159,7 +159,7 @@ import { setIconLabel } from './icons';
 
   // Dockable right-sidebar panels (reorder/collapse/resize) moved to ./docks.ts
 
-  // ---------------- Update bundle (applied via Electron main process) ----------------
+  // ---------------- Restart app (Settings; main re-seeds renderer/ in dev) ----------------
 
   const btnRestartApp = $('btnRestartApp');
   btnRestartApp.addEventListener('click', async () => {

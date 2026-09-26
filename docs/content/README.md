@@ -197,8 +197,11 @@ when five good images need to become fifty. (Also needs the ComfyUI node pack �
 26 themes total: 5 free and 21 in the **💰 Shop** (common → legendary, 40–750 Edibits).
 Each theme is a whole look, not just a palette: its own bundled typefaces, button and tag
 shapes, panel materials and textures, active-tab marker, and a matching stroke style for the
-app's icon set. Epic and legendary tiers add a hover/click button-fill and a card lift, drawn
-in that theme's own style.
+app's icon set. Even the empty space around an image (a thumbnail, Single view, the image card)
+gets a faint pattern from the theme's world: pegboard, gold flakes, scanlines, a star chart.
+Epic and legendary tiers add a hover/click button-fill and a card lift, drawn in that theme's
+own style. Picking a theme you don't own yet just bounces back and tells you what it costs in
+the Shop.
 
 - **🏆 Achievements** (55+, per-folder) pay out **Edibits** to spend in the Shop — a "beg for
   free Edibits" button covers shortfalls. Use them to unlock themes by using the app.

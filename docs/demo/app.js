@@ -2452,7 +2452,9 @@
       <p>26 themes in total \u2014 5 free, 21 in the \u{1F4B0} Shop (common through legendary, priced in
       Edibits, a small in-app currency you earn from achievements). Each theme is a whole look,
       not just a palette: its own typefaces, button and tag shapes, panel materials, and active-tab
-      marker, with the icons restroked to match. Epic/legendary themes get an extra hover-fill and
+      marker, with the icons restroked to match. Even the empty space around an image gets a faint
+      pattern from the theme's world. Locked themes show \u{1F512} in the theme menu: picking one keeps your
+      current theme and tells you its Shop price. Epic/legendary themes get an extra hover-fill and
       card lift in that theme's own style; any cheaper theme can buy them individually via the
       Shop's "\u{1F528} Refine Theme" button, for the price difference.</p>
       <p>\u{1F3C6} Achievements (55+, unlocked per dataset folder \u2014 a fresh dataset starts with none

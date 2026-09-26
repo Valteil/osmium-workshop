@@ -406,7 +406,11 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
 in-app currency earned from achievements). Each theme is a whole look, not just a palette: its
 own typefaces, button and tag shapes, panel materials and textures, and active-tab marker (Terminal
 Green is a phosphor CRT, Vintage Paper a letterpress catalogue with index-card tabs, Subway Fresh
-transit signage, and so on); the icons restroke to match. Epic/legendary themes get an extra
+transit signage, and so on); the icons restroke to match. The empty space around an image (card
+thumbnails, Single view, the image card) gets a faint pattern from the same world, like Studio's
+pegboard, Terminal's scanlines or Celestial Gold's star chart. Locked themes are marked 🔒 in
+the theme menu; picking one leaves your current theme on and tells you its Shop price.
+Epic/legendary themes get an extra
 hover-fill button effect and card lift, drawn in that theme's own style; any cheaper theme can
 buy them individually via the Shop's **🔨 Refine Theme** button for the price difference.
 
