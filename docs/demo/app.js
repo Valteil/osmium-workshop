@@ -8557,6 +8557,7 @@ Image: ${entry.imgName}`,
         clothes: synthDatClothes.value,
         limbs: synthDatLimbs.value,
         sexual: synthDatSexual.value,
+        pose: synthDatPose.value,
         scene: synthDatScene.value,
         effects: synthDatEffects.value,
         extra: synthDatExtra.value,
@@ -8604,6 +8605,7 @@ Image: ${entry.imgName}`,
     synthDatClothes.value = "";
     synthDatLimbs.value = "";
     synthDatSexual.value = "";
+    synthDatPose.value = "";
     synthDatScene.value = "";
     synthDatEffects.value = "";
     synthDatExtra.value = "";
@@ -8662,6 +8664,7 @@ Image: ${entry.imgName}`,
     synthDatClothes.value = saved.clothes || "";
     synthDatLimbs.value = saved.limbs || "";
     synthDatSexual.value = saved.sexual || "";
+    synthDatPose.value = saved.pose || "";
     synthDatScene.value = saved.scene || "";
     synthDatEffects.value = saved.effects || "";
     synthDatExtra.value = saved.extra || "";

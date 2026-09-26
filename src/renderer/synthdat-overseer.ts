@@ -91,7 +91,7 @@ async function saveSettings(): Promise<void> {
       unifiedPromptMode: synthDatUnifiedPromptMode.checked, unifiedPrompt: synthDatUnifiedPrompt.value,
       global: synthDatGlobal.value, character: synthDatCharacter.value, characterTrigger: synthDatCharacterTrigger.value,
       rating: synthDatRating.value, hair: synthDatHair.value, face: synthDatFace.value, chest: synthDatChest.value,
-      body: synthDatBody.value, clothes: synthDatClothes.value, limbs: synthDatLimbs.value, sexual: synthDatSexual.value,
+      body: synthDatBody.value, clothes: synthDatClothes.value, limbs: synthDatLimbs.value, sexual: synthDatSexual.value, pose: synthDatPose.value,
       scene: synthDatScene.value, effects: synthDatEffects.value, extra: synthDatExtra.value, negative: synthDatNegative.value,
       diffModel: synthDatDiffModel.value, clip: synthDatClip.value, vae: synthDatVae.value, mainLora: synthDatMainLora.value,
       loraRows: loraRows.map(r => ({ lora: r.input.value, strength: r.strength.value })),
@@ -117,7 +117,7 @@ function resetSettingsToDefault(){
   synthDatUnifiedPromptMode.checked = false; synthDatUnifiedPrompt.value = '';
   synthDatGlobal.value = ''; synthDatCharacter.value = ''; synthDatCharacterTrigger.value = '';
   synthDatRating.value = ''; synthDatHair.value = ''; synthDatFace.value = ''; synthDatChest.value = '';
-  synthDatBody.value = ''; synthDatClothes.value = ''; synthDatLimbs.value = ''; synthDatSexual.value = '';
+  synthDatBody.value = ''; synthDatClothes.value = ''; synthDatLimbs.value = ''; synthDatSexual.value = ''; synthDatPose.value = '';
   synthDatScene.value = ''; synthDatEffects.value = ''; synthDatExtra.value = ''; synthDatNegative.value = '';
   synthDatDiffModel.value = ''; synthDatClip.value = ''; synthDatVae.value = ''; synthDatMainLora.value = '';
   synthDatLoraStackRows.innerHTML = ''; loraRows = [];
@@ -148,7 +148,7 @@ async function loadSettingsFromFile(){
   synthDatCharacterTrigger.value = saved.characterTrigger || ''; synthDatRating.value = saved.rating || '';
   synthDatHair.value = saved.hair || ''; synthDatFace.value = saved.face || ''; synthDatChest.value = saved.chest || '';
   synthDatBody.value = saved.body || ''; synthDatClothes.value = saved.clothes || ''; synthDatLimbs.value = saved.limbs || '';
-  synthDatSexual.value = saved.sexual || ''; synthDatScene.value = saved.scene || ''; synthDatEffects.value = saved.effects || '';
+  synthDatSexual.value = saved.sexual || ''; synthDatPose.value = saved.pose || ''; synthDatScene.value = saved.scene || ''; synthDatEffects.value = saved.effects || '';
   synthDatExtra.value = saved.extra || ''; synthDatNegative.value = saved.negative || '';
   synthDatDiffModel.value = saved.diffModel || ''; synthDatClip.value = saved.clip || ''; synthDatVae.value = saved.vae || '';
   synthDatMainLora.value = saved.mainLora || '';
