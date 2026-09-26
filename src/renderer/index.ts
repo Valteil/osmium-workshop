@@ -250,7 +250,7 @@ import { setIconLabel } from './icons';
     const chosen = themeSelect.value;
     const premium = PREMIUM_THEMES.find(t => t.id === chosen);
     if (premium && !ownedThemes.includes(chosen)){
-      toast(`"${premium.name}" is locked — buy it in the Shop first.`);
+      toast(`🔒 "${premium.name}" is locked. Unlock it in the Shop (Personalization ▸ Shop) for ${premium.price} Edibits.`, 3600);
       themeSelect.value = getString('dts-theme') || 'studio';
       themeDropdownCtrl.refreshLabel();
       return;

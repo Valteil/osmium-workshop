@@ -246,8 +246,21 @@ export function initThemeDropdown(container: HTMLElement): { refreshLabel: () =>
         themeSelect.value = opt.value;
         themeSelect.dispatchEvent(new Event('change'));
         setLabel();
-        menuEl!.querySelectorAll('.pdrop-item').forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
+        // The change handler (index.ts) bounces a locked theme back to the
+        // current one and says how to unlock it. Highlight whatever is
+        // ACTUALLY applied now, never the clicked row by assumption:
+        // highlighting it made a locked theme look selected while nothing
+        // changed.
+        const bounced = themeSelect.value !== opt.value;
+        menuEl!.querySelectorAll<HTMLElement>('.pdrop-item').forEach((i, k) => {
+          i.classList.toggle('active', themeSelect.options[k]?.value === themeSelect.value);
+        });
+        if (bounced){
+          item.classList.remove('pdrop-item-denied');
+          void item.offsetWidth; // restart the shake on repeat clicks
+          item.classList.add('pdrop-item-denied');
+          item.addEventListener('animationend', () => item.classList.remove('pdrop-item-denied'), { once: true });
+        }
         // Deliberately stays open, matching this app's other persistent
         // dropdowns — only the toggle button or an outside click closes it.
       });

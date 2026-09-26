@@ -1422,8 +1422,16 @@
           themeSelect.value = opt.value;
           themeSelect.dispatchEvent(new Event("change"));
           setLabel();
-          menuEl.querySelectorAll(".pdrop-item").forEach((i) => i.classList.remove("active"));
-          item.classList.add("active");
+          const bounced = themeSelect.value !== opt.value;
+          menuEl.querySelectorAll(".pdrop-item").forEach((i, k) => {
+            i.classList.toggle("active", themeSelect.options[k]?.value === themeSelect.value);
+          });
+          if (bounced) {
+            item.classList.remove("pdrop-item-denied");
+            void item.offsetWidth;
+            item.classList.add("pdrop-item-denied");
+            item.addEventListener("animationend", () => item.classList.remove("pdrop-item-denied"), { once: true });
+          }
         });
         menuEl.appendChild(item);
       }
@@ -23014,7 +23022,7 @@ Image: ${entry.imgName}`,
       const chosen = themeSelect.value;
       const premium = PREMIUM_THEMES.find((t) => t.id === chosen);
       if (premium && !ownedThemes.includes(chosen)) {
-        toast(`"${premium.name}" is locked \u2014 buy it in the Shop first.`);
+        toast(`\u{1F512} "${premium.name}" is locked. Unlock it in the Shop (Personalization \u25B8 Shop) for ${premium.price} Edibits.`, 3600);
         themeSelect.value = getString("dts-theme") || "studio";
         themeDropdownCtrl.refreshLabel();
         return;

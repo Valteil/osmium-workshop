@@ -3274,6 +3274,17 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .pdrop-item:hover, .pdrop-item:focus-visible{ background: var(--bg-elevated); }
   .pdrop-item.active{ color: var(--accent-manual); font-weight: 600; }
+  /* A locked theme picked from the theme menu: the row refuses with a short
+     head-shake (and a danger tint) while the toast says how to unlock it. */
+  .pdrop-item.pdrop-item-denied{ animation: pdropDenied 0.42s cubic-bezier(.36,.07,.19,.97); color: var(--accent-danger); }
+  @keyframes pdropDenied{
+    10%, 90%{ transform: translateX(-1px); }
+    20%, 80%{ transform: translateX(3px); }
+    30%, 50%, 70%{ transform: translateX(-5px); }
+    40%, 60%{ transform: translateX(5px); }
+  }
+  @media (prefers-reduced-motion: reduce){ .pdrop-item.pdrop-item-denied{ animation-duration: 0.42s; animation-name: pdropDeniedFade; } }
+  @keyframes pdropDeniedFade{ from, to{ transform: none; } }
 
   .filter-help-row{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .filter-help-row span{ font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
