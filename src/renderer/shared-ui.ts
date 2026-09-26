@@ -502,6 +502,7 @@ export interface ModalShellOpts {
   onDismiss?: () => void;  // Escape / backdrop-click; defaults to close()
   onClose?: () => void;    // after teardown (post-fade unless instant)
   onShow?: () => void;     // inside the reveal frame
+  exitMs?: number;         // how long the exit transition runs before removal (default 160)
 }
 export interface ModalShell { backdrop: HTMLDivElement; box: HTMLDivElement; close: () => void; }
 
@@ -521,7 +522,7 @@ export function createModalShell(opts: ModalShellOpts = {}): ModalShell {
       if (opts.onClose) opts.onClose();
     } else {
       backdrop.classList.remove('modal-visible');
-      setTimeout(() => { backdrop.remove(); if (opts.onClose) opts.onClose(); }, 160);
+      setTimeout(() => { backdrop.remove(); if (opts.onClose) opts.onClose(); }, opts.exitMs ?? 160);
     }
   }
   function onKey(ev: KeyboardEvent): void { if (ev.key === 'Escape') (opts.onDismiss || close)(); }

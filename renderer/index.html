@@ -958,7 +958,7 @@
     <div class="settings-section" data-section="appearance">
       <button type="button" class="settings-section-header"><span class="settings-section-arrow"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></span><span>Appearance</span></button>
       <div class="settings-section-body">
-        <div class="settings-row">
+        <div class="settings-row" id="fontSizeRow">
           <span>Font size</span>
           <input type="range" id="fontSizeSlider" min="12" max="18" step="1" value="14">
           <span id="fontSizeVal">14px</span>
@@ -1037,7 +1037,7 @@
           <input type="checkbox" id="tagAutocompleteToggle">
           <span>Tag autocomplete — suggest from the full tag vocabulary while typing "+ add tag". Hover a suggestion for a second to preview its definition.</span>
         </label>
-        <label class="ach-toggle-row">
+        <label class="ach-toggle-row" id="tooltipsToggleRow">
           <input type="checkbox" id="tooltipsToggle" checked>
           <span>Show hover tooltips</span>
         </label>
@@ -1045,7 +1045,7 @@
           <input type="checkbox" id="langAutoSelectToggle" checked>
           <span>Auto-select a language when you add it in the 3-dot image menu's "Has text" picker (uncheck to only add it to the common-languages list, without applying it)</span>
         </label>
-        <div class="settings-row">
+        <div class="settings-row" id="tooltipDelayRow">
           <span>Tooltip delay</span>
           <input type="range" id="tooltipDelaySlider" min="100" max="2000" step="100" value="1000">
           <span id="tooltipDelayVal">1000ms</span>
@@ -1082,7 +1082,7 @@
         </label>
         <label class="ach-toggle-row">
           <input type="checkbox" id="panelsOutsideCloseToggle" checked>
-          <span>Close popups (Favorites, Log, Colors, Achievements, Shop, Tag Details) by clicking off them, not just their Close button</span>
+          <span>Close popups (Favorites, Log, Achievements, Shop, Tag Details) by clicking off them, not just their Close button</span>
         </label>
         <label class="ach-toggle-row">
           <input type="checkbox" id="pdropCloseOnSelectToggle" checked>
@@ -1099,13 +1099,13 @@
           <span style="font-size:11px; color:var(--text-faint);">Fade = the default cross-fade/scale-in. Swipe = panels and views physically slide in/out from the side they live on. Off = instant, no animation.</span>
           <div class="pdrop" id="uiAnimationsDropdown"></div>
         </div>
-        <div class="theme-panel-note">Layout</div>
-        <div class="settings-row">
+        <div class="theme-panel-note" id="layoutNote">Layout</div>
+        <div class="settings-row" id="layoutRow">
           <span style="font-size:11px; color:var(--text-faint);">Panel arrangement</span>
           <div class="pdrop" id="layoutDropdown"></div>
         </div>
-        <div class="theme-panel-note">Right-sidebar panels</div>
-        <div class="settings-row">
+        <div class="theme-panel-note" id="rightSidebarPanelsNote">Right-sidebar panels</div>
+        <div class="settings-row" id="dockDragInstructionsRow">
           <span style="font-size:11px; color:var(--text-faint);">Drag<svg class="ic ic-lead ic-trail" aria-hidden="true"><use href="#i-menu"></use></svg>to reorder,<svg class="ic ic-lead ic-trail" aria-hidden="true"><use href="#i-caret-down"></use></svg>to collapse, drag the bottom edge to resize.</span>
         </div>
         <button id="btnResetDockLayout"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-rotate"></use></svg>Reset panel layout</button>

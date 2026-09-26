@@ -307,7 +307,15 @@ import { setIconLabel } from './icons';
         // The pre-paint script applies saved custom colors if there are any,
         // but doesn't know about the "no custom theme saved yet" first-run
         // case — that still needs the Studio opened, same as applyTheme('custom') would.
-        if (!getString('dts-custom-theme')) setTimeout(() => { void openThemeStudio(); }, 0);
+        // Nothing saved behind a remembered 'custom' (storage cleared, or the
+        // site demo wiping its keys): fall back to Studio quietly instead of
+        // throwing the Theme Studio at someone on every launch. Picking
+        // Custom by hand still opens it (setFirstCustomHandler).
+        if (!getString('dts-custom-theme')){
+          themeSelect.value = 'studio';
+          applyTheme('studio');
+          themeDropdownCtrl.refreshLabel();
+        }
       }
     }
   })();

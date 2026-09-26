@@ -1063,7 +1063,7 @@
         setTimeout(() => {
           backdrop.remove();
           if (opts.onClose) opts.onClose();
-        }, 160);
+        }, opts.exitMs ?? 160);
       }
     }
     function onKey(ev) {
@@ -2053,9 +2053,12 @@
     let palette = "day";
     const cols = () => palette === "night" ? spec.night || nightColorsFor(spec) : spec.colors;
     let previewTab = currentAppTab();
+    const phone = matchMedia("(max-width: 700px)").matches;
+    const panelMs = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--panel-dur")) || 0;
     const { backdrop, box, close } = createModalShell({
       className: "ts-backdrop",
       boxClassName: "ts-box",
+      exitMs: phone && !matchMedia("(prefers-reduced-motion: reduce)").matches ? Math.round(panelMs * 1.75) + 20 : 160,
       onDismiss: () => {
         void tryClose();
       },
@@ -2116,7 +2119,8 @@
     const saveBtn = q(".ts-save");
     let pdoc = null;
     let appliedKeys = [];
-    const W = Math.max(1100, window.innerWidth), H = Math.max(680, window.innerHeight);
+    const W = phone ? window.innerWidth : Math.max(1100, window.innerWidth);
+    const H = phone ? window.innerHeight : Math.max(680, window.innerHeight);
     frame.style.width = W + "px";
     frame.style.height = H + "px";
     function fitFrame() {
@@ -3207,7 +3211,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       }
       close();
     }
+    if (phone && previewTab === "master") previewTab = "gallery";
     for (const t of PREVIEW_TABS) {
+      if (phone && t.id === "master") continue;
       const b = document.createElement("button");
       b.type = "button";
       b.className = "ts-ptab";
@@ -25018,9 +25024,11 @@ Image: ${entry.imgName}`,
       } else {
         document.documentElement.classList.toggle("theme-refined", themeWantsRefinedClass(saved));
         if (saved === "custom") {
-          if (!getString("dts-custom-theme")) setTimeout(() => {
-            void openThemeStudio();
-          }, 0);
+          if (!getString("dts-custom-theme")) {
+            themeSelect.value = "studio";
+            applyTheme("studio");
+            themeDropdownCtrl.refreshLabel();
+          }
         }
       }
     })();

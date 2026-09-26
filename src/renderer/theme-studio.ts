@@ -197,9 +197,14 @@ export async function openThemeStudio(): Promise<void> {
   const cols = (): Record<string, string> => palette === 'night' ? (spec.night || nightColorsFor(spec)) : spec.colors;
   let previewTab: PreviewTab = currentAppTab();
 
+  // On a phone the Studio is a bottom sheet (styles.css, max-width 700px)
+  // whose exit slide runs --panel-dur x 1.75; hold removal until it lands.
+  const phone = matchMedia('(max-width: 700px)').matches;
+  const panelMs = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--panel-dur')) || 0;
   const { backdrop, box, close } = createModalShell({
     className: 'ts-backdrop',
     boxClassName: 'ts-box',
+    exitMs: phone && !matchMedia('(prefers-reduced-motion: reduce)').matches ? Math.round(panelMs * 1.75) + 20 : 160,
     onDismiss: () => { void tryClose(); },
     onClose: () => { open = false; resizeObs.disconnect(); window.removeEventListener('keydown', onPopoverKey, true); },
   });
@@ -259,7 +264,11 @@ export async function openThemeStudio(): Promise<void> {
 
   let pdoc: Document | null = null;
   let appliedKeys: string[] = [];
-  const W = Math.max(1100, window.innerWidth), H = Math.max(680, window.innerHeight);
+  // The miniature is the app at THIS window's size, so on a phone it shows
+  // the phone layout (bottom sheets, card strip) rather than a thumbnail of
+  // the desktop one.
+  const W = phone ? window.innerWidth : Math.max(1100, window.innerWidth);
+  const H = phone ? window.innerHeight : Math.max(680, window.innerHeight);
   frame.style.width = W + 'px';
   frame.style.height = H + 'px';
 
@@ -1166,7 +1175,10 @@ export async function openThemeStudio(): Promise<void> {
 
   // ------------------------------------------------------------ tabs + go
 
+  if (phone && previewTab === 'master') previewTab = 'gallery';
   for (const t of PREVIEW_TABS){
+    // Phones reach Tag Overseer through the 🔭 drawer, not a tab.
+    if (phone && t.id === 'master') continue;
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'ts-ptab';
