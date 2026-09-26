@@ -314,13 +314,23 @@
      down the page. Native scroll-snap does the swipe/momentum for free on
      both touch and trackpad, same technique as Comfy Bridge's own result
      carousel. */
-  .shot-carousel-wrap{ margin-top:64px; }
+  /* The same dotted mat as the feature steps: slides span its width, and the
+     pips run down its right pad (next slide = one pip lower). */
+  .shot-carousel-wrap{
+    position:relative; margin-top:64px; padding:22px 76px 22px 22px;
+    background:
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 1.5px) 0 0/18px 18px,
+      var(--ground-dim);
+    border:1px solid var(--line);
+  }
   .shot-carousel{
     display:flex; overflow-x:auto; scroll-snap-type:x mandatory;
-    scrollbar-width:none; gap:0;
+    scrollbar-width:none; gap:0; align-items:center;
   }
   .shot-carousel::-webkit-scrollbar{ display:none; }
-  .shot-slide{ flex:0 0 100%; min-width:0; scroll-snap-align:center; margin:0; text-align:center; }
+  /* Inset so each frame's corner diamonds stay inside its own slide instead
+     of poking into the neighbours' edges. */
+  .shot-slide{ flex:0 0 100%; min-width:0; scroll-snap-align:center; margin:0; padding:6px 8px; text-align:center; }
   /* A block-level flex row (not inline) so it forces its own line under
      the image instead of sitting beside it — .proof-frame is inline-block
      now (for the shrink-wrap fix above), and figcaption has no automatic
@@ -339,12 +349,21 @@
      image instead — width:auto, height capped, centered via the slide's own
      text-align — means every slide is exactly as big as its own image
      allows, landscape or portrait, no dead space either side. */
-  .shot-slide .proof-frame{ display:inline-block; width:auto; }
-  .shot-slide .proof-frame img{
-    display:block; width:auto; height:auto; margin:0 auto;
-    max-width:min(92vw, 1040px); max-height:min(58vh, 600px);
+  .shot-slide .proof-frame{
+    display:block; margin:0 auto;
+    /* full column width, but never past 1.5x real size or ~580px tall */
+    width:min(100%, calc(var(--nw, 99999) * 1.5px), calc(var(--nw, 16) / var(--nh, 9) * 580px));
+    box-shadow:0 14px 34px -12px rgba(0,0,0,.28);
   }
-  .shot-dots{ display:flex; justify-content:center; gap:8px; margin-top:20px; }
+  .shot-slide .proof-frame img{ display:block; width:100%; height:auto; }
+  .shot-dots{
+    position:absolute; top:50%; right:0; width:76px; transform:translateY(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:12px;
+  }
+  @media (max-width:860px){
+    .shot-carousel-wrap{ padding:12px 44px 12px 12px; }
+    .shot-dots{ width:44px; gap:10px; }
+  }
   .shot-dot{
     width:8px; height:8px; border-radius:50%; padding:0; border:1px solid var(--line-strong);
     background:transparent; cursor:pointer; transition:background .15s, border-color .15s;
@@ -413,47 +432,95 @@
   }
   .conn-steps.open .cs-body{ opacity:1; transform:none; filter:none; transition-delay:.08s; }
 
-  /* Fixed-height stage: screens and crops differ wildly in shape, so the
-     frame shrink-wraps each image inside a stage that never changes height,
-     and stepping never shoves the rest of the page around. */
-  .cs-stage{
-    --stage-h:clamp(240px, 56vh, 540px);
-    height:var(--stage-h); display:grid; place-items:center;
+  /* Two layouts, picked per screenshot from its real size (data-w/h), so
+     every screen is shown as large as it can be read:
+     - .land (full screens, 900px+ wide): the dotted mat spans the content
+       width, the image fills it, and the step pips sit vertically in the
+       mat's side pad, advancing downward.
+     - .box (portrait and small crops): the mat hugs the image like a mount,
+       and the labelled rail plus caption stand beside it, on the side that
+       faces the middle of the page. Rows that put their diagram on the right
+       (.flip) mirror it.
+     Phones always get .land. */
+  .cs-body{
+    display:grid; justify-content:center; align-items:center; column-gap:44px;
+  }
+  .cs-view{
+    position:relative; display:grid; place-items:center; padding:22px;
     background:
       radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 1.5px) 0 0/18px 18px,
       var(--ground-dim);
-    border:1px solid var(--line); padding:22px;
+    border:1px solid var(--line);
   }
-  .cs-stage .proof-frame{ display:inline-block; max-width:100%; box-shadow:0 14px 34px -12px rgba(0,0,0,.28); }
-  .cs-stage img{
-    display:block; width:auto; height:auto; max-width:100%;
-    max-height:calc(var(--stage-h) - 46px);
+  .cs-view .proof-frame{ display:block; max-width:100%; box-shadow:0 14px 34px -12px rgba(0,0,0,.28); }
+  .cs-view img{
+    display:block; max-width:100%; height:auto;
     transition:opacity .22s var(--ease-out), filter .22s var(--ease-out);
   }
-  .cs-stage.multi img{ cursor:pointer; }
-  .cs-stage img.swapping{ opacity:0; filter:blur(4px); }
+  .cs-view.multi img{ cursor:pointer; }
+  .cs-view img.swapping{ opacity:0; filter:blur(4px); }
 
+  /* land: image as wide as the column allows, but never blown up past 1.5x. */
+  .cs-body.land{ grid-template-columns:minmax(0, 1fr); grid-template-areas:"view" "cap"; }
+  .cs-body.land .cs-view{ grid-area:view; padding:22px 76px 22px 22px; }
+  .cs-body.land.flip .cs-view{ padding:22px 22px 22px 76px; }
+  .cs-body.land.solo .cs-view{ padding:22px; }
+  .cs-body.land .cs-view img{ width:100%; max-width:calc(var(--nw) * 1.5px); }
+  .cs-body.land .cs-rail{
+    position:absolute; top:50%; right:0; width:76px; transform:translateY(-50%);
+    align-items:center;
+  }
+  .cs-body.land.flip .cs-rail{ right:auto; left:0; }
+  .cs-body.land .cs-step{ justify-content:center; }
+  .cs-body.land .cs-step .st-name{
+    position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap;
+  }
+  .cs-body.land .cs-cap{ grid-area:cap; text-align:center; margin:18px auto 0; }
+
+  /* box: the mat is a mount sized to the image; rail and caption beside it. */
+  .cs-body.box{
+    grid-template-columns:auto minmax(200px, 300px);
+    grid-template-rows:1fr 1fr;
+    grid-template-areas:"view rail" "view cap";
+  }
+  .cs-body.box.flip{ grid-template-columns:minmax(200px, 300px) auto; grid-template-areas:"rail view" "cap view"; }
+  .cs-body.box .cs-view{ grid-area:view; }
+  /* Exact width set by the script: as big as the viewport height and the
+     column allow, never past 1.6x its real size. */
+  .cs-body.box .cs-view img{ max-width:none; }
+  .cs-body.box .cs-rail{ grid-area:rail; align-self:end; }
+  .cs-body.box .cs-cap{ grid-area:cap; align-self:start; text-align:left; margin:22px 0 0; }
+  .cs-body.box.flip .cs-rail{ justify-self:end; }
+  .cs-body.box.flip .cs-step{ flex-direction:row-reverse; }
+  .cs-body.box.flip .cs-cap{ text-align:right; }
+  .cs-body.box.solo{ grid-template-columns:auto; grid-template-rows:auto auto; grid-template-areas:"view" "cap"; }
+  .cs-body.box.solo .cs-cap{ text-align:center; margin:18px auto 0; }
+
+  /* The rail: nodes on a vertical line, green = done, ink = here,
+     line-strong = not reached (the diagrams' own progress colors). */
   .cs-rail{
-    position:relative; list-style:none; margin:22px auto 0; padding:0;
-    display:grid; grid-template-columns:repeat(var(--n), 1fr); max-width:620px;
+    position:relative; list-style:none; margin:0; padding:0;
+    display:flex; flex-direction:column; gap:22px;
   }
-  /* The connecting line, from the first node's center to the last's. */
-  .cs-rail::before{
-    content:""; position:absolute; top:8px; height:1.3px; background:var(--line-strong);
-    left:calc(50% / var(--n)); right:calc(50% / var(--n));
+  .cs-rail[hidden]{ display:none; }
+  .cs-rail::before, .cs-rail::after{
+    content:""; position:absolute; top:9px; width:1.3px; left:var(--rail-x, 4px);
   }
+  .cs-rail::before{ bottom:9px; background:var(--line-strong); }
   .cs-rail::after{
-    content:""; position:absolute; top:8px; height:1.3px; background:var(--green);
-    left:calc(50% / var(--n)); width:calc((100% - 100% / var(--n)) * var(--p, 0));
-    transition:width .45s var(--ease-out);
+    height:calc((100% - 18px) * var(--p, 0)); background:var(--green);
+    transition:height .45s var(--ease-out);
   }
+  .cs-body.box.flip .cs-rail{ --rail-x:auto; }
+  .cs-body.box.flip .cs-rail::before, .cs-body.box.flip .cs-rail::after{ left:auto; right:4px; }
+  .cs-body.land .cs-rail::before, .cs-body.land .cs-rail::after{ left:calc(50% - 0.65px); }
   .cs-step{
-    position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:10px;
-    background:none; border:0; padding:0 6px; cursor:pointer; color:var(--ink-soft);
-    font-family:var(--f-mono); font-size:0.74rem; line-height:1.35; text-align:center; width:100%;
+    position:relative; z-index:1; display:flex; align-items:center; gap:14px; min-height:18px;
+    background:none; border:0; padding:0; cursor:pointer; color:var(--ink-soft);
+    font-family:var(--f-mono); font-size:0.78rem; line-height:1.3; text-align:left; white-space:nowrap;
   }
   .cs-step .node{
-    width:9px; height:9px; margin-top:4px; border-radius:50%;
+    flex:none; width:9px; height:9px; border-radius:50%;
     background:var(--ground); border:1.5px solid var(--line-strong);
     transition:transform .3s var(--ease-out), background .2s, border-color .2s;
   }
@@ -462,14 +529,18 @@
   .cs-step[aria-current="step"] .node{ background:var(--ink); border-color:var(--ink); transform:scale(1.55); }
   .cs-step:hover{ color:var(--ink); }
   .cs-step:focus-visible{ outline:2px solid var(--blue); outline-offset:4px; }
-  .cs-cap{ margin:16px auto 0; max-width:62ch; text-align:center; color:var(--ink-soft); font-size:0.92rem; min-height:2.8em; }
+  .cs-cap{ max-width:62ch; color:var(--ink-soft); font-size:0.92rem; min-height:2.8em; margin:0; }
+  .cs-cap .cs-cap-step{ display:block; font-family:var(--f-mono); font-size:0.74rem; color:var(--ink); margin-bottom:4px; }
   @media (prefers-reduced-motion: reduce){
-    .conn-steps, .cs-body, .cs-stage img, .cs-rail::after, .cs-step .node, .steps-toggle .st-chev{ transition:none; }
+    .conn-steps, .cs-body, .cs-view img, .cs-rail::after, .cs-step .node, .steps-toggle .st-chev{ transition:none; }
     .cs-body{ transform:none; filter:none; }
   }
   @media (max-width:860px){
-    .cs-stage{ --stage-h:clamp(200px, 46vh, 420px); padding:12px; }
-    .cs-step{ font-size:0.68rem; }
+    .cs-view{ padding:12px; }
+    .cs-body.land .cs-view{ padding:12px 44px 12px 12px; }
+    .cs-body.land.flip .cs-view{ padding:12px 12px 12px 44px; }
+    .cs-body.land.solo .cs-view{ padding:12px; }
+    .cs-body.land .cs-rail{ width:44px; }
   }
 
   /* ---------- Visual Customizability: overlapping theme staircase ---------- */
@@ -795,15 +866,15 @@
 
       <div class="conn-steps open" id="steps-inline">
         <div class="cs-inner"><div class="cs-body">
-          <div class="cs-stage multi"><div class="proof-frame">
+          <div class="cs-view multi"><div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-1-autocomplete.png" data-alt="An image card with &quot;sunl&quot; typed into its add-tag box and a list of suggested tags with usage counts." data-cap="Start typing in + Add tag. Suggestions come with how often each tag is used."><span class="node" aria-hidden="true"></span>Start typing</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-2-tag-added.png" data-alt="The same card with &quot;sunlight&quot; added as a new tag chip and a red unsaved outline." data-cap="Pick one and it lands on the card. The outline means unsaved."><span class="node" aria-hidden="true"></span>It lands</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-3-chip-menu.png" data-alt="The options menu of the &quot;blonde hair&quot; chip: show images with or without it, Tag Details, rename on this image, flag for review." data-cap="Click any chip to filter by it, read its definition, rename it on this image, or flag it for review."><span class="node" aria-hidden="true"></span>Chip options</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-1-autocomplete.png" data-w="760" data-h="600" data-alt="An image card with &quot;sunl&quot; typed into its add-tag box and a list of suggested tags with usage counts." data-cap="Start typing in + Add tag. Suggestions come with how often each tag is used."><span class="node" aria-hidden="true"></span><span class="st-name">Start typing</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-2-tag-added.png" data-w="760" data-h="600" data-alt="The same card with &quot;sunlight&quot; added as a new tag chip and a red unsaved outline." data-cap="Pick one and it lands on the card. The outline means unsaved."><span class="node" aria-hidden="true"></span><span class="st-name">It lands</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-3-chip-menu.png" data-w="760" data-h="740" data-alt="The options menu of the &quot;blonde hair&quot; chip: show images with or without it, Tag Details, rename on this image, flag for review." data-cap="Click any chip to filter by it, read its definition, rename it on this image, or flag it for review."><span class="node" aria-hidden="true"></span><span class="st-name">Chip options</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
@@ -839,15 +910,15 @@
 
       <div class="conn-steps" id="steps-pruner">
         <div class="cs-inner" inert><div class="cs-body">
-          <div class="cs-stage multi"><div class="proof-frame">
+          <div class="cs-view multi"><div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-1-select-variants.png" data-alt="The Tag Pruner searched for &quot;hair&quot;, with blonde hair, blond hair and yellow hair ticked; below, 3 tags selected affecting 18 images." data-cap="Search the Tag Pruner and tick every spelling of the same thing."><span class="node" aria-hidden="true"></span>Pick the variants</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-2-unify-name.png" data-alt="The Unify or Void box with &quot;blonde hair&quot; typed as the unified tag name next to Apply." data-cap="Type the one name they should all become, then Apply."><span class="node" aria-hidden="true"></span>Name the result</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-3-merged.png" data-alt="The gallery showing all 18 images now tagged &quot;blonde hair&quot;, with a new merge rule listed in the Retroactive Merge/Void dock." data-cap="All 18 images now say blonde hair, and a standing merge rule catches the variants in anything you add later."><span class="node" aria-hidden="true"></span>Merged</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-1-select-variants.png" data-w="380" data-h="750" data-alt="The Tag Pruner searched for &quot;hair&quot;, with blonde hair, blond hair and yellow hair ticked; below, 3 tags selected affecting 18 images." data-cap="Search the Tag Pruner and tick every spelling of the same thing."><span class="node" aria-hidden="true"></span><span class="st-name">Pick the variants</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-2-unify-name.png" data-w="380" data-h="300" data-alt="The Unify or Void box with &quot;blonde hair&quot; typed as the unified tag name next to Apply." data-cap="Type the one name they should all become, then Apply."><span class="node" aria-hidden="true"></span><span class="st-name">Name the result</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-3-merged.png" data-w="1920" data-h="1000" data-alt="The gallery showing all 18 images now tagged &quot;blonde hair&quot;, with a new merge rule listed in the Retroactive Merge/Void dock." data-cap="All 18 images now say blonde hair, and a standing merge rule catches the variants in anything you add later."><span class="node" aria-hidden="true"></span><span class="st-name">Merged</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
@@ -871,15 +942,15 @@
 
       <div class="conn-steps" id="steps-rules">
         <div class="cs-inner" inert><div class="cs-body">
-          <div class="cs-stage multi"><div class="proof-frame">
+          <div class="cs-view multi"><div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-void-1-select-junk.png" data-alt="The Tag Pruner with watermark, signature and artist name selected, and the Void button ready." data-cap="Select the tags that should never be there: watermark, signature, artist name."><span class="node" aria-hidden="true"></span>Pick the junk</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-void-2-confirm.png" data-alt="A confirmation dialog: permanently remove 3 tags from every image, with Cancel and Void tags buttons." data-cap="Void asks first, and Undo still works right after."><span class="node" aria-hidden="true"></span>Confirm</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/extra-standing-merge-rule.png" data-alt="The Retroactive Merge/Void dock showing a merge rule into &quot;blonde hair&quot; with its source tags and an Enabled checkbox." data-cap="Rules stay in the Retroactive Merge/Void dock. Add tags to them, switch them off, or delete them."><span class="node" aria-hidden="true"></span>The rule stands</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-void-1-select-junk.png" data-w="380" data-h="720" data-alt="The Tag Pruner with watermark, signature and artist name selected, and the Void button ready." data-cap="Select the tags that should never be there: watermark, signature, artist name."><span class="node" aria-hidden="true"></span><span class="st-name">Pick the junk</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-void-2-confirm.png" data-w="400" data-h="264" data-alt="A confirmation dialog: permanently remove 3 tags from every image, with Cancel and Void tags buttons." data-cap="Void asks first, and Undo still works right after."><span class="node" aria-hidden="true"></span><span class="st-name">Confirm</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/extra-standing-merge-rule.png" data-w="380" data-h="280" data-alt="The Retroactive Merge/Void dock showing a merge rule into &quot;blonde hair&quot; with its source tags and an Enabled checkbox." data-cap="Rules stay in the Retroactive Merge/Void dock. Add tags to them, switch them off, or delete them."><span class="node" aria-hidden="true"></span><span class="st-name">The rule stands</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
@@ -911,15 +982,15 @@
 
       <div class="conn-steps" id="steps-wd14">
         <div class="cs-inner" inert><div class="cs-body">
-          <div class="cs-stage multi"><div class="proof-frame">
+          <div class="cs-view multi"><div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-1-select-untagged.png" data-alt="The Tag Overseer tab filtered to four untagged images, all selected, next to the WD14 Autotagger panel." data-cap="Filter to Untagged, select them, and hit Tag selected images with WD14."><span class="node" aria-hidden="true"></span>Select untagged</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-2-review.png" data-alt="The WD14 review dialog listing four images with editable tag lists and checkboxes." data-cap="Check or edit each image's tags before they're applied, or turn review off and let it apply straight away."><span class="node" aria-hidden="true"></span>Review</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-3-tagged.png" data-alt="The four images now carrying WD14 tags, outlined as unsaved." data-cap="The tags land on every card as one undoable edit."><span class="node" aria-hidden="true"></span>Tagged</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-1-select-untagged.png" data-w="1920" data-h="1000" data-alt="The Tag Overseer tab filtered to four untagged images, all selected, next to the WD14 Autotagger panel." data-cap="Filter to Untagged, select them, and hit Tag selected images with WD14."><span class="node" aria-hidden="true"></span><span class="st-name">Select untagged</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-2-review.png" data-w="1920" data-h="1000" data-alt="The WD14 review dialog listing four images with editable tag lists and checkboxes." data-cap="Check or edit each image's tags before they're applied, or turn review off and let it apply straight away."><span class="node" aria-hidden="true"></span><span class="st-name">Review</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-3-tagged.png" data-w="1920" data-h="1000" data-alt="The four images now carrying WD14 tags, outlined as unsaved." data-cap="The tags land on every card as one undoable edit."><span class="node" aria-hidden="true"></span><span class="st-name">Tagged</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
@@ -943,15 +1014,15 @@
 
       <div class="conn-steps" id="steps-synthdat">
         <div class="cs-inner" inert><div class="cs-body">
-          <div class="cs-stage multi"><div class="proof-frame">
+          <div class="cs-view multi"><div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-1-interrogate-reference.png" data-alt="The SynthDat reference image section: WD14 tags from a pose reference, each routed to Pose, Limbs or Scene." data-cap="WD14 reads the reference, and each tag gets routed to Pose, Limbs or Scene."><span class="node" aria-hidden="true"></span>Read the pose</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-2-prompt-fields.png" data-alt="The Prompt fields panel with the assigned tags filled into Limbs and Hands, Pose and Scene." data-cap="Apply the assignment and the tags drop into the matching prompt fields."><span class="node" aria-hidden="true"></span>Fill the prompt</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-3-result.png" data-alt="A generated image with the tags it will save, and Accept into dataset and Reject buttons." data-cap="The result arrives with the tags it'll save. Accept adds it to the dataset. Reject parks it in Disabled."><span class="node" aria-hidden="true"></span>Accept or reject</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-1-interrogate-reference.png" data-w="1920" data-h="1000" data-alt="The SynthDat reference image section: WD14 tags from a pose reference, each routed to Pose, Limbs or Scene." data-cap="WD14 reads the reference, and each tag gets routed to Pose, Limbs or Scene."><span class="node" aria-hidden="true"></span><span class="st-name">Read the pose</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-2-prompt-fields.png" data-w="1920" data-h="1000" data-alt="The Prompt fields panel with the assigned tags filled into Limbs and Hands, Pose and Scene." data-cap="Apply the assignment and the tags drop into the matching prompt fields."><span class="node" aria-hidden="true"></span><span class="st-name">Fill the prompt</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-3-result.png" data-w="1920" data-h="1000" data-alt="A generated image with the tags it will save, and Accept into dataset and Reject buttons." data-cap="The result arrives with the tags it'll save. Accept adds it to the dataset. Reject parks it in Disabled."><span class="node" aria-hidden="true"></span><span class="st-name">Accept or reject</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
@@ -974,13 +1045,13 @@
 
       <div class="conn-steps" id="steps-log">
         <div class="cs-inner" inert><div class="cs-body">
-          <div class="cs-stage"><div class="proof-frame">
+          <div class="cs-view"><div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:1" hidden>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/ui-edit-log.png" data-alt="The edit log panel: a list of edits with timestamps, each with its own Undo this and Redo this buttons." data-cap="Every edit is listed with its own Undo and Redo, saved in the dataset folder."><span class="node" aria-hidden="true"></span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/ui-edit-log.png" data-w="490" data-h="790" data-alt="The edit log panel: a list of edits with timestamps, each with its own Undo this and Redo this buttons." data-cap="Every edit is listed with its own Undo and Redo, saved in the dataset folder."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
@@ -1002,13 +1073,13 @@
 
       <div class="conn-steps" id="steps-master">
         <div class="cs-inner" inert><div class="cs-body">
-          <div class="cs-stage"><div class="proof-frame">
+          <div class="cs-view"><div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:1" hidden>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/extra-sequential-launch.png" data-alt="The Master Tag Control panel with three images ticked in its grid, above Disable, Delete, Lock and Unlock." data-cap="Tick images in the grid. Everything under it applies to that selection."><span class="node" aria-hidden="true"></span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/extra-sequential-launch.png" data-w="380" data-h="660" data-alt="The Master Tag Control panel with three images ticked in its grid, above Disable, Delete, Lock and Unlock." data-cap="Tick images in the grid. Everything under it applies to that selection."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
@@ -1032,15 +1103,15 @@
 
       <div class="conn-steps" id="steps-sequential">
         <div class="cs-inner" inert><div class="cs-body">
-          <div class="cs-stage multi"><div class="proof-frame">
+          <div class="cs-view multi"><div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-1-panel.png" data-alt="Sequential mode on image 1 of 22: checkboxes for text, censorship, perspective and indicators beside the image." data-cap="Start from the first image or from your selection."><span class="node" aria-hidden="true"></span>Open the panel</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-2-selections.png" data-alt="Sequential mode with Has text, English, Front, Close-up, Comic and 1koma ticked, and a preview of the five tags it will write." data-cap="Tick what applies. The chips under the image show exactly what Confirm will write."><span class="node" aria-hidden="true"></span>Mark what's there</button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-3-confirm-next.png" data-alt="Sequential mode moved on to image 2 of 22 with a fresh panel." data-cap="Confirm writes them and moves straight to the next image."><span class="node" aria-hidden="true"></span>Confirm, next</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-1-panel.png" data-w="1920" data-h="1000" data-alt="Sequential mode on image 1 of 22: checkboxes for text, censorship, perspective and indicators beside the image." data-cap="Start from the first image or from your selection."><span class="node" aria-hidden="true"></span><span class="st-name">Open the panel</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-2-selections.png" data-w="1920" data-h="1000" data-alt="Sequential mode with Has text, English, Front, Close-up, Comic and 1koma ticked, and a preview of the five tags it will write." data-cap="Tick what applies. The chips under the image show exactly what Confirm will write."><span class="node" aria-hidden="true"></span><span class="st-name">Mark what's there</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-3-confirm-next.png" data-w="1920" data-h="1000" data-alt="Sequential mode moved on to image 2 of 22 with a fresh panel." data-cap="Confirm writes them and moves straight to the next image."><span class="node" aria-hidden="true"></span><span class="st-name">Confirm, next</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
@@ -1054,7 +1125,7 @@
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshots/ui-gallery-grid.png" alt="The Gallery tab in grid view: image cards with tag chips, the tag filter on the left and the tool docks on the right." loading="lazy" decoding="async" />
+              <img src="assets/screenshots/ui-gallery-grid.png" width="1920" height="1000" alt="The Gallery tab in grid view: image cards with tag chips, the tag filter on the left and the tool docks on the right." loading="lazy" decoding="async" />
             </div>
             <figcaption class="proof-cap"><span>Gallery — the everyday grid</span></figcaption>
           </figure>
@@ -1062,7 +1133,7 @@
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshots/ui-single.png" alt="Single view: one image beside its tags grouped into Character, Body, Face, Clothes, Pose and Scene." loading="lazy" decoding="async" />
+              <img src="assets/screenshots/ui-single.png" width="1920" height="1000" alt="Single view: one image beside its tags grouped into Character, Body, Face, Clothes, Pose and Scene." loading="lazy" decoding="async" />
             </div>
             <figcaption class="proof-cap"><span>Single view, tags sorted by prompt field</span></figcaption>
           </figure>
@@ -1070,7 +1141,7 @@
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshots/ui-compact.png" alt="Compact view: a dense grid of thumbnails, one showing its tags on hover." loading="lazy" decoding="async" />
+              <img src="assets/screenshots/ui-compact.png" width="1920" height="1000" alt="Compact view: a dense grid of thumbnails, one showing its tags on hover." loading="lazy" decoding="async" />
             </div>
             <figcaption class="proof-cap"><span>Compact view — hover any tile for its tags</span></figcaption>
           </figure>
@@ -1078,7 +1149,7 @@
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshots/datasets-1-folders.png" alt="The Datasets tab: dataset folders in a grid, with Default, Characters, Styles and a locked Private group." loading="lazy" decoding="async" />
+              <img src="assets/screenshots/datasets-1-folders.png" width="1920" height="520" alt="The Datasets tab: dataset folders in a grid, with Default, Characters, Styles and a locked Private group." loading="lazy" decoding="async" />
             </div>
             <figcaption class="proof-cap"><span>Datasets tab — every project, grouped</span></figcaption>
           </figure>
@@ -1086,7 +1157,7 @@
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshots/datasets-2-locked-group.png" alt="A password prompt for the locked Private group in the Datasets tab." loading="lazy" decoding="async" />
+              <img src="assets/screenshots/datasets-2-locked-group.png" width="1920" height="640" alt="A password prompt for the locked Private group in the Datasets tab." loading="lazy" decoding="async" />
             </div>
             <figcaption class="proof-cap"><span>Groups can be password-locked</span></figcaption>
           </figure>
@@ -1094,7 +1165,7 @@
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshots/ui-night-mode.png" alt="The Gallery tab with night mode on." loading="lazy" decoding="async" />
+              <img src="assets/screenshots/ui-night-mode.png" width="1920" height="1000" alt="The Gallery tab with night mode on." loading="lazy" decoding="async" />
             </div>
             <figcaption class="proof-cap"><span>Night mode, on any theme</span></figcaption>
           </figure>
@@ -1102,7 +1173,7 @@
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshots/ui-help.png" alt="The built-in help panel with a table of contents and the Opening a dataset page." loading="lazy" decoding="async" />
+              <img src="assets/screenshots/ui-help.png" width="1920" height="1000" alt="The built-in help panel with a table of contents and the Opening a dataset page." loading="lazy" decoding="async" />
             </div>
             <figcaption class="proof-cap"><span>Built-in help — every tab explained</span></figcaption>
           </figure>
@@ -1110,7 +1181,7 @@
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshots/theme-shop-2-legendary.png" alt="The theme shop listing rare, epic and legendary themes with their Edibits prices." loading="lazy" decoding="async" />
+              <img src="assets/screenshots/theme-shop-2-legendary.png" width="700" height="484" alt="The theme shop listing rare, epic and legendary themes with their Edibits prices." loading="lazy" decoding="async" />
             </div>
             <figcaption class="proof-cap"><span>Shop themes — common to legendary, unlocked with Edibits you earn just by using the app</span></figcaption>
           </figure>
@@ -1534,6 +1605,7 @@
   var dotsWrap = document.getElementById('shotDots');
   if (!carousel || !dotsWrap) return;
   var slides = Array.from(carousel.children);
+  slides.forEach(function(sl){ var im = sl.querySelector('img'); if (im && im.getAttribute('width')) { im.parentElement.style.setProperty('--nw', im.getAttribute('width')); im.parentElement.style.setProperty('--nh', im.getAttribute('height')); } });
   if (slides.length < 2) return; // nothing to swipe between
   var dots = slides.map(function(_, i){
     var dot = document.createElement('button');
@@ -1562,11 +1634,13 @@
   // a panel first opens (the next step is warmed right behind it), so the
   // page costs nothing extra until someone asks to see a tool in action.
   var reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  var narrow = matchMedia('(max-width: 860px)');
   document.querySelectorAll('.steps-toggle').forEach(function(btn){
     var panel = document.getElementById(btn.getAttribute('aria-controls'));
     if (!panel) return;
     var inner = panel.querySelector('.cs-inner');
-    var stage = panel.querySelector('.cs-stage');
+    var body = panel.querySelector('.cs-body');
+    var stage = panel.querySelector('.cs-view');
     var img = stage.querySelector('img');
     var cap = panel.querySelector('.cs-cap');
     var rail = panel.querySelector('.cs-rail');
@@ -1578,6 +1652,38 @@
     var openText = n > 1 ? 'Hide the steps' : 'Hide the screen';
     var closedText = n > 1 ? 'Show it in ' + words[n] + ' steps' : 'Show the screen';
 
+    var row = panel.previousElementSibling;
+    if (row && row.classList.contains('rev')) body.classList.add('flip');
+    if (n < 2) body.classList.add('solo');
+    // Full screens (900px+ and wider than tall) span the column with the pips
+    // in the mat's side pad; portraits and small crops get a mount-sized mat
+    // with the labelled rail beside it. Phones always take the first form.
+    function layout(i){
+      var s = steps[i], w = +s.dataset.w, hgt = +s.dataset.h;
+      var land = narrow.matches || (w >= 900 && w > hgt);
+      body.classList.toggle('land', land);
+      body.classList.toggle('box', !land);
+      img.style.setProperty('--nw', w);
+      img.style.setProperty('--nh', hgt);
+      if (land) img.style.width = '';
+      else {
+        var col = body.clientWidth - (n > 1 ? 344 : 0) - 46;
+        var scale = Math.min(1.6, (innerHeight * 0.74) / hgt, col / w);
+        img.style.width = Math.round(w * scale) + 'px';
+      }
+      if (land) { if (rail.parentNode !== stage) stage.appendChild(rail); }
+      else if (rail.parentNode !== body) body.insertBefore(rail, cap);
+      if (land && n > 1) {
+        cap.innerHTML = '';
+        var k = document.createElement('span');
+        k.className = 'cs-cap-step';
+        k.textContent = (i + 1) + ' / ' + n + ' · ' + s.querySelector('.st-name').textContent;
+        cap.appendChild(k);
+        cap.appendChild(document.createTextNode(s.dataset.cap));
+      } else cap.textContent = s.dataset.cap;
+    }
+    narrow.addEventListener('change', function(){ if (cur > -1) layout(cur); });
+    addEventListener('resize', function(){ if (cur > -1 && panel.classList.contains('open')) layout(cur); });
     function warm(i){ if (steps[i]) { var p = new Image(); p.src = steps[i].dataset.src; } }
     function show(i){
       if (i === cur) return;
@@ -1587,8 +1693,8 @@
         if (k === i) el.setAttribute('aria-current', 'step'); else el.removeAttribute('aria-current');
       });
       rail.style.setProperty('--p', n > 1 ? i / (n - 1) : 0);
-      cap.textContent = s.dataset.cap;
       var swap = function(){
+        layout(i);
         img.src = s.dataset.src; img.alt = s.dataset.alt;
         var done = function(){ img.classList.remove('swapping'); };
         if (img.decode) img.decode().then(done, done); else img.onload = done;
@@ -1608,9 +1714,10 @@
     btn.addEventListener('click', function(){ setOpen(btn.getAttribute('aria-expanded') !== 'true'); });
     steps.forEach(function(s, i){ s.addEventListener('click', function(){ show(i); }); });
     // Clicking the screen advances, and wraps back to the start.
-    if (n > 1) stage.addEventListener('click', function(){ show((cur + 1) % n); });
+    // (The rail lives inside the stage in land mode, so its own clicks don't count.)
+    if (n > 1) stage.addEventListener('click', function(e){ if (!rail.contains(e.target)) show((cur + 1) % n); });
     rail.addEventListener('keydown', function(e){
-      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      var d = (e.key === 'ArrowDown' || e.key === 'ArrowRight') ? 1 : (e.key === 'ArrowUp' || e.key === 'ArrowLeft') ? -1 : 0;
       if (!d) return;
       e.preventDefault();
       var k = Math.max(0, Math.min(n - 1, cur + d));
