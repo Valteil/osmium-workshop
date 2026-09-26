@@ -25,7 +25,7 @@ export const CUSTOM_EXTRA_KEYS = [
   '--btn-weight', '--btn-case', '--btn-track',
   '--r-ctl', '--r-field', '--r-panel',
   '--fx-fill', '--fx-o', '--fx-top', '--fx-h', '--fx-w',
-  '--c-ground', '--c-pad-bg', '--c-pad-shadow', '--c-top-border', '--c-top-bimg',
+  '--mat', '--c-ground', '--c-pad-bg', '--c-pad-shadow', '--c-top-border', '--c-top-bimg',
   '--c-pri-bg', '--c-pri-fg', '--c-pri-bd', '--c-pri-hover', '--c-fx-on'
 ];
 const PALETTE_KEYS = ['--bg', '--panel', '--panel2', '--panel3', '--border', '--border-strong', '--text', '--muted', '--faint',

@@ -155,6 +155,11 @@ export const HELP_SECTIONS: HelpSection[] = [
       actively restore whatever each affected image originally had. Void rules
       show in their own collapsible group (they all share one rule, since there's no separate
       canonical tag to key them by); merge rules list one row per canonical tag.</p>
+      <p><b>Past Tag Preview</b> — every image also shows the tags a rule took off it, after its
+      real tags, as faded "ghost" tags: struck through for a void, with a four-arrows-inward mark
+      for a merge (last in their category with Tag sorting on). They're exactly what the image gets
+      back if that rule is turned off. Delete one with its × like any tag (undoable), and it won't
+      come back. Turn the preview off in Settings ▸ Show Past Tag Preview.</p>
       ${isTouchDevice ? '' : `<p><b>🧺 Bucket Images</b> — crops and resizes every Gallery image to its nearest LoRA
       training bucket (Min side / Max side / Step, default 256 / 1024 / 64), so your trainer
       doesn't have to. The crop keeps the subject using a saliency model (a one-time ~176 MB
@@ -405,7 +410,10 @@ export const HELP_SECTIONS: HelpSection[] = [
       of the app on the right (switch its tab with the buttons under it; hover it to try effects).
       "Start from" copies any theme you own; Import/Export share themes as .theme.json files.
       Fills and card hovers are epic/legendary-tier: preview free, and keeping one costs that tier's
-      price in Edibits, once.</p>`}
+      price in Edibits, once. <b>My themes</b> keeps every Custom you save (switch between them from
+      the theme menu too); Colors ▸ Palette ▸ Night sets Custom's night colors (automatic or
+      hand-edited); a red contrast ratio is clickable to fix it; and <b>Hold to compare</b> under the
+      preview shows your current theme for a moment.</p>`}
       <p>🏆 Achievements (55+, unlocked per dataset folder — a fresh dataset starts with none
       unlocked) pay out Edibits as you use the app's features. 🌙 Night mode is a genuine per-theme
       color inversion that also keeps every text and accent color readable.</p>
@@ -460,8 +468,6 @@ export const HELP_SECTIONS: HelpSection[] = [
         <li>Underscore-to-space conversion only goes one way — a tag that ends up with an
         underscore while you're editing in-app is treated as containing a literal space, by
         design.</li>
-        <li>Night mode doesn't apply to the Custom theme, since that one's already fully under your
-        own control.</li>
         <li>If a dock's layout looks broken (stuck collapsed, wrong order), use Settings ▸ Layout &
         Panels ▸ "Reset panel layout."</li>
         <li>If Tag Details says "no definition found" for everything, the bundled Danbooru wiki

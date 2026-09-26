@@ -1778,8 +1778,51 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .ts-swatch:focus-within{ outline: 2px solid var(--accent-manual); outline-offset: 2px; }
   .ts-swatch input{ position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
   .ts-color-name{ font-size: 12.5px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ts-contrast{ font-family: var(--mono); font-size: 10px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+  .ts-contrast{
+    font-family: var(--mono); font-size: 10px; color: var(--text-faint); font-variant-numeric: tabular-nums;
+    background: transparent; border: 1px solid transparent; padding: 1px 5px; cursor: default; font-weight: 400;
+    text-transform: none; letter-spacing: 0;
+  }
+  .ts-contrast:hover:not(:disabled){ background: transparent; border-color: transparent; }
+  .ts-contrast[hidden]{ display: inline-block; visibility: hidden; } /* keeps its grid cell */
   .ts-contrast.low{ color: var(--accent-danger); }
+  .ts-contrast.low[tabindex="0"]{ cursor: pointer; border-color: color-mix(in srgb, var(--accent-danger) 45%, transparent); }
+  .ts-contrast.low[tabindex="0"]:hover:not(:disabled){ background: color-mix(in srgb, var(--accent-danger) 12%, transparent); border-color: var(--accent-danger); }
+  /* Night palette on Automatic: rows show the computed colors, read-only. */
+  .ts-color-auto .ts-swatch{ cursor: default; opacity: 0.8; }
+  .ts-color-auto .ts-hex{ color: var(--text-muted); background: transparent; }
+  .ts-night{ margin-top: 2px; }
+  .ts-night[hidden], .ts-night-note[hidden], .ts-link-btn[hidden]{ display: none; }
+  .ts-night-note{ margin-top: 6px; }
+  .ts-color-acts{ display: flex; flex-wrap: wrap; gap: 0 18px; }
+  /* My themes: a preset tile plus hover actions; the one being edited is ringed. */
+  .ts-lib-item{ position: relative; display: flex; }
+  .ts-lib-item > .ts-preset{ flex: 1; min-width: 0; }
+  .ts-lib-item.editing > .ts-preset, .ts-lib-new.editing{ border-color: var(--accent-manual); box-shadow: inset 0 0 0 1px var(--accent-manual); }
+  .ts-lib-badge{
+    align-self: flex-start; margin: 0 3px; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 600;
+    color: var(--accent-success); background: color-mix(in srgb, var(--accent-success) 14%, transparent);
+  }
+  .ts-lib-acts{
+    position: absolute; top: 8px; right: 8px; display: flex; gap: 3px;
+    opacity: 0; transition: opacity 0.12s ease;
+  }
+  .ts-lib-item:hover .ts-lib-acts, .ts-lib-item:focus-within .ts-lib-acts{ opacity: 1; }
+  .ts-lib-act{
+    padding: 3px; border-radius: 5px; background: color-mix(in srgb, #000 58%, transparent); border-color: transparent; color: #fff;
+  }
+  .ts-lib-act .ic{ width: 13px; height: 13px; }
+  .ts-lib-act:hover:not(:disabled){ background: color-mix(in srgb, #000 75%, transparent); border-color: transparent; }
+  .ts-lib-act.danger:hover:not(:disabled){ background: var(--accent-danger); }
+  .ts-lib-plus{
+    display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--text-muted);
+    border: 1px dashed var(--border-strong); background: transparent;
+  }
+  /* Preview toolbar: tab switcher + hold-to-compare. */
+  .ts-stage-bar{ display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .ts-compare{ font-size: 12px; padding: 6px 12px; user-select: none; touch-action: none; }
+  .ts-compare.on{ border-color: var(--accent-manual); color: var(--accent-manual); background: var(--accent-manual-dim); }
+  .ts-frame-wrap.ts-comparing{ box-shadow: 0 0 0 2px var(--accent-manual), 0 28px 64px rgba(0,0,0,0.45); }
   .ts-contrast.low::before{ content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-right: 5px; vertical-align: 1px; }
   .ts-hex{
     width: 88px; font-family: var(--mono); font-size: 11.5px; padding: 4px 7px;
@@ -2330,7 +2373,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      "image loaded" case. */
   .synthdat-ref-preview{
     display: block; width: fit-content; max-width: 100%; max-height: 340px;
-    background: var(--bg-base); border-radius: var(--radius); overflow: hidden; margin: 0 auto; cursor: zoom-in;
+    /* The theme's image mat, like every other image frame — including the
+       "No image generated yet" state, which is all mat until a result lands. */
+    background: var(--mat), var(--bg-base); border-radius: var(--radius); overflow: hidden; margin: 0 auto; cursor: zoom-in;
   }
   /* Reference image + padded/resized preview side by side (each still sized
      to its own image's natural aspect ratio via .synthdat-ref-preview's own
@@ -4014,6 +4059,19 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     cursor: pointer;
   }
   .chip button:hover { background: var(--accent-danger); color: #fff; }
+  /* Past-tag preview (view.ts buildGhostChip): what a merge/void rule took
+     off this image. Recedes behind the real tags — dashed, see-through,
+     no fill — and comes forward on hover. `.chiprow` prefix outranks a
+     theme's bare `.chip` rule so no theme repaints a ghost as a live tag. */
+  .chiprow .chip.chip-ghost{
+    background: transparent; border-style: dashed; border-color: var(--border-strong);
+    color: var(--text-muted); opacity: 0.62; transition: opacity 0.12s ease;
+  }
+  .chiprow .chip.chip-ghost:hover{ opacity: 1; }
+  .chip-ghost-void .chip-ghost-label{
+    text-decoration: line-through; text-decoration-color: var(--accent-danger); text-decoration-thickness: 1.5px;
+  }
+  .chip-ghost .chip-ghost-ic{ width: 11px; height: 11px; margin-right: -1px; color: var(--accent-auto); flex: none; }
 
   .addtag-input {
     background: transparent;

@@ -322,9 +322,11 @@ export function unmergeChildren(rule: CanonicalRule, childrenBeingTurnedOff: str
       if (e.disabled) continue;
       const prevTags = e.tags.slice();
       let changed = false;
+      const dismissed = e.meta?.ghostDismissed || [];
       for (const child of childrenBeingTurnedOff){
         if (e.tags.includes(child)) continue;
         if (!index.get(child)!.has(e.base)) continue;
+        if (dismissed.includes(child)) continue;
         e.tags = [...e.tags, child];
         changed = true;
       }
@@ -348,8 +350,10 @@ export function unmergeChildren(rule: CanonicalRule, childrenBeingTurnedOff: str
       const prevTags = e.tags.slice();
       let changed = false;
       let stillJustified = false;
+      // A past tag the user deleted (ghost chip ×) counts as never had.
+      const dismissed = e.meta?.ghostDismissed || [];
       for (const child of rule.children){
-        const hadIt = index.get(child)!.has(e.base);
+        const hadIt = index.get(child)!.has(e.base) && !dismissed.includes(child);
         if (childrenBeingTurnedOff.includes(child)){
           if (hadIt && !e.tags.includes(child)){ e.tags = [...e.tags, child]; changed = true; }
         } else if (rule.enabled && !disabledChildren.includes(child) && hadIt){
@@ -373,6 +377,56 @@ export function unmergeChildren(rule: CanonicalRule, childrenBeingTurnedOff: str
   }
   if (touched > 0) refreshAllUIRef();
   return touched;
+}
+
+// ---------------- Past-tag preview (ghost chips) ----------------
+// The tags each image would get back if its merge/void rule were turned off
+// — exactly what unmergeChildren() would restore, built from the same
+// editLog evidence: a void ghost is an active void child the log proves this
+// image had; a merge ghost is an active merge child the log proves it had
+// while it still carries that rule's canonical tag. Locked/Disabled entries
+// get none (unmergeChildren skips them too), and tags the user deleted from
+// the preview (meta.ghostDismissed) stay gone. view.ts renders them after the
+// real chips (Settings ▸ "Show Past Tag Preview").
+export interface GhostTag { tag: string; kind: 'void' | 'merge'; canonical?: string; }
+
+// One map for a whole render pass: every card asks, but the evidence scan
+// is O(rules × editLog), so it's built once and dropped at the end of the
+// task (anything that changes rules or the log re-renders in a later task).
+let ghostCache: Map<string, GhostTag[]> | null = null;
+function ghostMap(): Map<string, GhostTag[]> {
+  if (ghostCache) return ghostCache;
+  const map = new Map<string, GhostTag[]>();
+  const add = (base: string, g: GhostTag) => {
+    const list = map.get(base);
+    if (!list) map.set(base, [g]);
+    else if (!list.some(x => x.tag === g.tag)) list.push(g);
+  };
+  const voidTags: string[] = [];
+  for (const rule of canonicalRules){
+    if (!rule.enabled) continue;
+    const active = activeChildren(rule);
+    if (!active.length) continue;
+    if (!rule.canonical){ voidTags.push(...active); continue; }
+    const idx = buildMergeEvidenceIndex(rule.canonical, active);
+    for (const [tag, bases] of idx) for (const base of bases) add(base, { tag, kind: 'merge', canonical: rule.canonical });
+  }
+  if (voidTags.length){
+    const idx = buildVoidEvidenceIndex(Array.from(new Set(voidTags)));
+    for (const [tag, bases] of idx) for (const base of bases) add(base, { tag, kind: 'void' });
+  }
+  ghostCache = map;
+  setTimeout(() => { ghostCache = null; }, 0);
+  return map;
+}
+
+export function ghostTagsFor(entry: Entry): GhostTag[] {
+  if (entry.disabled || entry.meta?.locked) return [];
+  const list = ghostMap().get(entry.base);
+  if (!list) return [];
+  const dismissed = entry.meta?.ghostDismissed || [];
+  return list.filter(g => !entry.tags.includes(g.tag) && !dismissed.includes(g.tag)
+    && (g.kind === 'void' || entry.tags.includes(g.canonical!)));
 }
 
 // Rule CONFIG changes (pause/resume, add/remove/toggle a child, create,

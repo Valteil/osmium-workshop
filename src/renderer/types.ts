@@ -51,6 +51,9 @@ export interface Entry {
 export interface EntryMeta {
   reviewColor?: string;
   flaggedTags?: string[];
+  // Past tags (ghost chips, canonical-tags.ts ghostTagsFor()) the user deleted for this image:
+  // hidden from the preview and never restored when their merge/void rule is turned off.
+  ghostDismissed?: string[];
   note?: string;
   noteAlwaysVisible?: boolean;
   mergeImmune?: boolean;
@@ -115,6 +118,9 @@ export interface EditLogAffected {
   // metadata, not the caption's tag list — applying it via applyTagDirection would corrupt tags.
   prevFlagged?: string[];
   newFlagged?: string[];
+  // Ghost-delete-only (ghost-remove): `meta.ghostDismissed` before/after, same reasoning.
+  prevGhostDismissed?: string[];
+  newGhostDismissed?: string[];
 }
 
 export interface EditLogEntry {

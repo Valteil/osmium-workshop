@@ -40,6 +40,10 @@ export interface ThemeSpec {
   // Copied-theme passthrough (fill, card lift, card depth, mat) for tokens
   // that don't reduce to one of the Studio's own options. Sanitized.
   raw: Record<string, string>;
+  // Night mode (Osmium Workshop). null = automatic: the app's lightness flip
+  // + contrast guard, same as every built-in theme. A map = the user's own
+  // hand-edited night palette (the 16 color roles), used instead.
+  night: Record<string, string> | null;
 }
 
 export const THEME_FILE_KIND = 'osmium-theme';
@@ -193,6 +197,7 @@ export function defaultSpec(): ThemeSpec {
     fx: { fill: 'none', tint: 'flair', card: 'none', depth: 'soft' },
     surface: { mat: 'dots', ground: 'plain', pad: 'lit', tab: 'underline', topbar: 'flair', primary: 'tinted' },
     raw: {},
+    night: null,
   };
 }
 
@@ -272,6 +277,11 @@ export function normalizeSpec(input: unknown): ThemeSpec {
       topbar: pick(TOPBARS, su.topbar, d.surface.topbar), primary: pick(PRIMARIES, su.primary, d.surface.primary),
     },
     raw,
+    night: o.night && typeof o.night === 'object' ? (() => {
+      const n: Record<string, string> = { ...colors };
+      for (const k of SPEC_COLOR_KEYS){ const c = o.night[k]; if (typeof c === 'string' && HEX_RE.test(c.trim())) n[k] = c.trim().toLowerCase(); }
+      return n;
+    })() : null,
   };
 }
 
@@ -360,3 +370,35 @@ export function mixHex(a: string, b: string, t: number): string {
   return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join('');
 }
 
+function rgbToHsl(hex: string): [number, number, number] {
+  const [r, g, b] = hexToRgb(hex).map(v => v / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  if (max === min) return [0, 0, l * 100];
+  const d = max - min, sat = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, sat * 100, l * 100];
+}
+function hslToHex(h: number, sat: number, l: number): string {
+  sat /= 100; l /= 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = sat * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return '#' + [f(0), f(8), f(4)].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
+}
+
+// Nudges `fg`'s lightness away from `bg` until it clears `floor`, keeping
+// hue and saturation (the same idea as the night-mode contrast guard). An
+// authored alpha (#rrggbbaa) is kept. Returns fg unchanged if it already
+// passes, or the closest it could get if the floor is out of reach.
+export function fixContrast(fg: string, bg: string, floor: number): string {
+  if (contrast(fg, bg) >= floor) return fg;
+  const alpha = fg.length === 9 ? fg.slice(7) : '';
+  const [h, sat, l0] = rgbToHsl(fg);
+  const lighter = luminance(bg) < 0.4;
+  let l = l0, out = hex6(fg);
+  while (contrast(out, bg) < floor && l > 0 && l < 100){
+    l = lighter ? Math.min(100, l + 1) : Math.max(0, l - 1);
+    out = hslToHex(h, sat, l);
+  }
+  return out + alpha;
+}

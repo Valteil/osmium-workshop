@@ -26,7 +26,9 @@ export const ISOLATE_TYPES = new Set(['isolate-image']);
 // Review-flag clearing ("Mark reviewed" on the left panel's flagged-tags
 // list). Swaps entry.meta.flaggedTags, NOT entry.tags — so it can't ride the
 // TAG_TYPES/applyTagDirection path; its own applier is injected instead.
-export const REVIEW_TYPES = new Set(['unflag-review']);
+// 'ghost-remove' (deleting a past-tag ghost chip) swaps meta.ghostDismissed
+// the same way and shares the applier.
+export const REVIEW_TYPES = new Set(['unflag-review', 'ghost-remove']);
 
 const LOG_FILE_NAME = '_tag_edit_log.json';
 
@@ -123,7 +125,7 @@ const STAT_CHART_COLORS: Record<string, string> = {
   'rename': '#7fbf8f', 'find-replace': '#a683e0', 'disable': '#8a6f57', 'restore': '#4fae7a',
   'undo': '#9791a6', 'redo': '#6b6578', 'unmerge': '#d9b35c', 'unvoid': '#5cb9a8', 'rule-update': '#8a8fd9',
   'delete': '#c1443c', 'rename-files': '#4a9fd1', 'crop-image': '#3aa655', 'rotate-image': '#7a9fd1',
-  'isolate-image': '#b57edc', 'unflag-review': '#e8a33d'
+  'isolate-image': '#b57edc', 'unflag-review': '#e8a33d', 'ghost-remove': '#9791a6'
 };
 const STAT_TYPE_LABEL: Record<string, string> = {
   'add-tag': 'Tags added', 'remove-tag': 'Tags removed', 'merge': 'Merges', 'void': 'Voids',
@@ -131,7 +133,8 @@ const STAT_TYPE_LABEL: Record<string, string> = {
   'undo': 'Undos', 'redo': 'Redos', 'unmerge': 'Unmerges', 'unvoid': 'Unvoids', 'rule-update': 'Rule changes',
   'delete': 'Deleted permanently', 'rename-files': 'Files renamed',
   'crop-image': 'Crops', 'rotate-image': 'Rotates', 'isolate-image': 'Isolates',
-  'unflag-review': 'Review flags cleared'
+  'unflag-review': 'Review flags cleared',
+  'ghost-remove': 'Past tags deleted'
 };
 
 function computeStatsBreakdown(): Record<string, number> {

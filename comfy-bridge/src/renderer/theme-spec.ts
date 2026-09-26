@@ -43,6 +43,10 @@ export interface ThemeSpec {
   // Copied-theme passthrough (fill, card lift, card depth, mat) for tokens
   // that don't reduce to one of the Studio's own options. Sanitized.
   raw: Record<string, string>;
+  // Night mode (Osmium Workshop). null = automatic: the app's lightness flip
+  // + contrast guard, same as every built-in theme. A map = the user's own
+  // hand-edited night palette (the 16 color roles), used instead.
+  night: Record<string, string> | null;
 }
 
 export const THEME_FILE_KIND = 'osmium-theme';
@@ -91,24 +95,29 @@ export const CAPS: Opt[] = [{ id: 'round', label: 'Rounded' }, { id: 'square', l
 export const TINTS: Opt[] = [{ id: 'flair', label: 'Flair' }, { id: 'manual', label: 'Manual' }, { id: 'auto', label: 'Auto' }];
 
 export const T = 'var(--c-tint)'; // placeholder, swapped for the chosen accent at compile time
-export interface FillDef extends Opt { fill: string; o: string; top: string; h: string; w: string; }
+// `tier`: the shop tier an effect belongs to. Hover-fills and card hovers are
+// natively an epic/legendary-theme feature, so in Osmium Workshop each one
+// costs that tier's theme price in Edibits, once, to save onto Custom
+// (theme-studio.ts). Comfy Bridge has no economy and ignores it.
+export type EffectTier = 'epic' | 'legendary';
+export interface FillDef extends Opt { fill: string; o: string; top: string; h: string; w: string; tier?: EffectTier; }
 export const FILLS: FillDef[] = [
   { id: 'none', label: 'None', fill: 'none', o: '0', top: '0', h: '100%', w: '0' },
-  { id: 'wash', label: 'Wash', fill: T, o: '0.22', top: '0', h: '100%', w: '0.75' },
-  { id: 'flood', label: 'Flood', fill: T, o: '0.32', top: '0', h: '100%', w: '1' },
-  { id: 'underline', label: 'Underline', fill: T, o: '1', top: 'calc(100% - 2px)', h: '2px', w: '1' },
-  { id: 'sweep', label: 'Sweep', fill: `linear-gradient(90deg, color-mix(in srgb, ${T} 8%, transparent), ${T})`, o: '0.42', top: '0', h: '100%', w: '1' },
-  { id: 'glint', label: 'Glint', fill: `linear-gradient(115deg, transparent 25%, ${T} 50%, transparent 75%)`, o: '0.36', top: '0', h: '100%', w: '1' },
-  { id: 'glow', label: 'Glow', fill: `radial-gradient(ellipse at 0% 50%, ${T}, transparent 75%)`, o: '0.4', top: '0', h: '100%', w: '1' },
-  { id: 'scan', label: 'Scanlines', fill: `repeating-linear-gradient(0deg, ${T} 0 1px, transparent 1px 3px)`, o: '0.5', top: '0', h: '100%', w: '1' },
-  { id: 'stripes', label: 'Stripes', fill: `repeating-linear-gradient(-45deg, ${T} 0 6px, transparent 6px 12px)`, o: '0.3', top: '0', h: '100%', w: '1' },
+  { id: 'wash', label: 'Wash', fill: T, o: '0.22', top: '0', h: '100%', w: '0.75', tier: 'epic' },
+  { id: 'flood', label: 'Flood', fill: T, o: '0.32', top: '0', h: '100%', w: '1', tier: 'epic' },
+  { id: 'underline', label: 'Underline', fill: T, o: '1', top: 'calc(100% - 2px)', h: '2px', w: '1', tier: 'epic' },
+  { id: 'sweep', label: 'Sweep', fill: `linear-gradient(90deg, color-mix(in srgb, ${T} 8%, transparent), ${T})`, o: '0.42', top: '0', h: '100%', w: '1', tier: 'legendary' },
+  { id: 'glint', label: 'Glint', fill: `linear-gradient(115deg, transparent 25%, ${T} 50%, transparent 75%)`, o: '0.36', top: '0', h: '100%', w: '1', tier: 'legendary' },
+  { id: 'glow', label: 'Glow', fill: `radial-gradient(ellipse at 0% 50%, ${T}, transparent 75%)`, o: '0.4', top: '0', h: '100%', w: '1', tier: 'legendary' },
+  { id: 'scan', label: 'Scanlines', fill: `repeating-linear-gradient(0deg, ${T} 0 1px, transparent 1px 3px)`, o: '0.5', top: '0', h: '100%', w: '1', tier: 'epic' },
+  { id: 'stripes', label: 'Stripes', fill: `repeating-linear-gradient(-45deg, ${T} 0 6px, transparent 6px 12px)`, o: '0.3', top: '0', h: '100%', w: '1', tier: 'epic' },
 ];
-export interface CardFxDef extends Opt { t: string; s: string; }
+export interface CardFxDef extends Opt { t: string; s: string; tier?: EffectTier; }
 export const CARD_FX: CardFxDef[] = [
   { id: 'none', label: 'Still', t: 'none', s: 'var(--card-shadow)' },
-  { id: 'lift', label: 'Lift', t: 'translateY(-3px)', s: '0 12px 24px color-mix(in srgb, var(--bg-base) 55%, transparent)' },
-  { id: 'tilt', label: 'Tilt', t: 'translateY(-3px) rotate(-0.6deg)', s: '0 12px 24px color-mix(in srgb, var(--bg-base) 55%, transparent)' },
-  { id: 'ring', label: 'Ring', t: 'none', s: `0 0 0 1px ${T}, 0 8px 20px color-mix(in srgb, var(--bg-base) 45%, transparent)` },
+  { id: 'lift', label: 'Lift', t: 'translateY(-3px)', s: '0 12px 24px color-mix(in srgb, var(--bg-base) 55%, transparent)', tier: 'epic' },
+  { id: 'tilt', label: 'Tilt', t: 'translateY(-3px) rotate(-0.6deg)', s: '0 12px 24px color-mix(in srgb, var(--bg-base) 55%, transparent)', tier: 'epic' },
+  { id: 'ring', label: 'Ring', t: 'none', s: `0 0 0 1px ${T}, 0 8px 20px color-mix(in srgb, var(--bg-base) 45%, transparent)`, tier: 'legendary' },
 ];
 export const DEPTHS: (Opt & { s: string })[] = [
   { id: 'flat', label: 'Flat', s: 'none' },
@@ -191,6 +200,7 @@ export function defaultSpec(): ThemeSpec {
     fx: { fill: 'none', tint: 'flair', card: 'none', depth: 'soft' },
     surface: { mat: 'dots', ground: 'plain', pad: 'lit', tab: 'underline', topbar: 'flair', primary: 'tinted' },
     raw: {},
+    night: null,
   };
 }
 
@@ -270,6 +280,11 @@ export function normalizeSpec(input: unknown): ThemeSpec {
       topbar: pick(TOPBARS, su.topbar, d.surface.topbar), primary: pick(PRIMARIES, su.primary, d.surface.primary),
     },
     raw,
+    night: o.night && typeof o.night === 'object' ? (() => {
+      const n: Record<string, string> = { ...colors };
+      for (const k of SPEC_COLOR_KEYS){ const c = o.night[k]; if (typeof c === 'string' && HEX_RE.test(c.trim())) n[k] = c.trim().toLowerCase(); }
+      return n;
+    })() : null,
   };
 }
 
@@ -358,3 +373,35 @@ export function mixHex(a: string, b: string, t: number): string {
   return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join('');
 }
 
+function rgbToHsl(hex: string): [number, number, number] {
+  const [r, g, b] = hexToRgb(hex).map(v => v / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  if (max === min) return [0, 0, l * 100];
+  const d = max - min, sat = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, sat * 100, l * 100];
+}
+function hslToHex(h: number, sat: number, l: number): string {
+  sat /= 100; l /= 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = sat * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return '#' + [f(0), f(8), f(4)].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
+}
+
+// Nudges `fg`'s lightness away from `bg` until it clears `floor`, keeping
+// hue and saturation (the same idea as the night-mode contrast guard). An
+// authored alpha (#rrggbbaa) is kept. Returns fg unchanged if it already
+// passes, or the closest it could get if the floor is out of reach.
+export function fixContrast(fg: string, bg: string, floor: number): string {
+  if (contrast(fg, bg) >= floor) return fg;
+  const alpha = fg.length === 9 ? fg.slice(7) : '';
+  const [h, sat, l0] = rgbToHsl(fg);
+  const lighter = luminance(bg) < 0.4;
+  let l = l0, out = hex6(fg);
+  while (contrast(out, bg) < floor && l > 0 && l < 100){
+    l = lighter ? Math.min(100, l + 1) : Math.max(0, l - 1);
+    out = hslToHex(h, sat, l);
+  }
+  return out + alpha;
+}

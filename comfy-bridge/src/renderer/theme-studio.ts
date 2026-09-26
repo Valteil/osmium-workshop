@@ -16,7 +16,7 @@
 import {
   type ThemeSpec, type FontDef, type Opt, FONTS, fontStack, SHAPES, TINTS, T, FILLS, INK, PATTERNS, PADS, TOPBARS,
   PRIMARIES, COLOR_GROUPS, CONTRAST, HEX_RE, SPEC_COLOR_KEYS, THEME_FILE_KIND,
-  defaultSpec, normalizeSpec, compileSpec, luminance, contrast, mixHex, hex6
+  defaultSpec, normalizeSpec, compileSpec, luminance, contrast, mixHex, hex6, fixContrast
 } from './theme-spec';
 import {
   applyTheme, themePalettes, currentThemeName, readCustomVars,
@@ -89,13 +89,32 @@ function esc(s: string): string {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
-type View = 'window' | 'left' | 'mid' | 'right';
+type View = 'window' | 'left' | 'mid' | 'right' | 'picker' | 'lightbox';
 const VIEWS: { id: View; label: string }[] = [
   { id: 'window', label: 'Whole window' },
   { id: 'left', label: 'Connection & models' },
   { id: 'mid', label: 'Prompt' },
   { id: 'right', label: 'Generate' },
+  { id: 'picker', label: 'Model picker' },
+  { id: 'lightbox', label: 'Image viewer' },
 ];
+const OVERLAY_VIEWS: View[] = ['picker', 'lightbox'];
+
+// Static stand-ins for the two pop-ups the window can't show on its own,
+// built from the same shared.css classes the real ones use (picker-modal.ts,
+// lightbox.ts), so a theme styles them exactly as it would the live ones.
+function previewOverlays(): string {
+  const art = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 820"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8d7b6a"/><stop offset="1" stop-color="#2f2923"/></linearGradient></defs>'
+    + '<rect width="640" height="820" fill="url(#g)"/><circle cx="320" cy="330" r="150" fill="#e9dccb" opacity=".85"/><rect x="130" y="520" width="380" height="260" rx="90" fill="#5d4c3d"/></svg>');
+  const rows = ['anima-preview-v2.safetensors', 'illustrious-xl-v1.safetensors', 'noobai-eps-1.1.safetensors', 'pony-v6-xl.safetensors', 'sdxl-base-1.0.safetensors'];
+  return `<div class="picker-backdrop modal-visible ts-pv" data-pv="picker" style="display:none"><div class="picker-box">
+      <div class="picker-head"><span class="d">Diffusion model (UNET)</span><button class="picker-close">×</button></div>
+      <input type="text" class="picker-search" placeholder="Search…" value="xl">
+      <div class="picker-list"><div class="picker-row picker-clear">— Clear —</div>${rows.map((r, i) => `<div class="picker-row${i === 1 ? ' picked' : ''}">${r}</div>`).join('')}</div>
+    </div></div>
+    <div class="lightbox-backdrop modal-visible ts-pv" data-pv="lightbox" style="display:none"><img src="${art}" alt=""><button class="lightbox-close">×</button></div>`;
+}
 
 let isOpen = false;
 
@@ -130,7 +149,10 @@ export function openThemeStudio(opts: { onSaved: () => void }): void {
     <div class="ts-edit"><nav class="ts-jump" aria-label="Sections"></nav><div class="ts-sections"></div></div>
     <div class="ts-stage">
       <div class="ts-stage-frame"><div class="ts-frame-wrap"><iframe class="ts-frame" title="Live preview" tabindex="-1"></iframe></div></div>
-      <div class="ts-preview-tabs" role="tablist" aria-label="Preview view"></div>
+      <div class="ts-stage-bar">
+        <div class="ts-preview-tabs" role="tablist" aria-label="Preview view"></div>
+        <button type="button" class="ts-compare" aria-pressed="false" title="Hold to see your current theme in the preview (Space or Enter also works)">Hold to compare</button>
+      </div>
       <div class="ts-stage-note">Live preview. Hover the miniature to try buttons; scroll a column to see the rest of it.</div>
     </div>
     <footer class="ts-foot">
@@ -176,7 +198,7 @@ export function openThemeStudio(opts: { onSaved: () => void }): void {
   function fitFrame(): void {
     const r = stageFrame.getBoundingClientRect();
     if (!r.width || !r.height) return;
-    const col = view !== 'window' && pdoc ? pdoc.getElementById(view) : null;
+    const col = view !== 'window' && !OVERLAY_VIEWS.includes(view) && pdoc ? pdoc.getElementById(view) : null;
     if (!col){
       frame.style.height = H + 'px';
       const s = Math.min(r.width / W, r.height / H);
@@ -207,7 +229,7 @@ export function openThemeStudio(opts: { onSaved: () => void }): void {
     doc.open();
     doc.write(`<!DOCTYPE html><html data-theme="custom"><head><meta charset="utf-8"><base href="${base}">
       <link rel="stylesheet" href="fonts/fonts.css"><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="shared.css">
-      <style>*{cursor:default !important}</style></head><body>${app.outerHTML}</body></html>`);
+      <style>*{cursor:default !important}</style></head><body>${app.outerHTML}${previewOverlays()}</body></html>`);
     doc.close();
     pdoc = doc;
     for (const type of ['click', 'mousedown', 'dblclick', 'contextmenu', 'keydown', 'submit', 'dragstart', 'auxclick']){
@@ -235,9 +257,46 @@ export function openThemeStudio(opts: { onSaved: () => void }): void {
       b.setAttribute('aria-selected', String(on));
       b.tabIndex = on ? 0 : -1;
     });
-    if (!animate){ fitFrame(); return; }
+    const apply = () => {
+      pdoc?.querySelectorAll<HTMLElement>('.ts-pv').forEach(el => { el.style.display = el.dataset.pv === v ? '' : 'none'; });
+      fitFrame();
+    };
+    if (!animate){ apply(); return; }
     frameWrap.classList.add('ts-switching');
-    setTimeout(() => { fitFrame(); frameWrap.classList.remove('ts-switching'); }, 110);
+    setTimeout(() => { apply(); frameWrap.classList.remove('ts-switching'); }, 110);
+  }
+
+  // Hold to compare: the preview briefly wears the live window's current
+  // theme (its inline vars and classes), then snaps back to the draft.
+  let comparing = false;
+  function setCompare(on: boolean): void {
+    if (on === comparing || !pdoc) return;
+    comparing = on;
+    const btn = q<HTMLButtonElement>('.ts-compare');
+    btn.setAttribute('aria-pressed', String(on));
+    btn.classList.toggle('on', on);
+    frameWrap.classList.toggle('ts-comparing', on);
+    const root = pdoc.documentElement, live = document.documentElement;
+    root.removeAttribute('style');
+    if (on){
+      root.classList.toggle('bridge-fx', live.classList.contains('bridge-fx'));
+      for (let i = 0; i < live.style.length; i++){
+        const k = live.style[i];
+        if (k.startsWith('--')) root.style.setProperty(k, live.style.getPropertyValue(k));
+      }
+    } else {
+      appliedKeys = [];
+      applyDraft();
+    }
+  }
+  {
+    const btn = q<HTMLButtonElement>('.ts-compare');
+    btn.addEventListener('pointerdown', (ev) => { btn.setPointerCapture(ev.pointerId); setCompare(true); });
+    btn.addEventListener('pointerup', () => setCompare(false));
+    btn.addEventListener('pointercancel', () => setCompare(false));
+    btn.addEventListener('keydown', (ev) => { if ((ev.key === ' ' || ev.key === 'Enter') && !ev.repeat){ ev.preventDefault(); setCompare(true); } });
+    btn.addEventListener('keyup', (ev) => { if (ev.key === ' ' || ev.key === 'Enter') setCompare(false); });
+    btn.addEventListener('blur', () => setCompare(false));
   }
 
   let draftQueued = false;
@@ -246,6 +305,7 @@ export function openThemeStudio(opts: { onSaved: () => void }): void {
     draftQueued = true;
     requestAnimationFrame(() => {
       draftQueued = false;
+      if (comparing) return;
       const vars = compileBridge(spec);
       if (pdoc){
         const st = pdoc.documentElement.style;
@@ -459,8 +519,16 @@ export function openThemeStudio(opts: { onSaved: () => void }): void {
     hex.spellcheck = false;
     hex.maxLength = 9;
     hex.setAttribute('aria-label', label + ' hex value');
-    const badge = document.createElement('span');
+    const badge = document.createElement('button');
+    badge.type = 'button';
     badge.className = 'ts-contrast';
+    badge.tabIndex = -1;
+    badge.addEventListener('click', () => {
+      const r = CONTRAST[key];
+      if (!r || !badge.classList.contains('low')) return;
+      spec.colors[key] = fixContrast(spec.colors[key], spec.colors[r.against], r.floor);
+      changed();
+    });
     row.append(swatch, name, badge, hex);
     parent.appendChild(row);
     picker.addEventListener('input', () => {
@@ -484,10 +552,12 @@ export function openThemeStudio(opts: { onSaved: () => void }): void {
       const rule = CONTRAST[key];
       if (rule){
         const ratio = contrast(v, spec.colors[rule.against]);
-        badge.textContent = ratio.toFixed(1) + ':1';
-        badge.classList.toggle('low', ratio < rule.floor);
-        badge.title = ratio < rule.floor ? `Below ${rule.floor}:1: hard to read` : 'Contrast';
-      }
+        const low = ratio < rule.floor;
+        badge.textContent = low ? `${ratio.toFixed(1)}:1 · Fix` : ratio.toFixed(1) + ':1';
+        badge.classList.toggle('low', low);
+        badge.tabIndex = low ? 0 : -1;
+        badge.title = low ? `Below ${rule.floor}:1: hard to read. Click to adjust its lightness until it passes.` : 'Contrast';
+      } else badge.hidden = true;
     });
   }
 
@@ -569,6 +639,9 @@ export function openThemeStudio(opts: { onSaved: () => void }): void {
     o => `<span class="ts-s-pad" style="background:${o.bg};box-shadow:${o.shadow}"><i></i><i></i></span>`, 'ts-opts-compact');
   optionGrid(secSurf, 'Window ground', PATTERNS, () => spec.surface.ground, id => { spec.surface.ground = id; },
     o => `<span class="ts-s-pat" style="background:${o.css.split(INK).join('color-mix(in srgb, var(--text-primary) 14%, transparent)')}, var(--bg-base)"></span>`, 'ts-opts-compact');
+  optionGrid(secSurf, 'Image mat', PATTERNS, () => spec.surface.mat === 'preset' ? '' : spec.surface.mat, id => { spec.surface.mat = id; },
+    o => `<span class="ts-s-pat ts-s-mat" style="background:${o.css.split(INK).join('color-mix(in srgb, var(--text-primary) 20%, transparent)')}, var(--bg-base)"><i></i></span>`,
+    'ts-opts-compact', 'Behind generated images, and the empty frame before one lands');
   optionGrid(secSurf, 'Top bar edge', TOPBARS, () => spec.surface.topbar, id => { spec.surface.topbar = id; },
     o => `<span class="ts-s-top" style="border-bottom:${o.border};border-image:${o.bimg}"></span>`, 'ts-opts-compact');
   optionGrid(secSurf, 'Generate button', PRIMARIES, () => spec.surface.primary, id => { spec.surface.primary = id; },

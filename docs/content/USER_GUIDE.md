@@ -206,6 +206,13 @@ get corrected once they're back in the Gallery.
   strongest override, ignoring the dock's settings entirely for one specific image.
 - **+ New rule** adds one by hand instead of waiting for a Unify/Void action to create it.
 
+**Past Tag Preview.** Each image also shows the tags a rule took off it, after its real tags, as
+faded "ghost" tags. A voided tag is struck through, and a merged tag carries a small mark of four
+arrows pointing inward. With Tag Sorting on, each ghost sits last in its category. They show exactly
+what that image gets back if you turn the rule (or that tag in it) off. Delete one with its × like any
+tag (undoable): the image then won't get it back when the rule is turned off. Turn the preview off
+in Settings ▸ **Show Past Tag Preview**.
+
 Every rule change, and every resulting correction, shows up as its own entry in the Edit Log with
 Undo/Redo — voiding a tag, un-voiding it, then voiding it again shows as three separate,
 correctly-ordered log rows.
@@ -414,6 +421,29 @@ Epic/legendary themes get an extra
 hover-fill button effect and card lift, drawn in that theme's own style; any cheaper theme can
 buy them individually via the Shop's **🔨 Refine Theme** button for the price difference.
 
+**🎨 Theme Studio** (Personalization ▸ Theme Studio) builds your own **Custom** theme. It opens
+as a full-screen editor. On the left you set its colors (with a contrast readout on text), fonts
+(any bundled face, per role: interface, brand, panel titles, tabs, tags), button/tag/card/panel/
+checkbox shapes, icon stroke, button hover-fill and card hover, card depth, dock pads, gallery
+ground, image mat, active-tab marker, top-bar edge and primary-button style. On the right is a
+live miniature of the app; switch which tab it shows with the buttons under it, and hover it to
+try the effects. **Start from** copies any theme you own as a preset, and **Import / Export**
+saves themes as `.theme.json` files you can share (Comfy Bridge's Theme Studio reads the same
+files). Hover-fills and card hovers belong to the epic/legendary tier: preview them free, and
+keeping one costs that tier's theme price in Edibits, once (effects copied from a theme you
+already own are free).
+
+More in the Studio:
+- **My themes** keeps every Custom theme you save. Pick one to edit it, duplicate or delete it,
+  or use **Save as new**. Your saved themes also show up in the theme menu, so you can switch
+  between them there.
+- **Night mode works on Custom.** Under Colors ▸ Palette ▸ Night, choose **Automatic** (the same
+  flip every built-in theme uses) or **Hand-edited** to set each night color yourself.
+- **Contrast fixes:** a text color that's too faint shows its ratio in red. Click it, or **Fix all
+  low contrast**, and its lightness is adjusted until it passes.
+- **Hold to compare** (under the preview) briefly shows your current theme so you can compare
+  it against the draft.
+
 **🏆 Achievements** (55+, unlocked per-dataset-folder — a fresh dataset starts with none unlocked)
 pay out Edibits. Use them to unlock Shop themes by using the app. **🌙 Night mode** is a genuine
 per-theme color inversion: it flips each color's lightness, then darkens or lightens any text or
@@ -486,7 +516,6 @@ This guide covers the desktop app. Two siblings share this repo:
 - **Drag a card onto the Disabled tab** to disable it quickly (hover a card to see this hint).
 - **Underscore normalization is one-way** — a tag that ends up with an underscore while editing
   in-app is treated as containing a literal space, by design.
-- **Night mode doesn't apply to the Custom theme**, since that's already fully under your control.
 - **If a dock's layout looks broken** (stuck collapsed, wrong order), use Settings ▸ Layout &
   Panels ▸ "Reset panel layout."
 - **If Tag Details says "no definition found" for everything**, the bundled Danbooru wiki data

@@ -1,7 +1,7 @@
 import type { ThemeName } from './types';
 import { getJSON, setJSON, setString, setBool } from './storage';
 import { themeSelect } from './dom';
-import { toast, shrinkTextToFit, refitShrunkText } from './shared-ui';
+import { shrinkTextToFit, refitShrunkText } from './shared-ui';
 import { setIconLabel } from './icons';
 
 export const THEME_VARS = [
@@ -299,19 +299,27 @@ export function initThemeDropdown(container: HTMLElement): { refreshLabel: () =>
 // Returns true iff this call just turned night mode ON — the caller is
 // responsible for any achievement tracking (see the file-header comment).
 export function toggleDayNightMode(): boolean {
-  if (themeSelect.value === 'custom'){
-    toast('Day/Night inversion isn\'t available for the Custom theme — its colors are already fully in your control.');
-    return false;
-  }
+  const custom = themeSelect.value === 'custom';
   dayNightOn = !dayNightOn;
   if (dayNightOn){
     // The night color math lives ONCE, in index.html's pre-paint script
     // (lightness flip + contrast guard) — calling it here instead of a local
-    // copy means the startup pass and this toggle can't drift apart.
+    // copy means the startup pass and this toggle can't drift apart. A
+    // Custom with a hand-edited night palette (Theme Studio) uses that
+    // instead; the pre-paint script makes the same choice.
     const nightPalette = (window as unknown as { __dtsNightPalette: (read: (key: string) => string) => Record<string, string> }).__dtsNightPalette;
-    const pal = nightPalette(getCurrentVarHex);
-    for (const [key, value] of Object.entries(pal)) document.documentElement.style.setProperty(key, value);
+    const handMade = custom ? getJSON<Record<string, string> | null>('dts-custom-theme-night', null) : null;
+    const pal = handMade || nightPalette(getCurrentVarHex);
+    for (const [key] of THEME_VARS) if (pal[key]) document.documentElement.style.setProperty(key, pal[key]);
     document.documentElement.classList.add('night-mode');
+  } else if (custom){
+    // Custom's day colors ARE inline vars — put them back rather than clearing.
+    const saved = savedCustomVars() || {};
+    for (const [key] of THEME_VARS){
+      if (saved[key]) document.documentElement.style.setProperty(key, saved[key]);
+      else document.documentElement.style.removeProperty(key);
+    }
+    document.documentElement.classList.remove('night-mode');
   } else {
     clearCustomOverrides();
     document.documentElement.classList.remove('night-mode');

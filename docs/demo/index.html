@@ -129,6 +129,12 @@
       }
       var computed = getComputedStyle(root);
       var pal = window.__dtsNightPalette(function(key){ return toHex6((computed.getPropertyValue(key) || '#000000').trim()); });
+      // A Custom with a hand-edited night palette (Theme Studio) wears that instead.
+      if (theme === 'custom'){
+        var handNight = null;
+        try { handNight = JSON.parse(localStorage.getItem('dts-custom-theme-night') || 'null'); } catch(e){}
+        if (handNight){ for (var nk in pal) if (handNight[nk]) pal[nk] = handNight[nk]; }
+      }
       for (var key in pal) root.style.setProperty(key, pal[key]);
       root.classList.add('night-mode');
     }
@@ -207,6 +213,7 @@
   <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M14 7l-5 5 5 5"/></symbol>
   <symbol id="i-rotate-cw" viewBox="0 0 24 24"><path d="M20 4.5v5h-5"/><path d="M19.4 9.5A8 8 0 1 0 20 13"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4.2 4.2L18.5 7.5"/></symbol>
+  <symbol id="i-merge-in" viewBox="0 0 24 24"><path d="M4 4l5.5 5.5M9.5 5v4.5H5M20 4l-5.5 5.5M14.5 5v4.5H19M4 20l5.5-5.5M9.5 19v-4.5H5M20 20l-5.5-5.5M14.5 19v-4.5H19"/></symbol>
   <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8.5h15M15.5 5l3.5 3.5-3.5 3.5"/><path d="M20 15.5H5M8.5 12 5 15.5 8.5 19"/></symbol>
 </defs></svg>
 
@@ -964,6 +971,10 @@
         <label class="ach-toggle-row">
           <input type="checkbox" id="tagCountBadgeToggle">
           <span>Show tag-count badge on cards (top-right)</span>
+        </label>
+        <label class="ach-toggle-row" title="Show the tags a merge/void rule took off each image, after its real tags: struck through for a void, with the inward-arrows mark for a merge. They're what the image gets back if you turn that rule off.">
+          <input type="checkbox" id="pastTagPreviewToggle">
+          <span>Show Past Tag Preview (merged/voided tags)</span>
         </label>
         <div class="settings-row">
           <span style="font-size:11px; color:var(--text-faint);">Sort tags within each card</span>

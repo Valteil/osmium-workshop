@@ -25,7 +25,8 @@ import { categorizeTag, groupTagsByCategory, TAG_CATEGORY_ORDER, TAG_CATEGORY_LA
 import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid } from './master-tag-control';
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
-import { setIconLabel } from './icons';
+import { setIconLabel, iconSvg } from './icons';
+import { ghostTagsFor, type GhostTag } from './canonical-tags';
 
 export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
 export let viewMode: ViewMode = 'grid';
@@ -56,6 +57,7 @@ let getCardTagSortMode: () => CardTagSortMode = () => 'default';
 let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'OR', excludes: '', disabledView: false, originalsView: false, exactMatch: false });
 let getIsolatedFlagActive: () => boolean = () => false;
 let getShowTagCountBadges: () => boolean = () => false;
+let getShowPastTags: () => boolean = () => true;
 let getEntryMeta: () => Record<string, EntryMeta> = () => ({});
 let saveEntryMetaRef: () => void = () => {};
 let refreshAllUIRef: () => void = () => {};
@@ -619,6 +621,7 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
     for (const tag of orderedTagsForDisplay(e, tagIndex)){
       chiprow.appendChild(buildChip(e, tag, () => { patchGridCard(e); refreshRightPanels(); refreshStats(); }, tagIndex));
     }
+    for (const g of pastTags(e)) chiprow.appendChild(buildGhostChip(e, g, () => { patchGridCard(e); refreshRightPanels(); }));
   }
   tagbox.appendChild(chiprow);
 
@@ -1585,14 +1588,20 @@ function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void)
     const chiprow = document.createElement('div');
     chiprow.className = 'chiprow';
     for (const tag of ordered) chiprow.appendChild(buildChip(entry, tag, onChange, tagIndex));
+    for (const g of pastTags(entry)) chiprow.appendChild(buildGhostChip(entry, g, onChange));
     return chiprow;
   }
+  const ghosts = pastTags(entry);
+  const ghostByTag = new Map(ghosts.map(g => [g.tag, g]));
   const subjects = entry.meta?.tagSubjects || [];
-  if (subjects.length) return buildSubjectTree(entry, ordered, tagIndex, onChange);
+  if (subjects.length) return buildSubjectTree(entry, ordered, tagIndex, onChange, ghostByTag);
 
   const wrap = document.createElement('div');
   wrap.className = 'tagcat-groups';
-  for (const group of groupTagsByCategory(ordered)){
+  // Ghosts are classified with the real tags, then drawn last in their
+  // category (and a category holding only ghosts still shows up).
+  for (const group of groupTagsByCategory([...ordered, ...ghosts.map(g => g.tag)])){
+    const real = group.tags.filter(t => !ghostByTag.has(t));
     const seg = document.createElement('div');
     seg.className = 'tagcat-seg';
     const head = document.createElement('div');
@@ -1602,13 +1611,14 @@ function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void)
     name.textContent = group.label;
     const count = document.createElement('span');
     count.className = 'tagcat-count';
-    count.textContent = String(group.tags.length);
+    count.textContent = String(real.length);
     head.appendChild(name);
     head.appendChild(count);
     seg.appendChild(head);
     const chiprow = document.createElement('div');
     chiprow.className = 'chiprow';
-    for (const tag of group.tags) chiprow.appendChild(buildChip(entry, tag, onChange, tagIndex));
+    for (const tag of real) chiprow.appendChild(buildChip(entry, tag, onChange, tagIndex));
+    for (const tag of group.tags) if (ghostByTag.has(tag)) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(tag)!, onChange));
     seg.appendChild(chiprow);
     wrap.appendChild(seg);
   }
@@ -1655,7 +1665,7 @@ function assignTagsToSubject(entry: Entry, tags: Iterable<string>, subjectId: st
   persistEntryMeta(entry);
 }
 
-function buildSubjectTree(entry: Entry, ordered: string[], tagIndex: TagIndex, onChange: () => void): HTMLElement {
+function buildSubjectTree(entry: Entry, ordered: string[], tagIndex: TagIndex, onChange: () => void, ghostByTag: Map<string, GhostTag> = new Map()): HTMLElement {
   const meta = ensureEntryMeta(entry);
   const subjects = meta.tagSubjects as TagSubject[];
   const assign = meta.tagAssign || (meta.tagAssign = {});
@@ -1664,7 +1674,7 @@ function buildSubjectTree(entry: Entry, ordered: string[], tagIndex: TagIndex, o
   const validIds = new Set(subjects.map((s) => s.id));
   const defaultId = subjects[0].id;
   const bySubject = new Map<string, Map<string, string[]>>();
-  for (const tag of ordered){
+  for (const tag of [...ordered, ...ghostByTag.keys()]){
     const sid = assign[tag] && validIds.has(assign[tag]) ? assign[tag] : defaultId;
     let cats = bySubject.get(sid);
     if (!cats){ cats = new Map(); bySubject.set(sid, cats); }
@@ -1677,7 +1687,7 @@ function buildSubjectTree(entry: Entry, ordered: string[], tagIndex: TagIndex, o
   root.className = 'tagsub-tree';
   if (subjectSelectedTags.size) root.appendChild(buildMoveToolbar(entry, subjects, onChange));
   for (const subject of subjects){
-    root.appendChild(buildSubjectBlock(entry, subject, bySubject.get(subject.id), tagIndex, onChange));
+    root.appendChild(buildSubjectBlock(entry, subject, bySubject.get(subject.id), tagIndex, onChange, ghostByTag));
   }
   return root;
 }
@@ -1724,7 +1734,7 @@ function buildMoveToolbar(entry: Entry, subjects: TagSubject[], onChange: () => 
   return bar;
 }
 
-function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, string[]> | undefined, tagIndex: TagIndex, onChange: () => void): HTMLElement {
+function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, string[]> | undefined, tagIndex: TagIndex, onChange: () => void, ghostByTag: Map<string, GhostTag> = new Map()): HTMLElement {
   const block = document.createElement('div');
   block.className = 'tagsub-subject';
   const dropHere = (ev: DragEvent): void => {
@@ -1796,7 +1806,9 @@ function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, 
     catName.textContent = TAG_CATEGORY_LABELS[cat] || cat;
     const countEl = document.createElement('span');
     countEl.className = 'tagsub-count';
-    const tags = present.get(cat) || [];
+    const all = present.get(cat) || [];
+    const tags = all.filter(t => !ghostByTag.has(t));
+    const catGhosts = all.filter(t => ghostByTag.has(t));
     countEl.textContent = String(tags.length);
     subHead.appendChild(catName);
     subHead.appendChild(countEl);
@@ -1804,7 +1816,7 @@ function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, 
 
     const chiprow = document.createElement('div');
     chiprow.className = 'chiprow';
-    if (!tags.length){
+    if (!tags.length && !catGhosts.length){
       const none = document.createElement('span');
       none.className = 'tagsub-empty';
       none.textContent = '—';
@@ -1832,6 +1844,7 @@ function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, 
       }, true);
       chiprow.appendChild(chip);
     }
+    for (const t of catGhosts) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(t)!, onChange));
     sub.appendChild(chiprow);
     block.appendChild(sub);
   }
@@ -1921,6 +1934,53 @@ function tagDisplayFlags(tag: string, tagIndex: TagIndex): { isMatch: boolean; i
   const isMatch = searchTerms.some(term => lower === term);
   const isIsolated = !!(getIsolatedFlagActive() && tagIndex && (tagIndex.get(tag) ? tagIndex.get(tag)!.size <= 2 : false));
   return { isMatch, isIsolated };
+}
+
+// ---------------- Past-tag preview (ghost chips) ----------------
+// Tags a standing merge/void rule took off this image, drawn after its real
+// tags: struck through for a void, with the inward-arrows mark for a merge.
+// They're what the image gets back if that rule is turned off
+// (canonical-tags.ts ghostTagsFor() mirrors unmergeChildren()). × deletes
+// one like any tag — per image, undoable — and a deleted ghost is never
+// restored by the rule being turned off.
+function pastTags(entry: Entry): GhostTag[] {
+  if (!getShowPastTags() || getHideTagsRef()) return [];
+  return ghostTagsFor(entry);
+}
+
+function buildGhostChip(entry: Entry, g: GhostTag, onChange: () => void): HTMLElement {
+  const chip = document.createElement('span');
+  chip.className = `chip chip-ghost chip-ghost-${g.kind}`;
+  chip.title = g.kind === 'void'
+    ? `"${g.tag}" was removed by a void rule. Turn the rule off and this image gets it back.`
+    : `"${g.tag}" was merged into "${g.canonical}". Turn the rule off (or that tag in it) and this image gets it back.`;
+  if (g.kind === 'merge') chip.insertAdjacentHTML('beforeend', iconSvg('merge-in', 'chip-ghost-ic'));
+  const label = document.createElement('span');
+  label.className = 'chip-ghost-label';
+  label.textContent = g.tag;
+  const rm = document.createElement('button');
+  rm.textContent = '×';
+  rm.title = 'Delete this past tag (it won\'t come back if the rule is turned off)';
+  rm.setAttribute('aria-label', `Delete past tag ${g.tag}`);
+  rm.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    dismissGhostTag(entry, g.tag);
+    onChange();
+  });
+  chip.appendChild(label);
+  chip.appendChild(rm);
+  return chip;
+}
+
+function dismissGhostTag(entry: Entry, tag: string): void {
+  const meta = ensureEntryMeta(entry);
+  const prevGhostDismissed = (meta.ghostDismissed || []).slice();
+  if (prevGhostDismissed.includes(tag)) return;
+  const newGhostDismissed = [...prevGhostDismissed, tag];
+  meta.ghostDismissed = newGhostDismissed;
+  persistEntryMeta(entry);
+  recordChange('ghost-remove', `Deleted past tag "${tag}" from ${entry.imgName}`,
+    [{ base: entry.base, prevGhostDismissed, newGhostDismissed: newGhostDismissed.slice() }]);
 }
 
 function buildChip(entry: Entry, tag: string, onChange: () => void, tagIndex: TagIndex | null): HTMLElement {
@@ -3375,6 +3435,8 @@ interface ViewDeps {
   getGalleryFilter: () => GalleryFilter;
   getIsolatedFlagActive: () => boolean;
   getShowTagCountBadges: () => boolean;
+  // Settings ▸ "Show Past Tag Preview" (ghost chips for merged/voided tags).
+  getShowPastTags: () => boolean;
   getEntryMeta: () => Record<string, EntryMeta>;
   saveEntryMeta: () => void;
   refreshAllUI: () => void;
@@ -3400,6 +3462,7 @@ export function initView(deps: ViewDeps): void {
   getGalleryFilter = deps.getGalleryFilter;
   getIsolatedFlagActive = deps.getIsolatedFlagActive;
   getShowTagCountBadges = deps.getShowTagCountBadges;
+  getShowPastTags = deps.getShowPastTags;
   getEntryMeta = deps.getEntryMeta;
   saveEntryMetaRef = deps.saveEntryMeta;
   refreshAllUIRef = deps.refreshAllUI;

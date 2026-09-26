@@ -17,7 +17,7 @@
 // the dim keeps its current theme, and no other theme's selector rules leak
 // into the miniature.
 import { THEME_VARS, PREMIUM_THEMES, CUSTOM_GRAMMAR_KEYS, toHex6, themeAlreadyHasPremiumEffects, setFirstCustomHandler } from './themes';
-import { getJSON, setJSON, setString } from './storage';
+import { getJSON, setJSON, setString, getString, removeKey } from './storage';
 import { themeSelect } from './dom';
 import { createModalShell, showConfirmModal, toast } from './shared-ui';
 import { iconSvg } from './icons';
@@ -26,12 +26,65 @@ import { hasSaveFilePicker, pickSaveFile, writeBytes } from './fs-access';
 import {
   type ThemeSpec, type FontDef, type Opt, type EffectTier, FONTS, fontStack, SHAPES, CHECKS, STROKES, CAPS, TINTS, T, FILLS, CARD_FX, DEPTHS,
   INK, PATTERNS, PADS, TABS, TOPBARS, PRIMARIES, COLOR_GROUPS, CONTRAST, HEX_RE, RAW_KEYS, THEME_FILE_KIND,
-  defaultSpec, normalizeSpec, compileSpec, safeRaw, luminance, contrast, mixHex
+  defaultSpec, normalizeSpec, compileSpec, safeRaw, luminance, contrast, mixHex, fixContrast, hex6
 } from './theme-spec';
 
 export { THEME_FILE_KIND };
 const SPEC_KEY = 'dts-custom-theme-spec';
 const VARS_KEY = 'dts-custom-theme';
+// The hand-edited night palette of the Custom in use (absent = automatic);
+// themes.ts toggleDayNightMode and the pre-paint script read it.
+export const NIGHT_KEY = 'dts-custom-theme-night';
+// Every saved Custom theme; the one in use is mirrored into the three keys
+// above (so nothing that reads them needs to know about the library).
+const LIB_KEY = 'dts-custom-library';
+const ACTIVE_KEY = 'dts-custom-active';
+interface LibItem { id: string; spec: ThemeSpec; }
+
+function readLibrary(): LibItem[] {
+  const raw = getJSON<{ id?: unknown; spec?: unknown }[]>(LIB_KEY, []);
+  const out: LibItem[] = [];
+  for (const it of Array.isArray(raw) ? raw : []){
+    if (typeof it?.id === 'string' && it.spec) out.push({ id: it.id, spec: normalizeSpec(it.spec) });
+  }
+  // A Custom saved before the library existed becomes its first entry.
+  if (!out.length && (getJSON<unknown>(SPEC_KEY, null) || getJSON<unknown>(VARS_KEY, null))){
+    out.push({ id: newLibId(), spec: loadSavedSpec() });
+    setJSON(LIB_KEY, out);
+    setString(ACTIVE_KEY, out[0].id);
+  }
+  return out;
+}
+function writeLibrary(lib: LibItem[]): void { setJSON(LIB_KEY, lib); }
+function newLibId(): string { return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function activeLibId(): string { return getString(ACTIVE_KEY, ''); }
+
+// Night colors as the app would show them: the hand-edited set, or the
+// automatic flip (index.html's __dtsNightPalette, the one shared
+// implementation) computed from the day colors.
+export function nightColorsFor(spec: ThemeSpec): Record<string, string> {
+  if (spec.night) return { ...spec.night };
+  const pal = (window as unknown as { __dtsNightPalette?: (read: (k: string) => string) => Record<string, string> }).__dtsNightPalette;
+  const out: Record<string, string> = { ...spec.colors };
+  if (pal) Object.assign(out, pal((k) => hex6(spec.colors[k] || '#000000')));
+  return out;
+}
+
+// Makes a library theme the Custom in use: mirrors it into the keys the
+// pre-paint script and applyTheme('custom') read. The caller applies it.
+export function activateLibraryTheme(id: string): boolean {
+  const item = readLibrary().find(i => i.id === id);
+  if (!item) return false;
+  persistActive(item);
+  return true;
+}
+function persistActive(item: LibItem): void {
+  setJSON(SPEC_KEY, item.spec);
+  setJSON(VARS_KEY, compileCustom(item.spec));
+  if (item.spec.night) setJSON(NIGHT_KEY, item.spec.night); else removeKey(NIGHT_KEY);
+  setString(ACTIVE_KEY, item.id);
+  refreshCustomOptionLabel();
+}
 
 // compileSpec, limited to what clearCustomOverrides() knows how to clear.
 const ALLOWED_KEYS = new Set<string>([...THEME_VARS.map(([k]) => k), ...CUSTOM_GRAMMAR_KEYS]);
@@ -95,12 +148,25 @@ export function initThemeStudio(d: ThemeStudioDeps): void {
   refreshCustomOptionLabel();
 }
 
-// The theme menu shows Custom by its Studio name once one is saved.
+// The theme menu shows Custom by its Studio name once one is saved, and
+// every other saved Custom as its own `custom:<id>` entry right after it
+// (index.ts's change handler activates one before applying 'custom').
 export function refreshCustomOptionLabel(): void {
   const opt = themeSelect.querySelector<HTMLOptionElement>('option[value="custom"]');
   if (!opt) return;
   const saved = getJSON<{ name?: string } | null>(SPEC_KEY, null);
   opt.textContent = saved && saved.name ? `Custom: ${saved.name}` : 'Custom…';
+  themeSelect.querySelectorAll('option[value^="custom:"]').forEach(o => o.remove());
+  const active = activeLibId();
+  let after: HTMLOptionElement = opt;
+  for (const item of readLibrary()){
+    if (item.id === active) continue;
+    const o = document.createElement('option');
+    o.value = 'custom:' + item.id;
+    o.textContent = `Custom: ${item.spec.name}`;
+    after.after(o);
+    after = o;
+  }
 }
 
 type PreviewTab = 'datasets' | 'gallery' | 'master' | 'stats' | 'synthdat';
@@ -121,9 +187,14 @@ export async function openThemeStudio(): Promise<void> {
   open = true;
   try { await deps.prepareSnapshot(); } catch { /* a missing tab render only thins the preview */ }
 
-  const saved = loadSavedSpec();
+  let library = readLibrary();
+  let currentId: string | null = library.some(i => i.id === activeLibId()) ? activeLibId() : null;
+  const saved = currentId ? library.find(i => i.id === currentId)!.spec : loadSavedSpec();
   let spec: ThemeSpec = normalizeSpec(JSON.parse(JSON.stringify(saved)));
   let dirty = false;
+  // Which palette the Colors section edits and the preview shows.
+  let palette: 'day' | 'night' = 'day';
+  const cols = (): Record<string, string> => palette === 'night' ? (spec.night || nightColorsFor(spec)) : spec.colors;
   let previewTab: PreviewTab = currentAppTab();
 
   const { backdrop, box, close } = createModalShell({
@@ -154,7 +225,10 @@ export async function openThemeStudio(): Promise<void> {
     </div>
     <div class="ts-stage">
       <div class="ts-stage-frame"><div class="ts-frame-wrap"><iframe class="ts-frame" title="Live preview" tabindex="-1"></iframe></div></div>
-      <div class="ts-preview-tabs" role="tablist" aria-label="Preview tab"></div>
+      <div class="ts-stage-bar">
+        <div class="ts-preview-tabs" role="tablist" aria-label="Preview tab"></div>
+        <button type="button" class="ts-compare" aria-pressed="false" title="Hold to see your current theme in the preview (Space or Enter also works)">${iconSvg('swap', 'ic-lead')}Hold to compare</button>
+      </div>
       <div class="ts-stage-note">Live preview. Hover the miniature to try buttons and cards.</div>
     </div>
     <footer class="ts-foot">
@@ -163,6 +237,7 @@ export async function openThemeStudio(): Promise<void> {
       <span class="ts-wallet" title="Your Edibits">${iconSvg('coins', 'ic-lead')}<b></b></span>
       <div class="ts-foot-actions">
         <button type="button" class="ts-cancel">Cancel</button>
+        <button type="button" class="ts-save-copy" title="Keep this as a new theme in My themes, leaving the one you opened unchanged">Save as new</button>
         <button type="button" class="ts-save primary">Save &amp; apply</button>
       </div>
     </footer>`;
@@ -273,7 +348,9 @@ export async function openThemeStudio(): Promise<void> {
     draftQueued = true;
     requestAnimationFrame(() => {
       draftQueued = false;
+      if (comparing) return;
       const vars = compileCustom(spec);
+      if (palette === 'night') Object.assign(vars, cols());
       if (pdoc){
         const st = pdoc.documentElement.style;
         for (const k of appliedKeys) if (!(k in vars)) st.removeProperty(k);
@@ -283,11 +360,50 @@ export async function openThemeStudio(): Promise<void> {
       }
       // Option samples in the editor render in the draft's colors (only the
       // samples — the editor chrome itself stays in the app's theme).
+      const c = cols();
       box.querySelectorAll<HTMLElement>('.ts-sample').forEach(el => {
-        for (const [k] of THEME_VARS) el.style.setProperty(k, spec.colors[k]);
+        for (const [k] of THEME_VARS) el.style.setProperty(k, c[k]);
         el.style.setProperty('--c-tint', `var(--accent-${spec.fx.tint})`);
       });
     });
+  }
+
+  // Hold to compare: the preview briefly shows the theme the app is wearing
+  // right now — its data-theme, classes and inline vars (a Custom's, or
+  // night mode's) copied off the live <html> — then snaps back to the draft.
+  let comparing = false;
+  function setCompare(on: boolean): void {
+    if (on === comparing || !pdoc) return;
+    comparing = on;
+    const btn = q<HTMLButtonElement>('.ts-compare');
+    btn.setAttribute('aria-pressed', String(on));
+    btn.classList.toggle('on', on);
+    frameWrap.classList.toggle('ts-comparing', on);
+    const root = pdoc.documentElement, live = document.documentElement;
+    if (on){
+      root.removeAttribute('style');
+      root.setAttribute('data-theme', live.getAttribute('data-theme') || 'studio');
+      for (const c of ['theme-refined', 'night-mode', 'suppress-theme-flourishes']) root.classList.toggle(c, live.classList.contains(c));
+      for (let i = 0; i < live.style.length; i++){
+        const k = live.style[i];
+        if (k.startsWith('--')) root.style.setProperty(k, live.style.getPropertyValue(k));
+      }
+    } else {
+      root.removeAttribute('style');
+      root.setAttribute('data-theme', 'custom');
+      root.classList.remove('night-mode', 'suppress-theme-flourishes');
+      appliedKeys = [];
+      applyDraft();
+    }
+  }
+  {
+    const btn = q<HTMLButtonElement>('.ts-compare');
+    btn.addEventListener('pointerdown', (ev) => { btn.setPointerCapture(ev.pointerId); setCompare(true); });
+    btn.addEventListener('pointerup', () => setCompare(false));
+    btn.addEventListener('pointercancel', () => setCompare(false));
+    btn.addEventListener('keydown', (ev) => { if ((ev.key === ' ' || ev.key === 'Enter') && !ev.repeat){ ev.preventDefault(); setCompare(true); } });
+    btn.addEventListener('keyup', (ev) => { if (ev.key === ' ' || ev.key === 'Enter') setCompare(false); });
+    btn.addEventListener('blur', () => setCompare(false));
   }
 
   // ------------------------------------------------------------ editor
@@ -397,7 +513,7 @@ export async function openThemeStudio(): Promise<void> {
     });
   }
 
-  function segmented(parent: HTMLElement, label: string, opts: { id: string; label: string }[], get: () => string, set: (id: string) => void): void {
+  function segmented(parent: HTMLElement, label: string, opts: { id: string; label: string }[], get: () => string, set: (id: string) => void, editsSpec = true): void {
     const f = field(parent, label);
     const seg = document.createElement('div');
     seg.className = 'ts-seg';
@@ -409,7 +525,7 @@ export async function openThemeStudio(): Promise<void> {
       b.dataset.id = o.id;
       b.textContent = o.label;
       b.setAttribute('role', 'radio');
-      b.addEventListener('click', () => { set(o.id); changed(); });
+      b.addEventListener('click', () => { set(o.id); if (editsSpec) changed(); else { syncers.forEach(fn => fn()); applyDraft(); } });
       seg.appendChild(b);
     }
     f.appendChild(seg);
@@ -558,40 +674,147 @@ export async function openThemeStudio(): Promise<void> {
     hex.spellcheck = false;
     hex.maxLength = 9;
     hex.setAttribute('aria-label', label + ' hex value');
-    const badge = document.createElement('span');
+    // The contrast readout doubles as the fix: a low ratio turns it into a
+    // button that nudges this color's lightness until it passes.
+    const badge = document.createElement('button');
+    badge.type = 'button';
     badge.className = 'ts-contrast';
+    badge.tabIndex = -1;
     row.append(swatch, name, badge, hex);
     parent.appendChild(row);
+    const editable = () => palette === 'day' || !!spec.night;
     picker.addEventListener('input', () => {
+      if (!editable()) return;
       // Keep an authored alpha (#rrggbbaa rules) when only the hue changes.
-      const cur = spec.colors[key];
-      spec.colors[key] = cur.length === 9 ? picker.value + cur.slice(7) : picker.value;
+      const c = cols(), cur = c[key];
+      c[key] = cur.length === 9 ? picker.value + cur.slice(7) : picker.value;
       changed();
     });
     hex.addEventListener('input', () => {
+      if (!editable()) return;
       let v = hex.value.trim();
       if (v && v[0] !== '#') v = '#' + v;
       const ok = HEX_RE.test(v);
       hex.classList.toggle('bad', !ok);
-      if (ok){ spec.colors[key] = v.toLowerCase(); changed(); }
+      if (ok){ cols()[key] = v.toLowerCase(); changed(); }
     });
-    hex.addEventListener('blur', () => { hex.classList.remove('bad'); hex.value = spec.colors[key]; });
+    hex.addEventListener('blur', () => { hex.classList.remove('bad'); hex.value = cols()[key]; });
+    const rule = CONTRAST[key];
+    badge.addEventListener('click', () => {
+      if (!rule || !badge.classList.contains('low') || !editable()) return;
+      const c = cols();
+      c[key] = fixContrast(c[key], c[rule.against], rule.floor);
+      changed();
+    });
     syncers.push(() => {
-      const v = spec.colors[key];
+      const c = cols(), v = c[key];
+      const canEdit = editable();
+      row.classList.toggle('ts-color-auto', !canEdit);
+      picker.disabled = !canEdit;
+      hex.readOnly = !canEdit;
       picker.value = toHex6(v);
       swatch.style.setProperty('--sw', v);
       if (document.activeElement !== hex) hex.value = v;
-      const rule = CONTRAST[key];
       if (rule){
-        const ratio = contrast(v, spec.colors[rule.against]);
-        badge.textContent = ratio.toFixed(1) + ':1';
+        const ratio = contrast(v, c[rule.against]);
         const low = ratio < rule.floor;
+        const where = rule.against.replace('--', '').replace(/-/g, ' ');
+        badge.textContent = low && canEdit ? `${ratio.toFixed(1)}:1 · Fix` : ratio.toFixed(1) + ':1';
         badge.classList.toggle('low', low);
+        badge.tabIndex = low && canEdit ? 0 : -1;
         badge.title = low
-          ? `Below ${rule.floor}:1 against ${rule.against.replace('--', '').replace(/-/g, ' ')}: hard to read`
-          : `Contrast against ${rule.against.replace('--', '').replace(/-/g, ' ')}`;
+          ? `Below ${rule.floor}:1 against ${where}: hard to read.${canEdit ? ' Click to adjust its lightness until it passes.' : ''}`
+          : `Contrast against ${where}`;
+      } else {
+        badge.hidden = true;
       }
     });
+  }
+
+  // ---- My themes (the saved-theme library)
+  const secLib = section('mine', 'My themes', 'Every Custom theme you\'ve saved. Pick one to edit it; the one in use is marked.');
+  const libGrid = document.createElement('div');
+  libGrid.className = 'ts-presets ts-library';
+  secLib.appendChild(libGrid);
+  async function confirmDiscard(): Promise<boolean> {
+    if (!dirty) return true;
+    return showConfirmModal('Discard your unsaved changes to this theme?', { okLabel: 'Discard', cancelLabel: 'Keep editing', danger: true });
+  }
+  function renderLibrary(): void {
+    libGrid.innerHTML = '';
+    const active = activeLibId();
+    for (const item of library){
+      const tile = document.createElement('div');
+      tile.className = 'ts-lib-item' + (item.id === currentId ? ' editing' : '');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ts-preset';
+      const c = item.spec.colors;
+      b.innerHTML = `<span class="ts-preset-sw">${[c['--bg-base'], c['--bg-panel'], c['--accent-manual'], c['--accent-flair']].map(x => `<i style="background:${esc(x)}"></i>`).join('')}</span>`
+        + `<span class="ts-preset-name">${esc(item.spec.name)}</span>`
+        + (item.id === active ? '<span class="ts-lib-badge">In use</span>' : '');
+      b.title = item.id === currentId ? 'Editing this theme' : `Edit ${item.spec.name}`;
+      b.addEventListener('click', async () => {
+        if (item.id === currentId) return;
+        if (!(await confirmDiscard())) return;
+        currentId = item.id;
+        spec = normalizeSpec(JSON.parse(JSON.stringify(item.spec)));
+        dirty = false;
+        renderLibrary();
+        syncAll();
+      });
+      tile.appendChild(b);
+      const acts = document.createElement('div');
+      acts.className = 'ts-lib-acts';
+      const dup = document.createElement('button');
+      dup.type = 'button';
+      dup.className = 'ts-lib-act';
+      dup.title = `Duplicate ${item.spec.name}`;
+      dup.setAttribute('aria-label', dup.title);
+      dup.innerHTML = iconSvg('list');
+      dup.addEventListener('click', () => {
+        const copy: LibItem = { id: newLibId(), spec: normalizeSpec({ ...JSON.parse(JSON.stringify(item.spec)), name: `${item.spec.name} copy`.slice(0, 40) }) };
+        library.splice(library.indexOf(item) + 1, 0, copy);
+        writeLibrary(library);
+        refreshCustomOptionLabel();
+        renderLibrary();
+      });
+      acts.appendChild(dup);
+      if (item.id !== active){
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'ts-lib-act danger';
+        del.title = `Delete ${item.spec.name}`;
+        del.setAttribute('aria-label', del.title);
+        del.innerHTML = iconSvg('trash');
+        del.addEventListener('click', async () => {
+          if (!(await showConfirmModal(`Delete "${item.spec.name}" from My themes? Export it first if you might want it back.`, { okLabel: 'Delete', danger: true }))) return;
+          library = library.filter(i => i.id !== item.id);
+          writeLibrary(library);
+          refreshCustomOptionLabel();
+          if (currentId === item.id){ currentId = null; dirty = true; }
+          renderLibrary();
+          syncFooter();
+        });
+        acts.appendChild(del);
+      }
+      tile.appendChild(acts);
+      libGrid.appendChild(tile);
+    }
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'ts-preset ts-lib-new' + (currentId === null ? ' editing' : '');
+    add.innerHTML = `<span class="ts-preset-sw ts-lib-plus">+</span><span class="ts-preset-name">New theme</span>`;
+    add.title = 'Start a new theme from the Studio defaults';
+    add.addEventListener('click', async () => {
+      if (!(await confirmDiscard())) return;
+      currentId = null;
+      spec = defaultSpec();
+      dirty = false;
+      renderLibrary();
+      syncAll();
+    });
+    libGrid.appendChild(add);
   }
 
   // ---- Start from
@@ -629,6 +852,26 @@ export async function openThemeStudio(): Promise<void> {
 
   // ---- Colors
   const secColors = section('colors', 'Colors', 'Sixteen roles every screen reads. Hex accepts #rgb, #rrggbb and #rrggbbaa.');
+  // Day / Night: night mode now works on Custom. Automatic flips the day
+  // colors the same way every built-in theme is flipped; Hand-edited starts
+  // from that flip and lets every role be set by hand.
+  segmented(secColors, 'Palette', [{ id: 'day', label: 'Day' }, { id: 'night', label: 'Night' }], () => palette, id => {
+    palette = id as 'day' | 'night';
+  }, false);
+  const nightField = document.createElement('div');
+  nightField.className = 'ts-night';
+  secColors.appendChild(nightField);
+  segmented(nightField, 'Night colors', [{ id: 'auto', label: 'Automatic' }, { id: 'manual', label: 'Hand-edited' }], () => spec.night ? 'manual' : 'auto', id => {
+    spec.night = id === 'manual' ? nightColorsFor({ ...spec, night: null }) : null;
+  });
+  const nightNote = document.createElement('p');
+  nightNote.className = 'ts-sec-lede ts-night-note';
+  nightNote.textContent = 'Automatic flips each color\'s lightness and keeps text readable. Switch to Hand-edited to change any of them.';
+  nightField.appendChild(nightNote);
+  syncers.push(() => {
+    nightField.hidden = palette !== 'night';
+    nightNote.hidden = !!spec.night;
+  });
   for (const g of COLOR_GROUPS){
     const sub = document.createElement('div');
     sub.className = 'ts-color-group';
@@ -642,13 +885,35 @@ export async function openThemeStudio(): Promise<void> {
   tintBtn.innerHTML = `${iconSvg('wand', 'ic-lead')}Match tints to accents`;
   tintBtn.title = 'Recompute the Manual and Auto tints from their accents and the panel color';
   tintBtn.addEventListener('click', () => {
-    const panel = spec.colors['--bg-panel'];
+    if (palette === 'night' && !spec.night) return;
+    const c = cols();
+    const panel = c['--bg-panel'];
     const light = luminance(panel) > 0.4;
-    spec.colors['--accent-manual-dim'] = mixHex(panel, spec.colors['--accent-manual'], light ? 0.16 : 0.22);
-    spec.colors['--accent-auto-dim'] = mixHex(panel, spec.colors['--accent-auto'], light ? 0.16 : 0.22);
+    c['--accent-manual-dim'] = mixHex(panel, c['--accent-manual'], light ? 0.16 : 0.22);
+    c['--accent-auto-dim'] = mixHex(panel, c['--accent-auto'], light ? 0.16 : 0.22);
     changed();
   });
-  secColors.appendChild(tintBtn);
+  const fixAllBtn = document.createElement('button');
+  fixAllBtn.type = 'button';
+  fixAllBtn.className = 'ts-link-btn';
+  fixAllBtn.innerHTML = `${iconSvg('check-circle', 'ic-lead')}Fix all low contrast`;
+  fixAllBtn.title = 'Adjust the lightness of every color below its readability floor';
+  fixAllBtn.addEventListener('click', () => {
+    if (palette === 'night' && !spec.night) return;
+    const c = cols();
+    for (const [k, r] of Object.entries(CONTRAST)) c[k] = fixContrast(c[k], c[r.against], r.floor);
+    changed();
+  });
+  syncers.push(() => {
+    const c = cols();
+    const anyLow = Object.entries(CONTRAST).some(([k, r]) => contrast(c[k], c[r.against]) < r.floor);
+    fixAllBtn.hidden = !anyLow || (palette === 'night' && !spec.night);
+    tintBtn.hidden = palette === 'night' && !spec.night;
+  });
+  const colorActs = document.createElement('div');
+  colorActs.className = 'ts-color-acts';
+  colorActs.append(tintBtn, fixAllBtn);
+  secColors.appendChild(colorActs);
 
   // ---- Type
   const secType = section('type', 'Type', 'Bundled faces only, so a theme looks the same on every machine.');
@@ -849,7 +1114,11 @@ export async function openThemeStudio(): Promise<void> {
   q('.ts-reset').addEventListener('click', () => { spec = defaultSpec(); changed(); });
   q('.ts-cancel').addEventListener('click', () => { void tryClose(); });
   q('.ts-close').addEventListener('click', () => { void tryClose(); });
+  let saveMode: 'save' | 'copy' = 'save';
+  q('.ts-save-copy').addEventListener('click', () => { saveMode = 'copy'; saveBtn.click(); });
   saveBtn.addEventListener('click', async () => {
+    const asCopy = saveMode === 'copy';
+    saveMode = 'save';
     const due = pendingUnlocks();
     if (due.length){
       const total = due.reduce((n, u) => n + u.price, 0);
@@ -864,9 +1133,16 @@ export async function openThemeStudio(): Promise<void> {
       if (!deps.spendEdibits(total)){ toast('Not enough Edibits for that yet.'); return; }
       setJSON(FX_OWNED_KEY, [...ownedFx(), ...due.map(u => u.key)]);
     }
-    const vars = compileCustom(spec);
-    setJSON(SPEC_KEY, spec);
-    setJSON(VARS_KEY, vars);
+    if (asCopy || !currentId){
+      const item: LibItem = { id: newLibId(), spec: JSON.parse(JSON.stringify(spec)) };
+      if (asCopy && currentId && item.spec.name === library.find(i => i.id === currentId)?.spec.name) item.spec.name = `${item.spec.name} copy`.slice(0, 40);
+      library.push(item);
+      currentId = item.id;
+    } else {
+      library = library.map(i => i.id === currentId ? { id: i.id, spec: JSON.parse(JSON.stringify(spec)) } : i);
+    }
+    writeLibrary(library);
+    persistActive(library.find(i => i.id === currentId)!);
     setString('dts-theme', 'custom');
     themeSelect.value = 'custom';
     refreshCustomOptionLabel();
@@ -909,6 +1185,7 @@ export async function openThemeStudio(): Promise<void> {
     ev.preventDefault();
   });
 
+  renderLibrary();
   renderPresets();
   buildPreviewDoc();
   syncAll();
@@ -940,9 +1217,9 @@ function seedSampleGallery(app: HTMLElement): void {
   grid.style.display = '';
   const art = (a: string, b: string, shape: string, w = 300, h = 400) => 'data:image/svg+xml;utf8,' + encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/>${shape}</svg>`);
-  const samples: { img: string; name: string; tags: string[]; cls?: string; chip?: Record<number, string> }[] = [
+  const samples: { img: string; name: string; tags: string[]; cls?: string; chip?: Record<number, string>; ghosts?: [string, 'void' | 'merge'][] }[] = [
     { img: art('#8d7b6a', '#3d342c', '<circle cx="150" cy="170" r="70" fill="#e9dccb" opacity=".85"/><rect x="60" y="260" width="180" height="110" rx="40" fill="#5d4c3d"/>'), name: 'portrait_014.png',
-      tags: ['1girl', 'red hair', 'looking at viewer', 'smile', 'upper body'], chip: { 1: 'chip-match' } },
+      tags: ['1girl', 'red hair', 'looking at viewer', 'smile', 'upper body'], chip: { 1: 'chip-match' }, ghosts: [['blurry', 'void'], ['ginger hair', 'merge']] },
     { img: art('#6f8795', '#27343d', '<path d="M0 300 L90 190 L170 260 L240 170 L300 230 L300 400 L0 400Z" fill="#1d262c"/><circle cx="220" cy="90" r="30" fill="#e8e4d8"/>', 300, 220), name: 'landscape_03.png',
       tags: ['scenery', 'mountain', 'night sky', 'moon'], cls: 'dirty' },
     { img: art('#9a9486', '#4b4840', '<rect x="80" y="80" width="140" height="240" rx="70" fill="#d8d2c4" opacity=".8"/>'), name: 'study_22.png',
@@ -957,7 +1234,7 @@ function seedSampleGallery(app: HTMLElement): void {
     <div class="card${s.cls ? ' ' + s.cls : ''}">
       <div class="thumbwrap"><img src="${s.img}" alt=""><div class="filename">${esc(s.name)}</div>${s.cls === 'dirty' ? '<div class="dirtydot"></div>' : ''}</div>
       <div class="tagbox"><input type="text" class="addtag-input" placeholder="+ Add tag" tabindex="-1">
-        <div class="chiprow">${s.tags.map((t, i) => `<span class="chip${s.chip && s.chip[i] ? ' ' + s.chip[i] : ''}${i === 0 && s.tags.length > 4 ? ' selected' : ''}"><span>${esc(t)}</span><button tabindex="-1">×</button></span>`).join('')}</div>
+        <div class="chiprow">${s.tags.map((t, i) => `<span class="chip${s.chip && s.chip[i] ? ' ' + s.chip[i] : ''}${i === 0 && s.tags.length > 4 ? ' selected' : ''}"><span>${esc(t)}</span><button tabindex="-1">×</button></span>`).join('')}${(s.ghosts || []).map(([t, k]) => `<span class="chip chip-ghost chip-ghost-${k}">${k === 'merge' ? '<svg class="ic chip-ghost-ic" aria-hidden="true"><use href="#i-merge-in"></use></svg>' : ''}<span class="chip-ghost-label">${esc(t)}</span><button tabindex="-1">×</button></span>`).join('')}</div>
       </div>
     </div>`).join('');
   const setNum = (id: string, v: string) => { const el = app.querySelector<HTMLElement>('#' + id); if (el) el.textContent = v; };

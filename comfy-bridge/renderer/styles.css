@@ -96,7 +96,9 @@ button:disabled{opacity:0.5;cursor:default;}
 .small{font-size:11px;}
 .status-line{margin-top:8px;padding:6px 8px;background:var(--panel2);border-radius:5px;font-size:12px;}
 .thumb{max-width:100%;border-radius:6px;margin-top:8px;}
-.preview-wrap{margin-top:8px;min-height:200px;display:flex;flex-direction:column;background:var(--panel2);border-radius:6px;overflow:hidden;}
+/* Image frames (and the empty "No generation yet" state) sit on the theme's
+   image mat: none for the colors-only palettes, a Theme Studio pattern for Custom. */
+.preview-wrap{margin-top:8px;min-height:200px;display:flex;flex-direction:column;background:var(--mat, none), var(--panel2);border-radius:6px;overflow:hidden;}
 #livePreviewWrap{align-items:center;justify-content:center;}
 #livePreview{max-width:100%;max-height:100%;object-fit:contain;margin:auto;}
 #previewWrap{height:340px;min-height:260px;max-height:70vh;}

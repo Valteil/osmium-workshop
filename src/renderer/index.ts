@@ -44,7 +44,7 @@ import {
   PREMIUM_THEMES, applyTheme, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes, themeWantsRefinedClass
 } from './themes';
-import { initThemeStudio, openThemeStudio } from './theme-studio';
+import { initThemeStudio, openThemeStudio, activateLibraryTheme } from './theme-studio';
 import { initDockSystem } from './docks';
 import {
   applyAppZoom, resetAppZoom, getOutsideClosablePanels, saveSettingsSectionState,
@@ -267,6 +267,12 @@ import { setIconLabel } from './icons';
   const themeDropdownCtrl = initThemeDropdown(themeDropdown);
 
   themeSelect.addEventListener('change', () => {
+    // Another saved Custom (Theme Studio's library, listed as custom:<id>):
+    // make it the Custom in use, then apply Custom as usual.
+    if (themeSelect.value.startsWith('custom:')){
+      activateLibraryTheme(themeSelect.value.slice(7));
+      themeSelect.value = 'custom';
+    }
     const chosen = themeSelect.value;
     const premium = PREMIUM_THEMES.find(t => t.id === chosen);
     if (premium && !ownedThemes.includes(chosen)){
@@ -837,6 +843,19 @@ import { setIconLabel } from './icons';
   let discreteModeOn = false;
   let purgeConfirmCount = 0;
   let showTagCountBadges = false;
+  // Settings ▸ "Show Past Tag Preview": ghost chips for merged/voided tags (on by default).
+  // Optional-chained: the Android port runs this same bundle against its own
+  // index.html fork, which may not carry the toggle yet — a null here would
+  // throw and silently kill the rest of this IIFE.
+  const pastTagPreviewToggle = $<HTMLInputElement>('pastTagPreviewToggle') as HTMLInputElement | null;
+  let showPastTags = getBool('dts-show-past-tags', true);
+  if (pastTagPreviewToggle) pastTagPreviewToggle.checked = showPastTags;
+  pastTagPreviewToggle?.addEventListener('change', () => {
+    if (!pastTagPreviewToggle) return;
+    showPastTags = pastTagPreviewToggle.checked;
+    setBool('dts-show-past-tags', showPastTags);
+    renderCurrentView();
+  });
 
   tagCountBadgeToggle.addEventListener('change', () => {
     showTagCountBadges = tagCountBadgeToggle.checked;
@@ -1385,6 +1404,7 @@ import { setIconLabel } from './icons';
     getGalleryFilter: () => galleryFilter,
     getIsolatedFlagActive: () => isolatedFlagActive,
     getShowTagCountBadges: () => showTagCountBadges,
+    getShowPastTags: () => showPastTags,
     getEntryMeta: () => entryMeta,
     saveEntryMeta: () => saveEntryMeta(),
     refreshAllUI: () => refreshAllUI(),
@@ -1610,8 +1630,19 @@ import { setIconLabel } from './icons';
     let count = 0;
     for (const a of affected){
       const e = entryByBase.get(a.base);
+      if (!e) continue;
+      // Past-tag deletes (ghost-remove) ride this applier too: same shape,
+      // a different meta list.
+      const ghost = direction === 'undo' ? a.prevGhostDismissed : a.newGhostDismissed;
+      if (ghost){
+        if (!e.meta) e.meta = {};
+        e.meta.ghostDismissed = ghost.slice();
+        entryMeta[e.base] = e.meta;
+        count++;
+        continue;
+      }
       const target = direction === 'undo' ? a.prevFlagged : a.newFlagged;
-      if (!e || !target) continue;
+      if (!target) continue;
       if (!e.meta) e.meta = {};
       e.meta.flaggedTags = target.slice();
       entryMeta[e.base] = e.meta;

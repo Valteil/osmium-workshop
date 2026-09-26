@@ -98,6 +98,12 @@
     } catch {
     }
   }
+  function removeKey(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+    }
+  }
 
   // src/renderer/file-types.ts
   var IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"];
@@ -1470,16 +1476,21 @@
     return { refreshLabel: setLabel };
   }
   function toggleDayNightMode() {
-    if (themeSelect.value === "custom") {
-      toast("Day/Night inversion isn't available for the Custom theme \u2014 its colors are already fully in your control.");
-      return false;
-    }
+    const custom = themeSelect.value === "custom";
     dayNightOn = !dayNightOn;
     if (dayNightOn) {
       const nightPalette = window.__dtsNightPalette;
-      const pal = nightPalette(getCurrentVarHex);
-      for (const [key, value] of Object.entries(pal)) document.documentElement.style.setProperty(key, value);
+      const handMade = custom ? getJSON("dts-custom-theme-night", null) : null;
+      const pal = handMade || nightPalette(getCurrentVarHex);
+      for (const [key] of THEME_VARS) if (pal[key]) document.documentElement.style.setProperty(key, pal[key]);
       document.documentElement.classList.add("night-mode");
+    } else if (custom) {
+      const saved = savedCustomVars() || {};
+      for (const [key] of THEME_VARS) {
+        if (saved[key]) document.documentElement.style.setProperty(key, saved[key]);
+        else document.documentElement.style.removeProperty(key);
+      }
+      document.documentElement.classList.remove("night-mode");
     } else {
       clearCustomOverrides();
       document.documentElement.classList.remove("night-mode");
@@ -1697,7 +1708,8 @@
       icons: { stroke: "regular", cap: "round" },
       fx: { fill: "none", tint: "flair", card: "none", depth: "soft" },
       surface: { mat: "dots", ground: "plain", pad: "lit", tab: "underline", topbar: "flair", primary: "tinted" },
-      raw: {}
+      raw: {},
+      night: null
     };
   }
   var HEX_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
@@ -1787,7 +1799,15 @@
         topbar: pick(TOPBARS, su.topbar, d.surface.topbar),
         primary: pick(PRIMARIES, su.primary, d.surface.primary)
       },
-      raw
+      raw,
+      night: o.night && typeof o.night === "object" ? (() => {
+        const n = { ...colors };
+        for (const k of SPEC_COLOR_KEYS) {
+          const c = o.night[k];
+          if (typeof c === "string" && HEX_RE.test(c.trim())) n[k] = c.trim().toLowerCase();
+        }
+        return n;
+      })() : null
     };
   }
   function compileSpec(spec) {
@@ -1877,10 +1897,84 @@
     const A = hexToRgb(a), B = hexToRgb(b);
     return "#" + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, "0")).join("");
   }
+  function rgbToHsl(hex) {
+    const [r, g, b] = hexToRgb(hex).map((v) => v / 255);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+    if (max === min) return [0, 0, l * 100];
+    const d = max - min, sat = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [h * 60, sat * 100, l * 100];
+  }
+  function hslToHex(h, sat, l) {
+    sat /= 100;
+    l /= 100;
+    const k = (n) => (n + h / 30) % 12;
+    const a = sat * Math.min(l, 1 - l);
+    const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    return "#" + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, "0")).join("");
+  }
+  function fixContrast(fg, bg, floor) {
+    if (contrast(fg, bg) >= floor) return fg;
+    const alpha = fg.length === 9 ? fg.slice(7) : "";
+    const [h, sat, l0] = rgbToHsl(fg);
+    const lighter = luminance(bg) < 0.4;
+    let l = l0, out = hex6(fg);
+    while (contrast(out, bg) < floor && l > 0 && l < 100) {
+      l = lighter ? Math.min(100, l + 1) : Math.max(0, l - 1);
+      out = hslToHex(h, sat, l);
+    }
+    return out + alpha;
+  }
 
   // src/renderer/theme-studio.ts
   var SPEC_KEY = "dts-custom-theme-spec";
   var VARS_KEY = "dts-custom-theme";
+  var NIGHT_KEY = "dts-custom-theme-night";
+  var LIB_KEY = "dts-custom-library";
+  var ACTIVE_KEY = "dts-custom-active";
+  function readLibrary() {
+    const raw = getJSON(LIB_KEY, []);
+    const out = [];
+    for (const it of Array.isArray(raw) ? raw : []) {
+      if (typeof it?.id === "string" && it.spec) out.push({ id: it.id, spec: normalizeSpec(it.spec) });
+    }
+    if (!out.length && (getJSON(SPEC_KEY, null) || getJSON(VARS_KEY, null))) {
+      out.push({ id: newLibId(), spec: loadSavedSpec() });
+      setJSON(LIB_KEY, out);
+      setString(ACTIVE_KEY, out[0].id);
+    }
+    return out;
+  }
+  function writeLibrary(lib) {
+    setJSON(LIB_KEY, lib);
+  }
+  function newLibId() {
+    return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+  function activeLibId() {
+    return getString(ACTIVE_KEY, "");
+  }
+  function nightColorsFor(spec) {
+    if (spec.night) return { ...spec.night };
+    const pal = window.__dtsNightPalette;
+    const out = { ...spec.colors };
+    if (pal) Object.assign(out, pal((k) => hex6(spec.colors[k] || "#000000")));
+    return out;
+  }
+  function activateLibraryTheme(id) {
+    const item = readLibrary().find((i) => i.id === id);
+    if (!item) return false;
+    persistActive(item);
+    return true;
+  }
+  function persistActive(item) {
+    setJSON(SPEC_KEY, item.spec);
+    setJSON(VARS_KEY, compileCustom(item.spec));
+    if (item.spec.night) setJSON(NIGHT_KEY, item.spec.night);
+    else removeKey(NIGHT_KEY);
+    setString(ACTIVE_KEY, item.id);
+    refreshCustomOptionLabel();
+  }
   var ALLOWED_KEYS = /* @__PURE__ */ new Set([...THEME_VARS.map(([k]) => k), ...CUSTOM_GRAMMAR_KEYS]);
   function compileCustom(spec) {
     const v = compileSpec(spec);
@@ -1922,6 +2016,17 @@
     if (!opt) return;
     const saved = getJSON(SPEC_KEY, null);
     opt.textContent = saved && saved.name ? `Custom: ${saved.name}` : "Custom\u2026";
+    themeSelect.querySelectorAll('option[value^="custom:"]').forEach((o) => o.remove());
+    const active = activeLibId();
+    let after = opt;
+    for (const item of readLibrary()) {
+      if (item.id === active) continue;
+      const o = document.createElement("option");
+      o.value = "custom:" + item.id;
+      o.textContent = `Custom: ${item.spec.name}`;
+      after.after(o);
+      after = o;
+    }
   }
   var PREVIEW_TABS = [
     { id: "datasets", label: "Datasets", icon: "folder" },
@@ -1940,9 +2045,13 @@
       await deps.prepareSnapshot();
     } catch {
     }
-    const saved = loadSavedSpec();
+    let library = readLibrary();
+    let currentId = library.some((i) => i.id === activeLibId()) ? activeLibId() : null;
+    const saved = currentId ? library.find((i) => i.id === currentId).spec : loadSavedSpec();
     let spec = normalizeSpec(JSON.parse(JSON.stringify(saved)));
     let dirty = false;
+    let palette = "day";
+    const cols = () => palette === "night" ? spec.night || nightColorsFor(spec) : spec.colors;
     let previewTab = currentAppTab();
     const { backdrop, box, close } = createModalShell({
       className: "ts-backdrop",
@@ -1977,7 +2086,10 @@
     </div>
     <div class="ts-stage">
       <div class="ts-stage-frame"><div class="ts-frame-wrap"><iframe class="ts-frame" title="Live preview" tabindex="-1"></iframe></div></div>
-      <div class="ts-preview-tabs" role="tablist" aria-label="Preview tab"></div>
+      <div class="ts-stage-bar">
+        <div class="ts-preview-tabs" role="tablist" aria-label="Preview tab"></div>
+        <button type="button" class="ts-compare" aria-pressed="false" title="Hold to see your current theme in the preview (Space or Enter also works)">${iconSvg("swap", "ic-lead")}Hold to compare</button>
+      </div>
       <div class="ts-stage-note">Live preview. Hover the miniature to try buttons and cards.</div>
     </div>
     <footer class="ts-foot">
@@ -1986,6 +2098,7 @@
       <span class="ts-wallet" title="Your Edibits">${iconSvg("coins", "ic-lead")}<b></b></span>
       <div class="ts-foot-actions">
         <button type="button" class="ts-cancel">Cancel</button>
+        <button type="button" class="ts-save-copy" title="Keep this as a new theme in My themes, leaving the one you opened unchanged">Save as new</button>
         <button type="button" class="ts-save primary">Save &amp; apply</button>
       </div>
     </footer>`;
@@ -2096,7 +2209,9 @@
       draftQueued = true;
       requestAnimationFrame(() => {
         draftQueued = false;
+        if (comparing) return;
         const vars = compileCustom(spec);
+        if (palette === "night") Object.assign(vars, cols());
         if (pdoc) {
           const st = pdoc.documentElement.style;
           for (const k of appliedKeys) if (!(k in vars)) st.removeProperty(k);
@@ -2104,11 +2219,56 @@
           appliedKeys = Object.keys(vars);
           pdoc.documentElement.classList.toggle("theme-refined", vars["--c-fx-on"] === "1");
         }
+        const c = cols();
         box.querySelectorAll(".ts-sample").forEach((el) => {
-          for (const [k] of THEME_VARS) el.style.setProperty(k, spec.colors[k]);
+          for (const [k] of THEME_VARS) el.style.setProperty(k, c[k]);
           el.style.setProperty("--c-tint", `var(--accent-${spec.fx.tint})`);
         });
       });
+    }
+    let comparing = false;
+    function setCompare(on) {
+      if (on === comparing || !pdoc) return;
+      comparing = on;
+      const btn = q(".ts-compare");
+      btn.setAttribute("aria-pressed", String(on));
+      btn.classList.toggle("on", on);
+      frameWrap.classList.toggle("ts-comparing", on);
+      const root = pdoc.documentElement, live = document.documentElement;
+      if (on) {
+        root.removeAttribute("style");
+        root.setAttribute("data-theme", live.getAttribute("data-theme") || "studio");
+        for (const c of ["theme-refined", "night-mode", "suppress-theme-flourishes"]) root.classList.toggle(c, live.classList.contains(c));
+        for (let i = 0; i < live.style.length; i++) {
+          const k = live.style[i];
+          if (k.startsWith("--")) root.style.setProperty(k, live.style.getPropertyValue(k));
+        }
+      } else {
+        root.removeAttribute("style");
+        root.setAttribute("data-theme", "custom");
+        root.classList.remove("night-mode", "suppress-theme-flourishes");
+        appliedKeys = [];
+        applyDraft();
+      }
+    }
+    {
+      const btn = q(".ts-compare");
+      btn.addEventListener("pointerdown", (ev) => {
+        btn.setPointerCapture(ev.pointerId);
+        setCompare(true);
+      });
+      btn.addEventListener("pointerup", () => setCompare(false));
+      btn.addEventListener("pointercancel", () => setCompare(false));
+      btn.addEventListener("keydown", (ev) => {
+        if ((ev.key === " " || ev.key === "Enter") && !ev.repeat) {
+          ev.preventDefault();
+          setCompare(true);
+        }
+      });
+      btn.addEventListener("keyup", (ev) => {
+        if (ev.key === " " || ev.key === "Enter") setCompare(false);
+      });
+      btn.addEventListener("blur", () => setCompare(false));
     }
     const syncers = [];
     function syncAll() {
@@ -2224,7 +2384,7 @@
         });
       });
     }
-    function segmented(parent, label, opts, get, set) {
+    function segmented(parent, label, opts, get, set, editsSpec = true) {
       const f = field(parent, label);
       const seg = document.createElement("div");
       seg.className = "ts-seg";
@@ -2238,7 +2398,11 @@
         b.setAttribute("role", "radio");
         b.addEventListener("click", () => {
           set(o.id);
-          changed();
+          if (editsSpec) changed();
+          else {
+            syncers.forEach((fn) => fn());
+            applyDraft();
+          }
         });
         seg.appendChild(b);
       }
@@ -2392,43 +2556,147 @@
       hex.spellcheck = false;
       hex.maxLength = 9;
       hex.setAttribute("aria-label", label + " hex value");
-      const badge = document.createElement("span");
+      const badge = document.createElement("button");
+      badge.type = "button";
       badge.className = "ts-contrast";
+      badge.tabIndex = -1;
       row.append(swatch, name, badge, hex);
       parent.appendChild(row);
+      const editable = () => palette === "day" || !!spec.night;
       picker.addEventListener("input", () => {
-        const cur = spec.colors[key];
-        spec.colors[key] = cur.length === 9 ? picker.value + cur.slice(7) : picker.value;
+        if (!editable()) return;
+        const c = cols(), cur = c[key];
+        c[key] = cur.length === 9 ? picker.value + cur.slice(7) : picker.value;
         changed();
       });
       hex.addEventListener("input", () => {
+        if (!editable()) return;
         let v = hex.value.trim();
         if (v && v[0] !== "#") v = "#" + v;
         const ok = HEX_RE.test(v);
         hex.classList.toggle("bad", !ok);
         if (ok) {
-          spec.colors[key] = v.toLowerCase();
+          cols()[key] = v.toLowerCase();
           changed();
         }
       });
       hex.addEventListener("blur", () => {
         hex.classList.remove("bad");
-        hex.value = spec.colors[key];
+        hex.value = cols()[key];
+      });
+      const rule = CONTRAST[key];
+      badge.addEventListener("click", () => {
+        if (!rule || !badge.classList.contains("low") || !editable()) return;
+        const c = cols();
+        c[key] = fixContrast(c[key], c[rule.against], rule.floor);
+        changed();
       });
       syncers.push(() => {
-        const v = spec.colors[key];
+        const c = cols(), v = c[key];
+        const canEdit = editable();
+        row.classList.toggle("ts-color-auto", !canEdit);
+        picker.disabled = !canEdit;
+        hex.readOnly = !canEdit;
         picker.value = toHex6(v);
         swatch.style.setProperty("--sw", v);
         if (document.activeElement !== hex) hex.value = v;
-        const rule = CONTRAST[key];
         if (rule) {
-          const ratio = contrast(v, spec.colors[rule.against]);
-          badge.textContent = ratio.toFixed(1) + ":1";
+          const ratio = contrast(v, c[rule.against]);
           const low = ratio < rule.floor;
+          const where = rule.against.replace("--", "").replace(/-/g, " ");
+          badge.textContent = low && canEdit ? `${ratio.toFixed(1)}:1 \xB7 Fix` : ratio.toFixed(1) + ":1";
           badge.classList.toggle("low", low);
-          badge.title = low ? `Below ${rule.floor}:1 against ${rule.against.replace("--", "").replace(/-/g, " ")}: hard to read` : `Contrast against ${rule.against.replace("--", "").replace(/-/g, " ")}`;
+          badge.tabIndex = low && canEdit ? 0 : -1;
+          badge.title = low ? `Below ${rule.floor}:1 against ${where}: hard to read.${canEdit ? " Click to adjust its lightness until it passes." : ""}` : `Contrast against ${where}`;
+        } else {
+          badge.hidden = true;
         }
       });
+    }
+    const secLib = section("mine", "My themes", "Every Custom theme you've saved. Pick one to edit it; the one in use is marked.");
+    const libGrid = document.createElement("div");
+    libGrid.className = "ts-presets ts-library";
+    secLib.appendChild(libGrid);
+    async function confirmDiscard() {
+      if (!dirty) return true;
+      return showConfirmModal("Discard your unsaved changes to this theme?", { okLabel: "Discard", cancelLabel: "Keep editing", danger: true });
+    }
+    function renderLibrary() {
+      libGrid.innerHTML = "";
+      const active = activeLibId();
+      for (const item of library) {
+        const tile = document.createElement("div");
+        tile.className = "ts-lib-item" + (item.id === currentId ? " editing" : "");
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ts-preset";
+        const c = item.spec.colors;
+        b.innerHTML = `<span class="ts-preset-sw">${[c["--bg-base"], c["--bg-panel"], c["--accent-manual"], c["--accent-flair"]].map((x) => `<i style="background:${esc(x)}"></i>`).join("")}</span><span class="ts-preset-name">${esc(item.spec.name)}</span>` + (item.id === active ? '<span class="ts-lib-badge">In use</span>' : "");
+        b.title = item.id === currentId ? "Editing this theme" : `Edit ${item.spec.name}`;
+        b.addEventListener("click", async () => {
+          if (item.id === currentId) return;
+          if (!await confirmDiscard()) return;
+          currentId = item.id;
+          spec = normalizeSpec(JSON.parse(JSON.stringify(item.spec)));
+          dirty = false;
+          renderLibrary();
+          syncAll();
+        });
+        tile.appendChild(b);
+        const acts = document.createElement("div");
+        acts.className = "ts-lib-acts";
+        const dup = document.createElement("button");
+        dup.type = "button";
+        dup.className = "ts-lib-act";
+        dup.title = `Duplicate ${item.spec.name}`;
+        dup.setAttribute("aria-label", dup.title);
+        dup.innerHTML = iconSvg("list");
+        dup.addEventListener("click", () => {
+          const copy = { id: newLibId(), spec: normalizeSpec({ ...JSON.parse(JSON.stringify(item.spec)), name: `${item.spec.name} copy`.slice(0, 40) }) };
+          library.splice(library.indexOf(item) + 1, 0, copy);
+          writeLibrary(library);
+          refreshCustomOptionLabel();
+          renderLibrary();
+        });
+        acts.appendChild(dup);
+        if (item.id !== active) {
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "ts-lib-act danger";
+          del.title = `Delete ${item.spec.name}`;
+          del.setAttribute("aria-label", del.title);
+          del.innerHTML = iconSvg("trash");
+          del.addEventListener("click", async () => {
+            if (!await showConfirmModal(`Delete "${item.spec.name}" from My themes? Export it first if you might want it back.`, { okLabel: "Delete", danger: true })) return;
+            library = library.filter((i) => i.id !== item.id);
+            writeLibrary(library);
+            refreshCustomOptionLabel();
+            if (currentId === item.id) {
+              currentId = null;
+              dirty = true;
+            }
+            renderLibrary();
+            syncFooter();
+          });
+          acts.appendChild(del);
+        }
+        tile.appendChild(acts);
+        libGrid.appendChild(tile);
+      }
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "ts-preset ts-lib-new" + (currentId === null ? " editing" : "");
+      add.innerHTML = `<span class="ts-preset-sw ts-lib-plus">+</span><span class="ts-preset-name">New theme</span>`;
+      add.title = "Start a new theme from the Studio defaults";
+      add.addEventListener("click", async () => {
+        if (!await confirmDiscard()) return;
+        currentId = null;
+        spec = defaultSpec();
+        dirty = false;
+        renderLibrary();
+        syncAll();
+      });
+      libGrid.appendChild(add);
     }
     const secStart = section("start", "Start from", "Copy any theme you own as a starting point: its colors, faces, shapes, mat and effects.");
     const presetGrid = document.createElement("div");
@@ -2462,6 +2730,23 @@
       }
     }
     const secColors = section("colors", "Colors", "Sixteen roles every screen reads. Hex accepts #rgb, #rrggbb and #rrggbbaa.");
+    segmented(secColors, "Palette", [{ id: "day", label: "Day" }, { id: "night", label: "Night" }], () => palette, (id) => {
+      palette = id;
+    }, false);
+    const nightField = document.createElement("div");
+    nightField.className = "ts-night";
+    secColors.appendChild(nightField);
+    segmented(nightField, "Night colors", [{ id: "auto", label: "Automatic" }, { id: "manual", label: "Hand-edited" }], () => spec.night ? "manual" : "auto", (id) => {
+      spec.night = id === "manual" ? nightColorsFor({ ...spec, night: null }) : null;
+    });
+    const nightNote = document.createElement("p");
+    nightNote.className = "ts-sec-lede ts-night-note";
+    nightNote.textContent = "Automatic flips each color's lightness and keeps text readable. Switch to Hand-edited to change any of them.";
+    nightField.appendChild(nightNote);
+    syncers.push(() => {
+      nightField.hidden = palette !== "night";
+      nightNote.hidden = !!spec.night;
+    });
     for (const g of COLOR_GROUPS) {
       const sub = document.createElement("div");
       sub.className = "ts-color-group";
@@ -2475,13 +2760,35 @@
     tintBtn.innerHTML = `${iconSvg("wand", "ic-lead")}Match tints to accents`;
     tintBtn.title = "Recompute the Manual and Auto tints from their accents and the panel color";
     tintBtn.addEventListener("click", () => {
-      const panel = spec.colors["--bg-panel"];
+      if (palette === "night" && !spec.night) return;
+      const c = cols();
+      const panel = c["--bg-panel"];
       const light = luminance(panel) > 0.4;
-      spec.colors["--accent-manual-dim"] = mixHex(panel, spec.colors["--accent-manual"], light ? 0.16 : 0.22);
-      spec.colors["--accent-auto-dim"] = mixHex(panel, spec.colors["--accent-auto"], light ? 0.16 : 0.22);
+      c["--accent-manual-dim"] = mixHex(panel, c["--accent-manual"], light ? 0.16 : 0.22);
+      c["--accent-auto-dim"] = mixHex(panel, c["--accent-auto"], light ? 0.16 : 0.22);
       changed();
     });
-    secColors.appendChild(tintBtn);
+    const fixAllBtn = document.createElement("button");
+    fixAllBtn.type = "button";
+    fixAllBtn.className = "ts-link-btn";
+    fixAllBtn.innerHTML = `${iconSvg("check-circle", "ic-lead")}Fix all low contrast`;
+    fixAllBtn.title = "Adjust the lightness of every color below its readability floor";
+    fixAllBtn.addEventListener("click", () => {
+      if (palette === "night" && !spec.night) return;
+      const c = cols();
+      for (const [k, r] of Object.entries(CONTRAST)) c[k] = fixContrast(c[k], c[r.against], r.floor);
+      changed();
+    });
+    syncers.push(() => {
+      const c = cols();
+      const anyLow = Object.entries(CONTRAST).some(([k, r]) => contrast(c[k], c[r.against]) < r.floor);
+      fixAllBtn.hidden = !anyLow || palette === "night" && !spec.night;
+      tintBtn.hidden = palette === "night" && !spec.night;
+    });
+    const colorActs = document.createElement("div");
+    colorActs.className = "ts-color-acts";
+    colorActs.append(tintBtn, fixAllBtn);
+    secColors.appendChild(colorActs);
     const secType = section("type", "Type", "Bundled faces only, so a theme looks the same on every machine.");
     const fontGrid = document.createElement("div");
     fontGrid.className = "ts-font-grid";
@@ -2844,7 +3151,14 @@
     q(".ts-close").addEventListener("click", () => {
       void tryClose();
     });
+    let saveMode = "save";
+    q(".ts-save-copy").addEventListener("click", () => {
+      saveMode = "copy";
+      saveBtn.click();
+    });
     saveBtn.addEventListener("click", async () => {
+      const asCopy = saveMode === "copy";
+      saveMode = "save";
       const due = pendingUnlocks();
       if (due.length) {
         const total = due.reduce((n, u) => n + u.price, 0);
@@ -2863,9 +3177,16 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         }
         setJSON(FX_OWNED_KEY, [...ownedFx(), ...due.map((u) => u.key)]);
       }
-      const vars = compileCustom(spec);
-      setJSON(SPEC_KEY, spec);
-      setJSON(VARS_KEY, vars);
+      if (asCopy || !currentId) {
+        const item = { id: newLibId(), spec: JSON.parse(JSON.stringify(spec)) };
+        if (asCopy && currentId && item.spec.name === library.find((i) => i.id === currentId)?.spec.name) item.spec.name = `${item.spec.name} copy`.slice(0, 40);
+        library.push(item);
+        currentId = item.id;
+      } else {
+        library = library.map((i) => i.id === currentId ? { id: i.id, spec: JSON.parse(JSON.stringify(spec)) } : i);
+      }
+      writeLibrary(library);
+      persistActive(library.find((i) => i.id === currentId));
       setString("dts-theme", "custom");
       themeSelect.value = "custom";
       refreshCustomOptionLabel();
@@ -2906,6 +3227,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       tabsEl.querySelector(`[data-tab="${n.id}"]`)?.focus();
       ev.preventDefault();
     });
+    renderLibrary();
     renderPresets();
     buildPreviewDoc();
     syncAll();
@@ -2936,7 +3258,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         img: art("#8d7b6a", "#3d342c", '<circle cx="150" cy="170" r="70" fill="#e9dccb" opacity=".85"/><rect x="60" y="260" width="180" height="110" rx="40" fill="#5d4c3d"/>'),
         name: "portrait_014.png",
         tags: ["1girl", "red hair", "looking at viewer", "smile", "upper body"],
-        chip: { 1: "chip-match" }
+        chip: { 1: "chip-match" },
+        ghosts: [["blurry", "void"], ["ginger hair", "merge"]]
       },
       {
         img: art("#6f8795", "#27343d", '<path d="M0 300 L90 190 L170 260 L240 170 L300 230 L300 400 L0 400Z" fill="#1d262c"/><circle cx="220" cy="90" r="30" fill="#e8e4d8"/>', 300, 220),
@@ -2967,7 +3290,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     <div class="card${s.cls ? " " + s.cls : ""}">
       <div class="thumbwrap"><img src="${s.img}" alt=""><div class="filename">${esc(s.name)}</div>${s.cls === "dirty" ? '<div class="dirtydot"></div>' : ""}</div>
       <div class="tagbox"><input type="text" class="addtag-input" placeholder="+ Add tag" tabindex="-1">
-        <div class="chiprow">${s.tags.map((t, i) => `<span class="chip${s.chip && s.chip[i] ? " " + s.chip[i] : ""}${i === 0 && s.tags.length > 4 ? " selected" : ""}"><span>${esc(t)}</span><button tabindex="-1">\xD7</button></span>`).join("")}</div>
+        <div class="chiprow">${s.tags.map((t, i) => `<span class="chip${s.chip && s.chip[i] ? " " + s.chip[i] : ""}${i === 0 && s.tags.length > 4 ? " selected" : ""}"><span>${esc(t)}</span><button tabindex="-1">\xD7</button></span>`).join("")}${(s.ghosts || []).map(([t, k]) => `<span class="chip chip-ghost chip-ghost-${k}">${k === "merge" ? '<svg class="ic chip-ghost-ic" aria-hidden="true"><use href="#i-merge-in"></use></svg>' : ""}<span class="chip-ghost-label">${esc(t)}</span><button tabindex="-1">\xD7</button></span>`).join("")}</div>
       </div>
     </div>`).join("");
     const setNum = (id, v) => {
@@ -3729,6 +4052,11 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       actively restore whatever each affected image originally had. Void rules
       show in their own collapsible group (they all share one rule, since there's no separate
       canonical tag to key them by); merge rules list one row per canonical tag.</p>
+      <p><b>Past Tag Preview</b> \u2014 every image also shows the tags a rule took off it, after its
+      real tags, as faded "ghost" tags: struck through for a void, with a four-arrows-inward mark
+      for a merge (last in their category with Tag sorting on). They're exactly what the image gets
+      back if that rule is turned off. Delete one with its \xD7 like any tag (undoable), and it won't
+      come back. Turn the preview off in Settings \u25B8 Show Past Tag Preview.</p>
       ${isTouchDevice ? "" : `<p><b>\u{1F9FA} Bucket Images</b> \u2014 crops and resizes every Gallery image to its nearest LoRA
       training bucket (Min side / Max side / Step, default 256 / 1024 / 64), so your trainer
       doesn't have to. The crop keeps the subject using a saliency model (a one-time ~176 MB
@@ -3967,6 +4295,16 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       current theme and tells you its Shop price. Epic/legendary themes get an extra hover-fill and
       card lift in that theme's own style; any cheaper theme can buy them individually via the
       Shop's "\u{1F528} Refine Theme" button, for the price difference.</p>
+      ${isTouchDevice ? "" : `<p>\u{1F3A8} <b>Theme Studio</b> (Personalization \u25B8 Theme Studio) builds your own Custom theme:
+      colors, fonts per role, shapes, icon stroke, button fill and card hover, dock pads, gallery
+      ground, image mat, active-tab marker, top-bar edge and primary buttons, with a live miniature
+      of the app on the right (switch its tab with the buttons under it; hover it to try effects).
+      "Start from" copies any theme you own; Import/Export share themes as .theme.json files.
+      Fills and card hovers are epic/legendary-tier: preview free, and keeping one costs that tier's
+      price in Edibits, once. <b>My themes</b> keeps every Custom you save (switch between them from
+      the theme menu too); Colors \u25B8 Palette \u25B8 Night sets Custom's night colors (automatic or
+      hand-edited); a red contrast ratio is clickable to fix it; and <b>Hold to compare</b> under the
+      preview shows your current theme for a moment.</p>`}
       <p>\u{1F3C6} Achievements (55+, unlocked per dataset folder \u2014 a fresh dataset starts with none
       unlocked) pay out Edibits as you use the app's features. \u{1F319} Night mode is a genuine per-theme
       color inversion that also keeps every text and accent color readable.</p>
@@ -4021,8 +4359,6 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         <li>Underscore-to-space conversion only goes one way \u2014 a tag that ends up with an
         underscore while you're editing in-app is treated as containing a literal space, by
         design.</li>
-        <li>Night mode doesn't apply to the Custom theme, since that one's already fully under your
-        own control.</li>
         <li>If a dock's layout looks broken (stuck collapsed, wrong order), use Settings \u25B8 Layout &
         Panels \u25B8 "Reset panel layout."</li>
         <li>If Tag Details says "no definition found" for everything, the bundled Danbooru wiki
@@ -4590,7 +4926,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   var statsChartMode = "pie";
   var PIXEL_TYPES = /* @__PURE__ */ new Set(["crop-image", "rotate-image"]);
   var ISOLATE_TYPES = /* @__PURE__ */ new Set(["isolate-image"]);
-  var REVIEW_TYPES = /* @__PURE__ */ new Set(["unflag-review"]);
+  var REVIEW_TYPES = /* @__PURE__ */ new Set(["unflag-review", "ghost-remove"]);
   var LOG_FILE_NAME = "_tag_edit_log.json";
   var getDirHandle2 = () => null;
   var getEntryByBase = () => void 0;
@@ -4682,7 +5018,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     "crop-image": "#3aa655",
     "rotate-image": "#7a9fd1",
     "isolate-image": "#b57edc",
-    "unflag-review": "#e8a33d"
+    "unflag-review": "#e8a33d",
+    "ghost-remove": "#9791a6"
   };
   var STAT_TYPE_LABEL = {
     "add-tag": "Tags added",
@@ -4703,7 +5040,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     "crop-image": "Crops",
     "rotate-image": "Rotates",
     "isolate-image": "Isolates",
-    "unflag-review": "Review flags cleared"
+    "unflag-review": "Review flags cleared",
+    "ghost-remove": "Past tags deleted"
   };
   function computeStatsBreakdown() {
     const counts = {};
@@ -5280,9 +5618,11 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         if (e.disabled) continue;
         const prevTags = e.tags.slice();
         let changed = false;
+        const dismissed = e.meta?.ghostDismissed || [];
         for (const child of childrenBeingTurnedOff) {
           if (e.tags.includes(child)) continue;
           if (!index.get(child).has(e.base)) continue;
+          if (dismissed.includes(child)) continue;
           e.tags = [...e.tags, child];
           changed = true;
         }
@@ -5306,8 +5646,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         const prevTags = e.tags.slice();
         let changed = false;
         let stillJustified = false;
+        const dismissed = e.meta?.ghostDismissed || [];
         for (const child of rule.children) {
-          const hadIt = index.get(child).has(e.base);
+          const hadIt = index.get(child).has(e.base) && !dismissed.includes(child);
           if (childrenBeingTurnedOff.includes(child)) {
             if (hadIt && !e.tags.includes(child)) {
               e.tags = [...e.tags, child];
@@ -5334,6 +5675,44 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     }
     if (touched > 0) refreshAllUIRef2();
     return touched;
+  }
+  var ghostCache = null;
+  function ghostMap() {
+    if (ghostCache) return ghostCache;
+    const map = /* @__PURE__ */ new Map();
+    const add = (base, g) => {
+      const list = map.get(base);
+      if (!list) map.set(base, [g]);
+      else if (!list.some((x) => x.tag === g.tag)) list.push(g);
+    };
+    const voidTags = [];
+    for (const rule of canonicalRules) {
+      if (!rule.enabled) continue;
+      const active = activeChildren(rule);
+      if (!active.length) continue;
+      if (!rule.canonical) {
+        voidTags.push(...active);
+        continue;
+      }
+      const idx = buildMergeEvidenceIndex(rule.canonical, active);
+      for (const [tag, bases] of idx) for (const base of bases) add(base, { tag, kind: "merge", canonical: rule.canonical });
+    }
+    if (voidTags.length) {
+      const idx = buildVoidEvidenceIndex(Array.from(new Set(voidTags)));
+      for (const [tag, bases] of idx) for (const base of bases) add(base, { tag, kind: "void" });
+    }
+    ghostCache = map;
+    setTimeout(() => {
+      ghostCache = null;
+    }, 0);
+    return map;
+  }
+  function ghostTagsFor(entry) {
+    if (entry.disabled || entry.meta?.locked) return [];
+    const list = ghostMap().get(entry.base);
+    if (!list) return [];
+    const dismissed = entry.meta?.ghostDismissed || [];
+    return list.filter((g) => !entry.tags.includes(g.tag) && !dismissed.includes(g.tag) && (g.kind === "void" || entry.tags.includes(g.canonical)));
   }
   function ruleLabel(rule) {
     return rule.canonical ? `merge rule \u2192 "${rule.canonical}"` : "void rule";
@@ -21292,6 +21671,7 @@ Image: ${entry.imgName}`,
   var getGalleryFilter2 = () => ({ base: "all", terms: [], mode: "OR", excludes: "", disabledView: false, originalsView: false, exactMatch: false });
   var getIsolatedFlagActive = () => false;
   var getShowTagCountBadges = () => false;
+  var getShowPastTags = () => true;
   var getEntryMeta2 = () => ({});
   var saveEntryMetaRef2 = () => {
   };
@@ -21764,6 +22144,10 @@ Image: ${entry.imgName}`,
           refreshStats();
         }, tagIndex));
       }
+      for (const g of pastTags(e)) chiprow.appendChild(buildGhostChip(e, g, () => {
+        patchGridCard(e);
+        refreshRightPanels();
+      }));
     }
     tagbox.appendChild(chiprow);
     if (isTouchDevice2) {
@@ -22575,13 +22959,17 @@ Image: ${entry.imgName}`,
       const chiprow = document.createElement("div");
       chiprow.className = "chiprow";
       for (const tag of ordered) chiprow.appendChild(buildChip2(entry, tag, onChange, tagIndex));
+      for (const g of pastTags(entry)) chiprow.appendChild(buildGhostChip(entry, g, onChange));
       return chiprow;
     }
+    const ghosts = pastTags(entry);
+    const ghostByTag = new Map(ghosts.map((g) => [g.tag, g]));
     const subjects = entry.meta?.tagSubjects || [];
-    if (subjects.length) return buildSubjectTree(entry, ordered, tagIndex, onChange);
+    if (subjects.length) return buildSubjectTree(entry, ordered, tagIndex, onChange, ghostByTag);
     const wrap = document.createElement("div");
     wrap.className = "tagcat-groups";
-    for (const group of groupTagsByCategory(ordered)) {
+    for (const group of groupTagsByCategory([...ordered, ...ghosts.map((g) => g.tag)])) {
+      const real = group.tags.filter((t) => !ghostByTag.has(t));
       const seg = document.createElement("div");
       seg.className = "tagcat-seg";
       const head = document.createElement("div");
@@ -22591,13 +22979,14 @@ Image: ${entry.imgName}`,
       name.textContent = group.label;
       const count = document.createElement("span");
       count.className = "tagcat-count";
-      count.textContent = String(group.tags.length);
+      count.textContent = String(real.length);
       head.appendChild(name);
       head.appendChild(count);
       seg.appendChild(head);
       const chiprow = document.createElement("div");
       chiprow.className = "chiprow";
-      for (const tag of group.tags) chiprow.appendChild(buildChip2(entry, tag, onChange, tagIndex));
+      for (const tag of real) chiprow.appendChild(buildChip2(entry, tag, onChange, tagIndex));
+      for (const tag of group.tags) if (ghostByTag.has(tag)) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(tag), onChange));
       seg.appendChild(chiprow);
       wrap.appendChild(seg);
     }
@@ -22636,7 +23025,7 @@ Image: ${entry.imgName}`,
     for (const t of tags) assign[t] = subjectId;
     persistEntryMeta(entry);
   }
-  function buildSubjectTree(entry, ordered, tagIndex, onChange) {
+  function buildSubjectTree(entry, ordered, tagIndex, onChange, ghostByTag = /* @__PURE__ */ new Map()) {
     const meta = ensureEntryMeta(entry);
     const subjects = meta.tagSubjects;
     const assign = meta.tagAssign || (meta.tagAssign = {});
@@ -22647,7 +23036,7 @@ Image: ${entry.imgName}`,
     const validIds = new Set(subjects.map((s) => s.id));
     const defaultId = subjects[0].id;
     const bySubject = /* @__PURE__ */ new Map();
-    for (const tag of ordered) {
+    for (const tag of [...ordered, ...ghostByTag.keys()]) {
       const sid = assign[tag] && validIds.has(assign[tag]) ? assign[tag] : defaultId;
       let cats = bySubject.get(sid);
       if (!cats) {
@@ -22663,7 +23052,7 @@ Image: ${entry.imgName}`,
     root.className = "tagsub-tree";
     if (subjectSelectedTags.size) root.appendChild(buildMoveToolbar(entry, subjects, onChange));
     for (const subject of subjects) {
-      root.appendChild(buildSubjectBlock(entry, subject, bySubject.get(subject.id), tagIndex, onChange));
+      root.appendChild(buildSubjectBlock(entry, subject, bySubject.get(subject.id), tagIndex, onChange, ghostByTag));
     }
     return root;
   }
@@ -22709,7 +23098,7 @@ Image: ${entry.imgName}`,
     bar.appendChild(clearBtn);
     return bar;
   }
-  function buildSubjectBlock(entry, subject, cats, tagIndex, onChange) {
+  function buildSubjectBlock(entry, subject, cats, tagIndex, onChange, ghostByTag = /* @__PURE__ */ new Map()) {
     const block = document.createElement("div");
     block.className = "tagsub-subject";
     const dropHere = (ev) => {
@@ -22788,14 +23177,16 @@ Image: ${entry.imgName}`,
       catName.textContent = TAG_CATEGORY_LABELS[cat] || cat;
       const countEl = document.createElement("span");
       countEl.className = "tagsub-count";
-      const tags = present.get(cat) || [];
+      const all = present.get(cat) || [];
+      const tags = all.filter((t) => !ghostByTag.has(t));
+      const catGhosts = all.filter((t) => ghostByTag.has(t));
       countEl.textContent = String(tags.length);
       subHead.appendChild(catName);
       subHead.appendChild(countEl);
       sub.appendChild(subHead);
       const chiprow = document.createElement("div");
       chiprow.className = "chiprow";
-      if (!tags.length) {
+      if (!tags.length && !catGhosts.length) {
         const none = document.createElement("span");
         none.className = "tagsub-empty";
         none.textContent = "\u2014";
@@ -22821,6 +23212,7 @@ Image: ${entry.imgName}`,
         }, true);
         chiprow.appendChild(chip);
       }
+      for (const t of catGhosts) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(t), onChange));
       sub.appendChild(chiprow);
       block.appendChild(sub);
     }
@@ -22907,6 +23299,44 @@ Image: ${entry.imgName}`,
     const isMatch = searchTerms.some((term) => lower === term);
     const isIsolated = !!(getIsolatedFlagActive() && tagIndex && (tagIndex.get(tag) ? tagIndex.get(tag).size <= 2 : false));
     return { isMatch, isIsolated };
+  }
+  function pastTags(entry) {
+    if (!getShowPastTags() || getHideTagsRef()) return [];
+    return ghostTagsFor(entry);
+  }
+  function buildGhostChip(entry, g, onChange) {
+    const chip = document.createElement("span");
+    chip.className = `chip chip-ghost chip-ghost-${g.kind}`;
+    chip.title = g.kind === "void" ? `"${g.tag}" was removed by a void rule. Turn the rule off and this image gets it back.` : `"${g.tag}" was merged into "${g.canonical}". Turn the rule off (or that tag in it) and this image gets it back.`;
+    if (g.kind === "merge") chip.insertAdjacentHTML("beforeend", iconSvg("merge-in", "chip-ghost-ic"));
+    const label = document.createElement("span");
+    label.className = "chip-ghost-label";
+    label.textContent = g.tag;
+    const rm = document.createElement("button");
+    rm.textContent = "\xD7";
+    rm.title = "Delete this past tag (it won't come back if the rule is turned off)";
+    rm.setAttribute("aria-label", `Delete past tag ${g.tag}`);
+    rm.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      dismissGhostTag(entry, g.tag);
+      onChange();
+    });
+    chip.appendChild(label);
+    chip.appendChild(rm);
+    return chip;
+  }
+  function dismissGhostTag(entry, tag) {
+    const meta = ensureEntryMeta(entry);
+    const prevGhostDismissed = (meta.ghostDismissed || []).slice();
+    if (prevGhostDismissed.includes(tag)) return;
+    const newGhostDismissed = [...prevGhostDismissed, tag];
+    meta.ghostDismissed = newGhostDismissed;
+    persistEntryMeta(entry);
+    recordChange(
+      "ghost-remove",
+      `Deleted past tag "${tag}" from ${entry.imgName}`,
+      [{ base: entry.base, prevGhostDismissed, newGhostDismissed: newGhostDismissed.slice() }]
+    );
   }
   function buildChip2(entry, tag, onChange, tagIndex) {
     const chip = document.createElement("span");
@@ -24257,6 +24687,7 @@ Image: ${entry.imgName}`,
     getGalleryFilter2 = deps2.getGalleryFilter;
     getIsolatedFlagActive = deps2.getIsolatedFlagActive;
     getShowTagCountBadges = deps2.getShowTagCountBadges;
+    getShowPastTags = deps2.getShowPastTags;
     getEntryMeta2 = deps2.getEntryMeta;
     saveEntryMetaRef2 = deps2.saveEntryMeta;
     refreshAllUIRef7 = deps2.refreshAllUI;
@@ -24563,6 +24994,10 @@ Image: ${entry.imgName}`,
     });
     const themeDropdownCtrl = initThemeDropdown(themeDropdown);
     themeSelect.addEventListener("change", () => {
+      if (themeSelect.value.startsWith("custom:")) {
+        activateLibraryTheme(themeSelect.value.slice(7));
+        themeSelect.value = "custom";
+      }
       const chosen = themeSelect.value;
       const premium = PREMIUM_THEMES.find((t) => t.id === chosen);
       if (premium && !ownedThemes.includes(chosen)) {
@@ -24922,6 +25357,15 @@ Image: ${entry.imgName}`,
     let discreteModeOn = false;
     let purgeConfirmCount = 0;
     let showTagCountBadges = false;
+    const pastTagPreviewToggle = $("pastTagPreviewToggle");
+    let showPastTags = getBool("dts-show-past-tags", true);
+    if (pastTagPreviewToggle) pastTagPreviewToggle.checked = showPastTags;
+    pastTagPreviewToggle?.addEventListener("change", () => {
+      if (!pastTagPreviewToggle) return;
+      showPastTags = pastTagPreviewToggle.checked;
+      setBool("dts-show-past-tags", showPastTags);
+      renderCurrentView();
+    });
     tagCountBadgeToggle.addEventListener("change", () => {
       showTagCountBadges = tagCountBadgeToggle.checked;
       setBool("dts-tagcount-badges", showTagCountBadges);
@@ -25345,6 +25789,7 @@ Image: ${entry.imgName}`,
       getGalleryFilter: () => galleryFilter,
       getIsolatedFlagActive: () => isolatedFlagActive,
       getShowTagCountBadges: () => showTagCountBadges,
+      getShowPastTags: () => showPastTags,
       getEntryMeta: () => entryMeta,
       saveEntryMeta: () => saveEntryMeta(),
       refreshAllUI: () => refreshAllUI(),
@@ -25512,8 +25957,17 @@ Image: ${entry.imgName}`,
       let count = 0;
       for (const a of affected) {
         const e = entryByBase.get(a.base);
+        if (!e) continue;
+        const ghost = direction === "undo" ? a.prevGhostDismissed : a.newGhostDismissed;
+        if (ghost) {
+          if (!e.meta) e.meta = {};
+          e.meta.ghostDismissed = ghost.slice();
+          entryMeta[e.base] = e.meta;
+          count++;
+          continue;
+        }
         const target = direction === "undo" ? a.prevFlagged : a.newFlagged;
-        if (!e || !target) continue;
+        if (!target) continue;
         if (!e.meta) e.meta = {};
         e.meta.flaggedTags = target.slice();
         entryMeta[e.base] = e.meta;

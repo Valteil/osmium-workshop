@@ -270,3 +270,14 @@
   .ts-box, .ts-frame-wrap{ transform: none; }
   .ts-opt:active:not(:disabled), .ts-preset:active:not(:disabled){ transform: none; }
 }
+
+/* Contrast fix, hold-to-compare (mirrors the main app's Studio). */
+.ts-contrast{ background: transparent; border: 1px solid transparent; padding: 1px 5px; cursor: default; font-weight: 400; }
+.ts-contrast:hover{ border-color: transparent; }
+.ts-contrast[hidden]{ display: inline-block; visibility: hidden; } /* keeps its grid cell */
+.ts-contrast.low[tabindex="0"]{ cursor: pointer; border-color: color-mix(in srgb, var(--accent-danger) 45%, transparent); }
+.ts-contrast.low[tabindex="0"]:hover{ background: color-mix(in srgb, var(--accent-danger) 12%, transparent); border-color: var(--accent-danger); }
+.ts-stage-bar{ display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.ts-compare{ padding: 6px 12px; user-select: none; touch-action: none; }
+.ts-compare.on{ border-color: var(--accent); color: var(--accent); background: var(--accent-manual-dim); }
+.ts-frame-wrap.ts-comparing{ box-shadow: 0 0 0 2px var(--accent), 0 28px 64px rgba(0,0,0,0.45); }
