@@ -53,7 +53,7 @@ let getDirHandleRef: () => DirHandle | null = () => null;
 let addEntryFromNewFileRef: (base: string, imgHandle: FileHandle, imgName: string, txtHandle: FileHandle | null, txtExisted: boolean, tags: string[], disabled: boolean) => Promise<Entry | null> = async () => null;
 let getMasterTagModeActive: () => boolean = () => false;
 let getCardTagSortMode: () => CardTagSortMode = () => 'default';
-let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, originalsView: false, exactMatch: false });
+let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'OR', excludes: '', disabledView: false, originalsView: false, exactMatch: false });
 let getIsolatedFlagActive: () => boolean = () => false;
 let getShowTagCountBadges: () => boolean = () => false;
 let getEntryMeta: () => Record<string, EntryMeta> = () => ({});

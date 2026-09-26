@@ -117,7 +117,7 @@ import { setIconLabel } from './icons';
   let originalDirHandle: DirHandle | null = null;
   let entries: Entry[] = [];
   let entryByBase = new Map<string, Entry>();
-  let galleryFilter: GalleryFilter = { base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, originalsView: false, exactMatch: false };
+  let galleryFilter: GalleryFilter = { base: 'all', terms: [], mode: 'OR', excludes: '', disabledView: false, originalsView: false, exactMatch: false };
   // Set once buildPersistentDropdown(filterModeDropdown, ...) runs, below —
   // referenced (via closure, not by value) from initTagIndex()'s deps
   // earlier in this same init sequence, so the assignment-after-reference
@@ -1845,7 +1845,7 @@ import { setIconLabel } from './icons';
     dropHintWrap.style.display = entries.length ? 'none' : 'block';
     galleryToolbar.style.display = entries.length ? 'flex' : 'none';
 
-    galleryFilter = { base: 'all', terms: [], mode: filterModeLock.checked ? galleryFilter.mode : 'AND', excludes: '', disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
+    galleryFilter = { base: 'all', terms: [], mode: filterModeLock.checked ? galleryFilter.mode : 'OR', excludes: '', disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
     filterInput.value = '';
     excludeBadge.style.display = 'none';
     [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach(b=>b.classList.remove('active'));
@@ -1906,7 +1906,7 @@ import { setIconLabel } from './icons';
     dropHintWrap.style.display = 'block';
     galleryToolbar.style.display = 'none';
 
-    galleryFilter = { base: 'all', terms: [], mode: filterModeLock.checked ? galleryFilter.mode : 'AND', excludes: '', disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
+    galleryFilter = { base: 'all', terms: [], mode: filterModeLock.checked ? galleryFilter.mode : 'OR', excludes: '', disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
     filterInput.value = '';
     excludeBadge.style.display = 'none';
     [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach(b=>b.classList.remove('active'));

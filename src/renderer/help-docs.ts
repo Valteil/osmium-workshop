@@ -75,8 +75,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       "dress" right away, and groups "black dress"/"dress shoes" under a "Same keyword family"
       heading). If you only want an exact match — so searching "dress" doesn't also pull in "black
       dress" — check "Exact tag match" just under the search box. The <b>Boolean</b> dropdown
-      under the box picks how your terms combine; tick <b>Lock</b> to keep that choice when
-      <b>Clear filter</b> (or Tag Pruner's mirror search) would otherwise reset it to AND.</p>
+      under the box picks how your terms combine (default <b>OR</b>: any term matches); tick
+      <b>Lock</b> to keep your choice when <b>Clear filter</b> or opening a dataset would
+      otherwise reset it to OR.</p>
       <p><b>🚩 Review flagged tags</b> (left panel) swaps the TAGS list for every tag you've
       flagged for review from a chip's menu, across the whole dataset. <b>Reviewed</b> clears
       that flag everywhere at once (undoable); the row stays struck through for the session.
@@ -137,7 +138,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       independent boxes as you want — each has its OWN selection (a tag picked in one is hidden
       from the others, so several unrelated keyword families can be browsed side by side without
       colliding). Each box's own header also has <b>🔍 Mirror to gallery search</b> (only one box
-      can drive the left-hand gallery filter at a time — checking one unchecks any other) and its
+      can drive the left-hand gallery filter at a time — checking one unchecks any other; it follows the <b>Boolean</b> dropdown, so OR shows every
+      image carrying any selected tag) and its
       own <b>Clear</b>, affecting just that box.</p>
       <p><b>Unify/Void</b> — one row per Tag Pruner box that currently has a selection, each with
       its own tag summary and its own Apply/Void. Apply merges that box's selected tags into the

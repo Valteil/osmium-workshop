@@ -2131,8 +2131,9 @@
       "dress" right away, and groups "black dress"/"dress shoes" under a "Same keyword family"
       heading). If you only want an exact match \u2014 so searching "dress" doesn't also pull in "black
       dress" \u2014 check "Exact tag match" just under the search box. The <b>Boolean</b> dropdown
-      under the box picks how your terms combine; tick <b>Lock</b> to keep that choice when
-      <b>Clear filter</b> (or Tag Pruner's mirror search) would otherwise reset it to AND.</p>
+      under the box picks how your terms combine (default <b>OR</b>: any term matches); tick
+      <b>Lock</b> to keep your choice when <b>Clear filter</b> or opening a dataset would
+      otherwise reset it to OR.</p>
       <p><b>\u{1F6A9} Review flagged tags</b> (left panel) swaps the TAGS list for every tag you've
       flagged for review from a chip's menu, across the whole dataset. <b>Reviewed</b> clears
       that flag everywhere at once (undoable); the row stays struck through for the session.
@@ -2193,7 +2194,8 @@
       independent boxes as you want \u2014 each has its OWN selection (a tag picked in one is hidden
       from the others, so several unrelated keyword families can be browsed side by side without
       colliding). Each box's own header also has <b>\u{1F50D} Mirror to gallery search</b> (only one box
-      can drive the left-hand gallery filter at a time \u2014 checking one unchecks any other) and its
+      can drive the left-hand gallery filter at a time \u2014 checking one unchecks any other; it follows the <b>Boolean</b> dropdown, so OR shows every
+      image carrying any selected tag) and its
       own <b>Clear</b>, affecting just that box.</p>
       <p><b>Unify/Void</b> \u2014 one row per Tag Pruner box that currently has a selection, each with
       its own tag summary and its own Apply/Void. Apply merges that box's selected tags into the
@@ -10104,7 +10106,7 @@ Image: ${entry.imgName}`,
   var leftSortDir = "desc";
   var familyOrder = [];
   var getEntries6 = () => [];
-  var getGalleryFilter = () => ({ base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, originalsView: false, exactMatch: false });
+  var getGalleryFilter = () => ({ base: "all", terms: [], mode: "OR", excludes: "", disabledView: false, originalsView: false, exactMatch: false });
   var getGallerySortMode = () => "filename";
   var getGallerySortDir = () => "asc";
   var resetSingleIndex2 = () => {
@@ -10411,7 +10413,7 @@ Image: ${entry.imgName}`,
     if (galleryFilter.terms && galleryFilter.terms.length) {
       const tagMatches = galleryFilter.exactMatch ? (t, term) => t.toLowerCase() === term : (t, term) => t.toLowerCase().includes(term);
       const matchCount = galleryFilter.terms.filter((term) => e.tags.some((t) => tagMatches(t, term))).length;
-      const mode = galleryFilter.mode || "AND";
+      const mode = galleryFilter.mode || "OR";
       if (mode === "AND" && matchCount !== galleryFilter.terms.length) return false;
       if (mode === "OR" && matchCount === 0) return false;
       if (mode === "XOR" && matchCount !== 1) return false;
@@ -10433,7 +10435,7 @@ Image: ${entry.imgName}`,
   function setContainsFilter(value) {
     const galleryFilter = getGalleryFilter();
     galleryFilter.terms = [value.toLowerCase()];
-    if (!isFilterModeLocked()) galleryFilter.mode = "AND";
+    if (!isFilterModeLocked()) galleryFilter.mode = "OR";
     filterInput.value = value;
     hideFilterSuggestions();
     resetSingleIndex2();
@@ -10444,7 +10446,6 @@ Image: ${entry.imgName}`,
     const galleryFilter = getGalleryFilter();
     const list = Array.from(tags);
     galleryFilter.terms = list.map((t) => t.toLowerCase());
-    if (!isFilterModeLocked()) galleryFilter.mode = "AND";
     filterInput.value = list.join(", ");
     hideFilterSuggestions();
     resetSingleIndex2();
@@ -10540,7 +10541,7 @@ Image: ${entry.imgName}`,
       const galleryFilter = getGalleryFilter();
       galleryFilter.terms = [];
       galleryFilter.excludes = "";
-      if (!isFilterModeLocked()) galleryFilter.mode = "AND";
+      if (!isFilterModeLocked()) galleryFilter.mode = "OR";
       excludeBadge.style.display = "none";
       hideFilterSuggestions();
       refreshFilterModeUI();
@@ -19758,7 +19759,7 @@ Image: ${entry.imgName}`,
   var addEntryFromNewFileRef = async () => null;
   var getMasterTagModeActive = () => false;
   var getCardTagSortMode = () => "default";
-  var getGalleryFilter2 = () => ({ base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, originalsView: false, exactMatch: false });
+  var getGalleryFilter2 = () => ({ base: "all", terms: [], mode: "OR", excludes: "", disabledView: false, originalsView: false, exactMatch: false });
   var getIsolatedFlagActive = () => false;
   var getShowTagCountBadges = () => false;
   var getEntryMeta2 = () => ({});
@@ -22943,7 +22944,7 @@ Image: ${entry.imgName}`,
     let originalDirHandle = null;
     let entries = [];
     let entryByBase = /* @__PURE__ */ new Map();
-    let galleryFilter = { base: "all", terms: [], mode: "AND", excludes: "", disabledView: false, originalsView: false, exactMatch: false };
+    let galleryFilter = { base: "all", terms: [], mode: "OR", excludes: "", disabledView: false, originalsView: false, exactMatch: false };
     let filterModeDropdownCtrl = null;
     let gallerySortMode = "filename";
     let gallerySortDir = "asc";
@@ -24172,7 +24173,7 @@ Image: ${entry.imgName}`,
       dropHint.style.display = entries.length ? "none" : "flex";
       dropHintWrap.style.display = entries.length ? "none" : "block";
       galleryToolbar.style.display = entries.length ? "flex" : "none";
-      galleryFilter = { base: "all", terms: [], mode: filterModeLock.checked ? galleryFilter.mode : "AND", excludes: "", disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
+      galleryFilter = { base: "all", terms: [], mode: filterModeLock.checked ? galleryFilter.mode : "OR", excludes: "", disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
       filterInput.value = "";
       excludeBadge.style.display = "none";
       [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach((b) => b.classList.remove("active"));
@@ -24217,7 +24218,7 @@ Image: ${entry.imgName}`,
       dropHint.style.display = "flex";
       dropHintWrap.style.display = "block";
       galleryToolbar.style.display = "none";
-      galleryFilter = { base: "all", terms: [], mode: filterModeLock.checked ? galleryFilter.mode : "AND", excludes: "", disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
+      galleryFilter = { base: "all", terms: [], mode: filterModeLock.checked ? galleryFilter.mode : "OR", excludes: "", disabledView: false, originalsView: false, exactMatch: filterExactToggle.checked };
       filterInput.value = "";
       excludeBadge.style.display = "none";
       [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach((b) => b.classList.remove("active"));

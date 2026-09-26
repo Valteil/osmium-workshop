@@ -15,7 +15,7 @@ export let leftSortDir: LeftSortDir = 'desc';
 export let familyOrder: string[] = [];
 
 let getEntries: () => Entry[] = () => [];
-let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'AND', excludes: '', disabledView: false, originalsView: false, exactMatch: false });
+let getGalleryFilter: () => GalleryFilter = () => ({ base: 'all', terms: [], mode: 'OR', excludes: '', disabledView: false, originalsView: false, exactMatch: false });
 let getGallerySortMode: () => GallerySortMode = () => 'filename';
 let getGallerySortDir: () => GallerySortDir = () => 'asc';
 let resetSingleIndex: () => void = () => {};
@@ -27,7 +27,7 @@ let renderCurrentViewRef: () => void = () => {};
 // or the dropdown keeps showing the mode the user picked even after it's
 // silently been overridden. isFilterModeLocked() is the "Lock" checkbox
 // next to it — when on, those same call sites leave the user's chosen mode
-// alone instead of forcing AND.
+// alone instead of resetting to the OR default.
 let refreshFilterModeUI: () => void = () => {};
 let isFilterModeLocked: () => boolean = () => false;
 let markTagReviewedRef: (tag: string) => number = () => 0;
@@ -387,7 +387,7 @@ export function passesFilter(e: Entry): boolean {
       ? (t: string, term: string) => t.toLowerCase() === term
       : (t: string, term: string) => t.toLowerCase().includes(term);
     const matchCount = galleryFilter.terms.filter(term => e.tags.some(t => tagMatches(t, term))).length;
-    const mode = galleryFilter.mode || 'AND';
+    const mode = galleryFilter.mode || 'OR';
     if (mode === 'AND' && matchCount !== galleryFilter.terms.length) return false;
     if (mode === 'OR' && matchCount === 0) return false;
     if (mode === 'XOR' && matchCount !== 1) return false;
@@ -412,7 +412,7 @@ export function parseFilterTerms(raw: string): string[] {
 export function setContainsFilter(value: string): void {
   const galleryFilter = getGalleryFilter();
   galleryFilter.terms = [value.toLowerCase()];
-  if (!isFilterModeLocked()) galleryFilter.mode = 'AND';
+  if (!isFilterModeLocked()) galleryFilter.mode = 'OR';
   filterInput.value = value;
   hideFilterSuggestions();
   resetSingleIndex();
@@ -421,16 +421,16 @@ export function setContainsFilter(value: string): void {
 }
 
 // Tag Pruner's "Mirror my selections to gallery search" toggle (tag-pruner.ts)
-// — replaces the filter terms wholesale with the CURRENT selection set (AND
-// mode: an image has to carry every selected tag to show), so the gallery
-// shows exactly the overlap a merge/void action is about to touch. An empty
-// selection clears the filter terms back to "show everything" rather than
-// leaving stale terms behind.
+// — replaces the filter terms wholesale with the CURRENT selection set. It
+// deliberately leaves galleryFilter.mode alone: the Boolean dropdown is the
+// authority. Forcing AND here used to show 0 matches for the most common
+// pruning case (spelling variants like "blond hair"/"blonde hair" never
+// co-occur on one image). An empty selection clears the filter terms back to
+// "show everything" rather than leaving stale terms behind.
 export function setMirroredSelectionFilter(tags: Iterable<string>): void {
   const galleryFilter = getGalleryFilter();
   const list = Array.from(tags);
   galleryFilter.terms = list.map((t: string) => t.toLowerCase());
-  if (!isFilterModeLocked()) galleryFilter.mode = 'AND';
   filterInput.value = list.join(', ');
   hideFilterSuggestions();
   resetSingleIndex();
@@ -541,7 +541,7 @@ export function initTagIndex(deps: TagIndexDeps): void {
     const galleryFilter = getGalleryFilter();
     galleryFilter.terms = [];
     galleryFilter.excludes = '';
-    if (!isFilterModeLocked()) galleryFilter.mode = 'AND';
+    if (!isFilterModeLocked()) galleryFilter.mode = 'OR';
     excludeBadge.style.display = 'none';
     hideFilterSuggestions();
     refreshFilterModeUI();

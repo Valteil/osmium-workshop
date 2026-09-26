@@ -107,8 +107,8 @@ dropdown — direct matches first, then other tags sharing a word with them (e.g
 suggests "dress" directly, and "black dress"/"dress shoes" under "Same keyword family"). "Exact
 tag match" (checkbox under the search box) makes a search match only a tag that equals your term
 exactly, instead of the default "contains" behavior — so "dress" won't also pull in "black dress".
-The **Boolean** dropdown under the box picks how terms combine; tick **Lock** to keep that choice
-when **Clear filter** (or Tag Pruner's mirror search) would otherwise reset it to AND.
+The **Boolean** dropdown under the box picks how terms combine (default **OR**: any term matches); tick **Lock** to keep
+your choice when **Clear filter** or opening a dataset would otherwise reset it to OR.
 "Flag isolated tags" highlights tags that appear on 2 or fewer images — a fast way to spot typos.
 **🚩 Review flagged tags** swaps the left panel's TAGS list for every tag flagged for review (from a
 chip's menu) anywhere in the dataset; each row's **Reviewed** clears that flag on every image at
@@ -167,7 +167,8 @@ without them interfering.
 
 Each box's own header row also has:
 - **🔍 Mirror to gallery search** — checking it makes THIS box's selection drive the gallery
-  filter on the left, so you can see exactly which images a merge/void is about to touch. Only one
+  filter on the left, so you can see exactly which images a merge/void is about to touch. It
+  keeps whatever the **Boolean** dropdown says (OR shows every image with any selected tag). Only one
   box can do this at a time — checking one unchecks any other.
 - **Clear** — deselects everything in just this box; other boxes are unaffected.
 
