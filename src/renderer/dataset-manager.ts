@@ -13,7 +13,7 @@ import { openDB, idbGetAll, idbAdd, idbDelete, idbUpdate } from './idb';
 import { isImageFile } from './file-types';
 import {
   datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown, dmTabBar,
-  achievementsPanel, favoritesPanel, themeCustomPanel, logPanel, tagDetailsPanel, shopPanel
+  achievementsPanel, favoritesPanel, logPanel, tagDetailsPanel, shopPanel
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, addContextMenuItem, createModalShell } from './shared-ui';
 import { pickDatasetFolder } from './folder-picker';
@@ -704,7 +704,7 @@ async function openReadOnlyAchievements(record: DMRecord): Promise<void> {
       // No achievements file yet for that folder — show an all-locked panel.
       unlocked = [];
     }
-    hidePanel(favoritesPanel); hidePanel(themeCustomPanel); hidePanel(logPanel); hidePanel(tagDetailsPanel); hidePanel(shopPanel);
+    hidePanel(favoritesPanel); hidePanel(logPanel); hidePanel(tagDetailsPanel); hidePanel(shopPanel);
     renderAchievementsPanel(unlocked);
     showPanel(achievementsPanel);
     trackStat('other_folder_achievements_viewed');

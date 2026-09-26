@@ -103,6 +103,9 @@
       try { saved = JSON.parse(localStorage.getItem('dts-custom-theme') || 'null'); } catch(e){}
       if (saved){
         for (var k in saved) if (saved[k]) root.style.setProperty(k, saved[k]);
+        // Theme Studio's button-fill / card-hover picks ride the same class
+        // as Refine Theme (see themes.ts themeWantsRefinedClass).
+        if (saved['--c-fx-on'] === '1') root.classList.add('theme-refined');
       }
     } else {
       root.setAttribute('data-theme', theme);
@@ -165,6 +168,7 @@
   <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="6.5" cy="17.5" r="2.5"/><path d="M8.6 8 20 18M8.6 16 20 6"/></symbol>
   <symbol id="i-list" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="16" rx="2"/><path d="M9.5 3.5h5v2.5h-5z"/><path d="M8.5 10.5h7M8.5 14h7M8.5 17.5h4"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5"/><path d="M5 20h14"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V5M7 9.5l5-5 5 5"/><path d="M5 20h14"/></symbol>
   <symbol id="i-bucket" viewBox="0 0 24 24"><path d="M4 9h16l-1.8 10a1.5 1.5 0 0 1-1.5 1.2H7.3a1.5 1.5 0 0 1-1.5-1.2z"/><path d="M8 9l3-5M16 9l-3-5"/><path d="M9.5 13v4M14.5 13v4"/></symbol>
   <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4.5 9.5 9 5"/><path d="M4.5 9.5H14a5.5 5.5 0 0 1 0 11h-3"/></symbol>
   <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l4.5-4.5L15 5"/><path d="M19.5 9.5H10a5.5 5.5 0 0 0 0 11h3"/></symbol>
@@ -263,7 +267,7 @@
               <option value="celestial-gold">🔒 Celestial Gold</option>
               <option value="custom">Custom…</option>
             </select>
-            <button id="btnThemeCustomize" title="Customize theme colors"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-palette"></use></svg>Colors</button>
+            <button id="btnThemeCustomize" title="Theme Studio: build your own theme with a live preview"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-palette"></use></svg>Theme Studio</button>
             <button id="btnAchievements" title="Achievements"><svg class="ic" aria-hidden="true"><use href="#i-trophy"></use></svg> <span id="walletDisplay">0</span></button>
             <button id="btnShop" title="Theme shop"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-coins"></use></svg>Shop</button>
             <button id="btnResetZoom" title="Reset app zoom/font size (Ctrl+0 also works)"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-rotate"></use></svg>Reset Zoom</button>
@@ -903,17 +907,6 @@
     <div id="favoritesList" class="favorites-list"></div>
     <button id="btnAddFavorite" class="primary" disabled>+ Save current folder</button>
     <button id="favoritesCloseBtn" class="ghost-close">Close</button>
-  </div>
-
-  <div id="themeCustomPanel" class="theme-panel" style="display:none;">
-    <div class="theme-panel-head">Customize theme colors</div>
-    <div id="themeVarRows" class="theme-var-rows"></div>
-    <div class="theme-panel-actions">
-      <button id="themeResetBtn" title="Reset all colors back to the Studio defaults">Reset to Studio</button>
-      <button id="themeApplyBtn" class="primary" title="Save these colors as your Custom theme">Apply &amp; Save</button>
-    </div>
-    <div class="theme-panel-note">Colors preview live as you pick them. Border colors lose their built-in transparency once customized — that's expected. Hit Apply &amp; Save to keep it as your "Custom" theme.</div>
-    <button id="themeCloseBtn" class="ghost-close">Close</button>
   </div>
 
   <div id="logPanel" class="theme-panel log-panel" style="display:none;">

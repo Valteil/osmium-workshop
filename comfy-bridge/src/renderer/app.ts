@@ -10,6 +10,7 @@
 import {
   initTheme, mountThemePicker, THEMES, DEFAULT_THEME
 } from './shared';
+import { openThemeStudio } from './theme-studio';
 export {};
 
 interface ElectronAPI {
@@ -559,15 +560,19 @@ document.addEventListener('change', scheduleUiSave, true);
 restoreUiState();
 captureUiState();
 
-// ---------------- Theme colors (Osmium palettes, colors only) ----------------
+// ---------------- Themes (Osmium palettes + a Theme Studio Custom) ----------------
 // The 25 palettes and their CSS-variable mapping live in the shared module
 // (shared/themes.ts + shared/theme-data.ts) so desktop and mobile run the
-// same set — COLORS ONLY by design: no textures, no ambient animations, no
-// hover-fill flourishes, exactly per user spec. initTheme() reads the/
-// writes comfybridge-theme; mountThemePicker() wires the popover (native
-// <select> popup refused to expand in this Electron window).
+// same set. Palettes are colors only; Custom, built in Theme Studio
+// (./theme-studio.ts, desktop only — the menu's last entry), also carries
+// faces, shapes, a button fill and surfaces. initTheme() reads/writes
+// comfybridge-theme; mountThemePicker() wires the popover (native <select>
+// popup refused to expand in this Electron window).
 initTheme(THEMES, DEFAULT_THEME);
-mountThemePicker({ wrap: 'themeWrap', btn: 'themeBtn', btnLabel: 'themeBtnLabel', menu: 'themeMenu' });
+const themePicker = mountThemePicker({
+  wrap: 'themeWrap', btn: 'themeBtn', btnLabel: 'themeBtnLabel', menu: 'themeMenu',
+  onStudio: () => openThemeStudio({ onSaved: () => themePicker.refresh() }),
+});
 
 // ---------------- Right column width (drag-resizable) ----------------
 // "Enlarge the generation area" means WIDER, squashing #mid — not a taller

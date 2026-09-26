@@ -2,7 +2,7 @@ import './global-types';
 import type { DirHandle } from './types';
 import {
   btnFavorites, favoritesPanel, favoritesList, btnAddFavorite, favoritesCloseBtn,
-  themeCustomPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel
+  logPanel, achievementsPanel, shopPanel, tagDetailsPanel
 } from './dom';
 import { toast, showPanel, hidePanel } from './shared-ui';
 import { trackStat, checkAchievements } from './achievements';
@@ -134,7 +134,7 @@ export function initFavorites(deps: FavoritesDeps): void {
   btnFavorites.addEventListener('click', (ev: MouseEvent) => {
     ev.stopPropagation();
     if (favoritesPanel.style.display === 'flex') { hidePanel(favoritesPanel); return; }
-    hidePanel(themeCustomPanel); hidePanel(logPanel); hidePanel(achievementsPanel); hidePanel(shopPanel); hidePanel(tagDetailsPanel);
+    hidePanel(logPanel); hidePanel(achievementsPanel); hidePanel(shopPanel); hidePanel(tagDetailsPanel);
     renderFavorites();
     showPanel(favoritesPanel);
   });

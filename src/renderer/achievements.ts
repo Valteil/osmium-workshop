@@ -4,7 +4,7 @@ import { writeBytes } from './fs-access';
 import {
   walletDisplay, achWallet, shopWallet, achievementsPanel, achList, achPopupsToggle,
   btnAchievements, achCloseBtn, shopPanel, shopList, btnShop, shopCloseBtn,
-  btnFreeEdibits, favoritesPanel, themeCustomPanel, logPanel, tagDetailsPanel,
+  btnFreeEdibits, favoritesPanel, logPanel, tagDetailsPanel,
   themeSelect, btnResetEdibits, btnResetAchievements, achievementPopupHost,
   btnRefineTheme, suppressThemeFlourishesToggle, noFlourishHoverToggle, noFlourishTiltToggle, noFlourishAmbientToggle
 } from './dom';
@@ -156,6 +156,15 @@ export function saveWallet(): void {
   walletDisplay.textContent = String(wallet);
   achWallet.textContent = String(wallet);
   shopWallet.textContent = String(wallet);
+}
+
+// Deducts `amount` if the wallet covers it (Theme Studio's effect unlocks).
+export function spendEdibits(amount: number): boolean {
+  if (amount <= 0) return true;
+  if (wallet < amount) return false;
+  wallet -= amount;
+  saveWallet();
+  return true;
 }
 
 export function loadWallet(): void {
@@ -366,6 +375,12 @@ export function updateRefineThemeButton(): void {
   }
   btnRefineTheme.style.display = '';
   const currentTheme = themeSelect.value;
+  if (currentTheme === 'custom'){
+    setIconLabel(btnRefineTheme, '🔨 Refine Theme (set in Theme Studio)');
+    btnRefineTheme.disabled = true;
+    btnRefineTheme.title = 'Custom picks its own button fill and card hover in Theme Studio ▸ Effects.';
+    return;
+  }
   if (themeAlreadyHasPremiumEffects(currentTheme)){
     setIconLabel(btnRefineTheme, '🔨 Refine Theme (already refined)');
     btnRefineTheme.disabled = true;
@@ -397,7 +412,7 @@ export function initAchievementPanels(): void {
   btnAchievements.addEventListener('click', (ev) => {
     ev.stopPropagation();
     if (achievementsPanel.style.display === 'flex'){ hidePanel(achievementsPanel); return; }
-    hidePanel(shopPanel); hidePanel(favoritesPanel); hidePanel(themeCustomPanel); hidePanel(logPanel); hidePanel(tagDetailsPanel);
+    hidePanel(shopPanel); hidePanel(favoritesPanel); hidePanel(logPanel); hidePanel(tagDetailsPanel);
     renderAchievementsPanel();
     showPanel(achievementsPanel);
   });
@@ -416,7 +431,7 @@ export function initAchievementPanels(): void {
   btnShop.addEventListener('click', (ev) => {
     ev.stopPropagation();
     if (shopPanel.style.display === 'flex'){ hidePanel(shopPanel); return; }
-    hidePanel(achievementsPanel); hidePanel(favoritesPanel); hidePanel(themeCustomPanel); hidePanel(logPanel); hidePanel(tagDetailsPanel);
+    hidePanel(achievementsPanel); hidePanel(favoritesPanel); hidePanel(logPanel); hidePanel(tagDetailsPanel);
     folderStats.shop_opened = true;
     saveFolderStats();
     renderShopPanel();

@@ -399,6 +399,13 @@ export const HELP_SECTIONS: HelpSection[] = [
       current theme and tells you its Shop price. Epic/legendary themes get an extra hover-fill and
       card lift in that theme's own style; any cheaper theme can buy them individually via the
       Shop's "🔨 Refine Theme" button, for the price difference.</p>
+      ${isTouchDevice ? '' : `<p>🎨 <b>Theme Studio</b> (Personalization ▸ Theme Studio) builds your own Custom theme:
+      colors, fonts per role, shapes, icon stroke, button fill and card hover, dock pads, gallery
+      ground, image mat, active-tab marker, top-bar edge and primary buttons, with a live miniature
+      of the app on the right (switch its tab with the buttons under it; hover it to try effects).
+      "Start from" copies any theme you own; Import/Export share themes as .theme.json files.
+      Fills and card hovers are epic/legendary-tier: preview free, and keeping one costs that tier's
+      price in Edibits, once.</p>`}
       <p>🏆 Achievements (55+, unlocked per dataset folder — a fresh dataset starts with none
       unlocked) pay out Edibits as you use the app's features. 🌙 Night mode is a genuine per-theme
       color inversion that also keeps every text and accent color readable.</p>

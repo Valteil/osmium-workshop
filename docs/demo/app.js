@@ -170,11 +170,6 @@
   var themeSelect = $("themeSelect");
   var themeDropdown = $("themeDropdown");
   var btnThemeCustomize = $("btnThemeCustomize");
-  var themeCustomPanel = $("themeCustomPanel");
-  var themeVarRows = $("themeVarRows");
-  var themeResetBtn = $("themeResetBtn");
-  var themeApplyBtn = $("themeApplyBtn");
-  var themeCloseBtn = $("themeCloseBtn");
   var btnQuit = $("btnQuit");
   var btnLeftDrawerToggle = $("btnLeftDrawerToggle");
   var btnRightDrawerToggle = $("btnRightDrawerToggle");
@@ -1243,24 +1238,6 @@
     ["--accent-success", "Success accent"],
     ["--accent-flair", "Accent \u2014 flair (theme signature)"]
   ];
-  var STUDIO_DEFAULTS = {
-    "--bg-base": "#16151c",
-    "--bg-panel": "#1c1a24",
-    "--bg-elevated": "#252230",
-    "--bg-elevated-2": "#2d2a38",
-    "--border-soft": "#373242",
-    "--border-strong": "#4a4459",
-    "--text-primary": "#ece8f0",
-    "--text-muted": "#9791a6",
-    "--text-faint": "#6b6578",
-    "--accent-auto": "#e8a33d",
-    "--accent-auto-dim": "#4a3c22",
-    "--accent-manual": "#6fb8d1",
-    "--accent-manual-dim": "#213842",
-    "--accent-danger": "#e2637a",
-    "--accent-success": "#7fbf8f",
-    "--accent-flair": "#c98ed6"
-  };
   var PREMIUM_THEMES = [
     { id: "terminal", name: "Terminal Green", rarity: "common", price: 40, swatches: ["#050805", "#00ff66", "#ffcc00"] },
     { id: "sakura", name: "Sakura Dusk", rarity: "uncommon", price: 90, swatches: ["#241a20", "#c9a6ff", "#ffe3ef"] },
@@ -1302,8 +1279,75 @@
     const raw = getComputedStyle(document.documentElement).getPropertyValue(key).trim();
     return toHex6(raw || "#000000");
   }
+  var CUSTOM_GRAMMAR_KEYS = [
+    "--sans",
+    "--mono",
+    "--display",
+    "--head-font",
+    "--tab-font",
+    "--brand-size",
+    "--brand-weight",
+    "--brand-track",
+    "--brand-case",
+    "--tab-track",
+    "--tab-case",
+    "--head-track",
+    "--head-case",
+    "--btn-weight",
+    "--btn-track",
+    "--btn-case",
+    "--r-ctl",
+    "--r-chip",
+    "--r-card",
+    "--r-panel",
+    "--r-check",
+    "--r-scroll",
+    "--card-shadow",
+    "--icon-stroke",
+    "--icon-cap",
+    "--icon-join",
+    "--fx-fill",
+    "--fx-o",
+    "--fx-top",
+    "--fx-h",
+    "--fx-w",
+    "--fx-card-t",
+    "--fx-card-s",
+    "--mat",
+    "--c-ground",
+    "--c-pad-bg",
+    "--c-pad-shadow",
+    "--c-tab-bg",
+    "--c-tab-fg",
+    "--c-tab-line",
+    "--c-tab-shadow",
+    "--c-tab-r",
+    "--c-top-border",
+    "--c-top-bimg",
+    "--c-pri-bg",
+    "--c-pri-fg",
+    "--c-pri-bd",
+    "--c-pri-hover",
+    "--c-fx-on"
+  ];
   function clearCustomOverrides() {
-    for (const [key] of THEME_VARS) document.documentElement.style.removeProperty(key);
+    const st = document.documentElement.style;
+    for (const [key] of THEME_VARS) st.removeProperty(key);
+    for (const key of CUSTOM_GRAMMAR_KEYS) st.removeProperty(key);
+  }
+  function savedCustomVars() {
+    return getJSON("dts-custom-theme", null);
+  }
+  function themeWantsRefinedClass(theme) {
+    if (theme === "custom") {
+      const saved = savedCustomVars();
+      return !!saved && saved["--c-fx-on"] === "1";
+    }
+    return refinedThemes.includes(theme);
+  }
+  var firstCustomHandler = null;
+  function setFirstCustomHandler(fn) {
+    firstCustomHandler = fn;
   }
   var dayNightOn = false;
   function syncNightModeFromPrePaint() {
@@ -1316,20 +1360,21 @@
       setBool("dts-night-mode", false);
     }
     if (theme === "custom") {
+      clearCustomOverrides();
       document.documentElement.setAttribute("data-theme", "custom");
-      const saved = getJSON("dts-custom-theme", null);
+      const saved = savedCustomVars();
       if (saved) {
-        for (const [key] of THEME_VARS) {
-          if (saved[key]) document.documentElement.style.setProperty(key, saved[key]);
+        for (const [key, value] of Object.entries(saved)) {
+          if (value && key.startsWith("--")) document.documentElement.style.setProperty(key, value);
         }
-      } else {
-        setTimeout(openThemeCustomPanel, 0);
+      } else if (firstCustomHandler) {
+        setTimeout(firstCustomHandler, 0);
       }
     } else {
       clearCustomOverrides();
       document.documentElement.setAttribute("data-theme", theme);
     }
-    document.documentElement.classList.toggle("theme-refined", refinedThemes.includes(theme));
+    document.documentElement.classList.toggle("theme-refined", themeWantsRefinedClass(theme));
     setString("dts-theme", theme);
     requestAnimationFrame(refitShrunkText);
   }
@@ -1338,6 +1383,7 @@
     setJSON("dts-refined-themes", refinedThemes);
   }
   function themeAlreadyHasPremiumEffects(themeId) {
+    if (themeId === "custom") return true;
     const premium = PREMIUM_THEMES.find((t) => t.id === themeId);
     const rarity = premium ? premium.rarity : "free";
     return rarity === "epic" || rarity === "legendary" || refinedThemes.includes(themeId);
@@ -1357,32 +1403,6 @@
     if (!refinedThemes.includes(themeId)) refinedThemes.push(themeId);
     saveRefinedThemes();
     document.documentElement.classList.add("theme-refined");
-  }
-  function openThemeCustomPanel() {
-    hidePanel(favoritesPanel);
-    hidePanel(logPanel);
-    hidePanel(achievementsPanel);
-    hidePanel(shopPanel);
-    hidePanel(tagDetailsPanel);
-    themeVarRows.innerHTML = "";
-    for (const [key, label] of THEME_VARS) {
-      const row = document.createElement("div");
-      row.className = "theme-var-row";
-      const lbl = document.createElement("span");
-      lbl.className = "lbl";
-      lbl.textContent = label;
-      const input = document.createElement("input");
-      input.type = "color";
-      input.value = getCurrentVarHex(key);
-      input.dataset.varKey = key;
-      input.addEventListener("input", () => {
-        document.documentElement.style.setProperty(key, input.value);
-      });
-      row.appendChild(lbl);
-      row.appendChild(input);
-      themeVarRows.appendChild(row);
-    }
-    showPanel(themeCustomPanel);
   }
   function initThemeDropdown(container) {
     const btn = document.createElement("button");
@@ -1466,6 +1486,1496 @@
     }
     setBool("dts-night-mode", dayNightOn);
     return dayNightOn;
+  }
+
+  // src/renderer/theme-spec.ts
+  var SPEC_COLOR_KEYS = [
+    "--bg-base",
+    "--bg-panel",
+    "--bg-elevated",
+    "--bg-elevated-2",
+    "--border-soft",
+    "--border-strong",
+    "--text-primary",
+    "--text-muted",
+    "--text-faint",
+    "--accent-auto",
+    "--accent-auto-dim",
+    "--accent-manual",
+    "--accent-manual-dim",
+    "--accent-danger",
+    "--accent-success",
+    "--accent-flair"
+  ];
+  var SPEC_DEFAULT_COLORS = {
+    "--bg-base": "#16151c",
+    "--bg-panel": "#1c1a24",
+    "--bg-elevated": "#252230",
+    "--bg-elevated-2": "#2d2a38",
+    "--border-soft": "#37324277",
+    "--border-strong": "#4a4459",
+    "--text-primary": "#ece8f0",
+    "--text-muted": "#9791a6",
+    "--text-faint": "#6b6578",
+    "--accent-auto": "#e8a33d",
+    "--accent-auto-dim": "#4a3c22",
+    "--accent-manual": "#6fb8d1",
+    "--accent-manual-dim": "#213842",
+    "--accent-danger": "#e2637a",
+    "--accent-success": "#7fbf8f",
+    "--accent-flair": "#b98fd6"
+  };
+  function hex6(hex) {
+    let h = (hex || "").trim().replace("#", "");
+    if (h.length === 3 || h.length === 4) h = h.slice(0, 3).split("").map((c) => c + c).join("");
+    h = h.slice(0, 6);
+    return /^[0-9a-f]{6}$/i.test(h) ? "#" + h.toLowerCase() : "#000000";
+  }
+  var THEME_FILE_KIND = "osmium-theme";
+  var FONTS = [
+    ...[
+      "Schibsted Grotesk",
+      "IBM Plex Sans",
+      "Albert Sans",
+      "Alegreya Sans",
+      "Anybody",
+      "Archivo",
+      "Barlow",
+      "Barlow Condensed",
+      "Barlow Semi Condensed",
+      "Chakra Petch",
+      "Epilogue",
+      "Exo 2",
+      "Figtree",
+      "Fredoka",
+      "Jost",
+      "Karla",
+      "Nunito",
+      "Overpass",
+      "Oxanium",
+      "Sora",
+      "Zen Kaku Gothic New",
+      "Zen Maru Gothic"
+    ].map((name) => ({ name, kind: "sans" })),
+    ...[
+      "Alegreya",
+      "Cinzel",
+      "Eczar",
+      "Gilda Display",
+      "Gloock",
+      "IM Fell English SC",
+      "Libre Caslon Text",
+      "Marcellus SC",
+      "Shippori Mincho"
+    ].map((name) => ({ name, kind: "serif" })),
+    ...["Audiowide", "Big Shoulders Display", "Michroma", "Pirata One", "Poiret One", "Saira Stencil One", "VT323"].map((name) => ({ name, kind: "display" })),
+    ...["JetBrains Mono", "Courier Prime"].map((name) => ({ name, kind: "mono" }))
+  ];
+  var FALLBACK = {
+    sans: "'Segoe UI', system-ui, sans-serif",
+    serif: "Georgia, 'Times New Roman', serif",
+    display: "'Segoe UI', system-ui, sans-serif",
+    mono: "'SFMono-Regular', Consolas, monospace"
+  };
+  function fontStack(name, slot) {
+    const def = FONTS.find((f) => f.name === name);
+    if (!def) return slot === "mono" ? FALLBACK.mono : FALLBACK.sans;
+    return `'${def.name}', ${FALLBACK[def.kind]}`;
+  }
+  var SHAPES = [
+    { id: "square", label: "Square", r: "0px" },
+    { id: "soft", label: "Soft", r: "4px" },
+    { id: "rounded", label: "Rounded", r: "9px" },
+    { id: "pill", label: "Pill", r: "999px" },
+    { id: "leaf", label: "Leaf", r: "12px 2px 12px 2px" },
+    { id: "tab", label: "Tab", r: "9px 9px 2px 2px" }
+  ];
+  var CHECKS = [
+    { id: "square", label: "Square", r: "1px" },
+    { id: "soft", label: "Soft", r: "4px" },
+    { id: "round", label: "Round", r: "50%" }
+  ];
+  var STROKES = [
+    { id: "thin", label: "Fine", w: "1.25" },
+    { id: "regular", label: "Regular", w: "1.75" },
+    { id: "bold", label: "Heavy", w: "2.3" }
+  ];
+  var CAPS = [{ id: "round", label: "Rounded" }, { id: "square", label: "Sharp" }];
+  var TINTS = [{ id: "flair", label: "Flair" }, { id: "manual", label: "Manual" }, { id: "auto", label: "Auto" }];
+  var T = "var(--c-tint)";
+  var FILLS = [
+    { id: "none", label: "None", fill: "none", o: "0", top: "0", h: "100%", w: "0" },
+    { id: "wash", label: "Wash", fill: T, o: "0.22", top: "0", h: "100%", w: "0.75", tier: "epic" },
+    { id: "flood", label: "Flood", fill: T, o: "0.32", top: "0", h: "100%", w: "1", tier: "epic" },
+    { id: "underline", label: "Underline", fill: T, o: "1", top: "calc(100% - 2px)", h: "2px", w: "1", tier: "epic" },
+    { id: "sweep", label: "Sweep", fill: `linear-gradient(90deg, color-mix(in srgb, ${T} 8%, transparent), ${T})`, o: "0.42", top: "0", h: "100%", w: "1", tier: "legendary" },
+    { id: "glint", label: "Glint", fill: `linear-gradient(115deg, transparent 25%, ${T} 50%, transparent 75%)`, o: "0.36", top: "0", h: "100%", w: "1", tier: "legendary" },
+    { id: "glow", label: "Glow", fill: `radial-gradient(ellipse at 0% 50%, ${T}, transparent 75%)`, o: "0.4", top: "0", h: "100%", w: "1", tier: "legendary" },
+    { id: "scan", label: "Scanlines", fill: `repeating-linear-gradient(0deg, ${T} 0 1px, transparent 1px 3px)`, o: "0.5", top: "0", h: "100%", w: "1", tier: "epic" },
+    { id: "stripes", label: "Stripes", fill: `repeating-linear-gradient(-45deg, ${T} 0 6px, transparent 6px 12px)`, o: "0.3", top: "0", h: "100%", w: "1", tier: "epic" }
+  ];
+  var CARD_FX = [
+    { id: "none", label: "Still", t: "none", s: "var(--card-shadow)" },
+    { id: "lift", label: "Lift", t: "translateY(-3px)", s: "0 12px 24px color-mix(in srgb, var(--bg-base) 55%, transparent)", tier: "epic" },
+    { id: "tilt", label: "Tilt", t: "translateY(-3px) rotate(-0.6deg)", s: "0 12px 24px color-mix(in srgb, var(--bg-base) 55%, transparent)", tier: "epic" },
+    { id: "ring", label: "Ring", t: "none", s: `0 0 0 1px ${T}, 0 8px 20px color-mix(in srgb, var(--bg-base) 45%, transparent)`, tier: "legendary" }
+  ];
+  var DEPTHS = [
+    { id: "flat", label: "Flat", s: "none" },
+    { id: "soft", label: "Soft", s: "0 1px 2px rgba(0,0,0,0.25)" },
+    { id: "raised", label: "Raised", s: "0 6px 16px color-mix(in srgb, var(--bg-base) 60%, transparent)" },
+    { id: "rim", label: "Rim", s: "inset 0 1px 0 color-mix(in srgb, var(--text-primary) 9%, transparent)" }
+  ];
+  var INK = "var(--c-ink)";
+  var PATTERNS = [
+    { id: "plain", label: "Plain", css: "none" },
+    { id: "dots", label: "Pegboard", css: `radial-gradient(circle, ${INK} 1.1px, transparent 1.6px) 0 0 / 16px 16px` },
+    { id: "field", label: "Dot field", css: `radial-gradient(circle at 1px 1px, ${INK} 1px, transparent 1.5px) 0 0 / 9px 9px` },
+    { id: "grid", label: "Grid", css: `linear-gradient(${INK} 1px, transparent 1px) 0 0 / 20px 20px, linear-gradient(90deg, ${INK} 1px, transparent 1px) 0 0 / 20px 20px` },
+    { id: "hatch", label: "Hatch", css: `repeating-linear-gradient(-45deg, ${INK} 0 1px, transparent 1px 7px)` },
+    { id: "lattice", label: "Lattice", css: `repeating-linear-gradient(45deg, ${INK} 0 1px, transparent 1px 14px), repeating-linear-gradient(-45deg, ${INK} 0 1px, transparent 1px 14px)` },
+    { id: "scan", label: "Scanlines", css: `repeating-linear-gradient(0deg, ${INK} 0 1px, transparent 1px 3px)` },
+    { id: "rings", label: "Rings", css: `repeating-radial-gradient(circle at 50% 50%, ${INK} 0 1px, transparent 1px 11px)` },
+    { id: "checker", label: "Checker", css: `conic-gradient(${INK} 25%, transparent 0 50%, ${INK} 0 75%, transparent 0) 0 0 / 16px 16px` }
+  ];
+  var PADS = [
+    { id: "flat", label: "Flat", bg: "var(--bg-elevated)", shadow: "none" },
+    { id: "lit", label: "Lit edge", bg: "var(--bg-elevated)", shadow: "inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent), 0 1px 0 rgba(0,0,0,0.25)" },
+    { id: "gradient", label: "Gradient", bg: "linear-gradient(180deg, var(--bg-elevated-2), var(--bg-elevated) 70%)", shadow: "none" },
+    { id: "sunken", label: "Sunken", bg: "var(--bg-panel)", shadow: "inset 0 1px 4px color-mix(in srgb, var(--bg-base) 70%, transparent)" },
+    { id: "glass", label: "Outline", bg: "transparent", shadow: "none" },
+    { id: "tinted", label: "Tinted", bg: "color-mix(in srgb, var(--accent-flair) 7%, var(--bg-elevated))", shadow: "none" }
+  ];
+  var TABS = [
+    { id: "underline", label: "Underline", bg: "transparent", fg: "var(--accent-flair)", line: "var(--accent-flair)", shadow: "none", r: "0" },
+    { id: "pill", label: "Pill", bg: "color-mix(in srgb, var(--accent-flair) 18%, transparent)", fg: "var(--text-primary)", line: "transparent", shadow: "none", r: "999px" },
+    { id: "block", label: "Block", bg: "var(--accent-flair)", fg: "var(--bg-base)", line: "var(--accent-flair)", shadow: "none", r: "6px 6px 0 0" },
+    { id: "dot", label: "Dot", bg: "radial-gradient(circle at 50% calc(100% - 5px), var(--accent-flair) 2.5px, transparent 3px)", fg: "var(--text-primary)", line: "transparent", shadow: "none", r: "0" },
+    { id: "overline", label: "Overline", bg: "color-mix(in srgb, var(--accent-flair) 8%, transparent)", fg: "var(--text-primary)", line: "transparent", shadow: "inset 0 2px 0 var(--accent-flair)", r: "0" }
+  ];
+  var TOPBARS = [
+    { id: "flair", label: "Flair rule", border: "2px solid var(--accent-flair)", bimg: "none" },
+    { id: "manual", label: "Accent rule", border: "2px solid var(--accent-manual)", bimg: "none" },
+    { id: "strip", label: "Tri-strip", border: "3px solid var(--accent-flair)", bimg: "linear-gradient(90deg, var(--accent-auto) 0 33.3%, var(--accent-manual) 33.3% 66.6%, var(--accent-flair) 66.6%) 1" },
+    { id: "fade", label: "Fade", border: "2px solid var(--accent-flair)", bimg: "linear-gradient(90deg, transparent, var(--accent-flair) 30%, var(--accent-flair) 70%, transparent) 1" },
+    { id: "hairline", label: "Hairline", border: "1px solid var(--border-strong)", bimg: "none" }
+  ];
+  var PRIMARIES = [
+    { id: "tinted", label: "Tinted", bg: "var(--accent-manual-dim)", fg: "var(--accent-manual)", bd: "var(--accent-manual)", hover: "color-mix(in srgb, var(--accent-manual) 35%, var(--bg-panel))" },
+    { id: "solid", label: "Solid", bg: "var(--accent-manual)", fg: "var(--bg-base)", bd: "var(--accent-manual)", hover: "color-mix(in srgb, var(--accent-manual) 82%, var(--text-primary))" },
+    { id: "outline", label: "Outline", bg: "transparent", fg: "var(--accent-manual)", bd: "var(--accent-manual)", hover: "color-mix(in srgb, var(--accent-manual) 14%, transparent)" },
+    { id: "ink", label: "Ink", bg: "var(--text-primary)", fg: "var(--bg-base)", bd: "var(--text-primary)", hover: "color-mix(in srgb, var(--text-primary) 82%, var(--bg-base))" }
+  ];
+  var COLOR_GROUPS = [
+    { title: "Surfaces", keys: [["--bg-base", "Ground"], ["--bg-panel", "Panels"], ["--bg-elevated", "Raised"], ["--bg-elevated-2", "Raised, hover"]] },
+    { title: "Rules", keys: [["--border-soft", "Soft rule"], ["--border-strong", "Strong rule"]] },
+    { title: "Text", keys: [["--text-primary", "Ink"], ["--text-muted", "Muted"], ["--text-faint", "Faint"]] },
+    { title: "Accents", keys: [
+      ["--accent-manual", "Manual"],
+      ["--accent-manual-dim", "Manual tint"],
+      ["--accent-auto", "Auto"],
+      ["--accent-auto-dim", "Auto tint"],
+      ["--accent-flair", "Flair"],
+      ["--accent-danger", "Danger"],
+      ["--accent-success", "Success"]
+    ] }
+  ];
+  var CONTRAST = {
+    "--text-primary": { against: "--bg-panel", floor: 7 },
+    "--text-muted": { against: "--bg-panel", floor: 4.5 },
+    "--text-faint": { against: "--bg-panel", floor: 3 },
+    "--accent-manual": { against: "--accent-manual-dim", floor: 4.5 },
+    "--accent-auto": { against: "--accent-auto-dim", floor: 4.5 }
+  };
+  function defaultSpec() {
+    return {
+      name: "My theme",
+      colors: { ...SPEC_DEFAULT_COLORS },
+      fonts: { ui: "Schibsted Grotesk", display: "Schibsted Grotesk", head: "Schibsted Grotesk", tab: "Schibsted Grotesk", mono: "JetBrains Mono" },
+      type: { brandSize: 17, btnWeight: 500, capsTabs: false, capsHeads: false, capsButtons: false, capsBrand: false },
+      shape: { ctl: "6px", chip: "5px", card: "8px", panel: "10px", check: "4px" },
+      icons: { stroke: "regular", cap: "round" },
+      fx: { fill: "none", tint: "flair", card: "none", depth: "soft" },
+      surface: { mat: "dots", ground: "plain", pad: "lit", tab: "underline", topbar: "flair", primary: "tinted" },
+      raw: {}
+    };
+  }
+  var HEX_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+  var RADIUS_RE = /^\d{1,3}(?:\.\d+)?(?:px|%)(?: \d{1,3}(?:\.\d+)?(?:px|%)){0,3}$/;
+  function safeRaw(v) {
+    if (typeof v !== "string") return null;
+    const s = v.trim();
+    if (!s || s.length > 700) return null;
+    if (!/^[\w\s#%().,\-/:+*]+$/.test(s)) return null;
+    if (/url|image|src|expression|attr/i.test(s)) return null;
+    return s;
+  }
+  var RAW_KEYS = ["--fx-fill", "--fx-o", "--fx-top", "--fx-h", "--fx-w", "--fx-card-t", "--fx-card-s", "--card-shadow", "--mat"];
+  function pick(list, id, fallback) {
+    return typeof id === "string" && list.some((o) => o.id === id) ? id : fallback;
+  }
+  function pickOrPreset(list, id, fallback, raw, rawKey) {
+    if (id === "preset" && raw[rawKey]) return "preset";
+    return pick(list, id, fallback);
+  }
+  function num(v, lo, hi, fallback) {
+    const n = typeof v === "number" ? v : parseFloat(String(v));
+    return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
+  }
+  function radius(v, fallback) {
+    return typeof v === "string" && RADIUS_RE.test(v.trim()) ? v.trim() : fallback;
+  }
+  function fontName(v, fallback) {
+    if (v === "") return "";
+    return typeof v === "string" && FONTS.some((f) => f.name === v) ? v : fallback;
+  }
+  function normalizeSpec(input) {
+    const d = defaultSpec();
+    const o = input && typeof input === "object" ? input : {};
+    const raw = {};
+    if (o.raw && typeof o.raw === "object") {
+      for (const k of RAW_KEYS) {
+        const s = safeRaw(o.raw[k]);
+        if (s) raw[k] = s;
+      }
+    }
+    const colors = { ...d.colors };
+    if (o.colors && typeof o.colors === "object") {
+      for (const k of SPEC_COLOR_KEYS) {
+        const c = o.colors[k];
+        if (typeof c === "string" && HEX_RE.test(c.trim())) colors[k] = c.trim().toLowerCase();
+      }
+    }
+    const f = o.fonts || {}, t = o.type || {}, sh = o.shape || {}, ic = o.icons || {}, fx = o.fx || {}, su = o.surface || {};
+    return {
+      name: typeof o.name === "string" && o.name.trim() ? o.name.trim().slice(0, 40) : d.name,
+      colors,
+      fonts: {
+        ui: fontName(f.ui, d.fonts.ui),
+        display: fontName(f.display, d.fonts.display),
+        head: fontName(f.head, d.fonts.head),
+        tab: fontName(f.tab, d.fonts.tab),
+        mono: fontName(f.mono, d.fonts.mono)
+      },
+      type: {
+        brandSize: num(t.brandSize, 12, 28, d.type.brandSize),
+        btnWeight: Math.round(num(t.btnWeight, 300, 800, d.type.btnWeight) / 100) * 100,
+        capsTabs: !!t.capsTabs,
+        capsHeads: !!t.capsHeads,
+        capsButtons: !!t.capsButtons,
+        capsBrand: !!t.capsBrand
+      },
+      shape: {
+        ctl: radius(sh.ctl, d.shape.ctl),
+        chip: radius(sh.chip, d.shape.chip),
+        card: radius(sh.card, d.shape.card),
+        panel: radius(sh.panel, d.shape.panel),
+        check: radius(sh.check, d.shape.check)
+      },
+      icons: { stroke: pick(STROKES, ic.stroke, d.icons.stroke), cap: pick(CAPS, ic.cap, d.icons.cap) },
+      fx: {
+        fill: pickOrPreset(FILLS, fx.fill, d.fx.fill, raw, "--fx-fill"),
+        tint: pick(TINTS, fx.tint, d.fx.tint),
+        card: pickOrPreset(CARD_FX, fx.card, d.fx.card, raw, "--fx-card-t"),
+        depth: pickOrPreset(DEPTHS, fx.depth, d.fx.depth, raw, "--card-shadow")
+      },
+      surface: {
+        mat: pickOrPreset(PATTERNS, su.mat, d.surface.mat, raw, "--mat"),
+        ground: pick(PATTERNS, su.ground, d.surface.ground),
+        pad: pick(PADS, su.pad, d.surface.pad),
+        tab: pick(TABS, su.tab, d.surface.tab),
+        topbar: pick(TOPBARS, su.topbar, d.surface.topbar),
+        primary: pick(PRIMARIES, su.primary, d.surface.primary)
+      },
+      raw
+    };
+  }
+  function compileSpec(spec) {
+    const v = { ...spec.colors };
+    const tint = `var(--accent-${spec.fx.tint})`;
+    const tinted = (s) => s.split(T).join(tint);
+    const inked = (s, pct) => s.split(INK).join(`color-mix(in srgb, var(--text-primary) ${pct}%, transparent)`);
+    v["--sans"] = fontStack(spec.fonts.ui, "ui");
+    v["--display"] = fontStack(spec.fonts.display, "ui");
+    v["--head-font"] = fontStack(spec.fonts.head, "ui");
+    v["--tab-font"] = fontStack(spec.fonts.tab, "ui");
+    v["--mono"] = fontStack(spec.fonts.mono, "mono");
+    const caps = (on, track) => on ? ["uppercase", track] : ["none", "0"];
+    [v["--tab-case"], v["--tab-track"]] = caps(spec.type.capsTabs, "0.07em");
+    [v["--head-case"], v["--head-track"]] = caps(spec.type.capsHeads, "0.08em");
+    [v["--btn-case"], v["--btn-track"]] = caps(spec.type.capsButtons, "0.05em");
+    [v["--brand-case"], v["--brand-track"]] = caps(spec.type.capsBrand, "0.06em");
+    if (!spec.type.capsBrand) v["--brand-track"] = "-0.015em";
+    v["--brand-size"] = `${spec.type.brandSize}px`;
+    v["--brand-weight"] = "800";
+    v["--btn-weight"] = String(spec.type.btnWeight);
+    v["--r-ctl"] = spec.shape.ctl;
+    v["--r-chip"] = spec.shape.chip;
+    v["--r-card"] = spec.shape.card;
+    v["--r-panel"] = spec.shape.panel;
+    v["--r-check"] = spec.shape.check;
+    v["--r-scroll"] = spec.shape.ctl === "999px" ? "999px" : "6px";
+    v["--icon-stroke"] = (STROKES.find((s) => s.id === spec.icons.stroke) || STROKES[1]).w;
+    v["--icon-cap"] = spec.icons.cap;
+    v["--icon-join"] = spec.icons.cap === "square" ? "miter" : "round";
+    if (spec.fx.fill === "preset") {
+      for (const k of ["--fx-fill", "--fx-o", "--fx-top", "--fx-h", "--fx-w"]) if (spec.raw[k]) v[k] = spec.raw[k];
+    } else {
+      const fill = FILLS.find((f) => f.id === spec.fx.fill) || FILLS[0];
+      v["--fx-fill"] = tinted(fill.fill);
+      v["--fx-o"] = fill.o;
+      v["--fx-top"] = fill.top;
+      v["--fx-h"] = fill.h;
+      v["--fx-w"] = fill.w;
+    }
+    if (spec.fx.card === "preset") {
+      for (const k of ["--fx-card-t", "--fx-card-s"]) if (spec.raw[k]) v[k] = spec.raw[k];
+    } else {
+      const card = CARD_FX.find((c) => c.id === spec.fx.card) || CARD_FX[0];
+      v["--fx-card-t"] = card.t;
+      v["--fx-card-s"] = tinted(card.s);
+    }
+    v["--card-shadow"] = spec.fx.depth === "preset" ? spec.raw["--card-shadow"] || "none" : (DEPTHS.find((d) => d.id === spec.fx.depth) || DEPTHS[1]).s;
+    v["--c-fx-on"] = spec.fx.fill !== "none" || spec.fx.card !== "none" ? "1" : "0";
+    v["--mat"] = spec.surface.mat === "preset" ? spec.raw["--mat"] || "none" : inked((PATTERNS.find((p) => p.id === spec.surface.mat) || PATTERNS[1]).css, 12);
+    v["--c-ground"] = inked((PATTERNS.find((p) => p.id === spec.surface.ground) || PATTERNS[0]).css, 6);
+    const pad = PADS.find((p) => p.id === spec.surface.pad) || PADS[0];
+    v["--c-pad-bg"] = pad.bg;
+    v["--c-pad-shadow"] = pad.shadow;
+    const tab = TABS.find((t) => t.id === spec.surface.tab) || TABS[0];
+    v["--c-tab-bg"] = tab.bg;
+    v["--c-tab-fg"] = tab.fg;
+    v["--c-tab-line"] = tab.line;
+    v["--c-tab-shadow"] = tab.shadow;
+    v["--c-tab-r"] = tab.r;
+    const top = TOPBARS.find((t) => t.id === spec.surface.topbar) || TOPBARS[0];
+    v["--c-top-border"] = top.border;
+    v["--c-top-bimg"] = top.bimg;
+    const pri = PRIMARIES.find((p) => p.id === spec.surface.primary) || PRIMARIES[0];
+    v["--c-pri-bg"] = pri.bg;
+    v["--c-pri-fg"] = pri.fg;
+    v["--c-pri-bd"] = pri.bd;
+    v["--c-pri-hover"] = pri.hover;
+    return v;
+  }
+  function hexToRgb(hex) {
+    const h = hex6(hex).slice(1);
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  function luminance(hex) {
+    const c = hexToRgb(hex).map((v) => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  function contrast(a, b) {
+    const A = luminance(a), B = luminance(b);
+    return (Math.max(A, B) + 0.05) / (Math.min(A, B) + 0.05);
+  }
+  function mixHex(a, b, t) {
+    const A = hexToRgb(a), B = hexToRgb(b);
+    return "#" + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, "0")).join("");
+  }
+
+  // src/renderer/theme-studio.ts
+  var SPEC_KEY = "dts-custom-theme-spec";
+  var VARS_KEY = "dts-custom-theme";
+  var ALLOWED_KEYS = /* @__PURE__ */ new Set([...THEME_VARS.map(([k]) => k), ...CUSTOM_GRAMMAR_KEYS]);
+  function compileCustom(spec) {
+    const v = compileSpec(spec);
+    for (const k of Object.keys(v)) if (!ALLOWED_KEYS.has(k)) delete v[k];
+    return v;
+  }
+  function loadSavedSpec() {
+    const spec = getJSON(SPEC_KEY, null);
+    if (spec) return normalizeSpec(spec);
+    const legacy = getJSON(VARS_KEY, null);
+    const d = defaultSpec();
+    if (legacy) return normalizeSpec({ ...d, colors: { ...d.colors, ...legacy } });
+    return d;
+  }
+  var FX_OWNED_KEY = "dts-custom-fx-owned";
+  function tierPrice(tier) {
+    const t = PREMIUM_THEMES.find((p) => p.rarity === tier);
+    return t ? t.price : tier === "epic" ? 360 : 750;
+  }
+  function ownedFx() {
+    return getJSON(FX_OWNED_KEY, []);
+  }
+  function fxLock(kind, id) {
+    const def = kind === "fill" ? FILLS.find((f) => f.id === id) : CARD_FX.find((c) => c.id === id);
+    if (!def || !def.tier) return null;
+    if (ownedFx().includes(`${kind}:${id}`)) return null;
+    if (def.tier === "epic" && deps.getRefinedThemes().includes("custom")) return null;
+    return { tier: def.tier, price: tierPrice(def.tier), label: `${def.label} ${kind === "fill" ? "button fill" : "card hover"}` };
+  }
+  var deps;
+  var open = false;
+  function initThemeStudio(d) {
+    deps = d;
+    setFirstCustomHandler(() => openThemeStudio());
+    refreshCustomOptionLabel();
+  }
+  function refreshCustomOptionLabel() {
+    const opt = themeSelect.querySelector('option[value="custom"]');
+    if (!opt) return;
+    const saved = getJSON(SPEC_KEY, null);
+    opt.textContent = saved && saved.name ? `Custom: ${saved.name}` : "Custom\u2026";
+  }
+  var PREVIEW_TABS = [
+    { id: "datasets", label: "Datasets", icon: "folder" },
+    { id: "gallery", label: "Gallery", icon: "image" },
+    { id: "master", label: "Tag Overseer", icon: "telescope" },
+    { id: "stats", label: "Editing Stats", icon: "chart" },
+    { id: "synthdat", label: "SynthDat", icon: "flask" }
+  ];
+  function esc(s) {
+    return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  }
+  async function openThemeStudio() {
+    if (open) return;
+    open = true;
+    try {
+      await deps.prepareSnapshot();
+    } catch {
+    }
+    const saved = loadSavedSpec();
+    let spec = normalizeSpec(JSON.parse(JSON.stringify(saved)));
+    let dirty = false;
+    let previewTab = currentAppTab();
+    const { backdrop, box, close } = createModalShell({
+      className: "ts-backdrop",
+      boxClassName: "ts-box",
+      onDismiss: () => {
+        void tryClose();
+      },
+      onClose: () => {
+        open = false;
+        resizeObs.disconnect();
+        window.removeEventListener("keydown", onPopoverKey, true);
+      }
+    });
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+    box.setAttribute("aria-labelledby", "tsTitle");
+    box.innerHTML = `
+    <header class="ts-head">
+      <div class="ts-title-block">
+        <h2 id="tsTitle" class="ts-title">Theme Studio</h2>
+        <input class="ts-name" type="text" maxlength="40" spellcheck="false" aria-label="Theme name" placeholder="Name your theme">
+      </div>
+      <div class="ts-head-actions">
+        <button type="button" class="ts-import" title="Load a theme file someone shared (.json)">${iconSvg("upload", "ic-lead")}Import</button>
+        <button type="button" class="ts-export" title="Save this theme to a file you can share">${iconSvg("download", "ic-lead")}Export</button>
+        <button type="button" class="ts-close ghost-close" title="Close (Esc)" aria-label="Close">${iconSvg("x")}</button>
+      </div>
+    </header>
+    <div class="ts-edit">
+      <nav class="ts-jump" aria-label="Sections"></nav>
+      <div class="ts-sections"></div>
+    </div>
+    <div class="ts-stage">
+      <div class="ts-stage-frame"><div class="ts-frame-wrap"><iframe class="ts-frame" title="Live preview" tabindex="-1"></iframe></div></div>
+      <div class="ts-preview-tabs" role="tablist" aria-label="Preview tab"></div>
+      <div class="ts-stage-note">Live preview. Hover the miniature to try buttons and cards.</div>
+    </div>
+    <footer class="ts-foot">
+      <button type="button" class="ts-reset" title="Start over from the Studio default look">${iconSvg("rotate", "ic-lead")}Reset to Studio</button>
+      <span class="ts-dirty" aria-live="polite"></span>
+      <span class="ts-wallet" title="Your Edibits">${iconSvg("coins", "ic-lead")}<b></b></span>
+      <div class="ts-foot-actions">
+        <button type="button" class="ts-cancel">Cancel</button>
+        <button type="button" class="ts-save primary">Save &amp; apply</button>
+      </div>
+    </footer>`;
+    const q = (sel) => box.querySelector(sel);
+    const nameInput = q(".ts-name");
+    const sectionsEl = q(".ts-sections");
+    const jumpEl = q(".ts-jump");
+    const editEl = q(".ts-edit");
+    const stageFrame = q(".ts-stage-frame");
+    const frameWrap = q(".ts-frame-wrap");
+    const frame = q(".ts-frame");
+    const tabsEl = q(".ts-preview-tabs");
+    const dirtyEl = q(".ts-dirty");
+    const walletEl = q(".ts-wallet b");
+    const saveBtn = q(".ts-save");
+    let pdoc = null;
+    let appliedKeys = [];
+    const W = Math.max(1100, window.innerWidth), H = Math.max(680, window.innerHeight);
+    frame.style.width = W + "px";
+    frame.style.height = H + "px";
+    function fitFrame() {
+      const r = stageFrame.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const s = Math.min(r.width / W, r.height / H);
+      frame.style.transform = `scale(${s})`;
+      frameWrap.style.width = Math.round(W * s) + "px";
+      frameWrap.style.height = Math.round(H * s) + "px";
+    }
+    const resizeObs = new ResizeObserver(fitFrame);
+    resizeObs.observe(stageFrame);
+    function buildPreviewDoc() {
+      const doc = frame.contentDocument;
+      if (!doc) return;
+      const app = document.getElementById("app").cloneNode(true);
+      for (const grid of Array.from(app.querySelectorAll("#galleryGrid, #compactGrid"))) {
+        Array.from(grid.children).slice(36).forEach((c) => c.remove());
+      }
+      app.querySelectorAll(".pdrop-menu, .header-cat-flyout").forEach((el) => el.style.display = "none");
+      seedSampleGallery(app);
+      const keep = Array.from(document.documentElement.classList).filter((c) => /^motion-|^touch-device$/.test(c));
+      const sprite = document.getElementById("iconSprite");
+      const base = document.baseURI.replace(/"/g, "%22");
+      doc.open();
+      doc.write(`<!DOCTYPE html><html data-theme="custom" class="${keep.join(" ")}"><head><meta charset="utf-8"><base href="${base}">
+      <link rel="stylesheet" href="fonts/fonts.css"><link rel="stylesheet" href="styles.css">
+      <style>html,body{overflow:hidden} *{cursor:default !important} ::-webkit-scrollbar{width:8px;height:8px}</style>
+      </head><body class="${esc(document.body.className)}">${sprite ? sprite.outerHTML : ""}${app.outerHTML}</body></html>`);
+      doc.close();
+      pdoc = doc;
+      for (const type of ["click", "mousedown", "dblclick", "contextmenu", "keydown", "submit", "dragstart", "auxclick"]) {
+        doc.addEventListener(type, (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+        }, true);
+      }
+      doc.querySelectorAll("input, textarea, select, button").forEach((el) => el.setAttribute("tabindex", "-1"));
+      showPreviewTab(previewTab, false);
+      applyDraft();
+      let revealed = false;
+      const reveal = () => {
+        if (revealed) return;
+        revealed = true;
+        fillPresetSwatches();
+        frameWrap.classList.add("ts-ready");
+      };
+      const sheet = doc.querySelector('link[href="styles.css"]');
+      if (sheet && !sheet.sheet) sheet.addEventListener("load", reveal, { once: true });
+      else reveal();
+      setTimeout(reveal, 1500);
+    }
+    function showPreviewTab(tab, animate = true) {
+      previewTab = tab;
+      tabsEl.querySelectorAll(".ts-ptab").forEach((b) => {
+        const on = b.dataset.tab === tab;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", String(on));
+        b.tabIndex = on ? 0 : -1;
+      });
+      const apply = () => {
+        if (!pdoc) return;
+        const $p = (id) => pdoc.getElementById(id);
+        const set = (id, disp) => {
+          const el = $p(id);
+          if (el) el.style.display = disp;
+        };
+        const map = { tabDatasetManager: "datasets", tabGallery: "gallery", tabMasterTags: "master", tabStats: "stats", tabSynthDat: "synthdat" };
+        for (const [id, t] of Object.entries(map)) $p(id)?.classList.toggle("active", t === tab);
+        set("datasetManagerTab", tab === "datasets" ? "block" : "none");
+        set("galleryTab", tab === "gallery" || tab === "master" ? "contents" : "none");
+        set("statsTab", tab === "stats" ? "block" : "none");
+        set("synthDatTab", tab === "synthdat" ? "block" : "none");
+        $p("normalRightTools")?.classList.toggle("rt-hidden", tab === "master");
+        $p("masterTagPanel")?.classList.toggle("rt-hidden", tab !== "master");
+      };
+      if (!animate || document.documentElement.classList.contains("motion-off")) {
+        apply();
+        return;
+      }
+      frameWrap.classList.add("ts-switching");
+      setTimeout(() => {
+        apply();
+        frameWrap.classList.remove("ts-switching");
+      }, 110);
+    }
+    let draftQueued = false;
+    function applyDraft() {
+      if (draftQueued) return;
+      draftQueued = true;
+      requestAnimationFrame(() => {
+        draftQueued = false;
+        const vars = compileCustom(spec);
+        if (pdoc) {
+          const st = pdoc.documentElement.style;
+          for (const k of appliedKeys) if (!(k in vars)) st.removeProperty(k);
+          for (const [k, val] of Object.entries(vars)) st.setProperty(k, val);
+          appliedKeys = Object.keys(vars);
+          pdoc.documentElement.classList.toggle("theme-refined", vars["--c-fx-on"] === "1");
+        }
+        box.querySelectorAll(".ts-sample").forEach((el) => {
+          for (const [k] of THEME_VARS) el.style.setProperty(k, spec.colors[k]);
+          el.style.setProperty("--c-tint", `var(--accent-${spec.fx.tint})`);
+        });
+      });
+    }
+    const syncers = [];
+    function syncAll() {
+      nameInput.value = spec.name;
+      syncers.forEach((fn) => fn());
+      syncFooter();
+      applyDraft();
+    }
+    function pendingUnlocks() {
+      const out = [];
+      if (spec.fx.fill !== "preset") {
+        const l = fxLock("fill", spec.fx.fill);
+        if (l) out.push({ key: "fill:" + spec.fx.fill, price: l.price, label: l.label });
+      }
+      if (spec.fx.card !== "preset") {
+        const l = fxLock("card", spec.fx.card);
+        if (l) out.push({ key: "card:" + spec.fx.card, price: l.price, label: l.label });
+      }
+      return out;
+    }
+    function syncFooter() {
+      const due = pendingUnlocks().reduce((n, u) => n + u.price, 0);
+      walletEl.textContent = String(deps.getWallet());
+      saveBtn.textContent = due ? `Unlock & apply (${due})` : "Save & apply";
+      saveBtn.classList.toggle("ts-save-paid", due > 0);
+      dirtyEl.textContent = dirty ? "Unsaved changes" : "";
+    }
+    function changed() {
+      dirty = true;
+      syncers.forEach((fn) => fn());
+      syncFooter();
+      applyDraft();
+    }
+    function section(id, title, lede) {
+      const sec = document.createElement("section");
+      sec.className = "ts-section";
+      sec.id = "ts-sec-" + id;
+      sec.innerHTML = `<h3 class="ts-sec-title">${esc(title)}</h3><p class="ts-sec-lede">${esc(lede)}</p>`;
+      sectionsEl.appendChild(sec);
+      const jump = document.createElement("button");
+      jump.type = "button";
+      jump.className = "ts-jump-btn";
+      jump.textContent = title;
+      jump.dataset.sec = sec.id;
+      jump.addEventListener("click", () => {
+        const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.classList.contains("motion-off");
+        editEl.scrollTo({ top: sec.offsetTop - jumpEl.offsetHeight - 6, behavior: reduce ? "auto" : "smooth" });
+      });
+      jumpEl.appendChild(jump);
+      return sec;
+    }
+    function field(parent, label, hint) {
+      const f = document.createElement("div");
+      f.className = "ts-field";
+      f.innerHTML = `<div class="ts-field-label">${esc(label)}${hint ? `<span class="ts-field-hint">${esc(hint)}</span>` : ""}</div>`;
+      parent.appendChild(f);
+      return f;
+    }
+    function optionGrid(parent, label, opts, get, set, sample, cls = "", hint, lockOf) {
+      const f = field(parent, label, hint);
+      const grid = document.createElement("div");
+      grid.className = "ts-opts " + cls;
+      grid.setAttribute("role", "radiogroup");
+      grid.setAttribute("aria-label", label);
+      const presetTile = document.createElement("button");
+      presetTile.type = "button";
+      presetTile.className = "ts-opt ts-opt-preset";
+      presetTile.innerHTML = `<span class="ts-sample ts-s-preset">${iconSvg("palette")}</span><span class="ts-opt-label">From theme</span>`;
+      presetTile.title = "Kept from the theme you started from";
+      presetTile.setAttribute("role", "radio");
+      presetTile.addEventListener("click", () => {
+      });
+      grid.appendChild(presetTile);
+      for (const o of opts) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ts-opt";
+        b.dataset.id = o.id;
+        b.setAttribute("role", "radio");
+        b.innerHTML = `<span class="ts-sample">${sample(o)}</span><span class="ts-opt-label">${esc(o.label)}</span>`;
+        if (lockOf) {
+          const badge = document.createElement("span");
+          badge.className = "ts-price";
+          badge.setAttribute("aria-hidden", "true");
+          b.querySelector(".ts-sample").appendChild(badge);
+        }
+        b.addEventListener("click", () => {
+          set(o.id);
+          changed();
+        });
+        grid.appendChild(b);
+      }
+      f.appendChild(grid);
+      syncers.push(() => {
+        const cur = get();
+        presetTile.hidden = cur !== "preset";
+        presetTile.setAttribute("aria-checked", String(cur === "preset"));
+        presetTile.classList.toggle("on", cur === "preset");
+        grid.querySelectorAll(".ts-opt[data-id]").forEach((b) => {
+          const on = b.dataset.id === cur;
+          b.classList.toggle("on", on);
+          b.setAttribute("aria-checked", String(on));
+          if (!lockOf) return;
+          const lock = lockOf(b.dataset.id);
+          b.classList.toggle("locked", !!lock);
+          const badge = b.querySelector(".ts-price");
+          badge.hidden = !lock;
+          if (lock) {
+            badge.className = `ts-price rarity-${lock.tier}`;
+            badge.innerHTML = `${iconSvg("lock")}${lock.price}`;
+            b.title = `${lock.tier === "epic" ? "Epic" : "Legendary"} effect: preview free, ${lock.price} Edibits to keep`;
+          } else b.removeAttribute("title");
+        });
+      });
+    }
+    function segmented(parent, label, opts, get, set) {
+      const f = field(parent, label);
+      const seg = document.createElement("div");
+      seg.className = "ts-seg";
+      seg.setAttribute("role", "radiogroup");
+      seg.setAttribute("aria-label", label);
+      for (const o of opts) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.dataset.id = o.id;
+        b.textContent = o.label;
+        b.setAttribute("role", "radio");
+        b.addEventListener("click", () => {
+          set(o.id);
+          changed();
+        });
+        seg.appendChild(b);
+      }
+      f.appendChild(seg);
+      syncers.push(() => {
+        const cur = get();
+        seg.querySelectorAll("button").forEach((b) => {
+          b.classList.toggle("on", b.dataset.id === cur);
+          b.setAttribute("aria-checked", String(b.dataset.id === cur));
+        });
+      });
+    }
+    function slider(parent, label, min, max, get, set, unit = "px") {
+      const f = field(parent, label);
+      const row = document.createElement("div");
+      row.className = "ts-slider";
+      const input = document.createElement("input");
+      input.type = "range";
+      input.min = String(min);
+      input.max = String(max);
+      input.step = "1";
+      input.setAttribute("aria-label", label);
+      const out = document.createElement("output");
+      input.addEventListener("input", () => {
+        set(Number(input.value));
+        changed();
+      });
+      row.append(input, out);
+      f.appendChild(row);
+      syncers.push(() => {
+        const n = get();
+        input.value = String(n);
+        out.textContent = n + unit;
+        input.style.setProperty("--fill", (n - min) / (max - min) * 100 + "%");
+      });
+    }
+    function toggle(parent, label, get, set) {
+      const row = document.createElement("label");
+      row.className = "ach-toggle-row ts-toggle";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      const span = document.createElement("span");
+      span.textContent = label;
+      cb.addEventListener("change", () => {
+        set(cb.checked);
+        changed();
+      });
+      row.append(cb, span);
+      parent.appendChild(row);
+      syncers.push(() => {
+        cb.checked = get();
+      });
+    }
+    let openPopover = null;
+    function closePopover() {
+      if (!openPopover) return;
+      openPopover.anchor.setAttribute("aria-expanded", "false");
+      openPopover.el.remove();
+      openPopover = null;
+      document.removeEventListener("mousedown", onPopoverDown, true);
+    }
+    function onPopoverDown(ev) {
+      if (!openPopover) return;
+      const t = ev.target;
+      if (openPopover.el.contains(t) || openPopover.anchor.contains(t)) return;
+      closePopover();
+    }
+    function onPopoverKey(ev) {
+      if (ev.key === "Escape" && openPopover) {
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+        const a = openPopover.anchor;
+        closePopover();
+        a.focus();
+      }
+    }
+    window.addEventListener("keydown", onPopoverKey, true);
+    function fontPicker(parent, label, slot) {
+      const f = field(parent, label);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ts-font-btn";
+      btn.setAttribute("aria-haspopup", "listbox");
+      btn.setAttribute("aria-expanded", "false");
+      f.appendChild(btn);
+      const sync = () => {
+        const name = spec.fonts[slot];
+        btn.innerHTML = `<span class="ts-font-face">${esc(name || "System")}</span>${iconSvg("caret-down", "ts-font-caret")}`;
+        btn.firstElementChild.style.fontFamily = fontStack(name, slot === "mono" ? "mono" : "ui");
+      };
+      syncers.push(sync);
+      btn.addEventListener("click", () => {
+        if (openPopover && openPopover.anchor === btn) {
+          closePopover();
+          return;
+        }
+        closePopover();
+        const pop = document.createElement("div");
+        pop.className = "ts-font-pop";
+        pop.setAttribute("role", "listbox");
+        pop.setAttribute("aria-label", label);
+        const groups2 = slot === "mono" ? [["Mono", "mono"], ["Sans", "sans"], ["Serif", "serif"], ["Display", "display"], ["System", "system"]] : [["Sans", "sans"], ["Serif", "serif"], ["Display", "display"], ["Mono", "mono"], ["System", "system"]];
+        for (const [title, kind] of groups2) {
+          const h = document.createElement("div");
+          h.className = "ts-font-group";
+          h.textContent = title;
+          pop.appendChild(h);
+          const names = kind === "system" ? [""] : FONTS.filter((ft) => ft.kind === kind).map((ft) => ft.name);
+          for (const name of names) {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "ts-font-item" + (spec.fonts[slot] === name ? " on" : "");
+            item.setAttribute("role", "option");
+            item.setAttribute("aria-selected", String(spec.fonts[slot] === name));
+            item.textContent = name || (slot === "mono" ? "System mono" : "System UI");
+            item.style.fontFamily = fontStack(name, slot === "mono" ? "mono" : "ui");
+            item.addEventListener("click", () => {
+              spec.fonts[slot] = name;
+              changed();
+              closePopover();
+              btn.focus();
+            });
+            pop.appendChild(item);
+          }
+        }
+        f.appendChild(pop);
+        btn.setAttribute("aria-expanded", "true");
+        openPopover = { el: pop, anchor: btn };
+        document.addEventListener("mousedown", onPopoverDown, true);
+        const on = pop.querySelector(".ts-font-item.on");
+        if (on) pop.scrollTop = on.offsetTop - pop.clientHeight / 2 + on.offsetHeight / 2;
+        requestAnimationFrame(() => pop.classList.add("in"));
+        (on || pop.querySelector(".ts-font-item"))?.focus({ preventScroll: true });
+      });
+    }
+    function colorRow(parent, key, label) {
+      const row = document.createElement("div");
+      row.className = "ts-color";
+      const swatch = document.createElement("label");
+      swatch.className = "ts-swatch";
+      const picker = document.createElement("input");
+      picker.type = "color";
+      picker.setAttribute("aria-label", label + " color");
+      swatch.appendChild(picker);
+      const name = document.createElement("span");
+      name.className = "ts-color-name";
+      name.textContent = label;
+      const hex = document.createElement("input");
+      hex.type = "text";
+      hex.className = "ts-hex";
+      hex.spellcheck = false;
+      hex.maxLength = 9;
+      hex.setAttribute("aria-label", label + " hex value");
+      const badge = document.createElement("span");
+      badge.className = "ts-contrast";
+      row.append(swatch, name, badge, hex);
+      parent.appendChild(row);
+      picker.addEventListener("input", () => {
+        const cur = spec.colors[key];
+        spec.colors[key] = cur.length === 9 ? picker.value + cur.slice(7) : picker.value;
+        changed();
+      });
+      hex.addEventListener("input", () => {
+        let v = hex.value.trim();
+        if (v && v[0] !== "#") v = "#" + v;
+        const ok = HEX_RE.test(v);
+        hex.classList.toggle("bad", !ok);
+        if (ok) {
+          spec.colors[key] = v.toLowerCase();
+          changed();
+        }
+      });
+      hex.addEventListener("blur", () => {
+        hex.classList.remove("bad");
+        hex.value = spec.colors[key];
+      });
+      syncers.push(() => {
+        const v = spec.colors[key];
+        picker.value = toHex6(v);
+        swatch.style.setProperty("--sw", v);
+        if (document.activeElement !== hex) hex.value = v;
+        const rule = CONTRAST[key];
+        if (rule) {
+          const ratio = contrast(v, spec.colors[rule.against]);
+          badge.textContent = ratio.toFixed(1) + ":1";
+          const low = ratio < rule.floor;
+          badge.classList.toggle("low", low);
+          badge.title = low ? `Below ${rule.floor}:1 against ${rule.against.replace("--", "").replace(/-/g, " ")}: hard to read` : `Contrast against ${rule.against.replace("--", "").replace(/-/g, " ")}`;
+        }
+      });
+    }
+    const secStart = section("start", "Start from", "Copy any theme you own as a starting point: its colors, faces, shapes, mat and effects.");
+    const presetGrid = document.createElement("div");
+    presetGrid.className = "ts-presets";
+    secStart.appendChild(presetGrid);
+    const owned = deps.getOwnedThemes();
+    const presetList = [];
+    for (const opt of Array.from(themeSelect.options)) {
+      if (opt.value === "custom") continue;
+      const premium = PREMIUM_THEMES.find((p) => p.id === opt.value);
+      if (premium && !owned.includes(opt.value)) continue;
+      presetList.push({ id: opt.value, name: (premium ? premium.name : opt.textContent || opt.value).replace(/^🔒\s*/, ""), sw: [] });
+    }
+    const lockedCount = PREMIUM_THEMES.filter((p) => !owned.includes(p.id)).length;
+    function renderPresets() {
+      presetGrid.innerHTML = "";
+      for (const p of presetList) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ts-preset";
+        b.title = `Start from ${p.name}`;
+        b.innerHTML = `<span class="ts-preset-sw">${p.sw.map((c) => `<i style="background:${esc(c)}"></i>`).join("")}</span><span class="ts-preset-name">${esc(p.name)}</span>`;
+        b.addEventListener("click", () => loadPreset(p.id, p.name));
+        presetGrid.appendChild(b);
+      }
+      if (lockedCount) {
+        const more = document.createElement("p");
+        more.className = "ts-presets-more";
+        more.textContent = `${lockedCount} more theme${lockedCount === 1 ? "" : "s"} unlock in Personalization \u25B8 Shop.`;
+        presetGrid.appendChild(more);
+      }
+    }
+    const secColors = section("colors", "Colors", "Sixteen roles every screen reads. Hex accepts #rgb, #rrggbb and #rrggbbaa.");
+    for (const g of COLOR_GROUPS) {
+      const sub = document.createElement("div");
+      sub.className = "ts-color-group";
+      sub.innerHTML = `<div class="ts-sub-title">${esc(g.title)}</div>`;
+      for (const [k, l] of g.keys) colorRow(sub, k, l);
+      secColors.appendChild(sub);
+    }
+    const tintBtn = document.createElement("button");
+    tintBtn.type = "button";
+    tintBtn.className = "ts-link-btn";
+    tintBtn.innerHTML = `${iconSvg("wand", "ic-lead")}Match tints to accents`;
+    tintBtn.title = "Recompute the Manual and Auto tints from their accents and the panel color";
+    tintBtn.addEventListener("click", () => {
+      const panel = spec.colors["--bg-panel"];
+      const light = luminance(panel) > 0.4;
+      spec.colors["--accent-manual-dim"] = mixHex(panel, spec.colors["--accent-manual"], light ? 0.16 : 0.22);
+      spec.colors["--accent-auto-dim"] = mixHex(panel, spec.colors["--accent-auto"], light ? 0.16 : 0.22);
+      changed();
+    });
+    secColors.appendChild(tintBtn);
+    const secType = section("type", "Type", "Bundled faces only, so a theme looks the same on every machine.");
+    const fontGrid = document.createElement("div");
+    fontGrid.className = "ts-font-grid";
+    secType.appendChild(fontGrid);
+    fontPicker(fontGrid, "Interface", "ui");
+    fontPicker(fontGrid, "Brand lockup", "display");
+    fontPicker(fontGrid, "Panel titles", "head");
+    fontPicker(fontGrid, "Tabs", "tab");
+    fontPicker(fontGrid, "Tags & filenames", "mono");
+    slider(secType, "Brand size", 12, 28, () => spec.type.brandSize, (n) => {
+      spec.type.brandSize = n;
+    });
+    segmented(
+      secType,
+      "Button weight",
+      [{ id: "400", label: "Regular" }, { id: "500", label: "Medium" }, { id: "600", label: "Semibold" }, { id: "700", label: "Bold" }],
+      () => String(spec.type.btnWeight),
+      (id) => {
+        spec.type.btnWeight = Number(id);
+      }
+    );
+    const capsField = field(secType, "Capitals", "Tracked out automatically");
+    const capsWrap = document.createElement("div");
+    capsWrap.className = "ts-toggles";
+    capsField.appendChild(capsWrap);
+    toggle(capsWrap, "Tabs", () => spec.type.capsTabs, (on) => {
+      spec.type.capsTabs = on;
+    });
+    toggle(capsWrap, "Panel titles", () => spec.type.capsHeads, (on) => {
+      spec.type.capsHeads = on;
+    });
+    toggle(capsWrap, "Buttons", () => spec.type.capsButtons, (on) => {
+      spec.type.capsButtons = on;
+    });
+    toggle(capsWrap, "Brand", () => spec.type.capsBrand, (on) => {
+      spec.type.capsBrand = on;
+    });
+    const secShape = section("shape", "Shape", "Corners for each kind of element, set independently.");
+    const shapeGet = (k) => () => {
+      const s = SHAPES.find((o) => o.r === spec.shape[k]);
+      return s ? s.id : "preset";
+    };
+    optionGrid(
+      secShape,
+      "Buttons",
+      SHAPES,
+      shapeGet("ctl"),
+      (id) => {
+        spec.shape.ctl = SHAPES.find((o) => o.id === id).r;
+      },
+      (o) => `<span class="ts-s-btn" style="border-radius:${o.r}">Save</span>`,
+      "ts-opts-shape"
+    );
+    optionGrid(
+      secShape,
+      "Tags",
+      SHAPES,
+      shapeGet("chip"),
+      (id) => {
+        spec.shape.chip = SHAPES.find((o) => o.id === id).r;
+      },
+      (o) => `<span class="ts-s-chip" style="border-radius:${o.r}">red hair</span>`,
+      "ts-opts-shape"
+    );
+    const firstPx = (s) => Math.round(parseFloat(s) || 0);
+    slider(secShape, "Cards", 0, 24, () => firstPx(spec.shape.card), (n) => {
+      spec.shape.card = n + "px";
+    });
+    slider(secShape, "Panels & menus", 0, 28, () => firstPx(spec.shape.panel), (n) => {
+      spec.shape.panel = n + "px";
+    });
+    optionGrid(
+      secShape,
+      "Checkboxes",
+      CHECKS,
+      () => (CHECKS.find((c) => c.r === spec.shape.check) || { id: "preset" }).id,
+      (id) => {
+        spec.shape.check = CHECKS.find((c) => c.id === id).r;
+      },
+      (o) => `<span class="ts-s-check" style="border-radius:${o.r}">${iconSvg("check")}</span>`,
+      "ts-opts-compact"
+    );
+    segmented(secShape, "Icon stroke", STROKES, () => spec.icons.stroke, (id) => {
+      spec.icons.stroke = id;
+    });
+    segmented(secShape, "Icon ends", CAPS, () => spec.icons.cap, (id) => {
+      spec.icons.cap = id;
+    });
+    const secFx = section("effects", "Effects", "Motion on hover. The Settings flourish switches still turn these off.");
+    const fxNote = document.createElement("p");
+    fxNote.className = "ts-fx-note";
+    fxNote.innerHTML = `${iconSvg("lock", "ic-lead")}Epic and legendary effects preview free. Keeping one costs its tier's price in Edibits, once.`;
+    secFx.appendChild(fxNote);
+    optionGrid(
+      secFx,
+      "Button fill",
+      FILLS,
+      () => spec.fx.fill,
+      (id) => {
+        spec.fx.fill = id;
+      },
+      (o) => `<span class="ts-s-fill"><span class="ts-s-fill-bar" style="width:${Number(o.w) * 100}%;background:${o.fill.split(T).join("var(--c-tint)")};opacity:${o.id === "none" ? 0 : Math.max(Number(o.o), 0.3)};top:${o.top};height:${o.h}"></span><span class="ts-s-fill-txt">Hover</span></span>`,
+      "ts-opts-fill",
+      "Plays when the pointer is over a button",
+      (id) => fxLock("fill", id)
+    );
+    segmented(secFx, "Fill color", TINTS, () => spec.fx.tint, (id) => {
+      spec.fx.tint = id;
+    });
+    optionGrid(
+      secFx,
+      "Card hover",
+      CARD_FX,
+      () => spec.fx.card,
+      (id) => {
+        spec.fx.card = id;
+      },
+      (o) => `<span class="ts-s-card" style="transform:${o.t === "none" ? "none" : o.t.replace("-3px", "-2px")};box-shadow:${o.s.split(T).join("var(--c-tint)").replace("var(--card-shadow)", "none")}"></span>`,
+      "ts-opts-compact",
+      void 0,
+      (id) => fxLock("card", id)
+    );
+    optionGrid(
+      secFx,
+      "Card depth",
+      DEPTHS,
+      () => spec.fx.depth,
+      (id) => {
+        spec.fx.depth = id;
+      },
+      (o) => `<span class="ts-s-card" style="box-shadow:${o.s}"></span>`,
+      "ts-opts-compact"
+    );
+    const secSurf = section("surfaces", "Surfaces", "What sits behind the work: pads, grounds and the frames around images.");
+    optionGrid(
+      secSurf,
+      "Dock pads",
+      PADS,
+      () => spec.surface.pad,
+      (id) => {
+        spec.surface.pad = id;
+      },
+      (o) => `<span class="ts-s-pad" style="background:${o.bg};box-shadow:${o.shadow}"><i></i><i></i></span>`,
+      "ts-opts-compact"
+    );
+    optionGrid(
+      secSurf,
+      "Gallery ground",
+      PATTERNS,
+      () => spec.surface.ground,
+      (id) => {
+        spec.surface.ground = id;
+      },
+      (o) => `<span class="ts-s-pat" style="background:${o.css.split(INK).join("color-mix(in srgb, var(--text-primary) 14%, transparent)")}, var(--bg-base)"></span>`,
+      "ts-opts-compact"
+    );
+    optionGrid(
+      secSurf,
+      "Image mat",
+      PATTERNS,
+      () => spec.surface.mat,
+      (id) => {
+        spec.surface.mat = id;
+      },
+      (o) => `<span class="ts-s-pat ts-s-mat" style="background:${o.css.split(INK).join("color-mix(in srgb, var(--text-primary) 20%, transparent)")}, var(--bg-base)"><i></i></span>`,
+      "ts-opts-compact",
+      "Letterbox behind images"
+    );
+    optionGrid(
+      secSurf,
+      "Active tab",
+      TABS,
+      () => spec.surface.tab,
+      (id) => {
+        spec.surface.tab = id;
+      },
+      (o) => `<span class="ts-s-tabs"><span style="background:${o.bg};color:${o.fg};border-bottom-color:${o.line};box-shadow:${o.shadow};border-radius:${o.r}">Gallery</span><span>Stats</span></span>`,
+      "ts-opts-wide"
+    );
+    optionGrid(
+      secSurf,
+      "Top bar edge",
+      TOPBARS,
+      () => spec.surface.topbar,
+      (id) => {
+        spec.surface.topbar = id;
+      },
+      (o) => `<span class="ts-s-top" style="border-bottom:${o.border};border-image:${o.bimg}"></span>`,
+      "ts-opts-compact"
+    );
+    optionGrid(
+      secSurf,
+      "Primary buttons",
+      PRIMARIES,
+      () => spec.surface.primary,
+      (id) => {
+        spec.surface.primary = id;
+      },
+      (o) => `<span class="ts-s-btn" style="background:${o.bg};color:${o.fg};border-color:${o.bd}">Open</span>`,
+      "ts-opts-compact"
+    );
+    const secEls = Array.from(sectionsEl.querySelectorAll(".ts-section"));
+    function syncJump() {
+      const top = editEl.scrollTop + jumpEl.offsetHeight + 24;
+      let cur = secEls[0];
+      for (const s of secEls) if (s.offsetTop <= top) cur = s;
+      if (editEl.scrollTop + editEl.clientHeight >= editEl.scrollHeight - 4) cur = secEls[secEls.length - 1];
+      jumpEl.querySelectorAll(".ts-jump-btn").forEach((b) => b.classList.toggle("on", b.dataset.sec === cur.id));
+    }
+    editEl.addEventListener("scroll", syncJump, { passive: true });
+    const PRESET_KEYS = [
+      ...THEME_VARS.map(([k]) => k),
+      "--sans",
+      "--mono",
+      "--display",
+      "--head-font",
+      "--tab-font",
+      "--brand-size",
+      "--brand-case",
+      "--tab-case",
+      "--head-case",
+      "--btn-case",
+      "--btn-weight",
+      "--r-ctl",
+      "--r-chip",
+      "--r-card",
+      "--r-panel",
+      "--r-check",
+      "--icon-stroke",
+      "--icon-cap",
+      ...RAW_KEYS
+    ];
+    function readThemeTokens(themeId) {
+      if (!pdoc) return null;
+      const root = pdoc.documentElement;
+      const prevStyle = root.getAttribute("style");
+      root.removeAttribute("style");
+      root.setAttribute("data-theme", themeId);
+      const cs = (pdoc.defaultView || window).getComputedStyle(root);
+      const out = {};
+      for (const k of PRESET_KEYS) out[k] = cs.getPropertyValue(k).trim();
+      root.setAttribute("data-theme", "custom");
+      if (prevStyle !== null) root.setAttribute("style", prevStyle);
+      return out;
+    }
+    const firstFamily = (stack) => (stack.split(",")[0] || "").trim().replace(/^['"]|['"]$/g, "");
+    function specFromTokens(tok, themeId, name) {
+      const d = defaultSpec();
+      const colors = {};
+      for (const [k] of THEME_VARS) {
+        const c = tok[k];
+        colors[k] = HEX_RE.test(c) ? c.toLowerCase() : toHex6(c || "#000");
+      }
+      const raw = {};
+      for (const k of RAW_KEYS) {
+        const s = safeRaw(tok[k]);
+        if (s) raw[k] = s;
+      }
+      const premium = themeAlreadyHasPremiumEffects(themeId) || deps.getRefinedThemes().includes(themeId);
+      const stroke = parseFloat(tok["--icon-stroke"]) || 1.75;
+      return normalizeSpec({
+        name: `${name} remix`,
+        colors,
+        fonts: {
+          ui: firstFamily(tok["--sans"]),
+          display: firstFamily(tok["--display"]),
+          head: firstFamily(tok["--head-font"]),
+          tab: firstFamily(tok["--tab-font"]),
+          mono: firstFamily(tok["--mono"])
+        },
+        type: {
+          brandSize: parseFloat(tok["--brand-size"]) || d.type.brandSize,
+          btnWeight: parseInt(tok["--btn-weight"], 10) || d.type.btnWeight,
+          capsTabs: tok["--tab-case"] === "uppercase",
+          capsHeads: tok["--head-case"] === "uppercase",
+          capsButtons: tok["--btn-case"] === "uppercase",
+          capsBrand: tok["--brand-case"] === "uppercase"
+        },
+        shape: { ctl: tok["--r-ctl"], chip: tok["--r-chip"], card: tok["--r-card"], panel: tok["--r-panel"], check: tok["--r-check"] },
+        icons: { stroke: stroke < 1.5 ? "thin" : stroke > 2 ? "bold" : "regular", cap: tok["--icon-cap"] === "square" ? "square" : "round" },
+        fx: { fill: premium && raw["--fx-fill"] ? "preset" : "none", tint: "flair", card: premium && raw["--fx-card-t"] ? "preset" : "none", depth: raw["--card-shadow"] ? "preset" : "soft" },
+        surface: { ...d.surface, mat: raw["--mat"] ? "preset" : "dots", pad: "flat" },
+        raw
+      });
+    }
+    function loadPreset(themeId, name) {
+      const tok = readThemeTokens(themeId);
+      if (!tok) return;
+      spec = specFromTokens(tok, themeId, name);
+      changed();
+      nameInput.value = spec.name;
+      toast(`Started from ${name}. Its signature textures stay with the original.`, 3200);
+    }
+    function fillPresetSwatches() {
+      for (const p of presetList) {
+        const tok = readThemeTokens(p.id);
+        if (tok) p.sw = [tok["--bg-base"], tok["--bg-panel"], tok["--accent-manual"], tok["--accent-flair"]].map((c) => c || "transparent");
+      }
+      renderPresets();
+    }
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".json,application/json";
+    fileInput.hidden = true;
+    box.appendChild(fileInput);
+    q(".ts-import").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files && fileInput.files[0];
+      fileInput.value = "";
+      if (!file) return;
+      if (file.size > 2e5) {
+        toast("That file is too large to be a theme.");
+        return;
+      }
+      try {
+        const data = JSON.parse(await file.text());
+        const payload = data && data.kind === THEME_FILE_KIND ? data.spec : null;
+        if (!payload) {
+          toast("Not a theme file. Export one from Theme Studio (Osmium Workshop or Comfy Bridge).", 3600);
+          return;
+        }
+        spec = normalizeSpec(payload);
+        changed();
+        toast(`Imported "${spec.name}". Save & apply to keep it.`);
+      } catch {
+        toast("Couldn\u2019t read that file as a theme (invalid JSON).", 3200);
+      }
+    });
+    q(".ts-export").addEventListener("click", async () => {
+      const payload = JSON.stringify({ kind: THEME_FILE_KIND, version: 1, app: "osmium-workshop", spec }, null, 2);
+      const slug = spec.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "theme";
+      const suggestedName = `${slug}.theme.json`;
+      if (hasSaveFilePicker()) {
+        try {
+          const handle = await pickSaveFile({ suggestedName, types: [{ description: "Theme file", accept: { "application/json": [".json"] } }] });
+          await writeBytes(handle, payload);
+          toast(`Exported "${spec.name}".`);
+        } catch {
+        }
+        return;
+      }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
+      a.download = suggestedName;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1e3);
+    });
+    nameInput.addEventListener("input", () => {
+      spec.name = nameInput.value.trim().slice(0, 40) || "My theme";
+      dirty = true;
+      syncFooter();
+    });
+    q(".ts-reset").addEventListener("click", () => {
+      spec = defaultSpec();
+      changed();
+    });
+    q(".ts-cancel").addEventListener("click", () => {
+      void tryClose();
+    });
+    q(".ts-close").addEventListener("click", () => {
+      void tryClose();
+    });
+    saveBtn.addEventListener("click", async () => {
+      const due = pendingUnlocks();
+      if (due.length) {
+        const total = due.reduce((n, u) => n + u.price, 0);
+        const wallet2 = deps.getWallet();
+        const names = due.length === 1 ? `the ${due[0].label}` : due.map((u) => `${u.label} (${u.price})`).join(" and ");
+        if (wallet2 < total) {
+          toast(`${names} needs ${total} Edibits; you have ${wallet2}. Pick a free effect, or earn more and come back.`, 4200);
+          return;
+        }
+        const ok = await showConfirmModal(`Unlock ${names} for ${total} Edibits?
+You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLabel: `Unlock for ${total}` });
+        if (!ok) return;
+        if (!deps.spendEdibits(total)) {
+          toast("Not enough Edibits for that yet.");
+          return;
+        }
+        setJSON(FX_OWNED_KEY, [...ownedFx(), ...due.map((u) => u.key)]);
+      }
+      const vars = compileCustom(spec);
+      setJSON(SPEC_KEY, spec);
+      setJSON(VARS_KEY, vars);
+      setString("dts-theme", "custom");
+      themeSelect.value = "custom";
+      refreshCustomOptionLabel();
+      themeSelect.dispatchEvent(new Event("change"));
+      deps.onSaved();
+      dirty = false;
+      close();
+      toast(`"${spec.name}" applied.`);
+    });
+    async function tryClose() {
+      if (openPopover) {
+        closePopover();
+        return;
+      }
+      if (dirty) {
+        const ok = await showConfirmModal("Discard your unsaved theme changes?", { okLabel: "Discard", cancelLabel: "Keep editing", danger: true });
+        if (!ok) return;
+      }
+      close();
+    }
+    for (const t of PREVIEW_TABS) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ts-ptab";
+      b.dataset.tab = t.id;
+      b.setAttribute("role", "tab");
+      b.innerHTML = `${iconSvg(t.icon, "ic-lead")}${esc(t.label)}`;
+      b.addEventListener("click", () => {
+        if (previewTab !== t.id) showPreviewTab(t.id);
+      });
+      tabsEl.appendChild(b);
+    }
+    tabsEl.addEventListener("keydown", (ev) => {
+      if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
+      const i = PREVIEW_TABS.findIndex((t) => t.id === previewTab);
+      const n = PREVIEW_TABS[(i + (ev.key === "ArrowRight" ? 1 : PREVIEW_TABS.length - 1)) % PREVIEW_TABS.length];
+      showPreviewTab(n.id);
+      tabsEl.querySelector(`[data-tab="${n.id}"]`)?.focus();
+      ev.preventDefault();
+    });
+    renderPresets();
+    buildPreviewDoc();
+    syncAll();
+    syncJump();
+    requestAnimationFrame(fitFrame);
+  }
+  function currentAppTab() {
+    const on = (id) => document.getElementById(id)?.classList.contains("active");
+    if (on("tabDatasetManager")) return "datasets";
+    if (on("tabMasterTags")) return "master";
+    if (on("tabStats")) return "stats";
+    if (on("tabSynthDat")) return "synthdat";
+    return "gallery";
+  }
+  function seedSampleGallery(app) {
+    const grid = app.querySelector("#galleryGrid");
+    if (!grid || grid.querySelector(".card")) return;
+    const hint = app.querySelector("#dropHintWrap");
+    if (hint) hint.style.display = "none";
+    const toolbar = app.querySelector("#galleryToolbar");
+    if (toolbar) toolbar.style.display = "flex";
+    grid.style.display = "";
+    const art = (a, b, shape, w = 300, h = 400) => "data:image/svg+xml;utf8," + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/>${shape}</svg>`
+    );
+    const samples = [
+      {
+        img: art("#8d7b6a", "#3d342c", '<circle cx="150" cy="170" r="70" fill="#e9dccb" opacity=".85"/><rect x="60" y="260" width="180" height="110" rx="40" fill="#5d4c3d"/>'),
+        name: "portrait_014.png",
+        tags: ["1girl", "red hair", "looking at viewer", "smile", "upper body"],
+        chip: { 1: "chip-match" }
+      },
+      {
+        img: art("#6f8795", "#27343d", '<path d="M0 300 L90 190 L170 260 L240 170 L300 230 L300 400 L0 400Z" fill="#1d262c"/><circle cx="220" cy="90" r="30" fill="#e8e4d8"/>', 300, 220),
+        name: "landscape_03.png",
+        tags: ["scenery", "mountain", "night sky", "moon"],
+        cls: "dirty"
+      },
+      {
+        img: art("#9a9486", "#4b4840", '<rect x="80" y="80" width="140" height="240" rx="70" fill="#d8d2c4" opacity=".8"/>'),
+        name: "study_22.png",
+        tags: ["solo", "long hair", "white dress", "standing", "full body", "outdoors"],
+        chip: { 3: "chip-isolated" }
+      },
+      {
+        img: art("#7c8a78", "#2f372d", '<circle cx="110" cy="180" r="60" fill="#cfd8c5" opacity=".7"/><circle cx="200" cy="230" r="45" fill="#a9b59e" opacity=".7"/>', 300, 300),
+        name: "still_life_08.png",
+        tags: ["no humans", "still life", "flower"],
+        chip: { 2: "chip-flagged-review" }
+      },
+      { img: art("#8b8196", "#352f3d", '<rect x="40" y="120" width="220" height="160" rx="12" fill="#d9d2e3" opacity=".7"/>'), name: "interior_11.png", tags: [], cls: "untagged" },
+      {
+        img: art("#94826f", "#443a30", '<circle cx="150" cy="150" r="90" fill="#efe3d0" opacity=".6"/>', 300, 360),
+        name: "portrait_031.png",
+        tags: ["1boy", "short hair", "jacket", "profile"]
+      }
+    ];
+    grid.innerHTML = samples.map((s) => `
+    <div class="card${s.cls ? " " + s.cls : ""}">
+      <div class="thumbwrap"><img src="${s.img}" alt=""><div class="filename">${esc(s.name)}</div>${s.cls === "dirty" ? '<div class="dirtydot"></div>' : ""}</div>
+      <div class="tagbox"><input type="text" class="addtag-input" placeholder="+ Add tag" tabindex="-1">
+        <div class="chiprow">${s.tags.map((t, i) => `<span class="chip${s.chip && s.chip[i] ? " " + s.chip[i] : ""}${i === 0 && s.tags.length > 4 ? " selected" : ""}"><span>${esc(t)}</span><button tabindex="-1">\xD7</button></span>`).join("")}</div>
+      </div>
+    </div>`).join("");
+    const setNum = (id, v) => {
+      const el = app.querySelector("#" + id);
+      if (el) el.textContent = v;
+    };
+    setNum("cardImages", "6");
+    setNum("cardTags", "24");
   }
 
   // src/renderer/docks.ts
@@ -1778,7 +3288,7 @@
     setString("dts-font-size", "14");
   }
   function getOutsideClosablePanels() {
-    return [favoritesPanel, themeCustomPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel, settingsPanel];
+    return [favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel, settingsPanel];
   }
   var SETTINGS_SECTIONS_KEY = "dts-settings-sections-expanded";
   function saveSettingsSectionState(state) {
@@ -2629,10 +4139,10 @@
   var getEditLog = () => [];
   var refreshThemeDropdownLabel = () => {
   };
-  function initAchievements(deps) {
-    getDirHandle = deps.getDirHandle;
-    getEditLog = deps.getEditLog;
-    refreshThemeDropdownLabel = deps.refreshThemeDropdownLabel;
+  function initAchievements(deps2) {
+    getDirHandle = deps2.getDirHandle;
+    getEditLog = deps2.getEditLog;
+    refreshThemeDropdownLabel = deps2.refreshThemeDropdownLabel;
   }
   var RARITY_VALUE = { common: 10, uncommon: 25, rare: 60, epic: 120, legendary: 250 };
   var ACHIEVEMENTS = [
@@ -2758,6 +4268,13 @@
     walletDisplay.textContent = String(wallet);
     achWallet.textContent = String(wallet);
     shopWallet.textContent = String(wallet);
+  }
+  function spendEdibits(amount) {
+    if (amount <= 0) return true;
+    if (wallet < amount) return false;
+    wallet -= amount;
+    saveWallet();
+    return true;
   }
   function loadWallet() {
     wallet = getInt("dts-wallet", 0);
@@ -2931,6 +4448,12 @@
     }
     btnRefineTheme.style.display = "";
     const currentTheme = themeSelect.value;
+    if (currentTheme === "custom") {
+      setIconLabel(btnRefineTheme, "\u{1F528} Refine Theme (set in Theme Studio)");
+      btnRefineTheme.disabled = true;
+      btnRefineTheme.title = "Custom picks its own button fill and card hover in Theme Studio \u25B8 Effects.";
+      return;
+    }
     if (themeAlreadyHasPremiumEffects(currentTheme)) {
       setIconLabel(btnRefineTheme, "\u{1F528} Refine Theme (already refined)");
       btnRefineTheme.disabled = true;
@@ -2968,7 +4491,6 @@
       }
       hidePanel(shopPanel);
       hidePanel(favoritesPanel);
-      hidePanel(themeCustomPanel);
       hidePanel(logPanel);
       hidePanel(tagDetailsPanel);
       renderAchievementsPanel();
@@ -2992,7 +4514,6 @@
       }
       hidePanel(achievementsPanel);
       hidePanel(favoritesPanel);
-      hidePanel(themeCustomPanel);
       hidePanel(logPanel);
       hidePanel(tagDetailsPanel);
       folderStats.shop_opened = true;
@@ -3280,15 +4801,15 @@
     for (const [label, value] of totalCards) {
       const card = document.createElement("div");
       card.className = "stats-total-card";
-      const num = document.createElement("div");
-      num.className = "num";
+      const num2 = document.createElement("div");
+      num2.className = "num";
       const lbl = document.createElement("div");
       lbl.className = "lbl";
       lbl.textContent = label;
-      card.appendChild(num);
+      card.appendChild(num2);
       card.appendChild(lbl);
       statsTotals.appendChild(card);
-      animateCountUp(num, value);
+      animateCountUp(num2, value);
     }
   }
   function renderLogPanel() {
@@ -3510,20 +5031,20 @@
     await moveEntryRef(e, shouldBeDisabled);
     renderLogPanel();
   }
-  function initEditLog(deps) {
-    getDirHandle2 = deps.getDirHandle;
-    getEntryByBase = deps.getEntryByBase;
-    applyTagDirectionRef = deps.applyTagDirection;
-    applyRenameDirectionRef = deps.applyRenameDirection;
-    applyPixelDirectionRef = deps.applyPixelDirection;
-    applyIsolateDirectionRef = deps.applyIsolateDirection;
-    applyFlaggedReviewDirectionRef = deps.applyFlaggedReviewDirection;
-    moveEntryRef = deps.moveEntry;
-    trackStatRef = deps.trackStat;
-    checkAchievementsRef = deps.checkAchievements;
-    refreshAllUIRef = deps.refreshAllUI;
-    getUndoStack = deps.getUndoStack;
-    getRedoStack = deps.getRedoStack;
+  function initEditLog(deps2) {
+    getDirHandle2 = deps2.getDirHandle;
+    getEntryByBase = deps2.getEntryByBase;
+    applyTagDirectionRef = deps2.applyTagDirection;
+    applyRenameDirectionRef = deps2.applyRenameDirection;
+    applyPixelDirectionRef = deps2.applyPixelDirection;
+    applyIsolateDirectionRef = deps2.applyIsolateDirection;
+    applyFlaggedReviewDirectionRef = deps2.applyFlaggedReviewDirection;
+    moveEntryRef = deps2.moveEntry;
+    trackStatRef = deps2.trackStat;
+    checkAchievementsRef = deps2.checkAchievements;
+    refreshAllUIRef = deps2.refreshAllUI;
+    getUndoStack = deps2.getUndoStack;
+    getRedoStack = deps2.getRedoStack;
     statsViewPie.addEventListener("click", () => {
       statsChartMode = "pie";
       statsViewPie.classList.add("active");
@@ -3542,7 +5063,6 @@
         hidePanel(logPanel);
         return;
       }
-      hidePanel(themeCustomPanel);
       hidePanel(favoritesPanel);
       hidePanel(achievementsPanel);
       hidePanel(shopPanel);
@@ -4008,13 +5528,13 @@
       for (const rule of mergeRules) canonicalTagsList.appendChild(buildRuleRow(rule));
     }
   }
-  function initCanonicalTags(deps) {
-    getDirHandle3 = deps.getDirHandle;
-    getEntries = deps.getEntries;
-    markDirtyRef = deps.markDirty;
-    refreshAllUIRef2 = deps.refreshAllUI;
-    markRulesDirtyRef = deps.markRulesDirty;
-    recordChangeRef = deps.recordChange;
+  function initCanonicalTags(deps2) {
+    getDirHandle3 = deps2.getDirHandle;
+    getEntries = deps2.getEntries;
+    markDirtyRef = deps2.markDirty;
+    refreshAllUIRef2 = deps2.refreshAllUI;
+    markRulesDirtyRef = deps2.markRulesDirty;
+    recordChangeRef = deps2.recordChange;
     btnAddCanonicalRule.addEventListener("click", () => {
       const newRule = { id: nextRuleId(), canonical: "", children: [], ...newRuleDefaults() };
       canonicalRules.push(newRule);
@@ -4452,20 +5972,20 @@
     }
     return count;
   }
-  function initTagsEdit(deps) {
-    getEntries2 = deps.getEntries;
-    getEntryByBase2 = deps.getEntryByBase;
-    getDirHandle4 = deps.getDirHandle;
-    getDisabledDirHandle = deps.getDisabledDirHandle;
-    setDisabledDirHandle = deps.setDisabledDirHandle;
-    getOriginalDirHandle = deps.getOriginalDirHandle;
-    reindexEntry = deps.reindexEntry;
-    resetSingleIndex = deps.resetSingleIndex;
-    refreshStatsRef = deps.refreshStats;
-    refreshAllUIRef3 = deps.refreshAllUI;
-    renderCurrentViewRef = deps.renderCurrentView;
-    applyIsolateDirectionRef2 = deps.applyIsolateDirection;
-    applyFlaggedReviewDirectionRef2 = deps.applyFlaggedReviewDirection;
+  function initTagsEdit(deps2) {
+    getEntries2 = deps2.getEntries;
+    getEntryByBase2 = deps2.getEntryByBase;
+    getDirHandle4 = deps2.getDirHandle;
+    getDisabledDirHandle = deps2.getDisabledDirHandle;
+    setDisabledDirHandle = deps2.setDisabledDirHandle;
+    getOriginalDirHandle = deps2.getOriginalDirHandle;
+    reindexEntry = deps2.reindexEntry;
+    resetSingleIndex = deps2.resetSingleIndex;
+    refreshStatsRef = deps2.refreshStats;
+    refreshAllUIRef3 = deps2.refreshAllUI;
+    renderCurrentViewRef = deps2.renderCurrentView;
+    applyIsolateDirectionRef2 = deps2.applyIsolateDirection;
+    applyFlaggedReviewDirectionRef2 = deps2.applyFlaggedReviewDirection;
     btnUndo.addEventListener("click", async () => {
       const record = undoStack.pop();
       if (!record) return;
@@ -4958,13 +6478,13 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
   var ensureAllTagsLoadedRef = null;
   var addTagToEntryRef = null;
   var refreshRightPanelsRef = null;
-  function initTagAutocomplete(deps) {
-    ensureWikiDataLoadedRef = deps.ensureWikiDataLoaded;
-    getCustomTagNoteRef = deps.getCustomTagNote;
-    setCustomTagNoteRef = deps.setCustomTagNote;
-    ensureAllTagsLoadedRef = deps.ensureAllTagsLoaded;
-    addTagToEntryRef = deps.addTagToEntry;
-    refreshRightPanelsRef = deps.refreshRightPanels;
+  function initTagAutocomplete(deps2) {
+    ensureWikiDataLoadedRef = deps2.ensureWikiDataLoaded;
+    getCustomTagNoteRef = deps2.getCustomTagNote;
+    setCustomTagNoteRef = deps2.setCustomTagNote;
+    ensureAllTagsLoadedRef = deps2.ensureAllTagsLoaded;
+    addTagToEntryRef = deps2.addTagToEntry;
+    refreshRightPanelsRef = deps2.refreshRightPanels;
   }
   function closeAutocomplete() {
     hideInlineDefinition();
@@ -5403,10 +6923,10 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       toast("Could not reopen that folder \u2014 it may have been moved or deleted.", 3600);
     }
   }
-  function initFavorites(deps) {
-    getDirHandle5 = deps.getDirHandle;
-    openFolderHandle = deps.openFolderHandle;
-    onFavoriteChanged = deps.onFavoriteChanged || (() => {
+  function initFavorites(deps2) {
+    getDirHandle5 = deps2.getDirHandle;
+    openFolderHandle = deps2.openFolderHandle;
+    onFavoriteChanged = deps2.onFavoriteChanged || (() => {
     });
     btnFavorites.addEventListener("click", (ev) => {
       ev.stopPropagation();
@@ -5414,7 +6934,6 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
         hidePanel(favoritesPanel);
         return;
       }
-      hidePanel(themeCustomPanel);
       hidePanel(logPanel);
       hidePanel(achievementsPanel);
       hidePanel(shopPanel);
@@ -6113,7 +7632,6 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
         unlocked = [];
       }
       hidePanel(favoritesPanel);
-      hidePanel(themeCustomPanel);
       hidePanel(logPanel);
       hidePanel(tagDetailsPanel);
       hidePanel(shopPanel);
@@ -6382,10 +7900,10 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
     for (const record of sorted) dmGrid.appendChild(buildFolderTile(record));
     if (viewMode !== "list") dmGrid.appendChild(buildAddTile());
   }
-  function initDatasetManager(deps) {
-    getDirHandle6 = deps.getDirHandle;
-    openFolderHandle2 = deps.openFolderHandle;
-    switchTab = deps.switchTab;
+  function initDatasetManager(deps2) {
+    getDirHandle6 = deps2.getDirHandle;
+    openFolderHandle2 = deps2.openFolderHandle;
+    switchTab = deps2.switchTab;
     loadPrefs();
     loadGroups();
     dmGridBtn.addEventListener("click", () => {
@@ -6723,11 +8241,11 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
       await reload();
     }
   }
-  function initBucketImages(deps) {
-    getDirHandle7 = deps.getDirHandle;
-    getEntries3 = deps.getEntries;
-    reload = deps.reload;
-    saveAllDirty2 = deps.saveAllDirty;
+  function initBucketImages(deps2) {
+    getDirHandle7 = deps2.getDirHandle;
+    getEntries3 = deps2.getEntries;
+    reload = deps2.reload;
+    saveAllDirty2 = deps2.saveAllDirty;
     const saved = getJSON(SETTINGS_KEY, null);
     if (saved && typeof saved.gpu === "boolean") bucketGpu.checked = saved.gpu;
     bucketGpu.addEventListener("change", () => setJSON(SETTINGS_KEY, { gpu: bucketGpu.checked }));
@@ -6885,17 +8403,17 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
   }
   var onStartSequentialRef = () => {
   };
-  function initMasterTagControl(deps) {
-    getEntries4 = deps.getEntries;
-    getEntryByBase3 = deps.getEntryByBase;
-    filteredEntriesRef = deps.filteredEntries;
-    renderCurrentViewRef2 = deps.renderCurrentView;
-    refreshAllUIRef4 = deps.refreshAllUI;
-    getEntryMeta = deps.getEntryMeta;
-    saveEntryMetaRef = deps.saveEntryMeta;
-    deleteEntriesPermanentlyRef = deps.deleteEntriesPermanently;
-    disableEntriesRef = deps.disableEntries;
-    onStartSequentialRef = deps.onStartSequential;
+  function initMasterTagControl(deps2) {
+    getEntries4 = deps2.getEntries;
+    getEntryByBase3 = deps2.getEntryByBase;
+    filteredEntriesRef = deps2.filteredEntries;
+    renderCurrentViewRef2 = deps2.renderCurrentView;
+    refreshAllUIRef4 = deps2.refreshAllUI;
+    getEntryMeta = deps2.getEntryMeta;
+    saveEntryMetaRef = deps2.saveEntryMeta;
+    deleteEntriesPermanentlyRef = deps2.deleteEntriesPermanently;
+    disableEntriesRef = deps2.disableEntries;
+    onStartSequentialRef = deps2.onStartSequential;
     attachIconFallback(btnMasterSelectAll, "\u2611");
     attachIconFallback(btnMasterClearSelection, "\u2716");
     if (!document.documentElement.classList.contains("touch-device")) {
@@ -8289,9 +9807,9 @@ Image: ${entry.imgName}`,
       wd14LocalCatalog.appendChild(row);
     }
   }
-  function initWd14Tagger(deps) {
-    getEntries5 = deps.getEntries;
-    refreshAllUIRef5 = deps.refreshAllUI;
+  function initWd14Tagger(deps2) {
+    getEntries5 = deps2.getEntries;
+    refreshAllUIRef5 = deps2.refreshAllUI;
     loadSettings();
     applySettingsToUI();
     refreshModels(true);
@@ -8480,7 +9998,6 @@ Image: ${entry.imgName}`,
   async function openTagDetails(tag) {
     tagDetailsTitle.textContent = tag;
     tagDetailsBody.innerHTML = '<div class="stats-empty">Loading\u2026</div>';
-    hidePanel(themeCustomPanel);
     hidePanel(favoritesPanel);
     hidePanel(logPanel);
     hidePanel(achievementsPanel);
@@ -9986,10 +11503,10 @@ Image: ${entry.imgName}`,
       if (img.naturalWidth > 0) showImageLightbox(img.src);
     });
   }
-  function initSynthDatOverseer(deps) {
-    getDirHandle8 = deps.getDirHandle;
-    addEntryFromNewFile = deps.addEntryFromNewFile;
-    refreshAllUIRef6 = deps.refreshAllUI;
+  function initSynthDatOverseer(deps2) {
+    getDirHandle8 = deps2.getDirHandle;
+    addEntryFromNewFile = deps2.addEntryFromNewFile;
+    refreshAllUIRef6 = deps2.refreshAllUI;
     loadTemplate();
     fillStaticOptions(synthDatSampler, SAMPLERS, "res_multistep");
     fillStaticOptions(synthDatScheduler, SCHEDULERS, "beta");
@@ -10472,16 +11989,16 @@ Image: ${entry.imgName}`,
     resetSingleIndex2();
     renderCurrentViewRef3();
   }
-  function initTagIndex(deps) {
-    getEntries6 = deps.getEntries;
-    getGalleryFilter = deps.getGalleryFilter;
-    getGallerySortMode = deps.getGallerySortMode;
-    getGallerySortDir = deps.getGallerySortDir;
-    resetSingleIndex2 = deps.resetSingleIndex;
-    renderCurrentViewRef3 = deps.renderCurrentView;
-    refreshFilterModeUI = deps.refreshFilterModeUI;
-    isFilterModeLocked = deps.isFilterModeLocked;
-    markTagReviewedRef = deps.markTagReviewed;
+  function initTagIndex(deps2) {
+    getEntries6 = deps2.getEntries;
+    getGalleryFilter = deps2.getGalleryFilter;
+    getGallerySortMode = deps2.getGallerySortMode;
+    getGallerySortDir = deps2.getGallerySortDir;
+    resetSingleIndex2 = deps2.resetSingleIndex;
+    renderCurrentViewRef3 = deps2.renderCurrentView;
+    refreshFilterModeUI = deps2.refreshFilterModeUI;
+    isFilterModeLocked = deps2.isFilterModeLocked;
+    markTagReviewedRef = deps2.markTagReviewed;
     leftSortDirBtn.addEventListener("click", () => {
       leftSortDir = leftSortDir === "asc" ? "desc" : "asc";
       setIconLabel(leftSortDirBtn, leftSortDir === "asc" ? "\u25B2" : "\u25BC");
@@ -22730,25 +24247,25 @@ Image: ${entry.imgName}`,
   var getRightPanelCollapsedRef = () => false;
   var getHideTagsRef = () => false;
   var seqPanelForcedCollapse = false;
-  function initView(deps) {
-    getEntries7 = deps.getEntries;
-    getEntryByBase4 = deps.getEntryByBase;
-    getDirHandleRef = deps.getDirHandle;
-    addEntryFromNewFileRef = deps.addEntryFromNewFile;
-    getMasterTagModeActive = deps.getMasterTagModeActive;
-    getCardTagSortMode = deps.getCardTagSortMode;
-    getGalleryFilter2 = deps.getGalleryFilter;
-    getIsolatedFlagActive = deps.getIsolatedFlagActive;
-    getShowTagCountBadges = deps.getShowTagCountBadges;
-    getEntryMeta2 = deps.getEntryMeta;
-    saveEntryMetaRef2 = deps.saveEntryMeta;
-    refreshAllUIRef7 = deps.refreshAllUI;
-    setContainsFilterRef = deps.setContainsFilter;
-    setExcludesFilterRef = deps.setExcludesFilter;
-    deleteEntryPermanentlyRef = deps.deleteEntryPermanently;
-    setRightPanelCollapsedRef = deps.setRightPanelCollapsed;
-    getRightPanelCollapsedRef = deps.getRightPanelCollapsed;
-    getHideTagsRef = deps.getHideTags;
+  function initView(deps2) {
+    getEntries7 = deps2.getEntries;
+    getEntryByBase4 = deps2.getEntryByBase;
+    getDirHandleRef = deps2.getDirHandle;
+    addEntryFromNewFileRef = deps2.addEntryFromNewFile;
+    getMasterTagModeActive = deps2.getMasterTagModeActive;
+    getCardTagSortMode = deps2.getCardTagSortMode;
+    getGalleryFilter2 = deps2.getGalleryFilter;
+    getIsolatedFlagActive = deps2.getIsolatedFlagActive;
+    getShowTagCountBadges = deps2.getShowTagCountBadges;
+    getEntryMeta2 = deps2.getEntryMeta;
+    saveEntryMetaRef2 = deps2.saveEntryMeta;
+    refreshAllUIRef7 = deps2.refreshAllUI;
+    setContainsFilterRef = deps2.setContainsFilter;
+    setExcludesFilterRef = deps2.setExcludesFilter;
+    deleteEntryPermanentlyRef = deps2.deleteEntryPermanently;
+    setRightPanelCollapsedRef = deps2.setRightPanelCollapsed;
+    getRightPanelCollapsedRef = deps2.getRightPanelCollapsed;
+    getHideTagsRef = deps2.getHideTags;
     langAutoSelectToggle.addEventListener("change", () => {
       autoSelectNewLanguage = langAutoSelectToggle.checked;
       setBool("dts-lang-autoselect", autoSelectNewLanguage);
@@ -23019,6 +24536,31 @@ Image: ${entry.imgName}`,
     btnOpenCanonicalTagsList.addEventListener("click", () => openDockListModal("Retroactive Merge/Void rules", canonicalTagsList));
     btnOpenMasterMiniGrid.addEventListener("click", () => openDockListModal("Select images", masterMiniGrid));
     btnOpenTagFrequencyList.addEventListener("click", () => openDockListModal("Tags", tagFamilyListArea));
+    initThemeStudio({
+      getOwnedThemes: () => ownedThemes,
+      getRefinedThemes: () => refinedThemes,
+      prepareSnapshot: async () => {
+        if (!tabIsActive("stats") && !preloadedTabs.has("stats")) {
+          renderStatsTab();
+          preloadedTabs.add("stats");
+        }
+        if (!tabIsActive("datasets") && !preloadedTabs.has("datasets")) {
+          await renderDatasetManagerTab();
+          preloadedTabs.add("datasets");
+        }
+      },
+      getWallet: () => wallet,
+      spendEdibits: (n) => {
+        const ok = spendEdibits(n);
+        if (ok) updateRefineThemeButton();
+        return ok;
+      },
+      onSaved: () => {
+        folderStats.theme_customized = true;
+        saveFolderStats();
+        checkAchievements();
+      }
+    });
     const themeDropdownCtrl = initThemeDropdown(themeDropdown);
     themeSelect.addEventListener("change", () => {
       const chosen = themeSelect.value;
@@ -23039,47 +24581,19 @@ Image: ${entry.imgName}`,
       if (!window.__dtsPreThemed) {
         applyTheme(saved);
       } else {
-        document.documentElement.classList.toggle("theme-refined", refinedThemes.includes(saved));
+        document.documentElement.classList.toggle("theme-refined", themeWantsRefinedClass(saved));
         if (saved === "custom") {
-          let hasCustom = false;
-          hasCustom = !!getString("dts-custom-theme");
-          if (!hasCustom) setTimeout(openThemeCustomPanel, 0);
+          if (!getString("dts-custom-theme")) setTimeout(() => {
+            void openThemeStudio();
+          }, 0);
         }
       }
     })();
     btnThemeCustomize.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      if (themeCustomPanel.style.display === "flex") {
-        hidePanel(themeCustomPanel);
-        return;
-      }
-      openThemeCustomPanel();
-    });
-    themeCloseBtn.addEventListener("click", () => hidePanel(themeCustomPanel));
-    themeResetBtn.addEventListener("click", () => {
-      themeVarRows.querySelectorAll('input[type="color"]').forEach((inp) => {
-        const key = inp.dataset.varKey;
-        const hex = STUDIO_DEFAULTS[key] || "#000000";
-        inp.value = hex;
-        document.documentElement.style.setProperty(key, hex);
-      });
-    });
-    themeApplyBtn.addEventListener("click", () => {
-      const custom = {};
-      themeVarRows.querySelectorAll('input[type="color"]').forEach((inp) => {
-        custom[inp.dataset.varKey] = inp.value;
-        document.documentElement.style.setProperty(inp.dataset.varKey, inp.value);
-      });
-      setJSON("dts-custom-theme", custom);
-      document.documentElement.setAttribute("data-theme", "custom");
-      themeSelect.value = "custom";
-      themeDropdownCtrl.refreshLabel();
-      setString("dts-theme", "custom");
-      toast("Custom theme saved.");
-      folderStats.theme_customized = true;
-      saveFolderStats();
-      checkAchievements();
-      hidePanel(themeCustomPanel);
+      personalizationCatFlyout.style.display = "none";
+      personalizationCatFlyout.classList.remove("menu-in");
+      void openThemeStudio();
     });
     btnQuit.addEventListener("click", () => {
       window.close();
@@ -23510,7 +25024,7 @@ Image: ${entry.imgName}`,
         hidePanel(settingsPanel);
         return;
       }
-      [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
+      [favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
       showPanel(settingsPanel);
       const rect = btnSettings.getBoundingClientRect();
       positionMenu(settingsPanel, rect.right - settingsPanel.offsetWidth, rect.bottom + 6);
@@ -24152,7 +25666,7 @@ Image: ${entry.imgName}`,
       resetStickyCompare();
       resetReviewFlagged();
       updateUndoRedoButtons();
-      [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
+      [favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
       await scanDirInto(dirHandle, false);
       try {
         disabledDirHandle = await dirHandle.getDirectoryHandle("Disabled", { create: false });
@@ -24227,7 +25741,7 @@ Image: ${entry.imgName}`,
       resetStickyCompare();
       resetReviewFlagged();
       updateUndoRedoButtons();
-      [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
+      [favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
       dropHint.style.display = "flex";
       dropHintWrap.style.display = "block";
       galleryToolbar.style.display = "none";

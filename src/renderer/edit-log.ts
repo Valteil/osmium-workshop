@@ -2,7 +2,7 @@ import type { EditLogEntry, EditLogAffected, Entry, DirHandle, ChangeRecord } fr
 import { hasSaveFilePicker, pickSaveFile, writeBytes } from './fs-access';
 import {
   btnLog, logPanel, logPanelTitle, logList, btnExportLog, btnClearLog, logCloseBtn,
-  themeCustomPanel, favoritesPanel, achievementsPanel, shopPanel, tagDetailsPanel,
+  favoritesPanel, achievementsPanel, shopPanel, tagDetailsPanel,
   statsChartWrap, statsLegend, statsTotals, statsViewPie, statsViewBar
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal } from './shared-ui';
@@ -478,7 +478,7 @@ export function initEditLog(deps: EditLogDeps): void {
   btnLog.addEventListener('click', (ev: MouseEvent) => {
     ev.stopPropagation();
     if (logPanel.style.display === 'flex') { hidePanel(logPanel); return; }
-    hidePanel(themeCustomPanel); hidePanel(favoritesPanel); hidePanel(achievementsPanel); hidePanel(shopPanel); hidePanel(tagDetailsPanel);
+    hidePanel(favoritesPanel); hidePanel(achievementsPanel); hidePanel(shopPanel); hidePanel(tagDetailsPanel);
     renderLogPanel();
     showPanel(logPanel);
   });

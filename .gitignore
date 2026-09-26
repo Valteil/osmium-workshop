@@ -30,6 +30,7 @@ comfy-bridge/preload.js
 comfy-bridge/comfy-core.js
 comfy-bridge/renderer/app.js
 comfy-bridge/renderer/shared.css
+comfy-bridge/renderer/fonts/
 comfy-bridge/mobile/www/shared.js
 comfy-bridge/mobile/www/shared.css
 comfy-bridge/mobile/www/app.js

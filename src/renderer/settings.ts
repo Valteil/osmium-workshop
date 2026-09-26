@@ -2,7 +2,7 @@ import './global-types';
 import { setString, setJSON } from './storage';
 import { fontSizeSlider, fontSizeVal, settingsPanel } from './dom';
 import {
-  favoritesPanel, themeCustomPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel
+  favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel
 } from './dom';
 
 export function applyAppZoom(factor: number): Promise<void> {
@@ -24,7 +24,7 @@ export function resetAppZoom(): void {
 }
 
 export function getOutsideClosablePanels(): HTMLElement[] {
-  return [favoritesPanel, themeCustomPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel, settingsPanel];
+  return [favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel, settingsPanel];
 }
 
 export const SETTINGS_SECTIONS_KEY = 'dts-settings-sections-expanded';

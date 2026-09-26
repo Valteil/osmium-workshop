@@ -22,6 +22,8 @@ verify at runtime launch the packaged exe as
 captured stderr for "Uncaught" (Electron does not forward renderer console output to the terminal
 by default).
 
+**Theme Studio (Custom theme):** `src/renderer/theme-spec.ts` is the pure spec/compile/validate model (no DOM, no imports) — Comfy Bridge gets a GENERATED copy via `node scripts/sync-theme-spec.js`; never edit the bridge copy. `theme-studio.ts` is the modal; its compiled var map is filtered to `THEME_VARS` + `themes.ts` `CUSTOM_GRAMMAR_KEYS` (the same list `clearCustomOverrides()` clears — a new compiled key must be added there). `--c-*` vars are read only by the `html[data-theme="custom"]` block above `End themes`. Fills/card hovers have a `tier` and cost Edibits once to save (`dts-custom-fx-owned`, `achievements.ts` `spendEdibits`). Full detail: notes/Systems/Themes-System.md.
+
 **Theme CSS system** (`renderer/styles.css`, 26 `html[data-theme="X"]` blocks — 5 free + 21 shop):
 every theme defines the same variable set including `--accent-flair` (a third accent hue beyond
 `--accent-auto`/`--accent-manual`, used for baseline chrome like the active-tab underline so

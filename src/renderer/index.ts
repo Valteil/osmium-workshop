@@ -12,8 +12,8 @@ import {
   tagPrunerList, btnAddTagPruner, toastEl,
   btnOpenTagPrunerList, btnOpenUnifyVoidList, unifyVoidRows, btnOpenCanonicalTagsList, canonicalTagsList, btnOpenMasterMiniGrid,
   btnOpenTagFrequencyList, tagFamilyListArea,
-  themeSelect, themeDropdown, btnThemeCustomize, themeCustomPanel, themeVarRows, themeResetBtn,
-  themeApplyBtn, themeCloseBtn, btnQuit, btnLeftDrawerToggle, btnRightDrawerToggle, btnOverseerDrawerToggle,
+  themeSelect, themeDropdown, btnThemeCustomize,
+  btnQuit, btnLeftDrawerToggle, btnRightDrawerToggle, btnOverseerDrawerToggle,
   drawerBackdrop, leftAside, rightAside,
   topbarActions, fileCatBtn, fileCatFlyout,
   personalizationCatBtn, personalizationCatFlyout, flyoutOutsideCloseToggle,
@@ -41,9 +41,10 @@ import {
 } from './dom';
 import { toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, mapPan, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
 import {
-  PREMIUM_THEMES, STUDIO_DEFAULTS, applyTheme, openThemeCustomPanel, toggleDayNightMode, syncNightModeFromPrePaint,
-  initThemeDropdown, refinedThemes
+  PREMIUM_THEMES, applyTheme, toggleDayNightMode, syncNightModeFromPrePaint,
+  initThemeDropdown, refinedThemes, themeWantsRefinedClass
 } from './themes';
+import { initThemeStudio, openThemeStudio } from './theme-studio';
 import { initDockSystem } from './docks';
 import {
   applyAppZoom, resetAppZoom, getOutsideClosablePanels, saveSettingsSectionState,
@@ -59,7 +60,7 @@ import {
   folderStats, folderUnlocked, wallet, ownedThemes, initAchievements,
   initAchievementPanels, trackStat, saveFolderStats, loadFolderStats, saveWallet,
   loadWallet, checkAchievements, checkVoidThemeAchievements, updateThemeSelectLocks,
-  renderAchievementsPanel, updateRefineThemeButton
+  renderAchievementsPanel, updateRefineThemeButton, spendEdibits
 } from './achievements';
 import { initFavorites } from './favorites';
 import { initDatasetManager, renderDatasetManagerTab, maybePromptAddDataset, syncPinFromFavoriteChange } from './dataset-manager';
@@ -244,6 +245,25 @@ import { setIconLabel } from './icons';
   // clearCustomOverrides/applyTheme/openThemeCustomPanel/hexToHsl/hslToHex/
   // invertLightness/dayNightOn/toggleDayNightMode moved to ./themes.ts
 
+  // Theme Studio (the Custom theme's builder) — registered before the theme
+  // picker so the menu already reads Custom by its saved name.
+  initThemeStudio({
+    getOwnedThemes: () => ownedThemes,
+    getRefinedThemes: () => refinedThemes,
+    prepareSnapshot: async () => {
+      // The preview clones the live DOM; lazily-built tabs would be blank.
+      if (!tabIsActive('stats') && !preloadedTabs.has('stats')){ renderStatsTab(); preloadedTabs.add('stats'); }
+      if (!tabIsActive('datasets') && !preloadedTabs.has('datasets')){ await renderDatasetManagerTab(); preloadedTabs.add('datasets'); }
+    },
+    getWallet: () => wallet,
+    spendEdibits: (n) => { const ok = spendEdibits(n); if (ok) updateRefineThemeButton(); return ok; },
+    onSaved: () => {
+      folderStats.theme_customized = true;
+      saveFolderStats();
+      checkAchievements();
+    },
+  });
+
   const themeDropdownCtrl = initThemeDropdown(themeDropdown);
 
   themeSelect.addEventListener('change', () => {
@@ -276,50 +296,21 @@ import { setIconLabel } from './icons';
       // nothing on this path ever set '.theme-refined' at all, so a
       // refined theme's hover-fill effect silently didn't show up until
       // switching themes (which runs the real applyTheme() and sets it).
-      document.documentElement.classList.toggle('theme-refined', refinedThemes.includes(saved));
+      document.documentElement.classList.toggle('theme-refined', themeWantsRefinedClass(saved));
       if (saved === 'custom'){
         // The pre-paint script applies saved custom colors if there are any,
-        // but doesn't know about the "no custom colors saved yet" first-run
-        // case — that still needs the editor opened, same as applyTheme('custom') would.
-        let hasCustom = false;
-        hasCustom = !!getString('dts-custom-theme');
-        if (!hasCustom) setTimeout(openThemeCustomPanel, 0);
+        // but doesn't know about the "no custom theme saved yet" first-run
+        // case — that still needs the Studio opened, same as applyTheme('custom') would.
+        if (!getString('dts-custom-theme')) setTimeout(() => { void openThemeStudio(); }, 0);
       }
     }
   })();
 
   btnThemeCustomize.addEventListener('click', (ev) => {
     ev.stopPropagation();
-    if (themeCustomPanel.style.display === 'flex'){ hidePanel(themeCustomPanel); return; }
-    openThemeCustomPanel();
-  });
-  themeCloseBtn.addEventListener('click', () => hidePanel(themeCustomPanel));
-
-  themeResetBtn.addEventListener('click', () => {
-    themeVarRows.querySelectorAll<HTMLInputElement>('input[type="color"]').forEach(inp => {
-      const key = inp.dataset.varKey!;
-      const hex = (STUDIO_DEFAULTS as Record<string, string>)[key] || '#000000';
-      inp.value = hex;
-      document.documentElement.style.setProperty(key, hex);
-    });
-  });
-
-  themeApplyBtn.addEventListener('click', () => {
-    const custom: Record<string, string> = {};
-    themeVarRows.querySelectorAll<HTMLInputElement>('input[type="color"]').forEach(inp => {
-      custom[inp.dataset.varKey!] = inp.value;
-      document.documentElement.style.setProperty(inp.dataset.varKey!, inp.value);
-    });
-    setJSON('dts-custom-theme', custom);
-    document.documentElement.setAttribute('data-theme', 'custom');
-    themeSelect.value = 'custom';
-    themeDropdownCtrl.refreshLabel();
-    setString('dts-theme', 'custom');
-    toast('Custom theme saved.');
-    folderStats.theme_customized = true;
-    saveFolderStats();
-    checkAchievements();
-    hidePanel(themeCustomPanel);
+    personalizationCatFlyout.style.display = 'none';
+    personalizationCatFlyout.classList.remove('menu-in');
+    void openThemeStudio();
   });
 
   // ---------------- Quit ----------------
@@ -982,7 +973,7 @@ import { setIconLabel } from './icons';
   btnSettings.addEventListener('click', (ev) => {
     ev.stopPropagation();
     if (settingsPanel.style.display === 'flex'){ hidePanel(settingsPanel); return; }
-    [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
+    [favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
     // Anchored directly below the button that opened it (not centered — see
     // styles.css's #settingsPanel override of .log-panel's centering) using
     // the same viewport-clamped positioning every dropdown/context-menu in
@@ -1789,7 +1780,7 @@ import { setIconLabel } from './icons';
     resetStickyCompare();
     resetReviewFlagged();
     updateUndoRedoButtons();
-    [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
+    [favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
 
     await scanDirInto(dirHandle, false);
 
@@ -1900,7 +1891,7 @@ import { setIconLabel } from './icons';
     resetStickyCompare();
     resetReviewFlagged();
     updateUndoRedoButtons();
-    [themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
+    [favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel].forEach(hidePanel);
 
     dropHint.style.display = 'flex';
     dropHintWrap.style.display = 'block';

@@ -1,10 +1,7 @@
 import type { ThemeName } from './types';
 import { getJSON, setJSON, setString, setBool } from './storage';
-import {
-  favoritesPanel, logPanel, achievementsPanel, shopPanel, tagDetailsPanel,
-  themeVarRows, themeCustomPanel, themeSelect
-} from './dom';
-import { hidePanel, showPanel, toast, shrinkTextToFit, refitShrunkText } from './shared-ui';
+import { themeSelect } from './dom';
+import { toast, shrinkTextToFit, refitShrunkText } from './shared-ui';
 import { setIconLabel } from './icons';
 
 export const THEME_VARS = [
@@ -77,9 +74,53 @@ export function getCurrentVarHex(key: string): string {
   return toHex6(raw || '#000000');
 }
 
+// Every non-color var Theme Studio (theme-studio.ts compileSpec) may write
+// inline on <html> for the Custom theme. compileSpec filters its output to
+// this list, so clearing it is guaranteed to clear everything it set. The
+// `--c-*` vars are read only by the `html[data-theme="custom"]` rules in
+// styles.css; the rest are the shared element grammar every theme sets.
+export const CUSTOM_GRAMMAR_KEYS = [
+  '--sans', '--mono', '--display', '--head-font', '--tab-font',
+  '--brand-size', '--brand-weight', '--brand-track', '--brand-case',
+  '--tab-track', '--tab-case', '--head-track', '--head-case',
+  '--btn-weight', '--btn-track', '--btn-case',
+  '--r-ctl', '--r-chip', '--r-card', '--r-panel', '--r-check', '--r-scroll', '--card-shadow',
+  '--icon-stroke', '--icon-cap', '--icon-join',
+  '--fx-fill', '--fx-o', '--fx-top', '--fx-h', '--fx-w', '--fx-card-t', '--fx-card-s',
+  '--mat', '--c-ground', '--c-pad-bg', '--c-pad-shadow',
+  '--c-tab-bg', '--c-tab-fg', '--c-tab-line', '--c-tab-shadow', '--c-tab-r',
+  '--c-top-border', '--c-top-bimg',
+  '--c-pri-bg', '--c-pri-fg', '--c-pri-bd', '--c-pri-hover',
+  '--c-fx-on'
+];
+
 export function clearCustomOverrides(): void {
-  for (const [key] of THEME_VARS) document.documentElement.style.removeProperty(key);
+  const st = document.documentElement.style;
+  for (const [key] of THEME_VARS) st.removeProperty(key);
+  for (const key of CUSTOM_GRAMMAR_KEYS) st.removeProperty(key);
 }
+
+// The Custom theme's saved, compiled var map (Theme Studio writes it; the
+// pre-paint script in index.html reads the same key).
+export function savedCustomVars(): Record<string, string> | null {
+  return getJSON<Record<string, string> | null>('dts-custom-theme', null);
+}
+
+// `.theme-refined` switches on the premium button hover-fill + card lift.
+// Refine Theme (shop) grants it per theme; Custom instead gets it whenever
+// its Theme Studio build picked a fill or card-hover effect.
+export function themeWantsRefinedClass(theme: string): boolean {
+  if (theme === 'custom'){
+    const saved = savedCustomVars();
+    return !!saved && saved['--c-fx-on'] === '1';
+  }
+  return refinedThemes.includes(theme);
+}
+
+// Called when Custom is picked with nothing saved yet (theme-studio.ts
+// registers the Studio opener here; importing it would be circular).
+let firstCustomHandler: (() => void) | null = null;
+export function setFirstCustomHandler(fn: () => void): void { firstCustomHandler = fn; }
 
 export let dayNightOn = false;
 
@@ -101,15 +142,16 @@ export function applyTheme(theme: string): void {
     setBool('dts-night-mode', false);
   }
   if (theme === 'custom'){
+    clearCustomOverrides();
     document.documentElement.setAttribute('data-theme', 'custom');
-    const saved = getJSON<Record<string, string> | null>('dts-custom-theme', null);
+    const saved = savedCustomVars();
     if (saved){
-      for (const [key] of THEME_VARS){
-        if (saved[key]) document.documentElement.style.setProperty(key, saved[key]);
+      for (const [key, value] of Object.entries(saved)){
+        if (value && key.startsWith('--')) document.documentElement.style.setProperty(key, value);
       }
-    } else {
-      // first time picking "Custom" with nothing saved — open the editor to set it up
-      setTimeout(openThemeCustomPanel, 0);
+    } else if (firstCustomHandler){
+      // first time picking "Custom" with nothing saved — open the Studio to set it up
+      setTimeout(firstCustomHandler, 0);
     }
   } else {
     clearCustomOverrides();
@@ -120,7 +162,7 @@ export function applyTheme(theme: string): void {
   // 6th/7th/etc. theme name into the CSS selectors that already list
   // amethyst/solarflare/twilight-garden/aurora-borealis/celestial-gold —
   // this generic class is ORed in alongside those five in styles.css.
-  document.documentElement.classList.toggle('theme-refined', refinedThemes.includes(theme));
+  document.documentElement.classList.toggle('theme-refined', themeWantsRefinedClass(theme));
   setString('dts-theme', theme);
   // Each theme brings its own faces — dropdown labels fitted to the old
   // theme's metrics must be re-measured (a not-yet-loaded face re-fits again
@@ -137,6 +179,7 @@ export function saveRefinedThemes(): void {
 // A theme already at epic/legendary rarity (or already individually
 // refined) has these effects for free — Refine Theme has nothing to sell it.
 export function themeAlreadyHasPremiumEffects(themeId: string): boolean {
+  if (themeId === 'custom') return true; // Theme Studio picks Custom's effects directly
   const premium = PREMIUM_THEMES.find(t => t.id === themeId);
   const rarity = premium ? premium.rarity : 'free';
   return rarity === 'epic' || rarity === 'legendary' || refinedThemes.includes(themeId);
@@ -162,33 +205,6 @@ export function markThemeRefined(themeId: string): void {
   if (!refinedThemes.includes(themeId)) refinedThemes.push(themeId);
   saveRefinedThemes();
   document.documentElement.classList.add('theme-refined');
-}
-
-export function openThemeCustomPanel(): void {
-  hidePanel(favoritesPanel);
-  hidePanel(logPanel);
-  hidePanel(achievementsPanel);
-  hidePanel(shopPanel);
-  hidePanel(tagDetailsPanel);
-  themeVarRows.innerHTML = '';
-  for (const [key, label] of THEME_VARS){
-    const row = document.createElement('div');
-    row.className = 'theme-var-row';
-    const lbl = document.createElement('span');
-    lbl.className = 'lbl';
-    lbl.textContent = label;
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.value = getCurrentVarHex(key);
-    input.dataset.varKey = key;
-    input.addEventListener('input', () => {
-      document.documentElement.style.setProperty(key, input.value);
-    });
-    row.appendChild(lbl);
-    row.appendChild(input);
-    themeVarRows.appendChild(row);
-  }
-  showPanel(themeCustomPanel);
 }
 
 // The theme picker used to be a bare native <select>. Native <select>

@@ -414,6 +414,18 @@ Epic/legendary themes get an extra
 hover-fill button effect and card lift, drawn in that theme's own style; any cheaper theme can
 buy them individually via the Shop's **🔨 Refine Theme** button for the price difference.
 
+**🎨 Theme Studio** (Personalization ▸ Theme Studio) builds your own **Custom** theme. It opens
+as a full-screen editor. On the left you set its colors (with a contrast readout on text), fonts
+(any bundled face, per role: interface, brand, panel titles, tabs, tags), button/tag/card/panel/
+checkbox shapes, icon stroke, button hover-fill and card hover, card depth, dock pads, gallery
+ground, image mat, active-tab marker, top-bar edge and primary-button style. On the right is a
+live miniature of the app; switch which tab it shows with the buttons under it, and hover it to
+try the effects. **Start from** copies any theme you own as a preset, and **Import / Export**
+saves themes as `.theme.json` files you can share (Comfy Bridge's Theme Studio reads the same
+files). Hover-fills and card hovers belong to the epic/legendary tier: preview them free, and
+keeping one costs that tier's theme price in Edibits, once (effects copied from a theme you
+already own are free).
+
 **🏆 Achievements** (55+, unlocked per-dataset-folder — a fresh dataset starts with none unlocked)
 pay out Edibits. Use them to unlock Shop themes by using the app. **🌙 Night mode** is a genuine
 per-theme color inversion: it flips each color's lightness, then darkens or lightens any text or

@@ -2,7 +2,7 @@ import type { FolderStats } from './types';
 import { getJSON, setJSON } from './storage';
 import {
   tagDetailsTitle, tagDetailsBody, tagDetailsCloseBtn, tagDetailsPanel,
-  themeCustomPanel, favoritesPanel, logPanel, achievementsPanel, shopPanel
+  favoritesPanel, logPanel, achievementsPanel, shopPanel
 } from './dom';
 import { toast, showPanel, hidePanel } from './shared-ui';
 import { folderStats, saveFolderStats, checkAchievements } from './achievements';
@@ -80,7 +80,7 @@ export function setCustomTagNote(tag: string, text: string): void {
 export async function openTagDetails(tag: string): Promise<void> {
   tagDetailsTitle.textContent = tag;
   tagDetailsBody.innerHTML = '<div class="stats-empty">Loading…</div>';
-  hidePanel(themeCustomPanel); hidePanel(favoritesPanel); hidePanel(logPanel); hidePanel(achievementsPanel); hidePanel(shopPanel);
+  hidePanel(favoritesPanel); hidePanel(logPanel); hidePanel(achievementsPanel); hidePanel(shopPanel);
   showPanel(tagDetailsPanel);
 
   folderStats.tag_details_opened = (folderStats.tag_details_opened || 0) + 1;
