@@ -20,7 +20,7 @@ import { trackStat, checkAchievements, folderStats, saveFolderStats } from './ac
 import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially } from './tags-edit';
 import { openTagDetails } from './tag-details';
 import { attachTagAutocomplete, closeAutocomplete } from './tags-autocomplete';
-import { buildTagIndex, refreshStats, filteredEntries } from './tag-index';
+import { buildTagIndex, refreshStats, filteredEntries, passesFilter } from './tag-index';
 import { categorizeTag, groupTagsByCategory, TAG_CATEGORY_ORDER, TAG_CATEGORY_LABELS } from './tag-categories';
 import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid } from './master-tag-control';
 import { renderTagPruners } from './tag-pruner';
@@ -301,10 +301,22 @@ function restoreAnchor(hoster: HTMLElement, scroller: HTMLElement | null, anchor
 function patchGridCard(e: Entry): void {
   if (viewMode === 'compact'){
     const old = compactGrid.querySelector(`.compact-card[data-base="${CSS.escape(e.base)}"]`);
+    if (old && !passesFilter(e)){ old.remove(); updateFilterMatchCount(); return; }
     if (old){ old.replaceWith(buildCompactCard(e)); return; }
   }
-  const old = galleryGrid.querySelector(`.card[data-base="${CSS.escape(e.base)}"]`);
+  const old = galleryGrid.querySelector<HTMLElement>(`.card[data-base="${CSS.escape(e.base)}"]`);
   if (!old){ renderCurrentView(); return; }
+  // An edit can take an image out of the current filter (a NOT/AND/OR term,
+  // Untagged, an exclude) — drop its card now instead of leaving it until
+  // the next search. A short fade so it doesn't just vanish from under the
+  // pointer.
+  if (!passesFilter(e)){
+    updateFilterMatchCount();
+    if (document.documentElement.classList.contains('motion-off')){ old.remove(); return; }
+    old.classList.add('card-leaving');
+    setTimeout(() => old.remove(), 160);
+    return;
+  }
   old.replaceWith(buildCard(e, buildTagIndex()));
   updateFilterMatchCount();
 }
@@ -1925,6 +1937,11 @@ function orderedTagsForDisplay(entry: Entry, tagIndex: TagIndex): string[] {
     }
     tags = matched.concat(isolated, rest);
   }
+  // Default: the same order Tag Sorting shows (Character, Body, Face, …,
+  // Other; search matches still first within their category), just without
+  // the headers — so a tag lands in its place the moment it's added.
+  // 'added' keeps plain insertion order; alphabetical/frequency stay pure.
+  if (cardTagSortMode === 'default') tags = groupTagsByCategory(tags).flatMap(g => g.tags);
   return tags;
 }
 

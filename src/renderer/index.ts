@@ -2034,7 +2034,8 @@ import { setIconLabel } from './icons';
 
   buildPersistentDropdown(cardTagSortDropdown,
     [
-      { value: 'default', label: 'Default order' },
+      { value: 'default', label: 'By category' },
+      { value: 'added', label: 'Order added' },
       { value: 'alphabetical', label: 'Alphabetical' },
       { value: 'frequency', label: 'By frequency' }
     ],

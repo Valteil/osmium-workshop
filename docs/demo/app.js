@@ -4000,7 +4000,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       press Enter to add one, or ${isTouchDevice ? "tap" : "click"} a chip's \xD7 to remove it.</p>
       <p><b>\u{1F3F7} Tag sorting</b> \u2014 in ${isTouchDevice ? "the image modal" : "Single view and the image modal"}, this pill above
       the tags groups them into labelled categories (Character, Body, Face, Clothes, Limbs and
-      Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. The grouping is a best
+      Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. With it off, tags still
+      follow that category order, just without headings (Settings \u25B8 "Sort tags within each card"
+      offers Order added, Alphabetical or By frequency instead). The grouping is a best
       guess from Danbooru tag groups, so the odd tag lands in a neighbouring category. With it on,
       <b>\uFF0B Add subject</b> (next to the pill) splits an image's tags into named subjects (e.g.
       "Girl 1", "Girl 2") for multi-character images: rename a subject by typing in its name,
@@ -21872,6 +21874,11 @@ Image: ${entry.imgName}`,
   function patchGridCard(e) {
     if (viewMode2 === "compact") {
       const old2 = compactGrid.querySelector(`.compact-card[data-base="${CSS.escape(e.base)}"]`);
+      if (old2 && !passesFilter(e)) {
+        old2.remove();
+        updateFilterMatchCount();
+        return;
+      }
       if (old2) {
         old2.replaceWith(buildCompactCard(e));
         return;
@@ -21880,6 +21887,16 @@ Image: ${entry.imgName}`,
     const old = galleryGrid.querySelector(`.card[data-base="${CSS.escape(e.base)}"]`);
     if (!old) {
       renderCurrentView();
+      return;
+    }
+    if (!passesFilter(e)) {
+      updateFilterMatchCount();
+      if (document.documentElement.classList.contains("motion-off")) {
+        old.remove();
+        return;
+      }
+      old.classList.add("card-leaving");
+      setTimeout(() => old.remove(), 160);
       return;
     }
     old.replaceWith(buildCard(e, buildTagIndex()));
@@ -23332,6 +23349,7 @@ Image: ${entry.imgName}`,
       }
       tags = matched.concat(isolated, rest);
     }
+    if (cardTagSortMode === "default") tags = groupTagsByCategory(tags).flatMap((g) => g.tags);
     return tags;
   }
   function tagDisplayFlags(tag, tagIndex) {
@@ -26325,7 +26343,8 @@ Image: ${entry.imgName}`,
     buildPersistentDropdown(
       cardTagSortDropdown,
       [
-        { value: "default", label: "Default order" },
+        { value: "default", label: "By category" },
+        { value: "added", label: "Order added" },
         { value: "alphabetical", label: "Alphabetical" },
         { value: "frequency", label: "By frequency" }
       ],

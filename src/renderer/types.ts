@@ -93,7 +93,8 @@ export interface GalleryFilter {
 export type GallerySortMode = 'filename' | 'tagcount' | 'resolution' | 'dirty' | 'dateadded' | 'newest' | 'oldest' | 'random' | 'modified';
 export type GallerySortDir = 'asc' | 'desc';
 export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
-export type CardTagSortMode = 'default' | 'alphabetical' | 'frequency';
+// 'default' = category order (Tag Sorting's grouping, minus the headers); 'added' = insertion order.
+export type CardTagSortMode = 'default' | 'added' | 'alphabetical' | 'frequency';
 export type LeftSortMode = 'family' | 'alpha' | 'count' | 'alphabetical' | 'frequency';
 export type LeftSortDir = 'asc' | 'desc';
 

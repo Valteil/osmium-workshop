@@ -2791,6 +2791,14 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     padding: 5px 7px; line-height: 1.4; max-height: 54px; overflow-y: auto;
   }
   .card.flagged{ box-shadow: inset 0 0 0 2px var(--card-flag-color, transparent); }
+  /* An edit took this image out of the current filter (view.ts
+     patchGridCard): it fades out over 150ms before the card is removed, so
+     it doesn't blink out from under the pointer. Reduced motion: fade only. */
+  .card.card-leaving{
+    opacity: 0; transform: scale(0.97); pointer-events: none;
+    transition: opacity 150ms ease-out, transform 150ms var(--swipe-ease);
+  }
+  @media (prefers-reduced-motion: reduce){ .card.card-leaving{ transform: none; } }
 
   .lang-common-chip{
     display: inline-flex; align-items: center; gap: 5px; background: var(--bg-elevated);

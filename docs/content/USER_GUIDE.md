@@ -92,7 +92,10 @@ and press Enter to add a new one. Click the × on a chip to remove it.
 
 **🏷 Tag sorting:** in Single view and the image modal, this pill above the tags groups them into
 labelled categories — Character, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene,
-Effects, Other — instead of one flat wall (grid cards stay flat). The grouping is a best guess
+Effects, Other — instead of one flat wall (grid cards stay flat). Even with it off, tags are listed
+in that same category order by default, just without the headings, and a newly added tag drops
+straight into its place. Settings ▸ "Sort tags within each card" switches to Order added,
+Alphabetical or By frequency instead. The grouping is a best guess
 from Danbooru tag groups, so the odd tag lands in a neighbouring category. The setting is
 remembered. With it on, **＋ Add subject** (next to the pill) splits an image's tags into named
 subjects for multi-character images: rename a subject by typing in its name, add category
