@@ -4164,6 +4164,16 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: var(--mat), var(--bg-base); border-radius: 8px; border: 1px solid var(--border-soft);
   }
   .single-img-side img{ max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 4px; }
+  /* The image modal zooms/pans this img with a CSS transform over the
+     patterned --mat. Painted in the same layer, Chromium's GPU raster left
+     stale seams of the image's old edges on the mat after zooming out (they
+     vanished only when the image was dragged back over them). Its own
+     compositor layer means moving it never repaints the mat at all, and
+     paint containment keeps any invalidation inside the frame. Promoted via
+     backface-visibility rather than will-change:transform: will-change
+     freezes the layer's raster scale, so a zoomed-in image would go soft. */
+  .single-img-side{ contain: paint; }
+  .single-img-side img{ backface-visibility: hidden; }
   /* Normal Single view's image: a small static preview (click opens the
      fullscreen lightbox). Same dark frame + centered fit as the old big side,
      just constrained so the tag panel gets the space instead. */
