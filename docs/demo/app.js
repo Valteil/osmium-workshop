@@ -23957,7 +23957,7 @@ Image: ${entry.imgName}`,
       const stateText = state === null ? "Not indicated" : state ? "Yes" : "No";
       const badge = document.createElement("span");
       badge.className = "modal-status-badge";
-      badge.textContent = `${emoji} ${label}: ${stateText}`;
+      badge.innerHTML = `${statusTopicIcon(emoji)}${statusStateIcon(state)}<span>${escapeHtml(label)}: ${stateText}</span>`;
       badge.title = matchedTags.length ? matchedTags.join(", ") : "";
       statusRow.appendChild(badge);
     }
@@ -24214,15 +24214,21 @@ Image: ${entry.imgName}`,
     }
     return wrap;
   }
+  function statusTopicIcon(emoji) {
+    const id = emoji.startsWith("\u{1F441}") ? "eye" : emoji.startsWith("\u{1F5E8}") ? "message" : "compass";
+    return iconSvg(id, "status-topic");
+  }
+  function statusStateIcon(state) {
+    return state === null ? iconSvg("help", "status-state status-unknown") : state ? iconSvg("check-circle", "status-state status-yes") : iconSvg("x-circle", "status-state status-no");
+  }
   function buildStatusIconsEl(e) {
     const wrap = document.createElement("div");
     wrap.className = "card-status-icons";
     for (const { emoji, state, label, matchedTags } of getEntryStatusIndicators(e)) {
-      const glyph = state === null ? "\u2753" : state ? "\u2705" : "\u274C";
       const statusText = state === null ? "Not indicated" : state ? "Yes" : "No";
       const badge = document.createElement("div");
       badge.className = "status-icon-badge";
-      setIconLabel(badge, `${emoji}${glyph}`);
+      badge.innerHTML = statusTopicIcon(emoji) + statusStateIcon(state);
       badge.title = `${label}: ${statusText}` + (matchedTags.length ? `: ${matchedTags.join(", ")}` : "");
       wrap.appendChild(badge);
     }

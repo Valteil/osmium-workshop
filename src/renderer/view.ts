@@ -2550,7 +2550,10 @@ function renderImageCardModal(entry: Entry): void {
     const stateText = state === null ? 'Not indicated' : (state ? 'Yes' : 'No');
     const badge = document.createElement('span');
     badge.className = 'modal-status-badge';
-    badge.textContent = `${emoji} ${label}: ${stateText}`;
+    // Through the icon sprite like everything else (a bare textContent here
+    // left these the last emoji in the modal), plus the same colored state
+    // mark the grid cards carry.
+    badge.innerHTML = `${statusTopicIcon(emoji)}${statusStateIcon(state)}<span>${escapeHtml(label)}: ${stateText}</span>`;
     badge.title = matchedTags.length ? matchedTags.join(', ') : '';
     statusRow.appendChild(badge);
   }
@@ -2857,15 +2860,27 @@ function buildMergeVoidBadgesEl(e: Entry): HTMLElement | null {
   return wrap;
 }
 
+// Status marks: the topic icon (eye / speech / compass) plus a state mark
+// colored by meaning — green check for yes, red cross for no, amber
+// question for not indicated. They were all plain white, which made the
+// check and cross hard to tell apart at card size.
+function statusTopicIcon(emoji: string): string {
+  const id = emoji.startsWith('👁') ? 'eye' : emoji.startsWith('🗨') ? 'message' : 'compass';
+  return iconSvg(id, 'status-topic');
+}
+function statusStateIcon(state: boolean | null): string {
+  return state === null ? iconSvg('help', 'status-state status-unknown')
+    : state ? iconSvg('check-circle', 'status-state status-yes') : iconSvg('x-circle', 'status-state status-no');
+}
+
 function buildStatusIconsEl(e: Entry): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'card-status-icons';
   for (const { emoji, state, label, matchedTags } of getEntryStatusIndicators(e)){
-    const glyph = state === null ? '❓' : (state ? '✅' : '❌');
     const statusText = state === null ? 'Not indicated' : (state ? 'Yes' : 'No');
     const badge = document.createElement('div');
     badge.className = 'status-icon-badge';
-    setIconLabel(badge, `${emoji}${glyph}`);
+    badge.innerHTML = statusTopicIcon(emoji) + statusStateIcon(state);
     badge.title = `${label}: ${statusText}` + (matchedTags.length ? `: ${matchedTags.join(', ')}` : '');
     wrap.appendChild(badge);
   }

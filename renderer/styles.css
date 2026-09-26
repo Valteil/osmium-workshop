@@ -2766,10 +2766,26 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .modal-status-row{
     display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0;
   }
+  /* State marks (view.ts statusStateIcon): check = yes, cross = no,
+     question = not indicated. On cards they sit on the black photo scrim, so
+     they use fixed bright colors (a photo scrim is deliberately literal,
+     like the scrim itself); in the modal they sit on the theme's surface and
+     use its own success/danger/auto accents. */
+  .status-icon-badge .ic{ width: 15px; height: 15px; }
+  .status-icon-badge .status-yes{ color: #5fd38a; }
+  .status-icon-badge .status-no{ color: #ff6b6b; }
+  .status-icon-badge .status-unknown{ color: #ffc44d; }
   .modal-status-badge{
-    font-size: 11px; color: var(--text-secondary); background: var(--bg-elevated);
-    border: 1px solid var(--border-soft); border-radius: 11px; padding: 3px 8px;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; color: var(--text-muted); background: var(--bg-elevated);
+    border: 1px solid var(--border-soft); border-radius: 11px; padding: 3px 9px 3px 7px;
   }
+  .modal-status-badge .ic{ width: 13px; height: 13px; }
+  .modal-status-badge .status-topic{ color: var(--text-muted); }
+  .modal-status-badge .status-state{ margin-left: -2px; }
+  .modal-status-badge .status-yes{ color: var(--accent-success); }
+  .modal-status-badge .status-no{ color: var(--accent-danger); }
+  .modal-status-badge .status-unknown{ color: var(--accent-auto); }
   .card-note-visible{
     font-size: 10.5px; color: var(--text-muted); background: var(--bg-base); border-radius: 4px;
     padding: 5px 7px; line-height: 1.4; max-height: 54px; overflow-y: auto;
