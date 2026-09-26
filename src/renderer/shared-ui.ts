@@ -369,6 +369,47 @@ export function showImageLightbox(src: string, onZoom?: (pct: number) => void): 
 // swipe drivers used to hardcode 100ms against a 110ms --tab-dur, and would
 // have missed --swipe-dur entirely. Falls back to 160ms if unparseable;
 // returns 0 under html.motion-off, where the transition vars are zeroed.
+// A purely visual "this row scrolls" hint for a horizontal scroller on touch.
+// The native scrollbar is hidden (`.scroll-hinted`, styles.css): on Android
+// WebView it's a real control — a tap on its track jump-scrolls the row — and
+// `pointer-events` has no effect on scrollbar pseudo-elements. This draws a
+// thin thumb instead that never receives input (pointer-events:none). The
+// track sits at the scroller's bottom edge and is shifted by scrollLeft each
+// frame so it stays put while the content moves under it.
+export function attachScrollHint(scroller: HTMLElement): void {
+  scroller.classList.add('scroll-hinted');
+  const track = document.createElement('div');
+  track.className = 'scroll-hint';
+  track.setAttribute('aria-hidden', 'true');
+  const thumb = document.createElement('div');
+  thumb.className = 'scroll-hint-thumb';
+  track.appendChild(thumb);
+  scroller.appendChild(track);
+  let queued = false;
+  const update = (): void => {
+    queued = false;
+    const { scrollLeft, scrollWidth, clientWidth } = scroller;
+    const overflow = scrollWidth - clientWidth;
+    track.hidden = overflow <= 1;
+    if (track.hidden) return;
+    const w = Math.max(24, clientWidth * (clientWidth / scrollWidth));
+    track.style.width = clientWidth + 'px';
+    track.style.transform = `translateX(${scrollLeft}px)`;
+    thumb.style.width = w + 'px';
+    thumb.style.transform = `translateX(${(clientWidth - w) * (scrollLeft / overflow)}px)`;
+  };
+  const schedule = (): void => { if (!queued){ queued = true; requestAnimationFrame(update); } };
+  scroller.addEventListener('scroll', schedule, { passive: true });
+  new ResizeObserver(schedule).observe(scroller);
+  // Buttons shown/hidden inside the row change scrollWidth without resizing
+  // the scroller itself. The hint's own style writes are ignored, or it
+  // would re-trigger itself every frame.
+  new MutationObserver((recs) => {
+    if (recs.some(r => r.target !== track && r.target !== thumb)) schedule();
+  }).observe(scroller, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+  schedule();
+}
+
 export function transitionMsOf(el: HTMLElement): number {
   const raw = getComputedStyle(el).transitionDuration.split(',')[0].trim();
   const n = parseFloat(raw);

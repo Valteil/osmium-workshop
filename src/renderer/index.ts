@@ -39,7 +39,7 @@ import {
   singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle,
   settingsPanel, fontSizeSlider, fontSizeVal
 } from './dom';
-import { toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, mapPan, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
+import { attachScrollHint, toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, mapPan, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
 import {
   PREMIUM_THEMES, applyTheme, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes, themeWantsRefinedClass
@@ -111,6 +111,13 @@ import { setIconLabel } from './icons';
   let isTouchDevice = false;
   try { isTouchDevice = matchMedia('(hover: none) and (pointer: coarse)').matches; } catch(e){}
   document.documentElement.classList.toggle('touch-device', isTouchDevice);
+  // Touch: the topbar row and tab bar scroll sideways on a phone; show a
+  // non-interactive position hint instead of the native (tappable) bar.
+  if (isTouchDevice){
+    attachScrollHint(topbarActions);
+    const tabBarEl0 = document.getElementById('tabBar');
+    if (tabBarEl0) attachScrollHint(tabBarEl0);
+  }
 
   // ---------------- State ----------------
   let dirHandle: DirHandle | null = null;
@@ -207,14 +214,21 @@ import { setIconLabel } from './icons';
     (which === 'left' ? leftAside : rightAside).classList.add('drawer-open');
     drawerBackdrop.classList.add('drawer-visible');
   }
+  // Both sheets live in the Gallery shell (#galleryTab). From Datasets/Stats/
+  // SynthDat that shell is display:none, so opening a sheet there only showed
+  // the backdrop — go to Gallery first, the way the 🔭 button already does.
+  const offShell = () => !tabIsActive('gallery') && !tabIsActive('master');
   btnLeftDrawerToggle.addEventListener('click', () => {
     if (leftAside.classList.contains('drawer-open')) closeDrawers();
-    else openDrawer('left');
+    else {
+      if (offShell()) switchTab('gallery', { skipDrawerSync: true });
+      openDrawer('left');
+    }
   });
   btnRightDrawerToggle.addEventListener('click', () => {
     if (rightAside.classList.contains('drawer-open') && !masterTagModeActive) closeDrawers();
     else {
-      if (masterTagModeActive) switchTab('gallery', { skipDrawerSync: true });
+      if (masterTagModeActive || offShell()) switchTab('gallery', { skipDrawerSync: true });
       openDrawer('right');
     }
   });

@@ -2260,8 +2260,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .stats-view-toggle{ display: flex; gap: 6px; }
   .stats-view-toggle button.active{ background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual); }
   .stats-body{ display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap; }
-  .stats-chart-wrap{ flex-shrink: 0; }
-  .stats-legend{ display: flex; flex-direction: column; gap: 8px; min-width: 260px; }
+  /* max-width/min() rather than a hard flex-shrink:0 + 260px: at phone width
+     the chart (and its empty state, which sized to its unwrapped sentence)
+     outgrew the tab and made the whole Stats tab scroll sideways. */
+  .stats-chart-wrap{ flex-shrink: 0; max-width: 100%; min-width: 0; }
+  .stats-chart-wrap svg, .stats-chart-wrap canvas{ max-width: 100%; height: auto; }
+  .stats-legend{ display: flex; flex-direction: column; gap: 8px; min-width: min(260px, 100%); }
+  .stats-header{ flex-wrap: wrap; gap: 10px; }
   .stats-legend-row{ display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
   .stats-legend-swatch{ width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
   .stats-legend-label{ flex: 1; color: var(--text-primary); }
@@ -4692,12 +4697,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
        row's own content untouched (that's independent of the scrollbar UI
        on touch). Also brightened — the previous border-strong-based color
        read as barely visible against this dark background. */
-    #topbar .actions, #tabBar{ scrollbar-width: thin; scrollbar-color: var(--text-muted) transparent; }
-    #topbar .actions::-webkit-scrollbar, #tabBar::-webkit-scrollbar{ height: 5px; pointer-events: none; }
-    #topbar .actions::-webkit-scrollbar-thumb, #tabBar::-webkit-scrollbar-thumb{
-      background: var(--text-muted); border-radius: 3px; pointer-events: none;
-    }
-    #topbar .actions::-webkit-scrollbar-track, #tabBar::-webkit-scrollbar-track{ pointer-events: none; background: transparent; }
+    /* 2026-09-27: neither of those worked — pointer-events has no effect on
+       scrollbar pseudo-elements, and with scrollbar-width/-color set current
+       Chromium ignores ::-webkit-scrollbar styling altogether, so the native
+       bar stayed a real control (tap its track, the row jump-scrolls). On
+       touch, attachScrollHint() (shared-ui.ts, wired in index.ts) hides the
+       native bar (.scroll-hinted) and draws .scroll-hint instead: a thin
+       thumb with pointer-events:none that only shows position. */
     /* File stays first (expected/familiar), then the three Dock Panel
        switcher buttons right after it — without this they're real but
        effectively undiscoverable, since .brand-block + #btnHelp alone
@@ -5303,6 +5309,7 @@ html.touch-device #dockDragInstructionsRow{ display: none !important; }
   html.touch-device .tool-section .sec-head.dock-desc-hide-mobile{ display: none; }
   .tab-btn{ flex-shrink: 0; white-space: nowrap; }
   .modal-status-row{ padding-right: 46px; }
+  #statsTab{ padding: 14px; overflow-x: hidden; }
   /* SynthDat's settings column: two narrow fields per row instead of one
      tall stack, headings and full-width controls spanning both. */
   .synthdat-gen-top .synthdat-cols > .synthdat-col:first-child{
@@ -5373,4 +5380,17 @@ html.touch-device #dockDragInstructionsRow{ display: none !important; }
 @media (max-width: 700px) and (prefers-reduced-motion: reduce){
   .confirm-box.ts-box{ transform: none; opacity: 0; transition: opacity var(--panel-dur) ease; }
   .ts-backdrop.modal-visible .ts-box{ opacity: 1; }
+}
+
+/* Non-interactive scroll hint (shared-ui.ts attachScrollHint): replaces the
+   native horizontal scrollbar on touch scrollers, which is a tappable control. */
+.scroll-hinted{ position: relative; scrollbar-width: none; }
+.scroll-hinted::-webkit-scrollbar{ display: none; }
+.scroll-hint{
+  position: absolute; left: 0; bottom: 1px; height: 3px; pointer-events: none; z-index: 1;
+}
+.scroll-hint[hidden]{ display: none; }
+.scroll-hint-thumb{
+  height: 100%; border-radius: 2px; pointer-events: none;
+  background: color-mix(in srgb, var(--text-muted) 70%, transparent);
 }

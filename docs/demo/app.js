@@ -969,6 +969,41 @@
     document.body.appendChild(backdrop);
     requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add("modal-visible")));
   }
+  function attachScrollHint(scroller) {
+    scroller.classList.add("scroll-hinted");
+    const track = document.createElement("div");
+    track.className = "scroll-hint";
+    track.setAttribute("aria-hidden", "true");
+    const thumb = document.createElement("div");
+    thumb.className = "scroll-hint-thumb";
+    track.appendChild(thumb);
+    scroller.appendChild(track);
+    let queued = false;
+    const update = () => {
+      queued = false;
+      const { scrollLeft, scrollWidth, clientWidth } = scroller;
+      const overflow = scrollWidth - clientWidth;
+      track.hidden = overflow <= 1;
+      if (track.hidden) return;
+      const w = Math.max(24, clientWidth * (clientWidth / scrollWidth));
+      track.style.width = clientWidth + "px";
+      track.style.transform = `translateX(${scrollLeft}px)`;
+      thumb.style.width = w + "px";
+      thumb.style.transform = `translateX(${(clientWidth - w) * (scrollLeft / overflow)}px)`;
+    };
+    const schedule = () => {
+      if (!queued) {
+        queued = true;
+        requestAnimationFrame(update);
+      }
+    };
+    scroller.addEventListener("scroll", schedule, { passive: true });
+    new ResizeObserver(schedule).observe(scroller);
+    new MutationObserver((recs) => {
+      if (recs.some((r) => r.target !== track && r.target !== thumb)) schedule();
+    }).observe(scroller, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class", "hidden"] });
+    schedule();
+  }
   function transitionMsOf(el) {
     const raw = getComputedStyle(el).transitionDuration.split(",")[0].trim();
     const n = parseFloat(raw);
@@ -24906,6 +24941,11 @@ Image: ${entry.imgName}`,
     } catch (e) {
     }
     document.documentElement.classList.toggle("touch-device", isTouchDevice2);
+    if (isTouchDevice2) {
+      attachScrollHint(topbarActions);
+      const tabBarEl0 = document.getElementById("tabBar");
+      if (tabBarEl0) attachScrollHint(tabBarEl0);
+    }
     let dirHandle = null;
     let disabledDirHandle = null;
     let originalDirHandle = null;
@@ -24949,14 +24989,18 @@ Image: ${entry.imgName}`,
       (which === "left" ? leftAside : rightAside).classList.add("drawer-open");
       drawerBackdrop.classList.add("drawer-visible");
     }
+    const offShell = () => !tabIsActive("gallery") && !tabIsActive("master");
     btnLeftDrawerToggle.addEventListener("click", () => {
       if (leftAside.classList.contains("drawer-open")) closeDrawers();
-      else openDrawer("left");
+      else {
+        if (offShell()) switchTab2("gallery", { skipDrawerSync: true });
+        openDrawer("left");
+      }
     });
     btnRightDrawerToggle.addEventListener("click", () => {
       if (rightAside.classList.contains("drawer-open") && !masterTagModeActive) closeDrawers();
       else {
-        if (masterTagModeActive) switchTab2("gallery", { skipDrawerSync: true });
+        if (masterTagModeActive || offShell()) switchTab2("gallery", { skipDrawerSync: true });
         openDrawer("right");
       }
     });
