@@ -379,6 +379,99 @@
   .conn-shot{ padding-bottom:38px; }
   .conn-shot .proof-frame{ max-width:900px; margin:0 auto; }
 
+  /* ---------- feature steps: the row's own diagram, played out ----------
+     Each tool row can unfold a short walkthrough (max three screens) under
+     itself. Closed by default except the first, so the page reads the same
+     as before until you ask. The step rail reuses the diagrams' own
+     vocabulary: nodes on a line, green = done, ink = where you are,
+     line-strong = not reached yet (Sequential Edit's progress colors). */
+  .steps-toggle{
+    display:inline-flex; align-items:center; gap:9px; margin-top:16px; padding:6px 0;
+    background:none; border:0; cursor:pointer; color:var(--ink);
+    font-family:var(--f-mono); font-size:0.78rem; letter-spacing:0.02em;
+  }
+  .steps-toggle .st-label{ border-bottom:1px solid var(--line-strong); transition:border-color .15s; }
+  .steps-toggle:hover .st-label{ border-color:var(--ink); }
+  .steps-toggle:focus-visible{ outline:2px solid var(--blue); outline-offset:3px; }
+  /* Drawn chevron, not a glyph: two borders of a square, rotated. */
+  .steps-toggle .st-chev{
+    width:7px; height:7px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor;
+    transform:translateY(-2px) rotate(45deg); transition:transform .3s var(--ease-out);
+  }
+  .steps-toggle[aria-expanded="true"] .st-chev{ transform:translateY(1px) rotate(-135deg); }
+  .steps-toggle .st-count{ color:var(--ink-soft); }
+
+  .conn-steps{
+    display:grid; grid-template-rows:0fr;
+    transition:grid-template-rows .55s var(--ease-out);
+  }
+  .conn-steps.open{ grid-template-rows:1fr; }  .conn-steps > .cs-inner{ overflow:hidden; min-height:0; }
+  .cs-body{
+    padding:6px 0 44px;
+    opacity:0; transform:translateY(-8px); filter:blur(3px);
+    transition:opacity .35s var(--ease-out), transform .45s var(--ease-out), filter .35s var(--ease-out);
+  }
+  .conn-steps.open .cs-body{ opacity:1; transform:none; filter:none; transition-delay:.08s; }
+
+  /* Fixed-height stage: screens and crops differ wildly in shape, so the
+     frame shrink-wraps each image inside a stage that never changes height,
+     and stepping never shoves the rest of the page around. */
+  .cs-stage{
+    --stage-h:clamp(240px, 56vh, 540px);
+    height:var(--stage-h); display:grid; place-items:center;
+    background:
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 1.5px) 0 0/18px 18px,
+      var(--ground-dim);
+    border:1px solid var(--line); padding:22px;
+  }
+  .cs-stage .proof-frame{ display:inline-block; max-width:100%; box-shadow:0 14px 34px -12px rgba(0,0,0,.28); }
+  .cs-stage img{
+    display:block; width:auto; height:auto; max-width:100%;
+    max-height:calc(var(--stage-h) - 46px);
+    transition:opacity .22s var(--ease-out), filter .22s var(--ease-out);
+  }
+  .cs-stage.multi img{ cursor:pointer; }
+  .cs-stage img.swapping{ opacity:0; filter:blur(4px); }
+
+  .cs-rail{
+    position:relative; list-style:none; margin:22px auto 0; padding:0;
+    display:grid; grid-template-columns:repeat(var(--n), 1fr); max-width:620px;
+  }
+  /* The connecting line, from the first node's center to the last's. */
+  .cs-rail::before{
+    content:""; position:absolute; top:8px; height:1.3px; background:var(--line-strong);
+    left:calc(50% / var(--n)); right:calc(50% / var(--n));
+  }
+  .cs-rail::after{
+    content:""; position:absolute; top:8px; height:1.3px; background:var(--green);
+    left:calc(50% / var(--n)); width:calc((100% - 100% / var(--n)) * var(--p, 0));
+    transition:width .45s var(--ease-out);
+  }
+  .cs-step{
+    position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:10px;
+    background:none; border:0; padding:0 6px; cursor:pointer; color:var(--ink-soft);
+    font-family:var(--f-mono); font-size:0.74rem; line-height:1.35; text-align:center; width:100%;
+  }
+  .cs-step .node{
+    width:9px; height:9px; margin-top:4px; border-radius:50%;
+    background:var(--ground); border:1.5px solid var(--line-strong);
+    transition:transform .3s var(--ease-out), background .2s, border-color .2s;
+  }
+  .cs-step.done .node{ background:var(--green); border-color:var(--green); }
+  .cs-step[aria-current="step"]{ color:var(--ink); }
+  .cs-step[aria-current="step"] .node{ background:var(--ink); border-color:var(--ink); transform:scale(1.55); }
+  .cs-step:hover{ color:var(--ink); }
+  .cs-step:focus-visible{ outline:2px solid var(--blue); outline-offset:4px; }
+  .cs-cap{ margin:16px auto 0; max-width:62ch; text-align:center; color:var(--ink-soft); font-size:0.92rem; min-height:2.8em; }
+  @media (prefers-reduced-motion: reduce){
+    .conn-steps, .cs-body, .cs-stage img, .cs-rail::after, .cs-step .node, .steps-toggle .st-chev{ transition:none; }
+    .cs-body{ transform:none; filter:none; }
+  }
+  @media (max-width:860px){
+    .cs-stage{ --stage-h:clamp(200px, 46vh, 420px); padding:12px; }
+    .cs-step{ font-size:0.68rem; }
+  }
+
   /* ---------- Visual Customizability: overlapping theme staircase ---------- */
   /* Fixed px offsets, not percentages of the wrap — three images cascading
      top-left to bottom-right at a predictable, sanity-checked overlap
@@ -679,10 +772,44 @@
     <div class="wrap">
       <div class="section-head">
         <h2>The tools you'll actually use</h2>
-        <p>All seven write to the same edit log. Nothing here silently rewrites your files behind your back.</p>
+        <p>All eight write to the same edit log. Nothing here silently rewrites your files behind your back.</p>
       </div>
 
       <div class="conn-row">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
+            <rect x="30" y="86" width="66" height="28" rx="3"/><rect x="104" y="86" width="44" height="28" rx="3"/>
+            <line x1="160" y1="92" x2="160" y2="108"/>
+            <line x1="63" y1="86" x2="63" y2="50"/><line x1="126" y1="114" x2="126" y2="150"/>
+          </g>
+          <circle cx="63" cy="46" r="4" fill="var(--blue)"/><circle cx="126" cy="154" r="4" fill="var(--blue)"/>
+          <circle cx="160" cy="100" r="3" fill="var(--red)"/>
+          <circle cx="172" cy="100" r="5" fill="var(--green)"/></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>Inline tag editing</h3>
+          <p>Every card is its own little editor. Type into <strong>+ Add tag</strong> and (with autocomplete on in Settings) you get suggestions ranked by how common they are, with the tag's definition a hover away. Click a chip for its options, double-click to rename it, hit × to drop it. Edited cards stay outlined until you save.</p>
+          <button type="button" class="steps-toggle" aria-expanded="true" aria-controls="steps-inline" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Hide the steps</span></button>
+        </div>
+      </div>
+
+      <div class="conn-steps open" id="steps-inline">
+        <div class="cs-inner"><div class="cs-body">
+          <div class="cs-stage multi"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:3">
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-1-autocomplete.png" data-alt="An image card with &quot;sunl&quot; typed into its add-tag box and a list of suggested tags with usage counts." data-cap="Start typing in + Add tag. Suggestions come with how often each tag is used."><span class="node" aria-hidden="true"></span>Start typing</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-2-tag-added.png" data-alt="The same card with &quot;sunlight&quot; added as a new tag chip and a red unsaved outline." data-cap="Pick one and it lands on the card. The outline means unsaved."><span class="node" aria-hidden="true"></span>It lands</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-3-chip-menu.png" data-alt="The options menu of the &quot;blonde hair&quot; chip: show images with or without it, Tag Details, rename on this image, flag for review." data-cap="Click any chip to filter by it, read its definition, rename it on this image, or flag it for review."><span class="node" aria-hidden="true"></span>Chip options</button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+
+      <div class="conn-row rev">
         <div class="conn-diagram" aria-hidden="true">
           <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
             <line x1="30" y1="40" x2="100" y2="100"/><line x1="30" y1="100" x2="100" y2="100"/><line x1="30" y1="160" x2="100" y2="100"/>
@@ -706,10 +833,27 @@
         <div class="conn-copy">
           <h3>Tag Pruner — Unify &amp; Void</h3>
           <p>Tired of manually sorting through junk tags that mean the same thing, or tags that shouldn't be in there after using WD14? Unify and Void are persistent, dataset-wide tools that automatically filter out tags from any and all images added, stopping rogue tags from ever appearing <strong>AGAIN</strong>. Just set the rules once, and never worry about outliers from there on! <strong>Flag Isolated Tags</strong> makes this even easier!</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-pruner" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
 
-      <div class="conn-row rev">
+      <div class="conn-steps" id="steps-pruner">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-stage multi"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:3">
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-1-select-variants.png" data-alt="The Tag Pruner searched for &quot;hair&quot;, with blonde hair, blond hair and yellow hair ticked; below, 3 tags selected affecting 18 images." data-cap="Search the Tag Pruner and tick every spelling of the same thing."><span class="node" aria-hidden="true"></span>Pick the variants</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-2-unify-name.png" data-alt="The Unify or Void box with &quot;blonde hair&quot; typed as the unified tag name next to Apply." data-cap="Type the one name they should all become, then Apply."><span class="node" aria-hidden="true"></span>Name the result</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-3-merged.png" data-alt="The gallery showing all 18 images now tagged &quot;blonde hair&quot;, with a new merge rule listed in the Retroactive Merge/Void dock." data-cap="All 18 images now say blonde hair, and a standing merge rule catches the variants in anything you add later."><span class="node" aria-hidden="true"></span>Merged</button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+
+      <div class="conn-row">
         <div class="conn-diagram" aria-hidden="true">
           <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
             <line x1="100" y1="100" x2="40" y2="60"/><line x1="100" y1="100" x2="40" y2="140"/>
@@ -721,7 +865,24 @@
         <div class="conn-copy">
           <h3>Retroactive Merge / Void rules</h3>
           <p>Unify and Void also automatically apply to images with offending tags, even before you set them. No going back!</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-rules" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
+      </div>
+
+      <div class="conn-steps" id="steps-rules">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-stage multi"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:3">
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-void-1-select-junk.png" data-alt="The Tag Pruner with watermark, signature and artist name selected, and the Void button ready." data-cap="Select the tags that should never be there: watermark, signature, artist name."><span class="node" aria-hidden="true"></span>Pick the junk</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-void-2-confirm.png" data-alt="A confirmation dialog: permanently remove 3 tags from every image, with Cancel and Void tags buttons." data-cap="Void asks first, and Undo still works right after."><span class="node" aria-hidden="true"></span>Confirm</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/extra-standing-merge-rule.png" data-alt="The Retroactive Merge/Void dock showing a merge rule into &quot;blonde hair&quot; with its source tags and an Enabled checkbox." data-cap="Rules stay in the Retroactive Merge/Void dock. Add tags to them, switch them off, or delete them."><span class="node" aria-hidden="true"></span>The rule stands</button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
       </div>
 
       <!-- Color convention across all seven diagrams below (kept consistent
@@ -732,7 +893,7 @@
            for "not reached yet" — the only diagram with a literal progress
            state to show, so it earns a dedicated neutral-pending color the
            others don't need. -->
-      <div class="conn-row">
+      <div class="conn-row rev">
         <div class="conn-diagram" aria-hidden="true">
           <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
             <rect x="24" y="76" width="48" height="48" rx="2"/>
@@ -744,10 +905,27 @@
         <div class="conn-copy">
           <h3>WD14 autotagger — no ComfyUI required</h3>
           <p>Want to tag images seamlessly but don't have ComfyUI? Don't worry. Osmium has WD14 built right in. Use your CPU to tag, or flip on Hardware Acceleration and let your GPU do it faster!</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-wd14" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
 
-      <div class="conn-row rev">
+      <div class="conn-steps" id="steps-wd14">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-stage multi"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:3">
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-1-select-untagged.png" data-alt="The Tag Overseer tab filtered to four untagged images, all selected, next to the WD14 Autotagger panel." data-cap="Filter to Untagged, select them, and hit Tag selected images with WD14."><span class="node" aria-hidden="true"></span>Select untagged</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-2-review.png" data-alt="The WD14 review dialog listing four images with editable tag lists and checkboxes." data-cap="Check or edit each image's tags before they're applied, or turn review off and let it apply straight away."><span class="node" aria-hidden="true"></span>Review</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-3-tagged.png" data-alt="The four images now carrying WD14 tags, outlined as unsaved." data-cap="The tags land on every card as one undoable edit."><span class="node" aria-hidden="true"></span>Tagged</button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+
+      <div class="conn-row">
         <div class="conn-diagram" aria-hidden="true">
           <svg viewBox="0 0 200 200">
           <circle cx="70" cy="100" r="5" fill="var(--ink)"/>
@@ -759,17 +937,27 @@
         <div class="conn-copy">
           <h3>SynthDat Overseer — grow a thin dataset (needs ComfyUI)</h3>
           <p>Only have five good images of a character? Train a quick first-pass LoRA on what you've got, then point SynthDat at it to generate more, ControlNet-posed off one reference. That's how you grow the dataset for a stronger second pass. It pulls pose tags from the reference automatically, runs a 1- or 2-pass generation, and shows you the result before anything gets written. <strong>Accept</strong> puts it straight in the dataset. <strong>Reject</strong> parks it in Disabled instead of throwing it away.</p>
-        </div>
-      </div>
-      <div class="conn-shot">
-        <div class="proof-frame">
-          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-          <img src="assets/screenshot-synthdat.jpg" alt="Osmium Workshop SynthDat Overseer tab: structured prompt fields driving a ComfyUI generation." loading="lazy" />
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-synthdat" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
 
-      <div class="conn-row">
+      <div class="conn-steps" id="steps-synthdat">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-stage multi"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:3">
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-1-interrogate-reference.png" data-alt="The SynthDat reference image section: WD14 tags from a pose reference, each routed to Pose, Limbs or Scene." data-cap="WD14 reads the reference, and each tag gets routed to Pose, Limbs or Scene."><span class="node" aria-hidden="true"></span>Read the pose</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-2-prompt-fields.png" data-alt="The Prompt fields panel with the assigned tags filled into Limbs and Hands, Pose and Scene." data-cap="Apply the assignment and the tags drop into the matching prompt fields."><span class="node" aria-hidden="true"></span>Fill the prompt</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-3-result.png" data-alt="A generated image with the tags it will save, and Accept into dataset and Reject buttons." data-cap="The result arrives with the tags it'll save. Accept adds it to the dataset. Reject parks it in Disabled."><span class="node" aria-hidden="true"></span>Accept or reject</button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+
+      <div class="conn-row rev">
         <div class="conn-diagram" aria-hidden="true">
           <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".7">
             <line x1="30" y1="100" x2="70" y2="100"/><line x1="70" y1="100" x2="110" y2="100"/><line x1="110" y1="100" x2="150" y2="100"/><line x1="150" y1="100" x2="170" y2="100"/>
@@ -780,10 +968,25 @@
         <div class="conn-copy">
           <h3>Undo/redo, and a Log to rule them all</h3>
           <p>Made a mistake? The edit log preserves <strong>ALL</strong> edits, making sure you can edit anything from <strong>ANY</strong> point in time!</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-log" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show the screen</span></button>
         </div>
       </div>
 
-      <div class="conn-row rev">
+      <div class="conn-steps" id="steps-log">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-stage"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:1" hidden>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/ui-edit-log.png" data-alt="The edit log panel: a list of edits with timestamps, each with its own Undo this and Redo this buttons." data-cap="Every edit is listed with its own Undo and Redo, saved in the dataset folder."><span class="node" aria-hidden="true"></span></button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+
+      <div class="conn-row">
         <div class="conn-diagram" aria-hidden="true">
           <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
             <line x1="60" y1="60" x2="140" y2="140"/><line x1="140" y1="60" x2="60" y2="140"/>
@@ -793,10 +996,25 @@
         <div class="conn-copy">
           <h3>Master Tag Control — bulk passes</h3>
           <p>Checkbox-select any slice of the gallery and apply, remove, or conditionally apply tags across all of it. Rename or find-and-replace dataset-wide, or delete the selection outright. Anything you've locked or marked merge-immune just sits out, no extra clicks needed.</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-master" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show the screen</span></button>
         </div>
       </div>
 
-      <div class="conn-row">
+      <div class="conn-steps" id="steps-master">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-stage"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:1" hidden>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/extra-sequential-launch.png" data-alt="The Master Tag Control panel with three images ticked in its grid, above Disable, Delete, Lock and Unlock." data-cap="Tick images in the grid. Everything under it applies to that selection."><span class="node" aria-hidden="true"></span></button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+
+      <div class="conn-row rev">
         <div class="conn-diagram" aria-hidden="true">
           <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".7">
             <line x1="20" y1="100" x2="180" y2="100"/>
@@ -808,7 +1026,24 @@
         <div class="conn-copy">
           <h3>Sequential Edit</h3>
           <p>Need to go over your entire dataset, and refine tags at the same time? Don't waste clicks on manual inspection; Sequential Mode lets you go through <strong>EVERY</strong> image of your dataset, with easy controls per image to indicate text, censorship, perspective, and for those who are naughty, censor types. Yeah I know you guys are gonna use this to make hentai loRA it's basically a given isn't it</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-sequential" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
+      </div>
+
+      <div class="conn-steps" id="steps-sequential">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-stage multi"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:3">
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-1-panel.png" data-alt="Sequential mode on image 1 of 22: checkboxes for text, censorship, perspective and indicators beside the image." data-cap="Start from the first image or from your selection."><span class="node" aria-hidden="true"></span>Open the panel</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-2-selections.png" data-alt="Sequential mode with Has text, English, Front, Close-up, Comic and 1koma ticked, and a preview of the five tags it will write." data-cap="Tick what applies. The chips under the image show exactly what Confirm will write."><span class="node" aria-hidden="true"></span>Mark what's there</button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-3-confirm-next.png" data-alt="Sequential mode moved on to image 2 of 22 with a fresh panel." data-cap="Confirm writes them and moves straight to the next image."><span class="node" aria-hidden="true"></span>Confirm, next</button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
       </div>
 
       <hr class="rule" style="margin:64px 0 40px;">
@@ -819,23 +1054,55 @@
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshot-dark-mode.jpg" alt="Osmium Workshop Gallery tab in dark mode." loading="lazy" />
+              <img src="assets/screenshots/ui-gallery-grid.png" alt="The Gallery tab in grid view: image cards with tag chips, the tag filter on the left and the tool docks on the right." loading="lazy" decoding="async" />
             </div>
-            <figcaption class="proof-cap"><span>Dark mode</span></figcaption>
+            <figcaption class="proof-cap"><span>Gallery — the everyday grid</span></figcaption>
           </figure>
           <figure class="shot-slide">
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshot-datasets-tab.png" alt="Osmium Workshop Datasets tab showing several dataset folders." loading="lazy" />
+              <img src="assets/screenshots/ui-single.png" alt="Single view: one image beside its tags grouped into Character, Body, Face, Clothes, Pose and Scene." loading="lazy" decoding="async" />
             </div>
-            <figcaption class="proof-cap"><span>Datasets tab — every project in one place</span></figcaption>
+            <figcaption class="proof-cap"><span>Single view, tags sorted by prompt field</span></figcaption>
           </figure>
           <figure class="shot-slide">
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshot-help.png" alt="Osmium Workshop's built-in help panel with a table of contents and per-topic documentation." loading="lazy" />
+              <img src="assets/screenshots/ui-compact.png" alt="Compact view: a dense grid of thumbnails, one showing its tags on hover." loading="lazy" decoding="async" />
+            </div>
+            <figcaption class="proof-cap"><span>Compact view — hover any tile for its tags</span></figcaption>
+          </figure>
+          <figure class="shot-slide">
+            <div class="proof-frame">
+              <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+              <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+              <img src="assets/screenshots/datasets-1-folders.png" alt="The Datasets tab: dataset folders in a grid, with Default, Characters, Styles and a locked Private group." loading="lazy" decoding="async" />
+            </div>
+            <figcaption class="proof-cap"><span>Datasets tab — every project, grouped</span></figcaption>
+          </figure>
+          <figure class="shot-slide">
+            <div class="proof-frame">
+              <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+              <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+              <img src="assets/screenshots/datasets-2-locked-group.png" alt="A password prompt for the locked Private group in the Datasets tab." loading="lazy" decoding="async" />
+            </div>
+            <figcaption class="proof-cap"><span>Groups can be password-locked</span></figcaption>
+          </figure>
+          <figure class="shot-slide">
+            <div class="proof-frame">
+              <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+              <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+              <img src="assets/screenshots/ui-night-mode.png" alt="The Gallery tab with night mode on." loading="lazy" decoding="async" />
+            </div>
+            <figcaption class="proof-cap"><span>Night mode, on any theme</span></figcaption>
+          </figure>
+          <figure class="shot-slide">
+            <div class="proof-frame">
+              <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+              <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+              <img src="assets/screenshots/ui-help.png" alt="The built-in help panel with a table of contents and the Opening a dataset page." loading="lazy" decoding="async" />
             </div>
             <figcaption class="proof-cap"><span>Built-in help — every tab explained</span></figcaption>
           </figure>
@@ -843,15 +1110,7 @@
             <div class="proof-frame">
               <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
               <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshot-visual-editing.jpg" alt="Close-up of inline tag editing on a single image card." loading="lazy" />
-            </div>
-            <figcaption class="proof-cap"><span>Inline tag editing</span></figcaption>
-          </figure>
-          <figure class="shot-slide">
-            <div class="proof-frame">
-              <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-              <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-              <img src="assets/screenshot-shop-themes.png" alt="Theme shop list showing rare, epic, and legendary themes with their Edibits price." loading="lazy" />
+              <img src="assets/screenshots/theme-shop-2-legendary.png" alt="The theme shop listing rare, epic and legendary themes with their Edibits prices." loading="lazy" decoding="async" />
             </div>
             <figcaption class="proof-cap"><span>Shop themes — common to legendary, unlocked with Edibits you earn just by using the app</span></figcaption>
           </figure>
@@ -1295,6 +1554,76 @@
       dots.forEach(function(d, i){ d.classList.toggle('active', i === idx); });
     }, 80);
   }, { passive: true });
+})();
+
+(function(){
+  // Feature walkthroughs: each .steps-toggle unfolds its .conn-steps panel,
+  // whose rail buttons carry their screen in data-src. Images load only when
+  // a panel first opens (the next step is warmed right behind it), so the
+  // page costs nothing extra until someone asks to see a tool in action.
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  document.querySelectorAll('.steps-toggle').forEach(function(btn){
+    var panel = document.getElementById(btn.getAttribute('aria-controls'));
+    if (!panel) return;
+    var inner = panel.querySelector('.cs-inner');
+    var stage = panel.querySelector('.cs-stage');
+    var img = stage.querySelector('img');
+    var cap = panel.querySelector('.cs-cap');
+    var rail = panel.querySelector('.cs-rail');
+    var steps = Array.prototype.slice.call(panel.querySelectorAll('.cs-step'));
+    var n = steps.length;
+    var cur = -1;
+    var label = btn.querySelector('.st-label');
+    var words = ['', 'one', 'two', 'three'];
+    var openText = n > 1 ? 'Hide the steps' : 'Hide the screen';
+    var closedText = n > 1 ? 'Show it in ' + words[n] + ' steps' : 'Show the screen';
+
+    function warm(i){ if (steps[i]) { var p = new Image(); p.src = steps[i].dataset.src; } }
+    function show(i){
+      if (i === cur) return;
+      var s = steps[i];
+      steps.forEach(function(el, k){
+        el.classList.toggle('done', k < i);
+        if (k === i) el.setAttribute('aria-current', 'step'); else el.removeAttribute('aria-current');
+      });
+      rail.style.setProperty('--p', n > 1 ? i / (n - 1) : 0);
+      cap.textContent = s.dataset.cap;
+      var swap = function(){
+        img.src = s.dataset.src; img.alt = s.dataset.alt;
+        var done = function(){ img.classList.remove('swapping'); };
+        if (img.decode) img.decode().then(done, done); else img.onload = done;
+      };
+      if (cur === -1 || reduce.matches) swap();
+      else { img.classList.add('swapping'); setTimeout(swap, 180); }
+      cur = i;
+      warm(i + 1);
+    }
+    function setOpen(open){
+      panel.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', open);
+      label.textContent = open ? openText : closedText;
+      if (open) { inner.removeAttribute('inert'); if (cur === -1) show(0); }
+      else inner.setAttribute('inert', '');
+    }
+    btn.addEventListener('click', function(){ setOpen(btn.getAttribute('aria-expanded') !== 'true'); });
+    steps.forEach(function(s, i){ s.addEventListener('click', function(){ show(i); }); });
+    // Clicking the screen advances, and wraps back to the start.
+    if (n > 1) stage.addEventListener('click', function(){ show((cur + 1) % n); });
+    rail.addEventListener('keydown', function(e){
+      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!d) return;
+      e.preventDefault();
+      var k = Math.max(0, Math.min(n - 1, cur + d));
+      show(k); steps[k].focus();
+    });
+    // The panel that starts open still loads lazily: only once it's near view.
+    if (panel.classList.contains('open')) {
+      var io = new IntersectionObserver(function(entries){
+        if (entries[0].isIntersecting) { show(0); io.disconnect(); }
+      }, { rootMargin: '300px 0px' });
+      io.observe(panel);
+    }
+  });
 })();
 
 (function(){
