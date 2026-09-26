@@ -3618,8 +3618,11 @@ export function initView(deps: ViewDeps): void {
 
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape'){
-      if (imageCardModal.style.display === 'flex'){ closeImageCardModal(); return; }
+      // A dialog on top (confirm, Theme Studio, list modal) owns this Escape.
+      if (document.querySelector('.confirm-backdrop')) return;
+      // A menu opened from inside the modal closes before the modal does.
       if (ctxMenuEl){ closeTagContextMenu(); return; }
+      if (imageCardModal.style.display === 'flex'){ closeImageCardModal(); return; }
       if (viewMode === 'single'){ switchView('grid', { instant: true }); return; }
     }
     if (viewMode === 'single' && !ctxMenuEl){

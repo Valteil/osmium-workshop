@@ -39,7 +39,7 @@ import {
   singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle,
   settingsPanel, fontSizeSlider, fontSizeVal
 } from './dom';
-import { attachScrollHint, toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, mapPan, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
+import { attachScrollHint, closeOpenDropdown, toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, mapPan, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
 import {
   PREMIUM_THEMES, applyTheme, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes, themeWantsRefinedClass
@@ -341,6 +341,63 @@ import { setIconLabel } from './icons';
     void openThemeStudio();
   });
 
+  // ---------------- Back (Android hardware/gesture back) ----------------
+  // mobile-shim.js routes Capacitor's backButton event here (desktop has no
+  // back button, so nothing calls this there). Like a real back button, each
+  // press undoes the most recent layer: menus and popovers, then dialogs and
+  // modals, the bottom sheets, floating panels, then the previous tab. At the
+  // root it asks before leaving; confirming calls window.__dtsExitApp.
+  const tabHistory: string[] = [];
+  let navigatingBack = false;
+  const TAB_IDS = ['datasets', 'gallery', 'master', 'stats', 'synthdat'];
+  const currentTabId = (): string => TAB_IDS.find(t => tabIsActive(t)) || 'gallery';
+  let exitConfirmOpen = false;
+  function handleBack(): boolean {
+    const escape = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    const shown = (el: HTMLElement | null) => !!el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
+    // 1. Menus: open dropdowns, header flyouts, and anything Escape closes
+    //    (context menus, dialogs, Theme Studio, picker, lightbox, help,
+    //    the image card modal).
+    if (closeOpenDropdown()) return true;
+    const flyout = Array.from(document.querySelectorAll<HTMLElement>('.header-cat-flyout')).find(shown);
+    if (flyout){ flyout.style.display = 'none'; flyout.classList.remove('menu-in'); return true; }
+    // Visible ones only: some of these live permanently in the DOM, hidden
+    // (e.g. #langMenuPanel is a .ctx-menu), and would swallow every Back.
+    const overlayOpen = Array.from(document.querySelectorAll<HTMLElement>(
+      '.confirm-backdrop, .picker-backdrop, .lightbox-backdrop, .ctx-menu, .tagsub-picker, .ts-font-pop')).some(shown);
+    if (overlayOpen || shown(imageCardModal) || shown(document.getElementById('helpModal'))){
+      escape();
+      return true;
+    }
+    // 2. Bottom sheets.
+    if (leftAside.classList.contains('drawer-open') || rightAside.classList.contains('drawer-open')){ closeDrawers(); return true; }
+    // 3. Floating panels (Settings, Log, Favorites, Achievements, Shop, Tag Details).
+    const panels = document.querySelectorAll<HTMLElement>('.theme-panel.panel-visible');
+    if (panels.length){ panels.forEach(p => hidePanel(p)); return true; }
+    // 4. The previous tab.
+    const cur = currentTabId();
+    while (tabHistory.length){
+      const prev = tabHistory.pop()!;
+      if (prev === cur) continue;
+      navigatingBack = true;
+      try { switchTab(prev); } finally { navigatingBack = false; }
+      return true;
+    }
+    if (cur !== 'gallery'){ navigatingBack = true; try { switchTab('gallery'); } finally { navigatingBack = false; } return true; }
+    // 5. Root: confirm before leaving.
+    if (exitConfirmOpen) return true;
+    exitConfirmOpen = true;
+    const unsaved = unsavedChangesDescription();
+    void showConfirmModal(unsaved ? `Exit Osmium Workshop? You have ${unsaved}, and they'll be lost.` : 'Exit Osmium Workshop?',
+      { okLabel: 'Exit', cancelLabel: 'Stay', danger: !!unsaved }).then((ok) => {
+      exitConfirmOpen = false;
+      const exit = (window as unknown as { __dtsExitApp?: () => void }).__dtsExitApp;
+      if (ok && exit) exit();
+    });
+    return true;
+  }
+  (window as unknown as { __dtsHandleBack?: () => boolean }).__dtsHandleBack = handleBack;
+
   // ---------------- Quit ----------------
 
   btnQuit.addEventListener('click', () => {
@@ -439,6 +496,12 @@ import { setIconLabel } from './icons';
   }, true);
   function switchTab(tab: string, opts?: { skipDrawerSync?: boolean }): void {
     const skipDrawerSync = !!(opts && opts.skipDrawerSync);
+    // Back-button history (handleBack): remember where we came from, except
+    // when this switch IS a back step.
+    if (!navigatingBack){
+      const from = currentTabId();
+      if (from !== tab){ tabHistory.push(from); if (tabHistory.length > 30) tabHistory.shift(); }
+    }
     const fadePanes = [datasetManagerTab, statsTab, synthDatTab, normalRightTools, masterTagPanel];
     // Gallery rebuild (cards differ between Gallery and Tag Overseer mode —
     // the selection checkbox). Only a shell tab shows the gallery; Stats and

@@ -5319,7 +5319,8 @@ html.mobile-app .settings-section[data-section="performance"],
 html.mobile-app .settings-section[data-section="updates"],
 html.mobile-app .tool-section[data-dock-id="bucketImages"],
 html.mobile-app #viewOriginalsBtn,
-html.mobile-app #btnResetZoom{ display: none !important; }
+html.mobile-app #btnResetZoom,
+html.mobile-app #btnQuit{ display: none !important; } /* Android exits via back (confirmed) or the task switcher */
 html.touch-device #tooltipsToggleRow,
 html.touch-device #tooltipDelayRow,
 html.touch-device #dockDragInstructionsRow{ display: none !important; }

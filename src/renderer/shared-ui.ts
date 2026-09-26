@@ -88,6 +88,14 @@ function closeAnyOpenPdrop(): void {
   if (openPdropClose) { const fn = openPdropClose; openPdropClose = null; openPdropOwnerPanel = null; openPdropMenuEl = null; fn(); }
 }
 
+// For the Android back button (index.ts handleBack): closes the one open
+// persistent dropdown, if any. True when something closed.
+export function closeOpenDropdown(): boolean {
+  if (!openPdropClose) return false;
+  closeAnyOpenPdrop();
+  return true;
+}
+
 function closeOwnedPdropIfPanel(panelEl: Element): void {
   if (openPdropOwnerPanel === panelEl) closeAnyOpenPdrop();
 }
@@ -566,7 +574,16 @@ export function createModalShell(opts: ModalShellOpts = {}): ModalShell {
       setTimeout(() => { backdrop.remove(); if (opts.onClose) opts.onClose(); }, opts.exitMs ?? 160);
     }
   }
-  function onKey(ev: KeyboardEvent): void { if (ev.key === 'Escape') (opts.onDismiss || close)(); }
+  // Only the TOP dialog answers Escape: every shell listens on document, so a
+  // stacked confirm (e.g. "Discard changes?" over Theme Studio) used to close
+  // along with everything beneath it — and Theme Studio's own dismiss then
+  // re-asked. Same for the Android back button, which sends Escape.
+  function onKey(ev: KeyboardEvent): void {
+    if (ev.key !== 'Escape') return;
+    const open = document.querySelectorAll('.confirm-backdrop');
+    if (open[open.length - 1] !== backdrop) return;
+    (opts.onDismiss || close)();
+  }
   backdrop.addEventListener('click', (ev: MouseEvent) => { if (ev.target === backdrop) (opts.onDismiss || close)(); });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(backdrop);

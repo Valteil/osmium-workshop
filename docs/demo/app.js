@@ -688,6 +688,11 @@
       fn();
     }
   }
+  function closeOpenDropdown() {
+    if (!openPdropClose) return false;
+    closeAnyOpenPdrop();
+    return true;
+  }
   function closeOwnedPdropIfPanel(panelEl) {
     if (openPdropOwnerPanel === panelEl) closeAnyOpenPdrop();
   }
@@ -1102,7 +1107,10 @@
       }
     }
     function onKey(ev) {
-      if (ev.key === "Escape") (opts.onDismiss || close)();
+      if (ev.key !== "Escape") return;
+      const open2 = document.querySelectorAll(".confirm-backdrop");
+      if (open2[open2.length - 1] !== backdrop) return;
+      (opts.onDismiss || close)();
     }
     backdrop.addEventListener("click", (ev) => {
       if (ev.target === backdrop) (opts.onDismiss || close)();
@@ -24873,12 +24881,13 @@ Image: ${entry.imgName}`,
     });
     document.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape") {
-        if (imageCardModal.style.display === "flex") {
-          closeImageCardModal();
-          return;
-        }
+        if (document.querySelector(".confirm-backdrop")) return;
         if (ctxMenuEl) {
           closeTagContextMenu();
+          return;
+        }
+        if (imageCardModal.style.display === "flex") {
+          closeImageCardModal();
           return;
         }
         if (viewMode2 === "single") {
@@ -25107,6 +25116,72 @@ Image: ${entry.imgName}`,
       personalizationCatFlyout.classList.remove("menu-in");
       void openThemeStudio();
     });
+    const tabHistory = [];
+    let navigatingBack = false;
+    const TAB_IDS = ["datasets", "gallery", "master", "stats", "synthdat"];
+    const currentTabId = () => TAB_IDS.find((t) => tabIsActive(t)) || "gallery";
+    let exitConfirmOpen = false;
+    function handleBack() {
+      const escape = () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      const shown = (el) => !!el && el.style.display !== "none" && getComputedStyle(el).display !== "none";
+      if (closeOpenDropdown()) return true;
+      const flyout = Array.from(document.querySelectorAll(".header-cat-flyout")).find(shown);
+      if (flyout) {
+        flyout.style.display = "none";
+        flyout.classList.remove("menu-in");
+        return true;
+      }
+      const overlayOpen = Array.from(document.querySelectorAll(
+        ".confirm-backdrop, .picker-backdrop, .lightbox-backdrop, .ctx-menu, .tagsub-picker, .ts-font-pop"
+      )).some(shown);
+      if (overlayOpen || shown(imageCardModal) || shown(document.getElementById("helpModal"))) {
+        escape();
+        return true;
+      }
+      if (leftAside.classList.contains("drawer-open") || rightAside.classList.contains("drawer-open")) {
+        closeDrawers();
+        return true;
+      }
+      const panels = document.querySelectorAll(".theme-panel.panel-visible");
+      if (panels.length) {
+        panels.forEach((p) => hidePanel(p));
+        return true;
+      }
+      const cur = currentTabId();
+      while (tabHistory.length) {
+        const prev = tabHistory.pop();
+        if (prev === cur) continue;
+        navigatingBack = true;
+        try {
+          switchTab2(prev);
+        } finally {
+          navigatingBack = false;
+        }
+        return true;
+      }
+      if (cur !== "gallery") {
+        navigatingBack = true;
+        try {
+          switchTab2("gallery");
+        } finally {
+          navigatingBack = false;
+        }
+        return true;
+      }
+      if (exitConfirmOpen) return true;
+      exitConfirmOpen = true;
+      const unsaved = unsavedChangesDescription();
+      void showConfirmModal(
+        unsaved ? `Exit Osmium Workshop? You have ${unsaved}, and they'll be lost.` : "Exit Osmium Workshop?",
+        { okLabel: "Exit", cancelLabel: "Stay", danger: !!unsaved }
+      ).then((ok) => {
+        exitConfirmOpen = false;
+        const exit = window.__dtsExitApp;
+        if (ok && exit) exit();
+      });
+      return true;
+    }
+    window.__dtsHandleBack = handleBack;
     btnQuit.addEventListener("click", () => {
       window.close();
     });
@@ -25178,6 +25253,13 @@ Image: ${entry.imgName}`,
     }, true);
     function switchTab2(tab, opts) {
       const skipDrawerSync = !!(opts && opts.skipDrawerSync);
+      if (!navigatingBack) {
+        const from = currentTabId();
+        if (from !== tab) {
+          tabHistory.push(from);
+          if (tabHistory.length > 30) tabHistory.shift();
+        }
+      }
       const fadePanes = [datasetManagerTab, statsTab, synthDatTab, normalRightTools, masterTagPanel];
       const renderShell = () => {
         if (onShell(tab)) {
