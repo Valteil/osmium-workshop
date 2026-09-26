@@ -366,7 +366,8 @@
   }
   .shot-dot{
     width:8px; height:8px; border-radius:50%; padding:0; border:1px solid var(--line-strong);
-    background:transparent; cursor:pointer; transition:background .15s, border-color .15s;
+    background:var(--ground); cursor:pointer; transition:background .15s, border-color .15s;
+    box-shadow:0 0 0 2px color-mix(in srgb, var(--ground) 75%, transparent), 0 1px 5px color-mix(in srgb, var(--ink) 35%, transparent);
   }
   .shot-dot:hover{ border-color:var(--ink); }
   .shot-dot.active{ background:var(--ink); border-color:var(--ink); }
@@ -518,10 +519,16 @@
     position:relative; z-index:1; display:flex; align-items:center; gap:14px; min-height:18px;
     background:none; border:0; padding:0; cursor:pointer; color:var(--ink-soft);
     font-family:var(--f-mono); font-size:0.78rem; line-height:1.3; text-align:left; white-space:nowrap;
+    /* Full rail width, so every node sits in the same column as the line no
+       matter how long its label is (mirrored rails put the node at the end). */
+    width:100%;
   }
   .cs-step .node{
     flex:none; width:9px; height:9px; border-radius:50%;
     background:var(--ground); border:1.5px solid var(--line-strong);
+    /* A soft halo cut from the ground plus a faint drop, so pips stay findable
+       on bright themes and against the dotted mat alike. */
+    box-shadow:0 0 0 2px color-mix(in srgb, var(--ground) 75%, transparent), 0 1px 5px color-mix(in srgb, var(--ink) 35%, transparent);
     transition:transform .3s var(--ease-out), background .2s, border-color .2s;
   }
   .cs-step.done .node{ background:var(--green); border-color:var(--green); }
@@ -612,13 +619,6 @@
      edge, fits in one screen with no scrolling once you land on it. This is
      just the pre-JS fallback for the instant before that script runs. */
   #demoFrame{display:block; width:100%; height:600px; min-height:320px; border:0; background:var(--ground-dim);}
-  .demo-fallback{
-    border:1px solid var(--line-strong); background:var(--card);
-    padding:32px; text-align:center;
-  }
-  .demo-fallback strong{display:block; font-family:var(--f-display); font-size:1.1rem; margin-bottom:8px;}
-  .demo-fallback p{color:var(--ink-soft); margin:0; max-width:52ch; margin-inline:auto;}
-  .demo-fallback a{color:var(--ink);}
   @media (max-width:640px){
     #demo{padding-top:32px; padding-bottom:48px;}
   }
@@ -815,12 +815,7 @@
     <div class="wrap">
       <div class="section-head">
         <h2>Here's what you're getting</h2>
-        <p>Click around. Feel around. I put the damn thing right on this page so you don't even need to download it to give it a try. Start with <strong>File ▸ Open dataset folder</strong> and point it at any folder of images on your machine. Nothing leaves your browser. Works in Chrome and Edge on desktop.</p>
-      </div>
-
-      <div id="demoUnsupported" class="demo-fallback" hidden>
-        <strong>This browser can't run the live demo.</strong>
-        <p>It needs the File System Access API. Chrome and Edge support it. Firefox and Safari don't, not yet. <a href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download the desktop app</a> instead. It works everywhere.</p>
+        <p>Click around. Feel around. I put the damn thing right on this page so you don't even need to download it to give it a try. It opens on a small sample dataset, <strong>Chromatic Void</strong>, with every image still untagged: select them in <strong>Tag Overseer</strong> and run WD14 to tag them. WD14 and SynthDat are mocked up here (no GPU sits behind a web page), and the demo never touches your own files. Reload and it starts fresh.</p>
       </div>
 
       <div id="demoWrap" class="demo-frame">
@@ -1203,7 +1198,7 @@
           <div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-theme-osmium.jpg" alt="Tag Overseer tab in the default Osmium theme's cream palette." loading="lazy" />
+            <img src="assets/screenshot-theme-osmium.jpg" width="1920" height="1000" alt="The Gallery tab with the Chromatic Void sample set, in the default Osmium theme." loading="lazy" />
           </div>
           <figcaption class="proof-cap"><span>Osmium — default</span></figcaption>
         </figure>
@@ -1211,17 +1206,17 @@
           <div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-theme-candy2.jpg" alt="Tag Overseer tab in the Candy theme's pink palette." loading="lazy" />
+            <img src="assets/screenshot-theme-candy-pop.jpg" width="1920" height="1000" alt="The same Gallery view in the Candy Pop theme: pink pills and a rounded face." loading="lazy" />
           </div>
-          <figcaption class="proof-cap"><span>Candy</span></figcaption>
+          <figcaption class="proof-cap"><span>Candy Pop</span></figcaption>
         </figure>
         <figure class="stair-shot s3">
           <div class="proof-frame">
             <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img src="assets/screenshot-theme-celestial.jpg" alt="Tag Overseer tab in the Celestial theme's dark navy and gold palette." loading="lazy" />
+            <img src="assets/screenshot-theme-celestial-gold.jpg" width="1920" height="1000" alt="The same Gallery view in the Celestial Gold theme: navy, gold and a starfield." loading="lazy" />
           </div>
-          <figcaption class="proof-cap"><span>Celestial</span></figcaption>
+          <figcaption class="proof-cap"><span>Celestial Gold</span></figcaption>
         </figure>
       </div>
     </div>
@@ -1313,16 +1308,12 @@
 <script>
 (function(){
   var wrap = document.getElementById('demoWrap');
-  var fallback = document.getElementById('demoUnsupported');
   var frame = document.getElementById('demoFrame');
   var bar = wrap.querySelector('.demo-bar');
   var section = document.getElementById('demo');
   var header = document.querySelector('header');
-  if (!('showDirectoryPicker' in window)) {
-    wrap.hidden = true;
-    fallback.hidden = false;
-    return;
-  }
+  // The demo runs on its own built-in sample dataset (demo-shim.js), so it
+  // no longer needs the File System Access API and works in every browser.
 
   // Measured, not guessed: the sticky nav's real height plus the real
   // rendered height of everything in this section above the iframe (which
@@ -1617,6 +1608,17 @@
     });
     dotsWrap.appendChild(dot);
     return dot;
+  });
+  // Clicking a screenshot moves to the next one (wrapping), the same as the
+  // feature step viewers.
+  slides.forEach(function(sl, i){
+    var im = sl.querySelector('img');
+    if (!im) return;
+    im.style.cursor = 'pointer';
+    im.addEventListener('click', function(){
+      var next = (i + 1) % slides.length;
+      carousel.scrollTo({ left: next * carousel.clientWidth, behavior: 'smooth' });
+    });
   });
   var scrollTimer = null;
   carousel.addEventListener('scroll', function(){
