@@ -84,7 +84,7 @@ const ACHIEVEMENTS: AchievementDef[] = [
   { id:'night-owl', title:'Night Owl', desc:'Enable night mode.', rarity:'common', check: s => !!s.night_mode_used },
   { id:'isolation-ward', title:'Isolation Ward', desc:'Use "Flag isolated tags" to review rare tags.', rarity:'uncommon', check: s => !!s.isolated_flag_used },
   { id:'the-overseer', title:'The Overseer', desc:'Use Master Tag Control to apply, remove, or rename a tag.', rarity:'rare', check: s => (s.master_ops||0) >= 1 },
-  { id:'yeet', title:'Yeet', desc:'Drag an image onto the Disabled tab.', rarity:'uncommon', check: s => !!s.drag_disabled_used },
+  { id:'yeet', title:'Yeet', desc:'Drag an image onto the Disabled button.', rarity:'uncommon', check: s => !!s.drag_disabled_used },
   // Quick wins — for smaller datasets or a light editing pass, so there's
   // still real Edibits to earn without grinding through hundreds of edits.
   { id:'first-save', title:'Locked In', desc:'Save your changes to disk for the first time.', rarity:'common', check: s => (s.saves||0) >= 1 },

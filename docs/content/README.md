@@ -63,12 +63,14 @@ Three related apps share this repository (and much of their renderer code):
 
 1. **Osmium Workshop (desktop)** — this app: the full dataset tag editor described below.
    Portable Electron app — unzip, run, done.
-2. **Osmium Workshop (mobile)** — an Android app for tagging on the go. Touch-friendly layout
-   with bottom-sheet panels, tag editing straight from the image modal, and storage through
-   Android's Storage Access Framework (a folder you pick stays accessible across restarts). It
-   also does on-device WD14 tagging, downloading the model on first use, plus tagging and
-   generation against your own ComfyUI instance over the network. **Still in development — no
-   public APK yet**; build it from source (see below) if you want to try it.
+2. **Osmium Workshop (mobile)** — an Android app for tagging on the go. It runs the same interface
+   as desktop (every theme, Theme Studio, rules, Past Tag Preview) in a touch layout with
+   bottom-sheet panels, tag editing straight from the image modal, a real Back button, and storage
+   through Android's Storage Access Framework (a folder you pick stays accessible across
+   restarts). It also does on-device WD14 tagging, downloading the model on first use, plus
+   tagging and generation against your own ComfyUI instance over the network. Bucket Images,
+   Compact/Single view and Sequential tagging stay desktop-only. **Still in testing** — early
+   APKs are posted as GitHub pre-releases, or build it from source (see below).
 3. **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
    featuring a built-in workflow: no node graph to navigate, every generation saves straight to
    disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
@@ -76,7 +78,8 @@ Three related apps share this repository (and much of their renderer code):
    favorites), model picker modals, and the zoomable image lightbox. Mobile details live in
    `comfy-bridge/mobile/README.md`; to reach ComfyUI from a phone, start it with `--listen
    0.0.0.0 --enable-cors-header` (ComfyUI already listens on 8188 by default) and allow inbound
-   TCP 8188 through the firewall.
+   TCP 8188 through the firewall. The desktop build has its own Theme Studio for a Custom theme,
+   and reads theme files exported from Osmium Workshop.
 
 The rest of this document describes the desktop dataset manager. On mobile, read the in-app ❓
 Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
@@ -99,6 +102,8 @@ Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
   Tags stay editable the whole time, and you can restore anytime. Good for maybes you're not
   ready to delete.
 - **Originals** — the pre-bucketing originals kept by Bucket Images (below).
+- **Unlock all** and **Hide tags** — clear every image lock at once, or hide the chips on every card
+  while you sort against a filter.
 
 Clicking any image opens a floating, zoomable, pannable card modal without losing your place in
 the grid. On desktop that modal also has **⟲/⟳ Rotate** and **✂ Crop** — real pixel edits that
@@ -107,11 +112,15 @@ cropped region as a *new* image instead, leaving the source untouched.
 
 ### Tagging
 - **Chips** (on every card) — click one for filter-by-presence, the Tag Details wiki lookup, a
-  review flag, or its keyword family. Type into "+ add tag" and hit Enter to add one. × removes
-  it.
+  review flag, or its keyword family. Type into "+ add tag" and hit Enter to add one, or several
+  at once separated by commas (`1girl, red eyes, plump`). × removes it. Chips are listed in
+  category order (Character, Body, Face, …) by default; a card leaves the gallery the moment an
+  edit takes it out of your current filter.
 - **Tag Sorting** (Single view + image modal) — groups an image's chips into Character, Body,
   Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects and Other. For multi-character
   images, split tags into named subjects with their own category subheaders.
+- **Add images** (File menu) — copy more images into the open dataset, or start a new dataset
+  folder for them when nothing is open.
 - **Filter sidebar** (left) — multi-tag AND/OR/XOR/NOT search (with a Lock to keep the mode)
   plus All/Untagged/Unsaved quick filters, **Flag isolated tags** (tags on ≤2 images), draggable
   family sort. Handy for finding images fast, and for hunting down typos. **Review flagged tags**
@@ -124,7 +133,9 @@ cropped region as a *new* image instead, leaving the source untouched.
   rules that auto-correct matching tags the moment they come in, from any source. Try to
   hand-type a tag a rule covers, and it gets blocked with a pointer back to the rule. Pause a
   rule, or a single tag within it, to restore originals. Per-image Immunize and Antivoid
-  exemptions cover the rest. Use it so a cleanup never has to be repeated.
+  exemptions cover the rest. **Past Tag Preview** shows, on every card, the tags a rule took off
+  (struck through for voids, an inward-arrows mark for merges): exactly what that image gets back
+  if you pause the rule. Use it so a cleanup never has to be repeated.
 - **Bucket Images** (right sidebar) — crops and resizes every image to its nearest LoRA training
   bucket, subject-first via a u2net saliency model (GPU with CPU fallback; ~176 MB, downloaded on
   first use). Originals move to `original_images/` and can be restored with one click.
@@ -185,7 +196,8 @@ when five good images need to become fifty. (Also needs the ComfyUI node pack �
 - Dockable right-sidebar panels — drag-reorder, collapse, resize, resettable.
 - Discrete mode — blur all images (or one) instantly, reversible.
 - Native-zoom font scaling (never breaks layouts).
-- Closing the app with unsaved changes prompts you to save first.
+- Closing the app with unsaved changes prompts you to save first (on Android, leaving with Back
+  asks first too).
 - **Hardware acceleration toggle** (Settings ▸ Performance) — render on the integrated GPU by
   default to keep your discrete GPU free for generation, or turn acceleration off entirely.
   Applies on next launch.
@@ -207,7 +219,10 @@ the Shop.
   free Edibits" button covers shortfalls. Use them to unlock themes by using the app.
 - **Motion-sensitivity controls** (Settings ▸ Appearance) — kill all motion or just hover-fill,
   card tilt, or ambient animation. Use them if effects distract or discomfort you.
-- **🎨 Colors** — recolor any theme live, save as your own "Custom" theme.
+- **🎨 Theme Studio** (Personalization menu) — build your own Custom themes: colors (with contrast
+  checks and a night palette), fonts, shapes, button and card effects, surfaces, with a live
+  miniature of the app to preview on. Start from any theme you own, keep several in My themes,
+  and import/export them as files (Comfy Bridge reads the same format).
 - **🌙 Night mode** — inverts each theme's colors directly, then nudges any text or accent
   color that would come out too faint, so every theme stays readable at night.
 - **Swipe animation mode** (Settings ▸ Layout & Panels) — treats the app as one map: tabs,
@@ -262,8 +277,11 @@ Main-process changes (`src/main.ts`) require a full quit + relaunch of the exe t
   `comfy-bridge/src/renderer/shared/` — `npm run build:shared` (from `comfy-bridge/`) bundles it
   for mobile (`mobile/www/shared.js`) and copies the stylesheet to both shells
   (`renderer/shared.css`, `mobile/www/shared.css`). Never hand-edit those three copies.
-- **Dataset-manager mobile** — `cd mobile`, `node sync-web.js`, `npx cap sync android`, then
-  `./gradlew assembleDebug` in `android/` (needs the Android SDK and JDK 21).
+- **Dataset-manager mobile** — `npm run build` at the root first, then `cd mobile`,
+  `node sync-web.js`, `npx cap sync android`, and `./gradlew assembleDebug` in `android/` (needs
+  the Android SDK and JDK 21). `sync-web.js` generates `mobile/www/` from `renderer/` every run, so
+  phone-only styling lives in `renderer/styles.css`; never edit `www/`. The build is ARM64-only
+  (see `android/app/build.gradle`), so it doesn't run on the x86 emulator.
 - **Comfy Bridge mobile** — same Android steps from `comfy-bridge/mobile/`, running
   `npm run build:shared` (from `comfy-bridge/`) first so `www/shared.js` is current.
 
@@ -338,7 +356,7 @@ opening DevTools by hand.
 ## Architecture notes
 
 The renderer was ported from a single ~5,500-line untyped script into TypeScript and split into
-~17 feature modules. `src/renderer/index.ts` is one top-level IIFE (it can't `export` from inside
+feature modules (about 40 now). `src/renderer/index.ts` is one top-level IIFE (it can't `export` from inside
 itself) acting as the composition root: it owns core cross-cutting state (`entries`, `dirHandle`,
 `entryByBase`, ...) and wires every extracted module together via a small injected-`deps` object
 passed to that module's own `init*(deps)` call — never a circular import. The renderer is fully

@@ -4027,14 +4027,19 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         <li><b>_dts_meta.json</b> \u2014 per-image notes, review flags, locks, and similar metadata.</li>
         <li><b>_dts_synthdat_settings.json</b> \u2014 SynthDat Overseer's prompt/generation settings for
         this dataset (only appears once you've used that tab).</li>
-      </ul>`
+      </ul>
+      <p><b>File \u25B8 Add images\u2026</b> copies more images into the open dataset, each arriving untagged
+      with an empty <code>.txt</code>.${isTouchDevice ? " You choose which app to pick them from \u2014 Photos, Files, or any file manager you have installed." : ""}
+      With no dataset open it first offers to create one: name it, choose where its folder goes,
+      and the new dataset opens ready for the images.</p>`
     },
     {
       id: "gallery",
       title: "The Gallery tab",
       html: `
       <p>This is the tag editor itself \u2014 everything else in the app exists to support what happens
-      here. The toolbar at the top of the gallery switches between ${isTouchDevice ? "two views" : "four views"}:</p>
+      here. The toolbar at the top of the gallery switches views and holds a few dataset-wide
+      actions${isTouchDevice ? " (swipe it sideways to reach them all)" : ""}:</p>
       <ul>
         <li><b>Grid</b> (the default) \u2014 each card shows the image, its tags as editable chips, and
         a 3-dot menu for per-image actions.</li>
@@ -4049,6 +4054,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         <li><b>\u{1F522} Rename all</b> \u2014 renames every loaded image (+ its .txt) to a simple zero-padded
         1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
         first; logged and undoable from the Log panel.</li>
+        <li><b>\u{1F513} Unlock all</b> \u2014 clears the lock on every locked image at once.</li>
+        <li><b>Hide tags</b> \u2014 hides the chips and add-tag field on every card, so while you sort
+        against a filter what's there and what's missing stays obvious. Tags stay editable through
+        the image card.</li>
       </ul>
       ${isTouchDevice ? "<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>" : ""}
       <p>To edit tags: ${isTouchDevice ? "tap" : "click"} a chip to open its menu (filter by it, look up its wiki definition,
@@ -4241,15 +4250,14 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       Single view (click it for the full-size view). A live tag preview under the image shows
       exactly which tags Confirm will apply before you commit; Confirm advances automatically
       and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>`}
-      <p><b>\u{1F40D} WD14 Autotagger</b> \u2014 sends selected images (or a single one, via its 3-dot menu) to
-      a WD14 Tagger node on your own ComfyUI instance and merges the tags it returns onto each
-      card. Expand "\u2699 WD14 settings" to set the ComfyUI host, model, confidence thresholds, and
-      whether results apply automatically or go through a review step first.
-      ${isTouchDevice ? `"Tagging source" picks between that (ComfyUI) and <b>on-device tagging</b> \u2014 a model
-        runs directly on your phone (hardware-accelerated where the phone supports it, falling
-        back to CPU otherwise), no ComfyUI instance needed at all. Models aren't bundled with the
-        app; pick one from the built-in catalog for a one-tap download, or paste a HuggingFace repo
-        manually. Either mode uses the exact same review step and settings below.` : "This app holds no model itself \u2014 your ComfyUI instance does the actual tagging."}</p>`
+      <p><b>\u{1F40D} WD14 Autotagger</b> \u2014 sends selected images (or a single one, via its 3-dot menu)
+      through WD14 and merges the tags it returns onto each card. Expand "\u2699 WD14 settings" to pick
+      the tagging source, model, confidence thresholds, and whether results apply automatically or
+      go through a review step first. "Tagging source" is either <b>on-device</b> \u2014 the model runs
+      right here, ${isTouchDevice ? "hardware-accelerated where your phone supports it, falling back to CPU otherwise" : "with <b>Prefer GPU</b> using DirectML when available and falling back to CPU (the completion toast names which one ran)"},
+      no ComfyUI needed; models aren't bundled, so pick one from the built-in catalog for a one-tap
+      download or paste a HuggingFace repo \u2014 or <b>ComfyUI</b>, which sends images to a WD14 Tagger
+      node on your own instance. Either way uses the same review step and settings.</p>`
     },
     {
       id: "datasets-tab",
@@ -4360,27 +4368,34 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       <p>${isTouchDevice ? "Tap" : "Click"} the \u2699 Settings button (next to File in the top bar) to open it. Each section below
       expands on ${isTouchDevice ? "tap" : "click"}:</p>
       <ul>
-        <li><b>Appearance</b> \u2014 theme picker, night/day mode, the font-size slider (the whole
-        gallery and panels reflow live as you drag it), and "Gallery columns" to lock the gallery's
-        column count independent of zoom or panel width.</li>
-        <li><b>Power Tools</b> \u2014 options for marking specific fields/buttons as "power tools" (a
-        visual highlight) for your own workflow.</li>
-        <li><b>Tagging</b> \u2014 tag-input behavior, e.g. whether typing a new language auto-selects
-        it.</li>
+        <li><b>Appearance</b> \u2014 ${isTouchDevice ? "" : "the font-size slider (the whole gallery and panels reflow live as you drag it), "}"Gallery
+        columns", the tag-count badge on cards, <b>Show Past Tag Preview</b>, "Sort tags within
+        each card", "Dynamic card heights", <b>Discrete mode</b> (blur every image for privacy),
+        and the motion controls described under Themes. The theme itself is picked from the
+        <b>Personalization</b> menu in the top bar, and night mode is the \u{1F319} button next to it.</li>
+        <li><b>Power Tools</b> \u2014 highlight the power tools (Master Tags, Tag Pruner, Unify/Void,
+        mass-apply, Purge) with an outline or fill, and mark any other field or button as a power
+        tool so it gets the same highlight.</li>
+        <li><b>Tagging &amp; Autocomplete</b> \u2014 tag autocomplete while typing "+ add tag"${isTouchDevice ? "" : ", hover tooltips and their delay"}, and
+        whether adding a language in the "Has text" picker also selects it.</li>
         <li><b>Saving</b> \u2014 Autosave (off by default): when on, edits save to disk automatically
         about 1.2 seconds after you stop typing. Every edit stays undoable either way \u2014 each one
         is already in the Edit Log with its own undo.</li>
-        <li><b>Performance</b> \u2014 Hardware acceleration (on by default) steers this app's own UI
+        ${isTouchDevice ? "" : `<li><b>Performance</b> \u2014 Hardware acceleration (on by default) steers this app's own UI
         rendering onto your integrated GPU instead of competing with ComfyUI's real workload on
         your discrete one. Turning it off forces pure CPU rendering. Takes effect on your next
-        launch.</li>
-        <li><b>Layout & Panels</b> \u2014 UI animation mode (Fade/Swipe/Off; Swipe treats the app as one
-        map, so tabs, views and images slide the way they actually sit), and "Reset panel layout" if
-        a dock's ${isTouchDevice ? "collapse state ever gets stuck" : "drag-reorder or collapse state ever gets into a bad state"}.</li>
-        <li><b>Updates & Sharing</b> \u2014 "Restart app" reloads the latest files instantly, no manual
+        launch.</li>`}
+        <li><b>Layout & Panels</b> \u2014 whether menus and popups close when you ${isTouchDevice ? "tap" : "click"} off them, whether a
+        dropdown closes after you pick an option, UI animation mode (Fade/Swipe/Off; Swipe treats
+        the app as one map, so tabs, views and images slide the way they actually sit), and "Reset
+        panel layout" if a dock's ${isTouchDevice ? "collapse state ever gets stuck" : "drag-reorder or collapse state ever gets into a bad state"}.</li>
+        ${isTouchDevice ? "" : `<li><b>Updates & Sharing</b> \u2014 "Restart app" reloads the latest files instantly, no manual
         quit/reopen needed. "\u{1FA7A} Export app state" isn't something you'd normally need \u2014 it's a
         troubleshooting aid that writes a text file next to the app with your current settings,
-        theme, panel layout, and whether a dataset's loaded, useful when reporting a bug.</li>
+        theme, panel layout, and whether a dataset's loaded, useful when reporting a bug.</li>`}
+        <li><b>Danger Zone</b> \u2014 "Purge ALL tags in this folder\u2026" empties every Gallery image's
+        caption (Disabled ones are left alone). It takes three ${isTouchDevice ? "taps" : "clicks"} in a row to confirm, and Undo
+        reverses it.</li>
       </ul>`
     },
     {
@@ -4395,7 +4410,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       current theme and tells you its Shop price. Epic/legendary themes get an extra hover-fill and
       card lift in that theme's own style; any cheaper theme can buy them individually via the
       Shop's "\u{1F528} Refine Theme" button, for the price difference.</p>
-      ${isTouchDevice ? "" : `<p>\u{1F3A8} <b>Theme Studio</b> (Personalization \u25B8 Theme Studio) builds your own Custom theme:
+      <p>\u{1F3A8} <b>Theme Studio</b> (Personalization \u25B8 Theme Studio) builds your own Custom theme:
       colors, fonts per role, shapes, icon stroke, button fill and card hover, dock pads, gallery
       ground, image mat, active-tab marker, top-bar edge and primary buttons, with a live miniature
       of the app on the right (switch its tab with the buttons under it; hover it to try effects).
@@ -4404,7 +4419,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       price in Edibits, once. <b>My themes</b> keeps every Custom you save (switch between them from
       the theme menu too); Colors \u25B8 Palette \u25B8 Night sets Custom's night colors (automatic or
       hand-edited); a red contrast ratio is clickable to fix it; and <b>Hold to compare</b> under the
-      preview shows your current theme for a moment.</p>`}
+      preview shows your current theme for a moment.${isTouchDevice ? " On a phone it opens as a full-screen sheet with the preview on top." : ""}</p>
       <p>\u{1F3C6} Achievements (55+, unlocked per dataset folder \u2014 a fresh dataset starts with none
       unlocked) pay out Edibits as you use the app's features. \u{1F319} Night mode is a genuine per-theme
       color inversion that also keeps every text and accent color readable.</p>
@@ -4430,9 +4445,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       Actions with real tag data (add/remove, merge/void, rename, find-replace, and the Retroactive
       Merge/Void dock's own unmerge/unvoid corrections) get their own \u21A9 Undo this / \u21AA Redo this
       buttons, independent of the toolbar's main linear Undo/Redo. Disable/Restore actions get a
-      toggle button instead. Rule-configuration changes (pausing a rule, toggling a child tag off)
-      show up too, just without an Undo button \u2014 there's no tag-level change to reverse for a pure
-      setting flip.</p>
+      toggle button instead, and deleting a past (ghost) tag is undoable too. Rule-configuration
+      changes (pausing a rule, toggling a child tag off) show up without an Undo button \u2014 there's
+      no tag-level change to reverse for a pure setting flip. So do <b>Rules applied</b> rows, where
+      a standing rule corrected tags by itself; to reverse one, pause that rule.</p>
       <p>"Export log\u2026" saves the full log as JSON. "Clear log" permanently deletes it for this
       dataset (asks first).</p>`
     },
@@ -4443,7 +4459,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       Retroactive Merge/Void has unsaved rule changes) are waiting to be written to disk \u2014
       ${isTouchDevice ? "tap" : "click"} Save to write them all. Closing the app, switching datasets, or reloading with unsaved
       changes always asks first; nothing is silently discarded.</p>
-      ${isTouchDevice ? `<p><b>\u26A0 Except force-closing the app</b> \u2014 swiping it away in Android's
+      ${isTouchDevice ? `<p>Leaving with the phone's Back button asks first too (and says if anything is unsaved).</p>
+      <p><b>\u26A0 Except force-closing the app</b> \u2014 swiping it away in Android's
       recent-apps view kills the app outright, with no chance for that warning (or anything else)
       to run first. Unsaved changes from that session are lost with no way to recover them.
       Save (or turn on Autosave, Settings \u25B8
@@ -4454,8 +4471,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       title: "Tips & troubleshooting",
       html: `
       <ul>
-        ${isTouchDevice ? "" : `<li>Drag a card straight onto the Disabled tab to disable it quickly (hover a card to see
-        this hint appear).</li>`}
+        ${isTouchDevice ? `<li>The phone's <b>Back</b> closes whatever's on top first \u2014 a menu, a dialog, a panel, the
+        image card \u2014 then steps back through the tabs you visited, and only asks to leave the app
+        once you're back on the Gallery with nothing open.</li>` : `<li>Drag a card straight onto the \u274C Disabled button in the gallery toolbar to disable it quickly.</li>`}
         <li>Underscore-to-space conversion only goes one way \u2014 a tag that ends up with an
         underscore while you're editing in-app is treated as containing a literal space, by
         design.</li>
@@ -4632,7 +4650,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     { id: "night-owl", title: "Night Owl", desc: "Enable night mode.", rarity: "common", check: (s) => !!s.night_mode_used },
     { id: "isolation-ward", title: "Isolation Ward", desc: 'Use "Flag isolated tags" to review rare tags.', rarity: "uncommon", check: (s) => !!s.isolated_flag_used },
     { id: "the-overseer", title: "The Overseer", desc: "Use Master Tag Control to apply, remove, or rename a tag.", rarity: "rare", check: (s) => (s.master_ops || 0) >= 1 },
-    { id: "yeet", title: "Yeet", desc: "Drag an image onto the Disabled tab.", rarity: "uncommon", check: (s) => !!s.drag_disabled_used },
+    { id: "yeet", title: "Yeet", desc: "Drag an image onto the Disabled button.", rarity: "uncommon", check: (s) => !!s.drag_disabled_used },
     // Quick wins — for smaller datasets or a light editing pass, so there's
     // still real Edibits to earn without grinding through hundreds of edits.
     { id: "first-save", title: "Locked In", desc: "Save your changes to disk for the first time.", rarity: "common", check: (s) => (s.saves || 0) >= 1 },

@@ -63,7 +63,8 @@ This is the tag editor itself — everything else in the app supports what happe
 
 **Views** (toolbar buttons):
 - **Grid** — the default. Each card shows the image, its tags as editable chips, a dirty/untagged
-  indicator, and a 3-dot menu. Toggle "Dynamic card heights" for a masonry layout.
+  indicator, and a 3-dot menu. Settings ▸ Appearance ▸ "Dynamic card heights" switches to a masonry
+  layout.
 - **Compact** — dense thumbnails with tags on hover. Shift-click two images to pin them side by
   side in an aligned comparison table. Use it to triage large folders quickly.
 - **Single** — one image at a time: a compact preview beside a roomy tag panel, with arrow-key
@@ -79,6 +80,11 @@ This is the tag editor itself — everything else in the app supports what happe
   sequence (active dataset first, then `Disabled/`, continuing the same count), confirmed first.
   Logged and undoable from the Log panel like any other bulk action. Use it to normalize a folder
   to `1`–`N` before training.
+- **🔓 Unlock all** — clears the lock on every locked image in the dataset at once, so mass tools
+  can reach them again.
+- **Hide tags** — hides the tag chips and add-tag field on every card. Handy while sorting against
+  a filter (say, everything without `1girl`), so what's there and what's missing stays obvious at a
+  glance. Tags stay editable through the image card.
 
 The gallery's own column count normally shrinks as font-size zoom or an open side panel eats into
 the available width — Settings ▸ Appearance ▸ "Gallery columns" forces a fixed count instead, if
@@ -222,9 +228,13 @@ what that image gets back if you turn the rule (or that tag in it) off. Delete o
 tag (undoable): the image then won't get it back when the rule is turned off. Turn the preview off
 in Settings ▸ **Show Past Tag Preview**.
 
-Every rule change, and every resulting correction, shows up as its own entry in the Edit Log with
-Undo/Redo — voiding a tag, un-voiding it, then voiding it again shows as three separate,
-correctly-ordered log rows.
+Everything a rule does shows up in the Edit Log. Un-voids and un-merges (from pausing a rule or
+one of its tags) get their own Undo/Redo, so voiding a tag, un-voiding it, then voiding it again
+shows as three separate, correctly-ordered rows. A rule applying by itself (a tag added straight to
+a rule, a rule switched back on, or WD14 bringing in a ruled tag) logs a **Rules applied** row. That
+row is what the Past Tag Preview and the restore-on-pause read. It has no Undo button, because the
+rule would simply apply again; pause the rule instead. Rule setting changes (pausing, toggling a
+tag) are logged without an Undo too.
 
 Void rules and merge rules are shown as two separate groups in this dock — Void is collapsible
 (all your voided tags actually live under one shared rule, so there's normally just one to
@@ -281,8 +291,8 @@ bootstrap tags onto untagged imports.
 
 ### Sequential tagging
 
-Desktop-only, started from the **▶ Sequential from first / from selected** buttons at the bottom
-of Master Tag Control. It takes over Single view and walks your current filter image by image;
+Desktop-only, started from the **▶ Sequential from first / from selected** buttons under Master
+Tag Control's selection summary. It takes over Single view and walks your current filter image by image;
 "from selected" starts at your first selected image instead of the top. Each image shows the
 same quick-modify panel:
 
@@ -387,11 +397,17 @@ zoomed in.
 
 Click the ⚙ button to open Settings. Sections (click each to expand):
 
-- **Appearance** — theme picker, night/day mode, font size (drag the slider — the gallery and
-  panels reflow live), and "Gallery columns" to lock the gallery's column count independent of
-  zoom or panel width.
-- **Power Tools** — options for the right-sidebar docks.
-- **Tagging** — tag-input behavior (e.g. whether typing a new language auto-selects it).
+- **Appearance** — font size (drag the slider; the gallery and panels reflow live), "Gallery
+  columns" to lock the column count independent of zoom or panel width, the tag-count badge on
+  cards, **Show Past Tag Preview**, "Sort tags within each card", "Dynamic card heights", **Discrete
+  mode** (Blur all images / Unblur, for privacy), and the motion controls described under Themes.
+  The theme itself is picked from the topbar's **Personalization** menu, and night mode is the 🌙
+  button next to it.
+- **Power Tools** — highlight the power tools (Master Tags, Tag Pruner, Unify/Void, mass-apply,
+  Purge) with an outline or a fill, and mark any other field or button as a power tool so it gets
+  the same highlight.
+- **Tagging & Autocomplete** — tag autocomplete while typing "+ add tag", hover tooltips and their
+  delay, and whether adding a language in the "Has text" picker also selects it.
 - **Saving** — **Autosave** toggle (off by default): when on, edits save to disk automatically
   ~1.2 seconds after you stop typing. Every edit stays undoable either way — each one is
   already in the Edit Log with its own undo.
@@ -399,7 +415,10 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
   rendering onto your integrated GPU instead of competing with ComfyUI's real workload on your
   discrete one. Turn it off for pure CPU rendering, or if you'd rather this app use your discrete
   GPU for max smoothness. Takes effect on your next launch.
-- **Layout & Panels** — **UI animation mode**: Fade (default), Swipe, or Off. Swipe treats the
+- **Layout & Panels** — whether menus and popups close when you click off them (and whether that
+  click also goes through to what's underneath), whether a dropdown closes after you pick an
+  option, **UI animation mode**, the panel arrangement, and "Reset panel layout". The UI animation
+  mode is Fade (default), Swipe, or Off. Swipe treats the
   app as one map: tabs sit left to right in tab-bar order, the Gallery's views sit in button
   order inside the Gallery, and images sit in order inside Single view and the image card, so
   every move slides the way you're actually going (Gallery ↔ Tag Overseer only slides the
@@ -413,6 +432,8 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
   "🩺 Export app state" is a troubleshooting aid, not something you'd normally need — it writes a
   text file next to the app with your settings/theme/panel layout and whether a dataset's loaded,
   useful if you're reporting a bug and want to show exactly what state the app was in.
+- **Danger Zone** — **Purge ALL tags in this folder…** empties every Gallery image's caption
+  (Disabled images are left alone). It takes three clicks in a row to confirm, and Undo reverses it.
 
 ---
 
@@ -481,9 +502,10 @@ Click **📜 Log** to see every logged action for the current dataset, most rece
 with real tag data (add/remove, merge/void, rename, find-replace, and the Retroactive Merge/Void
 dock's own unmerge/unvoid corrections) get their own **↩ Undo this / ↪ Redo this** buttons,
 independent of the main toolbar's linear Undo/Redo stack. Disable/Restore actions get a toggle
-button instead. Rule-configuration changes (pausing a rule, toggling a child tag, etc.) show up
-too, just without an Undo button of their own, since there's no tag-level change to reverse for a
-pure setting flip.
+button instead. Deleting a past tag (a ghost chip) is undoable too. Rule-configuration changes
+(pausing a rule, toggling a child tag, etc.) show up without an Undo button of their own, since
+there's no tag-level change to reverse for a pure setting flip. So do **Rules applied** rows (a
+standing rule correcting tags on its own); to reverse one, pause that rule.
 
 **Export log…** saves the full log as JSON. **Clear log** permanently deletes it for this dataset
 (confirmed first). Use the log to audit a session or roll back a single change.
@@ -503,12 +525,18 @@ prompts you first; nothing is silently discarded.
 
 This guide covers the desktop app. Two siblings share this repo:
 
-- **Osmium Workshop for Android** (`mobile/`) — the same editor in a touch layout: panels
-  become bottom sheets, tag editing happens in the image modal (tap a card), Compact and Single
-  views are removed, and the folder picker uses Android's own storage access with a persisted
-  grant. WD14 tagging runs either on-device (models download on first use) or through your own
-  ComfyUI instance like desktop. The in-app ❓ Help is rewritten for touch — read that instead
-  of this guide on mobile.
+- **Osmium Workshop for Android** (`mobile/`) — the same app as desktop (same themes, Theme
+  Studio, Past Tag Preview, rules and tools), in a touch layout:
+  - Panels become bottom sheets, and tag editing happens in the image modal (tap a card).
+  - Compact view, Single view, Sequential tagging and Bucket Images are left out.
+  - The folder picker uses Android's own storage access with a persisted grant, and **File ▸ Add
+    images…** can pull from any installed gallery or file-manager app.
+  - WD14 tagging runs either on-device (models download on first use) or through your own
+    ComfyUI instance, like desktop.
+  - The phone's **Back** closes whatever is open first (menus, dialogs, panels, then back through
+    the tabs you visited) and asks before leaving the app.
+  - The in-app ❓ Help is rewritten for touch; read that instead of this guide on mobile.
+  - Test builds are posted as GitHub pre-releases.
 - **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
   featuring a built-in workflow: no node graph to navigate, every generation saves straight to
   disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
@@ -522,7 +550,7 @@ This guide covers the desktop app. Two siblings share this repo:
 
 ## Tips & troubleshooting
 
-- **Drag a card onto the Disabled tab** to disable it quickly (hover a card to see this hint).
+- **Drag a card onto the ❌ Disabled button** in the gallery toolbar to disable it quickly.
 - **Underscore normalization is one-way** — a tag that ends up with an underscore while editing
   in-app is treated as containing a literal space, by design.
 - **If a dock's layout looks broken** (stuck collapsed, wrong order), use Settings ▸ Layout &

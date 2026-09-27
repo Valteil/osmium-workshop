@@ -33,14 +33,19 @@ export const HELP_SECTIONS: HelpSection[] = [
         <li><b>_dts_meta.json</b> — per-image notes, review flags, locks, and similar metadata.</li>
         <li><b>_dts_synthdat_settings.json</b> — SynthDat Overseer's prompt/generation settings for
         this dataset (only appears once you've used that tab).</li>
-      </ul>`
+      </ul>
+      <p><b>File ▸ Add images…</b> copies more images into the open dataset, each arriving untagged
+      with an empty <code>.txt</code>.${isTouchDevice ? ' You choose which app to pick them from — Photos, Files, or any file manager you have installed.' : ''}
+      With no dataset open it first offers to create one: name it, choose where its folder goes,
+      and the new dataset opens ready for the images.</p>`
   },
   {
     id: 'gallery',
     title: 'The Gallery tab',
     html: `
       <p>This is the tag editor itself — everything else in the app exists to support what happens
-      here. The toolbar at the top of the gallery switches between ${isTouchDevice ? 'two views' : 'four views'}:</p>
+      here. The toolbar at the top of the gallery switches views and holds a few dataset-wide
+      actions${isTouchDevice ? ' (swipe it sideways to reach them all)' : ''}:</p>
       <ul>
         <li><b>Grid</b> (the default) — each card shows the image, its tags as editable chips, and
         a 3-dot menu for per-image actions.</li>
@@ -55,6 +60,10 @@ export const HELP_SECTIONS: HelpSection[] = [
         <li><b>🔢 Rename all</b> — renames every loaded image (+ its .txt) to a simple zero-padded
         1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
         first; logged and undoable from the Log panel.</li>
+        <li><b>🔓 Unlock all</b> — clears the lock on every locked image at once.</li>
+        <li><b>Hide tags</b> — hides the chips and add-tag field on every card, so while you sort
+        against a filter what's there and what's missing stays obvious. Tags stay editable through
+        the image card.</li>
       </ul>
       ${isTouchDevice ? '<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>' : ''}
       <p>To edit tags: ${isTouchDevice ? 'tap' : 'click'} a chip to open its menu (filter by it, look up its wiki definition,
@@ -247,17 +256,16 @@ export const HELP_SECTIONS: HelpSection[] = [
       Single view (click it for the full-size view). A live tag preview under the image shows
       exactly which tags Confirm will apply before you commit; Confirm advances automatically
       and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>`}
-      <p><b>🐍 WD14 Autotagger</b> — sends selected images (or a single one, via its 3-dot menu) to
-      a WD14 Tagger node on your own ComfyUI instance and merges the tags it returns onto each
-      card. Expand "⚙ WD14 settings" to set the ComfyUI host, model, confidence thresholds, and
-      whether results apply automatically or go through a review step first.
-      ${isTouchDevice
-        ? `"Tagging source" picks between that (ComfyUI) and <b>on-device tagging</b> — a model
-        runs directly on your phone (hardware-accelerated where the phone supports it, falling
-        back to CPU otherwise), no ComfyUI instance needed at all. Models aren't bundled with the
-        app; pick one from the built-in catalog for a one-tap download, or paste a HuggingFace repo
-        manually. Either mode uses the exact same review step and settings below.`
-        : 'This app holds no model itself — your ComfyUI instance does the actual tagging.'}</p>`
+      <p><b>🐍 WD14 Autotagger</b> — sends selected images (or a single one, via its 3-dot menu)
+      through WD14 and merges the tags it returns onto each card. Expand "⚙ WD14 settings" to pick
+      the tagging source, model, confidence thresholds, and whether results apply automatically or
+      go through a review step first. "Tagging source" is either <b>on-device</b> — the model runs
+      right here, ${isTouchDevice
+        ? 'hardware-accelerated where your phone supports it, falling back to CPU otherwise'
+        : 'with <b>Prefer GPU</b> using DirectML when available and falling back to CPU (the completion toast names which one ran)'},
+      no ComfyUI needed; models aren't bundled, so pick one from the built-in catalog for a one-tap
+      download or paste a HuggingFace repo — or <b>ComfyUI</b>, which sends images to a WD14 Tagger
+      node on your own instance. Either way uses the same review step and settings.</p>`
   },
   {
     id: 'datasets-tab',
@@ -372,27 +380,34 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>${isTouchDevice ? 'Tap' : 'Click'} the ⚙ Settings button (next to File in the top bar) to open it. Each section below
       expands on ${isTouchDevice ? 'tap' : 'click'}:</p>
       <ul>
-        <li><b>Appearance</b> — theme picker, night/day mode, the font-size slider (the whole
-        gallery and panels reflow live as you drag it), and "Gallery columns" to lock the gallery's
-        column count independent of zoom or panel width.</li>
-        <li><b>Power Tools</b> — options for marking specific fields/buttons as "power tools" (a
-        visual highlight) for your own workflow.</li>
-        <li><b>Tagging</b> — tag-input behavior, e.g. whether typing a new language auto-selects
-        it.</li>
+        <li><b>Appearance</b> — ${isTouchDevice ? '' : 'the font-size slider (the whole gallery and panels reflow live as you drag it), '}"Gallery
+        columns", the tag-count badge on cards, <b>Show Past Tag Preview</b>, "Sort tags within
+        each card", "Dynamic card heights", <b>Discrete mode</b> (blur every image for privacy),
+        and the motion controls described under Themes. The theme itself is picked from the
+        <b>Personalization</b> menu in the top bar, and night mode is the 🌙 button next to it.</li>
+        <li><b>Power Tools</b> — highlight the power tools (Master Tags, Tag Pruner, Unify/Void,
+        mass-apply, Purge) with an outline or fill, and mark any other field or button as a power
+        tool so it gets the same highlight.</li>
+        <li><b>Tagging &amp; Autocomplete</b> — tag autocomplete while typing "+ add tag"${isTouchDevice ? '' : ', hover tooltips and their delay'}, and
+        whether adding a language in the "Has text" picker also selects it.</li>
         <li><b>Saving</b> — Autosave (off by default): when on, edits save to disk automatically
         about 1.2 seconds after you stop typing. Every edit stays undoable either way — each one
         is already in the Edit Log with its own undo.</li>
-        <li><b>Performance</b> — Hardware acceleration (on by default) steers this app's own UI
+        ${isTouchDevice ? '' : `<li><b>Performance</b> — Hardware acceleration (on by default) steers this app's own UI
         rendering onto your integrated GPU instead of competing with ComfyUI's real workload on
         your discrete one. Turning it off forces pure CPU rendering. Takes effect on your next
-        launch.</li>
-        <li><b>Layout & Panels</b> — UI animation mode (Fade/Swipe/Off; Swipe treats the app as one
-        map, so tabs, views and images slide the way they actually sit), and "Reset panel layout" if
-        a dock's ${isTouchDevice ? 'collapse state ever gets stuck' : 'drag-reorder or collapse state ever gets into a bad state'}.</li>
-        <li><b>Updates & Sharing</b> — "Restart app" reloads the latest files instantly, no manual
+        launch.</li>`}
+        <li><b>Layout & Panels</b> — whether menus and popups close when you ${isTouchDevice ? 'tap' : 'click'} off them, whether a
+        dropdown closes after you pick an option, UI animation mode (Fade/Swipe/Off; Swipe treats
+        the app as one map, so tabs, views and images slide the way they actually sit), and "Reset
+        panel layout" if a dock's ${isTouchDevice ? 'collapse state ever gets stuck' : 'drag-reorder or collapse state ever gets into a bad state'}.</li>
+        ${isTouchDevice ? '' : `<li><b>Updates & Sharing</b> — "Restart app" reloads the latest files instantly, no manual
         quit/reopen needed. "🩺 Export app state" isn't something you'd normally need — it's a
         troubleshooting aid that writes a text file next to the app with your current settings,
-        theme, panel layout, and whether a dataset's loaded, useful when reporting a bug.</li>
+        theme, panel layout, and whether a dataset's loaded, useful when reporting a bug.</li>`}
+        <li><b>Danger Zone</b> — "Purge ALL tags in this folder…" empties every Gallery image's
+        caption (Disabled ones are left alone). It takes three ${isTouchDevice ? 'taps' : 'clicks'} in a row to confirm, and Undo
+        reverses it.</li>
       </ul>`
   },
   {
@@ -407,7 +422,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       current theme and tells you its Shop price. Epic/legendary themes get an extra hover-fill and
       card lift in that theme's own style; any cheaper theme can buy them individually via the
       Shop's "🔨 Refine Theme" button, for the price difference.</p>
-      ${isTouchDevice ? '' : `<p>🎨 <b>Theme Studio</b> (Personalization ▸ Theme Studio) builds your own Custom theme:
+      <p>🎨 <b>Theme Studio</b> (Personalization ▸ Theme Studio) builds your own Custom theme:
       colors, fonts per role, shapes, icon stroke, button fill and card hover, dock pads, gallery
       ground, image mat, active-tab marker, top-bar edge and primary buttons, with a live miniature
       of the app on the right (switch its tab with the buttons under it; hover it to try effects).
@@ -416,7 +431,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       price in Edibits, once. <b>My themes</b> keeps every Custom you save (switch between them from
       the theme menu too); Colors ▸ Palette ▸ Night sets Custom's night colors (automatic or
       hand-edited); a red contrast ratio is clickable to fix it; and <b>Hold to compare</b> under the
-      preview shows your current theme for a moment.</p>`}
+      preview shows your current theme for a moment.${isTouchDevice ? ' On a phone it opens as a full-screen sheet with the preview on top.' : ''}</p>
       <p>🏆 Achievements (55+, unlocked per dataset folder — a fresh dataset starts with none
       unlocked) pay out Edibits as you use the app's features. 🌙 Night mode is a genuine per-theme
       color inversion that also keeps every text and accent color readable.</p>
@@ -442,9 +457,10 @@ export const HELP_SECTIONS: HelpSection[] = [
       Actions with real tag data (add/remove, merge/void, rename, find-replace, and the Retroactive
       Merge/Void dock's own unmerge/unvoid corrections) get their own ↩ Undo this / ↪ Redo this
       buttons, independent of the toolbar's main linear Undo/Redo. Disable/Restore actions get a
-      toggle button instead. Rule-configuration changes (pausing a rule, toggling a child tag off)
-      show up too, just without an Undo button — there's no tag-level change to reverse for a pure
-      setting flip.</p>
+      toggle button instead, and deleting a past (ghost) tag is undoable too. Rule-configuration
+      changes (pausing a rule, toggling a child tag off) show up without an Undo button — there's
+      no tag-level change to reverse for a pure setting flip. So do <b>Rules applied</b> rows, where
+      a standing rule corrected tags by itself; to reverse one, pause that rule.</p>
       <p>"Export log…" saves the full log as JSON. "Clear log" permanently deletes it for this
       dataset (asks first).</p>`
   },
@@ -455,7 +471,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       Retroactive Merge/Void has unsaved rule changes) are waiting to be written to disk —
       ${isTouchDevice ? 'tap' : 'click'} Save to write them all. Closing the app, switching datasets, or reloading with unsaved
       changes always asks first; nothing is silently discarded.</p>
-      ${isTouchDevice ? `<p><b>⚠ Except force-closing the app</b> — swiping it away in Android's
+      ${isTouchDevice ? `<p>Leaving with the phone's Back button asks first too (and says if anything is unsaved).</p>
+      <p><b>⚠ Except force-closing the app</b> — swiping it away in Android's
       recent-apps view kills the app outright, with no chance for that warning (or anything else)
       to run first. Unsaved changes from that session are lost with no way to recover them.
       Save (or turn on Autosave, Settings ▸
@@ -466,8 +483,11 @@ export const HELP_SECTIONS: HelpSection[] = [
     title: 'Tips & troubleshooting',
     html: `
       <ul>
-        ${isTouchDevice ? '' : `<li>Drag a card straight onto the Disabled tab to disable it quickly (hover a card to see
-        this hint appear).</li>`}
+        ${isTouchDevice
+          ? `<li>The phone's <b>Back</b> closes whatever's on top first — a menu, a dialog, a panel, the
+        image card — then steps back through the tabs you visited, and only asks to leave the app
+        once you're back on the Gallery with nothing open.</li>`
+          : `<li>Drag a card straight onto the ❌ Disabled button in the gallery toolbar to disable it quickly.</li>`}
         <li>Underscore-to-space conversion only goes one way — a tag that ends up with an
         underscore while you're editing in-app is treated as containing a literal space, by
         design.</li>
