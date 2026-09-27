@@ -14,10 +14,11 @@
 // like every other file write in this app — no IPC needed for that part.
 import type { DirHandle, Entry, ComfyResult, SynthDatPrompt, FileHandle, Wd14Settings } from './types';
 import { hasOpenFilePicker, pickOpenFiles, writeBytes } from './fs-access';
-import { getJSON } from './storage';
+import { getJSON, getString, setString } from './storage';
 import { buildSynthDatPrompt } from '../comfy-core';
 import {
-  synthDatHost, synthDatRefPreviewWrap, synthDatRefPreview, synthDatRefEmpty, synthDatResizedPreviewWrap,
+  synthDatHost, synthDatBackendRow, synthDatBackendDropdown, synthDatServerFields, synthDatLocalFields,
+  synthDatLocalFolder, btnSynthDatLocalFolder, synthDatRefPreviewWrap, synthDatRefPreview, synthDatRefEmpty, synthDatResizedPreviewWrap,
   synthDatResizedPreview, synthDatResizedPreviewLabel, btnSynthDatPickImage, btnSynthDatInterrogate,
   synthDatWd14Result, synthDatTagAssign, btnSynthDatMigratePose, synthDatDiffModel, synthDatUnetDatalist,
   synthDatClip, synthDatClipDatalist, synthDatVae, synthDatVaeDatalist,
@@ -40,7 +41,7 @@ import {
   synthDatStripHairFace, synthDatTagPreview, synthDatRenameOnAccept, btnSynthDatAccept, btnSynthDatReject,
   synthDatMigrateClearFirst, synthDatSkipRefImage, synthDatRefImageSection, synthDatCol1
 } from './dom';
-import { toast, toastError, showImageLightbox, positionMenu, addContextMenuItem } from './shared-ui';
+import { toast, toastError, showImageLightbox, positionMenu, addContextMenuItem, buildPersistentDropdown } from './shared-ui';
 import { attachPickerModal } from './picker-modal';
 import { parseWd14Tags } from './wd14-tagger';
 import { moveEntry, markDirty } from './tags-edit';
@@ -65,7 +66,64 @@ function getWd14Settings(): Wd14Settings {
 // addresses/tunnels/ports. Falls back to the WD14 host only as a first-run
 // convenience default, then never touches it again once the user has their
 // own value saved.
-function getHost(){ return (synthDatHost.value || '').trim() || 'http://127.0.0.1:8188'; }
+function getHost(){ return backend === 'local' ? LOCAL_COMFY_HOST : ((synthDatHost.value || '').trim() || 'http://127.0.0.1:8188'); }
+
+// ---------------- Backend: ComfyUI server or local ComfyUI ----------------
+// Local = Osmium launches the user's own ComfyUI install itself (main's
+// comfy-local.ts + local-comfy/osmium_comfy_runner.py) and main routes the
+// synthdat* IPC there when the host is LOCAL_COMFY_HOST. Desktop only; the
+// choice is app-wide (it's about this machine, not the dataset) while the
+// server host stays per dataset.
+const LOCAL_COMFY_HOST = 'local';
+const BACKEND_KEY = 'dts-synthdat-backend';
+const hasLocalComfy = typeof window.electronAPI?.comfyLocalStatus === 'function';
+let backend: 'server' | 'local' = hasLocalComfy && getString(BACKEND_KEY) === 'local' ? 'local' : 'server';
+
+function applyBackendUI(): void {
+  synthDatServerFields.style.display = backend === 'server' ? '' : 'none';
+  synthDatLocalFields.style.display = backend === 'local' ? '' : 'none';
+  synthDatConnStatus.style.display = 'none';
+  if (backend === 'local') void refreshLocalStatus();
+}
+
+function showLocalStatus(folder: string, error?: string): void {
+  synthDatLocalFolder.textContent = folder || 'Not set';
+  synthDatLocalFolder.title = folder;
+  if (error && folder){
+    synthDatConnStatus.style.display = 'block';
+    synthDatConnStatus.style.color = '';
+    synthDatConnStatus.textContent = error;
+  }
+}
+
+async function refreshLocalStatus(): Promise<void> {
+  const s = await window.electronAPI.comfyLocalStatus!();
+  showLocalStatus(s.folder, s.error);
+}
+
+async function pickLocalFolder(): Promise<void> {
+  const s = await window.electronAPI.comfyLocalPickFolder!();
+  synthDatConnStatus.style.display = 'none';
+  showLocalStatus(s.folder, s.error);
+}
+
+// SynthDat's WD14 interrogation (reference + generated output). Honours Tag
+// Overseer's On-device WD14 mode, which is also what makes it work with no
+// ComfyUI server at all: local ComfyUI doesn't load the WD14 node.
+async function wd14TagBytes(filename: string, bytes: Uint8Array): Promise<ComfyResult> {
+  const settings = getWd14Settings() as Wd14Settings & { mode?: string; localModel?: string; gpu?: boolean };
+  const onDevice = !!window.Wd14Local && (settings.mode ?? 'local') === 'local';
+  if (onDevice){
+    if (!settings.localModel) return { ok: false, error: 'No on-device WD14 model chosen — pick one in Tag Overseer\'s WD14 Autotagger section first.' };
+    return window.Wd14Local!.tagImage({
+      name: settings.localModel, imageBytes: bytes, threshold: settings.threshold,
+      characterThreshold: settings.characterThreshold, preferGpu: settings.gpu !== false
+    });
+  }
+  if (backend === 'local') return { ok: false, error: 'Local ComfyUI doesn\'t run WD14. Set Tag Overseer\'s WD14 Autotagger to On-device to interrogate without a server.' };
+  if (!settings.model) return { ok: false, error: 'No WD14 model configured — set one up in Tag Overseer\'s WD14 Autotagger section first.' };
+  return window.electronAPI.wd14TagImage({ host: getHost(), filename, imageBytes: bytes, settings });
+}
 
 // ---------------- Persistence ----------------
 // Everything here describes the CHARACTER/setup being generated — saved as
@@ -617,13 +675,8 @@ function closeSynthDatPromptPanel(): void {
 async function interrogateReference(): Promise<void> {
   if (!refFile) return;
   setWd14ResultText('Interrogating…');
-  const settings = getWd14Settings();
-  if (!settings.model){
-    setWd14ResultText('No WD14 model configured — set one up in Tag Overseer\'s WD14 Autotagger section first.');
-    return;
-  }
   const bytes = new Uint8Array(await refFile.arrayBuffer());
-  const res = await window.electronAPI.wd14TagImage({ host: getHost(), filename: refFilename, imageBytes: bytes, settings });
+  const res = await wd14TagBytes(refFilename, bytes);
   if (!res.ok){
     setWd14ResultText(res.error || 'WD14 interrogation failed.');
     return;
@@ -650,12 +703,7 @@ async function reinterrogateOutput(): Promise<void> {
   if (!previewBytes || !pendingTagSnapshot) return;
   synthDatReinterrogateResult.style.display = 'block';
   synthDatReinterrogateResult.textContent = 'Interrogating output…';
-  const settings = getWd14Settings();
-  if (!settings.model){
-    synthDatReinterrogateResult.textContent = 'No WD14 model configured — set one up in Tag Overseer\'s WD14 Autotagger section first.';
-    return;
-  }
-  const res = await window.electronAPI.wd14TagImage({ host: getHost(), filename: pendingImgName || 'output.png', imageBytes: previewBytes, settings });
+  const res = await wd14TagBytes(pendingImgName || 'output.png', previewBytes);
   if (!res.ok){
     synthDatReinterrogateResult.textContent = res.error || 'WD14 interrogation failed.';
     return;
@@ -867,7 +915,17 @@ function addLoraRow(defaultLora: string, defaultStrength: number): void {
 async function testSynthdatConnection(): Promise<void> {
   synthDatConnStatus.style.display = 'block';
   synthDatConnStatus.style.color = '';
-  synthDatConnStatus.textContent = 'Connecting…';
+  if (backend === 'local'){
+    // Starts the runner (its console window shows the load); the first start
+    // takes a while, later ones are instant.
+    synthDatConnStatus.textContent = 'Starting local ComfyUI… its console window shows progress.';
+    const r = await window.electronAPI.comfyLocalConnect!();
+    synthDatConnStatus.style.color = r.ok ? 'var(--accent-ok, #3a9)' : '';
+    if (r.ok) setIconLabel(synthDatConnStatus, `✓ Local ComfyUI ${r.comfyVersion || ''} ready`);
+    else synthDatConnStatus.textContent = r.error || 'Could not start local ComfyUI.';
+    if (r.ok) void refreshModelLists();
+    return;
+  }
   const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'UNETLoader', inputName: 'unet_name' });
   if (res.ok){
     synthDatConnStatus.style.color = 'var(--accent-ok, #3a9)';
@@ -1570,6 +1628,20 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   btnSynthDatAddLora.addEventListener('click', () => { addLoraRow('', 1); scheduleSave(); });
   btnSynthDatRefreshModels.addEventListener('click', refreshModelLists);
   btnSynthDatConnect.addEventListener('click', testSynthdatConnection);
+  if (hasLocalComfy){
+    buildPersistentDropdown(synthDatBackendDropdown, [
+      { value: 'server', label: 'ComfyUI server' },
+      { value: 'local', label: 'Local ComfyUI (no server)' }
+    ], () => backend, (val) => {
+      backend = val === 'local' ? 'local' : 'server';
+      setString(BACKEND_KEY, backend);
+      applyBackendUI();
+    });
+    btnSynthDatLocalFolder.addEventListener('click', () => void pickLocalFolder());
+    applyBackendUI();
+  } else {
+    synthDatBackendRow.style.display = 'none';
+  }
   // Tap-to-pick modal, same pattern as Comfy Bridge's model fields — the
   // old inline attachListAutocomplete dropdown only ever triggered on typed
   // input, so clicking an empty field showed nothing. The `<datalist>`

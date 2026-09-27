@@ -21,6 +21,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Theme app icons** (Windows): Settings ▸ Appearance ▸ App icon lets you pick any theme you own
   as the app's taskbar icon. Each one is that theme's Osmium mark on its own colour. The icon
   stays put when you switch themes, and the app launches with it already in place.
+- **SynthDat without a ComfyUI server** (desktop): set Run on to Local ComfyUI and choose your
+  ComfyUI folder. Osmium starts that install itself in its own console window, loading only the
+  nodes the SynthDat workflow needs instead of every custom node you have installed.
+- **SynthDat interrogation follows WD14's On-device mode**, the same as Tag Overseer, so tagging
+  a reference image no longer needs ComfyUI's WD14 node when you've set it to On-device.
 
 ---
 

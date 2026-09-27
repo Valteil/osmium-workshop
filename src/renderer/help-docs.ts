@@ -308,6 +308,12 @@ export const HELP_SECTIONS: HelpSection[] = [
         README covering exactly what's needed and why.`
         : `see <code>ComfyUI-dependencies/README.md</code> in the app's own folder for exactly what
         and why.`}</p>
+      ${isTouchDevice ? '' : `<p><b>You don't have to keep ComfyUI running.</b> In the ComfyUI
+      connection section, set <b>Run on</b> to <b>Local ComfyUI (no server)</b> and choose your
+      ComfyUI folder once. Osmium then starts that install itself when you click Connect, in its
+      own console window, and loads only what this workflow needs, not your other custom nodes.
+      Use it instead of your usual ComfyUI, not alongside it. Reference interrogation then runs
+      on-device, so set Tag Overseer's WD14 Autotagger to On-device.</p>`}
       <template id="infoGlossaryCharacterLora2Content">
         <p>A <b>LoRA</b> (Low-Rank Adaptation) is a small add-on file trained on top of a base
         image-generation model to teach it something new without retraining the whole model.</p>

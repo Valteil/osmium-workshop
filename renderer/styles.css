@@ -2398,6 +2398,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .synthdat-lora-row input[readonly]{ cursor: pointer; }
   #btnSynthDatSwapReso{ flex-shrink: 0; padding: 6px 9px; font-size: 13px; }
   .synthdat-warning{ font-size: 11px; color: var(--accent-danger); margin-top: 4px; }
+  /* Local ComfyUI's chosen folder: a long path, so it ends in an ellipsis
+     and shows in full on hover (title). */
+  .synthdat-local-folder{
+    flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--font-mono, monospace); font-size: 11.5px; color: var(--text-muted);
+  }
   .synthdat-pass-choice{
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
     background: var(--bg-elevated); border: 2px solid var(--border-soft); border-radius: var(--radius);

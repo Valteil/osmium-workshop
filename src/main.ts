@@ -7,6 +7,7 @@ import * as https from 'https';
 import WS from 'ws';
 import { registerWd14LocalHandlers } from './wd14-local';
 import { registerBucketLocalHandlers } from './bucket-local';
+import { registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop } from './comfy-local';
 import { parseComboValues, buildWd14Prompt, extractWd14Tags, uploadImage, queuePrompt, pollHistory } from './comfy-core';
 import type { ComfyTransport } from './comfy-core';
 import type {
@@ -423,6 +424,7 @@ const nodeComfyTransport: ComfyTransport = {
 // wd14-local.ts's own top comment; this mirrors mobile's DtsWd14Plugin.kt.
   registerWd14LocalHandlers(ipcMain);
   registerBucketLocalHandlers(ipcMain);
+  registerComfyLocalHandlers(ipcMain);
 
 ipcMain.handle('wd14-get-models', async (_event, host: string) => {
   try {
@@ -480,6 +482,7 @@ ipcMain.handle('wd14-tag-image', async (_event, { host, filename, imageBytes, se
 // stack dropdowns (all different node classes, hence this being generic
 // rather than three near-duplicate handlers).
 ipcMain.handle('synthdat-get-object-info', async (_event, { host, classType, inputName }: SynthdatObjectInfoPayload) => {
+  if (host === LOCAL_COMFY_HOST) return localObjectInfo(classType, inputName);
   try {
     const res = await comfyRequest(host, `/object_info/${encodeURIComponent(classType)}`, { timeoutMs: 6000 });
     if (res.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${res.status} looking up ${classType}.` };
@@ -499,6 +502,7 @@ ipcMain.handle('synthdat-get-object-info', async (_event, { host, classType, inp
 let activeSynthdatGen: { cancelled: boolean; ws: WS | null } | null = null;
 
 ipcMain.handle('synthdat-stop-generation', async (_event, host: string) => {
+  if (host === LOCAL_COMFY_HOST) { localStop(); return { ok: true }; }
   if (activeSynthdatGen) activeSynthdatGen.cancelled = true;
   try { await comfyRequest(host, '/interrupt', { method: 'POST', timeoutMs: 5000 }); } catch (err) { /* best effort */ }
   return { ok: true };
@@ -520,6 +524,8 @@ ipcMain.handle('synthdat-stop-generation', async (_event, host: string) => {
 // `send()` (not part of this handler's own return value) so the renderer
 // can update a live preview while the invoke() call is still pending.
 ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, imageBytes, prompt }: SynthdatQueuePayload) => {
+  // Local ComfyUI (comfy-local.ts): same prompt, run by Osmium's own runner.
+  if (host === LOCAL_COMFY_HOST) return localGenerate(event.sender, prompt, imageBytes);
   let ws: WS | null = null;
   try {
     // "Skip reference image" (renderer's buildPromptFromFields) deletes node

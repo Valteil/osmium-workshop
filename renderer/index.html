@@ -1214,7 +1214,18 @@
       <div class="synthdat-col" id="synthDatCol1">
         <div class="tool-section" data-dock-id="synthdatConn">
           <div class="sec-head"><span class="t">ComfyUI connection</span></div>
-          <label class="field-block" title="Independent from Tag Overseer's WD14 host — some setups run generation and tagging through different addresses/tunnels."><span>Host</span><input type="text" id="synthDatHost" placeholder="http://127.0.0.1:8188"></label>
+          <div class="settings-row" id="synthDatBackendRow" title="Server: talk to a ComfyUI you've started yourself. Local: Osmium launches your ComfyUI install itself, loading only what this workflow needs, in its own console window. Use one or the other, not both at once.">
+            <span>Run on</span>
+            <div class="pdrop" id="synthDatBackendDropdown"></div>
+          </div>
+          <label class="field-block" id="synthDatServerFields" title="Independent from Tag Overseer's WD14 host — some setups run generation and tagging through different addresses/tunnels."><span>Host</span><input type="text" id="synthDatHost" placeholder="http://127.0.0.1:8188"></label>
+          <div class="field-block" id="synthDatLocalFields" style="display:none;" title="Your ComfyUI folder (the portable folder, or the ComfyUI folder inside it). ComfyUI-DataSetManagerNodes must be installed in its custom_nodes.">
+            <span>ComfyUI folder</span>
+            <div class="synthdat-lora-row">
+              <span id="synthDatLocalFolder" class="synthdat-local-folder">Not set</span>
+              <button id="btnSynthDatLocalFolder" title="Choose your ComfyUI folder"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-folder"></use></svg>Choose…</button>
+            </div>
+          </div>
           <div class="synthdat-lora-row">
             <button id="btnSynthDatConnect" title="Test connectivity to this ComfyUI host"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-plug"></use></svg>Connect</button>
             <button id="btnSynthDatRefreshModels" title="Reload model/LoRA lists from ComfyUI"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-refresh"></use></svg>Refresh models</button>

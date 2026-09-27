@@ -37,6 +37,8 @@
       "main.js",
       "preload.js",
       "wd14-local.js",
+      "comfy-local.js",
+      "local-comfy/**/*",
       "comfy-core.js",
       "bucket-local.js",
       "bucket-core.js",
@@ -61,7 +63,8 @@
     "asarUnpack": [
       "node_modules/onnxruntime-node/**/*",
       "build/icon.ico",
-      "build/theme-icons/*.ico"
+      "build/theme-icons/*.ico",
+      "local-comfy/**/*"
     ],
     "afterPack": "scripts/after-pack.js",
     "compression": "normal",

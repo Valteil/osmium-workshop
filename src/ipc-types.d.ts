@@ -39,6 +39,16 @@ export interface SynthdatQueuePayload {
   prompt: SynthDatPrompt;
 }
 
+// Local ComfyUI (src/comfy-local.ts): the chosen folder and whether it
+// resolves to a usable install (ComfyUI + its Python + the DSM pack).
+export interface ComfyLocalStatus {
+  folder: string;
+  ok: boolean;
+  error?: string;
+  python?: string;
+  running: boolean;
+}
+
 export interface ExportAppStateResult {
   ok: boolean;
   message?: string;
@@ -99,6 +109,12 @@ export interface ElectronAPI {
   synthdatStopGeneration(host: string): Promise<ComfyResult>;
   onSynthdatPreviewFrame(callback: (event: unknown, data: { mime: string; bytes: Uint8Array }) => void): void;
   onSynthdatProgress(callback: (event: unknown, data: { value: number; max: number }) => void): void;
+  // Local ComfyUI (desktop only; absent in the web demo and the Android shim).
+  // Pass 'local' as a synthdat* host to use it.
+  comfyLocalStatus?(): Promise<ComfyLocalStatus>;
+  comfyLocalPickFolder?(): Promise<ComfyLocalStatus>;
+  comfyLocalConnect?(): Promise<{ ok: boolean; error?: string; comfyVersion?: string }>;
+  comfyLocalShutdown?(): Promise<ComfyLocalStatus>;
 
   wd14LocalListModels(): Promise<Wd14LocalModel[]>;
   wd14LocalDeleteModel(name: string): Promise<void>;

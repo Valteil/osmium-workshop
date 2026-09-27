@@ -1,0 +1,404 @@
+"""Osmium's local ComfyUI runner (SynthDat without a running ComfyUI server).
+
+Launched by Osmium (src/comfy-local.ts) with the user's own ComfyUI Python:
+
+    <comfy python> -s osmium_comfy_runner.py --comfy <ComfyUI dir> [-- <ComfyUI flags>]
+
+It imports ComfyUI as a library and loads ONLY what the SynthDat workflow
+needs: core nodes.py, the few comfy_extras files named in CORE_EXTRAS, and
+the DSM subpackages named in DSM_SUBPACKAGES from the user's installed
+custom_nodes/ComfyUI-DataSetManagerNodes (installing it there is part of the
+setup, same as for server mode). None of the user's other custom node packs
+are imported. Then it runs prompts through ComfyUI's own PromptExecutor with
+a stub in place of the web server. Targets Anima and its finetunes (Anima
+2.9B is out of scope: it has no ControlNet support).
+
+Channels:
+- stdin: one JSON request per line.
+- the ORIGINAL stdout fd: one JSON reply/event per line (protocol only).
+- this process's own console window (CONOUT$): everything ComfyUI and this
+  script log, like ComfyUI's own terminal. fd 1/2 are pointed at it so stray
+  print()s and tqdm bars can never corrupt the protocol.
+
+Requests:  {"id": n, "cmd": "hello"|"object_info"|"generate"|"stop"|"unload", ...}
+Replies:   {"id": n, "ok": true, ...} or {"id": n, "ok": false, "error": "..."}
+Events:    {"event": "progress", "value", "max"} / {"event": "preview", "mime", "b64"}
+"""
+import argparse
+import base64
+import io
+import json
+import os
+import queue
+import sys
+import threading
+import time
+import traceback
+import uuid
+
+# ---- channels -------------------------------------------------------------
+_PROTO = os.fdopen(os.dup(1), "w", encoding="utf-8", buffering=1)
+_PROTO_LOCK = threading.Lock()
+if os.name == "nt":
+    # Osmium is a GUI app, so this process starts with no console; open our
+    # own window, like ComfyUI's terminal. (Node's `detached` gives none.)
+    import ctypes
+    _k32 = ctypes.windll.kernel32
+    if not _k32.GetConsoleWindow():
+        _k32.AllocConsole()
+    _k32.SetConsoleTitleW("Osmium - local ComfyUI")
+try:
+    _CON = open("CONOUT$", "w", encoding="utf-8", errors="replace", buffering=1)
+    os.dup2(_CON.fileno(), 2)
+except OSError:  # no console at all: log to stderr instead
+    _CON = sys.stderr
+os.dup2(2, 1)  # stray print()s and tqdm bars never reach the protocol fd
+sys.stdout = _CON
+sys.stderr = _CON
+
+
+def send(obj):
+    line = json.dumps(obj, separators=(",", ":"))
+    with _PROTO_LOCK:
+        _PROTO.write(line + "\n")
+        _PROTO.flush()
+
+
+def say(msg):
+    print(f"[Osmium] {msg}", flush=True)
+
+
+# ---- args -----------------------------------------------------------------
+argv = sys.argv[1:]
+comfy_flags = []
+if "--" in argv:
+    cut = argv.index("--")
+    argv, comfy_flags = argv[:cut], argv[cut + 1:]
+ap = argparse.ArgumentParser()
+ap.add_argument("--comfy", required=True)
+opts = ap.parse_args(argv)
+
+COMFY_DIR = os.path.abspath(opts.comfy)
+PACK_DIR = os.path.join(COMFY_DIR, "custom_nodes", "ComfyUI-DataSetManagerNodes")
+TESTED_COMFY_VERSION = "0.37.0"
+
+# The comfy_extras files (besides core nodes.py) the SynthDat workflow's
+# image path uses, and the DSM subpackages it uses. Nothing else loads. The
+# text nodes ARE on the image path: DSM Text Concatenate merges the prompt
+# fields, passed through PreviewAny #23. Only the filename chain (Danbooru
+# Character Detect, DSM Lora Loader #38, Text Contains/Switch/String) drops
+# out, because OsmiumCapture has no filename_prefix.
+CORE_EXTRAS = ["nodes_custom_sampler.py", "nodes_primitive.py", "nodes_preview_any.py"]
+DSM_SUBPACKAGES = ["anima_lllite", "rgthree_subset", "impact_switch", "easy_lora_names", "was_text_nodes"]
+
+# ComfyUI parses sys.argv once, on first import of comfy.cli_args.
+sys.argv = [os.path.join(COMFY_DIR, "main.py"), "--windows-standalone-build", *comfy_flags]
+sys.path.insert(0, COMFY_DIR)
+os.chdir(COMFY_DIR)
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+os.environ.setdefault("DO_NOT_TRACK", "1")
+
+say(f"Local ComfyUI runner starting from {COMFY_DIR}")
+say("This window is Osmium's ComfyUI. Closing it stops local generation.")
+
+import comfy.options  # noqa: E402
+comfy.options.enable_args_parsing()
+from comfy.cli_args import args  # noqa: E402
+
+if os.name == "nt" and args.cuda_device is None and args.default_device is None \
+        and os.environ.get("CUDA_VISIBLE_DEVICES") is None:
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # same single-GPU default as main.py
+import cuda_malloc  # noqa: E402,F401  (sets the allocator env before torch loads)
+
+import asyncio  # noqa: E402
+import logging  # noqa: E402
+from app.logger import setup_logger  # noqa: E402
+from comfy.cli_args import get_console_log_level  # noqa: E402
+setup_logger(log_level=get_console_log_level(args.verbose), use_stdout=False)
+
+import folder_paths  # noqa: E402
+import utils.extra_config  # noqa: E402
+
+extra_cfg = os.path.join(COMFY_DIR, "extra_model_paths.yaml")
+if os.path.isfile(extra_cfg):
+    utils.extra_config.load_extra_path_config(extra_cfg)
+
+import comfy.utils  # noqa: E402
+import comfy.model_management  # noqa: E402
+import execution  # noqa: E402
+import nodes  # noqa: E402
+import comfyui_version  # noqa: E402
+from comfy_execution.progress import get_progress_state  # noqa: E402
+from comfy_execution.utils import get_executing_context  # noqa: E402
+
+if comfyui_version.__version__ != TESTED_COMFY_VERSION:
+    say(f"Warning: built against ComfyUI {TESTED_COMFY_VERSION}, this is {comfyui_version.__version__}.")
+
+
+# ---- node loading ---------------------------------------------------------
+def load_nodes():
+    loop = asyncio.new_event_loop()
+    try:
+        for name in CORE_EXTRAS:
+            path = os.path.join(COMFY_DIR, "comfy_extras", name)
+            if not loop.run_until_complete(nodes.load_custom_node(path, module_parent="comfy_extras")):
+                raise RuntimeError(f"Could not load ComfyUI's comfy_extras/{name}")
+    finally:
+        loop.close()
+
+    # The DSM subpackages, imported under a stand-in parent package so the
+    # pack's own __init__ (which imports every subpackage, including the WAS
+    # text nodes that pull in transformers) never runs.
+    import importlib
+    import types
+    if not os.path.isdir(PACK_DIR):
+        raise RuntimeError(f"ComfyUI-DataSetManagerNodes is not installed in {os.path.dirname(PACK_DIR)}")
+    parent = types.ModuleType("osmium_dsm")
+    parent.__path__ = [PACK_DIR]
+    sys.modules["osmium_dsm"] = parent
+    for sub in DSM_SUBPACKAGES:
+        mod = importlib.import_module(f"osmium_dsm.{sub}")
+        nodes.NODE_CLASS_MAPPINGS.update(getattr(mod, "NODE_CLASS_MAPPINGS", {}))
+    # What the pack's __init__ would have done: its bundled ControlNet weights.
+    folder_paths.add_model_folder_path("controlnet", os.path.join(PACK_DIR, "models", "controlnet"))
+    nodes.NODE_CLASS_MAPPINGS["OsmiumCapture"] = OsmiumCapture
+
+
+CAPTURED = {}
+
+
+class OsmiumCapture:
+    """Stands in for SaveImage: hands the decoded image back to Osmium as PNG
+    instead of writing it into ComfyUI's output folder."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"images": ("IMAGE",), "key": ("STRING", {"default": ""})}}
+
+    RETURN_TYPES = ()
+    FUNCTION = "capture"
+    OUTPUT_NODE = True
+    CATEGORY = "osmium"
+
+    def capture(self, images, key):
+        from PIL import Image
+        import numpy as np
+        arr = np.clip(255.0 * images[0].cpu().numpy(), 0, 255).astype(np.uint8)
+        buf = io.BytesIO()
+        Image.fromarray(arr).save(buf, format="PNG", compress_level=4)
+        CAPTURED[key] = buf.getvalue()
+        return {}
+
+
+# ---- server stand-in ------------------------------------------------------
+class StubServer:
+    """The five members ComfyUI's executor needs from its web server
+    (comfy_execution/server_protocol.py). Status events are kept for error
+    reporting; progress and previews go out through progress_hook."""
+
+    def __init__(self):
+        self.client_id = "osmium"
+        self.last_node_id = None
+        self.last_prompt_id = None
+        self.sockets_metadata = {}
+        self.messages = []
+
+    def send_sync(self, event, data, sid=None):
+        if isinstance(event, str):
+            self.messages.append((event, data))
+            if event == "executing" and isinstance(data, dict):
+                self.last_node_id = data.get("node")
+
+    def queue_updated(self):
+        pass
+
+
+SERVER = StubServer()
+
+
+def progress_hook(value, total, preview_image, prompt_id=None, node_id=None):
+    ctx = get_executing_context()
+    if node_id is None:
+        node_id = ctx.node_id if ctx is not None else SERVER.last_node_id
+    comfy.model_management.throw_exception_if_processing_interrupted()
+    get_progress_state().update_progress(node_id, value, total, preview_image)
+    send({"event": "progress", "value": value, "max": total})
+    if preview_image is not None:
+        fmt, img, max_size = preview_image
+        try:
+            if max_size is not None:
+                img = img.copy()
+                img.thumbnail((max_size, max_size))
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            send({"event": "preview", "mime": "image/jpeg", "b64": base64.b64encode(buf.getvalue()).decode("ascii")})
+        except Exception:  # a preview is never worth failing a generation over
+            pass
+
+
+# ---- prompt preparation ---------------------------------------------------
+def is_link(v):
+    return isinstance(v, list) and len(v) == 2 and isinstance(v[0], str)
+
+
+def prepare(prompt):
+    """SaveImage -> OsmiumCapture, then prune every node the captures don't
+    depend on: the UI previews and the filename-building chain, whose node
+    types this runner doesn't even load."""
+    captures = []
+    out = {}
+    for nid, node in prompt.items():
+        if node.get("class_type") == "SaveImage":
+            out[nid] = {"class_type": "OsmiumCapture", "inputs": {"images": node["inputs"]["images"], "key": nid}}
+            captures.append(nid)
+        else:
+            out[nid] = node
+    if not captures:
+        raise ValueError("The workflow has no SaveImage node to return an image from.")
+    keep, stack = set(), list(captures)
+    while stack:
+        nid = stack.pop()
+        if nid in keep:
+            continue
+        if nid not in out:
+            raise ValueError(f"The workflow references node {nid}, which is missing.")
+        keep.add(nid)
+        stack.extend(v[0] for v in out[nid]["inputs"].values() if is_link(v))
+    pruned = {nid: out[nid] for nid in keep}
+    missing = sorted({n["class_type"] for n in pruned.values() if n["class_type"] not in nodes.NODE_CLASS_MAPPINGS})
+    if missing:
+        raise ValueError("Node types not available to the local runner: " + ", ".join(missing))
+    return pruned, captures
+
+
+# ---- commands -------------------------------------------------------------
+EXECUTOR = None
+
+
+def cmd_object_info(req):
+    cls = nodes.NODE_CLASS_MAPPINGS.get(req["class_type"])
+    if cls is None:
+        return {"ok": False, "error": f"{req['class_type']} is not loaded in the local runner."}
+    types_ = cls.INPUT_TYPES()
+    for section in ("required", "optional"):
+        spec = (types_.get(section) or {}).get(req["input"])
+        if spec is None:
+            continue
+        head = spec[0]
+        if isinstance(head, (list, tuple)):
+            return {"ok": True, "values": list(head)}
+        if head == "COMBO" and len(spec) > 1:
+            return {"ok": True, "values": list(spec[1].get("options", []))}
+    return {"ok": False, "error": f'Could not find "{req["input"]}" on {req["class_type"]}.'}
+
+
+def cmd_generate(req):
+    global EXECUTOR
+    prompt, captures = prepare(req["prompt"])
+    ref_path = None
+    if req.get("image_b64") and "239" in prompt:
+        # LoadImage reads from ComfyUI's input folder; the copy is removed
+        # again after the run.
+        name = f"osmium_ref_{uuid.uuid4().hex[:8]}.png"
+        ref_path = os.path.join(folder_paths.get_input_directory(), name)
+        with open(ref_path, "wb") as f:
+            f.write(base64.b64decode(req["image_b64"]))
+        prompt["239"]["inputs"]["image"] = name
+    try:
+        return run_prompt(prompt, captures)
+    finally:
+        if ref_path:
+            try:
+                os.remove(ref_path)
+            except OSError:
+                pass
+
+
+def run_prompt(prompt, captures):
+    global EXECUTOR
+    CAPTURED.clear()
+    SERVER.messages = []
+    if EXECUTOR is None:
+        # Same defaults as main.py's prompt_worker.
+        total = comfy.model_management.total_ram / 1024.0
+        EXECUTOR = execution.PromptExecutor(SERVER, cache_type=execution.CacheType.RAM_PRESSURE, cache_args={
+            "lru": 0, "ram": min(10.0, max(2.0, total * 0.10)), "ram_inactive": min(128.0, total)})
+    prompt_id = str(uuid.uuid4())
+    SERVER.last_prompt_id = prompt_id
+    started = time.perf_counter()
+    say(f"Generating ({len(prompt)} nodes)...")
+    EXECUTOR.execute(prompt, prompt_id, {"client_id": SERVER.client_id, "preview_method": "taesd"}, captures)
+    for event, data in SERVER.messages:
+        if event == "execution_interrupted":
+            say("Stopped.")
+            return {"ok": False, "error": "Generation stopped.", "interrupted": True}
+        if event == "execution_error":
+            say(f"Error in {data.get('node_type')}: {data.get('exception_message')}")
+            return {"ok": False, "error": f"{data.get('node_type')} failed: {str(data.get('exception_message', '')).strip()}"}
+    if not EXECUTOR.success or not CAPTURED:
+        return {"ok": False, "error": "The local runner finished without producing an image."}
+    say("Done in {:.1f}s".format(time.perf_counter() - started))
+    return {"ok": True, "images": {k: base64.b64encode(v).decode("ascii") for k, v in CAPTURED.items()}}
+
+
+def cmd_unload(_req):
+    global EXECUTOR
+    comfy.model_management.unload_all_models()
+    EXECUTOR = None
+    comfy.model_management.soft_empty_cache()
+    say("Models unloaded.")
+    return {"ok": True}
+
+
+COMMANDS = {
+    "hello": lambda _r: {"ok": True, "comfy_version": comfyui_version.__version__},
+    "object_info": cmd_object_info,
+    "generate": cmd_generate,
+    "unload": cmd_unload,
+}
+
+
+def main():
+    load_nodes()
+    comfy.utils.set_progress_bar_global_hook(progress_hook)
+    say(f"Ready (ComfyUI {comfyui_version.__version__}, device {comfy.model_management.get_torch_device_name(comfy.model_management.get_torch_device())}).")
+    send({"event": "ready", "comfy_version": comfyui_version.__version__})
+
+    jobs = queue.Queue()
+
+    def reader():
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                req = json.loads(line)
+            except ValueError:
+                continue
+            if req.get("cmd") == "stop":  # must not wait behind the running job
+                comfy.model_management.interrupt_current_processing(True)
+                send({"id": req.get("id"), "ok": True})
+            else:
+                jobs.put(req)
+        jobs.put(None)  # Osmium closed the pipe: exit
+
+    threading.Thread(target=reader, daemon=True).start()
+    while True:
+        req = jobs.get()
+        if req is None:
+            break
+        handler = COMMANDS.get(req.get("cmd"))
+        try:
+            reply = handler(req) if handler else {"ok": False, "error": f"Unknown command {req.get('cmd')}"}
+        except Exception as err:
+            traceback.print_exc()
+            reply = {"ok": False, "error": str(err), "trace": traceback.format_exc()[-2000:]}
+        finally:
+            comfy.model_management.interrupt_current_processing(False)
+        reply["id"] = req.get("id")
+        send(reply)
+    say("Osmium disconnected; exiting.")
+
+
+if __name__ == "__main__":
+    main()

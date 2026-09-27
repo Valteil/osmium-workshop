@@ -355,6 +355,14 @@ into new reference poses via ControlNet instead of hand-posing/hand-drawing more
 **Requires ComfyUI with a few extra things installed** — see `ComfyUI-dependencies/README.md` in
 this repo for exactly what and why (some of it is bundled there directly).
 
+**You don't have to keep ComfyUI running (desktop).** In the ComfyUI connection section, set
+**Run on** to **Local ComfyUI (no server)** and choose your ComfyUI folder once (the portable folder
+or the `ComfyUI` folder inside it). Click **Connect** and Osmium starts that install itself, in its
+own console window, loading only what this workflow needs rather than all your custom nodes. The
+first start takes a little while and the first generation loads the models; after that it's quick.
+Use it instead of your usual ComfyUI, not alongside it. In this mode, interrogating the reference
+image runs on-device, so set Tag Overseer's WD14 Autotagger to **On-device**.
+
 **The flow:**
 1. **Pick a reference pose image** (or skip this entirely via "I don't want to use a reference
    image" for an ordinary prompted generation with no ControlNet).
