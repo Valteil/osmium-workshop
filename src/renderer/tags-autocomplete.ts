@@ -47,11 +47,18 @@ function onDocClickCloseAutocomplete(ev: MouseEvent): void {
   closeAutocomplete();
 }
 
+// The panel normally opens ABOVE its input (tag-add fields sit low on the
+// screen); `acBelow` flips it to a dropdown under the input (the Tag Wiki
+// window, whose definition text sits above its field).
+let acBelow = false;
+
 function positionAutocomplete(rect: DOMRect): void {
   if (!autocompleteEl) return;
   autocompleteEl.style.width = Math.max(220, rect.width) + 'px';
   autocompleteEl.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - autocompleteEl.offsetWidth - 8)) + 'px';
-  const top = rect.top - autocompleteEl.offsetHeight - 4;
+  const top = acBelow
+    ? Math.min(rect.bottom + 4, window.innerHeight - autocompleteEl.offsetHeight - 8)
+    : rect.top - autocompleteEl.offsetHeight - 4;
   autocompleteEl.style.top = Math.max(8, top) + 'px';
 }
 
@@ -234,6 +241,7 @@ export function attachListAutocomplete(inputEl: HTMLInputElement, getOptions: ()
       if (inputEl.value.trim().toLowerCase() !== raw) return;
       const options = getOptions() || [];
       const results = options.filter(o => o.toLowerCase().includes(raw)).slice(0, 30);
+      acBelow = false;
       renderListAutocompleteResults(inputEl, results, (val: string) => {
         closeAutocomplete();
         inputEl.value = val;
@@ -283,14 +291,32 @@ function queryOf(inputEl: HTMLInputElement, segmented: boolean): string {
   return (segmented ? v.slice(v.lastIndexOf(',') + 1) : v).trim();
 }
 
-function attachAutocompleteCore(inputEl: HTMLInputElement, onPick: (tag: string) => void, segmented = false): void {
+// A tag-add field that handles the pick itself (Tag Sorting's per-category
+// "+"): same gating and comma-segment search as attachTagAutocomplete, but
+// the caller receives the completed field value instead of it being added.
+export function attachPickAutocomplete(inputEl: HTMLInputElement, onPick: (value: string) => void): void {
+  attachAutocompleteCore(inputEl, (tag: string) => {
+    closeAutocomplete();
+    const cut = inputEl.value.lastIndexOf(',');
+    onPick(cut === -1 ? tag : inputEl.value.slice(0, cut) + ',' + tag);
+  }, true);
+}
+
+// Suggestions for a lookup field that isn't a tag-add field: always on (not
+// gated by the tag-autocomplete setting) and shown as a dropdown below.
+export function attachLookupAutocomplete(inputEl: HTMLInputElement, onPick: (tag: string) => void): void {
+  attachAutocompleteCore(inputEl, onPick, false, { always: true, below: true });
+}
+
+function attachAutocompleteCore(inputEl: HTMLInputElement, onPick: (tag: string) => void, segmented = false,
+  opts: { always?: boolean; below?: boolean } = {}): void {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   inputEl.addEventListener('input', () => {
     if (debounceTimer) clearTimeout(debounceTimer);
-    if (!tagAutocompleteEnabled) { closeAutocomplete(); return; }
+    if (!tagAutocompleteEnabled && !opts.always) { closeAutocomplete(); return; }
     const raw = queryOf(inputEl, segmented);
     if (!raw) { closeAutocomplete(); return; }
-    debounceTimer = setTimeout(() => runAutocompleteSearch(inputEl, onPick, raw, segmented), 150);
+    debounceTimer = setTimeout(() => { acBelow = !!opts.below; runAutocompleteSearch(inputEl, onPick, raw, segmented); }, 150);
   });
   inputEl.addEventListener('keydown', (ev: KeyboardEvent) => {
     if (ev.key === 'Escape') closeAutocomplete();

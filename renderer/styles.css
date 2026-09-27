@@ -2618,6 +2618,25 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   /* ---------- Tag details ---------- */
 
   .tag-details-body{ display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
+  /* Tag Wiki window (tag-wiki.ts): the floating-panel look, but its own class
+     so closeAllFloatingPanels() never shuts it; it stays until its × is
+     clicked. Dragged by its header; the definition scrolls above the field. */
+  .tag-wiki-window{
+    position: fixed; width: 360px; max-width: calc(100vw - 16px); max-height: 70vh;
+    background: var(--bg-elevated-2); border: 1px solid var(--border-strong);
+    border-radius: var(--r-panel); padding: 12px 14px 14px; z-index: 460;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column; gap: 10px;
+    opacity: 0; transform: translateY(-8px) scale(0.98);
+    transition: opacity var(--panel-dur) var(--pop-ease), transform var(--panel-dur) var(--pop-ease);
+    pointer-events: none;
+  }
+  .tag-wiki-window.panel-visible{ opacity: 1; transform: none; pointer-events: auto; }
+  .tag-wiki-head{ display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: move; user-select: none; touch-action: none; }
+  .tag-wiki-close{ padding: 4px 6px; line-height: 0; }
+  .tag-wiki-body{ display: flex; flex-direction: column; gap: 8px; min-height: 80px; overflow-y: auto; }
+  .tag-wiki-tag{ font-weight: 600; font-size: 14px; color: var(--text-primary); }
+  .tag-wiki-input{ width: 100%; }
   .tag-details-meta{ display: flex; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
   .tag-details-def{ line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; }
   .tag-details-def.greyed{ color: var(--text-faint); font-style: italic; }
@@ -4099,6 +4118,38 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     letter-spacing: 0.5px; color: var(--accent-flair);
   }
   .tagcat-count { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+  /* Image Quicktagging (quick-tag.ts): in Single view it replaces #left's own
+     tools. !important because some of #left's children carry inline display
+     (Inline-Styles-Beat-Stylesheet). Slides in from the left on entry; the
+     animation only replays when the panel goes from hidden to shown, not on
+     every re-render. */
+  #quickTagPanel{ display: none; }
+  #left.quicktag-on > :not(#quickTagPanel){ display: none !important; }
+  #left.quicktag-on > #quickTagPanel{
+    display: flex; flex-direction: column; gap: 14px;
+    animation: quicktag-in var(--panel-dur) var(--pop-ease) both;
+  }
+  @keyframes quicktag-in{ from{ opacity: 0; transform: translateX(-28px); } to{ opacity: 1; transform: none; } }
+  /* gpu-idle pauses every animation; paused at its first frame this one-shot
+     slide-in would leave the whole panel invisible, so it always runs. */
+  html.gpu-idle #left.quicktag-on > #quickTagPanel{ animation-play-state: running !important; }
+  .quicktag-note{ font-size: 11px; color: var(--text-faint); line-height: 1.4; margin-top: -8px; }
+  .quicktag-group{ display: flex; flex-direction: column; gap: 6px; }
+  .quicktag-group-head{
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--accent-flair); border-bottom: 1px solid var(--border-soft); padding-bottom: 3px;
+  }
+  .quicktag-options{ display: flex; flex-direction: column; gap: 4px; }
+  /* Per-category "+" (buildCategoryAddButton): sits at the header's right end
+     and opens an add field under the header. Empty categories keep a dimmed
+     header so they can be started too. */
+  .tagcat-add {
+    margin-left: auto; padding: 0 7px; min-height: 0; line-height: 18px; font-size: 13px;
+    font-family: var(--mono); align-self: center;
+  }
+  .tagcat-seg-empty .tagcat-name { opacity: 0.55; }
+  .tagcat-seg-empty .tagcat-count { opacity: 0.55; }
+  .tagcat-add-input { width: 100%; }
 
   /* Multi-subject tree (Tag Sorting, opt-in): user-named subject headers, each
      with indented category subheaders. Tags are assigned by dragging a chip onto

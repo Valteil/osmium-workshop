@@ -26,6 +26,13 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   nodes the SynthDat workflow needs instead of every custom node you have installed.
 - **Single view**: the add-tag field sits right under the image instead of after the whole tag
   list.
+- **Image Quicktagging** (Single view): the left panel becomes checkboxes for common attributes
+  (hair length, breast size, slim/plump, thick thighs/slim legs, looking at viewer/away), so they're
+  one click instead of typed every time.
+- **Tag Sorting**: a **+** on every category adds tags right there, and a tag added under the wrong
+  heading moves to its own with a note. **Hair** is its own category now; Body is below the neck.
+- **Wiki window**: a new toolbar button next to Asc/Desc opens a small tag-definition lookup that
+  stays open until you close it.
 - **Gallery toolbar** wraps onto a second row when the window is narrow instead of cutting its
   buttons off.
 - **Rename all converts WebP to PNG**: WD14 can't read WebP, so renaming a dataset now also

@@ -10,7 +10,7 @@
 //
 // A tag listed under several Danbooru groups resolves to the FIRST category in the
 // build script's precedence order (most-specific-content first):
-// sexual > limbs > pose > clothes > face > body > character > scene > effects > other.
+// sexual > limbs > pose > clothes > hair > face > body > character > scene > effects > other.
 // That precedence is baked into the generated seed map at build time and re-applied to
 // the runtime rules here. (Limbs outranks pose because Danbooru's Posture page
 // cross-lists gesture tags, so posture's own list contains "waving"/"salute"/etc. Face
@@ -25,6 +25,7 @@ export { TAG_CATEGORY_ORDER };
 
 export const TAG_CATEGORY_LABELS: Record<TagCategoryId, string> = {
   character: 'Character',
+  hair: 'Hair',
   body: 'Body',
   face: 'Face',
   clothes: 'Clothes',

@@ -13,16 +13,18 @@ import {
   viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, viewOriginalsBtn, btnUnlockAll, btnHideTags, btnRenameAllImages, singlePrevBtn, singleNextBtn,
   galleryGrid, compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
-  langAutoSelectToggle, filterMatchCount
+  langAutoSelectToggle, filterMatchCount, leftAside
 } from './dom';
+import { initQuickTag, showQuickTag, hideQuickTag } from './quick-tag';
 import { toast, toastError, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox, addContextMenuItem, transitionMsOf, mapPan, createModalShell } from './shared-ui';
 import type { ModalShell } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
 import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially, isWebpName } from './tags-edit';
 import { openTagDetails } from './tag-details';
-import { attachTagAutocomplete, closeAutocomplete } from './tags-autocomplete';
+import { attachTagAutocomplete, attachPickAutocomplete, closeAutocomplete } from './tags-autocomplete';
 import { buildTagIndex, refreshStats, filteredEntries, passesFilter } from './tag-index';
 import { categorizeTag, groupTagsByCategory, TAG_CATEGORY_ORDER, TAG_CATEGORY_LABELS } from './tag-categories';
+import type { TagCategoryId } from './tag-categories';
 import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid } from './master-tag-control';
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
@@ -132,8 +134,7 @@ export function switchView(mode: ViewMode, opts?: { instant?: boolean }): void {
     singleViewEl.style.display = mode === 'single' ? 'block' : 'none';
     singleNav.style.display = mode === 'single' ? 'flex' : 'none';
     if (mode === 'single') renderSingleView();
-    else if (mode === 'compact') renderCompactGrid();
-    else renderGallery();
+    else { hideQuickTag(); if (mode === 'compact') renderCompactGrid(); else renderGallery(); }
   };
 
   const html = document.documentElement;
@@ -1458,6 +1459,9 @@ function buildSeqBody(entry: Entry, stacked: boolean): HTMLElement {
 }
 
 function renderSingleView(){
+  // Image Quicktagging (./quick-tag.ts) owns the left panel only while this
+  // shows ONE ordinary image; re-shown below once that's known.
+  hideQuickTag();
   if (masterSelectedImages.size > 1 && !seqActive){
     renderMultiCompareView();
     return;
@@ -1498,6 +1502,7 @@ function renderSingleView(){
 
   const e = list[singleIndex];
   lastSingleBase = e.base;
+  showQuickTag(e);
 
   const wrap = document.createElement('div');
   wrap.className = 'single-wrap';
@@ -1652,30 +1657,90 @@ function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void)
   const wrap = document.createElement('div');
   wrap.className = 'tagcat-groups';
   // Ghosts are classified with the real tags, then drawn last in their
-  // category (and a category holding only ghosts still shows up).
-  for (const group of groupTagsByCategory([...ordered, ...ghosts.map(g => g.tag)])){
-    const real = group.tags.filter(t => !ghostByTag.has(t));
+  // category (and a category holding only ghosts still shows up). Empty
+  // categories get a dimmed header too, so their "+" can start them.
+  const groups = new Map(groupTagsByCategory([...ordered, ...ghosts.map(g => g.tag)]).map(g => [g.id, g.tags]));
+  for (const cat of TAG_CATEGORY_ORDER){
+    const groupTags = groups.get(cat) || [];
+    const real = groupTags.filter(t => !ghostByTag.has(t));
     const seg = document.createElement('div');
-    seg.className = 'tagcat-seg';
+    seg.className = 'tagcat-seg' + (groupTags.length ? '' : ' tagcat-seg-empty');
     const head = document.createElement('div');
     head.className = 'tagcat-head';
     const name = document.createElement('span');
     name.className = 'tagcat-name';
-    name.textContent = group.label;
+    name.textContent = TAG_CATEGORY_LABELS[cat];
     const count = document.createElement('span');
     count.className = 'tagcat-count';
     count.textContent = String(real.length);
     head.appendChild(name);
     head.appendChild(count);
+    head.appendChild(buildCategoryAddButton(entry, cat, seg, onChange));
     seg.appendChild(head);
-    const chiprow = document.createElement('div');
-    chiprow.className = 'chiprow';
-    for (const tag of real) chiprow.appendChild(buildChip(entry, tag, onChange, tagIndex));
-    for (const tag of group.tags) if (ghostByTag.has(tag)) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(tag)!, onChange));
-    seg.appendChild(chiprow);
+    if (groupTags.length){
+      const chiprow = document.createElement('div');
+      chiprow.className = 'chiprow';
+      for (const tag of real) chiprow.appendChild(buildChip(entry, tag, onChange, tagIndex));
+      for (const tag of groupTags) if (ghostByTag.has(tag)) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(tag)!, onChange));
+      seg.appendChild(chiprow);
+    }
     wrap.appendChild(seg);
   }
   return wrap;
+}
+
+// Tag Sorting's per-category "+": opens a small add field right under that
+// category's header. Tags always land in the category the classifier puts
+// them in (it's not a manual assignment), so a tag that belongs elsewhere is
+// added anyway and the user is told where it went. In the subject tree the
+// added tags are also assigned to that subject.
+function buildCategoryAddButton(entry: Entry, cat: TagCategoryId, host: HTMLElement, onChange: () => void, subjectId?: string): HTMLElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'tagcat-add';
+  btn.textContent = '+';
+  btn.title = `Add a tag under ${TAG_CATEGORY_LABELS[cat]}`;
+  btn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const existing = host.querySelector<HTMLInputElement>(':scope > .tagcat-add-input');
+    if (existing){ existing.focus(); return; }
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'addtag-input tagcat-add-input';
+    input.placeholder = `+ ${TAG_CATEGORY_LABELS[cat]} tag(s), press Enter`;
+    const commit = (value: string) => {
+      addTagsToCategory(entry, value, cat, subjectId);
+      closeAutocomplete();
+      onChange();
+      refreshRightPanels();
+    };
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' && input.value.trim()) commit(input.value);
+      else if (e.key === 'Escape'){ closeAutocomplete(); input.remove(); }
+    });
+    input.addEventListener('blur', () => { if (!input.value.trim()) setTimeout(() => input.remove(), 150); });
+    attachPickAutocomplete(input, commit);
+    host.querySelector(':scope > .tagcat-head, :scope > .tagsub-sub-head')!.insertAdjacentElement('afterend', input);
+    input.focus();
+  });
+  return btn;
+}
+
+function addTagsToCategory(entry: Entry, raw: string, cat: TagCategoryId, subjectId?: string): void {
+  // Same normalization addTagToEntry applies, to know the stored names.
+  const parts = raw.split(',').map(t => t.trim().replace(/_/g, ' ').replace(/\s+/g, ' ')).filter(Boolean);
+  if (!parts.length) return;
+  addTagToEntry(entry, parts.join(','));
+  const present = parts.filter(t => entry.tags.includes(t));
+  if (subjectId && present.length) assignTagsToSubject(entry, present, subjectId);
+  const elsewhere = present.filter(t => categorizeTag(t) !== cat);
+  if (elsewhere.length === 1){
+    const label = TAG_CATEGORY_LABELS[categorizeTag(elsewhere[0])];
+    toast(`"${elsewhere[0]}" is a ${label} tag, so it went under ${label} instead of ${TAG_CATEGORY_LABELS[cat]}.`, 4200);
+  } else if (elsewhere.length > 1){
+    toast(`These belong to other categories and went there instead: ${elsewhere.map(t => `"${t}" (${TAG_CATEGORY_LABELS[categorizeTag(t)]})`).join(', ')}.`, 5200);
+  }
 }
 
 // ---------------- Multi-subject tree (Tag Sorting) ----------------
@@ -1865,6 +1930,7 @@ function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, 
     countEl.textContent = String(tags.length);
     subHead.appendChild(catName);
     subHead.appendChild(countEl);
+    subHead.appendChild(buildCategoryAddButton(entry, cat as TagCategoryId, sub, onChange, subject.id));
     sub.appendChild(subHead);
 
     const chiprow = document.createElement('div');
@@ -3525,6 +3591,11 @@ interface ViewDeps {
 }
 
 export function initView(deps: ViewDeps): void {
+  initQuickTag({
+    leftPanel: leftAside,
+    addTagToEntry, removeTagFromEntry,
+    onChange: () => { renderSingleView(); refreshRightPanels(); }
+  });
   getEntries = deps.getEntries;
   getEntryByBase = deps.getEntryByBase;
   getDirHandleRef = deps.getDirHandle;

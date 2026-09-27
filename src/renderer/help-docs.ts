@@ -52,8 +52,15 @@ export const HELP_SECTIONS: HelpSection[] = [
         ${isTouchDevice ? '' : `<li><b>Compact</b> — smaller thumbnails, tags appear on hover. Shift-click two images to
         pin them side by side in a comparison table.</li>
         <li><b>Single</b> — one image at a time: a compact preview (click it for the full-size
-        view — scroll to zoom, drag to pan) beside a roomy tag panel. Type a number into the
-        toolbar's "N / total" box and press Enter to jump straight to that image.</li>`}
+        view — scroll to zoom, drag to pan) beside a roomy tag panel, with the add-tag field under
+        the image. Type a number into the toolbar's "N / total" box and press Enter to jump
+        straight to that image. <b>Image Quicktagging:</b> while it shows one image, the left panel
+        becomes checkboxes for common attributes (hair length, breast size, slim/plump, thick
+        thighs/slim legs, looking at viewer/away). Tick to add, untick to remove; a breast size also
+        adds <code>breasts</code> (Flat doesn't).</li>
+        <li><b>📖 Wiki</b> (next to Asc/Desc) — a small window for looking up any tag's definition.
+        Type a tag, pick a suggestion, and its definition shows above the field. Drag it by its
+        title; it stays open until you close it.</li>`}
         <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
         ${isTouchDevice ? '' : `<li><b>🖼 Originals</b> — the pre-bucketing originals kept by Bucket Images (see Power
         tools). Read-only here; Bucket Images' Revert is what moves them back.</li>`}
@@ -72,8 +79,10 @@ export const HELP_SECTIONS: HelpSection[] = [
       press Enter to add one (separate several with commas, e.g. "1girl, red eyes, plump", to add
       them all at once), or ${isTouchDevice ? 'tap' : 'click'} a chip's × to remove it.</p>
       <p><b>🏷 Tag sorting</b> — in ${isTouchDevice ? 'the image modal' : 'Single view and the image modal'}, this pill above
-      the tags groups them into labelled categories (Character, Body, Face, Clothes, Limbs and
-      Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. With it off, tags still
+      the tags groups them into labelled categories (Character, Hair, Body, Face, Clothes, Limbs and
+      Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. Each category's
+      <b>+</b> adds tags right there; a tag that belongs to another category goes there instead,
+      and you're told. With it off, tags still
       follow that category order, just without headings (Settings ▸ "Sort tags within each card"
       offers Order added, Alphabetical or By frequency instead). The grouping is a best
       guess from Danbooru tag groups, so the odd tag lands in a neighbouring category. With it on,

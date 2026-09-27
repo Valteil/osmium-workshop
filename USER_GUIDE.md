@@ -71,7 +71,17 @@ This is the tag editor itself — everything else in the app supports what happe
   navigation. Click the preview for the full-size lightbox (scroll to zoom, drag to pan) to
   inspect fine details (text, hands, artifacts) before training. The toolbar's "N / total" box is
   editable — type an image number and press Enter to jump there. Select 2+ images in Tag Overseer
-  first and switch here for a multi-image tag-alignment table.
+  first and switch here for a multi-image tag-alignment table. The add-tag field sits right under
+  the image. **Image Quicktagging:** while Single view shows one image, the left panel slides over
+  to a set of checkboxes for common attributes, so you don't type them again and again: hair length
+  (short, medium, long), breast size (flat, small, medium, large, gigantic), slim / plump, thick
+  thighs / slim legs, and looking at viewer / looking away. Each box is independent. Ticking adds
+  the tag and unticking removes it, and ticking a breast size also adds `breasts` (Flat doesn't).
+  The filter panel comes back when you leave Single view.
+- **📖 Wiki** (next to Asc/Desc) — opens a small window to look up any tag's definition from the
+  bundled wiki, without going through a tag field. Type a tag (suggestions drop down as you type)
+  and its definition shows above the field. Drag it by its title; it stays open until you close it
+  with ×.
 - **❌ Disabled** — images you've moved out of the active set. Use it for maybes you don't want
   to delete.
 - **🖼 Originals** — the pre-bucketing originals kept by [Bucket Images](#bucket-images).
@@ -105,8 +115,11 @@ and press Enter to add a new one. Separate several with commas (`1girl, red eyes
 them all at once, as a single undo step. Click the × on a chip to remove it.
 
 **🏷 Tag sorting:** in Single view and the image modal, this pill above the tags groups them into
-labelled categories — Character, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene,
-Effects, Other — instead of one flat wall (grid cards stay flat). Even with it off, tags are listed
+labelled categories — Character, Hair, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene,
+Effects, Other — instead of one flat wall (grid cards stay flat). Hair is head hair (length,
+colour, styles); Body is everything below the neck. Each category has a **+** that opens an add
+field under its heading, including empty categories. A tag always lands in the category it belongs
+to: if you add one under the wrong heading, it goes where it belongs and a note tells you. Even with it off, tags are listed
 in that same category order by default, just without the headings, and a newly added tag drops
 straight into its place. Settings ▸ "Sort tags within each card" switches to Order added,
 Alphabetical or By frequency instead. The grouping is a best guess

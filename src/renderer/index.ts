@@ -85,6 +85,7 @@ import {
   ensureWikiDataLoaded, ensureAllTagsLoaded, getCustomTagNote, setCustomTagNote,
   openTagDetails, initTagDetails
 } from './tag-details';
+import { initTagWiki } from './tag-wiki';
 import {
   buildTagIndex, refreshStats, filteredEntries, passesFilter, setBaseFilter,
   parseFilterTerms, setContainsFilter, setExcludesFilter, setMirroredSelectionFilter, initTagIndex,
@@ -2348,6 +2349,8 @@ import { setIconLabel } from './icons';
 
   // Wiki tag details moved to ./tag-details.ts
   initTagDetails();
+  // Gallery toolbar's "Wiki" button: the floating tag lookup window (./tag-wiki.ts)
+  initTagWiki($('btnTagWiki'));
 
   // "No folder loaded" empty-state random fact button moved to ./random-facts.ts
   initRandomFacts();
