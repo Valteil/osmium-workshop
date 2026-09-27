@@ -127,7 +127,7 @@
   },
   "6": {
     "inputs": {
-      "value": "black shrug (clothing), juliet sleeves, sleeves past fingers, "
+      "value": ""
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -136,7 +136,7 @@
   },
   "7": {
     "inputs": {
-      "value": "looking at viewer, standing "
+      "value": ""
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -154,7 +154,7 @@
   },
   "9": {
     "inputs": {
-      "value": "slim legs, slim, low wings, black wings, single spade tail, feet, barefoot, five toes"
+      "value": ""
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -172,7 +172,7 @@
   },
   "11": {
     "inputs": {
-      "value": "Fam1Fam1"
+      "value": "adult woman, tall, mature female, standing, full body, blue jeans, white t-shirt, sneakers, simple background, smile"
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -181,7 +181,7 @@
   },
   "12": {
     "inputs": {
-      "value": "white hair, hair between eyes, blunt bangs, pointy ears"
+      "value": ""
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -208,7 +208,7 @@
   },
   "15": {
     "inputs": {
-      "value": "red eyes, white pupils, white eyelashes, annoyed expression, parted lips"
+      "value": ""
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -217,7 +217,7 @@
   },
   "16": {
     "inputs": {
-      "text": "censored, blank censor, extra fingers, from front, six fingers, signature, username, logo, watermark, e621, ambiguous form, anthropomorphic, cropped, text",
+      "text": "nsfw, nude, loli, child, young, petite, flat chest, lowres, bad anatomy, extra fingers, watermark, signature, text",
       "clip": [
         "249",
         0
@@ -230,7 +230,7 @@
   },
   "17": {
     "inputs": {
-      "value": "from front, white background"
+      "value": ""
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -239,7 +239,7 @@
   },
   "18": {
     "inputs": {
-      "value": "flat chest"
+      "value": ""
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -248,7 +248,7 @@
   },
   "19": {
     "inputs": {
-      "value": "1girl"
+      "value": ""
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -266,7 +266,7 @@
   },
   "21": {
     "inputs": {
-      "value": "@daioo"
+      "value": ""
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -426,7 +426,7 @@
   },
   "51": {
     "inputs": {
-      "lora_name": "Anima\\ANIMA - Daioo - @daioo.safetensors"
+      "lora_name": "None"
     },
     "class_type": "DSM Lora Name",
     "_meta": {
@@ -704,10 +704,10 @@
   },
   "237": {
     "inputs": {
-      "lora_01": "Anima\\ANIMA - Lighting Slider.safetensors",
-      "strength_01": 1,
-      "lora_02": "Anima\\ANIMA - FamiOC - Fam1Fam1.safetensors",
-      "strength_02": 0.8,
+      "lora_01": "None",
+      "strength_01": 0,
+      "lora_02": "None",
+      "strength_02": 0,
       "lora_03": "None",
       "strength_03": 0,
       "lora_04": "None",

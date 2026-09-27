@@ -22,11 +22,12 @@ import { getValidBuckets, getBestBucket } from './bucket-core';
 import type { BucketImagePayload } from './ipc-types';
 import type { BucketImageResult, BucketModelStatus, BucketDownloadProgress } from './shared-types';
 
-// Pinned to the v1.7.0 release tag rather than `releases/latest` — "latest"
+// Pinned to the v1.8.0 release tag rather than `releases/latest` — "latest"
 // would break the download the moment a newer release ships without the model
 // asset. If the model ever moves to a newer tag, update this constant (and keep
-// the v1.7.0 asset in place until then). fetchToFile follows the 302 to the CDN.
-const U2NET_URL = 'https://github.com/Valteil/osmium-workshop/releases/download/v1.7.0/u2net.onnx';
+// the v1.8.0 asset in place until then). fetchToFile follows the 302 to the CDN.
+// (It lived on v1.7.0 until the pre-v1.8.0 releases were withdrawn.)
+const U2NET_URL = 'https://github.com/Valteil/osmium-workshop/releases/download/v1.8.0/u2net.onnx';
 const U2NET_INPUT = 320;
 
 function modelsDir(): string { return path.join(app.getPath('userData'), 'bucket_models'); }
