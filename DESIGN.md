@@ -252,14 +252,29 @@ and **Disable opening flourish** turns it off.
   Celestial Gold's stars…), the stroke weight and cap, and one world device where it has one:
   Cyberpunk's chromatic split, Oriental's cinnabar seal, Blood Moon's moon, Terminal's dashed
   lines.
-- **The tail** pairs a tile with an edge profile, both from the world. **Zigzag teeth** go with
-  diamonds (Studio, Osmium, Arctic Frost), gold leaf (Oriental, Amethyst), shards (Obsidian) and
-  stars (Celestial Gold). **Scallops** go with bubbles, rings, petals, buds, embers, fireflies,
-  confetti and drops. **Steps** go with pixels (Terminal), HUD/neon bars (Cyberpunk, Retro Wave,
-  Aurora) and hazard chips (Toxic Waste). A **torn line** goes with leaves (Forest Moss) and paper
-  scraps (Vintage Paper). Tiles are in the fill colour (Candy Pop's confetti takes the accents).
-  Risers float up, fallers drop, flat pieces spin. Only light-source worlds (per the Native Light
-  Rule) glow.
+- **The tail comes in two kinds.** Most themes get the **basic tail**: the two lead columns
+  mirrored behind the slab, with a small colour touch from the world (Subway's route colours,
+  Cyberpunk's chromatic pair, Toxic Waste's hazard stripes, gilt on Amethyst and Rose Gold, and so
+  on).
+- **Trailing particle edges (TPE)** are only for the twelve worlds whose debris *is* their identity.
+  Each has a cut edge and its own small debris, a little under half the size of a lattice cell:
+  - Osmium: zigzag edge, lattice diamonds with a few in the RGB strip's hues.
+  - Obsidian: zigzag edge, knapped shards with a lit facet.
+  - Celestial Gold: zigzag edge, gold four-point stars.
+  - Terminal: stepped edge, glowing mono glyphs.
+  - Sakura: scalloped edge, petals in pink and paler pink.
+  - Coral Reef: scalloped edge, bubbles with a catch-light.
+  - Candy Pop: scalloped edge, sprinkles in every accent.
+  - Twilight Garden: scalloped edge, amber fireflies.
+  - Solar Flare: scalloped edge, embers.
+  - Bioluminescent: scalloped edge, glowing plankton.
+  - Forest Moss: torn edge, veined leaves.
+  - Vintage Paper: torn edge, ruled paper scraps.
+
+  Risers float up, fallers drop, and flat pieces spin. Only light-source worlds (per the Native
+  Light Rule) glow.
+- **Start:** the animations are created paused and start on the first painted frame, so a slow
+  launch never skips the entry. The entry curve eases in (`cubic-bezier(.33,0,.15,1)`, 700ms).
 - The per-theme table is in `renderer/index.html`'s inline flourish script, because it has to run
   before `app.js`. The styles are the "Opening flourish" block in `styles.css`. A new theme with no
   entry gets Studio's.
