@@ -57,9 +57,12 @@ export const HELP_SECTIONS: HelpSection[] = [
         Prev / "N / total" / Next navigator sits above the tags. Type a number into the "N / total"
         box and press Enter to jump straight to that image. <b>Image Quicktagging:</b> while it
         shows one image, the left panel becomes checkboxes for common attributes (hair length,
-        breast size, slim/plump, thick thighs/slim legs, looking at viewer/away). Tick to add,
-        untick to remove; a breast size also adds <code>breasts</code> (Flat doesn't, and with only
-        Flat left ticked <code>breasts</code> is removed).</li>
+        breast size, slim/plump, thick thighs/slim legs, looking at viewer/away/to the side). Tick
+        to add, untick to remove; a breast size also adds <code>breasts</code> (Flat doesn't, and
+        with only Flat left ticked <code>breasts</code> is removed). Each category's <b>+</b> adds
+        your own quicktag (kept for every dataset), with optional rules: tags it also adds, which
+        of those stay after unticking, tags unticking also removes, and tags that untick it.
+        <b>+ Add category</b> adds a category.</li>
         <li><b>📖 Wiki</b> (next to Asc/Desc) — a small window for looking up any tag's definition.
         Type a tag, pick a suggestion, and its definition shows boxed above the field, with its
         See also tags below (click one to open it). Drag it by its title; it stays open until you

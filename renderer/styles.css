@@ -4173,6 +4173,21 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     color: var(--accent-flair); border-bottom: 1px solid var(--border-soft); padding-bottom: 3px;
   }
   .quicktag-options{ display: flex; flex-direction: column; gap: 4px; }
+  /* Custom quicktags: "+" on every category header (and × on custom
+     categories), ✎/× on custom items, "+ Add category" at the bottom. */
+  .quicktag-group-head{ display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .quicktag-head-actions, .quicktag-item-actions{ display: flex; gap: 4px; flex-shrink: 0; }
+  .quicktag-mini{ padding: 0 7px; min-height: 0; line-height: 18px; font-size: 12px; font-family: var(--mono); }
+  .quicktag-mini.quicktag-del:hover{ border-color: var(--accent-danger); color: var(--accent-danger); }
+  .quicktag-line{ display: flex; align-items: center; gap: 6px; }
+  .quicktag-line > .quicktag-option{ flex: 1; min-width: 0; }
+  .quicktag-item-actions{ opacity: 0.55; }
+  .quicktag-line:hover .quicktag-item-actions, .quicktag-item-actions:focus-within{ opacity: 1; }
+  .quicktag-add-category{ align-self: flex-start; }
+  .quicktag-edit-box{ width: min(460px, 92vw); display: flex; flex-direction: column; gap: 10px; }
+  .quicktag-edit-field{ display: flex; flex-direction: column; gap: 3px; }
+  .quicktag-edit-label{ font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .quicktag-edit-hint{ font-size: 10.5px; color: var(--text-faint); line-height: 1.35; }
   /* Per-category "+" (buildCategoryAddButton): sits at the header's right end
      and opens an add field under the header. Empty categories keep a dimmed
      header so they can be started too. */

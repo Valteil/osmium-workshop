@@ -77,10 +77,20 @@ This is the tag editor itself — everything else in the app supports what happe
   toolbar). The add-tag field sits right under the image. **Image Quicktagging:** while Single view shows one image, the left panel slides over
   to a set of checkboxes for common attributes, so you don't type them again and again: hair length
   (short, medium, long), breast size (flat, small, medium, large, gigantic), slim / plump, thick
-  thighs / slim legs, and looking at viewer / looking away. Each box is independent. Ticking adds
-  the tag and unticking removes it, and ticking a breast size also adds `breasts` (Flat doesn't).
-  If no breast size is left ticked and Flat is, `breasts` is removed as well.
-  The filter panel comes back when you leave Single view.
+  thighs / slim legs, and looking at viewer / looking away / looking to the side. Each box is
+  independent. Ticking adds the tag and unticking removes it, and ticking a breast size also adds
+  `breasts` (Flat doesn't). If no breast size is left ticked and Flat is, `breasts` is removed as
+  well. The filter panel comes back when you leave Single view.
+  **Your own quicktags:** each category's **+** adds one, and **+ Add category** (at the bottom)
+  adds a category. They're kept for every dataset. For each quicktag you give the tag it writes
+  (and optionally the checkbox's label), plus optional rules:
+  - **Ticking also adds:** other tags written with it.
+  - **Keep after unticking:** which of those extra tags stay when you untick it; the rest go with it.
+  - **Unticking also removes:** other tags taken off with it.
+  - **Unticked by:** ticking any of these tags unticks it.
+
+  Your own quicktags have ✎ (edit) and × (delete) buttons, and your own categories an ×. Deleting
+  never touches tags already on images.
 - **📖 Wiki** (next to Asc/Desc) — opens a small window to look up any tag's definition from the
   bundled wiki, without going through a tag field. Type a tag (suggestions drop down as you type)
   and its definition shows boxed above the field, with its **See also** tags listed below the box;
