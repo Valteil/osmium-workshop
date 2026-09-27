@@ -335,7 +335,7 @@
     if (tile) shed();
   }
 
-  // The band's exit curve (its inverse is shed()'s leftAt()).
+  // The band's exit curve (shed()'s tailPx() samples it).
   function bez(t){
     var x1 = SWEEP[0], y1 = SWEEP[1], x2 = SWEEP[2], y2 = SWEEP[3], lo = 0, hi = 1, u = t;
     for (var i = 0; i < 18; i++){
@@ -346,28 +346,24 @@
     return 3*(1-u)*(1-u)*u*y1 + 3*(1-u)*u*u*y2 + u*u*u;
   }
 
-  // TPE: a three-column wall of the world's own debris behind the cut edge.
-  // Particles spawn only at the edge's teeth, in alternating waves (one wave
-  // on the tooth tips, the next in the gaps between them), and each stays
-  // where it was born while the slab moves on. A particle's life is measured
-  // in slab travel, one column pitch per stage: column 1 is the fresh wave,
-  // column 2 the one before it holding in place, column 3 the one before
-  // that decaying (solid pieces shrink, light and air fade). So there are
-  // only ever three columns, never a field.
+  // TPE: the slab's tail crumbling off as ONE trailing column. Particles
+  // are born inside the cut edge in quick timed waves (alternating offsets
+  // along the edge) and ride with the slab, falling back only a short fixed
+  // distance over a short life, however fast the slab is moving. So the
+  // debris always reads as a single narrow column breaking off and trailing
+  // the edge, never a field left across the screen. Full size for the first
+  // part of its life, then it decays by its nature (solid pieces shrink,
+  // light and air fade). Spawning stops once the edge leaves the window and
+  // every piece is gone within 80ms of the slab, so nothing lingers.
   function shed(){
     var span = vert ? innerHeight : innerWidth, cross = vert ? innerWidth : innerHeight;
-    // Teeth along the edge: one per zig/step tooth, one per scallop bump.
-    var T = EDGE === 'scallop' ? K * 2 : K, gap = cross / T;
-    var tipAt = EDGE === 'step' ? 0.75 : 0.5;     // tooth centre within its pitch
-    var pitch = cross / K * 0.55;                 // column pitch along the travel (same for every edge)
-    var cell = gap * (T === K ? 0.62 : 1.05);     // tile size base
-    // When the slab's tail (its left/top edge) reaches px, in timeline ms.
-    function leftAt(px){
-      var want = (px / span * 100 - REST) / (100 - REST), lo = 0, hi = 1;
-      if (want <= 0) return outAt;
-      if (want >= 1) return -1;
-      for (var i = 0; i < 20; i++){ var m = (lo + hi) / 2; if (bez(m) < want) lo = m; else hi = m; }
-      return outAt + (lo + hi) / 2 * outDur;
+    var cell = cross / 10;                        // particle size base
+    var spacing = cell * 1.05;                    // along the edge, per wave
+    var LIFE = 240, WAVE = 80, DROP = cell * 1.6; // life, wave interval, total fall-back
+    // The slab's tail (its left/top edge) in px at timeline ms.
+    function tailPx(ms){
+      var u = Math.min(1, Math.max(0, (ms - outAt) / outDur));
+      return (REST + (100 - REST) * bez(u)) * span / 100;
     }
     var RISE = {bubble:1, firefly:1, ember:1, plankton:1}, FALL = {petal:1, leaf:1, scrap:1, sprinkle:1};
     var SPIN = {petal:1, leaf:1, scrap:1, sprinkle:1, shard:1};
@@ -376,21 +372,15 @@
     var GLYPHS = '01<>/_$#*+=|';
     var fill = 'var(--of-fill)';
     var END = outAt + outDur;
-    for (var c = 0, a = pitch * 0.5; a < span + pitch; c++, a += pitch){
-      var born = leftAt(a);
-      if (born < 0) continue;
-      // Stage boundaries: the slab one, two and three pitches further on,
-      // so exactly three columns exist at any moment. (Floors that kept
-      // stages "readable" at peak speed stretched lives and piled up to 17
-      // columns; stage length now comes from the slower sweep instead.)
-      // Past the end of the sweep the last waves finish on a short clock.
-      var t1 = leftAt(a + pitch), t2 = leftAt(a + 2 * pitch), t3 = leftAt(a + 3 * pitch);
-      if (t1 < 0) t1 = END + 40; if (t2 < 0) t2 = END + 110; if (t3 < 0) t3 = END + 220;
-      t1 = Math.max(t1, born + 25); t2 = Math.max(t2, t1 + 25); t3 = Math.max(t3, t2 + 40);
-      var life = t3 - born, o1 = (t1 - born) / life, o2 = (t2 - born) / life;
-      var off = c % 2 ? tipAt : (tipAt + 0.5) % 1;   // tips, then the gaps between
-      for (var j = 0; j <= T; j++){
-        var sz = cell * r(0.42, 0.5), w = sz, h = sz, bg = fill, css = '', rot0 = 0, txt = '';
+    for (var c = 0, born = outAt; born < END; c++, born += WAVE){
+      var edge = tailPx(born);                    // the tooth tips: visible from birth
+      if (edge < 0) continue;
+      if (edge > span + cell) break;
+      var life = Math.min(LIFE, END + 80 - born);
+      if (life < 90) break;
+      var off = c % 2 ? 0.5 : 0;                   // alternate waves sit between the last
+      for (var j = -1; j * spacing < cross + spacing; j++){
+        var sz = cell * r(0.82, 1), w = sz, h = sz, bg = fill, css = '', rot0 = 0, txt = '';
         switch (tile){
           case 'dia':      // Osmium: the lattice's nodes, a few in the RGB strip's hues
             rot0 = 45; w = h = sz * 0.8; if (rand() < 0.18) bg = 'var(' + pick([D, S, M]) + ')'; break;
@@ -426,29 +416,30 @@
           case 'plankton': // Bioluminescent: glowing plankton
             w = h = sz * 0.26; css = 'border-radius:50%;box-shadow:0 0 ' + sz * 0.55 + 'px var(' + pick([F, M]) + ');'; bg = 'var(' + pick([F, M]) + ')'; break;
         }
-        var along = a + r(-0.04, 0.04) * gap, across = (j + off) * gap + r(-0.04, 0.04) * gap;
-        if (across < -sz || across > cross + sz) continue;
+        var across = (j + off) * spacing + r(-0.06, 0.06) * spacing;
         var d = document.createElement('i');
         if (txt) d.textContent = txt;
         d.style.cssText = 'width:' + w + 'px;height:' + h + 'px;background:' + bg + ';' + css
-          + (vert ? 'left:' + (across - w / 2) + 'px;top:' + (along - h / 2) + 'px' : 'left:' + (along - w / 2) + 'px;top:' + (across - h / 2) + 'px');
+          + (vert ? 'left:' + (across - w / 2) + 'px;top:' + (edge - h / 2) + 'px' : 'left:' + (edge - w / 2) + 'px;top:' + (across - h / 2) + 'px');
         parts.appendChild(d);
-        // Full size and in place through columns 1 and 2; column 3 decays by
-        // the tile's nature, with the world's drift (rise / fall / spin) only
-        // while it goes.
-        var lift = 0, side = r(-0.08, 0.08) * gap;
-        if (RISE[tile]) lift = -r(0.2, 0.45) * gap;
-        if (FALL[tile]) lift = r(0.15, 0.35) * gap;
-        var rot1 = rot0 + (SPIN[tile] ? r(-90, 90) : r(-10, 10));
-        var dx = vert ? side : 0, dy = vert ? lift : side + lift;
-        var endS = FADE[tile] ? (tile === 'bubble' ? 1.25 : 0.85) : 0, endO = FADE[tile] ? 0 : 0.5;
-        var hold = 'translate(0,0) rotate(' + rot0 + 'deg) scale(1)';
-        run(d, [
-          {transform: hold, opacity: 1, offset: 0},
-          {transform: hold, opacity: 1, offset: o1},
-          {transform: hold, opacity: 1, offset: o2, easing: 'cubic-bezier(0.45, 0, 0.8, 0.45)'},
-          {transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(' + rot1 + 'deg) scale(' + endS + ')', opacity: endO, offset: 1}
-        ], {duration: life, delay: born, fill: 'forwards'});
+        var lift = 0, side = r(-0.06, 0.06) * cell;
+        if (RISE[tile]) lift = -r(0.25, 0.5) * cell;
+        if (FALL[tile]) lift = r(0.2, 0.4) * cell;
+        var rot1 = rot0 + (SPIN[tile] ? r(-70, 70) : r(-8, 8));
+        var drop = DROP * r(0.8, 1.2), frames = [], KS = [0, 0.25, 0.45, 0.72, 1];
+        var endS = FADE[tile] ? (tile === 'bubble' ? 1.2 : 0.85) : 0, endO = FADE[tile] ? 0 : 0.6;
+        for (var q = 0; q < KS.length; q++){
+          var k = KS[q], decay = Math.max(0, (k - 0.45) / 0.55);
+          // Rides with the slab, falling back along an ease-in (breaking off).
+          var mv = tailPx(born + k * life) - tailPx(born) - drop * Math.pow(k, 1.2);
+          var dr = decay * decay;
+          var cx = vert ? side * dr : mv, cy = vert ? mv + lift * dr : side * dr + lift * dr;
+          frames.push({
+            transform: 'translate(' + cx + 'px,' + cy + 'px) rotate(' + (rot0 + (rot1 - rot0) * dr) + 'deg) scale(' + (1 + (endS - 1) * dr) + ')',
+            opacity: 1 + (endO - 1) * dr, offset: k
+          });
+        }
+        run(d, frames, {duration: life, delay: born, fill: 'forwards'});
       }
     }
   }

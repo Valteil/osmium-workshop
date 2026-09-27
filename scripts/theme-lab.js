@@ -187,12 +187,6 @@ function buildPage(){
   .lab-right{ display: block !important; position: static !important; width: 340px; height: auto !important; overflow: visible !important; transform: none !important; }
   .lab-static{ position: static !important; display: block !important; opacity: 1 !important; transform: none !important; }
   #toast{ z-index: 1001; }
-  #labPct{
-    position: fixed; left: 50%; top: calc(50% - clamp(120px, 20vmin, 190px)); transform: translate(-50%, -100%);
-    z-index: 2147483647; padding: 4px 10px; border-radius: 6px; background: rgba(10,10,14,.82); color: #fff;
-    font: 600 13px/1.2 ui-monospace, "JetBrains Mono", Consolas, monospace; font-variant-numeric: tabular-nums; pointer-events: none;
-  }
-  #labPct[hidden]{ display: none; }
 </style>
 </head>
 <body>
@@ -217,7 +211,6 @@ ${sprite}
   <nav id="labNav" aria-label="Categories">${nav}</nav>
   <div id="labMain">${panes}</div>
 </div>
-<div id="labPct" hidden></div>
 <script>
 (function(){
   var root = document.documentElement;
@@ -275,7 +268,6 @@ ${sprite}
     var el = document.getElementById('openFlourish');
     return el ? document.getAnimations().filter(function(a){ return a.effect && a.effect.target && el.contains(a.effect.target); }) : [];
   }
-  var pct = document.getElementById('labPct'), watch = 0;
   document.getElementById('labPlay').addEventListener('click', function(){
     var old = document.getElementById('openFlourish'); if (old) old.remove();
     var axis = document.getElementById('labAxis').value, reduce = document.getElementById('labReduce').checked;
@@ -293,19 +285,7 @@ ${sprite}
     window.addEventListener = function(type){ if (type === 'pointerdown' || type === 'keydown') return; return realAdd.apply(window, arguments); };
     try { window.__dtsNoOpenFlourish = false; localStorage.removeItem('dts-disable-open-flourish'); (0, eval)(document.getElementById('labFlourishSrc').textContent); }
     finally { window.matchMedia = realMM; window.addEventListener = realAdd; document.hasFocus = realFocus; }
-    var anims = flourishAnims();
-    anims.forEach(function(a){ a.playbackRate = rate; });
-    var total = anims.reduce(function(m, a){ return Math.max(m, a.effect.getComputedTiming().endTime); }, 0);
-    cancelAnimationFrame(watch);
-    (function tick(){
-      var el = document.getElementById('openFlourish');
-      if (!el || !anims.length){ pct.hidden = true; return; }
-      // currentTime is effect-local, i.e. already in normal-speed ms.
-      var ms = Math.max(0, anims[0].currentTime || 0);
-      pct.hidden = false;
-      pct.textContent = Math.min(100, ms / total * 100).toFixed(1) + '%  ·  ' + Math.round(ms) + ' / ' + Math.round(total) + ' ms' + (rate !== 1 ? '  ·  ' + rate * 100 + '% speed' : '');
-      watch = requestAnimationFrame(tick);
-    })();
+    flourishAnims().forEach(function(a){ a.playbackRate = rate; });
   });
 })();
 </script>
