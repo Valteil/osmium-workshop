@@ -3086,6 +3086,59 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     flex-shrink: 0;
   }
 
+  /* ---- Opening flourish (index.html's inline script builds and times it;
+     the per-theme mark and particle table lives there). A slab of the
+     theme's flair colour led by two disconnected columns — the thinner one
+     in front — sweeps across a dimmed window; the theme's Osmium mark is
+     set in bg-base ink on the fill. Every colour is a theme var, so night
+     mode and Custom themes carry through. Removed from the DOM when done. */
+  .of{
+    position: fixed; inset: 0; z-index: 2147483000; overflow: hidden;
+    contain: strict; pointer-events: auto; cursor: progress;
+    --of-fill: var(--accent-flair); --of-ink: var(--bg-base);
+  }
+  .of-scrim{ position: absolute; inset: 0; background: rgba(6, 6, 10, 0.58); }
+  .of-parts{ position: absolute; inset: 0; }
+  .of-parts i{ position: absolute; opacity: 0; will-change: transform, opacity; }
+  .of-band{
+    position: absolute; top: 0; bottom: 0; left: 0; width: 78.5vw;
+    display: flex; gap: 1.2vw; transform: translateX(-78.5vw); will-change: transform;
+  }
+  .of-body{ flex: 0 0 72vw; background: var(--of-fill); }
+  .of-col{ background: var(--of-fill); }
+  .of-col-b{ flex: 0 0 3vw; }
+  .of-col-a{ flex: 0 0 1.1vw; }
+  .of-v .of-band{
+    right: 0; bottom: auto; width: auto; height: 78.5vh;
+    flex-direction: column; gap: 1.2vh; transform: translateY(-78.5vh);
+  }
+  .of-v .of-body{ flex-basis: 72vh; }
+  .of-v .of-col-b{ flex-basis: 3vh; }
+  .of-v .of-col-a{ flex-basis: 1.1vh; }
+  /* Worlds with a light source (Native Light Rule): the leading column burns. */
+  .of-glow .of-col-a{ box-shadow: 0 0 22px 3px color-mix(in srgb, var(--of-fill) 80%, transparent); }
+  .of-mark{ position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .of-mark-in{ display: flex; flex-direction: column; align-items: center; gap: 14px; will-change: transform, opacity; }
+  .of-logo{ width: clamp(112px, 23vmin, 220px); height: auto; overflow: visible; }
+  .of-logo g{ stroke: var(--of-ink); }
+  .of-logo .of-nodes{ fill: var(--of-ink); stroke: none; }
+  .of-logo .of-thin{ opacity: 0.55; }
+  .of-logo .of-hollow{ fill: var(--of-fill); stroke: var(--of-ink); }
+  .of-logo .of-pin{ fill: var(--of-fill); }
+  .of-logo .of-rgb0{ fill: var(--accent-danger); }
+  .of-logo .of-rgb1{ fill: var(--accent-success); }
+  .of-logo .of-rgb2{ fill: var(--accent-manual); }
+  .of-logo .of-split{ opacity: 0.85; }
+  .of-logo .of-split-a{ stroke: var(--accent-manual); }
+  .of-logo .of-split-b{ stroke: var(--accent-danger); }
+  .of-logo .of-seal{ fill: var(--accent-danger); }
+  .of-logo .of-moon{ fill: color-mix(in srgb, var(--accent-danger) 55%, var(--of-fill)); }
+  .of-word{
+    font-family: var(--display); font-weight: var(--brand-weight, 800);
+    letter-spacing: var(--brand-track, -0.01em); text-transform: var(--brand-case, none);
+    font-size: clamp(19px, 3.3vmin, 34px); line-height: 1.05; white-space: nowrap; color: var(--of-ink);
+  }
+
   .brand {
     font-family: var(--display);
     font-weight: var(--brand-weight);

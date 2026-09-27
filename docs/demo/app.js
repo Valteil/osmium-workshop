@@ -4430,7 +4430,12 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       everywhere \u2014 whether a theme has it natively or you bought it via Refine Theme. Three
       independent toggles (<b>Disable hover-fill</b>, <b>Disable card hover-tilt</b>, <b>Disable
       ambient animations</b>) let you turn off just one specific motion effect instead of all of
-      them. None of these touch a theme's static colors, textures, or glows.</p>`
+      them. None of these touch a theme's static colors, textures, or glows.</p>
+      <p>When the app opens, a short <b>opening flourish</b> plays in your theme: a sweep of the
+      theme's colour carrying its own version of the Osmium mark, trailing the theme's particles as
+      it leaves. ${isTouchDevice ? "Tap" : "Click or press any key"} to speed it up, or turn it off
+      with <b>Disable opening flourish</b> in Settings \u25B8 Appearance. With your system's "reduce
+      motion" setting on, it's a brief fade instead.</p>`
     },
     {
       id: "favorites",
@@ -25792,6 +25797,11 @@ Image: ${entry.imgName}`,
       showPastTags = pastTagPreviewToggle.checked;
       setBool("dts-show-past-tags", showPastTags);
       renderCurrentView();
+    });
+    const disableOpenFlourishToggle = $("disableOpenFlourishToggle");
+    if (disableOpenFlourishToggle) disableOpenFlourishToggle.checked = getBool("dts-disable-open-flourish");
+    disableOpenFlourishToggle?.addEventListener("change", () => {
+      setBool("dts-disable-open-flourish", disableOpenFlourishToggle.checked);
     });
     tagCountBadgeToggle.addEventListener("change", () => {
       showTagCountBadges = tagCountBadgeToggle.checked;

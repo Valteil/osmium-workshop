@@ -4,9 +4,20 @@ Every release of Osmium Workshop (called Dataset Tag Studio up to v1.5.0), newes
 Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 [releases page](https://github.com/Valteil/osmium-workshop/releases).
 
-- [v1.8.0](#v180) · [v1.7.0](#v170) · [v1.6.5](#v165) · [v1.6.0](#v160) · [v1.5.5](#v155) ·
+- [v1.9.0](#v190-unreleased) · [v1.8.0](#v180) · [v1.7.0](#v170) · [v1.6.5](#v165) · [v1.6.0](#v160) · [v1.5.5](#v155) ·
   [v1.5.0](#v150) · [v1.4.0](#v140) · [v1.3.0](#v130) · [v1.2.0](#v120) ·
   [v1.1.5](#v115-tauri--discontinued) · [v1.1.0](#v110) · [v1.0.0](#v100)
+
+---
+
+## v1.9.0 (unreleased)
+
+### Osmium Workshop
+
+- **Opening flourish**: when the app opens, a sweep of your theme's colour crosses the dimmed
+  window carrying that theme's own Osmium mark, then leaves trailing the theme's particles. On
+  phones it runs top to bottom. Any press speeds it up; turn it off with Settings ▸ Appearance ▸
+  Disable opening flourish.
 
 ---
 

@@ -145,6 +145,202 @@
 </script>
 </head>
 <body>
+<script>
+/* Opening flourish. Runs before app.js exists (like the pre-paint script
+   above), so it covers the app's own start-up. A slab in the theme's flair
+   colour, led by two disconnected columns (the thinner one in front), sweeps
+   across the dimmed window; the theme's own Osmium mark rides in, hovers at
+   the centre and leaves; then the slab exits, its tail crumbling into the
+   theme's particles while the dim lifts. Phones run it top to bottom.
+   Transform/opacity only (compositor-driven while app.js initialises).
+   Off: Settings > Appearance > Disable opening flourish
+   (dts-disable-open-flourish). Styles: styles.css "Opening flourish". */
+(function(){
+  var root = document.documentElement;
+  try { if (localStorage.getItem('dts-disable-open-flourish') === '1') return; } catch(e){}
+  // No viewport yet (a hidden frame) means nothing to show — and the phone
+  // check below would misfire on its zero width.
+  if (!Element.prototype.animate || !innerWidth || !innerHeight) return;
+  var theme = root.getAttribute('data-theme') || 'studio';
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var vert = matchMedia('(max-width: 900px)').matches;
+
+  /* Per theme: L = the mark (ring, node shape, stroke weight/cap, extras),
+     P = the tail's particles (shape, theme colour vars, light-emitting glow
+     only for worlds that have a light source). Unlisted themes and Custom
+     use Studio's. */
+  var A='--accent-auto', M='--accent-manual', F='--accent-flair', D='--accent-danger', S='--accent-success', T='--text-primary';
+  var SPEC = {
+    'studio':          {L:{node:'sq',   ring:'deca',   cap:'square'},               P:{s:'chip',    c:[A,F,T]}},
+    'cyberpunk':       {L:{node:'sq',   ring:'deca',   cap:'butt', split:1},        P:{s:'glitch',  c:[F,M,D]}},
+    'oriental':        {L:{node:'dot',  ring:'circle', seal:1},                     P:{s:'gold',    c:[A,D]}},
+    'subway':          {L:{node:'ring', ring:'circle', w:1.25},                     P:{s:'ring',    c:[A,M,D,S]}},
+    'osmium':          {L:{node:'dia',  ring:'double', rgb:1},                      P:{s:'dia',     c:[D,S,M]}},
+    'bioluminescent':  {L:{node:'dot',  ring:'none'},                               P:{s:'firefly', c:[F,M], glow:1}},
+    'sakura':          {L:{node:'petal',ring:'circle', w:0.85},                     P:{s:'petal',   c:[F,T,D]}},
+    'terminal':        {L:{node:'px',   ring:'deca',   cap:'butt', dash:1},         P:{s:'px',      c:[F,A], glow:1}},
+    'amethyst':        {L:{node:'dia',  ring:'double'},                             P:{s:'gold',    c:[A,F]}},
+    'solarflare':      {L:{node:'dot',  ring:'circle', w:1.2},                      P:{s:'ember',   c:[A,D,F], glow:1}},
+    'midnight-ocean':  {L:{node:'ring', ring:'double', w:0.8},                      P:{s:'bubble',  c:[M,T]}},
+    'arctic-frost':    {L:{node:'dia',  ring:'deca',   cap:'square', w:0.8},        P:{s:'flake',   c:[M,T,F]}},
+    'forest-moss':     {L:{node:'leaf', ring:'circle'},                             P:{s:'leaf',    c:[S,A,F]}},
+    'vintage-paper':   {L:{node:'sq',   ring:'double', cap:'butt', w:0.9},          P:{s:'scrap',   c:[T,A]}},
+    'obsidian':        {L:{node:'dia',  ring:'deca',   cap:'butt', w:1.3},          P:{s:'shard',   c:[F,A,T]}},
+    'retrowave':       {L:{node:'dot',  ring:'deca'},                               P:{s:'streak',  c:[F,D,M], glow:1}},
+    'rose-gold':       {L:{node:'dia',  ring:'double', w:0.8},                      P:{s:'petal',   c:[F,A]}},
+    'coral-reef':      {L:{node:'dot',  ring:'circle', w:1.2},                      P:{s:'bubble',  c:[F,M,A]}},
+    'toxic-waste':     {L:{node:'sq',   ring:'deca',   cap:'butt', w:1.4},          P:{s:'hazard',  c:[F,A]}},
+    'lavender-fields': {L:{node:'bud',  ring:'circle', w:0.8},                      P:{s:'bud',     c:[F,S]}},
+    'candy-pop':       {L:{node:'dot',  ring:'circle', w:1.5},                      P:{s:'confetti',c:[F,A,M,D,S]}},
+    'copper-forge':    {L:{node:'rivet',ring:'deca',   cap:'square', w:1.3},        P:{s:'ember',   c:[A,F,D], glow:1}},
+    'blood-moon':      {L:{node:'dot',  ring:'circle', moon:1},                     P:{s:'drop',    c:[D,F]}},
+    'twilight-garden': {L:{node:'dot',  ring:'circle', w:0.9},                      P:{s:'firefly', c:[A,F], glow:1}},
+    'aurora-borealis': {L:{node:'dot',  ring:'deca',   w:0.9},                      P:{s:'streak',  c:[S,F,M], glow:1}},
+    'celestial-gold':  {L:{node:'star', ring:'double', w:0.8},                      P:{s:'star',    c:[A,F,T]}}
+  };
+  var spec = SPEC[theme] || SPEC.studio, L = spec.L, P = spec.P;
+
+  // ---- the mark: decagon ring, even/odd pentagons, spokes, vertex nodes ----
+  function mark(){
+    var pts = [], i, w = L.w || 1, cap = L.cap || 'round', s = '';
+    for (i = 0; i < 10; i++){ var a = (-90 + 36*i) * Math.PI / 180; pts.push([125 + 100*Math.cos(a), 125 + 100*Math.sin(a)]); }
+    var C = [125, 125];
+    function ln(p, q, sw, cls){
+      return '<line x1="'+p[0].toFixed(1)+'" y1="'+p[1].toFixed(1)+'" x2="'+q[0].toFixed(1)+'" y2="'+q[1].toFixed(1)+'" stroke-width="'+(sw*w).toFixed(1)+'"'+(cls ? ' class="'+cls+'"' : '')+'/>';
+    }
+    if (L.moon) s += '<circle cx="125" cy="125" r="84" class="of-moon"/>';
+    if (L.seal) s += '<rect x="176" y="176" width="46" height="46" rx="3" class="of-seal"/>';
+    if (L.ring === 'circle') s += '<circle cx="125" cy="125" r="100" fill="none" stroke-width="'+(8*w)+'"/>';
+    if (L.ring === 'deca' || L.ring === 'double') for (i = 0; i < 10; i++) s += ln(pts[i], pts[(i+1)%10], 8);
+    if (L.ring === 'double') s += '<circle cx="125" cy="125" r="117" fill="none" stroke-width="'+(3*w)+'" class="of-thin"/>';
+    for (i = 0; i < 10; i += 2) s += ln(pts[i], pts[(i+2)%10], 4, 'of-thin');
+    for (i = 1; i < 10; i += 2) s += ln(pts[i], pts[(i+2)%10], 10);
+    for (i = 0; i < 10; i++) s += ln(C, pts[i], i % 2 ? 10 : 4, i % 2 ? '' : 'of-thin');
+    var lines = '<g fill="none" stroke-linecap="'+cap+'"'+(L.dash ? ' stroke-dasharray="14 7"' : '')+'>'+s+'</g>';
+    var nodes = '', all = pts.concat([C]);
+    for (i = 0; i < all.length; i++){
+      var p = all[i], k = i === 10 ? 1.25 : (i === 2 ? 0.7 : 1), deg = -90 + 36*i + 90;
+      var tr = ' transform="translate('+p[0].toFixed(1)+' '+p[1].toFixed(1)+') rotate('+(i === 10 ? 0 : deg)+') scale('+k+')"';
+      var fillCls = L.rgb && i < 10 ? ' class="of-rgb'+(i%3)+'"' : '';
+      switch (L.node){
+        case 'dia':   nodes += '<rect x="-9" y="-9" width="18" height="18"'+fillCls+' transform="translate('+p[0].toFixed(1)+' '+p[1].toFixed(1)+') rotate(45) scale('+k+')"/>'; break;
+        case 'px':    nodes += '<rect x="-9" y="-9" width="18" height="18" transform="translate('+p[0].toFixed(1)+' '+p[1].toFixed(1)+') scale('+k+')"/>'; break;
+        case 'sq':    nodes += '<rect x="-8" y="-8" width="16" height="16"'+tr+'/>'; break;
+        case 'ring':  nodes += '<circle r="11" class="of-hollow" stroke-width="6"'+tr+'/>'; break;
+        case 'rivet': nodes += '<circle r="11"'+tr+'/><circle r="4" class="of-pin"'+tr+'/>'; break;
+        case 'petal': nodes += '<ellipse rx="7" ry="14"'+tr+'/>'; break;
+        case 'leaf':  nodes += '<path d="M0-15C9-7 9 7 0 15C-9 7-9-7 0-15Z"'+tr+'/>'; break;
+        case 'bud':   nodes += '<ellipse rx="5.5" ry="9"'+tr+'/>'; break;
+        case 'star':  nodes += '<path d="M0-15L3.5-3.5 15 0 3.5 3.5 0 15-3.5 3.5-15 0-3.5-3.5Z"'+tr+'/>'; break;
+        default:      nodes += '<circle r="9.5"'+tr+'/>';
+      }
+    }
+    var body = lines + '<g class="of-nodes">' + nodes + '</g>';
+    var split = L.split ? '<g class="of-split of-split-a" transform="translate(-5 0)">'+lines+'</g><g class="of-split of-split-b" transform="translate(5 0)">'+lines+'</g>' : '';
+    return '<svg class="of-logo" viewBox="-6 -6 262 262">' + split + '<g class="of-ink">' + body + '</g></svg>';
+  }
+
+  var el = document.createElement('div');
+  el.id = 'openFlourish';
+  el.className = 'of' + (vert ? ' of-v' : '') + (P.glow ? ' of-glow' : '');
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = '<div class="of-scrim"></div><div class="of-parts"></div>'
+    + '<div class="of-band"><div class="of-body"></div><div class="of-col of-col-b"></div><div class="of-col of-col-a"></div></div>'
+    + '<div class="of-mark"><div class="of-mark-in">' + mark() + '<div class="of-word">Osmium Workshop</div></div></div>';
+  document.body.appendChild(el);
+
+  var scrim = el.querySelector('.of-scrim'), band = el.querySelector('.of-band'),
+      markIn = el.querySelector('.of-mark-in'), parts = el.querySelector('.of-parts');
+  var ax = vert ? 'Y' : 'X', U = vert ? 'vh' : 'vw';
+  function tr(v){ return 'translate' + ax + '(' + v + U + ')'; }
+  var anims = [];
+  function run(node, frames, opts){ var a = node.animate(frames, opts); anims.push(a); return a; }
+  var OUT = 'cubic-bezier(0.16, 1, 0.3, 1)', IN = 'cubic-bezier(0.55, 0, 0.85, 0.35)', SWEEP = [0.65, 0, 0.35, 1];
+
+  if (reduce){
+    // No travel: the slab and mark fade in place, then everything fades.
+    run(el, [{opacity: 0}, {opacity: 1, offset: 0.2}, {opacity: 1, offset: 0.75}, {opacity: 0}], {duration: 1100, fill: 'forwards'});
+    band.style.transform = tr(-6);
+  } else {
+    // The band is body + gap + column B + gap + column A = 78.5 (vw or vh).
+    // At rest the body spans -6..66, so the centre sits on solid fill.
+    run(scrim, [{opacity: 0}, {opacity: 1}], {duration: 160, fill: 'forwards'});
+    run(band, [{transform: tr(-78.5)}, {transform: tr(-6)}], {duration: 520, easing: OUT, fill: 'forwards'});
+    run(markIn, [{transform: tr(-34), opacity: 0}, {transform: tr(0), opacity: 1}], {duration: 480, delay: 120, easing: OUT, fill: 'backwards'});
+    run(markIn, [{transform: tr(0)}, {transform: tr(1)}], {duration: 460, delay: 600, fill: 'forwards'});
+    run(markIn, [{transform: tr(1), opacity: 1}, {transform: tr(36), opacity: 0}], {duration: 320, delay: 1060, easing: IN, fill: 'forwards'});
+    var outAt = 1120, outDur = 620;
+    run(band, [{transform: tr(-6)}, {transform: tr(100)}], {duration: outDur, delay: outAt, easing: 'cubic-bezier(' + SWEEP.join(',') + ')', fill: 'forwards'});
+    run(scrim, [{opacity: 1}, {opacity: 0}], {duration: 380, delay: outAt + 140, easing: 'ease-out', fill: 'forwards'});
+    setTimeout(function(){ el.style.pointerEvents = 'none'; }, outAt + 140);
+
+    // Tail position over the exit follows the same curve the band uses.
+    function bez(t){
+      var x1 = SWEEP[0], y1 = SWEEP[1], x2 = SWEEP[2], y2 = SWEEP[3], lo = 0, hi = 1, u = t;
+      for (var i = 0; i < 18; i++){
+        u = (lo + hi) / 2;
+        var x = 3*(1-u)*(1-u)*u*x1 + 3*(1-u)*u*u*x2 + u*u*u;
+        if (x < t) lo = u; else hi = u;
+      }
+      return 3*(1-u)*(1-u)*u*y1 + 3*(1-u)*u*u*y2 + u*u*u;
+    }
+    var n = vert ? 80 : 128, rand = Math.random, span = vert ? innerHeight : innerWidth;
+    function pick(a){ return a[Math.floor(rand() * a.length)]; }
+    function r(a, b){ return a + rand() * (b - a); }
+    var RISE = {ember:1, firefly:1, bubble:1}, FALL = {petal:1, leaf:1, drop:1, scrap:1, confetti:1, gold:1, star:0};
+    for (var i = 0; i < n; i++){
+      var t = (i + rand()) / n, pos = -6 + 106 * bez(t);
+      if (pos < -1 || pos > 101) continue;
+      var d = document.createElement('i'), col = 'var(' + pick(P.c) + ')', sz, css = '', rot0 = r(0, 360), rot1 = rot0 + r(-160, 160);
+      switch (P.s){
+        case 'chip':     css = 'width:'+r(6,13)+'px;height:'+r(3,5)+'px;border-radius:1px;background:'+col; break;
+        case 'glitch':   css = 'width:'+r(10,30)+'px;height:'+r(2,4)+'px;background:'+col; rot0 = rot1 = 0; break;
+        case 'gold':     sz = r(4,9); css = 'width:'+sz+'px;height:'+sz*r(.6,1)+'px;border-radius:1px;background:'+col; break;
+        case 'ring':     sz = r(7,11); css = 'width:'+sz+'px;height:'+sz+'px;border-radius:50%;border:2px solid '+col; break;
+        case 'dia':      sz = r(5,9); css = 'width:'+sz+'px;height:'+sz+'px;background:'+col; rot0 = 45; rot1 = 45 + r(-90,90); break;
+        case 'firefly':  sz = r(3,6); css = 'width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';box-shadow:0 0 '+sz*2.5+'px '+col; break;
+        case 'petal':    css = 'width:'+r(7,12)+'px;height:'+r(5,8)+'px;border-radius:80% 0 80% 0;background:'+col; break;
+        case 'px':       sz = Math.round(r(3,6)); css = 'width:'+sz+'px;height:'+sz+'px;background:'+col+';box-shadow:0 0 6px '+col; rot0 = rot1 = 0; break;
+        case 'ember':    sz = r(2,5); css = 'width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';box-shadow:0 0 '+sz*3+'px '+col; break;
+        case 'bubble':   sz = r(5,12); css = 'width:'+sz+'px;height:'+sz+'px;border-radius:50%;border:1.5px solid '+col+';background:color-mix(in srgb, '+col+' 18%, transparent)'; break;
+        case 'flake':    sz = r(4,8); css = 'width:'+sz+'px;height:'+sz+'px;background:'+col+';clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)'; break;
+        case 'leaf':     css = 'width:'+r(8,13)+'px;height:'+r(5,8)+'px;border-radius:0 70% 0 70%;background:'+col; break;
+        case 'scrap':    css = 'width:'+r(7,14)+'px;height:'+r(5,10)+'px;background:'+col+';clip-path:polygon(0 '+r(0,30)+'%,'+r(60,100)+'% 0,100% '+r(50,100)+'%,'+r(0,40)+'% 100%)'; break;
+        case 'shard':    sz = r(6,16); css = 'width:'+sz+'px;height:'+sz+'px;background:'+col+';clip-path:polygon('+r(0,40)+'% 0,100% '+r(20,70)+'%,'+r(0,50)+'% 100%)'; break;
+        case 'streak':   sz = r(14,34); css = (vert ? 'width:2px;height:'+sz+'px' : 'width:'+sz+'px;height:2px')+';border-radius:2px;background:'+col+';box-shadow:0 0 8px '+col; rot0 = rot1 = 0; break;
+        case 'hazard':   sz = r(6,10); css = 'width:'+sz+'px;height:'+sz+'px;background:repeating-linear-gradient(45deg,'+col+' 0 3px,var(--bg-base) 3px 6px)'; break;
+        case 'bud':      css = 'width:'+r(4,6)+'px;height:'+r(7,10)+'px;border-radius:50%;background:'+col; break;
+        case 'confetti': css = 'width:'+r(5,9)+'px;height:'+r(3,5)+'px;border-radius:2px;background:'+col; break;
+        case 'drop':     sz = r(4,7); css = 'width:'+sz+'px;height:'+sz+'px;border-radius:50% 50% 50% 0;background:'+col; rot0 = 135; rot1 = 135; break;
+        case 'star':     sz = r(7,12); css = 'width:'+sz+'px;height:'+sz+'px;background:'+col+';clip-path:polygon(50% 0,61% 39%,100% 50%,61% 61%,50% 100%,39% 61%,0 50%,39% 39%)'; break;
+      }
+      var along = pos * span / 100 + r(0, 6), across = r(0, 1) * (vert ? innerWidth : innerHeight);
+      // `scale` (not transform) so the size composes with the animated transform.
+      d.style.cssText = css + ';scale:1.7;' + (vert ? 'left:'+across+'px;top:'+along+'px' : 'left:'+along+'px;top:'+across+'px');
+      parts.appendChild(d);
+      // Breaks off the tail: lags against the travel, drifts sideways, and
+      // risers float up / fallers drop, then winks out fast.
+      var back = -r(10, 46), side = r(-26, 26), dx = vert ? side : back, dy = vert ? back : side;
+      if (RISE[P.s]) dy -= r(18, 60);
+      if (FALL[P.s]) dy += r(16, 48);
+      run(d, [
+        {transform: 'translate(0,0) rotate(' + rot0 + 'deg) scale(1)', opacity: 1},
+        {transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(' + rot1 + 'deg) scale(' + r(0.1, 0.4) + ')', opacity: 0}
+      ], {duration: r(320, 680), delay: outAt + t * outDur, easing: 'cubic-bezier(0.2, 0.6, 0.4, 1)', fill: 'forwards'});
+    }
+  }
+
+  // Any press or key speeds the rest up rather than cutting it.
+  function hurry(){ el.style.pointerEvents = 'none'; anims.forEach(function(a){ try { a.playbackRate = 4; } catch(e){} }); }
+  addEventListener('pointerdown', hurry, {once: true, capture: true});
+  addEventListener('keydown', hurry, {once: true, capture: true});
+  Promise.all(anims.map(function(a){ return a.finished; })).then(function(){
+    el.remove();
+    removeEventListener('pointerdown', hurry, true);
+    removeEventListener('keydown', hurry, true);
+  }, function(){ el.remove(); });
+})();
+</script>
 <!-- UI icon sprite: every <use href="#i-…"> in the app points here. Drawings
      live only in this block; the glyph → id map is src/renderer/icons.ts. -->
 <svg id="iconSprite" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
@@ -992,6 +1188,10 @@
           <button id="btnDiscreteToggle" title="Blur every image thumbnail (privacy mode)">Blur all images</button>
           <button id="btnDiscreteOff" title="Remove the blur">Unblur</button>
         </div>
+        <label class="ach-toggle-row">
+          <input type="checkbox" id="disableOpenFlourishToggle">
+          <span>Disable opening flourish (the themed sweep with the Osmium mark when the app opens)</span>
+        </label>
         <label class="ach-toggle-row">
           <input type="checkbox" id="suppressThemeFlourishesToggle">
           <span>Suppress Theme Flourishes (hide the Shop's<svg class="ic ic-lead ic-trail" aria-hidden="true"><use href="#i-hammer"></use></svg>Refine Theme button, and turn off epic/legendary-tier hover-fill/card-tilt effects on every theme — whether it's naturally that tier or individually refined)</span>

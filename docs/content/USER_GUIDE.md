@@ -489,6 +489,13 @@ effect everywhere (whether a theme has it natively or you bought it via Refine T
 off just one specific motion effect app-wide if you'd rather keep the others. None of these touch
 a theme's static colors, textures, or glows.
 
+**Opening flourish.** When the app opens, the window dims and a sweep of your theme's colour
+crosses it, carrying that theme's own version of the Osmium mark, then leaves trailing the theme's
+particles (cherry petals, phosphor pixels, embers, bubbles, gold leaf…) as the screen comes back to
+full colour. It takes under two seconds. Click, tap or press a key to speed it up, or turn it off
+with **Disable opening flourish** in Settings ▸ Appearance. On phones it runs top to bottom. With
+your system's "reduce motion" setting on, it's a brief fade instead.
+
 ---
 
 ## Favorites

@@ -942,6 +942,13 @@ import { setIconLabel } from './icons';
     renderCurrentView();
   });
 
+  // Read by index.html's inline opening-flourish script at the next launch.
+  const disableOpenFlourishToggle = $<HTMLInputElement>('disableOpenFlourishToggle') as HTMLInputElement | null;
+  if (disableOpenFlourishToggle) disableOpenFlourishToggle.checked = getBool('dts-disable-open-flourish');
+  disableOpenFlourishToggle?.addEventListener('change', () => {
+    setBool('dts-disable-open-flourish', disableOpenFlourishToggle.checked);
+  });
+
   tagCountBadgeToggle.addEventListener('change', () => {
     showTagCountBadges = tagCountBadgeToggle.checked;
     setBool('dts-tagcount-badges', showTagCountBadges);
