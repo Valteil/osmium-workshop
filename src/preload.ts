@@ -12,6 +12,7 @@ const api: ElectronAPI = {
   restartApp: () => ipcRenderer.invoke('restart-app'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
+  setAppIcon: (pngDataUrl) => ipcRenderer.invoke('set-app-icon', pngDataUrl),
   exportAppState: (text) => ipcRenderer.invoke('export-app-state', text),
   onRequestClose: (callback) => ipcRenderer.on('request-close', callback),
   confirmClose: () => ipcRenderer.invoke('confirm-close'),

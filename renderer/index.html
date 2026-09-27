@@ -144,28 +144,13 @@
 </head>
 <body>
 <script>
-/* Opening flourish. Runs before app.js exists (like the pre-paint script
-   above), so it covers the app's own start-up. A slab in the theme's flair
-   colour, led by two disconnected columns (the thinner one in front), sweeps
-   across the dimmed window; the theme's own Osmium mark rides in, hovers at
-   the centre and leaves; then the slab exits, its tail crumbling into the
-   theme's particles while the dim lifts. Phones run it top to bottom.
-   Transform/opacity only (compositor-driven while app.js initialises).
-   Off: Settings > Appearance > Disable opening flourish
-   (dts-disable-open-flourish). Styles: styles.css "Opening flourish". */
+/* Theme mark. Each theme's own Osmium lattice, shared by the opening
+   flourish (next script) and the themed app/taskbar icon
+   (src/renderer/app-icon.ts). window.__dtsMarkSpec[theme] = {L: the mark,
+   P: the flourish's old particle hints}; window.__dtsMarkSVG(L) returns an
+   <svg class="of-logo"> styled by styles.css "Opening flourish" (app-icon.ts
+   inlines resolved colours instead). */
 (function(){
-  var root = document.documentElement;
-  // The site demo opens straight into a loaded app, so it sets this flag
-  // (scripts/sync-site.js) and skips the flourish.
-  if (window.__dtsNoOpenFlourish) return;
-  try { if (localStorage.getItem('dts-disable-open-flourish') === '1') return; } catch(e){}
-  // No viewport yet (a hidden frame) means nothing to show — and the phone
-  // check below would misfire on its zero width.
-  if (!Element.prototype.animate || !innerWidth || !innerHeight) return;
-  var theme = root.getAttribute('data-theme') || 'studio';
-  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var vert = matchMedia('(max-width: 900px)').matches;
-
   /* Per theme: L = the mark (ring, node shape, stroke weight/cap, extras),
      P = the tail's particles (shape, theme colour vars, light-emitting glow
      only for worlds that have a light source). Unlisted themes and Custom
@@ -199,10 +184,9 @@
     'aurora-borealis': {L:{node:'dot',  ring:'deca',   w:0.9},                      P:{s:'streak',  c:[S,F,M], glow:1}},
     'celestial-gold':  {L:{node:'star', ring:'double', w:0.8},                      P:{s:'star',    c:[A,F,T]}}
   };
-  var spec = SPEC[theme] || SPEC.studio, L = spec.L, P = spec.P;
 
   // ---- the mark: decagon ring, even/odd pentagons, spokes, vertex nodes ----
-  function mark(){
+  function mark(L){
     var pts = [], i, w = L.w || 1, cap = L.cap || 'round', s = '';
     for (i = 0; i < 10; i++){ var a = (-90 + 36*i) * Math.PI / 180; pts.push([125 + 100*Math.cos(a), 125 + 100*Math.sin(a)]); }
     var C = [125, 125];
@@ -239,6 +223,37 @@
     var split = L.split ? '<g class="of-split of-split-a" transform="translate(-5 0)">'+lines+'</g><g class="of-split of-split-b" transform="translate(5 0)">'+lines+'</g>' : '';
     return '<svg class="of-logo" viewBox="-6 -6 262 262">' + split + '<g class="of-ink">' + body + '</g></svg>';
   }
+  window.__dtsMarkSpec = SPEC;
+  window.__dtsMarkSVG = mark;
+})();
+</script>
+<script>
+/* Opening flourish. Runs before app.js exists (like the pre-paint script
+   above), so it covers the app's own start-up. A slab in the theme's flair
+   colour, led by two disconnected columns (the thinner one in front), sweeps
+   across the dimmed window; the theme's own Osmium mark rides in, hovers at
+   the centre and leaves; then the slab exits, its tail crumbling into the
+   theme's particles while the dim lifts. Phones run it top to bottom.
+   Transform/opacity only (compositor-driven while app.js initialises).
+   Off: Settings > Appearance > Disable opening flourish
+   (dts-disable-open-flourish). Styles: styles.css "Opening flourish". */
+(function(){
+  var root = document.documentElement;
+  // The site demo opens straight into a loaded app, so it sets this flag
+  // (scripts/sync-site.js) and skips the flourish.
+  if (window.__dtsNoOpenFlourish) return;
+  try { if (localStorage.getItem('dts-disable-open-flourish') === '1') return; } catch(e){}
+  // No viewport yet (a hidden frame) means nothing to show — and the phone
+  // check below would misfire on its zero width.
+  if (!Element.prototype.animate || !innerWidth || !innerHeight) return;
+  var theme = root.getAttribute('data-theme') || 'studio';
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var vert = matchMedia('(max-width: 900px)').matches;
+
+  var A='--accent-auto', M='--accent-manual', F='--accent-flair', D='--accent-danger', S='--accent-success', T='--text-primary';
+  // The mark and its per-theme table live in the "Theme mark" script above.
+  var SPEC = window.__dtsMarkSpec, spec = SPEC[theme] || SPEC.studio, L = spec.L, P = spec.P;
+  function mark(){ return window.__dtsMarkSVG(L); }
 
   // Trailing particle edge (TPE) only for the worlds whose debris IS their
   // identity; each gets its own tile. Every other theme trails the basic

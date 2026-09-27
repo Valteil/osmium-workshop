@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell, nativeImage } from 'electron';
 import { execFileSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -306,6 +306,16 @@ ipcMain.handle('set-zoom-factor', (event, factor: number) => {
   if (win && typeof factor === 'number' && factor > 0 && factor <= 3) {
     win.webContents.setZoomFactor(factor);
   }
+});
+
+// Themed app icon: the renderer draws the current theme's Osmium mark (the
+// one the opening flourish shows, night mode included) as a PNG data URL,
+// and the window's taskbar icon follows it (renderer/app-icon.ts).
+ipcMain.handle('set-app-icon', (event, dataUrl: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png;base64,')) return;
+  const img = nativeImage.createFromDataURL(dataUrl);
+  if (!img.isEmpty()) win.setIcon(img);
 });
 
 // Hardware acceleration is decided once, at process startup, before any

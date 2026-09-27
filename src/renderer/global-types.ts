@@ -10,5 +10,8 @@ declare global {
     Capacitor?: { platform: string };
     __dtsReviveDirHandle?: (json: unknown) => FileSystemDirectoryHandle;
     __dtsPreThemed?: boolean;
+    // From index.html's inline "Theme mark" script (the opening flourish's logo).
+    __dtsMarkSpec?: Record<string, { L: Record<string, unknown> }>;
+    __dtsMarkSVG?: (L: Record<string, unknown>) => string;
   }
 }

@@ -805,39 +805,39 @@
     }, { passive: true });
   }
   function attachLongPress(el, callback, ms = 500) {
-    let timer = null;
+    let timer2 = null;
     let startX = 0, startY = 0;
     const moveTolerance = 12;
     el.addEventListener("touchstart", (ev) => {
       if (ev.touches.length !== 1) return;
       startX = ev.touches[0].clientX;
       startY = ev.touches[0].clientY;
-      timer = setTimeout(() => {
-        timer = null;
+      timer2 = setTimeout(() => {
+        timer2 = null;
         callback({ clientX: startX, clientY: startY, preventDefault() {
         }, stopPropagation() {
         } });
       }, ms);
     }, { passive: true });
     el.addEventListener("touchmove", (ev) => {
-      if (!timer || !ev.touches[0]) return;
+      if (!timer2 || !ev.touches[0]) return;
       const dx = ev.touches[0].clientX - startX;
       const dy = ev.touches[0].clientY - startY;
       if (Math.sqrt(dx * dx + dy * dy) > moveTolerance) {
-        clearTimeout(timer);
-        timer = null;
+        clearTimeout(timer2);
+        timer2 = null;
       }
     }, { passive: true });
     el.addEventListener("touchend", () => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
+      if (timer2) {
+        clearTimeout(timer2);
+        timer2 = null;
       }
     }, { passive: true });
     el.addEventListener("touchcancel", () => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
+      if (timer2) {
+        clearTimeout(timer2);
+        timer2 = null;
       }
     }, { passive: true });
   }
@@ -8239,7 +8239,7 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
   }
   function downscaleToDataUrl(imgEl) {
     return new Promise((resolve, reject) => {
-      function draw() {
+      function draw2() {
         try {
           const canvas = document.createElement("canvas");
           const size = 120;
@@ -8255,8 +8255,8 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
           reject(err);
         }
       }
-      if (imgEl.complete && imgEl.naturalWidth) draw();
-      else imgEl.addEventListener("load", draw, { once: true });
+      if (imgEl.complete && imgEl.naturalWidth) draw2();
+      else imgEl.addEventListener("load", draw2, { once: true });
     });
   }
   function wireTileDrag(tile, record) {
@@ -9754,13 +9754,13 @@ Content-Type: application/octet-stream\r
           if (ev.code !== 1e3) console.error("[synthdat] preview websocket closed:", ev.code, ev.reason);
         });
         await new Promise((resolve) => {
-          const timer = setTimeout(resolve, 3e3);
+          const timer2 = setTimeout(resolve, 3e3);
           ws.addEventListener("open", () => {
-            clearTimeout(timer);
+            clearTimeout(timer2);
             resolve();
           }, { once: true });
           ws.addEventListener("error", () => {
-            clearTimeout(timer);
+            clearTimeout(timer2);
             resolve();
           }, { once: true });
         });
@@ -25240,6 +25240,51 @@ Image: ${entry.imgName}`,
     });
   }
 
+  // src/renderer/app-icon.ts
+  var SIZE = 256;
+  var lastKey = "";
+  var timer = null;
+  function buildSvg() {
+    const markSvg = window.__dtsMarkSVG, specs = window.__dtsMarkSpec;
+    if (!markSvg || !specs) return null;
+    const root = document.documentElement;
+    const theme = root.getAttribute("data-theme") || "studio";
+    const spec = specs[theme] || specs.studio;
+    const cs = getComputedStyle(root);
+    const v = (k) => cs.getPropertyValue(k).trim();
+    const fill = v("--accent-flair"), ink = theme === "osmium" ? "#000" : v("--bg-base");
+    const danger = v("--accent-danger"), manual = v("--accent-manual");
+    const key = [theme, fill, ink, danger, manual].join("|");
+    const inner = markSvg(spec.L).replace(/^<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
+    const style = `g{stroke:${ink}}.of-nodes{fill:${ink};stroke:none}.of-thin{opacity:.55}.of-hollow{fill:${fill};stroke:${ink}}.of-pin{fill:${fill}}.of-split{opacity:.85}.of-split-a{stroke:${manual}}.of-split-b{stroke:${danger}}.of-seal{fill:${danger}}.of-moon{fill:color-mix(in srgb, ${danger} 55%, ${fill})}`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 256 256"><style>${style}</style><rect width="256" height="256" rx="52" fill="${fill}"/><svg x="22" y="22" width="212" height="212" viewBox="-6 -6 262 262">${inner}</svg></svg>`;
+    return { svg, key };
+  }
+  function draw() {
+    const built = buildSvg();
+    if (!built || built.key === lastKey || !window.electronAPI.setAppIcon) return;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = SIZE;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, SIZE, SIZE);
+      lastKey = built.key;
+      void window.electronAPI.setAppIcon?.(canvas.toDataURL("image/png"));
+    };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(built.svg);
+  }
+  function initAppIcon() {
+    if (!window.electronAPI || typeof window.electronAPI.setAppIcon !== "function") return;
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(draw, 150);
+    };
+    new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
+    schedule();
+  }
+
   // src/renderer/index.ts
   (function() {
     let isTouchDevice2 = false;
@@ -26882,6 +26927,7 @@ Image: ${entry.imgName}`,
     });
     initTagDetails();
     initRandomFacts();
+    initAppIcon();
     initClickFlash();
     initFontRefit();
     initInfoButtons();

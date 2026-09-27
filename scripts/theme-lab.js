@@ -48,6 +48,10 @@ function buildPage(){
   const tabBar = extract(src, '<nav id="tabBar">');
   const dock = extract(src, '<div class="tool-section" data-dock-id="unifyVoid">');
   const nightFn = between(src, '/* night-palette:begin */', '/* night-palette:end */');
+  // The flourish's logo builder + per-theme table (window.__dtsMarkSVG /
+  // __dtsMarkSpec) is its own inline script, loaded once into the page.
+  const markStart = src.indexOf('/* Theme mark.');
+  const markScript = src.slice(markStart, src.indexOf('</script>', markStart));
   const flourishStart = src.indexOf('/* Opening flourish.');
   const flourish = src.slice(flourishStart, src.indexOf('</script>', flourishStart));
   const select = extract(src, '<select id="themeSelect"');
@@ -139,6 +143,7 @@ function buildPage(){
 <link rel="stylesheet" href="/renderer/fonts/fonts.css">
 <link rel="stylesheet" href="/renderer/styles.css">
 <script>(function(){ ${nightFn} })();</script>
+<script>${markScript}</script>
 <style>
   /* The lab's own chrome is neutral so it never competes with the theme. */
   html, body{ height: auto; overflow: auto; }

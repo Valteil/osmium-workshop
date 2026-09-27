@@ -96,6 +96,7 @@ import {
   startSequentialDetail, exitSequentialDetail
 } from './view';
 import { initRandomFacts } from './random-facts';
+import { initAppIcon } from './app-icon';
 import { pickDatasetFolder } from './folder-picker';
 import { setIconLabel } from './icons';
 (function(){
@@ -2347,6 +2348,9 @@ import { setIconLabel } from './icons';
 
   // "No folder loaded" empty-state random fact button moved to ./random-facts.ts
   initRandomFacts();
+
+  // Window/taskbar icon follows the theme (and night mode): ./app-icon.ts
+  initAppIcon();
 
   // Premium hover-fill "click flash" (epic/legendary shop themes) — see shared-ui.ts
   initClickFlash();
