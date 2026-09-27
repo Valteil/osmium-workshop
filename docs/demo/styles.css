@@ -3105,6 +3105,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     display: flex; gap: 1.2vw; transform: translateX(-114.5vw); will-change: transform;
   }
   .of-body{ flex: 0 0 108vw; background: var(--of-fill); }
+  /* TPE teeth: tiles buried halfway into the trailing edge (index.html). */
+  .of-body{ position: relative; }
+  .of-tooth{ position: absolute; box-sizing: border-box; }
   .of-col{ background: var(--of-fill); }
   .of-col-b{ flex: 0 0 3vw; }
   .of-col-a{ flex: 0 0 1.1vw; }

@@ -242,12 +242,13 @@ from the left led by two disconnected columns, with the thinner column in front,
 **covers the whole window** (the columns run off the far edge). The theme's Osmium mark rides in
 to the centre in `--bg-base` ink with the wordmark in the theme's brand lettering, hovers on the
 solid fill, and leaves right. The slab follows through a **cut trailing edge**, which sheds a
-single column of debris that visibly breaks off it (on TPE themes). Particles are born at full
-size at the tooth tips in quick alternating waves, then ride with the slab, falling back no more
-than about two particle widths over a 0.24 s life, however fast the slab is moving. They stay
-full size at first, then decay by their nature: solid pieces shrink away, while light and air fade
-(bubbles swell as they pop). The trail is one narrow crumbling column hugging the edge, never a
-field, and the last piece is gone within 80 ms of the slab. The dim lifts as it goes. Phones run it top to bottom. It is
+single column of debris that visibly breaks off it (on TPE themes). The slab's trailing edge
+**is** a row of the world's particles, each buried halfway into the fill. Uniform tiles break off
+in alternating waves (on the teeth, then between them) as a clean staggered lattice, with a
+visible gap between every neighbour. They ride with the slab, falling back at a constant rate over
+a 0.24 s life, stay full size at first, then decay by their nature: solid pieces shrink away,
+while light and air fade (bubbles swell as they pop). The trail is one narrow, cohesive column,
+never a field, and the last piece is gone within 80 ms of the slab. The dim lifts as it goes. Phones run it top to bottom. It is
 about 2.2 s, transform and opacity only, sped up by any press. Under reduced motion it's a fade,
 and **Disable opening flourish** turns it off.
 - **The mark** is always the Osmium lattice (a decagon ring, even/odd pentagons and spokes). Each

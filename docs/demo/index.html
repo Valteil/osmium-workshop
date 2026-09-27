@@ -282,9 +282,9 @@
   // Geometry, in vw (desktop) or vh (phones). Lead = gap 1.2 + column B 3 +
   // gap 1.2 + column A 1.1 = 6.5, mirrored behind the body for the basic
   // tail. At REST the body covers the whole window and every column (and a
-  // TPE theme's cut edge, JAG) is off-screen.
+  // TPE theme's half-buried teeth) is off-screen.
   var LEAD = 6.5, TAIL = tile ? 0 : LEAD, BODY = tile ? 108 : 104, BAND = TAIL + BODY + LEAD;
-  var REST = tile ? -8 : -(TAIL + 2), JAG = 5;
+  var REST = tile ? -8 : -(TAIL + 2);
   band.style[vert ? 'height' : 'width'] = BAND + U;
   body.style.flexBasis = BODY + U;
   band.style.transform = tr(-BAND);
@@ -298,21 +298,69 @@
     });
   }
 
-  // TPE edge profile per tile: zigzag teeth for crystalline, scallops for
-  // soft, steps for the terminal grid, a torn line for paper and leaves.
-  var EDGE = {dia:'zig', shard:'zig', star:'zig', glyph:'step', petal:'scallop', bubble:'scallop',
-    sprinkle:'scallop', firefly:'scallop', ember:'scallop', plankton:'scallop', leaf:'tear', scrap:'tear'}[tile];
-  var K = 4;
-  if (tile) (function cutTail(){
-    var d = JAG / BODY * 100, pts = [], i, f;
-    // pts: [depth% into the body, position% along the edge], first to last.
-    if (EDGE === 'zig') for (i = 0; i <= K * 2; i++) pts.push([i % 2 ? 0 : d, i / (K * 2) * 100]);
-    else if (EDGE === 'step') for (i = 0; i < K * 2; i++){ var x = i % 2 ? 0 : d; pts.push([x, i / (K * 2) * 100], [x, (i + 1) / (K * 2) * 100]); }
-    else if (EDGE === 'scallop') for (i = 0; i < K * 2; i++) for (f = 0; f <= 1.001; f += 0.0625) pts.push([d * (1 - Math.sqrt(Math.max(0, 1 - (2 * f - 1) * (2 * f - 1)))), (i + f) / (K * 2) * 100]);
-    else for (i = 0; i <= K * 5; i++) pts.push([r(0, d), i / (K * 5) * 100]);
-    var edge = pts.slice().reverse().map(function(p){ return vert ? p[1] + '% ' + p[0] + '%' : p[0] + '% ' + p[1] + '%'; });
-    body.style.clipPath = 'polygon(' + (vert ? ['0% 100%', '100% 100%'] : ['100% 0%', '100% 100%']).concat(edge).join(',') + ')';
-  })();
+  // TPE geometry, shared by the slab's teeth and the debris they shed: a
+  // clean staggered lattice of uniform tiles with a visible gap between
+  // every neighbour. (FP, not F: F is the flair colour var.)
+  var tSpan = vert ? innerHeight : innerWidth, tCross = vert ? innerWidth : innerHeight;
+  var cell = tCross / 11, FP = cell * 1.15, gapPx = FP * 0.22, spacing = FP + 2 * gapPx;
+  var GLYPHS = '01<>/_$#*+=|';
+  // One tile of this world's debris; wave c sets the alternating angle.
+  function tileFor(c){
+    var sz = cell, w = sz, h = sz, bg = 'var(--of-fill)', css = '', rot0 = 0, txt = '';
+    switch (tile){
+      case 'dia':      // Osmium: the lattice's nodes, a few in the RGB strip's hues
+        rot0 = 45; w = h = sz * 0.8; if (rand() < 0.18) bg = 'var(' + pick([D, S, M]) + ')'; break;
+      case 'petal':    // Sakura: notched petals, pink and paler pink
+        h = sz * 0.72; rot0 = c % 2 ? 30 : -30; css = 'border-radius:80% 0 80% 0;';
+        if (rand() < 0.45) bg = 'color-mix(in srgb, var(--of-fill) 55%, #fff)'; break;
+      case 'glyph':    // Terminal: phosphor characters
+        w = h = sz; bg = 'transparent'; txt = GLYPHS.charAt(Math.floor(rand() * GLYPHS.length));
+        css = 'font:normal 700 ' + sz * 1.05 + 'px/1 var(--mono);color:var(--of-fill);text-align:center;text-shadow:0 0 ' + sz * 0.35 + 'px var(--of-fill);'; break;
+      case 'leaf':     // Forest Moss: leaves with a midrib, in moss, gold and fern
+        h = sz * 0.6; rot0 = c % 2 ? 35 : -35; css = 'border-radius:0 70% 0 70%;';
+        bg = 'linear-gradient(135deg, transparent 47%, color-mix(in srgb, var(--bg-base) 45%, transparent) 48% 52%, transparent 53%), var(' + pick([F, S, A]) + ')'; break;
+      case 'bubble':   // Coral Reef: bubbles with a catch-light
+        css = 'border-radius:50%;border:' + sz * 0.1 + 'px solid var(--of-fill);';
+        bg = 'radial-gradient(circle at 32% 30%, color-mix(in srgb, #fff 75%, transparent) 0 14%, transparent 16%), color-mix(in srgb, var(--of-fill) 22%, transparent)'; break;
+      case 'scrap':    // Vintage Paper: torn catalogue scraps with ruled lines
+        h = sz * 0.72; rot0 = c % 2 ? 6 : -6;
+        css = 'clip-path:polygon(0 ' + r(0, 25) + '%,' + r(65, 100) + '% 0,100% ' + r(55, 100) + '%,' + r(0, 35) + '% 100%);';
+        bg = 'repeating-linear-gradient(0deg, transparent 0 ' + sz * 0.18 + 'px, color-mix(in srgb, var(--bg-base) 30%, transparent) ' + sz * 0.18 + 'px ' + sz * 0.22 + 'px), var(--of-fill)'; break;
+      case 'shard':    // Obsidian: knapped glass slivers with a lit facet
+        rot0 = c % 2 ? 20 : -20; w = sz * 1.1; h = sz * 0.7;
+        css = 'clip-path:polygon(' + r(0, 30) + '% 0,100% ' + r(30, 60) + '%,' + r(10, 40) + '% 100%);';
+        bg = 'linear-gradient(135deg, color-mix(in srgb, var(--of-fill) 55%, #fff) 0 30%, var(--of-fill) 31% 70%, color-mix(in srgb, var(--of-fill) 70%, #000))'; break;
+      case 'sprinkle': // Candy Pop: sprinkles in every accent
+        w = sz * 0.95; h = sz * 0.28; rot0 = c % 2 ? 35 : -35; css = 'border-radius:999px;'; bg = 'var(' + pick(P.c) + ')'; break;
+      case 'firefly':  // Twilight Garden: amber fireflies
+        w = h = sz * 0.34; css = 'border-radius:50%;box-shadow:0 0 ' + sz * 0.6 + 'px ' + sz * 0.1 + 'px var(--accent-auto);'; bg = 'var(--accent-auto)'; break;
+      case 'star':     // Celestial Gold: four-point stars in gold
+        w = h = sz * 0.9; bg = 'var(--accent-auto)';
+        css = 'clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);'; break;
+      case 'ember':    // Solar Flare: embers
+        w = h = sz * 0.3; css = 'border-radius:50%;box-shadow:0 0 ' + sz * 0.5 + 'px var(' + pick([A, D]) + ');'; bg = 'var(' + pick([A, F]) + ')'; break;
+      case 'plankton': // Bioluminescent: glowing plankton
+        w = h = sz * 0.26; css = 'border-radius:50%;box-shadow:0 0 ' + sz * 0.55 + 'px var(' + pick([F, M]) + ');'; bg = 'var(' + pick([F, M]) + ')'; break;
+    }
+    return {w: w, h: h, bg: bg, css: css, rot0: rot0, txt: txt};
+  }
+  // A tile element centred on (x, y) in its parent.
+  function tileEl(t, x, y, cls){
+    var d = document.createElement('i');
+    if (cls) d.className = cls;
+    if (t.txt) d.textContent = t.txt;
+    d.style.cssText = 'width:' + t.w + 'px;height:' + t.h + 'px;background:' + t.bg + ';' + t.css
+      + 'left:' + (x - t.w / 2) + 'px;top:' + (y - t.h / 2) + 'px';
+    return d;
+  }
+  // The slab's trailing edge IS a row of those tiles, each buried halfway
+  // into it at the trail's own spacing, so the teeth visibly break off into
+  // the debris (the even waves spawn right on them, the odd ones between).
+  if (tile) for (var tj = -1; tj * spacing < tCross + spacing; tj++){
+    var tt = tileFor(0), te = tileEl(tt, vert ? tj * spacing : 0, vert ? 0 : tj * spacing, 'of-tooth');
+    te.style.transform = 'rotate(' + tt.rot0 + 'deg)';
+    body.appendChild(te);
+  }
 
   // Animations are created paused and start on the first painted frame: at
   // launch the clock would otherwise run while app.js is still parsing, and
@@ -358,10 +406,10 @@
   // light and air fade). Spawning stops once the edge leaves the window and
   // every piece is gone within 80ms of the slab, so nothing lingers.
   function shed(){
-    var span = vert ? innerHeight : innerWidth, cross = vert ? innerWidth : innerHeight;
-    var cell = cross / 10;                        // particle size base
-    var spacing = cell * 1.05;                    // along the edge, per wave
-    var LIFE = 240, WAVE = 80, DROP = cell * 1.6; // life, wave interval, total fall-back
+    var span = tSpan, cross = tCross;
+    // Fall-back at a constant rate, so consecutive waves keep a fixed
+    // separation (wide enough for the half-step stagger to keep its gaps).
+    var LIFE = 240, WAVE = 80, RATE = (0.62 * FP + gapPx) / WAVE; // px per ms
     // The slab's tail (its left/top edge) in px at timeline ms.
     function tailPx(ms){
       var u = Math.min(1, Math.max(0, (ms - outAt) / outDur));
@@ -371,8 +419,6 @@
     var SPIN = {petal:1, leaf:1, scrap:1, sprinkle:1, shard:1};
     // Light and air fade out; everything else is a solid piece that shrinks.
     var FADE = {glyph:1, bubble:1, firefly:1, ember:1, plankton:1};
-    var GLYPHS = '01<>/_$#*+=|';
-    var fill = 'var(--of-fill)';
     var END = outAt + outDur;
     for (var c = 0, born = outAt; born < END; c++, born += WAVE){
       var edge = tailPx(born);                    // the tooth tips: visible from birth
@@ -382,58 +428,20 @@
       if (life < 90) break;
       var off = c % 2 ? 0.5 : 0;                   // alternate waves sit between the last
       for (var j = -1; j * spacing < cross + spacing; j++){
-        var sz = cell * r(0.82, 1), w = sz, h = sz, bg = fill, css = '', rot0 = 0, txt = '';
-        switch (tile){
-          case 'dia':      // Osmium: the lattice's nodes, a few in the RGB strip's hues
-            rot0 = 45; w = h = sz * 0.8; if (rand() < 0.18) bg = 'var(' + pick([D, S, M]) + ')'; break;
-          case 'petal':    // Sakura: notched petals, pink and paler pink
-            h = sz * 0.72; rot0 = r(0, 360); css = 'border-radius:80% 0 80% 0;';
-            if (rand() < 0.45) bg = 'color-mix(in srgb, var(--of-fill) 55%, #fff)'; break;
-          case 'glyph':    // Terminal: phosphor characters
-            w = h = sz; bg = 'transparent'; txt = GLYPHS.charAt(Math.floor(rand() * GLYPHS.length));
-            css = 'font:normal 700 ' + sz * 1.05 + 'px/1 var(--mono);color:var(--of-fill);text-align:center;text-shadow:0 0 ' + sz * 0.35 + 'px var(--of-fill);'; break;
-          case 'leaf':     // Forest Moss: leaves with a midrib, in moss, gold and fern
-            h = sz * 0.6; rot0 = r(0, 360); css = 'border-radius:0 70% 0 70%;';
-            bg = 'linear-gradient(135deg, transparent 47%, color-mix(in srgb, var(--bg-base) 45%, transparent) 48% 52%, transparent 53%), var(' + pick([F, S, A]) + ')'; break;
-          case 'bubble':   // Coral Reef: bubbles with a catch-light
-            css = 'border-radius:50%;border:' + sz * 0.1 + 'px solid var(--of-fill);';
-            bg = 'radial-gradient(circle at 32% 30%, color-mix(in srgb, #fff 75%, transparent) 0 14%, transparent 16%), color-mix(in srgb, var(--of-fill) 22%, transparent)'; break;
-          case 'scrap':    // Vintage Paper: torn catalogue scraps with ruled lines
-            h = sz * r(0.6, 0.85); rot0 = r(-25, 25);
-            css = 'clip-path:polygon(0 ' + r(0, 25) + '%,' + r(65, 100) + '% 0,100% ' + r(55, 100) + '%,' + r(0, 35) + '% 100%);';
-            bg = 'repeating-linear-gradient(0deg, transparent 0 ' + sz * 0.18 + 'px, color-mix(in srgb, var(--bg-base) 30%, transparent) ' + sz * 0.18 + 'px ' + sz * 0.22 + 'px), var(--of-fill)'; break;
-          case 'shard':    // Obsidian: knapped glass slivers with a lit facet
-            rot0 = r(0, 360); w = sz * 1.1; h = sz * 0.7;
-            css = 'clip-path:polygon(' + r(0, 30) + '% 0,100% ' + r(30, 60) + '%,' + r(10, 40) + '% 100%);';
-            bg = 'linear-gradient(135deg, color-mix(in srgb, var(--of-fill) 55%, #fff) 0 30%, var(--of-fill) 31% 70%, color-mix(in srgb, var(--of-fill) 70%, #000))'; break;
-          case 'sprinkle': // Candy Pop: sprinkles in every accent
-            w = sz * 0.95; h = sz * 0.28; rot0 = r(0, 180); css = 'border-radius:999px;'; bg = 'var(' + pick(P.c) + ')'; break;
-          case 'firefly':  // Twilight Garden: amber fireflies
-            w = h = sz * 0.34; css = 'border-radius:50%;box-shadow:0 0 ' + sz * 0.6 + 'px ' + sz * 0.1 + 'px var(--accent-auto);'; bg = 'var(--accent-auto)'; break;
-          case 'star':     // Celestial Gold: four-point stars in gold
-            w = h = sz * 0.9; bg = 'var(--accent-auto)';
-            css = 'clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);'; break;
-          case 'ember':    // Solar Flare: embers
-            w = h = sz * 0.3; css = 'border-radius:50%;box-shadow:0 0 ' + sz * 0.5 + 'px var(' + pick([A, D]) + ');'; bg = 'var(' + pick([A, F]) + ')'; break;
-          case 'plankton': // Bioluminescent: glowing plankton
-            w = h = sz * 0.26; css = 'border-radius:50%;box-shadow:0 0 ' + sz * 0.55 + 'px var(' + pick([F, M]) + ');'; bg = 'var(' + pick([F, M]) + ')'; break;
-        }
-        var across = (j + off) * spacing + r(-0.06, 0.06) * spacing;
-        var d = document.createElement('i');
-        if (txt) d.textContent = txt;
-        d.style.cssText = 'width:' + w + 'px;height:' + h + 'px;background:' + bg + ';' + css
-          + (vert ? 'left:' + (across - w / 2) + 'px;top:' + (edge - h / 2) + 'px' : 'left:' + (edge - w / 2) + 'px;top:' + (across - h / 2) + 'px');
+        var t = tileFor(c), rot0 = t.rot0;
+        var across = (j + off) * spacing;
+        var d = tileEl(t, vert ? across : edge, vert ? edge : across);
         parts.appendChild(d);
-        var lift = 0, side = r(-0.06, 0.06) * cell;
+        var lift = 0, side = 0;
         if (RISE[tile]) lift = -r(0.25, 0.5) * cell;
         if (FALL[tile]) lift = r(0.2, 0.4) * cell;
         var rot1 = rot0 + (SPIN[tile] ? r(-70, 70) : r(-8, 8));
-        var drop = DROP * r(0.8, 1.2), frames = [], KS = [0, 0.25, 0.45, 0.72, 1];
+        var frames = [], KS = [0, 0.25, 0.45, 0.72, 1];
         var endS = FADE[tile] ? (tile === 'bubble' ? 1.2 : 0.85) : 0, endO = FADE[tile] ? 0 : 0.6;
         for (var q = 0; q < KS.length; q++){
           var k = KS[q], decay = Math.max(0, (k - 0.45) / 0.55);
           // Rides with the slab, falling back along an ease-in (breaking off).
-          var mv = tailPx(born + k * life) - tailPx(born) - drop * Math.pow(k, 1.2);
+          var mv = tailPx(born + k * life) - tailPx(born) - RATE * k * life;
           var dr = decay * decay;
           var cx = vert ? side * dr : mv, cy = vert ? mv + lift * dr : side * dr + lift * dr;
           frames.push({
