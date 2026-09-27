@@ -322,8 +322,11 @@ ipcMain.handle('set-zoom-factor', (event, factor: number) => {
 // the exe's icon until the renderer is up. On Windows the window also gets
 // its own AppUserModelID + relaunch icon (setAppDetails): without that the
 // taskbar groups the window under the exe / any shortcut pointing at it and
-// shows THAT icon over ours. The file name carries a timestamp because the
-// shell caches relaunch icons by path.
+// shows THAT icon over ours. The shell caches a group's icon per AUMID (and
+// per path), so re-pointing one fixed AUMID at a new .ico does nothing: each
+// icon gets its own timestamped file AND its own AUMID (themed.<ts>), which
+// makes the taskbar rebuild the button with the new icon. Older files are
+// deleted on every switch.
 const APP_ICON_DIR = () => path.join(app.getPath('userData'), 'app-icon');
 const THEMED_APP_ID = 'com.local.osmiumworkshop.themed';
 
@@ -343,10 +346,15 @@ function cachedAppIcon(): string | null {
   } catch { return null; }
 }
 
+function themedAppId(iconPath: string): string {
+  const m = /themed-(\d+)\.ico$/.exec(iconPath);
+  return m ? `${THEMED_APP_ID}.${m[1]}` : THEMED_APP_ID;
+}
+
 function applyAppDetails(win: BrowserWindow, iconPath: string): void {
   if (process.platform !== 'win32') return;
   win.setAppDetails({
-    appId: THEMED_APP_ID,
+    appId: themedAppId(iconPath),
     appIconPath: iconPath,
     appIconIndex: 0,
     relaunchCommand: `"${process.execPath}"`,
@@ -366,8 +374,8 @@ ipcMain.handle('set-app-icon', (event, dataUrl: string) => {
     const prev = fs.readdirSync(dir).filter((n) => /^themed-\d+\.ico$/.test(n));
     const file = path.join(dir, `themed-${Date.now()}.ico`);
     fs.writeFileSync(file, pngToIco(img.toPNG()));
-    for (const n of prev) fs.rmSync(path.join(dir, n), { force: true });
     applyAppDetails(win, file);
+    for (const n of prev) fs.rmSync(path.join(dir, n), { force: true });
   } catch (err) {
     console.warn('[app-icon] could not cache themed icon:', err);
   }
