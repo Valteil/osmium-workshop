@@ -2238,6 +2238,7 @@ function startInlineTagRename(chip: HTMLElement, label: HTMLElement, entry: Entr
   function commit(){
     if (done) return;
     done = true;
+    closeAutocomplete();
     const cleaned = input.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
     if (cleaned && cleaned !== tag) renameTagOnEntry(entry, tag, cleaned);
     onChange();
@@ -2246,8 +2247,12 @@ function startInlineTagRename(chip: HTMLElement, label: HTMLElement, entry: Entr
   input.addEventListener('keydown', (ev) => {
     ev.stopPropagation();
     if (ev.key === 'Enter'){ ev.preventDefault(); commit(); }
-    else if (ev.key === 'Escape'){ ev.preventDefault(); done = true; onChange(); }
+    else if (ev.key === 'Escape'){ ev.preventDefault(); done = true; closeAutocomplete(); onChange(); }
   });
+  // Same suggestions as the add-tag fields; picking one renames straight away.
+  // (Clicking a suggestion doesn't blur the field, so the half-typed text
+  // isn't committed first.)
+  attachPickAutocomplete(input, (value) => { input.value = value; commit(); });
   input.addEventListener('blur', commit);
 }
 
