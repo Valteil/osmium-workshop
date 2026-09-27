@@ -171,7 +171,7 @@
      use Studio's. */
   var A='--accent-auto', M='--accent-manual', F='--accent-flair', D='--accent-danger', S='--accent-success', T='--text-primary';
   var SPEC = {
-    'studio':          {L:{node:'sq',   ring:'deca',   cap:'square'},               P:{s:'chip',    c:[A,F,T]}},
+    'studio':          {L:{node:'sq',   ring:'deca',   cap:'square'},               P:{s:'dia',     c:[A,F,T]}},
     'cyberpunk':       {L:{node:'sq',   ring:'deca',   cap:'butt', split:1},        P:{s:'glitch',  c:[F,M,D]}},
     'oriental':        {L:{node:'dot',  ring:'circle', seal:1},                     P:{s:'gold',    c:[A,D]}},
     'subway':          {L:{node:'ring', ring:'circle', w:1.25},                     P:{s:'ring',    c:[A,M,D,S]}},
@@ -257,24 +257,54 @@
   function run(node, frames, opts){ var a = node.animate(frames, opts); anims.push(a); return a; }
   var OUT = 'cubic-bezier(0.16, 1, 0.3, 1)', IN = 'cubic-bezier(0.55, 0, 0.85, 0.35)', SWEEP = [0.65, 0, 0.35, 1];
 
-  if (reduce){
-    // No travel: the slab and mark fade in place, then everything fades.
-    run(el, [{opacity: 0}, {opacity: 1, offset: 0.2}, {opacity: 1, offset: 0.75}, {opacity: 0}], {duration: 1100, fill: 'forwards'});
-    band.style.transform = tr(-6);
-  } else {
-    // The band is body + gap + column B + gap + column A = 78.5 (vw or vh).
-    // At rest the body spans -6..66, so the centre sits on solid fill.
-    run(scrim, [{opacity: 0}, {opacity: 1}], {duration: 160, fill: 'forwards'});
-    run(band, [{transform: tr(-78.5)}, {transform: tr(-6)}], {duration: 520, easing: OUT, fill: 'forwards'});
-    run(markIn, [{transform: tr(-34), opacity: 0}, {transform: tr(0), opacity: 1}], {duration: 480, delay: 120, easing: OUT, fill: 'backwards'});
-    run(markIn, [{transform: tr(0)}, {transform: tr(1)}], {duration: 460, delay: 600, fill: 'forwards'});
-    run(markIn, [{transform: tr(1), opacity: 1}, {transform: tr(36), opacity: 0}], {duration: 320, delay: 1060, easing: IN, fill: 'forwards'});
-    var outAt = 1120, outDur = 620;
-    run(band, [{transform: tr(-6)}, {transform: tr(100)}], {duration: outDur, delay: outAt, easing: 'cubic-bezier(' + SWEEP.join(',') + ')', fill: 'forwards'});
-    run(scrim, [{opacity: 1}, {opacity: 0}], {duration: 380, delay: outAt + 140, easing: 'ease-out', fill: 'forwards'});
-    setTimeout(function(){ el.style.pointerEvents = 'none'; }, outAt + 140);
+  // Geometry, in vw (desktop) or vh (phones). The band is the body (108,
+  // wide enough to cover the window with its cut tail still off-screen)
+  // + gap 1.2 + column B 3 + gap 1.2 + column A 1.1 = 114.5. At rest
+  // (REST = -8) the body spans -8..100: the whole window is fill, and the
+  // two lead columns have run off the far edge.
+  var BAND = 114.5, BODY = 108, REST = -8, JAG = 5;
+  var body = el.querySelector('.of-body');
 
-    // Tail position over the exit follows the same curve the band uses.
+  // Tile per particle family, and the tail's cut edge per tile: zigzag
+  // teeth for crystalline worlds, scallops for soft ones, steps for
+  // pixel/sign worlds, a torn line for paper and leaves.
+  var TILE = {chip:'dia', dia:'dia', flake:'dia', gold:'gold', shard:'shard', star:'star',
+    px:'px', glitch:'bar', streak:'bar', hazard:'hazard', ring:'ring', firefly:'dot', ember:'dot',
+    bubble:'bubble', petal:'petal', bud:'bud', confetti:'confetti', drop:'drop', leaf:'leaf', scrap:'scrap'};
+  var tile = TILE[P.s] || 'dia';
+  var EDGE = {dia:'zig', gold:'zig', shard:'zig', star:'zig', px:'step', bar:'step', hazard:'step',
+    ring:'scallop', dot:'scallop', bubble:'scallop', petal:'scallop', bud:'scallop', confetti:'scallop', drop:'scallop',
+    leaf:'tear', scrap:'tear'}[tile];
+  var K = 4, rand = Math.random;
+  function r(a, b){ return a + rand() * (b - a); }
+  (function cutTail(){
+    var d = JAG / BODY * 100, pts = [], i, f;
+    // pts: [depth% into the body, position% along the edge], first to last.
+    if (EDGE === 'zig') for (i = 0; i <= K * 2; i++) pts.push([i % 2 ? 0 : d, i / (K * 2) * 100]);
+    else if (EDGE === 'step') for (i = 0; i < K * 2; i++){ var x = i % 2 ? 0 : d; pts.push([x, i / (K * 2) * 100], [x, (i + 1) / (K * 2) * 100]); }
+    else if (EDGE === 'scallop') for (i = 0; i < K * 2; i++) for (f = 0; f <= 1.001; f += 0.0625) pts.push([d * (1 - Math.sqrt(Math.max(0, 1 - (2 * f - 1) * (2 * f - 1)))), (i + f) / (K * 2) * 100]);
+    else for (i = 0; i <= K * 5; i++) pts.push([r(0, d), i / (K * 5) * 100]);
+    var edge = pts.slice().reverse().map(function(p){ return vert ? p[1] + '% ' + p[0] + '%' : p[0] + '% ' + p[1] + '%'; });
+    var poly = (vert ? ['0% 100%', '100% 100%'] : ['100% 0%', '100% 100%']).concat(edge);
+    body.style.clipPath = 'polygon(' + poly.join(',') + ')';
+  })();
+
+  if (reduce){
+    // No travel: the covered window and mark fade in place, then fade out.
+    run(el, [{opacity: 0}, {opacity: 1, offset: 0.2}, {opacity: 1, offset: 0.75}, {opacity: 0}], {duration: 1100, fill: 'forwards'});
+    band.style.transform = tr(REST);
+  } else {
+    run(scrim, [{opacity: 0}, {opacity: 1}], {duration: 160, fill: 'forwards'});
+    run(band, [{transform: tr(-BAND)}, {transform: tr(REST)}], {duration: 540, easing: OUT, fill: 'forwards'});
+    run(markIn, [{transform: tr(-34), opacity: 0}, {transform: tr(0), opacity: 1}], {duration: 480, delay: 160, easing: OUT, fill: 'backwards'});
+    run(markIn, [{transform: tr(0)}, {transform: tr(1)}], {duration: 460, delay: 640, fill: 'forwards'});
+    run(markIn, [{transform: tr(1), opacity: 1}, {transform: tr(36), opacity: 0}], {duration: 280, delay: 1100, easing: IN, fill: 'forwards'});
+    var outAt = 1180, outDur = 720;
+    run(band, [{transform: tr(REST)}, {transform: tr(100)}], {duration: outDur, delay: outAt, easing: 'cubic-bezier(' + SWEEP.join(',') + ')', fill: 'forwards'});
+    run(scrim, [{opacity: 1}, {opacity: 0}], {duration: 450, delay: outAt + 200, easing: 'ease-out', fill: 'forwards'});
+    setTimeout(function(){ el.style.pointerEvents = 'none'; }, outAt + 200);
+
+    // The band's exit curve, and its inverse: when does the tail reach p?
     function bez(t){
       var x1 = SWEEP[0], y1 = SWEEP[1], x2 = SWEEP[2], y2 = SWEEP[3], lo = 0, hi = 1, u = t;
       for (var i = 0; i < 18; i++){
@@ -284,49 +314,63 @@
       }
       return 3*(1-u)*(1-u)*u*y1 + 3*(1-u)*u*u*y2 + u*u*u;
     }
-    var n = vert ? 80 : 128, rand = Math.random, span = vert ? innerHeight : innerWidth;
-    function pick(a){ return a[Math.floor(rand() * a.length)]; }
-    function r(a, b){ return a + rand() * (b - a); }
-    var RISE = {ember:1, firefly:1, bubble:1}, FALL = {petal:1, leaf:1, drop:1, scrap:1, confetti:1, gold:1, star:0};
-    for (var i = 0; i < n; i++){
-      var t = (i + rand()) / n, pos = -6 + 106 * bez(t);
-      if (pos < -1 || pos > 101) continue;
-      var d = document.createElement('i'), col = 'var(' + pick(P.c) + ')', sz, css = '', rot0 = r(0, 360), rot1 = rot0 + r(-160, 160);
-      switch (P.s){
-        case 'chip':     css = 'width:'+r(6,13)+'px;height:'+r(3,5)+'px;border-radius:1px;background:'+col; break;
-        case 'glitch':   css = 'width:'+r(10,30)+'px;height:'+r(2,4)+'px;background:'+col; rot0 = rot1 = 0; break;
-        case 'gold':     sz = r(4,9); css = 'width:'+sz+'px;height:'+sz*r(.6,1)+'px;border-radius:1px;background:'+col; break;
-        case 'ring':     sz = r(7,11); css = 'width:'+sz+'px;height:'+sz+'px;border-radius:50%;border:2px solid '+col; break;
-        case 'dia':      sz = r(5,9); css = 'width:'+sz+'px;height:'+sz+'px;background:'+col; rot0 = 45; rot1 = 45 + r(-90,90); break;
-        case 'firefly':  sz = r(3,6); css = 'width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';box-shadow:0 0 '+sz*2.5+'px '+col; break;
-        case 'petal':    css = 'width:'+r(7,12)+'px;height:'+r(5,8)+'px;border-radius:80% 0 80% 0;background:'+col; break;
-        case 'px':       sz = Math.round(r(3,6)); css = 'width:'+sz+'px;height:'+sz+'px;background:'+col+';box-shadow:0 0 6px '+col; rot0 = rot1 = 0; break;
-        case 'ember':    sz = r(2,5); css = 'width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';box-shadow:0 0 '+sz*3+'px '+col; break;
-        case 'bubble':   sz = r(5,12); css = 'width:'+sz+'px;height:'+sz+'px;border-radius:50%;border:1.5px solid '+col+';background:color-mix(in srgb, '+col+' 18%, transparent)'; break;
-        case 'flake':    sz = r(4,8); css = 'width:'+sz+'px;height:'+sz+'px;background:'+col+';clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)'; break;
-        case 'leaf':     css = 'width:'+r(8,13)+'px;height:'+r(5,8)+'px;border-radius:0 70% 0 70%;background:'+col; break;
-        case 'scrap':    css = 'width:'+r(7,14)+'px;height:'+r(5,10)+'px;background:'+col+';clip-path:polygon(0 '+r(0,30)+'%,'+r(60,100)+'% 0,100% '+r(50,100)+'%,'+r(0,40)+'% 100%)'; break;
-        case 'shard':    sz = r(6,16); css = 'width:'+sz+'px;height:'+sz+'px;background:'+col+';clip-path:polygon('+r(0,40)+'% 0,100% '+r(20,70)+'%,'+r(0,50)+'% 100%)'; break;
-        case 'streak':   sz = r(14,34); css = (vert ? 'width:2px;height:'+sz+'px' : 'width:'+sz+'px;height:2px')+';border-radius:2px;background:'+col+';box-shadow:0 0 8px '+col; rot0 = rot1 = 0; break;
-        case 'hazard':   sz = r(6,10); css = 'width:'+sz+'px;height:'+sz+'px;background:repeating-linear-gradient(45deg,'+col+' 0 3px,var(--bg-base) 3px 6px)'; break;
-        case 'bud':      css = 'width:'+r(4,6)+'px;height:'+r(7,10)+'px;border-radius:50%;background:'+col; break;
-        case 'confetti': css = 'width:'+r(5,9)+'px;height:'+r(3,5)+'px;border-radius:2px;background:'+col; break;
-        case 'drop':     sz = r(4,7); css = 'width:'+sz+'px;height:'+sz+'px;border-radius:50% 50% 50% 0;background:'+col; rot0 = 135; rot1 = 135; break;
-        case 'star':     sz = r(7,12); css = 'width:'+sz+'px;height:'+sz+'px;background:'+col+';clip-path:polygon(50% 0,61% 39%,100% 50%,61% 61%,50% 100%,39% 61%,0 50%,39% 39%)'; break;
+    function tailAt(p){
+      var want = (p - REST - JAG / 2) / (100 - REST), lo = 0, hi = 1;
+      if (want <= 0) return 0;
+      if (want >= 1) return -1;
+      for (var i = 0; i < 20; i++){ var m = (lo + hi) / 2; if (bez(m) < want) lo = m; else hi = m; }
+      return (lo + hi) / 2;
+    }
+
+    // The fill breaks off its tail as a staggered lattice of the world's
+    // tiles, in the fill colour: each is born at the cut edge as it passes
+    // and collapses fast, so the trail tapers from big pieces at the edge to
+    // specks behind it. Risers float up, fallers drop, flat pieces spin.
+    var span = vert ? innerHeight : innerWidth, cross = vert ? innerWidth : innerHeight;
+    var cell = cross / (K * 2), step = cell * 0.72;
+    var RISE = {dot:1, bubble:1}, FALL = {petal:1, leaf:1, drop:1, scrap:1, confetti:1, gold:1};
+    var SPIN = {petal:1, leaf:1, scrap:1, confetti:1, gold:1, shard:1};
+    for (var c = 0, a = step / 2; a < span + step; c++, a += step){
+      var t = tailAt(a / span * 100);
+      if (t < 0) continue;
+      for (var j = -1; j <= K * 2; j++){
+        var sz = cell * r(0.5, 0.68), col = tile === 'confetti' ? 'var(' + P.c[Math.floor(rand() * P.c.length)] + ')' : 'var(--of-fill)';
+        var w = sz, h = sz, css = '', rot0 = 0;
+        switch (tile){
+          case 'dia':      rot0 = 45; break;
+          case 'gold':     h = sz * r(0.6, 1); rot0 = r(0, 90); css = 'border-radius:2px;'; break;
+          case 'shard':    rot0 = r(0, 360); w = h = sz * 1.3; css = 'clip-path:polygon(' + r(0, 40) + '% 0,100% ' + r(20, 70) + '%,' + r(0, 50) + '% 100%);'; break;
+          case 'star':     w = h = sz * 1.4; css = 'clip-path:polygon(50% 0,61% 39%,100% 50%,61% 61%,50% 100%,39% 61%,0 50%,39% 39%);'; break;
+          case 'px':       w = h = Math.round(sz * 0.8); break;
+          case 'bar':      if (vert){ w = sz * 0.28; h = sz * 1.7; } else { w = sz * 1.7; h = sz * 0.28; } break;
+          case 'hazard':   col = 'repeating-linear-gradient(45deg,var(--of-fill) 0 ' + sz / 6 + 'px,var(--bg-base) ' + sz / 6 + 'px ' + sz / 3 + 'px)'; break;
+          case 'ring':     col = 'transparent'; css = 'border-radius:50%;border:' + sz * 0.2 + 'px solid var(--of-fill);'; break;
+          case 'dot':      w = h = sz * 0.8; css = 'border-radius:50%;'; break;
+          case 'bubble':   col = 'color-mix(in srgb, var(--of-fill) 35%, transparent)'; css = 'border-radius:50%;border:' + sz * 0.12 + 'px solid var(--of-fill);'; break;
+          case 'petal':    h = sz * 0.7; rot0 = r(0, 360); css = 'border-radius:80% 0 80% 0;'; break;
+          case 'bud':      w = sz * 0.6; css = 'border-radius:50%;'; break;
+          case 'confetti': h = sz * 0.5; rot0 = r(0, 180); css = 'border-radius:3px;'; break;
+          case 'drop':     w = h = sz * 0.8; rot0 = vert ? 45 : 135; css = 'border-radius:50% 50% 50% 0;'; break;
+          case 'leaf':     h = sz * 0.62; rot0 = r(0, 360); css = 'border-radius:0 70% 0 70%;'; break;
+          case 'scrap':    h = sz * r(0.6, 0.9); rot0 = r(-20, 20); css = 'clip-path:polygon(0 ' + r(0, 30) + '%,' + r(60, 100) + '% 0,100% ' + r(50, 100) + '%,' + r(0, 40) + '% 100%);'; break;
+        }
+        if (P.glow) css += 'box-shadow:0 0 ' + sz * 0.5 + 'px var(--of-fill);';
+        var along = a + r(-0.08, 0.08) * cell, across = (j + 0.5) * cell + (c % 2 ? cell / 2 : 0) + r(-0.06, 0.06) * cell;
+        var d = document.createElement('i');
+        d.style.cssText = 'width:' + w + 'px;height:' + h + 'px;background:' + col + ';' + css
+          + (vert ? 'left:' + (across - w / 2) + 'px;top:' + (along - h / 2) + 'px' : 'left:' + (along - w / 2) + 'px;top:' + (across - h / 2) + 'px');
+        parts.appendChild(d);
+        var back = -r(0.1, 0.55) * cell, side = r(-0.15, 0.15) * cell;
+        var dx = vert ? side : back, dy = vert ? back : side;
+        if (RISE[tile]) dy -= r(0.3, 0.8) * cell;
+        if (FALL[tile]) dy += r(0.3, 0.7) * cell;
+        var rot1 = rot0 + (SPIN[tile] ? r(-140, 140) : r(-25, 25));
+        run(d, [
+          {transform: 'translate(0,0) rotate(' + rot0 + 'deg) scale(1)', opacity: 1},
+          {transform: 'translate(' + dx * 0.3 + 'px,' + dy * 0.3 + 'px) rotate(' + (rot0 + (rot1 - rot0) * 0.3) + 'deg) scale(0.86)', opacity: 1, offset: 0.35},
+          {transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(' + rot1 + 'deg) scale(0)', opacity: 0}
+        ], {duration: r(300, 520), delay: outAt + t * outDur + r(0, 40), easing: 'cubic-bezier(0.45, 0, 0.75, 0.5)', fill: 'forwards'});
       }
-      var along = pos * span / 100 + r(0, 6), across = r(0, 1) * (vert ? innerWidth : innerHeight);
-      // `scale` (not transform) so the size composes with the animated transform.
-      d.style.cssText = css + ';scale:1.7;' + (vert ? 'left:'+across+'px;top:'+along+'px' : 'left:'+along+'px;top:'+across+'px');
-      parts.appendChild(d);
-      // Breaks off the tail: lags against the travel, drifts sideways, and
-      // risers float up / fallers drop, then winks out fast.
-      var back = -r(10, 46), side = r(-26, 26), dx = vert ? side : back, dy = vert ? back : side;
-      if (RISE[P.s]) dy -= r(18, 60);
-      if (FALL[P.s]) dy += r(16, 48);
-      run(d, [
-        {transform: 'translate(0,0) rotate(' + rot0 + 'deg) scale(1)', opacity: 1},
-        {transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(' + rot1 + 'deg) scale(' + r(0.1, 0.4) + ')', opacity: 0}
-      ], {duration: r(320, 680), delay: outAt + t * outDur, easing: 'cubic-bezier(0.2, 0.6, 0.4, 1)', fill: 'forwards'});
     }
   }
 

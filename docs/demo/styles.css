@@ -3099,20 +3099,20 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .of-scrim{ position: absolute; inset: 0; background: rgba(6, 6, 10, 0.58); }
   .of-parts{ position: absolute; inset: 0; }
-  .of-parts i{ position: absolute; opacity: 0; will-change: transform, opacity; }
+  .of-parts i{ position: absolute; opacity: 0; will-change: transform, opacity; box-sizing: border-box; }
   .of-band{
-    position: absolute; top: 0; bottom: 0; left: 0; width: 78.5vw;
-    display: flex; gap: 1.2vw; transform: translateX(-78.5vw); will-change: transform;
+    position: absolute; top: 0; bottom: 0; left: 0; width: 114.5vw;
+    display: flex; gap: 1.2vw; transform: translateX(-114.5vw); will-change: transform;
   }
-  .of-body{ flex: 0 0 72vw; background: var(--of-fill); }
+  .of-body{ flex: 0 0 108vw; background: var(--of-fill); }
   .of-col{ background: var(--of-fill); }
   .of-col-b{ flex: 0 0 3vw; }
   .of-col-a{ flex: 0 0 1.1vw; }
   .of-v .of-band{
-    right: 0; bottom: auto; width: auto; height: 78.5vh;
-    flex-direction: column; gap: 1.2vh; transform: translateY(-78.5vh);
+    right: 0; bottom: auto; width: auto; height: 114.5vh;
+    flex-direction: column; gap: 1.2vh; transform: translateY(-114.5vh);
   }
-  .of-v .of-body{ flex-basis: 72vh; }
+  .of-v .of-body{ flex-basis: 108vh; }
   .of-v .of-col-b{ flex-basis: 3vh; }
   .of-v .of-col-a{ flex-basis: 1.1vh; }
   /* Worlds with a light source (Native Light Rule): the leading column burns. */
