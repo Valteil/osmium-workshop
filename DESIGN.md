@@ -258,24 +258,33 @@ and **Disable opening flourish** turns it off.
   Celestial Gold's stars…), the stroke weight and cap, and one world device where it has one:
   Cyberpunk's chromatic split, Oriental's cinnabar seal, Blood Moon's moon, Terminal's dashed
   lines.
-- **The tail comes in two kinds.** Most themes get the **basic tail**: the two lead columns
-  mirrored behind the slab, with a small colour touch from the world (Subway's route colours,
-  Cyberpunk's chromatic pair, Toxic Waste's hazard stripes, gilt on Amethyst and Rose Gold, and so
-  on).
-- **Trailing particle edges (TPE)** are only for the twelve worlds whose debris *is* their identity.
-  Each has a cut edge and its own small debris, a little under half the size of a lattice cell:
-  - Osmium: zigzag edge, lattice diamonds with a few in the RGB strip's hues.
-  - Obsidian: zigzag edge, knapped shards with a lit facet.
-  - Celestial Gold: zigzag edge, gold four-point stars.
-  - Terminal: stepped edge, glowing mono glyphs.
-  - Sakura: scalloped edge, petals in pink and paler pink.
-  - Coral Reef: scalloped edge, bubbles with a catch-light.
-  - Candy Pop: scalloped edge, sprinkles in every accent.
-  - Twilight Garden: scalloped edge, amber fireflies.
-  - Solar Flare: scalloped edge, embers.
-  - Bioluminescent: scalloped edge, glowing plankton.
-  - Forest Moss: torn edge, veined leaves.
-  - Vintage Paper: torn edge, ruled paper scraps.
+- **The tail follows the theme economy.** The five **free** themes (Studio, Osmium, Cyberpunk,
+  Oriental, Subway) get the **basic tail**: the two lead columns mirrored behind the slab. Osmium,
+  Cyberpunk and Subway colour them with their accent pair and Oriental with gold and cinnabar;
+  Studio's are plain fill.
+- **Every premium theme** gets a **trailing particle edge (TPE)**. Its teeth are the particle's
+  silhouette in the slab's solid colour, and it sheds that world's own debris:
+  - Terminal: glowing mono glyphs.
+  - Sakura: petals, pink and paler pink.
+  - Bioluminescent: glowing plankton.
+  - Royal Amethyst: faceted hexagonal gems.
+  - Solar Flare: embers.
+  - Midnight Ocean: wave crests.
+  - Arctic Frost: six-point ice crystals.
+  - Forest Moss: veined leaves.
+  - Vintage Paper: ruled paper scraps.
+  - Obsidian: knapped shards with a lit facet.
+  - Retro Wave: glowing neon grid bars.
+  - Rose Gold: shimmering deco jewels.
+  - Coral Reef: bubbles with a catch-light.
+  - Toxic Waste: hazard-striped chips.
+  - Lavender Fields: lavender buds.
+  - Candy Pop: sprinkles in every accent.
+  - Copper Forge: glowing forge sparks.
+  - Blood Moon: blood drops.
+  - Twilight Garden: amber fireflies.
+  - Aurora Borealis: glowing aurora ribbons.
+  - Celestial Gold: gold four-point stars.
 
   Risers float up, fallers drop, and flat pieces spin. Only light-source worlds (per the Native
   Light Rule) glow.
