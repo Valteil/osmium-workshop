@@ -15,7 +15,8 @@ I don't know go eat a rock or something
 
 > **Note:** the two generation-facing pieces of this repo, **SynthDat Overseer** and **Comfy
 > Bridge**, both run on the same bundled workflow, which is built around Anima (a diffusion
-> model by Circlestone Labs) and requires a running ComfyUI instance. ControlNet posing
+> model by Circlestone Labs) and need a ComfyUI install: Comfy Bridge talks to a running ComfyUI,
+> while SynthDat can either do that or (desktop) launch your install itself. ControlNet posing
 > specifically needs Anima; other model families will probably load, but expect weird results
 > since the workflow isn't built with them in mind. This is separate from WD14 tagging, which
 > runs on-device by default and doesn't need ComfyUI at all.
@@ -129,7 +130,7 @@ cropped region as a *new* image instead, leaving the source untouched.
 - **Chips** (on every card) — click one for filter-by-presence, the Tag Details wiki lookup, a
   review flag, or its keyword family. Type into "+ add tag" and hit Enter to add one, or several
   at once separated by commas (`1girl, red eyes, plump`). × removes it. Chips are listed in
-  category order (Character, Body, Face, …) by default; a card leaves the gallery the moment an
+  category order (Character, Hair, Body, Face, …) by default; a card leaves the gallery the moment an
   edit takes it out of your current filter.
 - **Tag Sorting** (Single view + image modal) — groups an image's chips into Character, Hair,
   Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects and Other. Each category's
