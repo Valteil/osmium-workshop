@@ -534,6 +534,11 @@ full colour. It takes under two seconds. Click, tap or press a key to speed it u
 with **Disable opening flourish** in Settings ▸ Appearance. On phones it runs top to bottom. With
 your system's "reduce motion" setting on, it's a brief fade instead.
 
+**App icon (Windows).** Settings ▸ Appearance ▸ **App icon** sets the app's window and taskbar icon:
+the default Osmium icon, or any theme you own drawn as that theme's Osmium mark on its own colour.
+It's your choice rather than following the current theme, so switching themes doesn't shuffle the
+taskbar, and the app opens with it already in place.
+
 ---
 
 ## Favorites

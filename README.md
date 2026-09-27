@@ -102,13 +102,23 @@ Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
   Shift-click two cards to compare them side by side.
 - **Single** — one image at a time: a compact preview beside a roomy tag panel, with arrow keys
   and a type-a-number jump box. Click the preview for a full-size zoom/pan view to inspect fine
-  details (text, hands, artifacts) before training.
+  details (text, hands, artifacts) before training. The toolbar folds away for room (Grid and the
+  image navigator sit above the image and tags), and the add-tag field sits under the image.
+  **Image Quicktagging** takes over the left panel: checkboxes for common attributes (hair length,
+  breast size, build, legs, gaze) so you don't type them over and over, plus your own quicktags
+  and categories, each with optional rules (extra tags it adds or keeps, tags unticking removes,
+  tags that untick it). Saved for every dataset.
 - **Disabled** — a quarantine tab for images pulled out of the active set (drag a card onto it).
   Tags stay editable the whole time, and you can restore anytime. Good for maybes you're not
   ready to delete.
 - **Originals** — the pre-bucketing originals kept by Bucket Images (below).
 - **Unlock all** and **Hide tags** — clear every image lock at once, or hide the chips on every card
   while you sort against a filter.
+- **Rename all** — renumber every image (and its `.txt`) into a clean `1`–`N` sequence, undoable.
+  WebP images are converted to lossless PNG on the way, since WD14 can't read WebP.
+- **📖 Wiki** — a small, draggable window for looking up any tag's definition without going through
+  a tag field. The definition sits in a box with its See also tags as links below, and the window
+  stays open until you close it.
 
 Clicking any image opens a floating, zoomable, pannable card modal without losing your place in
 the grid. On desktop that modal also has **⟲/⟳ Rotate** and **✂ Crop** — real pixel edits that
@@ -121,9 +131,10 @@ cropped region as a *new* image instead, leaving the source untouched.
   at once separated by commas (`1girl, red eyes, plump`). × removes it. Chips are listed in
   category order (Character, Body, Face, …) by default; a card leaves the gallery the moment an
   edit takes it out of your current filter.
-- **Tag Sorting** (Single view + image modal) — groups an image's chips into Character, Body,
-  Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects and Other. For multi-character
-  images, split tags into named subjects with their own category subheaders.
+- **Tag Sorting** (Single view + image modal) — groups an image's chips into Character, Hair,
+  Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects and Other. Each category's
+  **+** adds tags right there (a tag that belongs elsewhere goes there, and you're told). For
+  multi-character images, split tags into named subjects with their own category subheaders.
 - **Add images** (File menu) — copy more images into the open dataset, or start a new dataset
   folder for them when nothing is open.
 - **Filter sidebar** (left) — multi-tag AND/OR/XOR/NOT search (with a Lock to keep the mode)
@@ -145,8 +156,9 @@ cropped region as a *new* image instead, leaving the source untouched.
   bucket, subject-first via a u2net saliency model (GPU with CPU fallback; ~176 MB, downloaded on
   first use). Originals move to `original_images/` and can be restored with one click.
 - **Master Tag Control** (tab) — check off a batch of images, then run one tool across all of
-  them: add or remove tags, add a tag only where another tag is already present, rename a tag
-  dataset-wide, find-and-replace, or delete the selection outright. Use it for bulk passes, like
+  them: add or remove tags, add a tag only where another tag is (or isn't) already present,
+  remove a tag from every image that has another, rename a tag dataset-wide, find-and-replace,
+  or delete the selection outright. Use it for bulk passes, like
   tagging everything that contains a given character.
 - **Delete permanently** (3-dot menu for one image, Master Tag Control for a batch) — removes
   the files from disk outright. There's no undo. A confirm modal gates it. It only removes the
@@ -175,8 +187,10 @@ optional review-before-apply step, and the whole batch still undoes as one actio
 bootstrap tags onto a folder of untagged imports.
 
 ### SynthDat Overseer (tab)
-Needs a running ComfyUI instance — unlike WD14 tagging above, this one isn't optional-ComfyUI.
-Grows a thin dataset by generating more images of the character you're training a LoRA on:
+Needs a ComfyUI install. Either point it at a running ComfyUI, or (desktop) choose **Local
+ComfyUI** and your ComfyUI folder: Osmium starts that install itself when you click Connect, in
+its own console window, loading only the nodes this workflow needs instead of every custom node
+you have. Grows a thin dataset by generating more images of the character you're training a LoRA on:
 ControlNet-posed from a reference image, or plain prompted generation without one.
 WD14-interrogate the reference first to steal its pose tags, hit Generate (1-Pass, or a 2nd
 refinement pass, with live preview and a Stop button), then review the pending tag card — prune
@@ -188,7 +202,9 @@ when five good images need to become fifty. (Also needs the ComfyUI node pack �
 
 ### Wiki lookup, stats, favorites
 - **Tag Details** (chip menu) — Danbooru wiki definition, category, post count per tag (bundled,
-  lazy-loaded), plus your own notes. Use it to disambiguate similar tags.
+  lazy-loaded), plus your own notes. Use it to disambiguate similar tags. The bundled definitions
+  cover about 176,000 tags (refreshed from Danbooru; meta tags like `lowres` are left out, since
+  they don't describe the image). The **📖 Wiki** window (above) looks them up directly.
 - **Editing Stats tab** — charts of your logged actions by type, plus summary cards. Use it to
   see where cleanup time goes.
 - **★ Favorites** — one-click reopen for frequent dataset folders.
@@ -206,6 +222,10 @@ when five good images need to become fifty. (Also needs the ComfyUI node pack �
 - **Hardware acceleration toggle** (Settings ▸ Performance) — render on the integrated GPU by
   default to keep your discrete GPU free for generation, or turn acceleration off entirely.
   Applies on next launch.
+- **Opening flourish** — a themed sweep carrying your theme's Osmium mark when the app opens
+  (Settings ▸ Appearance can turn it off).
+- **Theme app icons** (Windows, Settings ▸ Appearance ▸ App icon) — use any theme you own as the
+  taskbar icon; it stays put when you switch themes.
 
 ---
 

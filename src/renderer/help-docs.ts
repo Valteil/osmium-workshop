@@ -469,7 +469,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       theme's colour carrying its own version of the Osmium mark, trailing the theme's particles as
       it leaves. ${isTouchDevice ? 'Tap' : 'Click or press any key'} to speed it up, or turn it off
       with <b>Disable opening flourish</b> in Settings ▸ Appearance. With your system's "reduce
-      motion" setting on, it's a brief fade instead.</p>`
+      motion" setting on, it's a brief fade instead.</p>
+      ${isTouchDevice ? '' : `<p><b>App icon</b> (Settings ▸ Appearance): use the default Osmium icon
+      or any theme you own as the app's taskbar icon. It stays put when you switch themes.</p>`}`
   },
   {
     id: 'favorites',
