@@ -79,6 +79,8 @@ sources, so new desktop features reach it automatically.
   after answering No to the "add to Datasets tab?" question.
 - The "add to Datasets tab?" question now says what No does and where to add folders later.
 - Escape (and Android Back) closes only the top dialog; stacked dialogs no longer close together.
+- **Tell me a useless fact** has 172 facts now (nature, pop culture, gacha games, Stable Diffusion),
+  and never repeats one until you've seen them all.
 
 ### SynthDat Overseer
 
