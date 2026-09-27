@@ -1661,6 +1661,7 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   btnSynthDatReinterrogateOutput.addEventListener('click', reinterrogateOutput);
 
   renderTagCard(); // starts empty — pendingTagSnapshot is null until a generation finishes
-  refreshModelLists();
+  // Local ComfyUI only starts on Connect (which refreshes the lists itself).
+  if (backend !== 'local') refreshModelLists();
   initSynthDatSectionDocks(synthDatCol1);
 }

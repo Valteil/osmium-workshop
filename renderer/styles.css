@@ -2398,6 +2398,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .synthdat-lora-row input[readonly]{ cursor: pointer; }
   #btnSynthDatSwapReso{ flex-shrink: 0; padding: 6px 9px; font-size: 13px; }
   .synthdat-warning{ font-size: 11px; color: var(--accent-danger); margin-top: 4px; }
+  .synthdat-conn-body{ display: flex; flex-direction: column; gap: 10px; min-width: 0; }
   /* Local ComfyUI's chosen folder: a long path, so it ends in an ellipsis
      and shows in full on hover (title). */
   .synthdat-local-folder{
@@ -3662,7 +3663,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: var(--bg-base);
     border-bottom: 1px solid var(--border-soft);
   }
-  .viewToggle{ display: flex; gap: 6px; }
+  /* Wraps onto a second line when the gallery is too narrow for every button
+     (docks open, small window) instead of running off the right edge. The
+     phone layout below turns it into a one-row swipe strip instead. */
+  .viewToggle{ display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
   .viewToggle button.active{
     background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual);
   }
@@ -4668,6 +4672,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     overflow: hidden; cursor: zoom-in;
   }
   .single-preview img{ max-width: 100%; max-height: 42vh; object-fit: contain; border-radius: 4px; pointer-events: none; }
+  /* Single view's left column: the preview with the add-tag field under it.
+     The column takes the preview's old 38% slot; the preview fills it. */
+  .single-preview-col{
+    flex: 0 0 38%; max-width: 38%; min-width: 0;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .single-preview-col > .single-preview{ flex: 0 0 auto; max-width: 100%; }
   .single-preview-hint{
     position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
     font-size: 10.5px; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
@@ -5246,6 +5257,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     .single-wrap{ flex-direction: column; }
     .single-panel{ width: 100%; }
     .single-preview{ flex: 0 0 auto; max-width: 100%; max-height: 32vh; }
+    .single-preview-col{ flex: 0 0 auto; max-width: 100%; width: 100%; }
     .single-preview img{ max-height: 32vh; }
     .single-panel-main{ max-height: none; }
 

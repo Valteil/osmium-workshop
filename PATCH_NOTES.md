@@ -24,6 +24,10 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **SynthDat without a ComfyUI server** (desktop): set Run on to Local ComfyUI and choose your
   ComfyUI folder. Osmium starts that install itself in its own console window, loading only the
   nodes the SynthDat workflow needs instead of every custom node you have installed.
+- **Single view**: the add-tag field sits right under the image instead of after the whole tag
+  list.
+- **Gallery toolbar** wraps onto a second row when the window is narrow instead of cutting its
+  buttons off.
 - **Rename all converts WebP to PNG**: WD14 can't read WebP, so renaming a dataset now also
   turns its WebP images into lossless PNGs, ready to tag.
 - **SynthDat interrogation follows WD14's On-device mode**, the same as Tag Overseer, so tagging

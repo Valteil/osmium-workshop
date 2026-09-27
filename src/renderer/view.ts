@@ -1501,7 +1501,12 @@ function renderSingleView(){
 
   const wrap = document.createElement('div');
   wrap.className = 'single-wrap';
-  wrap.appendChild(buildSinglePreview(e));
+  // The add-tag field sits under the image (not after the whole chip list),
+  // so it's always in reach however many tags the image has.
+  const previewCol = document.createElement('div');
+  previewCol.className = 'single-preview-col';
+  previewCol.appendChild(buildSinglePreview(e));
+  wrap.appendChild(previewCol);
 
   const panel = document.createElement('div');
   panel.className = 'single-panel single-panel-main';
@@ -1544,7 +1549,7 @@ function renderSingleView(){
     }
   });
   attachTagAutocomplete(addInput, () => e, () => { renderSingleView(); refreshRightPanels(); });
-  panel.appendChild(addInput);
+  previewCol.appendChild(addInput);
 
   const btnRow = document.createElement('div');
   btnRow.className = 'single-btn-row';

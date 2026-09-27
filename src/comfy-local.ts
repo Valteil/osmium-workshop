@@ -135,8 +135,12 @@ function stopRunner(): void {
   setTimeout(() => { if (proc.exitCode === null) proc.kill(); }, 5000);
 }
 
+// Only Connect (comfy-local-connect) starts the runner: requests while it's
+// stopped fail instead of launching it (SynthDat refreshes its model lists on
+// app load, which used to start local ComfyUI unasked).
 async function request(cmd: string, payload: Record<string, unknown> = {}): Promise<Reply> {
-  const started = await start();
+  if (!ready) return { ok: false, error: 'Local ComfyUI isn\'t running. Click Connect to start it.' };
+  const started = await ready;
   if (!started.ok || !child) return started;
   const id = ++nextId;
   return new Promise<Reply>((resolve) => {

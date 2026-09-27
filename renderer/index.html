@@ -1214,6 +1214,10 @@
       <div class="synthdat-col" id="synthDatCol1">
         <div class="tool-section" data-dock-id="synthdatConn">
           <div class="sec-head"><span class="t">ComfyUI connection</span></div>
+          <!-- One wrapper: the dock's expand resets inline display on its
+               direct children, which would un-hide the rows below that
+               SynthDat shows/hides itself. -->
+          <div class="synthdat-conn-body">
           <div class="settings-row" id="synthDatBackendRow" title="Server: talk to a ComfyUI you've started yourself. Local: Osmium launches your ComfyUI install itself, loading only what this workflow needs, in its own console window. Use one or the other, not both at once.">
             <span>Run on</span>
             <div class="pdrop" id="synthDatBackendDropdown"></div>
@@ -1231,6 +1235,7 @@
             <button id="btnSynthDatRefreshModels" title="Reload model/LoRA lists from ComfyUI"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-refresh"></use></svg>Refresh models</button>
           </div>
           <div id="synthDatConnStatus" class="synthdat-warning" style="display:none;"></div>
+          </div>
         </div>
 
         <div class="tool-section" data-dock-id="synthdatRefImage">
