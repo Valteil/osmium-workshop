@@ -40,13 +40,19 @@ import uuid
 _PROTO = os.fdopen(os.dup(1), "w", encoding="utf-8", buffering=1)
 _PROTO_LOCK = threading.Lock()
 if os.name == "nt":
-    # Osmium is a GUI app, so this process starts with no console; open our
-    # own window, like ComfyUI's terminal. (Node's `detached` gives none.)
+    # Open our own visible window, like ComfyUI's terminal. Launched from
+    # Osmium (a GUI app) this process inherits a console with no visible
+    # window, so drop whatever console it has and allocate a fresh one rather
+    # than only allocating when there's none. The protocol fd was duplicated
+    # above, so it survives this.
     import ctypes
     _k32 = ctypes.windll.kernel32
-    if not _k32.GetConsoleWindow():
-        _k32.AllocConsole()
+    _k32.FreeConsole()
+    _k32.AllocConsole()
     _k32.SetConsoleTitleW("Osmium - local ComfyUI")
+    _hwnd = _k32.GetConsoleWindow()
+    if _hwnd:
+        ctypes.windll.user32.ShowWindow(_hwnd, 5)  # SW_SHOW
 try:
     _CON = open("CONOUT$", "w", encoding="utf-8", errors="replace", buffering=1)
     os.dup2(_CON.fileno(), 2)
