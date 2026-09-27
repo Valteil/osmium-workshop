@@ -1191,7 +1191,10 @@ import { setIconLabel } from './icons';
   // IIFE, so they're injected once here instead of imported. Tag Pruner also
   // gets setMirroredSelectionFilter (tag-index.ts) for its per-instance
   // "mirror to gallery search" checkbox.
-  initAchievements({ getDirHandle: () => dirHandle, getEditLog: () => editLog, refreshThemeDropdownLabel: () => themeDropdownCtrl.refreshLabel() });
+  // The App icon picker (./app-icon.ts, set up further down) lists owned
+  // themes, so it rebuilds whenever theme ownership does.
+  let appIconCtrl: { refresh: () => void } | null = null;
+  initAchievements({ getDirHandle: () => dirHandle, getEditLog: () => editLog, refreshThemeDropdownLabel: () => { themeDropdownCtrl.refreshLabel(); appIconCtrl?.refresh(); } });
   initAchievementPanels();
   initTagPruner(buildTagIndex, refreshRightPanels, setMirroredSelectionFilter);
   initTagAutocomplete({
@@ -2349,8 +2352,13 @@ import { setIconLabel } from './icons';
   // "No folder loaded" empty-state random fact button moved to ./random-facts.ts
   initRandomFacts();
 
-  // Window/taskbar icon follows the theme (and night mode): ./app-icon.ts
-  initAppIcon();
+  // Settings → App icon (default or an owned theme's icon): ./app-icon.ts
+  appIconCtrl = initAppIcon({
+    row: $('appIconRow'),
+    container: $('appIconDropdown'),
+    themeSelect: $('themeSelect') as HTMLSelectElement,
+    isOwned: (t) => ownedThemes.includes(t)
+  });
 
   // Premium hover-fill "click flash" (epic/legendary shop themes) — see shared-ui.ts
   initClickFlash();

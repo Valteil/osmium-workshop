@@ -20,6 +20,7 @@
     "predist:dir": "npm run build",
     "dist:dir": "electron-builder --dir",
     "prerefresh-app": "npm run build",
+    "build:theme-icons": "electron scripts/render-theme-icons.js",
     "refresh-app": "electron-builder --dir && node scripts/refresh-portable-dev.js"
   },
   "devDependencies": {
@@ -51,13 +52,16 @@
       "!node_modules/onnxruntime-node/bin/napi-v6/linux/**/*",
       "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**/*",
       "build/icon.ico",
-      "build/icon.png"
+      "build/icon.png",
+      "build/theme-icons/*.ico"
     ],
     "directories": {
       "output": "dist"
     },
     "asarUnpack": [
-      "node_modules/onnxruntime-node/**/*"
+      "node_modules/onnxruntime-node/**/*",
+      "build/icon.ico",
+      "build/theme-icons/*.ico"
     ],
     "afterPack": "scripts/after-pack.js",
     "compression": "normal",

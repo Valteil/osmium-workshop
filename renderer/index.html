@@ -145,11 +145,11 @@
 <body>
 <script>
 /* Theme mark. Each theme's own Osmium lattice, shared by the opening
-   flourish (next script) and the themed app/taskbar icon
-   (src/renderer/app-icon.ts). window.__dtsMarkSpec[theme] = {L: the mark,
-   P: the flourish's old particle hints}; window.__dtsMarkSVG(L) returns an
-   <svg class="of-logo"> styled by styles.css "Opening flourish" (app-icon.ts
-   inlines resolved colours instead). */
+   flourish (next script) and the pre-rendered per-theme app icons
+   (scripts/render-theme-icons.js). window.__dtsMarkSpec[theme] = {L: the
+   mark, P: the flourish's old particle hints}; window.__dtsMarkSVG(L)
+   returns an <svg class="of-logo"> styled by styles.css "Opening flourish"
+   (the icon renderer inlines resolved colours instead). */
 (function(){
   /* Per theme: L = the mark (ring, node shape, stroke weight/cap, extras),
      P = the tail's particles (shape, theme colour vars, light-emitting glow
@@ -1410,6 +1410,10 @@
           <input type="checkbox" id="disableOpenFlourishToggle">
           <span>Disable opening flourish (the themed sweep with the Osmium mark when the app opens)</span>
         </label>
+        <div class="settings-row" id="appIconRow" title="The app's window and taskbar icon: the default Osmium icon, or any theme you own drawn as that theme's Osmium mark. It stays put when you switch themes.">
+          <span>App icon</span>
+          <div class="pdrop" id="appIconDropdown"></div>
+        </div>
         <label class="ach-toggle-row">
           <input type="checkbox" id="suppressThemeFlourishesToggle">
           <span>Suppress Theme Flourishes (hide the Shop's<svg class="ic ic-lead ic-trail" aria-hidden="true"><use href="#i-hammer"></use></svg>Refine Theme button, and turn off epic/legendary-tier hover-fill/card-tilt effects on every theme — whether it's naturally that tier or individually refined)</span>

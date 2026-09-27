@@ -82,7 +82,8 @@ export interface ElectronAPI {
   getAppVersion(): Promise<string>;
   setZoomFactor(factor: number): Promise<void>;
   // Optional: absent in the web demo and the Android shim.
-  setAppIcon?(pngDataUrl: string): Promise<void>;
+  // Theme id of a pre-rendered build/theme-icons/<theme>.ico, or '' for the default icon.
+  setAppIcon?(theme: string): Promise<void>;
   exportAppState(text: string): Promise<ExportAppStateResult>;
   onRequestClose(callback: () => void): void;
   confirmClose(): Promise<void>;
