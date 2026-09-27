@@ -4372,7 +4372,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       <ul>
         <li><b>Appearance</b> \u2014 ${isTouchDevice ? "" : "the font-size slider (the whole gallery and panels reflow live as you drag it), "}"Gallery
         columns", the tag-count badge on cards, <b>Show Past Tag Preview</b>, "Sort tags within
-        each card", "Dynamic card heights", <b>Discrete mode</b> (blur every image for privacy),
+        each card", ${isTouchDevice ? "" : '"Dynamic card heights", '}<b>Discrete mode</b> (blur every image for privacy),
         and the motion controls described under Themes. The theme itself is picked from the
         <b>Personalization</b> menu in the top bar, and night mode is the \u{1F319} button next to it.</li>
         <li><b>Power Tools</b> \u2014 highlight the power tools (Master Tags, Tag Pruner, Unify/Void,

@@ -383,7 +383,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       <ul>
         <li><b>Appearance</b> — ${isTouchDevice ? '' : 'the font-size slider (the whole gallery and panels reflow live as you drag it), '}"Gallery
         columns", the tag-count badge on cards, <b>Show Past Tag Preview</b>, "Sort tags within
-        each card", "Dynamic card heights", <b>Discrete mode</b> (blur every image for privacy),
+        each card", ${isTouchDevice ? '' : '"Dynamic card heights", '}<b>Discrete mode</b> (blur every image for privacy),
         and the motion controls described under Themes. The theme itself is picked from the
         <b>Personalization</b> menu in the top bar, and night mode is the 🌙 button next to it.</li>
         <li><b>Power Tools</b> — highlight the power tools (Master Tags, Tag Pruner, Unify/Void,

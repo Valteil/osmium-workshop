@@ -5070,8 +5070,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     .pruner-mobile-tasks{ display: flex; flex-direction: column; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-soft); }
 
     /* Masonry mode is disabled outright on touch devices (index.ts) — hide
-       its now-inert Settings toggle rather than leave a dead control. */
-    #dynamicCardsRow{ display: none; }
+       its now-inert Settings toggle (and its description) rather than
+       leave a dead control. */
+    #dynamicCardsRow, #dynamicCardsNote{ display: none; }
 
     /* Tag suggestion popup ("+ Add tag") — 320px/60vh was still large
        enough to swallow most of the screen above the keyboard on a phone,
