@@ -4790,6 +4790,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       order: initial;
     }
     #rightPanelContent{ height: 100%; }
+    /* The desktop collapse state (dts-right-panel-collapsed, also forced on
+       by Sequential Tagging) has no meaning for a sheet, and its header
+       arrow is hidden here — without this the sheet opened empty with no
+       way to un-collapse it. */
+    #right.right-panel-collapsed #rightPanelContent{ display: block; }
+    #right.right-panel-collapsed{ padding-left: 16px; padding-right: 16px; }
     #left{ transform: translateY(105%); }
     #right{ transform: translateY(105%); }
     #left.drawer-open{ transform: translateY(0); }
