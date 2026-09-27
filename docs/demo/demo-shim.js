@@ -7,8 +7,10 @@
 //     log, Disabled/, accepted SynthDat images) lives in memory only.
 //   - Nothing persists: every reload starts fresh. The app's own saved state
 //     (localStorage dts-* keys and its IndexedDB folder lists) is wiped
-//     before app.js runs. dts-theme survives on purpose: the site's theme
-//     picker hands its choice to the demo through it.
+//     before app.js runs, dts-theme included: the demo keeps its own theme,
+//     independent of the site's theme picker.
+//   - Every theme starts owned (read from the app's own #themeSelect, so
+//     new themes are covered without touching this file).
 //   - The images start untagged. "WD14" answers with each image's real tags
 //     from dataset/manifest.json (no inference happens: nobody is behind a
 //     web page to run a model).
@@ -25,9 +27,14 @@
   // ---------- fresh start on every load ----------
   try {
     Object.keys(localStorage).forEach(function (k) {
-      if (k.indexOf('dts-') === 0 && k !== 'dts-theme') localStorage.removeItem(k);
+      if (k.indexOf('dts-') === 0) localStorage.removeItem(k);
     });
     localStorage.setItem('dts-tag-autocomplete', '1');
+    // This script sits at the end of <body>, so the app's markup (and its
+    // theme <select>) is already parsed.
+    var themeIds = [].map.call(document.querySelectorAll('#themeSelect option'), function (o) { return o.value; })
+      .filter(function (id) { return id && id !== 'custom'; });
+    localStorage.setItem('dts-owned-themes', JSON.stringify(themeIds));
     localStorage.setItem('dts-wd14-settings', JSON.stringify({
       host: 'http://127.0.0.1:8188', model: 'wd-eva02-large-tagger-v3', threshold: 0.35,
       characterThreshold: 0.85, trailingComma: false, excludeTags: '', autoApply: false,

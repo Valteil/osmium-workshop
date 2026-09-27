@@ -1516,16 +1516,8 @@
     btn.setAttribute('aria-expanded', 'false');
     if (refocus) btn.focus();
   }
-  // The embedded demo IS the app: it shares this origin's localStorage, so
-  // it boots in the picked theme, and a demo already on screen switches too.
-  function syncDemo(id){
-    try {
-      localStorage.setItem('dts-theme', id);
-      var frame = document.getElementById('demoFrame');
-      var doc = frame && frame.getAttribute('src') && frame.contentDocument;
-      if (doc && doc.documentElement) doc.documentElement.setAttribute('data-theme', id);
-    } catch(e){}
-  }
+  // The site theme is the site's alone: the embedded demo keeps its own
+  // (demo-shim.js resets it every load), so picking here never touches it.
   function pick(theme){
     close(true);
     if (theme.id === currentId()) return;
@@ -1541,7 +1533,6 @@
     } else {
       change();
     }
-    syncDemo(theme.id);
   }
   // Warm the (small) theme list the moment the pointer heads for the picker,
   // so the menu opens without waiting on the network.

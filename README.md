@@ -1,5 +1,7 @@
 # Osmium Workshop
 
+## [Try Live Demo](https://valteil.github.io/osmium-workshop/)
+
 ![Osmium Workshop](build/banner.jpg)
 
 A feature-heavy, Comfyui-compatible dataset manager with a large amount of Quality of Life features. Has incredibly powerful dataset manipulation tools and automation, with attempts at finetuning UI and UX for an all-in-one image processor for all your slopping needs. Capable of syncing outputs directly to your Comfyui/outputs folder, and is bundled with an integrated workflow for use as both a dataset expander and an alternative Comfy webUI.
