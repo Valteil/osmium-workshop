@@ -12,6 +12,7 @@ import {
   masterApplyTagInput, btnMasterApplyToSelected, masterRemoveTagInput, btnMasterRemoveFromSelected,
   condSourceTag, condAddTag, btnCondApply,
   condWithoutSourceTag, condWithoutAddTag, btnCondApplyWithout,
+  condRemoveSourceTag, condRemoveTag, btnCondRemove,
   massApplyInput, btnMassApply,
   massRemoveInput, btnMassRemove, masterRenameFrom, masterRenameTo, btnMasterRename,
   masterFRFind, masterFRReplace, btnMasterFR
@@ -261,7 +262,8 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   // global-vocabulary autocomplete every other tag input in the app uses.
   for (const inp of [
     masterApplyTagInput, masterRemoveTagInput, condSourceTag, condAddTag,
-    condWithoutSourceTag, condWithoutAddTag, massApplyInput, massRemoveInput, masterRenameFrom
+    condWithoutSourceTag, condWithoutAddTag, condRemoveSourceTag, condRemoveTag,
+    massApplyInput, massRemoveInput, masterRenameFrom
   ]) attachFillAutocomplete(inp);
 
   btnMasterSelectAll.addEventListener('click', () => {
@@ -540,6 +542,25 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
       summary: n => `Added "${addTag}" to every image WITHOUT "${sourceTag}" (${n} image(s)).`,
       emptyMsg: `No images without "${sourceTag}" are missing "${addTag}".`,
       clearInputs: () => { condWithoutSourceTag.value = ''; condWithoutAddTag.value = ''; }
+    });
+  });
+
+  // The remove counterpart of "Apply conditionally": take a tag off every
+  // image that has another tag. Same rules as the adds (active, unlocked
+  // images only; one undoable log entry).
+  btnCondRemove.addEventListener('click', () => {
+    const sourceTag = readTag(condRemoveSourceTag);
+    const removeTag = readTag(condRemoveTag);
+    if (!sourceTag || !removeTag){ toast('Fill in both tags.'); return; }
+    if (sourceTag === removeTag){ toast('Those are the same tag — use Mass remove to take it off every image.'); return; }
+    runMassTagOp({
+      entries: getEntries(),
+      skip: e => e.disabled || !!e.meta?.locked || !e.tags.includes(sourceTag) || !e.tags.includes(removeTag),
+      apply: e => { e.tags = e.tags.filter(t => t !== removeTag); },
+      logType: 'remove-tag',
+      summary: n => `Removed "${removeTag}" from every image with "${sourceTag}" (${n} image(s)).`,
+      emptyMsg: `No images with "${sourceTag}" have "${removeTag}".`,
+      clearInputs: () => { condRemoveSourceTag.value = ''; condRemoveTag.value = ''; }
     });
   });
 

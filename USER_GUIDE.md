@@ -69,19 +69,23 @@ This is the tag editor itself — everything else in the app supports what happe
   side in an aligned comparison table. Use it to triage large folders quickly.
 - **Single** — one image at a time: a compact preview beside a roomy tag panel, with arrow-key
   navigation. Click the preview for the full-size lightbox (scroll to zoom, drag to pan) to
-  inspect fine details (text, hands, artifacts) before training. The toolbar's "N / total" box is
-  editable — type an image number and press Enter to jump there. Select 2+ images in Tag Overseer
-  first and switch here for a multi-image tag-alignment table. The add-tag field sits right under
-  the image. **Image Quicktagging:** while Single view shows one image, the left panel slides over
+  inspect fine details (text, hands, artifacts) before training. The gallery toolbar folds away to
+  give you room: **Grid** (and **📖 Wiki**) sit top-left above the image, and the Prev / "N /
+  total" / Next navigator sits top-right above the tags. The "N / total" box is editable — type an
+  image number and press Enter to jump there. Grid brings the toolbar back. Select 2+ images in
+  Tag Overseer first and switch here for a multi-image tag-alignment table (that one keeps the full
+  toolbar). The add-tag field sits right under the image. **Image Quicktagging:** while Single view shows one image, the left panel slides over
   to a set of checkboxes for common attributes, so you don't type them again and again: hair length
   (short, medium, long), breast size (flat, small, medium, large, gigantic), slim / plump, thick
   thighs / slim legs, and looking at viewer / looking away. Each box is independent. Ticking adds
   the tag and unticking removes it, and ticking a breast size also adds `breasts` (Flat doesn't).
+  If no breast size is left ticked and Flat is, `breasts` is removed as well.
   The filter panel comes back when you leave Single view.
 - **📖 Wiki** (next to Asc/Desc) — opens a small window to look up any tag's definition from the
   bundled wiki, without going through a tag field. Type a tag (suggestions drop down as you type)
-  and its definition shows above the field. Drag it by its title; it stays open until you close it
-  with ×.
+  and its definition shows boxed above the field, with its **See also** tags listed below the box;
+  click one to read that tag's definition. Drag the window by its title; it stays open until you
+  close it with ×.
 - **❌ Disabled** — images you've moved out of the active set. Use it for maybes you don't want
   to delete.
 - **🖼 Originals** — the pre-bucketing originals kept by [Bucket Images](#bucket-images).
@@ -283,7 +287,8 @@ opens it, and toggling back via the tab tucks it away again.
    (selection stays in sync both ways).
 2. Apply or remove a tag across the whole selection, conditionally apply one tag based on another
    being present — or the inverse, based on it being ABSENT (its own separate row, right below the
-   first) — or run a dataset-wide rename / find-and-replace. Use it for bulk passes (e.g. tag
+   first) — conditionally **remove** a tag from every image that has another (e.g. take "breasts"
+   off every "flat chest" image), or run a dataset-wide rename / find-and-replace. Use it for bulk passes (e.g. tag
    everything containing X).
 3. Mass **Lock/Unlock**, **Merge Immunize/Antivoid/Antimmunize** buttons apply the same per-image
    flags described above to your entire selection at once.

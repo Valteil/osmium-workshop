@@ -32,7 +32,14 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Tag Sorting**: a **+** on every category adds tags right there, and a tag added under the wrong
   heading moves to its own with a note. **Hair** is its own category now; Body is below the neck.
 - **Wiki window**: a new toolbar button next to Asc/Desc opens a small tag-definition lookup that
-  stays open until you close it.
+  stays open until you close it. The definition sits in a box, with its See also tags as links
+  below.
+- **Single view layout**: the gallery toolbar folds away for more room; Grid sits above the image
+  and the image navigator above the tags.
+- **Tag definitions refreshed** from Danbooru: about 110,000 more definitions (new tags and ones
+  that had none), example-post clutter removed from the text, and meta tags (lowres, commentary,
+  artist request…) dropped from suggestions.
+- **Conditional remove** (Master Tags): take a tag off every image that has another tag.
 - **Gallery toolbar** wraps onto a second row when the window is narrow instead of cutting its
   buttons off.
 - **Rename all converts WebP to PNG**: WD14 can't read WebP, so renaming a dataset now also

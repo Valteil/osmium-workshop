@@ -22,6 +22,8 @@ const QUICK_TAG_GROUPS: { label: string; items: [string, string][] }[] = [
   { label: 'Gaze', items: [['Looking at viewer', 'looking at viewer'], ['Looking away', 'looking away']] }
 ];
 
+const BREAST_SIZES = ['small breasts', 'medium breasts', 'large breasts', 'gigantic breasts'];
+
 interface QuickTagDeps {
   leftPanel: HTMLElement;
   addTagToEntry: (entry: Entry, tag: string) => void;
@@ -74,9 +76,12 @@ export function showQuickTag(entry: Entry): void {
       cb.addEventListener('change', () => {
         // A breast size ("small breasts" … "gigantic breasts") also writes the
         // general "breasts" tag, in the same undo step; "flat chest" doesn't.
-        // Unticking removes only the size tag.
+        // Unticking removes only the size tag, unless that leaves no size and
+        // Flat ticked: then "breasts" goes too (a flat chest isn't "breasts").
         if (cb.checked) deps!.addTagToEntry(entry, / breasts$/.test(tag) ? `${tag},breasts` : tag);
         else deps!.removeTagFromEntry(entry, tag);
+        const sizes = BREAST_SIZES.some((t) => entry.tags.includes(t));
+        if (!sizes && entry.tags.includes('flat chest') && entry.tags.includes('breasts')) deps!.removeTagFromEntry(entry, 'breasts');
         deps!.onChange(); // re-renders Single view, which redraws this panel from the real tags
       });
       const span = document.createElement('span');

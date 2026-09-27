@@ -53,6 +53,25 @@ function attachDrag(handle: HTMLElement): void {
   });
 }
 
+// Definitions are plain text in paragraphs (blank-line separated); the
+// "See also" paragraph heads the related-tag list that follows it, one tag
+// per line, until the next section heading (External links etc.). Everything
+// else stays in the main text, in order.
+const SECTION_AFTER_SEE_ALSO = /^(external links|trivia|notes?|examples?|history|usage|names?|sources?)$/i;
+function splitSeeAlso(text: string): { main: string; seeAlso: string[] } {
+  const blocks = text.split(/\n\s*\n/);
+  const at = blocks.findIndex((b) => /^see also:?$/i.test(b.trim()));
+  if (at === -1) return { main: text.trim(), seeAlso: [] };
+  let end = at + 1;
+  const items: string[] = [];
+  while (end < blocks.length && !SECTION_AFTER_SEE_ALSO.test(blocks[end].trim().split('\n')[0])){
+    for (const line of blocks[end].split('\n')) if (line.trim()) items.push(line.trim());
+    end++;
+  }
+  const main = [...blocks.slice(0, at), ...blocks.slice(end)].join('\n\n').trim();
+  return { main, seeAlso: items };
+}
+
 async function showTag(raw: string): Promise<void> {
   const tag = raw.trim().replace(/_/g, ' ');
   if (!tag) return;
@@ -83,10 +102,33 @@ async function showTag(raw: string): Promise<void> {
   }
   const def = wiki[key];
   const custom = def ? '' : getCustomTagNote(tag);
+  const { main, seeAlso } = splitSeeAlso(def || custom || '');
   const defEl = document.createElement('div');
-  defEl.className = 'tag-details-def' + (def || custom ? '' : ' greyed');
-  defEl.textContent = def || custom || (meta ? 'No official wiki entry for this tag.' : 'Not a known tag, and no wiki entry.');
+  defEl.className = 'tag-details-def tag-wiki-def' + (def || custom ? '' : ' greyed');
+  defEl.textContent = main || (meta ? 'No official wiki entry for this tag.' : 'Not a known tag, and no wiki entry.');
   bodyEl.appendChild(defEl);
+  if (seeAlso.length){
+    // Related tags sit unboxed under the definition; known ones are links
+    // that open their own definition here.
+    const rel = document.createElement('div');
+    rel.className = 'tag-wiki-seealso';
+    const head = document.createElement('div');
+    head.className = 'tag-wiki-seealso-head';
+    head.textContent = 'See also';
+    rel.appendChild(head);
+    const list = document.createElement('div');
+    list.className = 'tag-wiki-seealso-list';
+    for (const item of seeAlso){
+      const known = wiki[item.replace(/ /g, '_')] !== undefined || allTags.has(item.replace(/ /g, '_'));
+      const el = document.createElement(known ? 'button' : 'span');
+      el.className = known ? 'tag-wiki-link' : 'tag-wiki-plain';
+      el.textContent = item;
+      if (known){ (el as HTMLButtonElement).type = 'button'; el.addEventListener('click', () => { inputEl.value = item; void showTag(item); }); }
+      list.appendChild(el);
+    }
+    rel.appendChild(list);
+    bodyEl.appendChild(rel);
+  }
   if (!def){
     const ta = document.createElement('textarea');
     ta.placeholder = 'Write your own description (saved on this computer)…';

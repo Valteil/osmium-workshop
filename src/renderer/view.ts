@@ -134,7 +134,7 @@ export function switchView(mode: ViewMode, opts?: { instant?: boolean }): void {
     singleViewEl.style.display = mode === 'single' ? 'block' : 'none';
     singleNav.style.display = mode === 'single' ? 'flex' : 'none';
     if (mode === 'single') renderSingleView();
-    else { hideQuickTag(); if (mode === 'compact') renderCompactGrid(); else renderGallery(); }
+    else { hideQuickTag(); setSingleCompact(false); if (mode === 'compact') renderCompactGrid(); else renderGallery(); }
   };
 
   const html = document.documentElement;
@@ -1458,10 +1458,49 @@ function buildSeqBody(entry: Entry, stacked: boolean): HTMLElement {
   return wrap;
 }
 
+// Single view's own layout while it shows one ordinary image: the gallery
+// toolbar collapses upward for room, and a slim bar above the image holds a
+// Grid button (left, over the preview) and the Prev / N of total / Next
+// navigator (right, over the tag card), which is MOVED here from the toolbar
+// and back again on leaving. Multi-compare, a Sequential run, an empty filter
+// and every other view keep the full toolbar.
+const singleNavHome = { parent: null as HTMLElement | null };
+function setSingleCompact(on: boolean): void {
+  if (!singleNavHome.parent) singleNavHome.parent = singleNav.parentElement;
+  galleryToolbarEl().classList.toggle('toolbar-collapsed', on);
+  if (!on && singleNav.parentElement !== singleNavHome.parent) singleNavHome.parent?.appendChild(singleNav);
+}
+function galleryToolbarEl(): HTMLElement {
+  return document.getElementById('galleryToolbar')!;
+}
+function buildSingleTopbar(): HTMLElement {
+  const bar = document.createElement('div');
+  bar.className = 'single-topbar';
+  const left = document.createElement('div');
+  left.className = 'single-topbar-left';
+  const grid = document.createElement('button');
+  grid.type = 'button';
+  grid.textContent = 'Grid';
+  grid.title = 'Back to the grid (brings the toolbar back)';
+  grid.addEventListener('click', () => switchView('grid'));
+  left.appendChild(grid);
+  // The Wiki window's button lives in the collapsed toolbar; keep it reachable.
+  const wiki = document.createElement('button');
+  wiki.type = 'button';
+  wiki.title = 'Tag wiki';
+  setIconLabel(wiki, '📖 Wiki');
+  wiki.addEventListener('click', () => document.getElementById('btnTagWiki')?.click());
+  left.appendChild(wiki);
+  bar.appendChild(left);
+  bar.appendChild(singleNav); // moved, not cloned: its buttons keep their handlers
+  return bar;
+}
+
 function renderSingleView(){
-  // Image Quicktagging (./quick-tag.ts) owns the left panel only while this
-  // shows ONE ordinary image; re-shown below once that's known.
+  // Image Quicktagging (./quick-tag.ts) and the compact layout own the view
+  // only while this shows ONE ordinary image; re-applied below once known.
   hideQuickTag();
+  setSingleCompact(false);
   if (masterSelectedImages.size > 1 && !seqActive){
     renderMultiCompareView();
     return;
@@ -1503,6 +1542,8 @@ function renderSingleView(){
   const e = list[singleIndex];
   lastSingleBase = e.base;
   showQuickTag(e);
+  setSingleCompact(true);
+  singleViewEl.appendChild(buildSingleTopbar());
 
   const wrap = document.createElement('div');
   wrap.className = 'single-wrap';

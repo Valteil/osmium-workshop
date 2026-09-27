@@ -53,14 +53,17 @@ export const HELP_SECTIONS: HelpSection[] = [
         pin them side by side in a comparison table.</li>
         <li><b>Single</b> — one image at a time: a compact preview (click it for the full-size
         view — scroll to zoom, drag to pan) beside a roomy tag panel, with the add-tag field under
-        the image. Type a number into the toolbar's "N / total" box and press Enter to jump
-        straight to that image. <b>Image Quicktagging:</b> while it shows one image, the left panel
-        becomes checkboxes for common attributes (hair length, breast size, slim/plump, thick
-        thighs/slim legs, looking at viewer/away). Tick to add, untick to remove; a breast size also
-        adds <code>breasts</code> (Flat doesn't).</li>
+        the image. The toolbar folds away for room: Grid (and Wiki) sit above the image, and the
+        Prev / "N / total" / Next navigator sits above the tags. Type a number into the "N / total"
+        box and press Enter to jump straight to that image. <b>Image Quicktagging:</b> while it
+        shows one image, the left panel becomes checkboxes for common attributes (hair length,
+        breast size, slim/plump, thick thighs/slim legs, looking at viewer/away). Tick to add,
+        untick to remove; a breast size also adds <code>breasts</code> (Flat doesn't, and with only
+        Flat left ticked <code>breasts</code> is removed).</li>
         <li><b>📖 Wiki</b> (next to Asc/Desc) — a small window for looking up any tag's definition.
-        Type a tag, pick a suggestion, and its definition shows above the field. Drag it by its
-        title; it stays open until you close it.</li>`}
+        Type a tag, pick a suggestion, and its definition shows boxed above the field, with its
+        See also tags below (click one to open it). Drag it by its title; it stays open until you
+        close it.</li>`}
         <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
         ${isTouchDevice ? '' : `<li><b>🖼 Originals</b> — the pre-bucketing originals kept by Bucket Images (see Power
         tools). Read-only here; Bucket Images' Revert is what moves them back.</li>`}
@@ -253,7 +256,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       by selecting them in the main Gallery first (selection stays in sync either way). From there
       you can apply or remove a tag across the whole selection, conditionally apply one tag based
       on another already being present (or its own separate row for the inverse — based on it
-      being ABSENT), or run a dataset-wide rename or find-and-replace. The
+      being ABSENT), conditionally remove a tag from every image that has another, or run a
+      dataset-wide rename or find-and-replace. The
       Lock/Unlock and Merge Immunize/Antivoid/Antimmunize buttons here apply the same per-image
       flags described in the 3-dot menu section, but to your entire selection at once. <b>❌ Delete
       selected permanently</b> removes every selected image and its tags from disk outright

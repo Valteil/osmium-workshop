@@ -33,6 +33,7 @@ export const BUILTIN_POWER_TOOLS = [
   { id:'builtin-master-remove', field:['masterRemoveTagInput'], button:'btnMasterRemoveFromSelected', mode:'both', label:'Master Tags: remove from selected' },
   { id:'builtin-cond-apply', field:['condSourceTag','condAddTag'], button:'btnCondApply', mode:'both', label:'Master Tags: conditional apply' },
   { id:'builtin-cond-apply-without', field:['condWithoutSourceTag','condWithoutAddTag'], button:'btnCondApplyWithout', mode:'both', label:'Master Tags: conditional apply (without)' },
+  { id:'builtin-cond-remove', field:['condRemoveSourceTag','condRemoveTag'], button:'btnCondRemove', mode:'both', label:'Master Tags: conditional remove' },
   { id:'builtin-mass-apply', field:['massApplyInput'], button:'btnMassApply', mode:'both', label:'Master Tags: mass apply' },
   { id:'builtin-mass-remove', field:['massRemoveInput'], button:'btnMassRemove', mode:'both', label:'Master Tags: mass remove' },
   { id:'builtin-purge', button:'btnPurgeAllTags', mode:'button', label:'Purge all tags' },

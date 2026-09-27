@@ -2636,6 +2636,25 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .tag-wiki-close{ padding: 4px 6px; line-height: 0; }
   .tag-wiki-body{ display: flex; flex-direction: column; gap: 8px; min-height: 80px; overflow-y: auto; }
   .tag-wiki-tag{ font-weight: 600; font-size: 14px; color: var(--text-primary); }
+  /* The main definition sits in a clearly bounded box; See also sits unboxed
+     below it (the user's layout). */
+  .tag-wiki-def{
+    background: var(--bg-elevated); border: 1px solid var(--border-soft);
+    border-radius: var(--radius); padding: 10px 12px;
+  }
+  .tag-wiki-seealso{ display: flex; flex-direction: column; gap: 6px; }
+  .tag-wiki-seealso-head{
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--accent-flair);
+  }
+  .tag-wiki-seealso-list{ display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .tag-wiki-link{
+    all: unset; cursor: pointer; font-size: 12.5px; color: var(--accent-manual);
+    text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent-manual) 40%, transparent);
+    text-underline-offset: 2px;
+  }
+  .tag-wiki-link:hover, .tag-wiki-link:focus-visible{ text-decoration-color: currentColor; }
+  .tag-wiki-plain{ font-size: 12.5px; color: var(--text-muted); }
   .tag-wiki-input{ width: 100%; }
   .tag-details-meta{ display: flex; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
   .tag-details-def{ line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; }
@@ -3790,6 +3809,20 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   #singleNav{ display: none; align-items: center; gap: 10px; }
+  /* Single view's compact layout (view.ts setSingleCompact): the toolbar folds
+     up out of the way (a transition, so gpu-idle can't freeze it half-way),
+     and .single-topbar carries Grid (+ Wiki) on the left, over the preview,
+     and the moved #singleNav on the right, over the tag card. */
+  #galleryToolbar{ max-height: 400px; transition: max-height var(--panel-dur) var(--pop-ease), padding var(--panel-dur) var(--pop-ease), opacity var(--panel-dur) var(--pop-ease), margin var(--panel-dur) var(--pop-ease); }
+  #galleryToolbar.toolbar-collapsed{
+    max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; opacity: 0;
+    overflow: hidden; border-bottom-color: transparent; pointer-events: none;
+  }
+  .single-topbar{
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    margin: 0 0 12px;
+  }
+  .single-topbar-left{ display: flex; gap: 6px; }
   .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 0; text-align:center; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
   /* The image-number field in the Single mode toolbar — type a number, Enter to
      jump (view.ts renderSinglePos). */
