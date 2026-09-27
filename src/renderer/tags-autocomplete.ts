@@ -47,26 +47,27 @@ function onDocClickCloseAutocomplete(ev: MouseEvent): void {
   closeAutocomplete();
 }
 
-// The panel normally opens ABOVE its input (tag-add fields sit low on the
-// screen); `acBelow` flips it to a dropdown under the input (the Tag Wiki
-// window, whose definition text sits above its field).
+// Placement (the user's rule: never cover the field). The panel opens BESIDE
+// what holds the field, level with the field: a dialog (createModalShell's
+// .confirm-box) or the Tag Wiki window as a whole, otherwise the field
+// itself. Right side first, else left. Only when neither side has room (a
+// phone, a field spanning the window) does it fall back to above the field,
+// or below it for `acBelow` fields (the Wiki window's).
 let acBelow = false;
-
-// Inside a dialog (createModalShell's .confirm-box, e.g. the quicktag
-// editor) the panel would cover the dialog's own fields, so it pops out
-// BESIDE the dialog instead (right side, else left), level with the field,
-// and closes when that field loses focus (wireModalBlurClose).
 const SIDE_PANEL_W = 280;
-function dialogOf(inputEl: HTMLElement): HTMLElement | null {
-  return inputEl.closest<HTMLElement>('.confirm-box');
+function sideAnchorOf(inputEl: HTMLElement): HTMLElement {
+  return inputEl.closest<HTMLElement>('.confirm-box, .tag-wiki-window') || inputEl;
 }
 
-// In a dialog the panel closes once its field loses focus (clicking a
-// suggestion doesn't count: the panel's mousedown keeps focus in the field).
+// The panel closes once its field loses focus. Clicking a suggestion doesn't
+// count (the panel's mousedown keeps focus in the field), and neither does
+// moving into the panel's own definition card (its textarea/buttons).
 function wireModalBlurClose(inputEl: HTMLInputElement): void {
   inputEl.addEventListener('blur', () => {
-    if (!dialogOf(inputEl)) return;
-    setTimeout(() => { if (document.activeElement !== inputEl) closeAutocomplete(); }, 0);
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (active !== inputEl && !(autocompleteEl && active && autocompleteEl.contains(active))) closeAutocomplete();
+    }, 0);
   });
 }
 
@@ -87,20 +88,17 @@ function createPanel(): HTMLElement {
 function positionAutocomplete(inputEl: HTMLInputElement): void {
   if (!autocompleteEl) return;
   const rect = inputEl.getBoundingClientRect();
-  const dialog = dialogOf(inputEl);
-  if (dialog){
-    const d = dialog.getBoundingClientRect();
-    const right = d.right + 8, left = d.left - SIDE_PANEL_W - 8;
-    const fitsRight = right + SIDE_PANEL_W <= window.innerWidth - 8;
-    const fitsLeft = left >= 8;
-    if (fitsRight || fitsLeft){
-      autocompleteEl.classList.add('ac-panel-side');
-      autocompleteEl.style.width = SIDE_PANEL_W + 'px';
-      autocompleteEl.style.left = (fitsRight ? right : left) + 'px';
-      const top = Math.min(rect.top, window.innerHeight - autocompleteEl.offsetHeight - 8);
-      autocompleteEl.style.top = Math.max(8, top) + 'px';
-      return;
-    }
+  const a = sideAnchorOf(inputEl).getBoundingClientRect();
+  const right = a.right + 8, left = a.left - SIDE_PANEL_W - 8;
+  const fitsRight = right + SIDE_PANEL_W <= window.innerWidth - 8;
+  const fitsLeft = left >= 8;
+  if (fitsRight || fitsLeft){
+    autocompleteEl.classList.add('ac-panel-side');
+    autocompleteEl.style.width = SIDE_PANEL_W + 'px';
+    autocompleteEl.style.left = (fitsRight ? right : left) + 'px';
+    const top = Math.min(rect.top, window.innerHeight - autocompleteEl.offsetHeight - 8);
+    autocompleteEl.style.top = Math.max(8, top) + 'px';
+    return;
   }
   autocompleteEl.classList.remove('ac-panel-side');
   autocompleteEl.style.width = Math.max(220, rect.width) + 'px';
@@ -303,13 +301,13 @@ export function attachListAutocomplete(inputEl: HTMLInputElement, getOptions: ()
   wireModalBlurClose(inputEl);
 }
 
-// A search that lands after its dialog field lost focus mustn't reopen.
-function staleForDialog(inputEl: HTMLInputElement): boolean {
-  return !!dialogOf(inputEl) && document.activeElement !== inputEl;
+// A search that lands after its field lost focus mustn't reopen the panel.
+function staleField(inputEl: HTMLInputElement): boolean {
+  return document.activeElement !== inputEl;
 }
 
 function renderListAutocompleteResults(inputEl: HTMLInputElement, results: string[], onPick: (val: string) => void): void {
-  if (staleForDialog(inputEl)) return;
+  if (staleField(inputEl)) return;
   if (!autocompleteEl) autocompleteEl = createPanel();
   autocompleteEl.innerHTML = '';
   if (results.length === 0) {
@@ -396,7 +394,7 @@ function runAutocompleteSearch(inputEl: HTMLInputElement, onPick: (tag: string) 
 }
 
 function renderAutocompleteResults(inputEl: HTMLInputElement, onPick: (tag: string) => void, results: [string, { count?: number }][]): void {
-  if (staleForDialog(inputEl)) return;
+  if (staleField(inputEl)) return;
   if (!autocompleteEl) autocompleteEl = createPanel();
   autocompleteEl.innerHTML = '';
   if (results.length === 0) {
