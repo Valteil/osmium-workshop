@@ -3818,18 +3818,21 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; opacity: 0;
     overflow: hidden; border-bottom-color: transparent; pointer-events: none;
   }
-  /* Manual collapse (outside Single view): ▲ sits at the toolbar's bottom-
-     right (padding keeps the toolbar's own buttons clear of it), ▼ is a
-     sticky tab at the gallery's top-right while it's collapsed. */
-  #galleryToolbar{ padding-right: 52px; }
+  /* Manual collapse (outside Single view): ▲ hangs just under the toolbar's
+     bottom-right border, ▼ is a sticky tab at the gallery's top-right while
+     it's collapsed — same 12px/6px offsets, so the arrow flips in place.
+     `!important` on position: the premium themes' hover-fill rule forces
+     `position: relative` on every button not in its exclusion list, which
+     dropped ▼ into flow at the gallery's LEFT edge. */
   .toolbar-collapse-btn{
-    position: absolute; right: 12px; bottom: 10px;
+    position: absolute !important; right: 12px; top: 100%; margin-top: 6px;
     padding: 2px 7px; min-height: 0; line-height: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
   }
   #galleryToolbar.toolbar-collapsed .toolbar-collapse-btn{ display: none; }
   .toolbar-expand-row{ position: sticky; top: 0; z-index: 16; height: 0; }
   .toolbar-expand-btn{
-    position: absolute; right: 12px; top: 6px;
+    position: absolute !important; right: 12px; top: 6px;
     padding: 2px 7px; min-height: 0; line-height: 0;
     box-shadow: 0 4px 12px rgba(0,0,0,0.35);
   }
