@@ -18,6 +18,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   window carrying that theme's own Osmium mark, then leaves trailing the theme's particles. On
   phones it runs top to bottom. Any press speeds it up; turn it off with Settings ▸ Appearance ▸
   Disable opening flourish.
+- **Themed app icon** (Windows): the taskbar icon becomes the current theme's Osmium mark on its
+  own colour, and follows theme changes and night mode.
 
 ---
 
