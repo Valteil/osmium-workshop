@@ -242,9 +242,10 @@ from the left led by two disconnected columns, with the thinner column in front,
 **covers the whole window** (the columns run off the far edge). The theme's Osmium mark rides in
 to the centre in `--bg-base` ink with the wordmark in the theme's brand lettering, hovers on the
 solid fill, and leaves right. The slab follows through a **cut trailing edge**, which sheds a
-staggered lattice of tiles (on TPE themes). Each tile is born at the edge, rides along just behind
-it and dissipates within about a quarter second, so the debris is a narrow trailing strip that
-reads as movement, never a field left across the screen. The dim lifts as it goes. Phones run it top to bottom. It is
+staggered lattice of tiles (on TPE themes). Each tile is spawned at full size at the edge, holds
+at full size for a moment while riding along just behind it, then decays by its nature. Solid
+pieces shrink away; light and air fade (bubbles swell as they pop). The debris is a narrow,
+clearly visible strip trailing the slab, noticeable but never a field left across the screen. The dim lifts as it goes. Phones run it top to bottom. It is
 about 2.2 s, transform and opacity only, sped up by any press. Under reduced motion it's a fade,
 and **Disable opening flourish** turns it off.
 - **The mark** is always the Osmium lattice (a decagon ring, even/odd pentagons and spokes). Each

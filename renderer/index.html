@@ -367,6 +367,8 @@
     }
     var RISE = {bubble:1, firefly:1, ember:1, plankton:1}, FALL = {petal:1, leaf:1, scrap:1, sprinkle:1};
     var SPIN = {petal:1, leaf:1, scrap:1, sprinkle:1, shard:1};
+    // Light and air fade out; everything else is a solid piece that shrinks.
+    var FADE = {glyph:1, bubble:1, firefly:1, ember:1, plankton:1};
     var GLYPHS = '01<>/_$#*+=|';
     var fill = 'var(--of-fill)';
     for (var c = 0, a = step / 2; a < span + step; c++, a += step){
@@ -415,20 +417,27 @@
         d.style.cssText = 'width:' + w + 'px;height:' + h + 'px;background:' + bg + ';' + css
           + (vert ? 'left:' + (across - w / 2) + 'px;top:' + (along - h / 2) + 'px' : 'left:' + (along - w / 2) + 'px;top:' + (across - h / 2) + 'px');
         parts.appendChild(d);
-        // Carried along behind the edge at 80–92% of the band's own travel
-        // (sampled from the same curve), so at any moment the debris is a
-        // narrow strip trailing the slab rather than a field left behind,
-        // and it dissipates fast.
-        var born = outAt + t * outDur + r(0, 30), life = r(170, 280), follow = r(0.8, 0.92);
-        var side = r(-0.12, 0.12) * cell, lift = 0;
-        if (RISE[tile]) lift = -r(0.3, 0.8) * cell;
-        if (FALL[tile]) lift = r(0.25, 0.6) * cell;
-        var rot1 = rot0 + (SPIN[tile] ? r(-120, 120) : r(-15, 15));
-        var frames = [], K4 = [0, 0.35, 0.7, 1], SC = [1, 0.8, 0.45, 0], OP = [1, 1, 0.75, 0];
-        for (var q = 0; q < 4; q++){
-          var k = K4[q], mv = (bandPx(born + k * life) - bandPx(born)) * follow;
+        // Life cycle: spawned at full size at the tail, held at full size for
+        // the first half, then it decays by its nature: solid pieces shrink
+        // away, light and air fade (bubbles swell a touch as they pop).
+        // Carried along at 86–93% of the band's own travel (sampled from the
+        // same curve), so the debris stays a narrow strip just behind the
+        // cut edge, always visibly behind it, never a field left standing.
+        var born = outAt + t * outDur + r(0, 30), life = r(360, 500), follow = r(0.86, 0.93);
+        var side = r(-0.1, 0.1) * cell, lift = 0;
+        if (RISE[tile]) lift = -r(0.3, 0.7) * cell;
+        if (FALL[tile]) lift = r(0.25, 0.55) * cell;
+        var rot1 = rot0 + (SPIN[tile] ? r(-110, 110) : r(-12, 12));
+        var fades = FADE[tile], frames = [], KS = [0, 0.25, 0.5, 0.75, 1];
+        // [scale, opacity] per key: hold, then shrink-to-nothing or fade-out.
+        var SO = fades
+          ? (tile === 'bubble' ? [[1,1],[1,1],[1,1],[1.12,0.5],[1.25,0]] : [[1,1],[1,1],[1,1],[0.92,0.45],[0.85,0]])
+          : [[1,1],[1,1],[1,1],[0.55,1],[0,0.6]];
+        for (var q = 0; q < 5; q++){
+          var k = KS[q], mv = (bandPx(born + k * life) - bandPx(born)) * follow;
           var cx = vert ? side * k : mv, cy = vert ? mv + lift * k : side * k + lift * k;
-          frames.push({transform: 'translate(' + cx + 'px,' + cy + 'px) rotate(' + (rot0 + (rot1 - rot0) * k) + 'deg) scale(' + SC[q] + ')', opacity: OP[q], offset: k});
+          frames.push({transform: 'translate(' + cx + 'px,' + cy + 'px) rotate(' + (rot0 + (rot1 - rot0) * k) + 'deg) scale(' + SO[q][0] + ')',
+            opacity: SO[q][1], offset: k, easing: q >= 2 ? 'cubic-bezier(0.5, 0, 0.9, 0.5)' : 'linear'});
         }
         run(d, frames, {duration: life, delay: born, fill: 'forwards'});
       }
