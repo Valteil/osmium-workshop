@@ -354,8 +354,16 @@
   // The slab's trailing edge IS a row of those tiles, each buried halfway
   // into it at the trail's own spacing, so the teeth visibly break off into
   // the debris (the even waves spawn right on them, the odd ones between).
+  // A tooth is the slab itself cut into the particle's silhouette: solid
+  // fill, keeping only the shape (radius / clip-path / glyph), with no
+  // borders, glows, gradients or colour variants of the loose particle.
+  function silhouette(t){
+    t.bg = t.txt ? 'transparent' : 'var(--of-fill)';
+    t.css = t.css.replace(/(?:^|;)\s*(?:border|box-shadow|text-shadow)\s*:[^;]*/g, '');
+    return t;
+  }
   if (tile) for (var tj = -1; tj * spacing < tCross + spacing; tj++){
-    var tt = tileFor(0), te = tileEl(tt, vert ? tj * spacing : 0, vert ? 0 : tj * spacing, 'of-tooth');
+    var tt = silhouette(tileFor(0)), te = tileEl(tt, vert ? tj * spacing : 0, vert ? 0 : tj * spacing, 'of-tooth');
     te.style.transform = 'rotate(' + tt.rot0 + 'deg)';
     body.appendChild(te);
   }

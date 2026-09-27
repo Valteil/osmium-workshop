@@ -242,8 +242,9 @@ from the left led by two disconnected columns, with the thinner column in front,
 **covers the whole window** (the columns run off the far edge). The theme's Osmium mark rides in
 to the centre in `--bg-base` ink with the wordmark in the theme's brand lettering, hovers on the
 solid fill, and leaves right. The slab follows through a **cut trailing edge**, which sheds a
-single column of debris that visibly breaks off it (on TPE themes). The slab's trailing edge
-**is** a row of the world's particles, each buried halfway into the fill. Uniform tiles break off
+single column of debris that visibly breaks off it (on TPE themes). The slab's trailing edge is
+cut into a row of the world's particle **silhouettes**, each buried halfway into the fill: solid
+slab colour in the particle's shape, never the particle's own colours, outlines or glow. Uniform tiles break off
 in alternating waves (on the teeth, then between them) as a clean staggered lattice, with a
 visible gap between every neighbour. They ride with the slab, falling back at a constant rate over
 a 0.24 s life, stay full size at first, then decay by their nature: solid pieces shrink away,
