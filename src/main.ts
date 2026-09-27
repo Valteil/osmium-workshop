@@ -193,7 +193,10 @@ function createWindow(): void {
   // PACKAGED exe automatically — this is what makes it show up in dev (`npm start`, unpackaged)
   // and on Linux, where there's no single exe resource to bake it into. .ico on Windows (multi-
   // resolution, what the taskbar/titlebar actually want), .png everywhere else.
-  const windowIcon = path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+  // The last themed icon (see set-app-icon) wins when there is one, so the
+  // window opens in the theme's icon rather than swapping after load.
+  const themedIcon = cachedAppIcon();
+  const windowIcon = themedIcon || path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
   const win: AppWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -213,6 +216,8 @@ function createWindow(): void {
 
   // Start maximized instead of at the fixed 1440x900 default — show only
   // once maximized so there's no visible resize flash on launch.
+  applyAppDetails(win, windowIcon);
+
   win.once('ready-to-show', () => {
     win.maximize();
     win.show();
@@ -311,11 +316,61 @@ ipcMain.handle('set-zoom-factor', (event, factor: number) => {
 // Themed app icon: the renderer draws the current theme's Osmium mark (the
 // one the opening flourish shows, night mode included) as a PNG data URL,
 // and the window's taskbar icon follows it (renderer/app-icon.ts).
+//
+// The last one drawn is cached in userData/app-icon/ as a PNG-in-ICO so the
+// next launch opens with it straight away (createWindow) instead of flashing
+// the exe's icon until the renderer is up. On Windows the window also gets
+// its own AppUserModelID + relaunch icon (setAppDetails): without that the
+// taskbar groups the window under the exe / any shortcut pointing at it and
+// shows THAT icon over ours. The file name carries a timestamp because the
+// shell caches relaunch icons by path.
+const APP_ICON_DIR = () => path.join(app.getPath('userData'), 'app-icon');
+const THEMED_APP_ID = 'com.local.osmiumworkshop.themed';
+
+function pngToIco(png: Buffer): Buffer {
+  const head = Buffer.alloc(22);
+  head.writeUInt16LE(0, 0); head.writeUInt16LE(1, 2); head.writeUInt16LE(1, 4);
+  // 0 = 256px wide/high; 1 plane, 32bpp, PNG payload right after the header
+  head.writeUInt8(0, 6); head.writeUInt8(0, 7); head.writeUInt16LE(1, 10); head.writeUInt16LE(32, 12);
+  head.writeUInt32LE(png.length, 14); head.writeUInt32LE(22, 18);
+  return Buffer.concat([head, png]);
+}
+
+function cachedAppIcon(): string | null {
+  try {
+    const names = fs.readdirSync(APP_ICON_DIR()).filter((n) => /^themed-\d+\.ico$/.test(n)).sort();
+    return names.length ? path.join(APP_ICON_DIR(), names[names.length - 1]) : null;
+  } catch { return null; }
+}
+
+function applyAppDetails(win: BrowserWindow, iconPath: string): void {
+  if (process.platform !== 'win32') return;
+  win.setAppDetails({
+    appId: THEMED_APP_ID,
+    appIconPath: iconPath,
+    appIconIndex: 0,
+    relaunchCommand: `"${process.execPath}"`,
+    relaunchDisplayName: 'Osmium Workshop'
+  });
+}
+
 ipcMain.handle('set-app-icon', (event, dataUrl: string) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png;base64,')) return;
   const img = nativeImage.createFromDataURL(dataUrl);
-  if (!img.isEmpty()) win.setIcon(img);
+  if (img.isEmpty()) return;
+  win.setIcon(img);
+  try {
+    const dir = APP_ICON_DIR();
+    fs.mkdirSync(dir, { recursive: true });
+    const prev = fs.readdirSync(dir).filter((n) => /^themed-\d+\.ico$/.test(n));
+    const file = path.join(dir, `themed-${Date.now()}.ico`);
+    fs.writeFileSync(file, pngToIco(img.toPNG()));
+    for (const n of prev) fs.rmSync(path.join(dir, n), { force: true });
+    applyAppDetails(win, file);
+  } catch (err) {
+    console.warn('[app-icon] could not cache themed icon:', err);
+  }
 });
 
 // Hardware acceleration is decided once, at process startup, before any
