@@ -382,6 +382,30 @@ async function renameFileInPlace(dir: DirHandle, oldName: string, newName: strin
   return newHandle;
 }
 
+// WebP images get converted to PNG by "Rename all": WD14 (ComfyUI's tagger
+// node and the on-device path) can't read WebP, and the rename is already a
+// pass over every file. PNG is lossless, so nothing is lost beyond WebP's own
+// compression; an animated WebP keeps its first frame.
+export function isWebpName(name: string): boolean {
+  return (name || '').toLowerCase().endsWith('.webp');
+}
+
+async function convertToPngInPlace(dir: DirHandle, oldName: string, newName: string): Promise<import('./types').FileHandle> {
+  const oldHandle = await dir.getFileHandle(oldName, { create: false });
+  const bitmap = await createImageBitmap(await oldHandle.getFile());
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!png) throw new Error(`Could not convert ${oldName} to PNG.`);
+  const newHandle = await dir.getFileHandle(newName, { create: true });
+  await writeBytes(newHandle, png);
+  await dir.removeEntry(oldName);
+  return newHandle;
+}
+
 // Renames every currently-loaded image (+ its .txt, if any) to a simple
 // zero-padded sequence — one continuous count across the active dataset
 // root and Disabled/ (active first, each ordered by current filename,
@@ -421,26 +445,34 @@ export async function renameAllEntriesSequentially(): Promise<void> {
     newBase: string;
     newImgName: string;
     newTxtName: string | null;
+    toPng: boolean;
   }
   const plan: RenamePlanItem[] = ordered.map((entry, i) => {
     const newBase = String(i + 1).padStart(width, '0');
+    const oldImgName = entry.imgName || entry.base;
+    const toPng = isWebpName(oldImgName);
     return {
       entry,
       dir: entry.disabled ? disabledDirHandle! : dirHandle,
       oldBase: entry.base,
-      oldImgName: entry.imgName || entry.base,
+      oldImgName,
       oldTxtName: entry.txtHandle ? (entry.txtName || `${entry.base}.txt`) : null,
       newBase,
-      newImgName: newBase + extOf(entry.imgName || entry.base),
-      newTxtName: entry.txtHandle ? `${newBase}.txt` : null
+      newImgName: newBase + (toPng ? '.png' : extOf(oldImgName)),
+      newTxtName: entry.txtHandle ? `${newBase}.txt` : null,
+      toPng
     };
   });
+  const converted = plan.filter(p => p.toPng).length;
 
   try {
-    // Phase 1: every file to a unique temp name.
+    // Phase 1: every file to a unique temp name (WebP converted to PNG on
+    // the way, so phase 2 is a plain rename for everything).
     for (let i = 0; i < plan.length; i++){
       const p = plan[i];
-      p.entry.imgHandle = await renameFileInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__${extOf(p.oldImgName)}`);
+      p.entry.imgHandle = p.toPng
+        ? await convertToPngInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__.png`)
+        : await renameFileInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__${extOf(p.oldImgName)}`);
       if (p.entry.txtHandle && p.oldTxtName){
         p.entry.txtHandle = await renameFileInPlace(p.dir, p.oldTxtName, `__dts_rename_tmp_${i}__.txt`);
       }
@@ -458,16 +490,19 @@ export async function renameAllEntriesSequentially(): Promise<void> {
       p.entry.txtName = `${p.newBase}.txt`;
       affected.push({
         base: p.newBase, prevBase: p.oldBase,
-        prevImgName: p.oldImgName, newImgName: p.newImgName,
+        // A converted WebP undoes to its old name as a .png: the conversion
+        // itself is permanent, only the rename is undoable.
+        prevImgName: p.toPng ? `${p.oldBase}.png` : p.oldImgName, newImgName: p.newImgName,
         prevTxtName: p.oldTxtName || undefined, newTxtName: p.newTxtName || undefined
       });
     }
+    const convertedNote = converted ? ` ${converted} WebP image(s) converted to PNG.` : '';
     pushLogEntry({
       type: 'rename-files',
-      summary: `Renamed ${affected.length} image(s) to a simple 1-${ordered.length} sequence.`,
+      summary: `Renamed ${affected.length} image(s) to a simple 1-${ordered.length} sequence.${convertedNote}`,
       affected
     });
-    toast(`Renamed ${affected.length} image(s).`, 3200);
+    toast(`Renamed ${affected.length} image(s).${convertedNote}`, 3600);
     resetSingleIndex();
     refreshAllUIRef();
   } catch(err){

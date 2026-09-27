@@ -18,7 +18,7 @@ import {
 import { toast, toastError, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox, addContextMenuItem, transitionMsOf, mapPan, createModalShell } from './shared-ui';
 import type { ModalShell } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
-import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially } from './tags-edit';
+import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially, isWebpName } from './tags-edit';
 import { openTagDetails } from './tag-details';
 import { attachTagAutocomplete, closeAutocomplete } from './tags-autocomplete';
 import { buildTagIndex, refreshStats, filteredEntries, passesFilter } from './tag-index';
@@ -3590,8 +3590,12 @@ export function initView(deps: ViewDeps): void {
   btnRenameAllImages.addEventListener('click', async () => {
     const count = getEntries().length;
     if (count === 0){ toast('No images loaded.'); return; }
+    const webp = getEntries().filter(e => !e.original && isWebpName(e.imgName || e.base)).length;
+    const webpNote = webp
+      ? ` ${webp} WebP image(s) will also be converted to PNG, since WD14 can't read WebP (lossless; undo restores the names but they stay PNG).`
+      : '';
     const ok = await showConfirmModal(
-      `Rename all ${count} loaded image(s) (+ their .txt files) to a simple zero-padded 1-${count} sequence? Active dataset images are numbered first, then Disabled/ continues the same count. This can be undone from the Log panel.`,
+      `Rename all ${count} loaded image(s) (+ their .txt files) to a simple zero-padded 1-${count} sequence? Active dataset images are numbered first, then Disabled/ continues the same count. This can be undone from the Log panel.${webpNote}`,
       { okLabel: 'Rename all', danger: true }
     );
     if (!ok) return;

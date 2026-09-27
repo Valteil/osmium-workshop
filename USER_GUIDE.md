@@ -79,7 +79,9 @@ This is the tag editor itself — everything else in the app supports what happe
 - **🔢 Rename all** — renames every loaded image (+ its `.txt`) to a simple zero-padded `1`-`N`
   sequence (active dataset first, then `Disabled/`, continuing the same count), confirmed first.
   Logged and undoable from the Log panel like any other bulk action. Use it to normalize a folder
-  to `1`–`N` before training.
+  to `1`–`N` before training. **WebP images are converted to PNG** on the way (WD14 can't read
+  WebP). The conversion is lossless and keeps transparency; an animated WebP keeps its first
+  frame. Undo restores the old names, but the files stay PNG.
 - **🔓 Unlock all** — clears the lock on every locked image in the dataset at once, so mass tools
   can reach them again.
 - **Hide tags** — hides the tag chips and add-tag field on every card. Handy while sorting against

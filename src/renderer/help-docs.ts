@@ -59,7 +59,8 @@ export const HELP_SECTIONS: HelpSection[] = [
         tools). Read-only here; Bucket Images' Revert is what moves them back.</li>`}
         <li><b>🔢 Rename all</b> — renames every loaded image (+ its .txt) to a simple zero-padded
         1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
-        first; logged and undoable from the Log panel.</li>
+        first; logged and undoable from the Log panel. WebP images are converted to PNG on the way,
+        since WD14 can't read WebP (lossless; undo restores the names but they stay PNG).</li>
         <li><b>🔓 Unlock all</b> — clears the lock on every locked image at once.</li>
         <li><b>Hide tags</b> — hides the chips and add-tag field on every card, so while you sort
         against a filter what's there and what's missing stays obvious. Tags stay editable through
