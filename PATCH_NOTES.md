@@ -4,15 +4,18 @@ Every release of Osmium Workshop (called Dataset Tag Studio up to v1.5.0), newes
 Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 [releases page](https://github.com/Valteil/osmium-workshop/releases).
 
-- [v1.9.0](#v190-unreleased) · [v1.8.0](#v180) · [v1.7.0](#v170) · [v1.6.5](#v165) · [v1.6.0](#v160) · [v1.5.5](#v155) ·
+- [v1.9.0](#v190) · [v1.8.0](#v180) · [v1.7.0](#v170) · [v1.6.5](#v165) · [v1.6.0](#v160) · [v1.5.5](#v155) ·
   [v1.5.0](#v150) · [v1.4.0](#v140) · [v1.3.0](#v130) · [v1.2.0](#v120) ·
   [v1.1.5](#v115-tauri--discontinued) · [v1.1.0](#v110) · [v1.0.0](#v100)
 
 ---
 
-## v1.9.0 (unreleased)
+## v1.9.0
 
 ### Osmium Workshop
+
+Comfy Bridge and the ComfyUI node pack are unchanged; get them from
+[v1.8.0](https://github.com/Valteil/osmium-workshop/releases/tag/v1.8.0).
 
 - **Opening flourish**: when the app opens, a sweep of your theme's colour crosses the dimmed
   window carrying that theme's own Osmium mark, then leaves trailing the theme's particles. On
@@ -36,8 +39,10 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Wiki window**: a new toolbar button next to Asc/Desc opens a small tag-definition lookup that
   stays open until you close it. The definition sits in a box, with its See also tags as links
   below.
-- **Collapsible toolbar**: the ▲ at the gallery toolbar's bottom-right folds it away (▼ brings it
-  back), remembered between sessions.
+- **Collapsible toolbar**: the ▲ under the gallery toolbar's bottom-right corner folds it away (▼
+  brings it back), remembered between sessions.
+- **Tag autocomplete opens beside its field** everywhere, including in dialogs and when renaming a
+  tag chip inline (which now gets autocomplete too).
 - **Single view layout**: the gallery toolbar folds away for more room; Grid sits above the image
   and the image navigator above the tags.
 - **Tag definitions refreshed** from Danbooru: about 110,000 more definitions (new tags and ones

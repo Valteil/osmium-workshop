@@ -2398,6 +2398,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .synthdat-lora-row input[readonly]{ cursor: pointer; }
   #btnSynthDatSwapReso{ flex-shrink: 0; padding: 6px 9px; font-size: 13px; }
   .synthdat-warning{ font-size: 11px; color: var(--accent-danger); margin-top: 4px; }
+  .synthdat-conn-body{ display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  /* Local ComfyUI's chosen folder: a long path, so it ends in an ellipsis
+     and shows in full on hover (title). */
+  .synthdat-local-folder{
+    flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--font-mono, monospace); font-size: 11.5px; color: var(--text-muted);
+  }
   .synthdat-pass-choice{
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
     background: var(--bg-elevated); border: 2px solid var(--border-soft); border-radius: var(--radius);
@@ -2611,6 +2618,44 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   /* ---------- Tag details ---------- */
 
   .tag-details-body{ display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
+  /* Tag Wiki window (tag-wiki.ts): the floating-panel look, but its own class
+     so closeAllFloatingPanels() never shuts it; it stays until its × is
+     clicked. Dragged by its header; the definition scrolls above the field. */
+  .tag-wiki-window{
+    position: fixed; width: 360px; max-width: calc(100vw - 16px); max-height: 70vh;
+    background: var(--bg-elevated-2); border: 1px solid var(--border-strong);
+    border-radius: var(--r-panel); padding: 12px 14px 14px; z-index: 460;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column; gap: 10px;
+    opacity: 0; transform: translateY(-8px) scale(0.98);
+    transition: opacity var(--panel-dur) var(--pop-ease), transform var(--panel-dur) var(--pop-ease);
+    pointer-events: none;
+  }
+  .tag-wiki-window.panel-visible{ opacity: 1; transform: none; pointer-events: auto; }
+  .tag-wiki-head{ display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: move; user-select: none; touch-action: none; }
+  .tag-wiki-close{ padding: 4px 6px; line-height: 0; }
+  .tag-wiki-body{ display: flex; flex-direction: column; gap: 8px; min-height: 80px; overflow-y: auto; }
+  .tag-wiki-tag{ font-weight: 600; font-size: 14px; color: var(--text-primary); }
+  /* The main definition sits in a clearly bounded box; See also sits unboxed
+     below it (the user's layout). */
+  .tag-wiki-def{
+    background: var(--bg-elevated); border: 1px solid var(--border-soft);
+    border-radius: var(--radius); padding: 10px 12px;
+  }
+  .tag-wiki-seealso{ display: flex; flex-direction: column; gap: 6px; }
+  .tag-wiki-seealso-head{
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--accent-flair);
+  }
+  .tag-wiki-seealso-list{ display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .tag-wiki-link{
+    all: unset; cursor: pointer; font-size: 12.5px; color: var(--accent-manual);
+    text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent-manual) 40%, transparent);
+    text-underline-offset: 2px;
+  }
+  .tag-wiki-link:hover, .tag-wiki-link:focus-visible{ text-decoration-color: currentColor; }
+  .tag-wiki-plain{ font-size: 12.5px; color: var(--text-muted); }
+  .tag-wiki-input{ width: 100%; }
   .tag-details-meta{ display: flex; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
   .tag-details-def{ line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; }
   .tag-details-def.greyed{ color: var(--text-faint); font-style: italic; }
@@ -3222,7 +3267,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     outline: 2px solid var(--accent-manual); outline-offset: -2px;
   }
   .header-cat-flyout .pdrop{ display: block; width: 100%; }
-  .theme-pdrop-menu{ max-height: min(60vh, 420px); overflow-y: auto; }
+  .pdrop-menu.theme-pdrop-menu{ max-height: min(60vh, 420px); overflow-y: auto; overflow-x: hidden; }
 
   button {
     font-family: var(--sans);
@@ -3656,7 +3701,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: var(--bg-base);
     border-bottom: 1px solid var(--border-soft);
   }
-  .viewToggle{ display: flex; gap: 6px; }
+  /* Wraps onto a second line when the gallery is too narrow for every button
+     (docks open, small window) instead of running off the right edge. The
+     phone layout below turns it into a one-row swipe strip instead. */
+  .viewToggle{ display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
   .viewToggle button.active{
     background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual);
   }
@@ -3705,10 +3753,16 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: var(--bg-elevated-2); border: 1px solid var(--border-strong); border-radius: 8px;
     padding: 4px; display: flex; flex-direction: column; gap: 2px; min-width: 160px;
     max-width: min(320px, 90vw);
+    /* Long lists (Settings ▸ App icon's theme list) scroll inside a short
+       flyout instead of running off-screen. */
+    max-height: min(300px, 60vh); overflow-y: auto; overscroll-behavior: contain;
+    /* The vertical scrollbar eats into the content width; without this the
+       items overflow by that much and a horizontal scrollbar appears. */
+    overflow-x: hidden;
     box-shadow: 0 12px 30px rgba(0,0,0,0.5);
   }
   .pdrop-item{
-    all: unset; cursor: pointer; padding: 7px 9px; border-radius: 5px; font-size: 12.5px; color: var(--text-primary);
+    all: unset; flex-shrink: 0; cursor: pointer; padding: 7px 9px; border-radius: 5px; font-size: 12.5px; color: var(--text-primary);
   }
   .pdrop-item:hover, .pdrop-item:focus-visible{ background: var(--bg-elevated); }
   .pdrop-item.active{ color: var(--accent-manual); font-weight: 600; }
@@ -3755,6 +3809,38 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
 
   #singleNav{ display: none; align-items: center; gap: 10px; }
+  /* Single view's compact layout (view.ts setSingleCompact): the toolbar folds
+     up out of the way (a transition, so gpu-idle can't freeze it half-way),
+     and .single-topbar carries Grid (+ Wiki) on the left, over the preview,
+     and the moved #singleNav on the right, over the tag card. */
+  #galleryToolbar{ max-height: 400px; transition: max-height var(--panel-dur) var(--pop-ease), padding var(--panel-dur) var(--pop-ease), opacity var(--panel-dur) var(--pop-ease), margin var(--panel-dur) var(--pop-ease); }
+  #galleryToolbar.toolbar-collapsed{
+    max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; opacity: 0;
+    overflow: hidden; border-bottom-color: transparent; pointer-events: none;
+  }
+  /* Manual collapse (outside Single view): ▲ hangs just under the toolbar's
+     bottom-right border, ▼ is a sticky tab at the gallery's top-right while
+     it's collapsed — same 12px/6px offsets, so the arrow flips in place.
+     `!important` on position: the premium themes' hover-fill rule forces
+     `position: relative` on every button not in its exclusion list, which
+     dropped ▼ into flow at the gallery's LEFT edge. */
+  .toolbar-collapse-btn{
+    position: absolute !important; right: 12px; top: 100%; margin-top: 6px;
+    padding: 2px 7px; min-height: 0; line-height: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+  }
+  #galleryToolbar.toolbar-collapsed .toolbar-collapse-btn{ display: none; }
+  .toolbar-expand-row{ position: sticky; top: 0; z-index: 16; height: 0; }
+  .toolbar-expand-btn{
+    position: absolute !important; right: 12px; top: 6px;
+    padding: 2px 7px; min-height: 0; line-height: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+  }
+  .single-topbar{
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    margin: 0 0 12px;
+  }
+  .single-topbar-left{ display: flex; gap: 6px; }
   .single-pos{ font-family: var(--mono); font-size: 12px; color: var(--text-muted); min-width: 0; text-align:center; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
   /* The image-number field in the Single mode toolbar — type a number, Enter to
      jump (view.ts renderSinglePos). */
@@ -4083,6 +4169,53 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     letter-spacing: 0.5px; color: var(--accent-flair);
   }
   .tagcat-count { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+  /* Image Quicktagging (quick-tag.ts): in Single view it replaces #left's own
+     tools. !important because some of #left's children carry inline display
+     (Inline-Styles-Beat-Stylesheet). Slides in from the left on entry; the
+     animation only replays when the panel goes from hidden to shown, not on
+     every re-render. */
+  #quickTagPanel{ display: none; }
+  #left.quicktag-on > :not(#quickTagPanel){ display: none !important; }
+  #left.quicktag-on > #quickTagPanel{
+    display: flex; flex-direction: column; gap: 14px;
+    animation: quicktag-in var(--panel-dur) var(--pop-ease) both;
+  }
+  @keyframes quicktag-in{ from{ opacity: 0; transform: translateX(-28px); } to{ opacity: 1; transform: none; } }
+  /* gpu-idle pauses every animation; paused at its first frame this one-shot
+     slide-in would leave the whole panel invisible, so it always runs. */
+  html.gpu-idle #left.quicktag-on > #quickTagPanel{ animation-play-state: running !important; }
+  .quicktag-note{ font-size: 11px; color: var(--text-faint); line-height: 1.4; margin-top: -8px; }
+  .quicktag-group{ display: flex; flex-direction: column; gap: 6px; }
+  .quicktag-group-head{
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--accent-flair); border-bottom: 1px solid var(--border-soft); padding-bottom: 3px;
+  }
+  .quicktag-options{ display: flex; flex-direction: column; gap: 4px; }
+  /* Custom quicktags: "+" on every category header (and × on custom
+     categories), ✎/× on custom items, "+ Add category" at the bottom. */
+  .quicktag-group-head{ display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .quicktag-head-actions, .quicktag-item-actions{ display: flex; gap: 4px; flex-shrink: 0; }
+  .quicktag-mini{ padding: 0 7px; min-height: 0; line-height: 18px; font-size: 12px; font-family: var(--mono); }
+  .quicktag-mini.quicktag-del:hover{ border-color: var(--accent-danger); color: var(--accent-danger); }
+  .quicktag-line{ display: flex; align-items: center; gap: 6px; }
+  .quicktag-line > .quicktag-option{ flex: 1; min-width: 0; }
+  .quicktag-item-actions{ opacity: 0.55; }
+  .quicktag-line:hover .quicktag-item-actions, .quicktag-item-actions:focus-within{ opacity: 1; }
+  .quicktag-add-category{ align-self: flex-start; }
+  .quicktag-edit-box{ width: min(460px, 92vw); display: flex; flex-direction: column; gap: 10px; }
+  .quicktag-edit-field{ display: flex; flex-direction: column; gap: 3px; }
+  .quicktag-edit-label{ font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .quicktag-edit-hint{ font-size: 10.5px; color: var(--text-faint); line-height: 1.35; }
+  /* Per-category "+" (buildCategoryAddButton): sits at the header's right end
+     and opens an add field under the header. Empty categories keep a dimmed
+     header so they can be started too. */
+  .tagcat-add {
+    margin-left: auto; padding: 0 7px; min-height: 0; line-height: 18px; font-size: 13px;
+    font-family: var(--mono); align-self: center;
+  }
+  .tagcat-seg-empty .tagcat-name { opacity: 0.55; }
+  .tagcat-seg-empty .tagcat-count { opacity: 0.55; }
+  .tagcat-add-input { width: 100%; }
 
   /* Multi-subject tree (Tag Sorting, opt-in): user-named subject headers, each
      with indented category subheaders. Tags are assigned by dragging a chip onto
@@ -4656,6 +4789,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     overflow: hidden; cursor: zoom-in;
   }
   .single-preview img{ max-width: 100%; max-height: 42vh; object-fit: contain; border-radius: 4px; pointer-events: none; }
+  /* Single view's left column: the preview with the add-tag field under it.
+     The column takes the preview's old 38% slot; the preview fills it. */
+  .single-preview-col{
+    flex: 0 0 38%; max-width: 38%; min-width: 0;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .single-preview-col > .single-preview{ flex: 0 0 auto; max-width: 100%; }
   .single-preview-hint{
     position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
     font-size: 10.5px; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
@@ -5152,6 +5292,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
        nothing here can ever cause page-level horizontal panning again)
        means the only thing left to scroll horizontally is the image row. */
     #galleryToolbar{ overflow-x: hidden; padding: 10px 12px; gap: 8px; margin-bottom: 8px; }
+    /* The manual collapse is desktop-only (the phone toolbar is already a
+       one-row strip, and the ▲ would sit on it). */
+    .toolbar-collapse-btn, .toolbar-expand-row{ display: none !important; }
     /* 2026-09-27: wrapping took three rows (~25% of a phone screen) for
        seven buttons. The row is now its OWN contained horizontal strip:
        max-width 100% + overflow-x:auto keeps the overflow inside it (the
@@ -5234,6 +5377,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     .single-wrap{ flex-direction: column; }
     .single-panel{ width: 100%; }
     .single-preview{ flex: 0 0 auto; max-width: 100%; max-height: 32vh; }
+    .single-preview-col{ flex: 0 0 auto; max-width: 100%; width: 100%; }
     .single-preview img{ max-height: 32vh; }
     .single-panel-main{ max-height: none; }
 

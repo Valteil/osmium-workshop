@@ -268,6 +268,9 @@
   var condWithoutSourceTag = $("condWithoutSourceTag");
   var condWithoutAddTag = $("condWithoutAddTag");
   var btnCondApplyWithout = $("btnCondApplyWithout");
+  var condRemoveSourceTag = $("condRemoveSourceTag");
+  var condRemoveTag = $("condRemoveTag");
+  var btnCondRemove = $("btnCondRemove");
   var massApplyInput = $("massApplyInput");
   var btnMassApply = $("btnMassApply");
   var massRemoveInput = $("massRemoveInput");
@@ -421,6 +424,12 @@
   var synthDatExtra = $("synthDatExtra");
   var synthDatNegative = $("synthDatNegative");
   var synthDatHost = $("synthDatHost");
+  var synthDatBackendRow = $("synthDatBackendRow");
+  var synthDatBackendDropdown = $("synthDatBackendDropdown");
+  var synthDatServerFields = $("synthDatServerFields");
+  var synthDatLocalFields = $("synthDatLocalFields");
+  var synthDatLocalFolder = $("synthDatLocalFolder");
+  var btnSynthDatLocalFolder = $("btnSynthDatLocalFolder");
   var btnSynthDatConnect = $("btnSynthDatConnect");
   var synthDatConnStatus = $("synthDatConnStatus");
   var synthDatWidth = $("synthDatWidth");
@@ -805,39 +814,39 @@
     }, { passive: true });
   }
   function attachLongPress(el, callback, ms = 500) {
-    let timer2 = null;
+    let timer = null;
     let startX = 0, startY = 0;
     const moveTolerance = 12;
     el.addEventListener("touchstart", (ev) => {
       if (ev.touches.length !== 1) return;
       startX = ev.touches[0].clientX;
       startY = ev.touches[0].clientY;
-      timer2 = setTimeout(() => {
-        timer2 = null;
+      timer = setTimeout(() => {
+        timer = null;
         callback({ clientX: startX, clientY: startY, preventDefault() {
         }, stopPropagation() {
         } });
       }, ms);
     }, { passive: true });
     el.addEventListener("touchmove", (ev) => {
-      if (!timer2 || !ev.touches[0]) return;
+      if (!timer || !ev.touches[0]) return;
       const dx = ev.touches[0].clientX - startX;
       const dy = ev.touches[0].clientY - startY;
       if (Math.sqrt(dx * dx + dy * dy) > moveTolerance) {
-        clearTimeout(timer2);
-        timer2 = null;
+        clearTimeout(timer);
+        timer = null;
       }
     }, { passive: true });
     el.addEventListener("touchend", () => {
-      if (timer2) {
-        clearTimeout(timer2);
-        timer2 = null;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
       }
     }, { passive: true });
     el.addEventListener("touchcancel", () => {
-      if (timer2) {
-        clearTimeout(timer2);
-        timer2 = null;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
       }
     }, { passive: true });
   }
@@ -2416,7 +2425,7 @@
       jumpEl.appendChild(jump);
       return sec;
     }
-    function field(parent, label, hint) {
+    function field2(parent, label, hint) {
       const f = document.createElement("div");
       f.className = "ts-field";
       f.innerHTML = `<div class="ts-field-label">${esc(label)}${hint ? `<span class="ts-field-hint">${esc(hint)}</span>` : ""}</div>`;
@@ -2424,7 +2433,7 @@
       return f;
     }
     function optionGrid(parent, label, opts, get, set, sample, cls = "", hint, lockOf) {
-      const f = field(parent, label, hint);
+      const f = field2(parent, label, hint);
       const grid = document.createElement("div");
       grid.className = "ts-opts " + cls;
       grid.setAttribute("role", "radiogroup");
@@ -2481,7 +2490,7 @@
       });
     }
     function segmented(parent, label, opts, get, set, editsSpec = true) {
-      const f = field(parent, label);
+      const f = field2(parent, label);
       const seg = document.createElement("div");
       seg.className = "ts-seg";
       seg.setAttribute("role", "radiogroup");
@@ -2512,7 +2521,7 @@
       });
     }
     function slider(parent, label, min, max, get, set, unit = "px") {
-      const f = field(parent, label);
+      const f = field2(parent, label);
       const row = document.createElement("div");
       row.className = "ts-slider";
       const input = document.createElement("input");
@@ -2577,7 +2586,7 @@
     }
     window.addEventListener("keydown", onPopoverKey, true);
     function fontPicker(parent, label, slot) {
-      const f = field(parent, label);
+      const f = field2(parent, label);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "ts-font-btn";
@@ -2858,10 +2867,10 @@
     tintBtn.addEventListener("click", () => {
       if (palette === "night" && !spec.night) return;
       const c = cols();
-      const panel = c["--bg-panel"];
-      const light = luminance(panel) > 0.4;
-      c["--accent-manual-dim"] = mixHex(panel, c["--accent-manual"], light ? 0.16 : 0.22);
-      c["--accent-auto-dim"] = mixHex(panel, c["--accent-auto"], light ? 0.16 : 0.22);
+      const panel2 = c["--bg-panel"];
+      const light = luminance(panel2) > 0.4;
+      c["--accent-manual-dim"] = mixHex(panel2, c["--accent-manual"], light ? 0.16 : 0.22);
+      c["--accent-auto-dim"] = mixHex(panel2, c["--accent-auto"], light ? 0.16 : 0.22);
       changed();
     });
     const fixAllBtn = document.createElement("button");
@@ -2906,7 +2915,7 @@
         spec.type.btnWeight = Number(id);
       }
     );
-    const capsField = field(secType, "Capitals", "Tracked out automatically");
+    const capsField = field2(secType, "Capitals", "Tracked out automatically");
     const capsWrap = document.createElement("div");
     capsWrap.className = "ts-toggles";
     capsField.appendChild(capsWrap);
@@ -3728,6 +3737,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     { id: "builtin-master-remove", field: ["masterRemoveTagInput"], button: "btnMasterRemoveFromSelected", mode: "both", label: "Master Tags: remove from selected" },
     { id: "builtin-cond-apply", field: ["condSourceTag", "condAddTag"], button: "btnCondApply", mode: "both", label: "Master Tags: conditional apply" },
     { id: "builtin-cond-apply-without", field: ["condWithoutSourceTag", "condWithoutAddTag"], button: "btnCondApplyWithout", mode: "both", label: "Master Tags: conditional apply (without)" },
+    { id: "builtin-cond-remove", field: ["condRemoveSourceTag", "condRemoveTag"], button: "btnCondRemove", mode: "both", label: "Master Tags: conditional remove" },
     { id: "builtin-mass-apply", field: ["massApplyInput"], button: "btnMassApply", mode: "both", label: "Master Tags: mass apply" },
     { id: "builtin-mass-remove", field: ["massRemoveInput"], button: "btnMassRemove", mode: "both", label: "Master Tags: mass remove" },
     { id: "builtin-purge", button: "btnPurgeAllTags", mode: "button", label: "Purge all tags" },
@@ -4047,14 +4057,28 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         ${isTouchDevice ? "" : `<li><b>Compact</b> \u2014 smaller thumbnails, tags appear on hover. Shift-click two images to
         pin them side by side in a comparison table.</li>
         <li><b>Single</b> \u2014 one image at a time: a compact preview (click it for the full-size
-        view \u2014 scroll to zoom, drag to pan) beside a roomy tag panel. Type a number into the
-        toolbar's "N / total" box and press Enter to jump straight to that image.</li>`}
+        view \u2014 scroll to zoom, drag to pan) beside a roomy tag panel, with the add-tag field under
+        the image. The toolbar folds away for room: Grid (and Wiki) sit above the image, and the
+        Prev / "N / total" / Next navigator sits above the tags. Type a number into the "N / total"
+        box and press Enter to jump straight to that image. <b>Image Quicktagging:</b> while it
+        shows one image, the left panel becomes checkboxes for common attributes (hair length,
+        breast size, slim/plump, thick thighs/slim legs, looking at viewer/away/to the side). Tick
+        to add, untick to remove; a breast size also adds <code>breasts</code> (Flat doesn't, and
+        with only Flat left ticked <code>breasts</code> is removed). Each category's <b>+</b> adds
+        your own quicktag (kept for every dataset), with optional rules: tags it also adds, which
+        of those stay after unticking, tags unticking also removes, and tags that untick it.
+        <b>+ Add category</b> adds a category.</li>
+        <li><b>\u{1F4D6} Wiki</b> (next to Asc/Desc) \u2014 a small window for looking up any tag's definition.
+        Type a tag, pick a suggestion, and its definition shows boxed above the field, with its
+        See also tags below (click one to open it). Drag it by its title; it stays open until you
+        close it.</li>`}
         <li><b>\u274C Disabled</b> \u2014 the images you've moved out of the active set.</li>
         ${isTouchDevice ? "" : `<li><b>\u{1F5BC} Originals</b> \u2014 the pre-bucketing originals kept by Bucket Images (see Power
         tools). Read-only here; Bucket Images' Revert is what moves them back.</li>`}
         <li><b>\u{1F522} Rename all</b> \u2014 renames every loaded image (+ its .txt) to a simple zero-padded
         1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
-        first; logged and undoable from the Log panel.</li>
+        first; logged and undoable from the Log panel. WebP images are converted to PNG on the way,
+        since WD14 can't read WebP (lossless; undo restores the names but they stay PNG).</li>
         <li><b>\u{1F513} Unlock all</b> \u2014 clears the lock on every locked image at once.</li>
         <li><b>Hide tags</b> \u2014 hides the chips and add-tag field on every card, so while you sort
         against a filter what's there and what's missing stays obvious. Tags stay editable through
@@ -4066,8 +4090,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       press Enter to add one (separate several with commas, e.g. "1girl, red eyes, plump", to add
       them all at once), or ${isTouchDevice ? "tap" : "click"} a chip's \xD7 to remove it.</p>
       <p><b>\u{1F3F7} Tag sorting</b> \u2014 in ${isTouchDevice ? "the image modal" : "Single view and the image modal"}, this pill above
-      the tags groups them into labelled categories (Character, Body, Face, Clothes, Limbs and
-      Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. With it off, tags still
+      the tags groups them into labelled categories (Character, Hair, Body, Face, Clothes, Limbs and
+      Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. Each category's
+      <b>+</b> adds tags right there; a tag that belongs to another category goes there instead,
+      and you're told. With it off, tags still
       follow that category order, just without headings (Settings \u25B8 "Sort tags within each card"
       offers Order added, Alphabetical or By frequency instead). The grouping is a best
       guess from Danbooru tag groups, so the odd tag lands in a neighbouring category. With it on,
@@ -4238,7 +4264,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       by selecting them in the main Gallery first (selection stays in sync either way). From there
       you can apply or remove a tag across the whole selection, conditionally apply one tag based
       on another already being present (or its own separate row for the inverse \u2014 based on it
-      being ABSENT), or run a dataset-wide rename or find-and-replace. The
+      being ABSENT), conditionally remove a tag from every image that has another, or run a
+      dataset-wide rename or find-and-replace. The
       Lock/Unlock and Merge Immunize/Antivoid/Antimmunize buttons here apply the same per-image
       flags described in the 3-dot menu section, but to your entire selection at once. <b>\u274C Delete
       selected permanently</b> removes every selected image and its tags from disk outright
@@ -4299,6 +4326,12 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         project's own GitHub repository \u2014 the <code>ComfyUI-dependencies</code> folder there has a
         README covering exactly what's needed and why.` : `see <code>ComfyUI-dependencies/README.md</code> in the app's own folder for exactly what
         and why.`}</p>
+      ${isTouchDevice ? "" : `<p><b>You don't have to keep ComfyUI running.</b> In the ComfyUI
+      connection section, set <b>Run on</b> to <b>Local ComfyUI (no server)</b> and choose your
+      ComfyUI folder once. Osmium then starts that install itself when you click Connect, in its
+      own console window, and loads only what this workflow needs, not your other custom nodes.
+      Use it instead of your usual ComfyUI, not alongside it. Reference interrogation then runs
+      on-device, so set Tag Overseer's WD14 Autotagger to On-device.</p>`}
       <template id="infoGlossaryCharacterLora2Content">
         <p>A <b>LoRA</b> (Low-Rank Adaptation) is a small add-on file trained on top of a base
         image-generation model to teach it something new without retraining the whole model.</p>
@@ -4435,7 +4468,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       theme's colour carrying its own version of the Osmium mark, trailing the theme's particles as
       it leaves. ${isTouchDevice ? "Tap" : "Click or press any key"} to speed it up, or turn it off
       with <b>Disable opening flourish</b> in Settings \u25B8 Appearance. With your system's "reduce
-      motion" setting on, it's a brief fade instead.</p>`
+      motion" setting on, it's a brief fade instead.</p>
+      ${isTouchDevice ? "" : `<p><b>App icon</b> (Settings \u25B8 Appearance): use the default Osmium icon
+      or any theme you own as the app's taskbar icon. It stays put when you switch themes.</p>`}`
     },
     {
       id: "favorites",
@@ -4600,10 +4635,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   var getEditLog = () => [];
   var refreshThemeDropdownLabel = () => {
   };
-  function initAchievements(deps2) {
-    getDirHandle = deps2.getDirHandle;
-    getEditLog = deps2.getEditLog;
-    refreshThemeDropdownLabel = deps2.refreshThemeDropdownLabel;
+  function initAchievements(deps3) {
+    getDirHandle = deps3.getDirHandle;
+    getEditLog = deps3.getEditLog;
+    refreshThemeDropdownLabel = deps3.refreshThemeDropdownLabel;
   }
   var RARITY_VALUE = { common: 10, uncommon: 25, rare: 60, epic: 120, legendary: 250 };
   var ACHIEVEMENTS = [
@@ -5181,12 +5216,12 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   function animateCountUp(el, target, duration = 600) {
     const start = 0;
     const startTime = performance.now();
-    function tick(now) {
+    function tick2(now) {
       const p = Math.min(1, (now - startTime) / duration);
       el.textContent = String(Math.round(start + (target - start) * p));
-      if (p < 1) requestAnimationFrame(tick);
+      if (p < 1) requestAnimationFrame(tick2);
     }
-    requestAnimationFrame(tick);
+    requestAnimationFrame(tick2);
   }
   function renderStatsTab() {
     const counts = computeStatsBreakdown();
@@ -5496,20 +5531,20 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     await moveEntryRef(e, shouldBeDisabled);
     renderLogPanel();
   }
-  function initEditLog(deps2) {
-    getDirHandle2 = deps2.getDirHandle;
-    getEntryByBase = deps2.getEntryByBase;
-    applyTagDirectionRef = deps2.applyTagDirection;
-    applyRenameDirectionRef = deps2.applyRenameDirection;
-    applyPixelDirectionRef = deps2.applyPixelDirection;
-    applyIsolateDirectionRef = deps2.applyIsolateDirection;
-    applyFlaggedReviewDirectionRef = deps2.applyFlaggedReviewDirection;
-    moveEntryRef = deps2.moveEntry;
-    trackStatRef = deps2.trackStat;
-    checkAchievementsRef = deps2.checkAchievements;
-    refreshAllUIRef = deps2.refreshAllUI;
-    getUndoStack = deps2.getUndoStack;
-    getRedoStack = deps2.getRedoStack;
+  function initEditLog(deps3) {
+    getDirHandle2 = deps3.getDirHandle;
+    getEntryByBase = deps3.getEntryByBase;
+    applyTagDirectionRef = deps3.applyTagDirection;
+    applyRenameDirectionRef = deps3.applyRenameDirection;
+    applyPixelDirectionRef = deps3.applyPixelDirection;
+    applyIsolateDirectionRef = deps3.applyIsolateDirection;
+    applyFlaggedReviewDirectionRef = deps3.applyFlaggedReviewDirection;
+    moveEntryRef = deps3.moveEntry;
+    trackStatRef = deps3.trackStat;
+    checkAchievementsRef = deps3.checkAchievements;
+    refreshAllUIRef = deps3.refreshAllUI;
+    getUndoStack = deps3.getUndoStack;
+    getRedoStack = deps3.getRedoStack;
     statsViewPie.addEventListener("click", () => {
       statsChartMode = "pie";
       statsViewPie.classList.add("active");
@@ -6073,13 +6108,13 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       for (const rule of mergeRules) canonicalTagsList.appendChild(buildRuleRow(rule));
     }
   }
-  function initCanonicalTags(deps2) {
-    getDirHandle3 = deps2.getDirHandle;
-    getEntries = deps2.getEntries;
-    markDirtyRef = deps2.markDirty;
-    refreshAllUIRef2 = deps2.refreshAllUI;
-    markRulesDirtyRef = deps2.markRulesDirty;
-    recordChangeRef = deps2.recordChange;
+  function initCanonicalTags(deps3) {
+    getDirHandle3 = deps3.getDirHandle;
+    getEntries = deps3.getEntries;
+    markDirtyRef = deps3.markDirty;
+    refreshAllUIRef2 = deps3.refreshAllUI;
+    markRulesDirtyRef = deps3.markRulesDirty;
+    recordChangeRef = deps3.recordChange;
     btnAddCanonicalRule.addEventListener("click", () => {
       const newRule = { id: nextRuleId(), canonical: "", children: [], ...newRuleDefaults() };
       canonicalRules.push(newRule);
@@ -6421,6 +6456,24 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     await dir.removeEntry(oldName);
     return newHandle;
   }
+  function isWebpName(name) {
+    return (name || "").toLowerCase().endsWith(".webp");
+  }
+  async function convertToPngInPlace(dir, oldName, newName) {
+    const oldHandle = await dir.getFileHandle(oldName, { create: false });
+    const bitmap = await createImageBitmap(await oldHandle.getFile());
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const png = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!png) throw new Error(`Could not convert ${oldName} to PNG.`);
+    const newHandle = await dir.getFileHandle(newName, { create: true });
+    await writeBytes(newHandle, png);
+    await dir.removeEntry(oldName);
+    return newHandle;
+  }
   async function renameAllEntriesSequentially() {
     const dirHandle = getDirHandle4();
     if (!dirHandle) {
@@ -6443,21 +6496,25 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     };
     const plan = ordered.map((entry, i) => {
       const newBase = String(i + 1).padStart(width, "0");
+      const oldImgName = entry.imgName || entry.base;
+      const toPng = isWebpName(oldImgName);
       return {
         entry,
         dir: entry.disabled ? disabledDirHandle : dirHandle,
         oldBase: entry.base,
-        oldImgName: entry.imgName || entry.base,
+        oldImgName,
         oldTxtName: entry.txtHandle ? entry.txtName || `${entry.base}.txt` : null,
         newBase,
-        newImgName: newBase + extOf(entry.imgName || entry.base),
-        newTxtName: entry.txtHandle ? `${newBase}.txt` : null
+        newImgName: newBase + (toPng ? ".png" : extOf(oldImgName)),
+        newTxtName: entry.txtHandle ? `${newBase}.txt` : null,
+        toPng
       };
     });
+    const converted = plan.filter((p) => p.toPng).length;
     try {
       for (let i = 0; i < plan.length; i++) {
         const p = plan[i];
-        p.entry.imgHandle = await renameFileInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__${extOf(p.oldImgName)}`);
+        p.entry.imgHandle = p.toPng ? await convertToPngInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__.png`) : await renameFileInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__${extOf(p.oldImgName)}`);
         if (p.entry.txtHandle && p.oldTxtName) {
           p.entry.txtHandle = await renameFileInPlace(p.dir, p.oldTxtName, `__dts_rename_tmp_${i}__.txt`);
         }
@@ -6475,18 +6532,21 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         affected.push({
           base: p.newBase,
           prevBase: p.oldBase,
-          prevImgName: p.oldImgName,
+          // A converted WebP undoes to its old name as a .png: the conversion
+          // itself is permanent, only the rename is undoable.
+          prevImgName: p.toPng ? `${p.oldBase}.png` : p.oldImgName,
           newImgName: p.newImgName,
           prevTxtName: p.oldTxtName || void 0,
           newTxtName: p.newTxtName || void 0
         });
       }
+      const convertedNote = converted ? ` ${converted} WebP image(s) converted to PNG.` : "";
       pushLogEntry({
         type: "rename-files",
-        summary: `Renamed ${affected.length} image(s) to a simple 1-${ordered.length} sequence.`,
+        summary: `Renamed ${affected.length} image(s) to a simple 1-${ordered.length} sequence.${convertedNote}`,
         affected
       });
-      toast(`Renamed ${affected.length} image(s).`, 3200);
+      toast(`Renamed ${affected.length} image(s).${convertedNote}`, 3600);
       resetSingleIndex();
       refreshAllUIRef3();
     } catch (err) {
@@ -6526,20 +6586,20 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     }
     return count;
   }
-  function initTagsEdit(deps2) {
-    getEntries2 = deps2.getEntries;
-    getEntryByBase2 = deps2.getEntryByBase;
-    getDirHandle4 = deps2.getDirHandle;
-    getDisabledDirHandle = deps2.getDisabledDirHandle;
-    setDisabledDirHandle = deps2.setDisabledDirHandle;
-    getOriginalDirHandle = deps2.getOriginalDirHandle;
-    reindexEntry = deps2.reindexEntry;
-    resetSingleIndex = deps2.resetSingleIndex;
-    refreshStatsRef = deps2.refreshStats;
-    refreshAllUIRef3 = deps2.refreshAllUI;
-    renderCurrentViewRef = deps2.renderCurrentView;
-    applyIsolateDirectionRef2 = deps2.applyIsolateDirection;
-    applyFlaggedReviewDirectionRef2 = deps2.applyFlaggedReviewDirection;
+  function initTagsEdit(deps3) {
+    getEntries2 = deps3.getEntries;
+    getEntryByBase2 = deps3.getEntryByBase;
+    getDirHandle4 = deps3.getDirHandle;
+    getDisabledDirHandle = deps3.getDisabledDirHandle;
+    setDisabledDirHandle = deps3.setDisabledDirHandle;
+    getOriginalDirHandle = deps3.getOriginalDirHandle;
+    reindexEntry = deps3.reindexEntry;
+    resetSingleIndex = deps3.resetSingleIndex;
+    refreshStatsRef = deps3.refreshStats;
+    refreshAllUIRef3 = deps3.refreshAllUI;
+    renderCurrentViewRef = deps3.renderCurrentView;
+    applyIsolateDirectionRef2 = deps3.applyIsolateDirection;
+    applyFlaggedReviewDirectionRef2 = deps3.applyFlaggedReviewDirection;
     btnUndo.addEventListener("click", async () => {
       const record = undoStack.pop();
       if (!record) return;
@@ -7032,13 +7092,13 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
   var ensureAllTagsLoadedRef = null;
   var addTagToEntryRef = null;
   var refreshRightPanelsRef = null;
-  function initTagAutocomplete(deps2) {
-    ensureWikiDataLoadedRef = deps2.ensureWikiDataLoaded;
-    getCustomTagNoteRef = deps2.getCustomTagNote;
-    setCustomTagNoteRef = deps2.setCustomTagNote;
-    ensureAllTagsLoadedRef = deps2.ensureAllTagsLoaded;
-    addTagToEntryRef = deps2.addTagToEntry;
-    refreshRightPanelsRef = deps2.refreshRightPanels;
+  function initTagAutocomplete(deps3) {
+    ensureWikiDataLoadedRef = deps3.ensureWikiDataLoaded;
+    getCustomTagNoteRef = deps3.getCustomTagNote;
+    setCustomTagNoteRef = deps3.setCustomTagNote;
+    ensureAllTagsLoadedRef = deps3.ensureAllTagsLoaded;
+    addTagToEntryRef = deps3.addTagToEntry;
+    refreshRightPanelsRef = deps3.refreshRightPanels;
   }
   function closeAutocomplete() {
     hideInlineDefinition();
@@ -7054,11 +7114,48 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     if (path.includes(autocompleteEl)) return;
     closeAutocomplete();
   }
-  function positionAutocomplete(rect) {
+  var acBelow = false;
+  var SIDE_PANEL_W = 280;
+  function sideAnchorOf(inputEl2) {
+    return inputEl2.closest(".confirm-box, .tag-wiki-window") || inputEl2;
+  }
+  function wireModalBlurClose(inputEl2) {
+    inputEl2.addEventListener("blur", () => {
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (active !== inputEl2 && !(autocompleteEl && active && autocompleteEl.contains(active))) closeAutocomplete();
+      }, 0);
+    });
+  }
+  function createPanel() {
+    const el = document.createElement("div");
+    el.className = "ac-panel";
+    el.addEventListener("mousedown", (e) => {
+      if (!e.target.closest("textarea, input, button")) e.preventDefault();
+    });
+    document.body.appendChild(el);
+    document.addEventListener("click", onDocClickCloseAutocomplete, true);
+    return el;
+  }
+  function positionAutocomplete(inputEl2) {
     if (!autocompleteEl) return;
+    const rect = inputEl2.getBoundingClientRect();
+    const a = sideAnchorOf(inputEl2).getBoundingClientRect();
+    const right = a.right + 8, left = a.left - SIDE_PANEL_W - 8;
+    const fitsRight = right + SIDE_PANEL_W <= window.innerWidth - 8;
+    const fitsLeft = left >= 8;
+    if (fitsRight || fitsLeft) {
+      autocompleteEl.classList.add("ac-panel-side");
+      autocompleteEl.style.width = SIDE_PANEL_W + "px";
+      autocompleteEl.style.left = (fitsRight ? right : left) + "px";
+      const top2 = Math.min(rect.top, window.innerHeight - autocompleteEl.offsetHeight - 8);
+      autocompleteEl.style.top = Math.max(8, top2) + "px";
+      return;
+    }
+    autocompleteEl.classList.remove("ac-panel-side");
     autocompleteEl.style.width = Math.max(220, rect.width) + "px";
     autocompleteEl.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - autocompleteEl.offsetWidth - 8)) + "px";
-    const top = rect.top - autocompleteEl.offsetHeight - 4;
+    const top = acBelow ? Math.min(rect.bottom + 4, window.innerHeight - autocompleteEl.offsetHeight - 8) : rect.top - autocompleteEl.offsetHeight - 4;
     autocompleteEl.style.top = Math.max(8, top) + "px";
   }
   var acDefinitionHost = null;
@@ -7197,52 +7294,69 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     requestAnimationFrame(() => card.classList.add("show"));
     populateAcFlashBody(body, tag);
   }
-  function attachTagAutocomplete(inputEl, getEntry, rerender) {
-    attachAutocompleteCore(inputEl, (tag) => {
+  function attachTagAutocomplete(inputEl2, getEntry, rerender) {
+    attachAutocompleteCore(inputEl2, (tag) => {
       const entry = getEntry();
       closeAutocomplete();
       if (!entry) return;
-      const cut = inputEl.value.lastIndexOf(",");
-      addTagToEntryRef(entry, cut === -1 ? tag : inputEl.value.slice(0, cut) + "," + tag);
-      inputEl.value = "";
+      const cut = inputEl2.value.lastIndexOf(",");
+      addTagToEntryRef(entry, cut === -1 ? tag : inputEl2.value.slice(0, cut) + "," + tag);
+      inputEl2.value = "";
       rerender();
       refreshRightPanelsRef();
     }, true);
   }
-  function attachFillAutocomplete(inputEl) {
-    attachAutocompleteCore(inputEl, (tag) => {
+  function attachFillAutocomplete(inputEl2) {
+    attachAutocompleteCore(inputEl2, (tag) => {
       closeAutocomplete();
-      inputEl.value = tag;
-      inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+      inputEl2.value = tag;
+      inputEl2.dispatchEvent(new Event("input", { bubbles: true }));
     });
   }
-  function queryOf(inputEl, segmented) {
-    const v = inputEl.value;
+  function staleField(inputEl2) {
+    return document.activeElement !== inputEl2;
+  }
+  function queryOf(inputEl2, segmented) {
+    const v = inputEl2.value;
     return (segmented ? v.slice(v.lastIndexOf(",") + 1) : v).trim();
   }
-  function attachAutocompleteCore(inputEl, onPick, segmented = false) {
+  function attachPickAutocomplete(inputEl2, onPick) {
+    attachAutocompleteCore(inputEl2, (tag) => {
+      closeAutocomplete();
+      const cut = inputEl2.value.lastIndexOf(",");
+      onPick(cut === -1 ? tag : inputEl2.value.slice(0, cut) + "," + tag);
+    }, true);
+  }
+  function attachLookupAutocomplete(inputEl2, onPick) {
+    attachAutocompleteCore(inputEl2, onPick, false, { always: true, below: true });
+  }
+  function attachAutocompleteCore(inputEl2, onPick, segmented = false, opts = {}) {
     let debounceTimer = null;
-    inputEl.addEventListener("input", () => {
+    inputEl2.addEventListener("input", () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      if (!tagAutocompleteEnabled) {
+      if (!tagAutocompleteEnabled && !opts.always) {
         closeAutocomplete();
         return;
       }
-      const raw = queryOf(inputEl, segmented);
+      const raw = queryOf(inputEl2, segmented);
       if (!raw) {
         closeAutocomplete();
         return;
       }
-      debounceTimer = setTimeout(() => runAutocompleteSearch(inputEl, onPick, raw, segmented), 150);
+      debounceTimer = setTimeout(() => {
+        acBelow = !!opts.below;
+        runAutocompleteSearch(inputEl2, onPick, raw, segmented);
+      }, 150);
     });
-    inputEl.addEventListener("keydown", (ev) => {
+    inputEl2.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape") closeAutocomplete();
     });
+    wireModalBlurClose(inputEl2);
   }
-  function runAutocompleteSearch(inputEl, onPick, query, segmented = false) {
-    if (queryOf(inputEl, segmented) !== query) return;
+  function runAutocompleteSearch(inputEl2, onPick, query, segmented = false) {
+    if (queryOf(inputEl2, segmented) !== query) return;
     ensureAllTagsLoadedRef().then((allTags) => {
-      if (queryOf(inputEl, segmented) !== query) return;
+      if (queryOf(inputEl2, segmented) !== query) return;
       const qNorm = query.toLowerCase().replace(/_/g, " ");
       const starts = [];
       const contains = [];
@@ -7255,16 +7369,12 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
         if (starts.length >= 30 || scanned >= 25e4) break;
       }
       const results = starts.concat(contains).slice(0, 25);
-      renderAutocompleteResults(inputEl, onPick, results);
+      renderAutocompleteResults(inputEl2, onPick, results);
     });
   }
-  function renderAutocompleteResults(inputEl, onPick, results) {
-    if (!autocompleteEl) {
-      autocompleteEl = document.createElement("div");
-      autocompleteEl.className = "ac-panel";
-      document.body.appendChild(autocompleteEl);
-      document.addEventListener("click", onDocClickCloseAutocomplete, true);
-    }
+  function renderAutocompleteResults(inputEl2, onPick, results) {
+    if (staleField(inputEl2)) return;
+    if (!autocompleteEl) autocompleteEl = createPanel();
     autocompleteEl.innerHTML = "";
     if (results.length === 0) {
       const empty = document.createElement("div");
@@ -7312,7 +7422,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       }
       autocompleteEl.appendChild(list);
     }
-    positionAutocomplete(inputEl.getBoundingClientRect());
+    positionAutocomplete(inputEl2);
   }
 
   // src/renderer/idb.ts
@@ -7482,10 +7592,10 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       toast("Could not reopen that folder \u2014 it may have been moved or deleted.", 3600);
     }
   }
-  function initFavorites(deps2) {
-    getDirHandle5 = deps2.getDirHandle;
-    openFolderHandle = deps2.openFolderHandle;
-    onFavoriteChanged = deps2.onFavoriteChanged || (() => {
+  function initFavorites(deps3) {
+    getDirHandle5 = deps3.getDirHandle;
+    openFolderHandle = deps3.openFolderHandle;
+    onFavoriteChanged = deps3.onFavoriteChanged || (() => {
     });
     btnFavorites.addEventListener("click", (ev) => {
       ev.stopPropagation();
@@ -8239,7 +8349,7 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
   }
   function downscaleToDataUrl(imgEl) {
     return new Promise((resolve, reject) => {
-      function draw2() {
+      function draw() {
         try {
           const canvas = document.createElement("canvas");
           const size = 120;
@@ -8255,8 +8365,8 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
           reject(err);
         }
       }
-      if (imgEl.complete && imgEl.naturalWidth) draw2();
-      else imgEl.addEventListener("load", draw2, { once: true });
+      if (imgEl.complete && imgEl.naturalWidth) draw();
+      else imgEl.addEventListener("load", draw, { once: true });
     });
   }
   function wireTileDrag(tile, record) {
@@ -8430,10 +8540,10 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     for (const record of sorted) dmGrid.appendChild(buildFolderTile(record));
     if (viewMode !== "list") dmGrid.appendChild(buildAddTile());
   }
-  function initDatasetManager(deps2) {
-    getDirHandle6 = deps2.getDirHandle;
-    openFolderHandle2 = deps2.openFolderHandle;
-    switchTab = deps2.switchTab;
+  function initDatasetManager(deps3) {
+    getDirHandle6 = deps3.getDirHandle;
+    openFolderHandle2 = deps3.openFolderHandle;
+    switchTab = deps3.switchTab;
     loadPrefs();
     loadGroups();
     dmGridBtn.addEventListener("click", () => {
@@ -8771,11 +8881,11 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
       await reload();
     }
   }
-  function initBucketImages(deps2) {
-    getDirHandle7 = deps2.getDirHandle;
-    getEntries3 = deps2.getEntries;
-    reload = deps2.reload;
-    saveAllDirty2 = deps2.saveAllDirty;
+  function initBucketImages(deps3) {
+    getDirHandle7 = deps3.getDirHandle;
+    getEntries3 = deps3.getEntries;
+    reload = deps3.reload;
+    saveAllDirty2 = deps3.saveAllDirty;
     const saved = getJSON(SETTINGS_KEY, null);
     if (saved && typeof saved.gpu === "boolean") bucketGpu.checked = saved.gpu;
     bucketGpu.addEventListener("change", () => setJSON(SETTINGS_KEY, { gpu: bucketGpu.checked }));
@@ -8933,17 +9043,17 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
   }
   var onStartSequentialRef = () => {
   };
-  function initMasterTagControl(deps2) {
-    getEntries4 = deps2.getEntries;
-    getEntryByBase3 = deps2.getEntryByBase;
-    filteredEntriesRef = deps2.filteredEntries;
-    renderCurrentViewRef2 = deps2.renderCurrentView;
-    refreshAllUIRef4 = deps2.refreshAllUI;
-    getEntryMeta = deps2.getEntryMeta;
-    saveEntryMetaRef = deps2.saveEntryMeta;
-    deleteEntriesPermanentlyRef = deps2.deleteEntriesPermanently;
-    disableEntriesRef = deps2.disableEntries;
-    onStartSequentialRef = deps2.onStartSequential;
+  function initMasterTagControl(deps3) {
+    getEntries4 = deps3.getEntries;
+    getEntryByBase3 = deps3.getEntryByBase;
+    filteredEntriesRef = deps3.filteredEntries;
+    renderCurrentViewRef2 = deps3.renderCurrentView;
+    refreshAllUIRef4 = deps3.refreshAllUI;
+    getEntryMeta = deps3.getEntryMeta;
+    saveEntryMetaRef = deps3.saveEntryMeta;
+    deleteEntriesPermanentlyRef = deps3.deleteEntriesPermanently;
+    disableEntriesRef = deps3.disableEntries;
+    onStartSequentialRef = deps3.onStartSequential;
     attachIconFallback(btnMasterSelectAll, "\u2611");
     attachIconFallback(btnMasterClearSelection, "\u2716");
     {
@@ -8970,6 +9080,8 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
       condAddTag,
       condWithoutSourceTag,
       condWithoutAddTag,
+      condRemoveSourceTag,
+      condRemoveTag,
       massApplyInput,
       massRemoveInput,
       masterRenameFrom
@@ -9252,6 +9364,32 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
         clearInputs: () => {
           condWithoutSourceTag.value = "";
           condWithoutAddTag.value = "";
+        }
+      });
+    });
+    btnCondRemove.addEventListener("click", () => {
+      const sourceTag = readTag(condRemoveSourceTag);
+      const removeTag = readTag(condRemoveTag);
+      if (!sourceTag || !removeTag) {
+        toast("Fill in both tags.");
+        return;
+      }
+      if (sourceTag === removeTag) {
+        toast("Those are the same tag \u2014 use Mass remove to take it off every image.");
+        return;
+      }
+      runMassTagOp({
+        entries: getEntries4(),
+        skip: (e) => e.disabled || !!e.meta?.locked || !e.tags.includes(sourceTag) || !e.tags.includes(removeTag),
+        apply: (e) => {
+          e.tags = e.tags.filter((t) => t !== removeTag);
+        },
+        logType: "remove-tag",
+        summary: (n) => `Removed "${removeTag}" from every image with "${sourceTag}" (${n} image(s)).`,
+        emptyMsg: `No images with "${sourceTag}" have "${removeTag}".`,
+        clearInputs: () => {
+          condRemoveSourceTag.value = "";
+          condRemoveTag.value = "";
         }
       });
     });
@@ -9754,13 +9892,13 @@ Content-Type: application/octet-stream\r
           if (ev.code !== 1e3) console.error("[synthdat] preview websocket closed:", ev.code, ev.reason);
         });
         await new Promise((resolve) => {
-          const timer2 = setTimeout(resolve, 3e3);
+          const timer = setTimeout(resolve, 3e3);
           ws.addEventListener("open", () => {
-            clearTimeout(timer2);
+            clearTimeout(timer);
             resolve();
           }, { once: true });
           ws.addEventListener("error", () => {
-            clearTimeout(timer2);
+            clearTimeout(timer);
             resolve();
           }, { once: true });
         });
@@ -10337,9 +10475,9 @@ Image: ${entry.imgName}`,
       wd14LocalCatalog.appendChild(row);
     }
   }
-  function initWd14Tagger(deps2) {
-    getEntries5 = deps2.getEntries;
-    refreshAllUIRef5 = deps2.refreshAllUI;
+  function initWd14Tagger(deps3) {
+    getEntries5 = deps3.getEntries;
+    refreshAllUIRef5 = deps3.refreshAllUI;
     loadSettings();
     applySettingsToUI();
     refreshModels(true);
@@ -10463,13 +10601,13 @@ Image: ${entry.imgName}`,
       search.focus();
     }));
   }
-  function attachPickerModal(inputEl, title, getOptions) {
-    inputEl.readOnly = true;
-    inputEl.addEventListener("click", () => {
-      openPickerModal(title, getOptions() || [], inputEl.value, (v) => {
-        inputEl.value = v;
-        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+  function attachPickerModal(inputEl2, title, getOptions) {
+    inputEl2.readOnly = true;
+    inputEl2.addEventListener("click", () => {
+      openPickerModal(title, getOptions() || [], inputEl2.value, (v) => {
+        inputEl2.value = v;
+        inputEl2.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl2.dispatchEvent(new Event("change", { bubbles: true }));
       });
     });
   }
@@ -10586,7 +10724,52 @@ Image: ${entry.imgName}`,
     return saved && typeof saved === "object" ? { ...defaults, ...saved } : defaults;
   }
   function getHost() {
-    return (synthDatHost.value || "").trim() || "http://127.0.0.1:8188";
+    return backend === "local" ? LOCAL_COMFY_HOST : (synthDatHost.value || "").trim() || "http://127.0.0.1:8188";
+  }
+  var LOCAL_COMFY_HOST = "local";
+  var BACKEND_KEY = "dts-synthdat-backend";
+  var hasLocalComfy = typeof window.electronAPI?.comfyLocalStatus === "function";
+  var backend = hasLocalComfy && getString(BACKEND_KEY) === "local" ? "local" : "server";
+  function applyBackendUI() {
+    synthDatServerFields.style.display = backend === "server" ? "" : "none";
+    synthDatLocalFields.style.display = backend === "local" ? "" : "none";
+    synthDatConnStatus.style.display = "none";
+    if (backend === "local") void refreshLocalStatus();
+  }
+  function showLocalStatus(folder, error) {
+    synthDatLocalFolder.textContent = folder || "Not set";
+    synthDatLocalFolder.title = folder;
+    if (error && folder) {
+      synthDatConnStatus.style.display = "block";
+      synthDatConnStatus.style.color = "";
+      synthDatConnStatus.textContent = error;
+    }
+  }
+  async function refreshLocalStatus() {
+    const s = await window.electronAPI.comfyLocalStatus();
+    showLocalStatus(s.folder, s.error);
+  }
+  async function pickLocalFolder() {
+    const s = await window.electronAPI.comfyLocalPickFolder();
+    synthDatConnStatus.style.display = "none";
+    showLocalStatus(s.folder, s.error);
+  }
+  async function wd14TagBytes(filename, bytes) {
+    const settings2 = getWd14Settings();
+    const onDevice = !!window.Wd14Local && (settings2.mode ?? "local") === "local";
+    if (onDevice) {
+      if (!settings2.localModel) return { ok: false, error: "No on-device WD14 model chosen \u2014 pick one in Tag Overseer's WD14 Autotagger section first." };
+      return window.Wd14Local.tagImage({
+        name: settings2.localModel,
+        imageBytes: bytes,
+        threshold: settings2.threshold,
+        characterThreshold: settings2.characterThreshold,
+        preferGpu: settings2.gpu !== false
+      });
+    }
+    if (backend === "local") return { ok: false, error: "Local ComfyUI doesn't run WD14. Set Tag Overseer's WD14 Autotagger to On-device to interrogate without a server." };
+    if (!settings2.model) return { ok: false, error: "No WD14 model configured \u2014 set one up in Tag Overseer's WD14 Autotagger section first." };
+    return window.electronAPI.wd14TagImage({ host: getHost(), filename, imageBytes: bytes, settings: settings2 });
   }
   var SETTINGS_FILE_NAME = "_dts_synthdat_settings.json";
   var saveTimer = null;
@@ -11378,13 +11561,8 @@ Image: ${entry.imgName}`,
   async function interrogateReference() {
     if (!refFile) return;
     setWd14ResultText("Interrogating\u2026");
-    const settings2 = getWd14Settings();
-    if (!settings2.model) {
-      setWd14ResultText("No WD14 model configured \u2014 set one up in Tag Overseer's WD14 Autotagger section first.");
-      return;
-    }
     const bytes = new Uint8Array(await refFile.arrayBuffer());
-    const res = await window.electronAPI.wd14TagImage({ host: getHost(), filename: refFilename, imageBytes: bytes, settings: settings2 });
+    const res = await wd14TagBytes(refFilename, bytes);
     if (!res.ok) {
       setWd14ResultText(res.error || "WD14 interrogation failed.");
       return;
@@ -11398,12 +11576,7 @@ Image: ${entry.imgName}`,
     if (!previewBytes || !pendingTagSnapshot) return;
     synthDatReinterrogateResult.style.display = "block";
     synthDatReinterrogateResult.textContent = "Interrogating output\u2026";
-    const settings2 = getWd14Settings();
-    if (!settings2.model) {
-      synthDatReinterrogateResult.textContent = "No WD14 model configured \u2014 set one up in Tag Overseer's WD14 Autotagger section first.";
-      return;
-    }
-    const res = await window.electronAPI.wd14TagImage({ host: getHost(), filename: pendingImgName || "output.png", imageBytes: previewBytes, settings: settings2 });
+    const res = await wd14TagBytes(pendingImgName || "output.png", previewBytes);
     if (!res.ok) {
       synthDatReinterrogateResult.textContent = res.error || "WD14 interrogation failed.";
       return;
@@ -11494,18 +11667,18 @@ Image: ${entry.imgName}`,
     const fieldByDest = { pose: synthDatPose, limbs: synthDatLimbs, scene: synthDatScene, sexual: synthDatSexual };
     const clearFirst = synthDatMigrateClearFirst.checked;
     if (clearFirst) {
-      for (const field of Object.values(fieldByDest)) {
-        field.value = "";
-        growTextarea(field);
+      for (const field2 of Object.values(fieldByDest)) {
+        field2.value = "";
+        growTextarea(field2);
       }
     }
     let total = 0;
     for (const dest of Object.keys(byDest)) {
       if (byDest[dest].length === 0) continue;
-      const field = fieldByDest[dest];
-      const existing = clearFirst ? [] : field.value.split(",").map((t) => t.trim()).filter(Boolean);
-      field.value = Array.from(/* @__PURE__ */ new Set([...existing, ...byDest[dest]])).join(", ");
-      growTextarea(field);
+      const field2 = fieldByDest[dest];
+      const existing = clearFirst ? [] : field2.value.split(",").map((t) => t.trim()).filter(Boolean);
+      field2.value = Array.from(/* @__PURE__ */ new Set([...existing, ...byDest[dest]])).join(", ");
+      growTextarea(field2);
       total += byDest[dest].length;
     }
     if (total === 0) {
@@ -11563,7 +11736,15 @@ Image: ${entry.imgName}`,
   async function testSynthdatConnection() {
     synthDatConnStatus.style.display = "block";
     synthDatConnStatus.style.color = "";
-    synthDatConnStatus.textContent = "Connecting\u2026";
+    if (backend === "local") {
+      synthDatConnStatus.textContent = "Starting local ComfyUI\u2026 its console window shows progress.";
+      const r = await window.electronAPI.comfyLocalConnect();
+      synthDatConnStatus.style.color = r.ok ? "var(--accent-ok, #3a9)" : "";
+      if (r.ok) setIconLabel(synthDatConnStatus, `\u2713 Local ComfyUI ${r.comfyVersion || ""} ready`);
+      else synthDatConnStatus.textContent = r.error || "Could not start local ComfyUI.";
+      if (r.ok) void refreshModelLists();
+      return;
+    }
     const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: "UNETLoader", inputName: "unet_name" });
     if (res.ok) {
       synthDatConnStatus.style.color = "var(--accent-ok, #3a9)";
@@ -12033,10 +12214,10 @@ Image: ${entry.imgName}`,
       if (img.naturalWidth > 0) showImageLightbox(img.src);
     });
   }
-  function initSynthDatOverseer(deps2) {
-    getDirHandle8 = deps2.getDirHandle;
-    addEntryFromNewFile = deps2.addEntryFromNewFile;
-    refreshAllUIRef6 = deps2.refreshAllUI;
+  function initSynthDatOverseer(deps3) {
+    getDirHandle8 = deps3.getDirHandle;
+    addEntryFromNewFile = deps3.addEntryFromNewFile;
+    refreshAllUIRef6 = deps3.refreshAllUI;
     loadTemplate();
     fillStaticOptions(synthDatSampler, SAMPLERS, "res_multistep");
     fillStaticOptions(synthDatScheduler, SCHEDULERS, "beta");
@@ -12144,6 +12325,20 @@ Image: ${entry.imgName}`,
     });
     btnSynthDatRefreshModels.addEventListener("click", refreshModelLists);
     btnSynthDatConnect.addEventListener("click", testSynthdatConnection);
+    if (hasLocalComfy) {
+      buildPersistentDropdown(synthDatBackendDropdown, [
+        { value: "server", label: "ComfyUI server" },
+        { value: "local", label: "Local ComfyUI (no server)" }
+      ], () => backend, (val) => {
+        backend = val === "local" ? "local" : "server";
+        setString(BACKEND_KEY, backend);
+        applyBackendUI();
+      });
+      btnSynthDatLocalFolder.addEventListener("click", () => void pickLocalFolder());
+      applyBackendUI();
+    } else {
+      synthDatBackendRow.style.display = "none";
+    }
     const datalistOptions = (el) => Array.from(el.options).map((o) => o.value);
     attachPickerModal(synthDatDiffModel, "Diffusion model", () => datalistOptions(synthDatUnetDatalist));
     attachPickerModal(synthDatClip, "CLIP / text encoder", () => datalistOptions(synthDatClipDatalist));
@@ -12157,8 +12352,205 @@ Image: ${entry.imgName}`,
     synthDatPickPass2.addEventListener("click", () => selectPass(2));
     btnSynthDatReinterrogateOutput.addEventListener("click", reinterrogateOutput);
     renderTagCard();
-    refreshModelLists();
+    if (backend !== "local") refreshModelLists();
     initSynthDatSectionDocks(synthDatCol1);
+  }
+
+  // src/renderer/tag-wiki.ts
+  var POS_KEY = "dts-tag-wiki-pos";
+  var CATEGORY_NAMES2 = { 0: "General", 1: "Artist", 3: "Copyright", 4: "Character", 5: "Meta" };
+  var win = null;
+  var bodyEl;
+  var inputEl;
+  function clampIntoView() {
+    if (!win) return;
+    const r = win.getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8));
+    const top = Math.max(8, Math.min(r.top, window.innerHeight - 60));
+    win.style.left = left + "px";
+    win.style.top = top + "px";
+  }
+  function attachDrag(handle) {
+    handle.addEventListener("pointerdown", (ev) => {
+      if (ev.target.closest("button")) return;
+      const r = win.getBoundingClientRect();
+      const dx = ev.clientX - r.left, dy = ev.clientY - r.top;
+      handle.setPointerCapture(ev.pointerId);
+      const move = (e) => {
+        win.style.left = e.clientX - dx + "px";
+        win.style.top = e.clientY - dy + "px";
+      };
+      const up = () => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        clampIntoView();
+        const rr = win.getBoundingClientRect();
+        setJSON(POS_KEY, { left: rr.left, top: rr.top });
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+    });
+  }
+  var SECTION_AFTER_SEE_ALSO = /^(external links|trivia|notes?|examples?|history|usage|names?|sources?)$/i;
+  function splitSeeAlso(text) {
+    const blocks = text.split(/\n\s*\n/);
+    const at = blocks.findIndex((b) => /^see also:?$/i.test(b.trim()));
+    if (at === -1) return { main: text.trim(), seeAlso: [] };
+    let end = at + 1;
+    const items = [];
+    while (end < blocks.length && !SECTION_AFTER_SEE_ALSO.test(blocks[end].trim().split("\n")[0])) {
+      for (const line of blocks[end].split("\n")) if (line.trim()) items.push(line.trim());
+      end++;
+    }
+    const main = [...blocks.slice(0, at), ...blocks.slice(end)].join("\n\n").trim();
+    return { main, seeAlso: items };
+  }
+  async function showTag(raw) {
+    const tag = raw.trim().replace(/_/g, " ");
+    if (!tag) return;
+    closeAutocomplete();
+    bodyEl.innerHTML = "";
+    const title = document.createElement("div");
+    title.className = "tag-wiki-tag";
+    title.textContent = tag;
+    bodyEl.appendChild(title);
+    const loading = document.createElement("div");
+    loading.className = "stats-empty";
+    loading.textContent = "Loading\u2026";
+    bodyEl.appendChild(loading);
+    const key = tag.replace(/ /g, "_");
+    const [wiki, allTags] = await Promise.all([ensureWikiDataLoaded(), ensureAllTagsLoaded()]);
+    loading.remove();
+    const meta = allTags.get(key);
+    if (meta) {
+      const metaRow = document.createElement("div");
+      metaRow.className = "tag-details-meta";
+      const cat = document.createElement("span");
+      cat.textContent = CATEGORY_NAMES2[meta.category] || "Unknown";
+      const posts = document.createElement("span");
+      posts.textContent = `${meta.count.toLocaleString()} posts`;
+      metaRow.append(cat, posts);
+      bodyEl.appendChild(metaRow);
+    }
+    const def = wiki[key];
+    const custom = def ? "" : getCustomTagNote(tag);
+    const { main, seeAlso } = splitSeeAlso(def || custom || "");
+    const defEl = document.createElement("div");
+    defEl.className = "tag-details-def tag-wiki-def" + (def || custom ? "" : " greyed");
+    defEl.textContent = main || (meta ? "No official wiki entry for this tag." : "Not a known tag, and no wiki entry.");
+    bodyEl.appendChild(defEl);
+    if (seeAlso.length) {
+      const rel = document.createElement("div");
+      rel.className = "tag-wiki-seealso";
+      const head = document.createElement("div");
+      head.className = "tag-wiki-seealso-head";
+      head.textContent = "See also";
+      rel.appendChild(head);
+      const list = document.createElement("div");
+      list.className = "tag-wiki-seealso-list";
+      for (const item of seeAlso) {
+        const known = wiki[item.replace(/ /g, "_")] !== void 0 || allTags.has(item.replace(/ /g, "_"));
+        const el = document.createElement(known ? "button" : "span");
+        el.className = known ? "tag-wiki-link" : "tag-wiki-plain";
+        el.textContent = item;
+        if (known) {
+          el.type = "button";
+          el.addEventListener("click", () => {
+            inputEl.value = item;
+            void showTag(item);
+          });
+        }
+        list.appendChild(el);
+      }
+      rel.appendChild(list);
+      bodyEl.appendChild(rel);
+    }
+    if (!def) {
+      const ta = document.createElement("textarea");
+      ta.placeholder = "Write your own description (saved on this computer)\u2026";
+      ta.value = custom;
+      ta.rows = 3;
+      const save = document.createElement("button");
+      save.className = "primary";
+      save.textContent = "Save description";
+      save.addEventListener("click", () => {
+        setCustomTagNote(tag, ta.value);
+        toast(`Saved your description for "${tag}".`);
+        void showTag(tag);
+      });
+      bodyEl.append(ta, save);
+    }
+  }
+  function build() {
+    const el = document.createElement("div");
+    el.className = "tag-wiki-window";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-label", "Tag wiki");
+    const head = document.createElement("div");
+    head.className = "tag-wiki-head";
+    const title = document.createElement("span");
+    title.className = "theme-panel-head";
+    setIconLabel(title, "Tag wiki");
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "tag-wiki-close";
+    close.title = "Close";
+    close.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg>';
+    close.addEventListener("click", closeTagWiki);
+    head.append(title, close);
+    bodyEl = document.createElement("div");
+    bodyEl.className = "tag-wiki-body tag-details-body";
+    const hint = document.createElement("div");
+    hint.className = "tag-details-def greyed";
+    hint.textContent = "Type a tag below to read its definition.";
+    bodyEl.appendChild(hint);
+    inputEl = document.createElement("input");
+    inputEl.type = "text";
+    inputEl.className = "tag-wiki-input";
+    inputEl.placeholder = "Look up a tag\u2026";
+    inputEl.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && inputEl.value.trim()) {
+        void showTag(inputEl.value);
+      }
+    });
+    attachLookupAutocomplete(inputEl, (tag) => {
+      inputEl.value = tag;
+      void showTag(tag);
+    });
+    el.append(head, bodyEl, inputEl);
+    attachDrag(head);
+    return el;
+  }
+  function openTagWiki() {
+    if (win) {
+      inputEl.focus();
+      return;
+    }
+    win = build();
+    document.body.appendChild(win);
+    const pos = getJSON(POS_KEY, null);
+    if (pos) {
+      win.style.left = pos.left + "px";
+      win.style.top = pos.top + "px";
+    } else {
+      win.style.left = Math.max(8, window.innerWidth - win.offsetWidth - 24) + "px";
+      win.style.top = "96px";
+    }
+    clampIntoView();
+    requestAnimationFrame(() => requestAnimationFrame(() => win?.classList.add("panel-visible")));
+    inputEl.focus();
+  }
+  function closeTagWiki() {
+    if (!win) return;
+    const el = win;
+    win = null;
+    closeAutocomplete();
+    el.classList.remove("panel-visible");
+    setTimeout(() => el.remove(), 160);
+  }
+  function initTagWiki(button) {
+    button.addEventListener("click", () => win ? closeTagWiki() : openTagWiki());
+    window.addEventListener("resize", clampIntoView);
   }
 
   // src/renderer/tag-index.ts
@@ -12519,16 +12911,16 @@ Image: ${entry.imgName}`,
     resetSingleIndex2();
     renderCurrentViewRef3();
   }
-  function initTagIndex(deps2) {
-    getEntries6 = deps2.getEntries;
-    getGalleryFilter = deps2.getGalleryFilter;
-    getGallerySortMode = deps2.getGallerySortMode;
-    getGallerySortDir = deps2.getGallerySortDir;
-    resetSingleIndex2 = deps2.resetSingleIndex;
-    renderCurrentViewRef3 = deps2.renderCurrentView;
-    refreshFilterModeUI = deps2.refreshFilterModeUI;
-    isFilterModeLocked = deps2.isFilterModeLocked;
-    markTagReviewedRef = deps2.markTagReviewed;
+  function initTagIndex(deps3) {
+    getEntries6 = deps3.getEntries;
+    getGalleryFilter = deps3.getGalleryFilter;
+    getGallerySortMode = deps3.getGallerySortMode;
+    getGallerySortDir = deps3.getGallerySortDir;
+    resetSingleIndex2 = deps3.resetSingleIndex;
+    renderCurrentViewRef3 = deps3.renderCurrentView;
+    refreshFilterModeUI = deps3.refreshFilterModeUI;
+    isFilterModeLocked = deps3.isFilterModeLocked;
+    markTagReviewedRef = deps3.markTagReviewed;
     leftSortDirBtn.addEventListener("click", () => {
       leftSortDir = leftSortDir === "asc" ? "desc" : "asc";
       setIconLabel(leftSortDirBtn, leftSortDir === "asc" ? "\u25B2" : "\u25BC");
@@ -12616,8 +13008,320 @@ Image: ${entry.imgName}`,
     });
   }
 
+  // src/renderer/quick-tag.ts
+  var STORE_KEY = "dts-quicktags";
+  var sized = (label, tag) => ({ label, tag, adds: ["breasts"], keep: ["breasts"] });
+  var BUILTIN_GROUPS = [
+    { id: "hair-length", label: "Hair length", items: [{ label: "Short", tag: "short hair" }, { label: "Medium", tag: "medium hair" }, { label: "Long", tag: "long hair" }] },
+    { id: "breast-size", label: "Breast size", items: [{ label: "Flat", tag: "flat chest" }, sized("Small", "small breasts"), sized("Medium", "medium breasts"), sized("Large", "large breasts"), sized("Gigantic", "gigantic breasts")] },
+    { id: "build", label: "Build", items: [{ label: "Slim", tag: "slim" }, { label: "Plump", tag: "plump" }] },
+    { id: "legs", label: "Legs", items: [{ label: "Thick thighs", tag: "thick thighs" }, { label: "Slim legs", tag: "slim legs" }] },
+    { id: "gaze", label: "Gaze", items: [{ label: "Looking at viewer", tag: "looking at viewer" }, { label: "Looking away", tag: "looking away" }, { label: "Looking to the side", tag: "looking to the side" }] }
+  ];
+  var BREAST_SIZES = ["small breasts", "medium breasts", "large breasts", "gigantic breasts"];
+  var deps2 = null;
+  var panel = null;
+  var currentEntry = null;
+  function normTag(t) {
+    return t.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+  }
+  function normList(s) {
+    return Array.from(new Set(s.split(",").map(normTag).filter(Boolean)));
+  }
+  function loadStore() {
+    const s = getJSON(STORE_KEY, null);
+    return { groups: Array.isArray(s?.groups) ? s.groups : [], extra: s?.extra && typeof s.extra === "object" ? s.extra : {} };
+  }
+  function saveStore(s) {
+    setJSON(STORE_KEY, s);
+  }
+  function allGroups() {
+    const store = loadStore();
+    return [
+      ...BUILTIN_GROUPS.map((g) => ({ ...g, items: [...g.items, ...store.extra[g.id] || []] })),
+      ...store.groups.map((g) => ({ ...g, custom: true }))
+    ];
+  }
+  function isCustomItem(groupId, def) {
+    return !BUILTIN_GROUPS.some((g) => g.id === groupId && g.items.includes(def));
+  }
+  function allItems() {
+    return allGroups().flatMap((g) => g.items);
+  }
+  function tick(entry, def) {
+    deps2.addTagToEntry(entry, [def.tag, ...def.adds || []].join(","));
+    for (const other of allItems()) {
+      if (other !== def && other.untickedBy?.includes(def.tag) && entry.tags.includes(other.tag)) untick(entry, other);
+    }
+  }
+  function untick(entry, def) {
+    deps2.removeTagFromEntry(entry, def.tag);
+    const stillTicked = allItems().filter((o) => o !== def && entry.tags.includes(o.tag));
+    for (const t of def.adds || []) {
+      if (def.keep?.includes(t)) continue;
+      if (stillTicked.some((o) => o.adds?.includes(t))) continue;
+      if (entry.tags.includes(t)) deps2.removeTagFromEntry(entry, t);
+    }
+    for (const t of def.untickRemoves || []) if (entry.tags.includes(t)) deps2.removeTagFromEntry(entry, t);
+  }
+  function applyBuiltinRules(entry) {
+    const sizes = BREAST_SIZES.some((t) => entry.tags.includes(t));
+    if (!sizes && entry.tags.includes("flat chest") && entry.tags.includes("breasts")) deps2.removeTagFromEntry(entry, "breasts");
+  }
+  function field(box, label, hint, value, placeholder, list) {
+    const wrap = document.createElement("label");
+    wrap.className = "quicktag-edit-field";
+    const l = document.createElement("span");
+    l.className = "quicktag-edit-label";
+    l.textContent = label;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = value;
+    input.placeholder = placeholder;
+    input.addEventListener("keydown", (e) => e.stopPropagation());
+    if (list) attachPickAutocomplete(input, (v) => {
+      input.value = v + ", ";
+      input.focus();
+    });
+    else attachFillAutocomplete(input);
+    wrap.append(l, input);
+    if (hint) {
+      const h = document.createElement("span");
+      h.className = "quicktag-edit-hint";
+      h.textContent = hint;
+      wrap.appendChild(h);
+    }
+    box.appendChild(wrap);
+    return input;
+  }
+  function openEditor(groupLabel, existing) {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (v) => {
+        if (!done) {
+          done = true;
+          resolve(v);
+        }
+        close();
+      };
+      const { box, close } = createModalShell({ boxClassName: "quicktag-edit-box", onDismiss: () => finish(null) });
+      const title = document.createElement("div");
+      title.className = "confirm-message";
+      title.textContent = `${existing ? "Edit" : "New"} quicktag in ${groupLabel}`;
+      box.appendChild(title);
+      const tag = field(box, "Quicktag", "The tag ticking this box writes.", existing?.tag || "", "e.g. very long hair", false);
+      const label = field(box, "Checkbox label (optional)", "What the box says; blank shows the tag.", existing?.label || "", "e.g. Very long", false);
+      const adds = field(box, "Ticking also adds", "Extra tags written with it (commas for several).", (existing?.adds || []).join(", "), "e.g. long hair", true);
+      const keep = field(box, "Keep after unticking", "Which of those extra tags stay when this is unticked (the rest are removed with it).", (existing?.keep || []).join(", "), "e.g. long hair", true);
+      const untickRemoves = field(box, "Unticking also removes", "Other tags taken off when this is unticked.", (existing?.untickRemoves || []).join(", "), "", true);
+      const untickedBy = field(box, "Unticked by", "Ticking any of these tags unticks this quicktag.", (existing?.untickedBy || []).join(", "), "e.g. short hair", true);
+      const row = document.createElement("div");
+      row.className = "confirm-btn-row";
+      const cancel = document.createElement("button");
+      cancel.textContent = "Cancel";
+      cancel.addEventListener("click", () => finish(null));
+      const save = document.createElement("button");
+      save.className = "primary";
+      save.textContent = existing ? "Save" : "Add quicktag";
+      save.addEventListener("click", () => {
+        const t = normTag(tag.value);
+        if (!t) {
+          toast("Enter the quicktag (the tag it writes).");
+          tag.focus();
+          return;
+        }
+        const addList = normList(adds.value).filter((x) => x !== t);
+        const keepList = normList(keep.value);
+        const notAdded = keepList.filter((x) => !addList.includes(x));
+        if (notAdded.length) {
+          toast(`"Keep after unticking" can only list tags from "Ticking also adds" (${notAdded.join(", ")} isn't there).`, 4200);
+          keep.focus();
+          return;
+        }
+        const def = { tag: t };
+        if (normTag(label.value)) def.label = label.value.trim();
+        if (addList.length) def.adds = addList;
+        if (keepList.length) def.keep = keepList;
+        const ur = normList(untickRemoves.value).filter((x) => x !== t);
+        if (ur.length) def.untickRemoves = ur;
+        const ub = normList(untickedBy.value).filter((x) => x !== t);
+        if (ub.length) def.untickedBy = ub;
+        finish(def);
+      });
+      row.append(cancel, save);
+      box.appendChild(row);
+      requestAnimationFrame(() => tag.focus());
+    });
+  }
+  async function addQuickTag(group) {
+    const def = await openEditor(group.label, null);
+    if (!def) return;
+    const store = loadStore();
+    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] ||= [];
+    if (group.items.some((d) => d.tag === def.tag)) {
+      toast(`"${def.tag}" is already a quicktag in ${group.label}.`);
+      return;
+    }
+    list.push(def);
+    saveStore(store);
+    refresh();
+  }
+  async function editQuickTag(group, def) {
+    const next = await openEditor(group.label, def);
+    if (!next) return;
+    const store = loadStore();
+    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] || [];
+    const i = list.findIndex((d) => d.tag === def.tag);
+    if (i === -1) return;
+    list[i] = next;
+    saveStore(store);
+    refresh();
+  }
+  async function deleteQuickTag(group, def) {
+    const ok = await showConfirmModal(`Delete the quicktag "${def.label || def.tag}"? Tags already on images stay.`, { okLabel: "Delete", danger: true });
+    if (!ok) return;
+    const store = loadStore();
+    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] || [];
+    const i = list.findIndex((d) => d.tag === def.tag);
+    if (i !== -1) list.splice(i, 1);
+    saveStore(store);
+    refresh();
+  }
+  async function addCategory() {
+    const name = (await showPromptModal("Name the new quicktag category:", { placeholder: "e.g. Eye colour", okLabel: "Add category" }))?.trim();
+    if (!name) return;
+    if (allGroups().some((g) => g.label.toLowerCase() === name.toLowerCase())) {
+      toast(`There's already a "${name}" category.`);
+      return;
+    }
+    const store = loadStore();
+    store.groups.push({ id: "custom-" + Date.now().toString(36), label: name, items: [] });
+    saveStore(store);
+    refresh();
+  }
+  async function deleteCategory(group) {
+    const ok = await showConfirmModal(
+      group.items.length ? `Delete the category "${group.label}" and its ${group.items.length} quicktag(s)? Tags already on images stay.` : `Delete the category "${group.label}"?`,
+      { okLabel: "Delete", danger: true }
+    );
+    if (!ok) return;
+    const store = loadStore();
+    store.groups = store.groups.filter((g) => g.id !== group.id);
+    saveStore(store);
+    refresh();
+  }
+  function refresh() {
+    if (currentEntry) showQuickTag(currentEntry);
+  }
+  function smallButton(text, title, onClick, cls = "") {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "quicktag-mini" + (cls ? " " + cls : "");
+    b.textContent = text;
+    b.title = title;
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick();
+    });
+    return b;
+  }
+  function initQuickTag(d) {
+    deps2 = d;
+    panel = document.createElement("div");
+    panel.id = "quickTagPanel";
+    panel.className = "quicktag-panel";
+    deps2.leftPanel.appendChild(panel);
+  }
+  function showQuickTag(entry) {
+    if (!deps2 || !panel) return;
+    currentEntry = entry;
+    deps2.leftPanel.classList.add("quicktag-on");
+    panel.innerHTML = "";
+    const title = document.createElement("h3");
+    title.className = "panel-title";
+    title.textContent = "IMAGE QUICKTAGGING";
+    panel.appendChild(title);
+    const note = document.createElement("div");
+    note.className = "quicktag-note";
+    note.textContent = "Tick to add the tag to this image, untick to remove it. + adds your own.";
+    panel.appendChild(note);
+    const has = new Set(entry.tags);
+    for (const group of allGroups()) {
+      const block = document.createElement("div");
+      block.className = "quicktag-group";
+      const head = document.createElement("div");
+      head.className = "quicktag-group-head";
+      const name = document.createElement("span");
+      name.textContent = group.label;
+      head.appendChild(name);
+      const actions = document.createElement("span");
+      actions.className = "quicktag-head-actions";
+      actions.appendChild(smallButton("+", `Add a quicktag to ${group.label}`, () => void addQuickTag(group)));
+      if (group.custom) actions.appendChild(smallButton("\xD7", `Delete the ${group.label} category`, () => void deleteCategory(group), "quicktag-del"));
+      head.appendChild(actions);
+      block.appendChild(head);
+      const row = document.createElement("div");
+      row.className = "quicktag-options";
+      if (!group.items.length) {
+        const empty = document.createElement("div");
+        empty.className = "quicktag-note";
+        empty.textContent = "No quicktags yet \u2014 use +.";
+        row.appendChild(empty);
+      }
+      for (const def of group.items) {
+        const line = document.createElement("div");
+        line.className = "quicktag-line";
+        const opt = document.createElement("label");
+        opt.className = "ach-toggle-row quicktag-option";
+        opt.title = describe(def);
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = has.has(def.tag);
+        cb.addEventListener("change", () => {
+          if (cb.checked) tick(entry, def);
+          else untick(entry, def);
+          applyBuiltinRules(entry);
+          deps2.onChange();
+        });
+        const span = document.createElement("span");
+        span.textContent = def.label || def.tag;
+        opt.append(cb, span);
+        line.appendChild(opt);
+        if (isCustomItem(group.id, def)) {
+          const tools = document.createElement("span");
+          tools.className = "quicktag-item-actions";
+          tools.appendChild(smallButton("\u270E", "Edit this quicktag", () => void editQuickTag(group, def)));
+          tools.appendChild(smallButton("\xD7", "Delete this quicktag", () => void deleteQuickTag(group, def), "quicktag-del"));
+          line.appendChild(tools);
+        }
+        row.appendChild(line);
+      }
+      block.appendChild(row);
+      panel.appendChild(block);
+    }
+    const addCat = document.createElement("button");
+    addCat.type = "button";
+    addCat.className = "quicktag-add-category";
+    addCat.textContent = "+ Add category";
+    addCat.addEventListener("click", () => void addCategory());
+    panel.appendChild(addCat);
+  }
+  function describe(def) {
+    const parts = [`Writes "${def.tag}"`];
+    if (def.adds?.length) parts.push(`also adds ${def.adds.join(", ")}`);
+    if (def.keep?.length) parts.push(`keeps ${def.keep.join(", ")} after unticking`);
+    if (def.untickRemoves?.length) parts.push(`unticking also removes ${def.untickRemoves.join(", ")}`);
+    if (def.untickedBy?.length) parts.push(`unticked by ${def.untickedBy.join(", ")}`);
+    return parts.join("; ");
+  }
+  function hideQuickTag() {
+    if (!deps2) return;
+    deps2.leftPanel.classList.remove("quicktag-on");
+  }
+
   // src/renderer/tag-categories-data.ts
-  var TAG_CATEGORY_ORDER = ["character", "body", "face", "clothes", "limbs", "sexual", "pose", "scene", "effects", "other"];
+  var TAG_CATEGORY_ORDER = ["character", "hair", "body", "face", "clothes", "limbs", "sexual", "pose", "scene", "effects", "other"];
   var TAG_CATEGORY_SEEDS = {
     ";)": "face",
     ";<": "face",
@@ -12748,7 +13452,7 @@ Image: ${entry.imgName}`,
     "absolutely everyone": "character",
     "abstract": "scene",
     "abstract background": "scene",
-    "absurdly long hair": "body",
+    "absurdly long hair": "hair",
     "abu simbel": "scene",
     "aburaage": "scene",
     "abyaa face": "face",
@@ -12766,7 +13470,7 @@ Image: ${entry.imgName}`,
     "adjusting collar": "clothes",
     "adjusting eyewear": "limbs",
     "adjusting gloves": "clothes",
-    "adjusting hair": "body",
+    "adjusting hair": "hair",
     "adjusting headwear": "clothes",
     "adjusting legwear": "clothes",
     "adjusting mask": "clothes",
@@ -12787,7 +13491,7 @@ Image: ${entry.imgName}`,
     "affogato": "scene",
     "afghanistan": "scene",
     "african clothes": "clothes",
-    "afro": "body",
+    "afro": "hair",
     "afrofuturism": "effects",
     "after anal": "sexual",
     "after buttjob": "sexual",
@@ -12819,7 +13523,7 @@ Image: ${entry.imgName}`,
     "agejo gyaru": "clothes",
     "ahegao": "sexual",
     "ahiru no sora": "pose",
-    "ahoge": "body",
+    "ahoge": "hair",
     "ai-generated": "scene",
     "ai-generated background": "scene",
     "aichi prefecture": "scene",
@@ -12873,7 +13577,7 @@ Image: ${entry.imgName}`,
     "alternate element": "effects",
     "alternate eye color": "effects",
     "alternate eyewear": "clothes",
-    "alternate hair color": "body",
+    "alternate hair color": "hair",
     "alternate hair length (longer)": "effects",
     "alternate hair length (shorter)": "effects",
     "alternate hairstyle": "body",
@@ -12981,7 +13685,7 @@ Image: ${entry.imgName}`,
     "anniversary": "scene",
     "annoyed": "face",
     "anpan": "scene",
-    "antenna hair": "body",
+    "antenna hair": "hair",
     "anthurium": "scene",
     "anti-eyebrow piercing": "face",
     "anus": "body",
@@ -13022,7 +13726,7 @@ Image: ${entry.imgName}`,
     "aqua eyes": "face",
     "aqua eyeshadow": "clothes",
     "aqua gloves": "clothes",
-    "aqua hair": "body",
+    "aqua hair": "hair",
     "aqua hat": "clothes",
     "aqua lips": "clothes",
     "aqua mask": "clothes",
@@ -13049,7 +13753,7 @@ Image: ${entry.imgName}`,
     "arc de triomphe": "scene",
     "arcade": "scene",
     "arched back": "pose",
-    "arched bangs": "body",
+    "arched bangs": "hair",
     "arched soles": "body",
     "archer pose": "pose",
     "archery dojo": "scene",
@@ -13113,7 +13817,7 @@ Image: ${entry.imgName}`,
     "arms bound apart": "sexual",
     "arms up": "pose",
     "aroused": "face",
-    "arrow through hair": "body",
+    "arrow through hair": "hair",
     "arsenal fc": "pose",
     "arson": "scene",
     "art deco": "scene",
@@ -13152,13 +13856,13 @@ Image: ${entry.imgName}`,
     "assless swimsuit": "clothes",
     "asteroid": "scene",
     "aston villa": "pose",
-    "asymmetrical bangs": "body",
+    "asymmetrical bangs": "hair",
     "asymmetrical breasts": "body",
     "asymmetrical docking": "pose",
     "asymmetrical eyes": "face",
-    "asymmetrical hair": "body",
+    "asymmetrical hair": "hair",
     "asymmetrical mask": "clothes",
-    "asymmetrical sidelocks": "body",
+    "asymmetrical sidelocks": "hair",
     "asymmetrical wings": "body",
     "atami (shizuoka)": "scene",
     "atlanta (city)": "scene",
@@ -13246,9 +13950,9 @@ Image: ${entry.imgName}`,
     "baku (azerbaijan)": "scene",
     "balaclava": "clothes",
     "balancing": "pose",
-    "bald": "body",
-    "bald female": "body",
-    "balding": "body",
+    "bald": "hair",
+    "bald female": "hair",
+    "balding": "hair",
     "ball": "pose",
     "ball bra": "clothes",
     "ball busting": "sexual",
@@ -13296,7 +14000,7 @@ Image: ${entry.imgName}`,
     "bangladesh": "scene",
     "bangladeshi clothes": "clothes",
     "bangle": "clothes",
-    "bangs pinned back": "body",
+    "bangs pinned back": "hair",
     "bank of china tower": "scene",
     "banoffee pie": "scene",
     "bantu knots": "body",
@@ -13455,7 +14159,7 @@ Image: ${entry.imgName}`,
     "bicycle helmet": "clothes",
     "big belly": "sexual",
     "big eyes": "face",
-    "big hair": "body",
+    "big hair": "hair",
     "bike shorts": "clothes",
     "biker clothes": "clothes",
     "bikesuit": "clothes",
@@ -13504,7 +14208,7 @@ Image: ${entry.imgName}`,
     "biting ear": "pose",
     "biting foreskin": "pose",
     "biting glove": "pose",
-    "biting hair": "body",
+    "biting hair": "hair",
     "biting head": "pose",
     "biting neck": "clothes",
     "biting nipple": "body",
@@ -13524,7 +14228,7 @@ Image: ${entry.imgName}`,
     "black fire": "scene",
     "black forest cake": "scene",
     "black gloves": "clothes",
-    "black hair": "body",
+    "black hair": "hair",
     "black hat": "clothes",
     "black lips": "clothes",
     "black lotus": "scene",
@@ -13557,9 +14261,9 @@ Image: ${entry.imgName}`,
     "blingee": "effects",
     "blinking": "pose",
     "blocking": "pose",
-    "blonde hair": "body",
+    "blonde hair": "hair",
     "blood": "body",
-    "blood in hair": "body",
+    "blood in hair": "hair",
     "blood on bandages": "body",
     "blood on gloves": "clothes",
     "blood on mask": "clothes",
@@ -13584,7 +14288,7 @@ Image: ${entry.imgName}`,
     "blue eyeshadow": "clothes",
     "blue fire": "scene",
     "blue gloves": "clothes",
-    "blue hair": "body",
+    "blue hair": "hair",
     "blue hat": "clothes",
     "blue hawaii": "scene",
     "blue lips": "clothes",
@@ -13607,7 +14311,7 @@ Image: ${entry.imgName}`,
     "blueberry blossoms": "scene",
     "blueberry print": "clothes",
     "blueberry tart": "scene",
-    "blunt bangs": "body",
+    "blunt bangs": "hair",
     "blunt ends": "body",
     "blurry": "scene",
     "blurry background": "scene",
@@ -13617,7 +14321,7 @@ Image: ${entry.imgName}`,
     "boar mask": "clothes",
     "boat": "scene",
     "boater hat": "clothes",
-    "bob cut": "body",
+    "bob cut": "hair",
     "bobby socks": "clothes",
     "body blush": "body",
     "body bridge": "pose",
@@ -13694,7 +14398,7 @@ Image: ${entry.imgName}`,
     "bow on wing": "body",
     "bow shimada": "body",
     "bow swimsuit": "clothes",
-    "bow-shaped hair": "body",
+    "bow-shaped hair": "hair",
     "bowed wings": "body",
     "bowing": "limbs",
     "bowl": "scene",
@@ -13708,7 +14412,7 @@ Image: ${entry.imgName}`,
     "bowling glove": "pose",
     "bowling pin": "pose",
     "bowtie": "clothes",
-    "box braids": "body",
+    "box braids": "hair",
     "box of chocolates": "scene",
     "box tie": "sexual",
     "boxer briefs": "clothes",
@@ -13727,12 +14431,12 @@ Image: ${entry.imgName}`,
     "bracelet": "clothes",
     "bracer": "clothes",
     "bradley center": "scene",
-    "braided bangs": "body",
+    "braided bangs": "hair",
     "braided bun": "body",
-    "braided dreadlocks": "body",
-    "braided hair rings": "body",
-    "braided ponytail": "body",
-    "braiding hair": "body",
+    "braided dreadlocks": "hair",
+    "braided hair rings": "hair",
+    "braided ponytail": "hair",
+    "braiding hair": "hair",
     "bramall lane": "scene",
     "branch": "scene",
     "branded": "sexual",
@@ -13823,7 +14527,7 @@ Image: ${entry.imgName}`,
     "brown choker": "clothes",
     "brown eyes": "face",
     "brown gloves": "clothes",
-    "brown hair": "body",
+    "brown hair": "hair",
     "brown hat": "clothes",
     "brown mask": "clothes",
     "brown neckerchief": "clothes",
@@ -13839,9 +14543,9 @@ Image: ${entry.imgName}`,
     "brownie (food)": "scene",
     "bruise": "sexual",
     "bruised eye": "face",
-    "brushing another's hair": "body",
+    "brushing another's hair": "hair",
     "brushing hair": "pose",
-    "brushing own hair": "body",
+    "brushing own hair": "hair",
     "bubble": "scene",
     "bubble background": "scene",
     "bubble skirt": "clothes",
@@ -13870,7 +14574,7 @@ Image: ${entry.imgName}`,
     "bumping": "pose",
     "bun cover": "body",
     "bun with braided base": "body",
-    "bunching hair": "body",
+    "bunching hair": "hair",
     "bundesliga": "pose",
     "bundt cake": "scene",
     "bunker": "scene",
@@ -13890,7 +14594,7 @@ Image: ${entry.imgName}`,
     "burning building": "scene",
     "burning photo": "scene",
     "burnt": "sexual",
-    "burnt hair": "body",
+    "burnt hair": "hair",
     "bursting breasts": "body",
     "buruma": "clothes",
     "buruma aside": "sexual",
@@ -13925,7 +14629,7 @@ Image: ${entry.imgName}`,
     "button eyes": "face",
     "buttoned cuffs": "clothes",
     "buttons": "clothes",
-    "buzz cut": "body",
+    "buzz cut": "hair",
     "byakugan": "face",
     "byzantine clothes": "clothes",
     "byzantine empire": "scene",
@@ -14073,7 +14777,7 @@ Image: ${entry.imgName}`,
     "celtic fc": "pose",
     "censored": "scene",
     "center opening": "sexual",
-    "center-flap bangs": "body",
+    "center-flap bangs": "hair",
     "century egg (food)": "scene",
     "cephalopod eyes": "face",
     "cerastium": "scene",
@@ -14235,7 +14939,7 @@ Image: ${entry.imgName}`,
     "chocolate fondue": "scene",
     "chocolate fountain": "scene",
     "chocolate framboise": "scene",
-    "chocolate hair": "body",
+    "chocolate hair": "hair",
     "chocolate icing": "scene",
     "chocolate making": "pose",
     "chocolate marquise": "scene",
@@ -14254,7 +14958,7 @@ Image: ${entry.imgName}`,
     "chonmage": "body",
     "choo choo train": "pose",
     "chopped spring onion": "scene",
-    "choppy bangs": "body",
+    "choppy bangs": "hair",
     "chopstick rest": "scene",
     "chopsticks": "scene",
     "christ the redeemer": "scene",
@@ -14355,7 +15059,7 @@ Image: ${entry.imgName}`,
     "cloud": "scene",
     "cloud background": "scene",
     "cloud focus": "scene",
-    "cloud hair": "body",
+    "cloud hair": "hair",
     "clove": "scene",
     "clover": "scene",
     "clover (flower)": "scene",
@@ -14398,7 +15102,7 @@ Image: ${entry.imgName}`,
     "coffee pot": "scene",
     "coffee press": "scene",
     "coif": "clothes",
-    "coin bangs": "body",
+    "coin bangs": "hair",
     "coke-bottle glasses": "clothes",
     "cola shake (meme)": "pose",
     "cold war": "scene",
@@ -14434,10 +15138,10 @@ Image: ${entry.imgName}`,
     "colorado": "scene",
     "colorado avalanche": "pose",
     "colorado rockies": "pose",
-    "colored bangs": "body",
+    "colored bangs": "hair",
     "colored extremities": "limbs",
     "colored eyelashes": "clothes",
-    "colored inner hair": "body",
+    "colored inner hair": "hair",
     "colored lineart": "effects",
     "colored nipples": "body",
     "colored pussy": "body",
@@ -14469,7 +15173,7 @@ Image: ${entry.imgName}`,
     "condom": "sexual",
     "condom in mouth": "face",
     "condom left inside": "sexual",
-    "cone hair bun": "body",
+    "cone hair bun": "hair",
     "confederate states of america": "scene",
     "confident": "face",
     "confused": "face",
@@ -14489,7 +15193,7 @@ Image: ${entry.imgName}`,
     "control tower": "scene",
     "convenience store": "scene",
     "convenient breasts": "body",
-    "convenient hair": "body",
+    "convenient hair": "hair",
     "convention": "scene",
     "converse": "clothes",
     "conveyor belt sushi": "scene",
@@ -14513,7 +15217,7 @@ Image: ${entry.imgName}`,
     "corn": "scene",
     "corn dog": "scene",
     "cornflower": "scene",
-    "cornrows": "body",
+    "cornrows": "hair",
     "coronavirus pandemic": "scene",
     "corrupted file": "scene",
     "corrupted twitter file": "scene",
@@ -14598,8 +15302,8 @@ Image: ${entry.imgName}`,
     "crescent necklace": "clothes",
     "crescent print": "clothes",
     "crescent-shaped pupils": "face",
-    "crested hair": "body",
-    "crew cut": "body",
+    "crested hair": "hair",
+    "crew cut": "hair",
     "crew neck": "clothes",
     "crimean war": "scene",
     "crinoline": "clothes",
@@ -14645,7 +15349,7 @@ Image: ${entry.imgName}`,
     "crossdressing under clothes (mtf)": "sexual",
     "crossed ankles": "pose",
     "crossed arms": "pose",
-    "crossed bangs": "body",
+    "crossed bangs": "hair",
     "crossed fingers": "limbs",
     "crossed legs": "pose",
     "crosshair pupils": "face",
@@ -14668,7 +15372,7 @@ Image: ${entry.imgName}`,
     "crow mask": "clothes",
     "crowd": "character",
     "crown": "clothes",
-    "crown braid": "body",
+    "crown braid": "hair",
     "crown-shaped pupils": "face",
     "crucifixion": "pose",
     "crumbs": "scene",
@@ -14676,7 +15380,7 @@ Image: ${entry.imgName}`,
     "cruz azul": "pose",
     "crying": "pose",
     "crypto.com arena": "scene",
-    "crystal hair": "body",
+    "crystal hair": "hair",
     "crystal wings": "body",
     "cuba": "scene",
     "cubicle": "scene",
@@ -14741,12 +15445,12 @@ Image: ${entry.imgName}`,
     "curling": "pose",
     "curling iron": "body",
     "curly eyebrows": "face",
-    "curly hair": "body",
+    "curly hair": "hair",
     "currant": "scene",
     "curry": "scene",
     "curry rice": "scene",
     "currywurst": "scene",
-    "curtained hair": "body",
+    "curtained hair": "hair",
     "curtsey": "limbs",
     "curvy": "sexual",
     "custard": "scene",
@@ -14755,10 +15459,10 @@ Image: ${entry.imgName}`,
     "cutoff jeans": "clothes",
     "cuts": "body",
     "cutting": "pose",
-    "cutting another's hair": "body",
+    "cutting another's hair": "hair",
     "cutting board": "scene",
-    "cutting hair": "body",
-    "cutting own hair": "body",
+    "cutting hair": "hair",
+    "cutting own hair": "hair",
     "cyber fashion": "clothes",
     "cyber sigilism": "effects",
     "cybergoth": "clothes",
@@ -14866,7 +15570,7 @@ Image: ${entry.imgName}`,
     "deviruchi hat": "clothes",
     "dia de muertos": "scene",
     "diadem": "clothes",
-    "diagonal bangs": "body",
+    "diagonal bangs": "hair",
     "diagonal stripes": "clothes",
     "diagonal-striped background": "scene",
     "diagonal-striped legwear": "clothes",
@@ -14969,7 +15673,7 @@ Image: ${entry.imgName}`,
     "dongpo jin (headwear)": "clothes",
     "donut": "scene",
     "donut day": "scene",
-    "donut hair bun": "body",
+    "donut hair bun": "hair",
     "doolittle raid": "scene",
     "door": "scene",
     "door knocker": "scene",
@@ -14988,7 +15692,7 @@ Image: ${entry.imgName}`,
     "double \\n/": "limbs",
     "double amputee": "sexual",
     "double anal": "sexual",
-    "double bun": "body",
+    "double bun": "hair",
     "double dildo": "sexual",
     "double exposure": "scene",
     "double finger gun": "limbs",
@@ -15007,7 +15711,7 @@ Image: ${entry.imgName}`,
     "double vaginal": "sexual",
     "double vertical stripe": "clothes",
     "double-breasted": "clothes",
-    "double-parted bangs": "body",
+    "double-parted bangs": "hair",
     "double-stroke eyebrows": "face",
     "dough": "scene",
     "dough scraper": "scene",
@@ -15035,7 +15739,7 @@ Image: ${entry.imgName}`,
     "drawing on another's face": "pose",
     "drawn eyes": "face",
     "drawn wings": "body",
-    "dreadlocks": "body",
+    "dreadlocks": "hair",
     "dreaming": "pose",
     "dress": "clothes",
     "dress aside": "sexual",
@@ -15049,8 +15753,8 @@ Image: ${entry.imgName}`,
     "dressing": "pose",
     "dressing room": "clothes",
     "dried jujube": "scene",
-    "drill hair": "body",
-    "drill sidelocks": "body",
+    "drill hair": "hair",
+    "drill sidelocks": "hair",
     "drink": "scene",
     "drinking": "pose",
     "drinking glass": "scene",
@@ -15120,7 +15824,7 @@ Image: ${entry.imgName}`,
     "eating": "pose",
     "eating and drinking from body": "sexual",
     "eating during class": "scene",
-    "eating hair": "body",
+    "eating hair": "hair",
     "eating non-food": "scene",
     "eavesdropping": "pose",
     "ec bahia": "pose",
@@ -15171,7 +15875,7 @@ Image: ${entry.imgName}`,
     "empty eyes": "sexual",
     "en pointe": "body",
     "enema": "sexual",
-    "energy hair": "body",
+    "energy hair": "hair",
     "energy wings": "body",
     "england": "scene",
     "english breakfast": "scene",
@@ -15212,7 +15916,7 @@ Image: ${entry.imgName}`,
     "expression 35": "face",
     "expression chart": "face",
     "expressionless": "face",
-    "expressive hair": "body",
+    "expressive hair": "hair",
     "expressive wings": "body",
     "extra arms": "sexual",
     "extra breasts": "sexual",
@@ -15238,7 +15942,7 @@ Image: ${entry.imgName}`,
     "eyebrow razor": "face",
     "eyebrow stubble": "face",
     "eyebrows": "face",
-    "eyebrows hidden by hair": "face",
+    "eyebrows hidden by hair": "hair",
     "eyebrows visible through mask": "clothes",
     "eyelash curler": "clothes",
     "eyelashes": "clothes",
@@ -15248,7 +15952,7 @@ Image: ${entry.imgName}`,
     "eyepatch": "face",
     "eyes on wings": "body",
     "eyes out of frame": "scene",
-    "eyes visible through hair": "body",
+    "eyes visible through hair": "hair",
     "eyeshadow": "clothes",
     "eyeshadow under eye": "clothes",
     "eyeshield 21": "pose",
@@ -15302,7 +16006,7 @@ Image: ${entry.imgName}`,
     "family": "scene",
     "family bonding": "scene",
     "fan speaking": "pose",
-    "fanged bangs": "body",
+    "fanged bangs": "hair",
     "fanning": "pose",
     "fanning crotch": "pose",
     "fanning face": "pose",
@@ -15335,7 +16039,7 @@ Image: ${entry.imgName}`,
     "fear": "body",
     "feast": "scene",
     "feather boa": "clothes",
-    "feather hair": "body",
+    "feather hair": "hair",
     "feather necklace": "clothes",
     "feather-trimmed sleeves": "clothes",
     "feathered wings": "body",
@@ -15382,7 +16086,7 @@ Image: ${entry.imgName}`,
     "field cap": "clothes",
     "field hockey": "pose",
     "fiery background": "scene",
-    "fiery hair": "body",
+    "fiery hair": "hair",
     "fiery tail": "scene",
     "fiery wings": "body",
     "fig": "scene",
@@ -15495,14 +16199,14 @@ Image: ${entry.imgName}`,
     "flight attendant hat": "clothes",
     "flip-flops": "clothes",
     "flipaclip (medium)": "scene",
-    "flipped hair": "body",
+    "flipped hair": "hair",
     "flipping food": "scene",
     "flirting": "pose",
     "floating": "pose",
     "floating breasts": "body",
     "floating castle": "scene",
     "floating city": "scene",
-    "floating hair": "body",
+    "floating hair": "hair",
     "floating island": "scene",
     "floating scarf": "clothes",
     "flogger": "sexual",
@@ -15533,9 +16237,9 @@ Image: ${entry.imgName}`,
     "flower shop": "scene",
     "flower symbol": "scene",
     "flower trim": "clothes",
-    "flower-shaped hair": "body",
+    "flower-shaped hair": "hair",
     "flower-shaped pupils": "face",
-    "fluffy hair": "body",
+    "fluffy hair": "hair",
     "fluffy legwear": "clothes",
     "fluminense fc": "pose",
     "flustered": "face",
@@ -15544,7 +16248,7 @@ Image: ${entry.imgName}`,
     "fogged glasses": "clothes",
     "fold-over gloves": "clothes",
     "folded": "sexual",
-    "folded ponytail": "body",
+    "folded ponytail": "hair",
     "foliage": "scene",
     "folk dance": "pose",
     "fondant au chocolat": "scene",
@@ -15568,7 +16272,7 @@ Image: ${entry.imgName}`,
     "food-themed background": "scene",
     "food-themed clothes": "scene",
     "food-themed eyewear": "clothes",
-    "food-themed hair": "body",
+    "food-themed hair": "hair",
     "food-themed hair ornament": "scene",
     "food-themed hat ornament": "clothes",
     "foodgasm": "face",
@@ -15646,7 +16350,7 @@ Image: ${entry.imgName}`,
     "frilled choker": "clothes",
     "frilled collar": "clothes",
     "frilled gloves": "clothes",
-    "frilled hair tubes": "body",
+    "frilled hair tubes": "hair",
     "frilled hat": "clothes",
     "frilled one-piece swimsuit": "clothes",
     "frilled shirt": "clothes",
@@ -15661,8 +16365,8 @@ Image: ${entry.imgName}`,
     "from below": "scene",
     "from outside": "scene",
     "from side": "scene",
-    "front braid": "body",
-    "front ponytail": "body",
+    "front braid": "hair",
+    "front ponytail": "hair",
     "front-seamed legwear": "clothes",
     "frontless outfit": "sexual",
     "frottage": "sexual",
@@ -15878,7 +16582,7 @@ Image: ${entry.imgName}`,
     "glowing": "pose",
     "glowing eye": "face",
     "glowing eyes": "face",
-    "glowing hair": "body",
+    "glowing hair": "hair",
     "glowing headgear": "effects",
     "glowing mask": "clothes",
     "glowing mouth": "face",
@@ -15925,7 +16629,7 @@ Image: ${entry.imgName}`,
     "grabbing another's ass": "sexual",
     "grabbing another's breast": "sexual",
     "grabbing another's ear": "face",
-    "grabbing another's hair": "body",
+    "grabbing another's hair": "hair",
     "grabbing another's skirt": "sexual",
     "grabbing another's sleeve": "clothes",
     "grabbing another's tongue": "limbs",
@@ -15941,7 +16645,7 @@ Image: ${entry.imgName}`,
     "gradient eyes": "face",
     "gradient eyeshadow": "clothes",
     "gradient filter": "effects",
-    "gradient hair": "body",
+    "gradient hair": "hair",
     "gradient legwear": "clothes",
     "gradient neckerchief": "clothes",
     "gradient scarf": "clothes",
@@ -15983,7 +16687,7 @@ Image: ${entry.imgName}`,
     "green eyeshadow": "clothes",
     "green fire": "scene",
     "green gloves": "clothes",
-    "green hair": "body",
+    "green hair": "hair",
     "green hat": "clothes",
     "green lips": "clothes",
     "green mask": "clothes",
@@ -16011,7 +16715,7 @@ Image: ${entry.imgName}`,
     "grey eyes": "face",
     "grey eyeshadow": "clothes",
     "grey gloves": "clothes",
-    "grey hair": "body",
+    "grey hair": "hair",
     "grey hat": "clothes",
     "grey lips": "clothes",
     "grey mask": "clothes",
@@ -16095,54 +16799,54 @@ Image: ${entry.imgName}`,
     "hadeko": "clothes",
     "hagia sophia": "scene",
     "haikyuu!!": "pose",
-    "hair": "body",
-    "hair around arms": "body",
-    "hair around ear": "body",
-    "hair around horn": "body",
-    "hair around neck": "body",
-    "hair around own leg": "body",
+    "hair": "hair",
+    "hair around arms": "hair",
+    "hair around ear": "hair",
+    "hair around horn": "hair",
+    "hair around neck": "hair",
+    "hair around own leg": "hair",
     "hair beads": "clothes",
-    "hair bell": "body",
-    "hair between eyes": "body",
-    "hair bikini": "body",
+    "hair bell": "hair",
+    "hair between eyes": "hair",
+    "hair bikini": "hair",
     "hair bobbles": "clothes",
     "hair bow": "clothes",
-    "hair brush": "body",
+    "hair brush": "hair",
     "hair color switch": "effects",
-    "hair down": "body",
-    "hair dryer": "body",
-    "hair ears": "face",
-    "hair extensions": "body",
-    "hair flaps": "body",
-    "hair flip": "body",
+    "hair down": "hair",
+    "hair dryer": "hair",
+    "hair ears": "hair",
+    "hair extensions": "hair",
+    "hair flaps": "hair",
+    "hair flip": "hair",
     "hair flower": "clothes",
     "hair focus": "effects",
-    "hair hanging down": "body",
-    "hair horns": "body",
-    "hair in own mouth": "body",
-    "hair intakes": "body",
+    "hair hanging down": "hair",
+    "hair horns": "hair",
+    "hair in own mouth": "hair",
+    "hair intakes": "hair",
     "hair ornament": "clothes",
-    "hair over breasts": "body",
-    "hair over crotch": "body",
-    "hair over eyes": "body",
-    "hair over one breast": "body",
-    "hair over one eye": "body",
+    "hair over breasts": "hair",
+    "hair over crotch": "hair",
+    "hair over eyes": "hair",
+    "hair over one breast": "hair",
+    "hair over one eye": "hair",
     "hair over shoulder": "clothes",
-    "hair pulled back": "body",
+    "hair pulled back": "hair",
     "hair ribbon": "clothes",
-    "hair rings": "body",
+    "hair rings": "hair",
     "hair rollers": "clothes",
-    "hair scarf": "body",
+    "hair scarf": "hair",
     "hair scrunchie": "clothes",
-    "hair slicked back": "body",
-    "hair spread out": "body",
+    "hair slicked back": "hair",
+    "hair spread out": "hair",
     "hair stick": "clothes",
-    "hair straightener": "body",
+    "hair straightener": "hair",
     "hair tie": "clothes",
     "hair tubes": "clothes",
-    "hair up": "body",
-    "hair weapon": "body",
-    "hair wings": "body",
+    "hair up": "hair",
+    "hair weapon": "hair",
+    "hair wings": "hair",
     "hairband": "clothes",
     "hairclip": "clothes",
     "hairdressing": "pose",
@@ -16159,12 +16863,12 @@ Image: ${entry.imgName}`,
     "hakugyokurou": "scene",
     "hakurei shrine": "scene",
     "halation pupils": "face",
-    "half crown braid": "body",
+    "half crown braid": "hair",
     "half eye mask": "clothes",
     "half gloves": "clothes",
     "half mask": "clothes",
-    "half up braid": "body",
-    "half up half down braid": "body",
+    "half up braid": "hair",
+    "half up half down braid": "hair",
     "half updo": "body",
     "half-closed eyes": "face",
     "halftone": "scene",
@@ -16193,7 +16897,7 @@ Image: ${entry.imgName}`,
     "hand glasses": "limbs",
     "hand hair": "clothes",
     "hand in bra": "limbs",
-    "hand in own hair": "body",
+    "hand in own hair": "hair",
     "hand in pocket": "limbs",
     "hand jewel": "clothes",
     "hand milking": "pose",
@@ -16384,13 +17088,13 @@ Image: ${entry.imgName}`,
     "healing": "pose",
     "heart": "scene",
     "heart (organ)": "body",
-    "heart ahoge": "body",
-    "heart antenna hair": "body",
+    "heart ahoge": "hair",
+    "heart antenna hair": "hair",
     "heart arms": "limbs",
     "heart background": "scene",
     "heart choker": "clothes",
     "heart collar": "clothes",
-    "heart hair bun": "body",
+    "heart hair bun": "hair",
     "heart hands": "limbs",
     "heart hands duo": "limbs",
     "heart hands quartet": "limbs",
@@ -16408,7 +17112,7 @@ Image: ${entry.imgName}`,
     "heart-shaped chocolate": "scene",
     "heart-shaped eyes": "face",
     "heart-shaped eyewear": "clothes",
-    "heart-shaped hair": "body",
+    "heart-shaped hair": "hair",
     "heart-shaped mouth": "face",
     "heart-shaped pupils": "face",
     "heartbreak haircut": "body",
@@ -16421,7 +17125,7 @@ Image: ${entry.imgName}`,
     "heinz": "scene",
     "heisei retro": "clothes",
     "heliconia": "scene",
-    "helicopter hair": "body",
+    "helicopter hair": "hair",
     "hellebore": "scene",
     "helltaker dance": "pose",
     "helm": "clothes",
@@ -16446,8 +17150,8 @@ Image: ${entry.imgName}`,
     "high five": "limbs",
     "high heel boots": "clothes",
     "high heels": "clothes",
-    "high ponytail": "body",
-    "high side ponytail": "body",
+    "high ponytail": "hair",
+    "high side ponytail": "hair",
     "high tops": "clothes",
     "high up": "scene",
     "high-low skirt": "clothes",
@@ -16461,7 +17165,7 @@ Image: ${entry.imgName}`,
     "hikimayu": "clothes",
     "hiking": "pose",
     "hill": "scene",
-    "hime cut": "body",
+    "hime cut": "hair",
     "hime gyaru": "clothes",
     "hime lolita": "clothes",
     "himeji castle": "scene",
@@ -16924,8 +17628,8 @@ Image: ${entry.imgName}`,
     "hug": "pose",
     "hug and suck": "sexual",
     "hug from behind": "pose",
-    "huge afro": "body",
-    "huge ahoge": "body",
+    "huge afro": "hair",
+    "huge ahoge": "hair",
     "huge ass": "body",
     "huge bowtie": "clothes",
     "huge breasts": "body",
@@ -17060,7 +17764,7 @@ Image: ${entry.imgName}`,
     "internal cumshot": "sexual",
     "internet overdose": "pose",
     "internet yamero": "pose",
-    "intestine hair": "body",
+    "intestine hair": "hair",
     "intestines": "body",
     "inteyvat flower (genshin impact)": "scene",
     "intravenous drip": "body",
@@ -17244,17 +17948,17 @@ Image: ${entry.imgName}`,
     "kimono lift": "sexual",
     "kimono pull": "sexual",
     "kimono skirt": "clothes",
-    "kinky hair": "body",
+    "kinky hair": "hair",
     "kinoko no yama": "scene",
     "kinpira gobo": "scene",
     "kippah": "clothes",
     "kirigami": "scene",
     "kiritanpo (food)": "scene",
-    "kishimen hair": "body",
+    "kishimen hair": "hair",
     "kiss": "pose",
     "kiss day": "scene",
     "kissing foot": "body",
-    "kissing hair": "body",
+    "kissing hair": "hair",
     "kissing neck": "clothes",
     "kissing through mask": "clothes",
     "kita (tokyo)": "scene",
@@ -17283,7 +17987,7 @@ Image: ${entry.imgName}`,
     "knees together feet apart": "pose",
     "knees up": "pose",
     "knife": "scene",
-    "knife in hair": "body",
+    "knife in hair": "hair",
     "knit leg warmers": "clothes",
     "knit legwear": "clothes",
     "knit pantyhose": "clothes",
@@ -17483,7 +18187,7 @@ Image: ${entry.imgName}`,
     "licking": "pose",
     "licking another's cheek": "pose",
     "licking another's face": "pose",
-    "licking another's hair": "body",
+    "licking another's hair": "hair",
     "licking armpit": "sexual",
     "licking blade": "pose",
     "licking breast": "pose",
@@ -17575,7 +18279,7 @@ Image: ${entry.imgName}`,
     "lipstick tube": "clothes",
     "lipstick writing": "clothes",
     "lipton": "scene",
-    "liquid hair": "body",
+    "liquid hair": "hair",
     "liquid wings": "body",
     "liquor": "scene",
     "lithuania": "scene",
@@ -17585,7 +18289,7 @@ Image: ${entry.imgName}`,
     "live2d": "scene",
     "liver": "body",
     "liverpool fc": "pose",
-    "living hair": "body",
+    "living hair": "hair",
     "living room": "scene",
     "loaf of bread": "scene",
     "loafers": "clothes",
@@ -17603,13 +18307,13 @@ Image: ${entry.imgName}`,
     "lollipop": "scene",
     "lombard street": "scene",
     "london": "scene",
-    "lone nape hair": "body",
+    "lone nape hair": "hair",
     "lonely": "face",
-    "long bangs": "body",
+    "long bangs": "hair",
     "long coat": "clothes",
     "long eyebrows": "face",
     "long fingernails": "clothes",
-    "long hair": "body",
+    "long hair": "hair",
     "long labia": "body",
     "long legs": "body",
     "long neck": "clothes",
@@ -17651,7 +18355,7 @@ Image: ${entry.imgName}`,
     "looking up": "pose",
     "looping animation": "scene",
     "loose bowtie": "clothes",
-    "loose hair strand": "body",
+    "loose hair strand": "hair",
     "loose necktie": "clothes",
     "loose socks": "clothes",
     "loquat": "scene",
@@ -17677,15 +18381,15 @@ Image: ${entry.imgName}`,
     "love&joy": "pose",
     "low neckline": "clothes",
     "low poly": "effects",
-    "low ponytail": "body",
-    "low side ponytail": "body",
-    "low twin braids": "body",
-    "low twintails": "body",
+    "low ponytail": "hair",
+    "low side ponytail": "hair",
+    "low twin braids": "hair",
+    "low twintails": "hair",
     "low wings": "body",
-    "low-braided long hair": "body",
+    "low-braided long hair": "hair",
     "low-cut armhole": "sexual",
-    "low-tied long hair": "body",
-    "low-tied sidelocks": "body",
+    "low-tied long hair": "hair",
+    "low-tied sidelocks": "hair",
     "lower body": "scene",
     "lowleg bikini": "clothes",
     "lowleg pants": "clothes",
@@ -17867,7 +18571,7 @@ Image: ${entry.imgName}`,
     "mecha on girl": "sexual",
     "mecha pilot suit": "clothes",
     "mechanical eyes": "face",
-    "mechanical hair": "body",
+    "mechanical hair": "hair",
     "mechanical hands": "clothes",
     "mechanical tentacles": "sexual",
     "mechanical wings": "body",
@@ -17876,7 +18580,7 @@ Image: ${entry.imgName}`,
     "median furrow": "body",
     "medici collar": "clothes",
     "medium breasts": "body",
-    "medium hair": "body",
+    "medium hair": "hair",
     "megalobox": "pose",
     "megamac": "scene",
     "megastructure": "scene",
@@ -17898,7 +18602,7 @@ Image: ${entry.imgName}`,
     "mesa": "scene",
     "mesmerizer (vocaloid)": "pose",
     "mess kit": "scene",
-    "messy hair": "body",
+    "messy hair": "hair",
     "messy room": "scene",
     "metal collar": "clothes",
     "metal mask": "clothes",
@@ -18029,7 +18733,7 @@ Image: ${entry.imgName}`,
     "mode gakuen cocoon tower": "scene",
     "model building": "pose",
     "moero! top striker": "pose",
-    "mohawk": "body",
+    "mohawk": "hair",
     "moire": "scene",
     "mojito": "scene",
     "moldova": "scene",
@@ -18125,8 +18829,8 @@ Image: ${entry.imgName}`,
     "muffin": "scene",
     "mug": "scene",
     "mulberry": "scene",
-    "mullet": "body",
-    "multi-tied hair": "body",
+    "mullet": "hair",
+    "multi-tied hair": "hair",
     "multicolor-tinted eyewear": "clothes",
     "multicolored": "clothes",
     "multicolored ascot": "clothes",
@@ -18135,7 +18839,7 @@ Image: ${entry.imgName}`,
     "multicolored eyes": "face",
     "multicolored eyeshadow": "clothes",
     "multicolored gloves": "clothes",
-    "multicolored hair": "body",
+    "multicolored hair": "hair",
     "multicolored headwear": "clothes",
     "multicolored leg warmers": "clothes",
     "multicolored leggings": "clothes",
@@ -18152,7 +18856,7 @@ Image: ${entry.imgName}`,
     "multiple 4koma": "scene",
     "multiple anal": "sexual",
     "multiple boys": "character",
-    "multiple braids": "body",
+    "multiple braids": "hair",
     "multiple dogs": "character",
     "multiple expressions": "face",
     "multiple girls": "character",
@@ -18254,7 +18958,7 @@ Image: ${entry.imgName}`,
     "native american clothes": "clothes",
     "native american headdress": "clothes",
     "nattou": "scene",
-    "naturally detached hair": "body",
+    "naturally detached hair": "hair",
     "nature": "scene",
     "naughty face": "sexual",
     "navel": "body",
@@ -18633,7 +19337,7 @@ Image: ${entry.imgName}`,
     "orange eyes": "face",
     "orange eyeshadow": "clothes",
     "orange gloves": "clothes",
-    "orange hair": "body",
+    "orange hair": "hair",
     "orange hat": "clothes",
     "orange juice": "scene",
     "orange justice (dance)": "pose",
@@ -18804,8 +19508,8 @@ Image: ${entry.imgName}`,
     "parma fc": "pose",
     "parmesan cheese": "scene",
     "parsley": "scene",
-    "parted bangs": "body",
-    "parted hair": "body",
+    "parted bangs": "hair",
+    "parted hair": "hair",
     "parted lips": "face",
     "parthenon": "scene",
     "partially blind": "face",
@@ -19008,7 +19712,7 @@ Image: ${entry.imgName}`,
     "pink eyeshadow": "clothes",
     "pink fire": "scene",
     "pink gloves": "clothes",
-    "pink hair": "body",
+    "pink hair": "hair",
     "pink hat": "clothes",
     "pink lips": "clothes",
     "pink mask": "clothes",
@@ -19042,7 +19746,7 @@ Image: ${entry.imgName}`,
     "pixel eyes": "face",
     "pixel sunglasses": "clothes",
     "pixel-perfect duplicate": "scene",
-    "pixie cut": "body",
+    "pixie cut": "hair",
     "pizza": "scene",
     "pizza box": "scene",
     "pizza delivery": "scene",
@@ -19065,7 +19769,7 @@ Image: ${entry.imgName}`,
     "plant cell": "scene",
     "plant focus": "scene",
     "plant girl": "scene",
-    "plant hair": "body",
+    "plant hair": "hair",
     "plant monster": "scene",
     "plant roots": "scene",
     "plant wings": "body",
@@ -19089,8 +19793,8 @@ Image: ${entry.imgName}`,
     "playing instrument": "pose",
     "playing sports": "pose",
     "playing video games": "pose",
-    "playing with another's hair": "body",
-    "playing with own hair": "body",
+    "playing with another's hair": "hair",
+    "playing with own hair": "hair",
     "pleading eyes": "face",
     "pleated shorts": "clothes",
     "pleated skirt": "clothes",
@@ -19123,7 +19827,7 @@ Image: ${entry.imgName}`,
     "pointy boots": "clothes",
     "pointy breasts": "body",
     "pointy ears": "face",
-    "pointy hair": "body",
+    "pointy hair": "hair",
     "pointy nose": "face",
     "pointy shoes": "clothes",
     "poke ball": "scene",
@@ -19156,7 +19860,7 @@ Image: ${entry.imgName}`,
     "pom pom (clothes)": "clothes",
     "pomegranate": "scene",
     "pomegranate flower": "scene",
-    "pompadour": "body",
+    "pompadour": "hair",
     "pon de chocolat": "scene",
     "pon de lion": "scene",
     "pon de ring": "scene",
@@ -19213,7 +19917,7 @@ Image: ${entry.imgName}`,
     "praying": "pose",
     "predicament bondage": "sexual",
     "pregnant": "sexual",
-    "prehensile hair": "body",
+    "prehensile hair": "hair",
     "premier league": "pose",
     "preppy fashion": "clothes",
     "presenting own body": "sexual",
@@ -19314,7 +20018,7 @@ Image: ${entry.imgName}`,
     "purple eyeshadow": "clothes",
     "purple fire": "scene",
     "purple gloves": "clothes",
-    "purple hair": "body",
+    "purple hair": "hair",
     "purple hat": "clothes",
     "purple lips": "clothes",
     "purple mask": "clothes",
@@ -19347,9 +20051,9 @@ Image: ${entry.imgName}`,
     "qingxin flower": "scene",
     "qipao": "clothes",
     "qixi festival": "scene",
-    "quad braids": "body",
+    "quad braids": "hair",
     "quad drills": "body",
-    "quad hair rings": "body",
+    "quad hair rings": "hair",
     "quad tails": "body",
     "quadfold": "pose",
     "quadruple amputee": "sexual",
@@ -19358,7 +20062,7 @@ Image: ${entry.imgName}`,
     "quebec": "scene",
     "quebec maritimes junior hockey league": "pose",
     "quebec nordiques": "pose",
-    "quiff": "body",
+    "quiff": "hair",
     "quin tails": "body",
     "quince blossoms": "scene",
     "rabbit": "scene",
@@ -19394,7 +20098,7 @@ Image: ${entry.imgName}`,
     "rainbow background": "scene",
     "rainbow cake": "scene",
     "rainbow eyes": "face",
-    "rainbow hair": "body",
+    "rainbow hair": "hair",
     "rainbow legwear": "clothes",
     "rainbow order": "effects",
     "rainbow wings": "body",
@@ -19449,7 +20153,7 @@ Image: ${entry.imgName}`,
     "red eyeshadow": "clothes",
     "red ginger (flower)": "scene",
     "red gloves": "clothes",
-    "red hair": "body",
+    "red hair": "hair",
     "red hat": "clothes",
     "red lips": "clothes",
     "red mask": "clothes",
@@ -19540,7 +20244,7 @@ Image: ${entry.imgName}`,
     "ribbon": "pose",
     "ribbon baton": "pose",
     "ribbon choker": "clothes",
-    "ribbon hair": "body",
+    "ribbon hair": "hair",
     "ribbon of saint george": "scene",
     "ribbon trim": "clothes",
     "ribbon-trimmed gloves": "clothes",
@@ -19607,9 +20311,9 @@ Image: ${entry.imgName}`,
     "roningasa": "clothes",
     "rooftop": "scene",
     "root beer": "scene",
-    "roots (hair)": "body",
+    "roots (hair)": "hair",
     "rope": "sexual",
-    "rope braid": "body",
+    "rope braid": "hair",
     "rope bridge": "scene",
     "rope walking": "sexual",
     "rose": "scene",
@@ -19639,7 +20343,7 @@ Image: ${entry.imgName}`,
     "rubber hose (style)": "effects",
     "rubbing": "pose",
     "rudbeckia": "scene",
-    "ruffling hair": "body",
+    "ruffling hair": "hair",
     "rugby": "pose",
     "rugby ball": "pose",
     "ruining the glorious moment": "scene",
@@ -19814,7 +20518,7 @@ Image: ${entry.imgName}`,
     "seductive smile": "face",
     "see-through clothes": "sexual",
     "see-through gloves": "clothes",
-    "see-through hair": "body",
+    "see-through hair": "hair",
     "see-through legwear": "clothes",
     "see-through leotard": "clothes",
     "see-through mask": "clothes",
@@ -19849,7 +20553,7 @@ Image: ${entry.imgName}`,
     "serving spatula": "scene",
     "sesame seeds": "scene",
     "setsubun": "scene",
-    "severed hair": "body",
+    "severed hair": "hair",
     "severed limb": "body",
     "sewer": "scene",
     "sewing": "pose",
@@ -19956,18 +20660,18 @@ Image: ${entry.imgName}`,
     "shopping basket": "scene",
     "shopping cart": "scene",
     "shore": "scene",
-    "short bangs": "body",
+    "short bangs": "hair",
     "short eyebrows": "face",
-    "short hair": "body",
-    "short hair with long locks": "body",
+    "short hair": "hair",
+    "short hair with long locks": "hair",
     "short jumpsuit": "clothes",
     "short kimono": "clothes",
     "short over long sleeves": "clothes",
-    "short ponytail": "body",
+    "short ponytail": "hair",
     "short shorts": "clothes",
-    "short side ponytail": "body",
+    "short side ponytail": "hair",
     "short sleeves": "clothes",
-    "short twintails": "body",
+    "short twintails": "hair",
     "short-sleeved coat": "clothes",
     "short-sleeved jacket": "clothes",
     "short-sleeved sweater": "clothes",
@@ -20014,11 +20718,11 @@ Image: ${entry.imgName}`,
     "shushing": "limbs",
     "shutter shades": "clothes",
     "shy": "face",
-    "side braid": "body",
+    "side braid": "hair",
     "side cape": "clothes",
     "side cutout": "sexual",
     "side handle teapot": "scene",
-    "side ponytail": "body",
+    "side ponytail": "hair",
     "side slit": "sexual",
     "side-seamed legwear": "clothes",
     "side-tie bikini bottom": "clothes",
@@ -20027,8 +20731,8 @@ Image: ${entry.imgName}`,
     "sidecut": "body",
     "sideless outfit": "sexual",
     "sidelighting": "scene",
-    "sidelocks": "body",
-    "sidelocks tied back": "body",
+    "sidelocks": "hair",
+    "sidelocks tied back": "hair",
     "sidewalk": "scene",
     "sideways": "scene",
     "sideways glance": "face",
@@ -20065,19 +20769,19 @@ Image: ${entry.imgName}`,
     "simulated thigh sex": "sexual",
     "singapore": "scene",
     "singing": "pose",
-    "single braid": "body",
+    "single braid": "hair",
     "single breast curtain": "body",
     "single detached sleeve": "clothes",
-    "single drill": "body",
+    "single drill": "hair",
     "single earring": "face",
     "single elbow glove": "clothes",
     "single eyebrow": "face",
     "single fingerless glove": "clothes",
     "single glove": "clothes",
-    "single hair bun": "body",
-    "single hair intake": "body",
-    "single hair ring": "body",
-    "single hair tube": "body",
+    "single hair bun": "hair",
+    "single hair intake": "hair",
+    "single hair ring": "hair",
+    "single hair tube": "hair",
     "single head wing": "body",
     "single knee pad": "clothes",
     "single mechanical eye": "face",
@@ -20164,7 +20868,7 @@ Image: ${entry.imgName}`,
     "slightly naughty expressions practice": "face",
     "slim legs": "body",
     "slime (creature)": "character",
-    "slime hair": "body",
+    "slime hair": "hair",
     "slimification": "effects",
     "slingshot swimsuit": "clothes",
     "slippers": "clothes",
@@ -20188,7 +20892,7 @@ Image: ${entry.imgName}`,
     "smelling clothes": "sexual",
     "smelling feet": "sexual",
     "smelling flower": "scene",
-    "smelling hair": "body",
+    "smelling hair": "hair",
     "smelling pantyhose": "sexual",
     "smelling underwear": "sexual",
     "smile": "face",
@@ -20202,7 +20906,7 @@ Image: ${entry.imgName}`,
     "smother": "sexual",
     "smug": "face",
     "snack": "scene",
-    "snake hair": "body",
+    "snake hair": "hair",
     "snake mask": "clothes",
     "snake mouth": "face",
     "snake necklace": "clothes",
@@ -20307,7 +21011,7 @@ Image: ${entry.imgName}`,
     "spiked collar": "clothes",
     "spiked dildo": "sexual",
     "spiked gloves": "clothes",
-    "spiked hair": "body",
+    "spiked hair": "hair",
     "spiked legwear": "clothes",
     "spiked mask": "clothes",
     "spiked penis": "body",
@@ -20326,9 +21030,9 @@ Image: ${entry.imgName}`,
     "split": "pose",
     "split crop": "scene",
     "split mouth": "face",
-    "split ponytail": "body",
+    "split ponytail": "hair",
     "split theme": "effects",
-    "split-color hair": "body",
+    "split-color hair": "hair",
     "sponge cake": "scene",
     "spooky dance": "pose",
     "spoon": "scene",
@@ -20341,7 +21045,7 @@ Image: ${entry.imgName}`,
     "sportswear": "pose",
     "spot color": "effects",
     "spotlight": "effects",
-    "spotted hair": "body",
+    "spotted hair": "hair",
     "sprain": "body",
     "spraying": "pose",
     "spread anus": "body",
@@ -20407,13 +21111,13 @@ Image: ${entry.imgName}`,
     "star print": "clothes",
     "star symbol background": "scene",
     "star-shaped eyewear": "clothes",
-    "star-shaped hair": "body",
+    "star-shaped hair": "hair",
     "star-shaped pupils": "face",
     "starbucks": "scene",
     "starbucks siren": "scene",
     "starfruit": "scene",
     "staring": "pose",
-    "starry hair": "body",
+    "starry hair": "hair",
     "starry sky": "effects",
     "starry sky background": "scene",
     "starry sky print": "clothes",
@@ -20471,11 +21175,11 @@ Image: ${entry.imgName}`,
     "stove": "scene",
     "straddling": "pose",
     "straddling paizuri": "sexual",
-    "straight hair": "body",
+    "straight hair": "hair",
     "straight-arm salute": "limbs",
     "straight-on": "scene",
     "strangling": "sexual",
-    "strangling with hair": "body",
+    "strangling with hair": "hair",
     "strap lift": "sexual",
     "strap pull": "sexual",
     "strap slip": "sexual",
@@ -20508,7 +21212,7 @@ Image: ${entry.imgName}`,
     "strawberry swiss roll": "scene",
     "strawberry syrup": "scene",
     "strawberry tart": "scene",
-    "streaked hair": "body",
+    "streaked hair": "hair",
     "streaking": "pose",
     "stream": "scene",
     "street": "scene",
@@ -20526,7 +21230,7 @@ Image: ${entry.imgName}`,
     "striped bowtie": "clothes",
     "striped choker": "clothes",
     "striped gloves": "clothes",
-    "striped hair": "body",
+    "striped hair": "hair",
     "striped neckerchief": "clothes",
     "striped one-piece swimsuit": "clothes",
     "striped scarf": "clothes",
@@ -20633,7 +21337,7 @@ Image: ${entry.imgName}`,
     "sweet potato": "scene",
     "sweet potato cake": "scene",
     "sweets": "scene",
-    "swept bangs": "body",
+    "swept bangs": "hair",
     "swim briefs": "clothes",
     "swim cap": "clothes",
     "swim trunks": "clothes",
@@ -20668,7 +21372,7 @@ Image: ${entry.imgName}`,
     "sydney": "scene",
     "sydney harbour bridge": "scene",
     "sydney opera house": "scene",
-    "symbol-shaped hair": "body",
+    "symbol-shaped hair": "hair",
     "symbol-shaped pupils": "face",
     "symmetrical docking": "pose",
     "symmetrical hand pose": "pose",
@@ -20800,7 +21504,7 @@ Image: ${entry.imgName}`,
     "tenshi kaiwai": "clothes",
     "tentacle clothes": "sexual",
     "tentacle gagged": "sexual",
-    "tentacle hair": "body",
+    "tentacle hair": "hair",
     "tentacle on penis": "sexual",
     "tentacle pit": "sexual",
     "tentacle sex": "sexual",
@@ -20959,7 +21663,7 @@ Image: ${entry.imgName}`,
     "top pull": "sexual",
     "top-down bottom-up": "sexual",
     "topiary": "scene",
-    "topknot": "body",
+    "topknot": "hair",
     "topless female": "sexual",
     "topless male": "sexual",
     "toppo": "scene",
@@ -21049,13 +21753,13 @@ Image: ${entry.imgName}`,
     "trench": "scene",
     "trench coat": "clothes",
     "tress ribbon": "clothes",
-    "tri braids": "body",
+    "tri braids": "hair",
     "tri drills": "body",
-    "tri hair rings": "body",
+    "tri hair rings": "hair",
     "tri tails": "body",
     "triadic colors": "effects",
     "triangle background": "scene",
-    "triangle hair bun with corners toward head": "body",
+    "triangle hair bun with corners toward head": "hair",
     "triangle hands": "limbs",
     "triangle mouth": "face",
     "triangle print": "clothes",
@@ -21128,10 +21832,10 @@ Image: ${entry.imgName}`,
     "twerking": "pose",
     "twice cooked pork": "scene",
     "twilight": "effects",
-    "twin braids": "body",
+    "twin braids": "hair",
     "twin drills": "body",
     "twincest": "sexual",
-    "twintails": "body",
+    "twintails": "hair",
     "twintails day": "scene",
     "twirling hair": "limbs",
     "twisted torso": "pose",
@@ -21146,7 +21850,7 @@ Image: ${entry.imgName}`,
     "two-tone eyes": "face",
     "two-tone eyeshadow": "clothes",
     "two-tone eyewear": "clothes",
-    "two-tone hair": "body",
+    "two-tone hair": "hair",
     "two-tone legwear": "clothes",
     "two-tone lips": "clothes",
     "two-tone neckerchief": "clothes",
@@ -21155,7 +21859,7 @@ Image: ${entry.imgName}`,
     "two-tone sleeves": "clothes",
     "tying": "pose",
     "tying footwear": "pose",
-    "tying hair": "body",
+    "tying hair": "hair",
     "typing": "pose",
     "typo": "scene",
     "uc sampdoria": "pose",
@@ -21193,7 +21897,7 @@ Image: ${entry.imgName}`,
     "underboob cutout": "sexual",
     "underbust": "clothes",
     "underbutt": "body",
-    "undercut": "body",
+    "undercut": "hair",
     "underlighting": "scene",
     "undersized breast cup": "body",
     "underwater": "scene",
@@ -21209,7 +21913,7 @@ Image: ${entry.imgName}`,
     "uneven gloves": "clothes",
     "uneven legwear": "clothes",
     "uneven sleeves": "clothes",
-    "uneven twintails": "body",
+    "uneven twintails": "hair",
     "unfinished": "scene",
     "unibrow": "face",
     "unicorn mask": "clothes",
@@ -21307,9 +22011,9 @@ Image: ${entry.imgName}`,
     "vertical-striped background": "scene",
     "vertical-striped scarf": "clothes",
     "very dark skin": "body",
-    "very long hair": "body",
+    "very long hair": "hair",
     "very low bun": "body",
-    "very short hair": "body",
+    "very short hair": "hair",
     "very wide shot": "scene",
     "vest": "clothes",
     "vhs artifacts": "scene",
@@ -21436,7 +22140,7 @@ Image: ${entry.imgName}`,
     "watson cross": "pose",
     "wave print": "clothes",
     "waving": "limbs",
-    "wavy hair": "body",
+    "wavy hair": "hair",
     "wavy mouth": "face",
     "wax play": "sexual",
     "weapon": "body",
@@ -21462,7 +22166,7 @@ Image: ${entry.imgName}`,
     "wet": "scene",
     "wet clothes": "scene",
     "wet dress": "scene",
-    "wet hair": "body",
+    "wet hair": "hair",
     "wet panties": "scene",
     "wet shirt": "scene",
     "wet skirt": "scene",
@@ -21479,7 +22183,7 @@ Image: ${entry.imgName}`,
     "whip marks": "sexual",
     "whipped cream": "scene",
     "whipping": "sexual",
-    "whipping hair": "body",
+    "whipping hair": "hair",
     "whisk": "scene",
     "whiskey": "scene",
     "whisking": "pose",
@@ -21497,7 +22201,7 @@ Image: ${entry.imgName}`,
     "white eyeshadow": "clothes",
     "white fire": "scene",
     "white gloves": "clothes",
-    "white hair": "body",
+    "white hair": "hair",
     "white hat": "clothes",
     "white house": "scene",
     "white lips": "clothes",
@@ -21573,7 +22277,7 @@ Image: ${entry.imgName}`,
     "winter clothes": "clothes",
     "winter coat": "clothes",
     "wishcore": "clothes",
-    "wispy bangs": "body",
+    "wispy bangs": "hair",
     "wisteria": "scene",
     "witch hat": "clothes",
     "wither rose": "scene",
@@ -21746,8 +22450,9 @@ Image: ${entry.imgName}`,
     { id: "limbs", keywords: ["arm", "armband", "armpit", "armpits", "arms", "arms behind back", "beckoning", "bracelet", "clapping", "clasp", "clasped", "clench", "clenched", "elbow", "elbows", "facepalm", "finger", "finger heart", "fingering", "fingerless", "fingernail", "fingernails", "fingers", "fingertip", "fingertips", "fist", "fist bump", "fist pump", "fists", "forearm", "forearms", "gesture", "gestures", "grab", "grabbing", "groping", "hand", "handcuffed", "handcuffs", "handheld", "handjob", "hands", "hands on hips", "hands up", "heart hands", "held", "high five", "hold", "holding", "holding hands", "knuckle", "knuckles", "manicure", "nail polish", "outstretched", "palm", "palms", "peace sign", "pinch", "pinching", "pinky", "point", "pointing", "raised fist", "reach", "reaching", "salute", "shoulder", "shoulders", "shrugging", "shushing", "thumb", "thumbs", "wave", "waving", "wrist", "wristband", "wrists"] },
     { id: "pose", keywords: ["standing", "stand", "sitting", "sit", "seated", "kneeling", "kneel", "crouching", "crouch", "squatting", "squat", "lying", "lying down", "reclining", "reclined", "prone", "supine", "straddling", "straddle", "leaning", "bent over", "bending", "bowing", "arching", "arched", "slouching", "hunched", "stretching", "flexing", "tiptoes", "tiptoe", "yoga", "handstand", "headstand", "cartwheel", "somersault", "backflip", "backbend", "splits", "split", "prostration", "prostrating", "seiza", "wariza", "yokozuwari", "pose", "posing", "posture", "running", "run", "jogging", "walking", "walk", "marching", "striding", "jumping", "jump", "hopping", "hop", "leaping", "bouncing", "crawling", "crawl", "climbing", "climb", "swinging", "sliding", "rolling", "spinning", "twirling", "dancing", "dance", "skipping", "skip", "swimming", "swim", "floating", "flying", "falling", "diving", "tumbling", "flipping", "balancing", "balance", "hanging", "hang", "carrying", "carry", "piggyback", "kicking", "punching", "pushing", "pulling", "curtsy", "genuflect", "lunging", "sprawling", "sprawl", "pirouette"] },
     { id: "clothes", keywords: ["dress", "gown", "shirt", "blouse", "sweater", "sweatshirt", "hoodie", "jacket", "coat", "overcoat", "raincoat", "trench", "vest", "waistcoat", "cardigan", "tunic", "poncho", "cape", "cloak", "robe", "bathrobe", "apron", "overalls", "jumpsuit", "bodysuit", "leotard", "catsuit", "corset", "bustier", "camisole", "chemise", "babydoll", "lingerie", "bra", "panties", "underwear", "boxers", "briefs", "jockstrap", "thong", "garters", "stockings", "socks", "leggings", "tights", "pantyhose", "thighhighs", "kneehighs", "skirt", "miniskirt", "shorts", "pants", "trousers", "jeans", "kilt", "sarong", "tutu", "petticoat", "bloomers", "footwear", "shoes", "boots", "sandals", "slippers", "sneakers", "heels", "loafers", "moccasins", "hat", "hats", "cap", "beanie", "beret", "fedora", "helmet", "crown", "tiara", "headband", "headdress", "headscarf", "turban", "hijab", "veil", "scarf", "necktie", "bowtie", "ascot", "choker", "collar", "necklace", "pendant", "locket", "earrings", "bracelet", "bangle", "brooch", "cufflinks", "ring", "gloves", "mittens", "gauntlets", "wristband", "belt", "suspenders", "harness", "buckle", "buttons", "zipper", "ribbon", "bow", "lace", "frills", "sequins", "jewelry", "eyewear", "glasses", "goggles", "sunglasses", "monocle", "mask", "makeup", "lipstick", "eyeliner", "eyeshadow", "mascara", "blush", "cosmetics", "swimsuit", "swimwear", "bikini", "monokini", "tankini", "wetsuit", "uniform", "costume", "tuxedo", "suit", "kimono", "yukata", "hakama", "hanbok", "qipao", "sari", "clothes"] },
+    { id: "hair", keywords: ["ahoge", "bald", "balding", "bangs", "braid", "braids", "hair", "hairstyle", "ponytail", "ponytails", "twintails", "sidelocks", "pigtails", "bob cut", "hime cut", "pixie cut", "undercut", "mohawk", "afro", "dreadlocks", "cornrows", "drill hair", "hair bun", "hairline"] },
     { id: "face", keywords: ["beard", "blush", "cheek", "cheeks", "chin", "complexion", "crying", "dimple", "dimples", "drool", "ear", "earlobe", "ears", "expression", "eye", "eyebrow", "eyebrows", "eyelash", "eyelashes", "eyelid", "eyelids", "eyes", "face", "faces", "facial", "fang", "fangs", "forehead", "freckle", "freckles", "frown", "glare", "glaring", "goatee", "grin", "gums", "iris", "irises", "jaw", "jaws", "lick", "licking", "lip", "lips", "moustache", "mouth", "mouths", "mustache", "muzzle", "nose", "noses", "nostril", "nostrils", "pout", "pupil", "pupils", "saliva", "scowl", "scream", "screaming", "sideburns", "smile", "smiles", "smirk", "snout", "squint", "tears", "teeth", "tongue", "tooth", "tusk", "tusks", "whisker", "whiskers", "wince", "wink", "winking"] },
-    { id: "body", keywords: ["abdomen", "abs", "ahoge", "albino", "anal", "ankle", "anus", "areola", "arm", "armpit", "arms", "ass", "back", "bald", "balding", "bangs", "belly", "braid", "braids", "breast", "breasts", "buttocks", "cheek", "chest", "chin", "cleavage", "clitoris", "collarbone", "crotch", "ear", "ears", "elbow", "eye", "eyebrow", "eyebrows", "eyelash", "eyelashes", "eyelid", "eyes", "face", "facial", "fang", "feather", "feet", "finger", "fingernail", "fingers", "forehead", "freckles", "fur", "groin", "hair", "hairstyle", "hand", "hands", "heel", "hip", "hips", "horn", "horns", "iris", "jaw", "knee", "labia", "leg", "legs", "lip", "lips", "mole", "mouth", "muscle", "nape", "navel", "neck", "nipple", "nose", "nostril", "palm", "pectoral", "penis", "perineum", "ponytail", "pubic", "pupil", "pussy", "scar", "sclera", "scrotum", "shin", "shoulder", "shoulders", "sideboob", "skin", "spine", "stomach", "tail", "tails", "tan", "tattoo", "teeth", "tentacle", "testicle", "thigh", "thighs", "throat", "thumb", "toe", "toenail", "toes", "tongue", "tooth", "torso", "underboob", "vagina", "waist", "wing", "wings", "wrist"] },
+    { id: "body", keywords: ["abdomen", "abs", "albino", "anal", "ankle", "anus", "areola", "arm", "armpit", "arms", "ass", "back", "belly", "breast", "breasts", "buttocks", "cheek", "chest", "chin", "cleavage", "clitoris", "collarbone", "crotch", "ear", "ears", "elbow", "eye", "eyebrow", "eyebrows", "eyelash", "eyelashes", "eyelid", "eyes", "face", "facial", "fang", "feather", "feet", "finger", "fingernail", "fingers", "forehead", "freckles", "fur", "groin", "hand", "hands", "heel", "hip", "hips", "horn", "horns", "iris", "jaw", "knee", "labia", "leg", "legs", "lip", "lips", "mole", "mouth", "muscle", "nape", "navel", "neck", "nipple", "nose", "nostril", "palm", "pectoral", "penis", "perineum", "pubic", "pupil", "pussy", "scar", "sclera", "scrotum", "shin", "shoulder", "shoulders", "sideboob", "skin", "spine", "stomach", "tail", "tails", "tan", "tattoo", "teeth", "tentacle", "testicle", "thigh", "thighs", "throat", "thumb", "toe", "toenail", "toes", "tongue", "tooth", "torso", "underboob", "vagina", "waist", "wing", "wings", "wrist"] },
     { id: "character", keywords: ["1girl", "1boy", "1other", "2girls", "2boys", "2others", "3girls", "3boys", "3others", "4girls", "4boys", "4others", "5girls", "5boys", "5others", "6girls", "6boys", "6others", "multiple girls", "multiple boys", "multiple others", "solo focus", "solo", "male focus", "female focus", "other focus", "character counter", "gender request", "no humans", "dual persona", "multiple persona", "multiple views", "out of frame", "disembodied hand", "crossover", "look-alike", "too many cats", "multiple dogs", "dakimakura", "zoom layer", "character focus"] },
     { id: "scene", keywords: ["background", "backgrounds", "backdrop", "scenery", "landscape", "cityscape", "horizon", "skyline", "perspective", "composition", "silhouette", "reflection", "shadow", "bokeh", "panorama", "foreground", "city", "town", "village", "countryside", "rural", "urban", "suburb", "street", "road", "highway", "alley", "sidewalk", "path", "trail", "bridge", "tunnel", "railway", "railroad", "harbor", "dock", "pier", "port", "seaside", "beach", "shore", "coast", "bay", "ocean", "sea", "underwater", "river", "lake", "pond", "stream", "waterfall", "swamp", "forest", "jungle", "rainforest", "grassland", "meadow", "field", "farmland", "farm", "garden", "greenhouse", "park", "mountain", "peak", "hill", "cliff", "canyon", "valley", "desert", "glacier", "volcano", "cave", "island", "sky", "sunrise", "sunset", "sunlight", "daylight", "moonlight", "twilight", "dusk", "dawn", "night", "midnight", "morning", "evening", "starry", "galaxy", "nebula", "aurora", "rainbow", "cloud", "cloudy", "weather", "storm", "thunderstorm", "lightning", "rain", "snowy", "snowfall", "blizzard", "fog", "mist", "haze", "wind", "breeze", "eclipse", "meteor", "planet", "moon", "space", "interior", "indoors", "outdoor", "outdoors", "room", "bedroom", "kitchen", "bathroom", "classroom", "hallway", "rooftop", "balcony", "courtyard", "building", "architecture", "house", "cabin", "castle", "palace", "temple", "shrine", "church", "cathedral", "mosque", "pagoda", "tower", "skyscraper", "ruins", "factory", "dam", "cemetery", "window", "gate", "festival", "holiday", "celebration", "fireworks"] },
     { id: "effects", keywords: ["light", "lighting", "backlight", "backlighting", "sidelighting", "underlighting", "overlighting", "spotlight", "lamplight", "candlelight", "moonlight", "sunlight", "starlight", "firelight", "headlight", "floodlight", "glow", "glowing", "glowstick", "luminous", "illumination", "illuminated", "radiance", "radiant", "shimmer", "sparkle", "glint", "gleam", "flare", "bloom", "chiaroscuro", "caustics", "refraction", "reflection", "rays", "sunbeam", "moonbeam", "aurora", "twilight", "dusk", "dawn", "sunset", "sunrise", "night", "dark", "darkness", "shadow", "shadows", "shade", "silhouette", "overexposure", "underexposure", "exposure", "neon", "lantern", "color", "colored", "colorful", "monochrome", "greyscale", "sepia", "pastel", "palette", "hue", "saturation", "saturated", "desaturated", "gradient", "iridescent", "chromatic", "anaglyph", "tint", "vignette", "vignetting", "duotone", "muted", "vibrant", "vivid", "filter", "filters", "filtered", "blur", "bokeh", "focus", "defocus", "lens", "distortion", "aberration", "halftone", "dither", "glitch", "pixelated", "posterize", "grain", "scanline", "vhs", "crt", "watercolor", "lineart", "surreal", "stylized", "aesthetic", "retro", "vaporwave", "synthwave", "cyberpunk", "steampunk", "low poly", "cel shading", "pixel art"] }
@@ -21756,6 +22461,7 @@ Image: ${entry.imgName}`,
   // src/renderer/tag-categories.ts
   var TAG_CATEGORY_LABELS = {
     character: "Character",
+    hair: "Hair",
     body: "Body",
     face: "Face",
     clothes: "Clothes",
@@ -21879,8 +22585,12 @@ Image: ${entry.imgName}`,
       singleViewEl.style.display = mode === "single" ? "block" : "none";
       singleNav.style.display = mode === "single" ? "flex" : "none";
       if (mode === "single") renderSingleView();
-      else if (mode === "compact") renderCompactGrid();
-      else renderGallery();
+      else {
+        hideQuickTag();
+        setSingleCompact(false);
+        if (mode === "compact") renderCompactGrid();
+        else renderGallery();
+      }
     };
     const html = document.documentElement;
     const oldEl = viewContainerFor(prevMode);
@@ -22639,12 +23349,12 @@ Image: ${entry.imgName}`,
     if (d.koma) tags.push(d.koma);
     return tags;
   }
-  function buildSequentialPanel(panel, entry, onPreview) {
+  function buildSequentialPanel(panel2, entry, onPreview) {
     const d = seqDraftFromEntry(entry);
     const emitPreview = () => {
       if (onPreview) onPreview(seqPreviewTags(d));
     };
-    panel.addEventListener("change", emitPreview);
+    panel2.addEventListener("change", emitPreview);
     function sectionLabel(text) {
       const el = document.createElement("div");
       el.className = "single-name";
@@ -22693,7 +23403,7 @@ Image: ${entry.imgName}`,
     }
     const sections = document.createElement("div");
     sections.className = "seq-sections";
-    panel.appendChild(sections);
+    panel2.appendChild(sections);
     function newSection(title) {
       const el = document.createElement("div");
       el.className = "seq-section";
@@ -22716,7 +23426,7 @@ Image: ${entry.imgName}`,
     }
     const hasTextRow = toggleRow("Has text", d.hasText, (v) => {
       d.hasText = v;
-      panel.querySelectorAll(".seq-text-sub").forEach((el) => {
+      panel2.querySelectorAll(".seq-text-sub").forEach((el) => {
         el.style.display = v ? "" : "none";
       });
     });
@@ -22846,7 +23556,7 @@ Image: ${entry.imgName}`,
         seqRerender();
       }
     });
-    panel.appendChild(confirmBtn);
+    panel2.appendChild(confirmBtn);
     emitPreview();
   }
   function recordZoom(pct) {
@@ -22963,9 +23673,9 @@ Image: ${entry.imgName}`,
     previewBox.appendChild(previewChips);
     imgCol.appendChild(previewBox);
     wrap.appendChild(imgCol);
-    const panel = document.createElement("div");
-    panel.className = "single-panel seq-panel";
-    panel.style.position = "relative";
+    const panel2 = document.createElement("div");
+    panel2.className = "single-panel seq-panel";
+    panel2.style.position = "relative";
     const headRow = document.createElement("div");
     headRow.style.cssText = "display:flex; align-items:center; gap:8px;";
     const posEl = document.createElement("span");
@@ -22989,8 +23699,8 @@ Image: ${entry.imgName}`,
     headRow.appendChild(posEl);
     if (backBtn) headRow.appendChild(backBtn);
     headRow.appendChild(exitBtn);
-    panel.appendChild(headRow);
-    buildSequentialPanel(panel, entry, (tags) => {
+    panel2.appendChild(headRow);
+    buildSequentialPanel(panel2, entry, (tags) => {
       const fresh = new Set(tags.filter((t) => !entry.tags.includes(t)));
       previewHead.textContent = `Will apply on Confirm \u2014 ${tags.length} tags${fresh.size ? ` (${fresh.size} new)` : ""}`;
       previewChips.innerHTML = "";
@@ -23011,14 +23721,62 @@ Image: ${entry.imgName}`,
         previewChips.appendChild(chip);
       }
     });
-    wrap.appendChild(panel);
+    wrap.appendChild(panel2);
     if (stacked) {
       headRow.classList.add("seq-modal-head");
       wrap.prepend(headRow);
     }
     return wrap;
   }
+  var singleNavHome = { parent: null };
+  var singleCompactOn = false;
+  function setSingleCompact(on) {
+    if (!singleNavHome.parent) singleNavHome.parent = singleNav.parentElement;
+    singleCompactOn = on;
+    applyToolbarCollapse();
+    if (!on && singleNav.parentElement !== singleNavHome.parent) singleNavHome.parent?.appendChild(singleNav);
+  }
+  var TOOLBAR_COLLAPSED_KEY = "dts-toolbar-collapsed";
+  var toolbarManuallyCollapsed = getBool(TOOLBAR_COLLAPSED_KEY, false);
+  var phoneLayout = window.matchMedia("(max-width: 900px)");
+  function applyToolbarCollapse() {
+    const manual = toolbarManuallyCollapsed && !singleCompactOn && !phoneLayout.matches;
+    galleryToolbarEl().classList.toggle("toolbar-collapsed", singleCompactOn || manual);
+    const expandRow = document.getElementById("toolbarExpandRow");
+    if (expandRow) expandRow.style.display = manual ? "" : "none";
+  }
+  function setToolbarManuallyCollapsed(on) {
+    toolbarManuallyCollapsed = on;
+    setBool(TOOLBAR_COLLAPSED_KEY, on);
+    applyToolbarCollapse();
+  }
+  function galleryToolbarEl() {
+    return document.getElementById("galleryToolbar");
+  }
+  function buildSingleTopbar() {
+    const bar = document.createElement("div");
+    bar.className = "single-topbar";
+    const left = document.createElement("div");
+    left.className = "single-topbar-left";
+    const grid = document.createElement("button");
+    grid.type = "button";
+    grid.textContent = "Grid";
+    grid.title = "Back to the grid (brings the toolbar back)";
+    grid.addEventListener("click", () => switchView("grid"));
+    left.appendChild(grid);
+    const wiki = document.createElement("button");
+    wiki.type = "button";
+    wiki.title = "Tag wiki";
+    setIconLabel(wiki, "\u{1F4D6} Wiki");
+    wiki.addEventListener("click", () => document.getElementById("btnTagWiki")?.click());
+    left.appendChild(wiki);
+    bar.appendChild(left);
+    bar.appendChild(singleNav);
+    return bar;
+  }
   function renderSingleView() {
+    hideQuickTag();
+    setSingleCompact(false);
     if (masterSelectedImages.size > 1 && !seqActive) {
       renderMultiCompareView();
       return;
@@ -23051,26 +23809,32 @@ Image: ${entry.imgName}`,
     }
     const e = list[singleIndex];
     lastSingleBase = e.base;
+    showQuickTag(e);
+    setSingleCompact(true);
+    singleViewEl.appendChild(buildSingleTopbar());
     const wrap = document.createElement("div");
     wrap.className = "single-wrap";
-    wrap.appendChild(buildSinglePreview(e));
-    const panel = document.createElement("div");
-    panel.className = "single-panel single-panel-main";
+    const previewCol = document.createElement("div");
+    previewCol.className = "single-preview-col";
+    previewCol.appendChild(buildSinglePreview(e));
+    wrap.appendChild(previewCol);
+    const panel2 = document.createElement("div");
+    panel2.className = "single-panel single-panel-main";
     const nameEl = document.createElement("div");
     nameEl.className = "single-name";
     nameEl.textContent = e.imgName + (e.width ? ` \xB7 ${e.width}\xD7${e.height}` : "") + ` \xB7 ${e.tags.length} tags`;
-    panel.appendChild(nameEl);
+    panel2.appendChild(nameEl);
     if (e.disabled) {
       const badge = document.createElement("div");
       badge.className = "single-disabled-badge";
       badge.textContent = "Disabled \u2014 hidden from active dataset";
-      panel.appendChild(badge);
+      panel2.appendChild(badge);
     }
     if (e.meta && e.meta.noteAlwaysVisible && e.meta.note) {
       const noteVis = document.createElement("div");
       noteVis.className = "card-note-visible";
       noteVis.textContent = e.meta.note;
-      panel.appendChild(noteVis);
+      panel2.appendChild(noteVis);
     }
     const singleTagIndex = buildTagIndex();
     const singleChipOnChange = () => {
@@ -23078,8 +23842,8 @@ Image: ${entry.imgName}`,
       refreshRightPanels();
       refreshStats();
     };
-    panel.appendChild(buildTagSortBar(e, singleChipOnChange));
-    panel.appendChild(buildChipsBlock(e, singleTagIndex, singleChipOnChange));
+    panel2.appendChild(buildTagSortBar(e, singleChipOnChange));
+    panel2.appendChild(buildChipsBlock(e, singleTagIndex, singleChipOnChange));
     const addInput = document.createElement("input");
     addInput.type = "text";
     addInput.className = "addtag-input";
@@ -23097,7 +23861,7 @@ Image: ${entry.imgName}`,
       renderSingleView();
       refreshRightPanels();
     });
-    panel.appendChild(addInput);
+    previewCol.appendChild(addInput);
     const btnRow = document.createElement("div");
     btnRow.className = "single-btn-row";
     if (!e.original) {
@@ -23112,8 +23876,8 @@ Image: ${entry.imgName}`,
       toggleBtn.addEventListener("click", () => moveEntry(e, !e.disabled));
       btnRow.appendChild(toggleBtn);
     }
-    panel.appendChild(btnRow);
-    wrap.appendChild(panel);
+    panel2.appendChild(btnRow);
+    wrap.appendChild(panel2);
     singleViewEl.appendChild(wrap);
     if (restoreScroll) restoreScroll();
   }
@@ -23124,8 +23888,8 @@ Image: ${entry.imgName}`,
       if (el.scrollTop) ancestors.push([el, el.scrollTop]);
     }
     return () => {
-      const panel = host.querySelector(".single-panel");
-      if (panel) panel.scrollTop = panelTop;
+      const panel2 = host.querySelector(".single-panel");
+      if (panel2) panel2.scrollTop = panelTop;
       for (const [el, top] of ancestors) el.scrollTop = top;
     };
   }
@@ -23171,29 +23935,88 @@ Image: ${entry.imgName}`,
     if (subjects.length) return buildSubjectTree(entry, ordered, tagIndex, onChange, ghostByTag);
     const wrap = document.createElement("div");
     wrap.className = "tagcat-groups";
-    for (const group of groupTagsByCategory([...ordered, ...ghosts.map((g) => g.tag)])) {
-      const real = group.tags.filter((t) => !ghostByTag.has(t));
+    const groups2 = new Map(groupTagsByCategory([...ordered, ...ghosts.map((g) => g.tag)]).map((g) => [g.id, g.tags]));
+    for (const cat of TAG_CATEGORY_ORDER) {
+      const groupTags = groups2.get(cat) || [];
+      const real = groupTags.filter((t) => !ghostByTag.has(t));
       const seg = document.createElement("div");
-      seg.className = "tagcat-seg";
+      seg.className = "tagcat-seg" + (groupTags.length ? "" : " tagcat-seg-empty");
       const head = document.createElement("div");
       head.className = "tagcat-head";
       const name = document.createElement("span");
       name.className = "tagcat-name";
-      name.textContent = group.label;
+      name.textContent = TAG_CATEGORY_LABELS[cat];
       const count = document.createElement("span");
       count.className = "tagcat-count";
       count.textContent = String(real.length);
       head.appendChild(name);
       head.appendChild(count);
+      head.appendChild(buildCategoryAddButton(entry, cat, seg, onChange));
       seg.appendChild(head);
-      const chiprow = document.createElement("div");
-      chiprow.className = "chiprow";
-      for (const tag of real) chiprow.appendChild(buildChip2(entry, tag, onChange, tagIndex));
-      for (const tag of group.tags) if (ghostByTag.has(tag)) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(tag), onChange));
-      seg.appendChild(chiprow);
+      if (groupTags.length) {
+        const chiprow = document.createElement("div");
+        chiprow.className = "chiprow";
+        for (const tag of real) chiprow.appendChild(buildChip2(entry, tag, onChange, tagIndex));
+        for (const tag of groupTags) if (ghostByTag.has(tag)) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(tag), onChange));
+        seg.appendChild(chiprow);
+      }
       wrap.appendChild(seg);
     }
     return wrap;
+  }
+  function buildCategoryAddButton(entry, cat, host, onChange, subjectId) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tagcat-add";
+    btn.textContent = "+";
+    btn.title = `Add a tag under ${TAG_CATEGORY_LABELS[cat]}`;
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const existing = host.querySelector(":scope > .tagcat-add-input");
+      if (existing) {
+        existing.focus();
+        return;
+      }
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "addtag-input tagcat-add-input";
+      input.placeholder = `+ ${TAG_CATEGORY_LABELS[cat]} tag(s), press Enter`;
+      const commit = (value) => {
+        addTagsToCategory(entry, value, cat, subjectId);
+        closeAutocomplete();
+        onChange();
+        refreshRightPanels();
+      };
+      input.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        if (e.key === "Enter" && input.value.trim()) commit(input.value);
+        else if (e.key === "Escape") {
+          closeAutocomplete();
+          input.remove();
+        }
+      });
+      input.addEventListener("blur", () => {
+        if (!input.value.trim()) setTimeout(() => input.remove(), 150);
+      });
+      attachPickAutocomplete(input, commit);
+      host.querySelector(":scope > .tagcat-head, :scope > .tagsub-sub-head").insertAdjacentElement("afterend", input);
+      input.focus();
+    });
+    return btn;
+  }
+  function addTagsToCategory(entry, raw, cat, subjectId) {
+    const parts = raw.split(",").map((t) => t.trim().replace(/_/g, " ").replace(/\s+/g, " ")).filter(Boolean);
+    if (!parts.length) return;
+    addTagToEntry(entry, parts.join(","));
+    const present = parts.filter((t) => entry.tags.includes(t));
+    if (subjectId && present.length) assignTagsToSubject(entry, present, subjectId);
+    const elsewhere = present.filter((t) => categorizeTag(t) !== cat);
+    if (elsewhere.length === 1) {
+      const label = TAG_CATEGORY_LABELS[categorizeTag(elsewhere[0])];
+      toast(`"${elsewhere[0]}" is a ${label} tag, so it went under ${label} instead of ${TAG_CATEGORY_LABELS[cat]}.`, 4200);
+    } else if (elsewhere.length > 1) {
+      toast(`These belong to other categories and went there instead: ${elsewhere.map((t) => `"${t}" (${TAG_CATEGORY_LABELS[categorizeTag(t)]})`).join(", ")}.`, 5200);
+    }
   }
   function ensureEntryMeta(entry) {
     if (!entry.meta) entry.meta = {};
@@ -23386,6 +24209,7 @@ Image: ${entry.imgName}`,
       countEl.textContent = String(tags.length);
       subHead.appendChild(catName);
       subHead.appendChild(countEl);
+      subHead.appendChild(buildCategoryAddButton(entry, cat, sub, onChange, subject.id));
       sub.appendChild(subHead);
       const chiprow = document.createElement("div");
       chiprow.className = "chiprow";
@@ -23624,6 +24448,7 @@ Image: ${entry.imgName}`,
     function commit() {
       if (done) return;
       done = true;
+      closeAutocomplete();
       const cleaned = input.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
       if (cleaned && cleaned !== tag) renameTagOnEntry(entry, tag, cleaned);
       onChange();
@@ -23637,8 +24462,13 @@ Image: ${entry.imgName}`,
       } else if (ev.key === "Escape") {
         ev.preventDefault();
         done = true;
+        closeAutocomplete();
         onChange();
       }
+    });
+    attachPickAutocomplete(input, (value) => {
+      input.value = value;
+      commit();
     });
     input.addEventListener("blur", commit);
   }
@@ -24096,25 +24926,25 @@ Image: ${entry.imgName}`,
         applyModalTransform();
       });
     }
-    const panel = document.createElement("div");
-    panel.className = "single-panel";
-    panel.style.position = "relative";
+    const panel2 = document.createElement("div");
+    panel2.className = "single-panel";
+    panel2.style.position = "relative";
     const closeBtn = document.createElement("button");
     closeBtn.className = "modal-close-btn ghost-close";
     setIconLabel(closeBtn, "\u2715 Close");
     closeBtn.addEventListener("click", closeImageCardModal);
-    panel.appendChild(closeBtn);
+    panel2.appendChild(closeBtn);
     const nameText = entry.imgName + (entry.width ? ` \xB7 ${entry.width}\xD7${entry.height}` : "") + ` \xB7 ${entry.tags.length} tags`;
     const infoBtn = document.createElement("button");
     infoBtn.className = "modal-info-btn ghost-close";
     infoBtn.textContent = "\u24D8";
     infoBtn.title = "Image info";
     infoBtn.addEventListener("click", () => showInfoModal(`<p>${escapeHtml(nameText)}</p>`, "Image info"));
-    panel.appendChild(infoBtn);
+    panel2.appendChild(infoBtn);
     const nameEl = document.createElement("div");
     nameEl.className = "single-name";
     nameEl.textContent = nameText;
-    panel.appendChild(nameEl);
+    panel2.appendChild(nameEl);
     const statusRow = document.createElement("div");
     statusRow.className = "modal-status-row";
     for (const { emoji, state, label, matchedTags } of getEntryStatusIndicators(entry)) {
@@ -24125,7 +24955,7 @@ Image: ${entry.imgName}`,
       badge.title = matchedTags.length ? matchedTags.join(", ") : "";
       statusRow.appendChild(badge);
     }
-    panel.appendChild(statusRow);
+    panel2.appendChild(statusRow);
     const modalNavList = filteredEntries();
     const modalNavIdx = modalNavList.findIndex((x) => x.base === entry.base);
     if (modalNavList.length > 1 && modalNavIdx !== -1) {
@@ -24145,7 +24975,7 @@ Image: ${entry.imgName}`,
       navRow.appendChild(prevBtn);
       navRow.appendChild(posEl);
       navRow.appendChild(nextBtn);
-      panel.appendChild(navRow);
+      panel2.appendChild(navRow);
     }
     const zoomRow = document.createElement("div");
     zoomRow.className = "modal-zoom-row";
@@ -24178,7 +25008,7 @@ Image: ${entry.imgName}`,
     zoomRow.appendChild(zoomSlider);
     zoomRow.appendChild(zoomVal);
     zoomRow.appendChild(resetBtn);
-    panel.appendChild(zoomRow);
+    panel2.appendChild(zoomRow);
     if (!isTouchDevice2) {
       const editRow = document.createElement("div");
       editRow.className = "modal-edit-row";
@@ -24202,7 +25032,7 @@ Image: ${entry.imgName}`,
       editRow.appendChild(rotLeftBtn);
       editRow.appendChild(rotRightBtn);
       editRow.appendChild(cropBtn);
-      panel.appendChild(editRow);
+      panel2.appendChild(editRow);
     }
     const modalTagIndex = buildTagIndex();
     const addInput = document.createElement("input");
@@ -24223,17 +25053,17 @@ Image: ${entry.imgName}`,
       renderImageCardModal(entry);
       renderCurrentView();
     });
-    panel.appendChild(addInput);
+    panel2.appendChild(addInput);
     const modalChipOnChange = () => {
       renderImageCardModal(entry);
       renderCurrentView();
       refreshRightPanels();
       refreshStats();
     };
-    panel.appendChild(buildTagSortBar(entry, modalChipOnChange));
-    panel.appendChild(buildChipsBlock(entry, modalTagIndex, modalChipOnChange));
+    panel2.appendChild(buildTagSortBar(entry, modalChipOnChange));
+    panel2.appendChild(buildChipsBlock(entry, modalTagIndex, modalChipOnChange));
     modalCardInner.appendChild(imgSide);
-    modalCardInner.appendChild(panel);
+    modalCardInner.appendChild(panel2);
     if (restoreScroll) restoreScroll();
   }
   function tokenizeTag(tag) {
@@ -24883,26 +25713,35 @@ Image: ${entry.imgName}`,
   var getRightPanelCollapsedRef = () => false;
   var getHideTagsRef = () => false;
   var seqPanelForcedCollapse = false;
-  function initView(deps2) {
-    getEntries7 = deps2.getEntries;
-    getEntryByBase4 = deps2.getEntryByBase;
-    getDirHandleRef = deps2.getDirHandle;
-    addEntryFromNewFileRef = deps2.addEntryFromNewFile;
-    getMasterTagModeActive = deps2.getMasterTagModeActive;
-    getCardTagSortMode = deps2.getCardTagSortMode;
-    getGalleryFilter2 = deps2.getGalleryFilter;
-    getIsolatedFlagActive = deps2.getIsolatedFlagActive;
-    getShowTagCountBadges = deps2.getShowTagCountBadges;
-    getShowPastTags = deps2.getShowPastTags;
-    getEntryMeta2 = deps2.getEntryMeta;
-    saveEntryMetaRef2 = deps2.saveEntryMeta;
-    refreshAllUIRef7 = deps2.refreshAllUI;
-    setContainsFilterRef = deps2.setContainsFilter;
-    setExcludesFilterRef = deps2.setExcludesFilter;
-    deleteEntryPermanentlyRef = deps2.deleteEntryPermanently;
-    setRightPanelCollapsedRef = deps2.setRightPanelCollapsed;
-    getRightPanelCollapsedRef = deps2.getRightPanelCollapsed;
-    getHideTagsRef = deps2.getHideTags;
+  function initView(deps3) {
+    initQuickTag({
+      leftPanel: leftAside,
+      addTagToEntry,
+      removeTagFromEntry,
+      onChange: () => {
+        renderSingleView();
+        refreshRightPanels();
+      }
+    });
+    getEntries7 = deps3.getEntries;
+    getEntryByBase4 = deps3.getEntryByBase;
+    getDirHandleRef = deps3.getDirHandle;
+    addEntryFromNewFileRef = deps3.addEntryFromNewFile;
+    getMasterTagModeActive = deps3.getMasterTagModeActive;
+    getCardTagSortMode = deps3.getCardTagSortMode;
+    getGalleryFilter2 = deps3.getGalleryFilter;
+    getIsolatedFlagActive = deps3.getIsolatedFlagActive;
+    getShowTagCountBadges = deps3.getShowTagCountBadges;
+    getShowPastTags = deps3.getShowPastTags;
+    getEntryMeta2 = deps3.getEntryMeta;
+    saveEntryMetaRef2 = deps3.saveEntryMeta;
+    refreshAllUIRef7 = deps3.refreshAllUI;
+    setContainsFilterRef = deps3.setContainsFilter;
+    setExcludesFilterRef = deps3.setExcludesFilter;
+    deleteEntryPermanentlyRef = deps3.deleteEntryPermanently;
+    setRightPanelCollapsedRef = deps3.setRightPanelCollapsed;
+    getRightPanelCollapsedRef = deps3.getRightPanelCollapsed;
+    getHideTagsRef = deps3.getHideTags;
     langAutoSelectToggle.addEventListener("change", () => {
       autoSelectNewLanguage = langAutoSelectToggle.checked;
       setBool("dts-lang-autoselect", autoSelectNewLanguage);
@@ -24947,14 +25786,20 @@ Image: ${entry.imgName}`,
       toast(`Unlocked ${count} image(s).`);
       renderCurrentView();
     });
+    document.getElementById("btnToolbarCollapse")?.addEventListener("click", () => setToolbarManuallyCollapsed(true));
+    document.getElementById("btnToolbarExpand")?.addEventListener("click", () => setToolbarManuallyCollapsed(false));
+    phoneLayout.addEventListener("change", applyToolbarCollapse);
+    applyToolbarCollapse();
     btnRenameAllImages.addEventListener("click", async () => {
       const count = getEntries7().length;
       if (count === 0) {
         toast("No images loaded.");
         return;
       }
+      const webp = getEntries7().filter((e) => !e.original && isWebpName(e.imgName || e.base)).length;
+      const webpNote = webp ? ` ${webp} WebP image(s) will also be converted to PNG, since WD14 can't read WebP (lossless; undo restores the names but they stay PNG).` : "";
       const ok = await showConfirmModal(
-        `Rename all ${count} loaded image(s) (+ their .txt files) to a simple zero-padded 1-${count} sequence? Active dataset images are numbered first, then Disabled/ continues the same count. This can be undone from the Log panel.`,
+        `Rename all ${count} loaded image(s) (+ their .txt files) to a simple zero-padded 1-${count} sequence? Active dataset images are numbered first, then Disabled/ continues the same count. This can be undone from the Log panel.${webpNote}`,
         { okLabel: "Rename all", danger: true }
       );
       if (!ok) return;
@@ -25241,48 +26086,30 @@ Image: ${entry.imgName}`,
   }
 
   // src/renderer/app-icon.ts
-  var SIZE = 256;
-  var lastKey = "";
-  var timer = null;
-  function buildSvg() {
-    const markSvg = window.__dtsMarkSVG, specs = window.__dtsMarkSpec;
-    if (!markSvg || !specs) return null;
-    const root = document.documentElement;
-    const theme = root.getAttribute("data-theme") || "studio";
-    const spec = specs[theme] || specs.studio;
-    const cs = getComputedStyle(root);
-    const v = (k) => cs.getPropertyValue(k).trim();
-    const fill = v("--accent-flair"), ink = theme === "osmium" ? "#000" : v("--bg-base");
-    const danger = v("--accent-danger"), manual = v("--accent-manual");
-    const key = [theme, fill, ink, danger, manual].join("|");
-    const inner = markSvg(spec.L).replace(/^<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
-    const style = `g{stroke:${ink}}.of-nodes{fill:${ink};stroke:none}.of-thin{opacity:.55}.of-hollow{fill:${fill};stroke:${ink}}.of-pin{fill:${fill}}.of-split{opacity:.85}.of-split-a{stroke:${manual}}.of-split-b{stroke:${danger}}.of-seal{fill:${danger}}.of-moon{fill:color-mix(in srgb, ${danger} 55%, ${fill})}`;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 256 256"><style>${style}</style><rect width="256" height="256" rx="52" fill="${fill}"/><svg x="22" y="22" width="212" height="212" viewBox="-6 -6 262 262">${inner}</svg></svg>`;
-    return { svg, key };
-  }
-  function draw() {
-    const built = buildSvg();
-    if (!built || built.key === lastKey || !window.electronAPI.setAppIcon) return;
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = canvas.height = SIZE;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.drawImage(img, 0, 0, SIZE, SIZE);
-      lastKey = built.key;
-      void window.electronAPI.setAppIcon?.(canvas.toDataURL("image/png"));
-    };
-    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(built.svg);
-  }
-  function initAppIcon() {
-    if (!window.electronAPI || typeof window.electronAPI.setAppIcon !== "function") return;
-    const schedule = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(draw, 150);
-    };
-    new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
-    schedule();
+  var APP_ICON_KEY = "dts-app-icon";
+  function initAppIcon(deps3) {
+    const setAppIcon = window.electronAPI?.setAppIcon;
+    if (typeof setAppIcon !== "function") {
+      deps3.row.style.display = "none";
+      return { refresh: () => {
+      } };
+    }
+    let current = getString(APP_ICON_KEY) || "";
+    function refresh2() {
+      const options = [{ value: "", label: "Default" }];
+      for (const opt of Array.from(deps3.themeSelect.options)) {
+        if (opt.value === "custom" || !deps3.isOwned(opt.value)) continue;
+        options.push({ value: opt.value, label: (opt.textContent || opt.value).replace(/^🔒\s*/, "") });
+      }
+      buildPersistentDropdown(deps3.container, options, () => current, (val) => {
+        if (val === current) return;
+        current = val;
+        setString(APP_ICON_KEY, val);
+        void setAppIcon(val);
+      });
+    }
+    refresh2();
+    return { refresh: refresh2 };
   }
 
   // src/renderer/index.ts
@@ -25806,9 +26633,9 @@ Image: ${entry.imgName}`,
     document.addEventListener("click", (ev) => {
       if (!panelsCloseOnOutsideClick) return;
       let closedAny = false;
-      getOutsideClosablePanels().forEach((panel) => {
-        if (panel.style.display === "flex" && !panel.contains(ev.target) && !isClickInsideOwnedPdrop(panel, ev.target)) {
-          hidePanel(panel);
+      getOutsideClosablePanels().forEach((panel2) => {
+        if (panel2.style.display === "flex" && !panel2.contains(ev.target) && !isClickInsideOwnedPdrop(panel2, ev.target)) {
+          hidePanel(panel2);
           closedAny = true;
         }
       });
@@ -26011,7 +26838,11 @@ Image: ${entry.imgName}`,
       document.documentElement.classList.toggle("power-fill", fillOn);
     })();
     initPowerTools();
-    initAchievements({ getDirHandle: () => dirHandle, getEditLog: () => editLog, refreshThemeDropdownLabel: () => themeDropdownCtrl.refreshLabel() });
+    let appIconCtrl = null;
+    initAchievements({ getDirHandle: () => dirHandle, getEditLog: () => editLog, refreshThemeDropdownLabel: () => {
+      themeDropdownCtrl.refreshLabel();
+      appIconCtrl?.refresh();
+    } });
     initAchievementPanels();
     initTagPruner(buildTagIndex, refreshRightPanels, setMirroredSelectionFilter);
     initTagAutocomplete({
@@ -26926,8 +27757,14 @@ Image: ${entry.imgName}`,
       renderCurrentView();
     });
     initTagDetails();
+    initTagWiki($("btnTagWiki"));
     initRandomFacts();
-    initAppIcon();
+    appIconCtrl = initAppIcon({
+      row: $("appIconRow"),
+      container: $("appIconDropdown"),
+      themeSelect: $("themeSelect"),
+      isOwned: (t) => ownedThemes.includes(t)
+    });
     initClickFlash();
     initFontRefit();
     initInfoButtons();

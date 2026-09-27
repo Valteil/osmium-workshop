@@ -61,7 +61,9 @@ none of them touch your images or captions unless you tell them to:
 
 This is the tag editor itself — everything else in the app supports what happens here.
 
-**Views** (toolbar buttons):
+**Views** (toolbar buttons). The **▲** at the toolbar's bottom-right folds the toolbar away for
+more room, and the **▼** that appears at the gallery's top-right brings it back; the app remembers
+which you chose (desktop).
 - **Grid** — the default. Each card shows the image, its tags as editable chips, a dirty/untagged
   indicator, and a 3-dot menu. Settings ▸ Appearance ▸ "Dynamic card heights" switches to a masonry
   layout.
@@ -69,9 +71,33 @@ This is the tag editor itself — everything else in the app supports what happe
   side in an aligned comparison table. Use it to triage large folders quickly.
 - **Single** — one image at a time: a compact preview beside a roomy tag panel, with arrow-key
   navigation. Click the preview for the full-size lightbox (scroll to zoom, drag to pan) to
-  inspect fine details (text, hands, artifacts) before training. The toolbar's "N / total" box is
-  editable — type an image number and press Enter to jump there. Select 2+ images in Tag Overseer
-  first and switch here for a multi-image tag-alignment table.
+  inspect fine details (text, hands, artifacts) before training. The gallery toolbar folds away to
+  give you room: **Grid** (and **📖 Wiki**) sit top-left above the image, and the Prev / "N /
+  total" / Next navigator sits top-right above the tags. The "N / total" box is editable — type an
+  image number and press Enter to jump there. Grid brings the toolbar back. Select 2+ images in
+  Tag Overseer first and switch here for a multi-image tag-alignment table (that one keeps the full
+  toolbar). The add-tag field sits right under the image. **Image Quicktagging:** while Single view shows one image, the left panel slides over
+  to a set of checkboxes for common attributes, so you don't type them again and again: hair length
+  (short, medium, long), breast size (flat, small, medium, large, gigantic), slim / plump, thick
+  thighs / slim legs, and looking at viewer / looking away / looking to the side. Each box is
+  independent. Ticking adds the tag and unticking removes it, and ticking a breast size also adds
+  `breasts` (Flat doesn't). If no breast size is left ticked and Flat is, `breasts` is removed as
+  well. The filter panel comes back when you leave Single view.
+  **Your own quicktags:** each category's **+** adds one, and **+ Add category** (at the bottom)
+  adds a category. They're kept for every dataset. For each quicktag you give the tag it writes
+  (and optionally the checkbox's label), plus optional rules:
+  - **Ticking also adds:** other tags written with it.
+  - **Keep after unticking:** which of those extra tags stay when you untick it; the rest go with it.
+  - **Unticking also removes:** other tags taken off with it.
+  - **Unticked by:** ticking any of these tags unticks it.
+
+  Your own quicktags have ✎ (edit) and × (delete) buttons, and your own categories an ×. Deleting
+  never touches tags already on images.
+- **📖 Wiki** (next to Asc/Desc) — opens a small window to look up any tag's definition from the
+  bundled wiki, without going through a tag field. Type a tag (suggestions appear beside the window as you type)
+  and its definition shows boxed above the field, with its **See also** tags listed below the box;
+  click one to read that tag's definition. Drag the window by its title; it stays open until you
+  close it with ×.
 - **❌ Disabled** — images you've moved out of the active set. Use it for maybes you don't want
   to delete.
 - **🖼 Originals** — the pre-bucketing originals kept by [Bucket Images](#bucket-images).
@@ -79,7 +105,9 @@ This is the tag editor itself — everything else in the app supports what happe
 - **🔢 Rename all** — renames every loaded image (+ its `.txt`) to a simple zero-padded `1`-`N`
   sequence (active dataset first, then `Disabled/`, continuing the same count), confirmed first.
   Logged and undoable from the Log panel like any other bulk action. Use it to normalize a folder
-  to `1`–`N` before training.
+  to `1`–`N` before training. **WebP images are converted to PNG** on the way (WD14 can't read
+  WebP). The conversion is lossless and keeps transparency; an animated WebP keeps its first
+  frame. Undo restores the old names, but the files stay PNG.
 - **🔓 Unlock all** — clears the lock on every locked image in the dataset at once, so mass tools
   can reach them again.
 - **Hide tags** — hides the tag chips and add-tag field on every card. Handy while sorting against
@@ -103,8 +131,11 @@ and press Enter to add a new one. Separate several with commas (`1girl, red eyes
 them all at once, as a single undo step. Click the × on a chip to remove it.
 
 **🏷 Tag sorting:** in Single view and the image modal, this pill above the tags groups them into
-labelled categories — Character, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene,
-Effects, Other — instead of one flat wall (grid cards stay flat). Even with it off, tags are listed
+labelled categories — Character, Hair, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene,
+Effects, Other — instead of one flat wall (grid cards stay flat). Hair is head hair (length,
+colour, styles); Body is everything below the neck. Each category has a **+** that opens an add
+field under its heading, including empty categories. A tag always lands in the category it belongs
+to: if you add one under the wrong heading, it goes where it belongs and a note tells you. Even with it off, tags are listed
 in that same category order by default, just without the headings, and a newly added tag drops
 straight into its place. Settings ▸ "Sort tags within each card" switches to Order added,
 Alphabetical or By frequency instead. The grouping is a best guess
@@ -268,7 +299,8 @@ opens it, and toggling back via the tab tucks it away again.
    (selection stays in sync both ways).
 2. Apply or remove a tag across the whole selection, conditionally apply one tag based on another
    being present — or the inverse, based on it being ABSENT (its own separate row, right below the
-   first) — or run a dataset-wide rename / find-and-replace. Use it for bulk passes (e.g. tag
+   first) — conditionally **remove** a tag from every image that has another (e.g. take "breasts"
+   off every "flat chest" image), or run a dataset-wide rename / find-and-replace. Use it for bulk passes (e.g. tag
    everything containing X).
 3. Mass **Lock/Unlock**, **Merge Immunize/Antivoid/Antimmunize** buttons apply the same per-image
    flags described above to your entire selection at once.
@@ -354,6 +386,14 @@ into new reference poses via ControlNet instead of hand-posing/hand-drawing more
 
 **Requires ComfyUI with a few extra things installed** — see `ComfyUI-dependencies/README.md` in
 this repo for exactly what and why (some of it is bundled there directly).
+
+**You don't have to keep ComfyUI running (desktop).** In the ComfyUI connection section, set
+**Run on** to **Local ComfyUI (no server)** and choose your ComfyUI folder once (the portable folder
+or the `ComfyUI` folder inside it). Click **Connect** and Osmium starts that install itself, in its
+own console window, loading only what this workflow needs rather than all your custom nodes. The
+first start takes a little while and the first generation loads the models; after that it's quick.
+Use it instead of your usual ComfyUI, not alongside it. In this mode, interrogating the reference
+image runs on-device, so set Tag Overseer's WD14 Autotagger to **On-device**.
 
 **The flow:**
 1. **Pick a reference pose image** (or skip this entirely via "I don't want to use a reference
@@ -495,6 +535,11 @@ particles (cherry petals, phosphor pixels, embers, bubbles, gold leaf…) as the
 full colour. It takes under two seconds. Click, tap or press a key to speed it up, or turn it off
 with **Disable opening flourish** in Settings ▸ Appearance. On phones it runs top to bottom. With
 your system's "reduce motion" setting on, it's a brief fade instead.
+
+**App icon (Windows).** Settings ▸ Appearance ▸ **App icon** sets the app's window and taskbar icon:
+the default Osmium icon, or any theme you own drawn as that theme's Osmium mark on its own colour.
+It's your choice rather than following the current theme, so switching themes doesn't shuffle the
+taskbar, and the app opens with it already in place.
 
 ---
 

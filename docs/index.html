@@ -1734,24 +1734,31 @@
   // never needs a hand-edit when a new version ships. Matched by NAME
   // PATTERN, not a hardcoded version, since every release embeds its own
   // version number in the filename (see gh release create's asset names).
+  // Each button takes the NEWEST release that has its file: a release can
+  // skip an unchanged app (v1.9.0 ships no Comfy Bridge files), so the
+  // latest release alone isn't enough.
   var targets = [
     { attr: 'osmium-desktop', re: /^Osmium\.Workshop-.*-win\.zip$/ },
     { attr: 'osmium-android', re: /^OsmiumWorkshop-.*-android\.apk$/ },
     { attr: 'cbridge-desktop', re: /^Comfy\.Bridge-.*-win\.zip$/ },
     { attr: 'cbridge-android', re: /^ComfyBridge-.*-android\.apk$/ }
   ];
-  fetch('https://api.github.com/repos/Valteil/osmium-workshop/releases/latest')
+  fetch('https://api.github.com/repos/Valteil/osmium-workshop/releases?per_page=10')
     .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(rel){
-      if (!rel) return;
-      if (rel.tag_name){
-        document.querySelectorAll('[data-latest-ver]').forEach(function(el){ el.textContent = rel.tag_name; });
+    .then(function(rels){
+      if (!Array.isArray(rels)) return;
+      rels = rels.filter(function(rel){ return !rel.draft && !rel.prerelease; });
+      if (rels[0] && rels[0].tag_name){
+        var tag = rels[0].tag_name;
+        document.querySelectorAll('[data-latest-ver]').forEach(function(el){ el.textContent = tag; });
       }
-      if (!Array.isArray(rel.assets)) return;
       targets.forEach(function(t){
         var el = document.querySelector('[data-dl="' + t.attr + '"]');
-        var asset = el && rel.assets.find(function(a){ return t.re.test(a.name); });
-        if (asset) el.href = asset.browser_download_url;
+        if (!el) return;
+        for (var i = 0; i < rels.length; i++){
+          var asset = (rels[i].assets || []).find(function(a){ return t.re.test(a.name); });
+          if (asset){ el.href = asset.browser_download_url; return; }
+        }
       });
     })
     .catch(function(){ /* leave the releases/latest fallback + static "v1.6.0" text in place */ });
