@@ -88,14 +88,14 @@ COMFY_DIR = os.path.abspath(opts.comfy)
 PACK_DIR = os.path.join(COMFY_DIR, "custom_nodes", "ComfyUI-DataSetManagerNodes")
 TESTED_COMFY_VERSION = "0.37.0"
 
-# The comfy_extras files (besides core nodes.py) the SynthDat workflow's
-# image path uses, and the DSM subpackages it uses. Nothing else loads. The
-# text nodes ARE on the image path: DSM Text Concatenate merges the prompt
-# fields, passed through PreviewAny #23. Only the filename chain (Danbooru
-# Character Detect, DSM Lora Loader #38, Text Contains/Switch/String) drops
-# out, because OsmiumCapture has no filename_prefix.
+# The comfy_extras files (besides core nodes.py) and DSM subpackages the
+# SynthDat workflow's SaveImage nodes depend on. Nothing else loads. That
+# includes the filename chain behind SaveImage's filename_prefix (#207 <- #37:
+# rating / Danbooru Character Detect #203 / DSM Lora Loader #38), so outputs
+# land in ComfyUI's output folder under the same path server mode uses.
 CORE_EXTRAS = ["nodes_custom_sampler.py", "nodes_primitive.py", "nodes_preview_any.py"]
-DSM_SUBPACKAGES = ["anima_lllite", "rgthree_subset", "impact_switch", "easy_lora_names", "was_text_nodes"]
+DSM_SUBPACKAGES = ["anima_lllite", "rgthree_subset", "impact_switch", "easy_lora_names", "was_text_nodes",
+                   "danbooru_character_detect"]
 
 # ComfyUI parses sys.argv once, on first import of comfy.cli_args.
 sys.argv = [os.path.join(COMFY_DIR, "main.py"), "--windows-standalone-build", *comfy_flags]
@@ -167,33 +167,6 @@ def load_nodes():
         nodes.NODE_CLASS_MAPPINGS.update(getattr(mod, "NODE_CLASS_MAPPINGS", {}))
     # What the pack's __init__ would have done: its bundled ControlNet weights.
     folder_paths.add_model_folder_path("controlnet", os.path.join(PACK_DIR, "models", "controlnet"))
-    nodes.NODE_CLASS_MAPPINGS["OsmiumCapture"] = OsmiumCapture
-
-
-CAPTURED = {}
-
-
-class OsmiumCapture:
-    """Stands in for SaveImage: hands the decoded image back to Osmium as PNG
-    instead of writing it into ComfyUI's output folder."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {"images": ("IMAGE",), "key": ("STRING", {"default": ""})}}
-
-    RETURN_TYPES = ()
-    FUNCTION = "capture"
-    OUTPUT_NODE = True
-    CATEGORY = "osmium"
-
-    def capture(self, images, key):
-        from PIL import Image
-        import numpy as np
-        arr = np.clip(255.0 * images[0].cpu().numpy(), 0, 255).astype(np.uint8)
-        buf = io.BytesIO()
-        Image.fromarray(arr).save(buf, format="PNG", compress_level=4)
-        CAPTURED[key] = buf.getvalue()
-        return {}
 
 
 # ---- server stand-in ------------------------------------------------------
@@ -248,17 +221,11 @@ def is_link(v):
 
 
 def prepare(prompt):
-    """SaveImage -> OsmiumCapture, then prune every node the captures don't
-    depend on: the UI previews and the filename-building chain, whose node
-    types this runner doesn't even load."""
-    captures = []
-    out = {}
-    for nid, node in prompt.items():
-        if node.get("class_type") == "SaveImage":
-            out[nid] = {"class_type": "OsmiumCapture", "inputs": {"images": node["inputs"]["images"], "key": nid}}
-            captures.append(nid)
-        else:
-            out[nid] = node
+    """Prune every node the SaveImage nodes don't depend on (the UI-only
+    PreviewImages). SaveImage runs as-is, filename chain included, exactly as
+    it would on a ComfyUI server."""
+    out = prompt
+    captures = [nid for nid, node in prompt.items() if node.get("class_type") == "SaveImage"]
     if not captures:
         raise ValueError("The workflow has no SaveImage node to return an image from.")
     keep, stack = set(), list(captures)
@@ -320,9 +287,23 @@ def cmd_generate(req):
                 pass
 
 
+def saved_image(node_id):
+    """The file a SaveImage node just wrote (from the executor's history, the
+    same record a server's /history returns), as (bytes, path relative to
+    ComfyUI's output folder)."""
+    outputs = (EXECUTOR.history_result or {}).get("outputs", {})
+    images = (outputs.get(node_id) or {}).get("images") or []
+    if not images:
+        return None
+    img = images[0]
+    base = folder_paths.get_directory_by_type(img.get("type") or "output")
+    path = os.path.join(base, img.get("subfolder") or "", img["filename"])
+    with open(path, "rb") as f:
+        return f.read(), os.path.relpath(path, base)
+
+
 def run_prompt(prompt, captures):
     global EXECUTOR
-    CAPTURED.clear()
     SERVER.messages = []
     if EXECUTOR is None:
         # Same defaults as main.py's prompt_worker.
@@ -341,10 +322,14 @@ def run_prompt(prompt, captures):
         if event == "execution_error":
             say(f"Error in {data.get('node_type')}: {data.get('exception_message')}")
             return {"ok": False, "error": f"{data.get('node_type')} failed: {str(data.get('exception_message', '')).strip()}"}
-    if not EXECUTOR.success or not CAPTURED:
+    saved = {nid: saved_image(nid) for nid in captures} if EXECUTOR.success else {}
+    saved = {nid: s for nid, s in saved.items() if s}
+    if not saved:
         return {"ok": False, "error": "The local runner finished without producing an image."}
+    for nid, (_bytes, rel) in saved.items():
+        say(f"Saved {rel}")
     say("Done in {:.1f}s".format(time.perf_counter() - started))
-    return {"ok": True, "images": {k: base64.b64encode(v).decode("ascii") for k, v in CAPTURED.items()}}
+    return {"ok": True, "images": {nid: base64.b64encode(b).decode("ascii") for nid, (b, _rel) in saved.items()}}
 
 
 def cmd_unload(_req):
