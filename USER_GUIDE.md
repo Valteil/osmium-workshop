@@ -61,7 +61,9 @@ none of them touch your images or captions unless you tell them to:
 
 This is the tag editor itself — everything else in the app supports what happens here.
 
-**Views** (toolbar buttons):
+**Views** (toolbar buttons). The **▲** at the toolbar's bottom-right folds the toolbar away for
+more room, and the **▼** that appears at the gallery's top-right brings it back; the app remembers
+which you chose (desktop).
 - **Grid** — the default. Each card shows the image, its tags as editable chips, a dirty/untagged
   indicator, and a 3-dot menu. Settings ▸ Appearance ▸ "Dynamic card heights" switches to a masonry
   layout.

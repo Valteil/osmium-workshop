@@ -3818,6 +3818,21 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; opacity: 0;
     overflow: hidden; border-bottom-color: transparent; pointer-events: none;
   }
+  /* Manual collapse (outside Single view): ▲ sits at the toolbar's bottom-
+     right (padding keeps the toolbar's own buttons clear of it), ▼ is a
+     sticky tab at the gallery's top-right while it's collapsed. */
+  #galleryToolbar{ padding-right: 52px; }
+  .toolbar-collapse-btn{
+    position: absolute; right: 12px; bottom: 10px;
+    padding: 2px 7px; min-height: 0; line-height: 0;
+  }
+  #galleryToolbar.toolbar-collapsed .toolbar-collapse-btn{ display: none; }
+  .toolbar-expand-row{ position: sticky; top: 0; z-index: 16; height: 0; }
+  .toolbar-expand-btn{
+    position: absolute; right: 12px; top: 6px;
+    padding: 2px 7px; min-height: 0; line-height: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+  }
   .single-topbar{
     display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
     margin: 0 0 12px;
@@ -5274,6 +5289,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
        nothing here can ever cause page-level horizontal panning again)
        means the only thing left to scroll horizontally is the image row. */
     #galleryToolbar{ overflow-x: hidden; padding: 10px 12px; gap: 8px; margin-bottom: 8px; }
+    /* The manual collapse is desktop-only (the phone toolbar is already a
+       one-row strip, and the ▲ would sit on it). */
+    .toolbar-collapse-btn, .toolbar-expand-row{ display: none !important; }
     /* 2026-09-27: wrapping took three rows (~25% of a phone screen) for
        seven buttons. The row is now its OWN contained horizontal strip:
        max-width 100% + overflow-x:auto keeps the overflow inside it (the

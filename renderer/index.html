@@ -835,6 +835,11 @@
           <span class="single-pos" id="singlePos">0 / 0</span>
           <button id="singleNextBtn" title="Next image (→ key)">Next<svg class="ic ic-trail" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
         </div>
+        <button id="btnToolbarCollapse" class="toolbar-collapse-btn" title="Collapse the toolbar for more room"><svg class="ic" aria-hidden="true"><use href="#i-caret-up"></use></svg></button>
+      </div>
+      <!-- Shown while the toolbar is collapsed by hand (view.ts applyToolbarCollapse). -->
+      <div id="toolbarExpandRow" class="toolbar-expand-row" style="display:none;">
+        <button id="btnToolbarExpand" class="toolbar-expand-btn" title="Show the toolbar"><svg class="ic" aria-hidden="true"><use href="#i-caret-down"></use></svg></button>
       </div>
 
       <div class="gallery-content">

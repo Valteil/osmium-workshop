@@ -1465,10 +1465,33 @@ function buildSeqBody(entry: Entry, stacked: boolean): HTMLElement {
 // and back again on leaving. Multi-compare, a Sequential run, an empty filter
 // and every other view keep the full toolbar.
 const singleNavHome = { parent: null as HTMLElement | null };
+let singleCompactOn = false;
 function setSingleCompact(on: boolean): void {
   if (!singleNavHome.parent) singleNavHome.parent = singleNav.parentElement;
-  galleryToolbarEl().classList.toggle('toolbar-collapsed', on);
+  singleCompactOn = on;
+  applyToolbarCollapse();
   if (!on && singleNav.parentElement !== singleNavHome.parent) singleNavHome.parent?.appendChild(singleNav);
+}
+
+// Outside Single view the toolbar can also be collapsed by hand: its ▲
+// button (bottom-right) folds it up and a ▼ tab at the gallery's top-right
+// brings it back. Remembered across launches. Single view's own compact
+// layout collapses it regardless and hides both controls; leaving Single
+// view restores the manual choice. One function decides, so they can't fight.
+const TOOLBAR_COLLAPSED_KEY = 'dts-toolbar-collapsed';
+let toolbarManuallyCollapsed = getBool(TOOLBAR_COLLAPSED_KEY, false);
+// Phone-width layouts hide the controls (CSS), so the manual state is ignored there.
+const phoneLayout = window.matchMedia('(max-width: 900px)');
+function applyToolbarCollapse(): void {
+  const manual = toolbarManuallyCollapsed && !singleCompactOn && !phoneLayout.matches;
+  galleryToolbarEl().classList.toggle('toolbar-collapsed', singleCompactOn || manual);
+  const expandRow = document.getElementById('toolbarExpandRow');
+  if (expandRow) expandRow.style.display = manual ? '' : 'none';
+}
+function setToolbarManuallyCollapsed(on: boolean): void {
+  toolbarManuallyCollapsed = on;
+  setBool(TOOLBAR_COLLAPSED_KEY, on);
+  applyToolbarCollapse();
 }
 function galleryToolbarEl(): HTMLElement {
   return document.getElementById('galleryToolbar')!;
@@ -3709,6 +3732,10 @@ export function initView(deps: ViewDeps): void {
     toast(`Unlocked ${count} image(s).`);
     renderCurrentView();
   });
+  document.getElementById('btnToolbarCollapse')?.addEventListener('click', () => setToolbarManuallyCollapsed(true));
+  document.getElementById('btnToolbarExpand')?.addEventListener('click', () => setToolbarManuallyCollapsed(false));
+  phoneLayout.addEventListener('change', applyToolbarCollapse);
+  applyToolbarCollapse();
   btnRenameAllImages.addEventListener('click', async () => {
     const count = getEntries().length;
     if (count === 0){ toast('No images loaded.'); return; }

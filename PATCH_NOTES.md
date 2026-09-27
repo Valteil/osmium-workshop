@@ -36,6 +36,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Wiki window**: a new toolbar button next to Asc/Desc opens a small tag-definition lookup that
   stays open until you close it. The definition sits in a box, with its See also tags as links
   below.
+- **Collapsible toolbar**: the ▲ at the gallery toolbar's bottom-right folds it away (▼ brings it
+  back), remembered between sessions.
 - **Single view layout**: the gallery toolbar folds away for more room; Grid sits above the image
   and the image navigator above the tags.
 - **Tag definitions refreshed** from Danbooru: about 110,000 more definitions (new tags and ones
