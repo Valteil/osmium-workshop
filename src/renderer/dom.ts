@@ -15,6 +15,7 @@ export const btnUndo = $<HTMLButtonElement>('btnUndo');
 export const btnRedo = $<HTMLButtonElement>('btnRedo');
 export const btnUnloadDataset = $<HTMLButtonElement>('btnUnloadDataset');
 export const btnReloadDataset = $<HTMLButtonElement>('btnReloadDataset');
+export const btnAddCurrentDataset = $<HTMLButtonElement>('btnAddCurrentDataset');
 export const dirtyCountEl = $('dirtyCount');
 export const galleryToolbar = $('galleryToolbar');
 export const galleryGrid = $('galleryGrid');

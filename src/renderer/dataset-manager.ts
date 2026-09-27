@@ -831,7 +831,7 @@ export async function maybePromptAddDataset(handle: DMRecord['handle']): Promise
   const suppressed = getBool(SUPPRESS_KEY);
   if (suppressed) return;
   const add = await showConfirmModal(
-    `Add "${handle.name}" to your Dataset tab?\nChoosing No means you won't be asked again — you can still add folders anytime from the Dataset tab's + tile.`,
+    `Add "${handle.name}" to your Datasets tab?\nIf you choose No, this won't ask again for any folder. You can still add the open dataset anytime with File ▸ Add current dataset as folder, or any folder with the Datasets tab's + tile.`,
     { okLabel: 'Yes', cancelLabel: 'No' }
   );
   if (add){
@@ -839,6 +839,20 @@ export async function maybePromptAddDataset(handle: DMRecord['handle']): Promise
     if (datasetManagerTab.style.display !== 'none') renderDatasetManagerTab();
   } else {
     setBool(SUPPRESS_KEY, true);
+  }
+}
+
+// File ▸ Add current dataset as folder: the explicit route, so it ignores
+// the prompt's suppression.
+export async function addCurrentDatasetToTab(handle: DMRecord['handle']): Promise<void> {
+  try {
+    if (await findTrackedRecord(handle)){ toast(`"${handle.name}" is already in the Datasets tab.`); return; }
+    await addDatasetFolder(handle);
+    if (datasetManagerTab.style.display !== 'none') renderDatasetManagerTab();
+    toast(`Added "${handle.name}" to the Datasets tab.`);
+  } catch(e){
+    console.error('[datasets] add current folder failed:', e);
+    toast(`Could not add that folder: ${(e as Error)?.message || 'unknown error'}`, 4200);
   }
 }
 

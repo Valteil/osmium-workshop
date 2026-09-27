@@ -129,6 +129,7 @@
   var btnRedo = $("btnRedo");
   var btnUnloadDataset = $("btnUnloadDataset");
   var btnReloadDataset = $("btnReloadDataset");
+  var btnAddCurrentDataset = $("btnAddCurrentDataset");
   var dirtyCountEl = $("dirtyCount");
   var galleryToolbar = $("galleryToolbar");
   var galleryGrid = $("galleryGrid");
@@ -4266,7 +4267,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       here as a themed folder icon. Sort by name/time,${isTouchDevice ? "" : " or manually by dragging,"} and
       ${isTouchDevice ? "tap a folder's \u22EF button" : "right-click a folder (or tap its \u22EF button)"} for more options: remove it from
       this list, pin it as a favorite, view its achievements read-only, change its icon, or move it
-      to a different tab. Opening a folder that isn't tracked here yet prompts you once to add it.</p>
+      to a different tab. Opening a folder that isn't tracked here yet asks whether to add it;
+      answering No turns that question off for good. You can add the open dataset anytime with
+      <b>File \u25B8 Add current dataset as folder</b>, or any folder with this tab's <b>+</b> tile.</p>
       <p><b>Tabs</b> split folders into separate groups \u2014 the built-in <b>Default</b> tab always
       shows, and any tab you add with the <b>+</b> button can be given a password (tap its \u22EF
       button). A password-protected tab re-locks every time the app starts; nothing about it
@@ -8295,8 +8298,8 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
     const suppressed = getBool(SUPPRESS_KEY);
     if (suppressed) return;
     const add = await showConfirmModal(
-      `Add "${handle.name}" to your Dataset tab?
-Choosing No means you won't be asked again \u2014 you can still add folders anytime from the Dataset tab's + tile.`,
+      `Add "${handle.name}" to your Datasets tab?
+If you choose No, this won't ask again for any folder. You can still add the open dataset anytime with File \u25B8 Add current dataset as folder, or any folder with the Datasets tab's + tile.`,
       { okLabel: "Yes", cancelLabel: "No" }
     );
     if (add) {
@@ -8304,6 +8307,20 @@ Choosing No means you won't be asked again \u2014 you can still add folders anyt
       if (datasetManagerTab.style.display !== "none") renderDatasetManagerTab();
     } else {
       setBool(SUPPRESS_KEY, true);
+    }
+  }
+  async function addCurrentDatasetToTab(handle) {
+    try {
+      if (await findTrackedRecord(handle)) {
+        toast(`"${handle.name}" is already in the Datasets tab.`);
+        return;
+      }
+      await addDatasetFolder(handle);
+      if (datasetManagerTab.style.display !== "none") renderDatasetManagerTab();
+      toast(`Added "${handle.name}" to the Datasets tab.`);
+    } catch (e) {
+      console.error("[datasets] add current folder failed:", e);
+      toast(`Could not add that folder: ${e?.message || "unknown error"}`, 4200);
     }
   }
   async function addFolderViaAddTile() {
@@ -26101,6 +26118,7 @@ Image: ${entry.imgName}`,
         btnAddFavorite.disabled = true;
         btnUnloadDataset.disabled = true;
         btnReloadDataset.disabled = true;
+        btnAddCurrentDataset.disabled = true;
         resetUndoRedo();
         masterSelectedImages.clear();
         resetStickyCompare();
@@ -26385,6 +26403,7 @@ Image: ${entry.imgName}`,
       btnAddFavorite.disabled = !dirHandle;
       btnUnloadDataset.disabled = !dirHandle;
       btnReloadDataset.disabled = !dirHandle;
+      btnAddCurrentDataset.disabled = !dirHandle;
       resetUndoRedo();
       masterSelectedImages.clear();
       resetStickyCompare();
@@ -26460,6 +26479,7 @@ Image: ${entry.imgName}`,
       btnAddFavorite.disabled = true;
       btnUnloadDataset.disabled = true;
       btnReloadDataset.disabled = true;
+      btnAddCurrentDataset.disabled = true;
       resetUndoRedo();
       masterSelectedImages.clear();
       resetStickyCompare();
@@ -26498,6 +26518,9 @@ Image: ${entry.imgName}`,
       await loadFolder();
     }
     btnReloadDataset.addEventListener("click", reloadDataset);
+    btnAddCurrentDataset.addEventListener("click", () => {
+      if (dirHandle) void addCurrentDatasetToTab(dirHandle);
+    });
     filterModeDropdownCtrl = buildPersistentDropdown(
       filterModeDropdown,
       [

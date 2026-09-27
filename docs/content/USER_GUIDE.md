@@ -323,7 +323,9 @@ needs its indicator tags aligned without opening each card by hand.
 A folder manager separate from the Gallery — shows every dataset folder you've ever opened as a
 themed folder icon. Sort manually (drag) or by name/time. Right-click a folder for options:
 remove from this list, pin as a favorite, view its achievements read-only, change its icon, or
-move it to a different tab. Opening an untracked folder prompts once to add it here. Use it to
+move it to a different tab. Opening an untracked folder asks whether to add it here; answering No
+turns that question off for good. You can add the open dataset anytime with **File ▸ Add current
+dataset as folder**, or any folder with the tab's **+** tile. Use it to
 switch between characters/projects without reopening folders.
 
 **Tabs** split your tracked folders into separate groups instead of one flat grid — the built-in

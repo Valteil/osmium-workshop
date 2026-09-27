@@ -274,7 +274,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       here as a themed folder icon. Sort by name/time,${isTouchDevice ? '' : ' or manually by dragging,'} and
       ${isTouchDevice ? 'tap a folder\'s ⋯ button' : 'right-click a folder (or tap its ⋯ button)'} for more options: remove it from
       this list, pin it as a favorite, view its achievements read-only, change its icon, or move it
-      to a different tab. Opening a folder that isn't tracked here yet prompts you once to add it.</p>
+      to a different tab. Opening a folder that isn't tracked here yet asks whether to add it;
+      answering No turns that question off for good. You can add the open dataset anytime with
+      <b>File ▸ Add current dataset as folder</b>, or any folder with this tab's <b>+</b> tile.</p>
       <p><b>Tabs</b> split folders into separate groups — the built-in <b>Default</b> tab always
       shows, and any tab you add with the <b>+</b> button can be given a password (tap its ⋯
       button). A password-protected tab re-locks every time the app starts; nothing about it

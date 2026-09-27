@@ -3,7 +3,7 @@ import { hasDirectoryPicker, writeBytes } from './fs-access';
 import { getString, setString, getBool, setBool, getJSON, setJSON, getInt, setInt } from './storage';
 import { isImageFile } from './file-types';
 import {
-  $, btnOpen, btnSave, btnUndo, btnRedo, btnUnloadDataset, btnReloadDataset, dirtyCountEl, galleryToolbar, galleryGrid,
+  $, btnOpen, btnSave, btnUndo, btnRedo, btnUnloadDataset, btnReloadDataset, btnAddCurrentDataset, dirtyCountEl, galleryToolbar, galleryGrid,
   compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, imageCardModal, modalCardInner, dropHint, dropHintWrap, filterInput, filterExactToggle,
   filterAllBtn, filterUntaggedBtn, filterDirtyBtn, excludeBadge, excludeBadgeText,
@@ -63,7 +63,7 @@ import {
   renderAchievementsPanel, updateRefineThemeButton, spendEdibits
 } from './achievements';
 import { initFavorites } from './favorites';
-import { initDatasetManager, renderDatasetManagerTab, maybePromptAddDataset, syncPinFromFavoriteChange } from './dataset-manager';
+import { initDatasetManager, renderDatasetManagerTab, maybePromptAddDataset, addCurrentDatasetToTab, syncPinFromFavoriteChange } from './dataset-manager';
 import {
   editLog, pushLogEntry, loadEditLogForFolder, updateLogButton, renderLogPanel,
   renderStatsTab, initEditLog
@@ -1553,6 +1553,7 @@ import { setIconLabel } from './icons';
       btnAddFavorite.disabled = true;
       btnUnloadDataset.disabled = true;
       btnReloadDataset.disabled = true;
+      btnAddCurrentDataset.disabled = true;
       resetUndoRedo();
       masterSelectedImages.clear();
       resetStickyCompare();
@@ -1891,6 +1892,7 @@ import { setIconLabel } from './icons';
     btnAddFavorite.disabled = !dirHandle;
     btnUnloadDataset.disabled = !dirHandle;
     btnReloadDataset.disabled = !dirHandle;
+    btnAddCurrentDataset.disabled = !dirHandle;
     resetUndoRedo();
     masterSelectedImages.clear();
     resetStickyCompare();
@@ -2002,6 +2004,7 @@ import { setIconLabel } from './icons';
     btnAddFavorite.disabled = true;
     btnUnloadDataset.disabled = true;
     btnReloadDataset.disabled = true;
+    btnAddCurrentDataset.disabled = true;
     resetUndoRedo();
     masterSelectedImages.clear();
     resetStickyCompare();
@@ -2056,6 +2059,7 @@ import { setIconLabel } from './icons';
     await loadFolder();
   }
   btnReloadDataset.addEventListener('click', reloadDataset);
+  btnAddCurrentDataset.addEventListener('click', () => { if (dirHandle) void addCurrentDatasetToTab(dirHandle); });
 
   // Tag index/frequency list + gallery filtering moved to ./tag-index.ts
 
