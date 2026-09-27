@@ -304,8 +304,16 @@
   // TPE geometry, shared by the slab's teeth and the debris they shed: a
   // clean staggered lattice of uniform tiles with a visible gap between
   // every neighbour. (FP, not F: F is the flair colour var.)
-  var tSpan = vert ? innerHeight : innerWidth, tCross = vert ? innerWidth : innerHeight;
-  var cell = tCross / 11, FP = cell * 1.15, gapPx = FP * 0.22, spacing = FP + 2 * gapPx;
+  // Measured in measure(), when the flourish actually starts: the desktop
+  // window is maximized only as it's shown, so pixel geometry taken at
+  // script time was for the smaller pre-maximize window. The slab (in vw/vh)
+  // rescaled but the px teeth and trail didn't, leaving a gap between the
+  // fresh particles and the slab.
+  var tSpan, tCross, cell, FP, gapPx, spacing;
+  function measure(){
+    tSpan = vert ? innerHeight : innerWidth; tCross = vert ? innerWidth : innerHeight;
+    cell = tCross / 11; FP = cell * 1.15; gapPx = FP * 0.22; spacing = FP + 2 * gapPx;
+  }
   var GLYPHS = '01<>/_$#*+=|';
   var HEXAGRAM = (function(){
     for (var i = 0, p = []; i < 12; i++){
@@ -401,10 +409,12 @@
     t.css = t.css.replace(/(?:^|;)\s*(?:border|box-shadow|text-shadow)\s*:[^;]*/g, '');
     return t;
   }
-  if (tile) for (var tj = -1; tj * spacing < tCross + spacing; tj++){
-    var tt = silhouette(tileFor(0)), te = tileEl(tt, vert ? tj * spacing : 0, vert ? 0 : tj * spacing, 'of-tooth');
-    te.style.transform = 'rotate(' + tt.rot0 + 'deg)';
-    body.appendChild(te);
+  function buildTeeth(){
+    for (var tj = -1; tj * spacing < tCross + spacing; tj++){
+      var tt = silhouette(tileFor(0)), te = tileEl(tt, vert ? tj * spacing : 0, vert ? 0 : tj * spacing, 'of-tooth');
+      te.style.transform = 'rotate(' + tt.rot0 + 'deg)';
+      body.appendChild(te);
+    }
   }
 
   // Animations are created paused and start on the first painted frame: at
@@ -427,7 +437,7 @@
     run(markIn, [{transform: tr(1), opacity: 1}, {transform: tr(36), opacity: 0}], {duration: 280, delay: 1340, easing: IN, fill: 'forwards'});
     run(band, [{transform: tr(REST)}, {transform: tr(100)}], {duration: outDur, delay: outAt, easing: 'cubic-bezier(' + SWEEP.join(',') + ')', fill: 'forwards'});
     run(scrim, [{opacity: 1}, {opacity: 0}], {duration: 450, delay: outAt + 200, easing: 'ease-out', fill: 'forwards'});
-    if (tile) shed();
+    // Teeth and trail are built in start(), against the shown window.
   }
 
   // The band's exit curve (shed()'s tailPx() samples it).
@@ -515,8 +525,16 @@
     document.removeEventListener('visibilitychange', start);
     removeEventListener('focus', start);
     requestAnimationFrame(function(){ requestAnimationFrame(function(){
+      // The window is shown (and, on desktop, maximized) by now: measure it
+      // and build the teeth + trail against its real size.
+      if (tile && !reduce){ measure(); buildTeeth(); shed(); }
       anims.forEach(function(a){ a.play(); });
       setTimeout(function(){ el.style.pointerEvents = 'none'; }, outAt + 200);
+      Promise.all(anims.map(function(a){ return a.finished; })).then(function(){
+        el.remove();
+        removeEventListener('pointerdown', hurry, true);
+        removeEventListener('keydown', hurry, true);
+      }, function(){ el.remove(); });
     }); });
   }
   // An embedded frame (the site's demo) never gets window focus.
@@ -527,11 +545,6 @@
     // Visible but never focused (e.g. launched behind another window).
     setTimeout(start, 1500);
   }
-  Promise.all(anims.map(function(a){ return a.finished; })).then(function(){
-    el.remove();
-    removeEventListener('pointerdown', hurry, true);
-    removeEventListener('keydown', hurry, true);
-  }, function(){ el.remove(); });
 })();
 </script>
 <!-- UI icon sprite: every <use href="#i-…"> in the app points here. Drawings

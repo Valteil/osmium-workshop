@@ -264,6 +264,15 @@ ${sprite}
       flourishAnims().forEach(function(a){ a.playbackRate = rate; });
     });
   });
+  // The flourish builds its teeth and trail when it starts (a couple of
+  // frames after Play), so apply the lab's speed to every flourish
+  // animation as it's created, not just the ones that exist at Play.
+  var realAnimate = Element.prototype.animate;
+  Element.prototype.animate = function(){
+    var a = realAnimate.apply(this, arguments);
+    if (this.closest && this.closest('#openFlourish')) a.playbackRate = rate;
+    return a;
+  };
   function flourishAnims(){
     var el = document.getElementById('openFlourish');
     return el ? document.getAnimations().filter(function(a){ return a.effect && a.effect.target && el.contains(a.effect.target); }) : [];
