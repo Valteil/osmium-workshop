@@ -3954,6 +3954,16 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: var(--mat), var(--bg-base);
     cursor: zoom-in;
   }
+  /* Censored/Has-text/Perspective badges: their own strip above the image
+     (view.ts buildCard appends them to .card before .thumbwrap), extending
+     the card instead of covering the artwork. The phone layout tightens
+     this further in the mobile block. */
+  .card > .card-status-icons{
+    position: static; flex: 0 0 auto; flex-direction: row; flex-wrap: wrap;
+    gap: 4px; padding: 5px 6px;
+  }
+  .card > .card-status-icons .status-icon-badge{ font-size: 13px; padding: 3px 7px; }
+  .card > .card-status-icons .status-icon-badge .ic{ width: 13px; height: 13px; }
   .card img {
     width: 100%; height: 100%;
     /* `contain`, not `cover` — the card's box is a fixed 3:4 rectangle

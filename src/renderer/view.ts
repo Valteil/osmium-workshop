@@ -520,12 +520,10 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
   menuBtn.title = 'More options';
   menuBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openImageOptionsMenu(e, ev.clientX, ev.clientY); });
   thumbwrap.appendChild(menuBtn);
-  // Touch only: these badges are appended to `card` itself further below
-  // (before thumbwrap, so they render as a compact strip above the image
-  // instead of overlaid on top of it — see the mobile CSS override) rather
-  // than absolute-positioned inside thumbwrap the way desktop keeps them.
+  // Appended to `card` itself further below (before thumbwrap), so the
+  // badges render as a strip above the image instead of over the artwork —
+  // see `.card > .card-status-icons` in styles.css.
   const statusIconsEl = buildStatusIconsEl(e);
-  if (!isTouchDevice) thumbwrap.appendChild(statusIconsEl);
 
   if (e.meta && e.meta.reviewColor){
     const badge = document.createElement('div');
@@ -663,7 +661,7 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
     if (isTouchDevice) openImageCardModal(e);
   });
 
-  if (isTouchDevice) card.appendChild(statusIconsEl);
+  card.appendChild(statusIconsEl);
   card.appendChild(thumbwrap);
   card.appendChild(tagbox);
   return card;

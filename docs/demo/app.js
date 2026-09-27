@@ -22203,7 +22203,6 @@ Image: ${entry.imgName}`,
     });
     thumbwrap.appendChild(menuBtn);
     const statusIconsEl = buildStatusIconsEl(e);
-    if (!isTouchDevice2) thumbwrap.appendChild(statusIconsEl);
     if (e.meta && e.meta.reviewColor) {
       const badge = document.createElement("div");
       badge.className = "flag-badge";
@@ -22321,7 +22320,7 @@ Image: ${entry.imgName}`,
       if (ctxMenuEl) return;
       if (isTouchDevice2) openImageCardModal(e);
     });
-    if (isTouchDevice2) card.appendChild(statusIconsEl);
+    card.appendChild(statusIconsEl);
     card.appendChild(thumbwrap);
     card.appendChild(tagbox);
     return card;
