@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Osmium Workshop</string>
+    <string name="title_activity_main">Osmium Workshop</string>
+    <string name="package_name">com.osmiumworkshop.app</string>
+    <string name="custom_url_scheme">com.osmiumworkshop.app</string>
+</resources>
