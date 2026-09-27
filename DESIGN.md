@@ -254,7 +254,7 @@ about 2.2 s, transform and opacity only, sped up by any press. Under reduced mot
 and **Disable opening flourish** turns it off.
 - **The mark** is always the Osmium lattice (a decagon ring, even/odd pentagons and spokes). Each
   theme picks the ring (decagon, circle, both, none), the node shape (Studio's squares, Osmium's
-  RGB diamonds, where the green ones take ink since the fill is Osmium's green, Terminal's pixels, Sakura's petals, Forest Moss's leaves, Copper Forge's rivets,
+  diamonds, its whole mark and wordmark solid black on the green fill, Terminal's pixels, Sakura's petals, Forest Moss's leaves, Copper Forge's rivets,
   Celestial Gold's stars…), the stroke weight and cap, and one world device where it has one:
   Cyberpunk's chromatic split, Oriental's cinnabar seal, Blood Moon's moon, Terminal's dashed
   lines.

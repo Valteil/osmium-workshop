@@ -176,7 +176,7 @@
     'cyberpunk':       {L:{node:'sq',   ring:'deca',   cap:'butt', split:1},        P:{s:'glitch',  c:[F,M,D]}},
     'oriental':        {L:{node:'dot',  ring:'circle', seal:1},                     P:{s:'gold',    c:[A,D]}},
     'subway':          {L:{node:'ring', ring:'circle', w:1.25},                     P:{s:'ring',    c:[A,M,D,S]}},
-    'osmium':          {L:{node:'dia',  ring:'double', rgb:1},                      P:{s:'dia',     c:[D,S,M]}},
+    'osmium':          {L:{node:'dia',  ring:'double'},                             P:{s:'dia',     c:[D,S,M]}},
     'bioluminescent':  {L:{node:'dot',  ring:'none'},                               P:{s:'firefly', c:[F,M], glow:1}},
     'sakura':          {L:{node:'petal',ring:'circle', w:0.85},                     P:{s:'petal',   c:[F,T,D]}},
     'terminal':        {L:{node:'px',   ring:'deca',   cap:'butt', dash:1},         P:{s:'px',      c:[F,A], glow:1}},
@@ -222,9 +222,8 @@
     for (i = 0; i < all.length; i++){
       var p = all[i], k = i === 10 ? 1.25 : (i === 2 ? 0.7 : 1), deg = -90 + 36*i + 90;
       var tr = ' transform="translate('+p[0].toFixed(1)+' '+p[1].toFixed(1)+') rotate('+(i === 10 ? 0 : deg)+') scale('+k+')"';
-      var fillCls = L.rgb && i < 10 ? ' class="of-rgb'+(i%3)+'"' : '';
       switch (L.node){
-        case 'dia':   nodes += '<rect x="-9" y="-9" width="18" height="18"'+fillCls+' transform="translate('+p[0].toFixed(1)+' '+p[1].toFixed(1)+') rotate(45) scale('+k+')"/>'; break;
+        case 'dia':   nodes += '<rect x="-9" y="-9" width="18" height="18" transform="translate('+p[0].toFixed(1)+' '+p[1].toFixed(1)+') rotate(45) scale('+k+')"/>'; break;
         case 'px':    nodes += '<rect x="-9" y="-9" width="18" height="18" transform="translate('+p[0].toFixed(1)+' '+p[1].toFixed(1)+') scale('+k+')"/>'; break;
         case 'sq':    nodes += '<rect x="-8" y="-8" width="16" height="16"'+tr+'/>'; break;
         case 'ring':  nodes += '<circle r="11" class="of-hollow" stroke-width="6"'+tr+'/>'; break;
