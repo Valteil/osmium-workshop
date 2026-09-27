@@ -225,8 +225,8 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   attachIconFallback(btnMasterSelectAll, '☑');
   attachIconFallback(btnMasterClearSelection, '✖');
 
-  // Sequential detail editing entry points — desktop-only (touch editing
-  // lives in the card modal instead). Built in JS so neither shell's markup
+  // Sequential detail editing entry points (touch runs it in a modal — see
+  // view.ts's beginSequential()). Built in JS so neither shell's markup
   // changes; the shared .mtc-btn-row class keeps the spacing consistent.
   // Each button carries both a full-text label and an icon-only fallback —
   // "Sequential from first/selected" has no short form that still reads as
@@ -236,7 +236,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   // threshold instead. aria-label carries the real meaning either way, since
   // a screen reader shouldn't announce a different label depending on how
   // much pixel width happened to be available.
-  if (!document.documentElement.classList.contains('touch-device')){
+  {
     const seqRow = document.createElement('div');
     seqRow.className = 'mtc-btn-row';
     function makeSeqBtn(label: string, icon: string, title: string, from: 'first' | 'selected'): HTMLButtonElement {

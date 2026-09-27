@@ -2214,6 +2214,10 @@ import { setIconLabel } from './icons';
   (function initRightPanelCollapsed(){
     let saved = false;
     saved = getBool('dts-right-panel-collapsed');
+    // Touch has no collapse (the panel is a bottom sheet with no header
+    // arrow); clear a state left by the old sequential takeover, which hid
+    // the sheet's contents with no way back.
+    if (document.documentElement.classList.contains('touch-device')) saved = false;
     applyRightPanelCollapsed(saved);
   })();
   btnRightPanelCollapse.addEventListener('click', () => {

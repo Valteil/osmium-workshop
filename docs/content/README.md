@@ -69,7 +69,7 @@ Three related apps share this repository (and much of their renderer code):
    through Android's Storage Access Framework (a folder you pick stays accessible across
    restarts). It also does on-device WD14 tagging, downloading the model on first use, plus
    tagging and generation against your own ComfyUI instance over the network. Bucket Images,
-   Compact/Single view and Sequential tagging stay desktop-only. **Still in testing** — early
+   Compact/Single view stay desktop-only; Sequential tagging runs in a full-screen panel. **Still in testing** — early
    APKs are posted as GitHub pre-releases, or build it from source (see below).
 3. **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
    featuring a built-in workflow: no node graph to navigate, every generation saves straight to

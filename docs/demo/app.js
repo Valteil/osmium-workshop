@@ -4242,14 +4242,13 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       flags described in the 3-dot menu section, but to your entire selection at once. <b>\u274C Delete
       selected permanently</b> removes every selected image and its tags from disk outright
       (confirmed, locked images skipped) \u2014 no undo.</p>
-      ${isTouchDevice ? "" : `
       <p><b>\u25B6 Sequential from first / from selected</b> \u2014 walk your current filter image by
-      image in Single view with a quick-modify panel: text/language (custom languages welcome),
+      image ${isTouchDevice ? "in a full-screen panel (Back or Exit sequential leaves it)" : "in Single view"} with a quick-modify panel: text/language (custom languages welcome),
       censorship state + type checkboxes, multi-select perspective checkboxes, monochrome, sound
       effects, comic, multiple views, koma count. The image is the same compact preview as
       Single view (click it for the full-size view). A live tag preview under the image shows
       exactly which tags Confirm will apply before you commit; Confirm advances automatically
-      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>`}
+      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>
       <p><b>\u{1F40D} WD14 Autotagger</b> \u2014 sends selected images (or a single one, via its 3-dot menu)
       through WD14 and merges the tags it returns onto each card. Expand "\u2699 WD14 settings" to pick
       the tagging source, model, confidence thresholds, and whether results apply automatically or
@@ -8925,7 +8924,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     onStartSequentialRef = deps2.onStartSequential;
     attachIconFallback(btnMasterSelectAll, "\u2611");
     attachIconFallback(btnMasterClearSelection, "\u2716");
-    if (!document.documentElement.classList.contains("touch-device")) {
+    {
       let makeSeqBtn = function(label, icon, title, from) {
         const btn = document.createElement("button");
         btn.title = title;
@@ -21837,7 +21836,7 @@ Image: ${entry.imgName}`,
     return galleryGrid;
   }
   function switchView(mode, opts) {
-    if (mode !== "single" && seqActive) {
+    if (mode !== "single" && seqActive && !seqModal) {
       seqActive = false;
       seqQueue = [];
       seqIdx = 0;
@@ -22465,6 +22464,7 @@ Image: ${entry.imgName}`,
   var seqActive = false;
   var seqQueue = [];
   var seqIdx = 0;
+  var seqModal = null;
   var PERSPECTIVE_OPTIONS = ["from front", "from side", "from below", "from above", "from behind"];
   var PERSPECTIVE_EXTRA_OPTIONS = ["pov", "close-up"];
   function perspectiveOptionTags() {
@@ -22496,18 +22496,48 @@ Image: ${entry.imgName}`,
         return;
       }
     }
+    beginSequential(list, startIdx);
+  }
+  function beginSequential(list, startIdx) {
     seqQueue = list;
     seqIdx = startIdx;
     seqActive = true;
+    if (document.documentElement.classList.contains("touch-device")) {
+      closeImageCardModal();
+      seqModal = createModalShell({ boxClassName: "seq-modal-box", onDismiss: () => exitSequentialDetail() });
+      renderSeqModal();
+      return;
+    }
     seqPanelForcedCollapse = !getRightPanelCollapsedRef();
     setRightPanelCollapsedRef(true);
     switchView("single");
+  }
+  function renderSeqModal() {
+    if (!seqModal) return;
+    const entry = seqQueue[seqIdx];
+    if (!entry) {
+      exitSequentialDetail();
+      return;
+    }
+    seqModal.box.innerHTML = "";
+    seqModal.box.appendChild(buildSeqBody(entry, true));
+    seqModal.box.scrollTop = 0;
+  }
+  function seqRerender() {
+    if (seqModal) renderSeqModal();
+    else renderSingleView();
   }
   function exitSequentialDetail() {
     if (!seqActive) return;
     seqActive = false;
     seqQueue = [];
     seqIdx = 0;
+    if (seqModal) {
+      const m = seqModal;
+      seqModal = null;
+      m.close();
+      return;
+    }
     if (seqPanelForcedCollapse) setRightPanelCollapsedRef(false);
     seqPanelForcedCollapse = false;
     if (viewMode2 !== "single") return;
@@ -22792,7 +22822,7 @@ Image: ${entry.imgName}`,
         exitSequentialDetail();
         toast("Sequential review done.");
       } else {
-        renderSingleView();
+        seqRerender();
       }
     });
     panel.appendChild(confirmBtn);
@@ -22886,6 +22916,87 @@ Image: ${entry.imgName}`,
     singlePos.appendChild(inp);
     singlePos.appendChild(tot);
   }
+  function buildSeqBody(entry, stacked) {
+    const wrap = document.createElement("div");
+    wrap.className = "single-wrap";
+    const seqPreview = buildSinglePreview(entry);
+    seqPreview.style.flex = "none";
+    seqPreview.style.maxWidth = "100%";
+    const imgCol = document.createElement("div");
+    imgCol.className = "seq-img-col";
+    if (!stacked) imgCol.style.cssText = "flex:0 0 38%; max-width:38%; min-width:0; display:flex; flex-direction:column; gap:8px;";
+    imgCol.appendChild(seqPreview);
+    const nameEl = document.createElement("div");
+    nameEl.className = "single-name";
+    nameEl.style.cssText = "padding:0 2px;";
+    nameEl.textContent = entry.imgName + (entry.width ? ` \xB7 ${entry.width}\xD7${entry.height}` : "");
+    imgCol.appendChild(nameEl);
+    const previewBox = document.createElement("div");
+    previewBox.style.cssText = "border:1px solid var(--border-soft); border-radius:8px; padding:8px 10px; background:var(--bg-panel);";
+    const previewHead = document.createElement("div");
+    previewHead.style.cssText = "font-size:12px; color:var(--text-faint); margin-bottom:6px;";
+    const previewChips = document.createElement("div");
+    previewChips.className = "chiprow";
+    previewChips.style.cssText = "max-height:110px; overflow-y:auto;";
+    previewBox.appendChild(previewHead);
+    previewBox.appendChild(previewChips);
+    imgCol.appendChild(previewBox);
+    wrap.appendChild(imgCol);
+    const panel = document.createElement("div");
+    panel.className = "single-panel seq-panel";
+    panel.style.position = "relative";
+    const headRow = document.createElement("div");
+    headRow.style.cssText = "display:flex; align-items:center; gap:8px;";
+    const posEl = document.createElement("span");
+    posEl.className = "single-pos";
+    posEl.style.flex = "1";
+    posEl.textContent = `${seqIdx + 1} / ${seqQueue.length}`;
+    const exitBtn = document.createElement("button");
+    exitBtn.textContent = "Exit sequential";
+    exitBtn.title = "Leave sequential review (progress is already saved per Confirm)";
+    exitBtn.addEventListener("click", () => exitSequentialDetail());
+    let backBtn = null;
+    if (seqIdx > 0) {
+      backBtn = document.createElement("button");
+      backBtn.textContent = "\u2190 Back";
+      backBtn.title = "Go back to the previous image (selections already applied by Confirm are saved)";
+      backBtn.addEventListener("click", () => {
+        seqIdx--;
+        seqRerender();
+      });
+    }
+    headRow.appendChild(posEl);
+    if (backBtn) headRow.appendChild(backBtn);
+    headRow.appendChild(exitBtn);
+    panel.appendChild(headRow);
+    buildSequentialPanel(panel, entry, (tags) => {
+      const fresh = new Set(tags.filter((t) => !entry.tags.includes(t)));
+      previewHead.textContent = `Will apply on Confirm \u2014 ${tags.length} tags${fresh.size ? ` (${fresh.size} new)` : ""}`;
+      previewChips.innerHTML = "";
+      if (!tags.length) {
+        const none = document.createElement("span");
+        none.style.cssText = "font-size:12px; color:var(--text-faint);";
+        none.textContent = "No indicator tags selected \u2014 Confirm will assert none.";
+        previewChips.appendChild(none);
+        return;
+      }
+      for (const t of tags) {
+        const chip = document.createElement("span");
+        chip.className = "chip chip-static" + (fresh.has(t) ? " chip-match" : "");
+        const label = document.createElement("span");
+        label.textContent = t;
+        label.title = fresh.has(t) ? "New \u2014 will be added on Confirm" : "Already on this image";
+        chip.appendChild(label);
+        previewChips.appendChild(chip);
+      }
+    });
+    wrap.appendChild(panel);
+    if (stacked) {
+      headRow.classList.add("seq-modal-head");
+      wrap.prepend(headRow);
+    }
+    return wrap;
+  }
   function renderSingleView() {
     if (masterSelectedImages.size > 1 && !seqActive) {
       renderMultiCompareView();
@@ -22898,81 +23009,7 @@ Image: ${entry.imgName}`,
       } else {
         singleNav.style.display = "none";
         singleViewEl.innerHTML = "";
-        const entry = seqEntry;
-        const wrap2 = document.createElement("div");
-        wrap2.className = "single-wrap";
-        const seqPreview = buildSinglePreview(entry);
-        seqPreview.style.flex = "none";
-        seqPreview.style.maxWidth = "100%";
-        const imgCol = document.createElement("div");
-        imgCol.style.cssText = "flex:0 0 38%; max-width:38%; min-width:0; display:flex; flex-direction:column; gap:8px;";
-        imgCol.appendChild(seqPreview);
-        const nameEl2 = document.createElement("div");
-        nameEl2.className = "single-name";
-        nameEl2.style.cssText = "padding:0 2px;";
-        nameEl2.textContent = entry.imgName + (entry.width ? ` \xB7 ${entry.width}\xD7${entry.height}` : "");
-        imgCol.appendChild(nameEl2);
-        const previewBox = document.createElement("div");
-        previewBox.style.cssText = "border:1px solid var(--border-soft); border-radius:8px; padding:8px 10px; background:var(--bg-panel);";
-        const previewHead = document.createElement("div");
-        previewHead.style.cssText = "font-size:12px; color:var(--text-faint); margin-bottom:6px;";
-        const previewChips = document.createElement("div");
-        previewChips.className = "chiprow";
-        previewChips.style.cssText = "max-height:110px; overflow-y:auto;";
-        previewBox.appendChild(previewHead);
-        previewBox.appendChild(previewChips);
-        imgCol.appendChild(previewBox);
-        wrap2.appendChild(imgCol);
-        const panel2 = document.createElement("div");
-        panel2.className = "single-panel seq-panel";
-        panel2.style.position = "relative";
-        const headRow = document.createElement("div");
-        headRow.style.cssText = "display:flex; align-items:center; gap:8px;";
-        const posEl = document.createElement("span");
-        posEl.className = "single-pos";
-        posEl.style.flex = "1";
-        posEl.textContent = `${seqIdx + 1} / ${seqQueue.length}`;
-        const exitBtn = document.createElement("button");
-        exitBtn.textContent = "Exit sequential";
-        exitBtn.title = "Leave sequential review (progress is already saved per Confirm)";
-        exitBtn.addEventListener("click", () => exitSequentialDetail());
-        let backBtn = null;
-        if (seqIdx > 0) {
-          backBtn = document.createElement("button");
-          backBtn.textContent = "\u2190 Back";
-          backBtn.title = "Go back to the previous image (selections already applied by Confirm are saved)";
-          backBtn.addEventListener("click", () => {
-            seqIdx--;
-            renderSingleView();
-          });
-        }
-        headRow.appendChild(posEl);
-        if (backBtn) headRow.appendChild(backBtn);
-        headRow.appendChild(exitBtn);
-        panel2.appendChild(headRow);
-        buildSequentialPanel(panel2, entry, (tags) => {
-          const fresh = new Set(tags.filter((t) => !entry.tags.includes(t)));
-          previewHead.textContent = `Will apply on Confirm \u2014 ${tags.length} tags${fresh.size ? ` (${fresh.size} new)` : ""}`;
-          previewChips.innerHTML = "";
-          if (!tags.length) {
-            const none = document.createElement("span");
-            none.style.cssText = "font-size:12px; color:var(--text-faint);";
-            none.textContent = "No indicator tags selected \u2014 Confirm will assert none.";
-            previewChips.appendChild(none);
-            return;
-          }
-          for (const t of tags) {
-            const chip = document.createElement("span");
-            chip.className = "chip chip-static" + (fresh.has(t) ? " chip-match" : "");
-            const label = document.createElement("span");
-            label.textContent = t;
-            label.title = fresh.has(t) ? "New \u2014 will be added on Confirm" : "Already on this image";
-            chip.appendChild(label);
-            previewChips.appendChild(chip);
-          }
-        });
-        wrap2.appendChild(panel2);
-        singleViewEl.appendChild(wrap2);
+        singleViewEl.appendChild(buildSeqBody(seqEntry, false));
         return;
       }
     }
@@ -24414,12 +24451,7 @@ Image: ${entry.imgName}`,
         toast("Sequential walks the current filter \u2014 this image is outside it (e.g. Disabled).");
         return;
       }
-      seqQueue = list;
-      seqIdx = startIdx;
-      seqActive = true;
-      seqPanelForcedCollapse = !getRightPanelCollapsedRef();
-      setRightPanelCollapsedRef(true);
-      switchView("single");
+      beginSequential(list, startIdx);
     }, { title: "Enter sequential mode starting at this image (walks the current filter image by image)" });
     if (!entry.original) {
       addContextMenuItem(menu, entry.disabled ? "\u21A9 Restore" : "\u{1F5D1} Disable", async () => {
@@ -26596,6 +26628,7 @@ Image: ${entry.imgName}`,
     (function initRightPanelCollapsed() {
       let saved = false;
       saved = getBool("dts-right-panel-collapsed");
+      if (document.documentElement.classList.contains("touch-device")) saved = false;
       applyRightPanelCollapsed(saved);
     })();
     btnRightPanelCollapse.addEventListener("click", () => {

@@ -248,14 +248,13 @@ export const HELP_SECTIONS: HelpSection[] = [
       flags described in the 3-dot menu section, but to your entire selection at once. <b>❌ Delete
       selected permanently</b> removes every selected image and its tags from disk outright
       (confirmed, locked images skipped) — no undo.</p>
-      ${isTouchDevice ? '' : `
       <p><b>▶ Sequential from first / from selected</b> — walk your current filter image by
-      image in Single view with a quick-modify panel: text/language (custom languages welcome),
+      image ${isTouchDevice ? 'in a full-screen panel (Back or Exit sequential leaves it)' : 'in Single view'} with a quick-modify panel: text/language (custom languages welcome),
       censorship state + type checkboxes, multi-select perspective checkboxes, monochrome, sound
       effects, comic, multiple views, koma count. The image is the same compact preview as
       Single view (click it for the full-size view). A live tag preview under the image shows
       exactly which tags Confirm will apply before you commit; Confirm advances automatically
-      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>`}
+      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>
       <p><b>🐍 WD14 Autotagger</b> — sends selected images (or a single one, via its 3-dot menu)
       through WD14 and merges the tags it returns onto each card. Expand "⚙ WD14 settings" to pick
       the tagging source, model, confidence thresholds, and whether results apply automatically or

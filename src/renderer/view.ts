@@ -15,7 +15,8 @@ import {
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
   langAutoSelectToggle, filterMatchCount
 } from './dom';
-import { toast, toastError, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox, addContextMenuItem, transitionMsOf, mapPan } from './shared-ui';
+import { toast, toastError, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox, addContextMenuItem, transitionMsOf, mapPan, createModalShell } from './shared-ui';
+import type { ModalShell } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
 import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially } from './tags-edit';
 import { openTagDetails } from './tag-details';
@@ -109,7 +110,8 @@ export function switchView(mode: ViewMode, opts?: { instant?: boolean }): void {
   // Leaving Single view abandons any in-progress sequential detail run —
   // the queue is order- and filter-dependent, so resuming it elsewhere would
   // review the wrong images. Re-entering Single later starts clean.
-  if (mode !== 'single' && seqActive) { seqActive = false; seqQueue = []; seqIdx = 0; }
+  // (Not the touch run: it lives in its own modal, independent of the view.)
+  if (mode !== 'single' && seqActive && !seqModal) { seqActive = false; seqQueue = []; seqIdx = 0; }
   const prevMode = viewMode;
   const applyState = () => {
     viewMode = mode;
@@ -843,11 +845,13 @@ function openMultiCompareTagMenu(entry: Entry, tag: string, x: number, y: number
 // view's interface while active: same zoomable image side, but the panel
 // becomes a quick-modify form with Confirm at the bottom advancing to the
 // next image. Everything already reviewed stays included — this is a review
-// pass, not a filter for undefined states. Desktop-only (touch editing lives
-// in the card modal instead); the entry buttons don't render on touch.
+// pass, not a filter for undefined states. On touch devices (no Single view,
+// no room to collapse a sidebar) the same form runs in its own full-screen
+// modal instead — see beginSequential().
 let seqActive = false;
 let seqQueue: Entry[] = [];
 let seqIdx = 0;
+let seqModal: ModalShell | null = null;
 
 const PERSPECTIVE_OPTIONS = ['from front', 'from side', 'from below', 'from above', 'from behind'];
 // Camera-viewpoint tags the panel can assert that aren't "where is the
@@ -876,9 +880,20 @@ export function startSequentialDetail(from: 'first' | 'selected'): void {
     startIdx = list.findIndex((e) => masterSelectedImages.has(e.base));
     if (startIdx < 0) { toast('No selected images match the current filter.'); return; }
   }
+  beginSequential(list, startIdx);
+}
+
+// Shared by every entry point (Master Tag Control's buttons, the 3-dot menu).
+function beginSequential(list: Entry[], startIdx: number): void {
   seqQueue = list;
   seqIdx = startIdx;
   seqActive = true;
+  if (document.documentElement.classList.contains('touch-device')){
+    closeImageCardModal();
+    seqModal = createModalShell({ boxClassName: 'seq-modal-box', onDismiss: () => exitSequentialDetail() });
+    renderSeqModal();
+    return;
+  }
   // Collapse the right sidebar for the run so the image + controls own the
   // full width. Remember the pre-run state (only force-expand on exit what
   // WE collapsed) so restoring never fights a user's own choice.
@@ -887,11 +902,26 @@ export function startSequentialDetail(from: 'first' | 'selected'): void {
   switchView('single');
 }
 
+function renderSeqModal(): void {
+  if (!seqModal) return;
+  const entry = seqQueue[seqIdx];
+  if (!entry){ exitSequentialDetail(); return; }
+  seqModal.box.innerHTML = '';
+  seqModal.box.appendChild(buildSeqBody(entry, true));
+  seqModal.box.scrollTop = 0;
+}
+
+// Re-render whichever surface the run is on.
+function seqRerender(): void {
+  if (seqModal) renderSeqModal(); else renderSingleView();
+}
+
 export function exitSequentialDetail(): void {
   if (!seqActive) return;
   seqActive = false;
   seqQueue = [];
   seqIdx = 0;
+  if (seqModal){ const m = seqModal; seqModal = null; m.close(); return; }
   if (seqPanelForcedCollapse) setRightPanelCollapsedRef(false);
   seqPanelForcedCollapse = false;
   if (viewMode !== 'single') return;
@@ -1232,7 +1262,7 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
       exitSequentialDetail();
       toast('Sequential review done.');
     } else {
-      renderSingleView();
+      seqRerender();
     }
   });
   panel.appendChild(confirmBtn);
@@ -1326,6 +1356,109 @@ function renderSinglePos(total: number): void {
   singlePos.appendChild(tot);
 }
 
+// The sequential run's image column + form. `stacked` is the touch modal's
+// one-column layout; desktop puts the image column beside the form.
+function buildSeqBody(entry: Entry, stacked: boolean): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'single-wrap';
+  // Same static preview as normal Single view (click → fullscreen
+  // zoomable lightbox), not an inline zoom/pan surface.
+  const seqPreview = buildSinglePreview(entry);
+  // Column wrapper: the live "will apply" chip strip docks below the
+  // image instead of inside it (inside would overlay the artwork; beside
+  // it would steal panel width). The column takes the preview's usual
+  // 38% slot, so the preview itself just fills the column's width.
+  seqPreview.style.flex = 'none';
+  seqPreview.style.maxWidth = '100%';
+  const imgCol = document.createElement('div');
+  imgCol.className = 'seq-img-col';
+  // Stacked (the touch modal): the column spans the width above the form.
+  if (!stacked) imgCol.style.cssText = 'flex:0 0 38%; max-width:38%; min-width:0; display:flex; flex-direction:column; gap:8px;';
+  imgCol.appendChild(seqPreview);
+  // Filename + resolution live above the chips preview below the image
+  // (the panel keeps only the counter per user spec — one top-of-panel
+  // position read, file identity where the tags live).
+  const nameEl = document.createElement('div');
+  nameEl.className = 'single-name';
+  nameEl.style.cssText = 'padding:0 2px;';
+  nameEl.textContent = entry.imgName + (entry.width ? ` · ${entry.width}×${entry.height}` : '');
+  imgCol.appendChild(nameEl);
+  const previewBox = document.createElement('div');
+  previewBox.style.cssText = 'border:1px solid var(--border-soft); border-radius:8px; padding:8px 10px; background:var(--bg-panel);';
+  const previewHead = document.createElement('div');
+  previewHead.style.cssText = 'font-size:12px; color:var(--text-faint); margin-bottom:6px;';
+  const previewChips = document.createElement('div');
+  previewChips.className = 'chiprow';
+  previewChips.style.cssText = 'max-height:110px; overflow-y:auto;';
+  previewBox.appendChild(previewHead);
+  previewBox.appendChild(previewChips);
+  imgCol.appendChild(previewBox);
+  wrap.appendChild(imgCol);
+  const panel = document.createElement('div');
+  // seq-panel: sequential-specific compaction CSS (see styles.css) — the
+  // whole panel is meant to fit without scrolling at normal window sizes.
+  panel.className = 'single-panel seq-panel';
+  panel.style.position = 'relative';
+  const headRow = document.createElement('div');
+  headRow.style.cssText = 'display:flex; align-items:center; gap:8px;';
+  const posEl = document.createElement('span');
+  posEl.className = 'single-pos';
+  posEl.style.flex = '1';
+  posEl.textContent = `${seqIdx + 1} / ${seqQueue.length}`;
+  const exitBtn = document.createElement('button');
+  exitBtn.textContent = 'Exit sequential';
+  exitBtn.title = 'Leave sequential review (progress is already saved per Confirm)';
+  exitBtn.addEventListener('click', () => exitSequentialDetail());
+  // Previous image: navigates without applying anything — Confirm is the
+  // only thing that writes, so zig-zagging re-checks options without
+  // committing.
+  let backBtn: HTMLButtonElement | null = null;
+  if (seqIdx > 0){
+    backBtn = document.createElement('button');
+    backBtn.textContent = '← Back';
+    backBtn.title = 'Go back to the previous image (selections already applied by Confirm are saved)';
+    backBtn.addEventListener('click', () => {
+      seqIdx--;
+      seqRerender();
+    });
+  }
+  headRow.appendChild(posEl);
+  if (backBtn) headRow.appendChild(backBtn);
+  headRow.appendChild(exitBtn);
+  panel.appendChild(headRow);
+  // Same .chip/.chiprow classes the gallery cards use, so the preview
+  // looks identical — glowing (chip-match) entries are new tags Confirm
+  // is about to add, plain ones are already on the image.
+  buildSequentialPanel(panel, entry, (tags) => {
+    const fresh = new Set(tags.filter((t) => !entry.tags.includes(t)));
+    previewHead.textContent = `Will apply on Confirm — ${tags.length} tags${fresh.size ? ` (${fresh.size} new)` : ''}`;
+    previewChips.innerHTML = '';
+    if (!tags.length){
+      const none = document.createElement('span');
+      none.style.cssText = 'font-size:12px; color:var(--text-faint);';
+      none.textContent = 'No indicator tags selected — Confirm will assert none.';
+      previewChips.appendChild(none);
+      return;
+    }
+    for (const t of tags){
+      const chip = document.createElement('span');
+      // chip-static: same label-centering/read-only modifier the
+      // transfer-list viewer uses — these chips have no × button, so
+      // the base chip's ×-budgeted padding leaves text lopsided.
+      chip.className = 'chip chip-static' + (fresh.has(t) ? ' chip-match' : '');
+      const label = document.createElement('span');
+      label.textContent = t;
+      label.title = fresh.has(t) ? 'New — will be added on Confirm' : 'Already on this image';
+      chip.appendChild(label);
+      previewChips.appendChild(chip);
+    }
+  });
+  wrap.appendChild(panel);
+  // Stacked: counter/Back/Exit head the whole modal, above the image.
+  if (stacked){ headRow.classList.add('seq-modal-head'); wrap.prepend(headRow); }
+  return wrap;
+}
+
 function renderSingleView(){
   if (masterSelectedImages.size > 1 && !seqActive){
     renderMultiCompareView();
@@ -1336,106 +1469,11 @@ function renderSingleView(){
     if (!seqEntry){
       exitSequentialDetail();
     } else {
-      // Takeover: the same zoomable image side as normal Single view, but
-      // the panel becomes the sequential quick-modify form. singleNav stays
-      // hidden throughout — Confirm is the only way forward.
+      // Takeover: the panel becomes the sequential quick-modify form.
+      // singleNav stays hidden throughout — Confirm is the only way forward.
       singleNav.style.display = 'none';
       singleViewEl.innerHTML = '';
-      const entry = seqEntry;
-      const wrap = document.createElement('div');
-      wrap.className = 'single-wrap';
-      // Same static preview as normal Single view (click → fullscreen
-      // zoomable lightbox), not an inline zoom/pan surface.
-      const seqPreview = buildSinglePreview(entry);
-      // Column wrapper: the live "will apply" chip strip docks below the
-      // image instead of inside it (inside would overlay the artwork; beside
-      // it would steal panel width). The column takes the preview's usual
-      // 38% slot, so the preview itself just fills the column's width.
-      seqPreview.style.flex = 'none';
-      seqPreview.style.maxWidth = '100%';
-      const imgCol = document.createElement('div');
-      imgCol.style.cssText = 'flex:0 0 38%; max-width:38%; min-width:0; display:flex; flex-direction:column; gap:8px;';
-      imgCol.appendChild(seqPreview);
-      // Filename + resolution live above the chips preview below the image
-      // (the panel keeps only the counter per user spec — one top-of-panel
-      // position read, file identity where the tags live).
-      const nameEl = document.createElement('div');
-      nameEl.className = 'single-name';
-      nameEl.style.cssText = 'padding:0 2px;';
-      nameEl.textContent = entry.imgName + (entry.width ? ` · ${entry.width}×${entry.height}` : '');
-      imgCol.appendChild(nameEl);
-      const previewBox = document.createElement('div');
-      previewBox.style.cssText = 'border:1px solid var(--border-soft); border-radius:8px; padding:8px 10px; background:var(--bg-panel);';
-      const previewHead = document.createElement('div');
-      previewHead.style.cssText = 'font-size:12px; color:var(--text-faint); margin-bottom:6px;';
-      const previewChips = document.createElement('div');
-      previewChips.className = 'chiprow';
-      previewChips.style.cssText = 'max-height:110px; overflow-y:auto;';
-      previewBox.appendChild(previewHead);
-      previewBox.appendChild(previewChips);
-      imgCol.appendChild(previewBox);
-      wrap.appendChild(imgCol);
-      const panel = document.createElement('div');
-      // seq-panel: sequential-specific compaction CSS (see styles.css) — the
-      // whole panel is meant to fit without scrolling at normal window sizes.
-      panel.className = 'single-panel seq-panel';
-      panel.style.position = 'relative';
-      const headRow = document.createElement('div');
-      headRow.style.cssText = 'display:flex; align-items:center; gap:8px;';
-      const posEl = document.createElement('span');
-      posEl.className = 'single-pos';
-      posEl.style.flex = '1';
-      posEl.textContent = `${seqIdx + 1} / ${seqQueue.length}`;
-      const exitBtn = document.createElement('button');
-      exitBtn.textContent = 'Exit sequential';
-      exitBtn.title = 'Leave sequential review (progress is already saved per Confirm)';
-      exitBtn.addEventListener('click', () => exitSequentialDetail());
-      // Previous image: navigates without applying anything — Confirm is the
-      // only thing that writes, so zig-zagging re-checks options without
-      // committing.
-      let backBtn: HTMLButtonElement | null = null;
-      if (seqIdx > 0){
-        backBtn = document.createElement('button');
-        backBtn.textContent = '← Back';
-        backBtn.title = 'Go back to the previous image (selections already applied by Confirm are saved)';
-        backBtn.addEventListener('click', () => {
-          seqIdx--;
-          renderSingleView();
-        });
-      }
-      headRow.appendChild(posEl);
-      if (backBtn) headRow.appendChild(backBtn);
-      headRow.appendChild(exitBtn);
-      panel.appendChild(headRow);
-      // Same .chip/.chiprow classes the gallery cards use, so the preview
-      // looks identical — glowing (chip-match) entries are new tags Confirm
-      // is about to add, plain ones are already on the image.
-      buildSequentialPanel(panel, entry, (tags) => {
-        const fresh = new Set(tags.filter((t) => !entry.tags.includes(t)));
-        previewHead.textContent = `Will apply on Confirm — ${tags.length} tags${fresh.size ? ` (${fresh.size} new)` : ''}`;
-        previewChips.innerHTML = '';
-        if (!tags.length){
-          const none = document.createElement('span');
-          none.style.cssText = 'font-size:12px; color:var(--text-faint);';
-          none.textContent = 'No indicator tags selected — Confirm will assert none.';
-          previewChips.appendChild(none);
-          return;
-        }
-        for (const t of tags){
-          const chip = document.createElement('span');
-          // chip-static: same label-centering/read-only modifier the
-          // transfer-list viewer uses — these chips have no × button, so
-          // the base chip's ×-budgeted padding leaves text lopsided.
-          chip.className = 'chip chip-static' + (fresh.has(t) ? ' chip-match' : '');
-          const label = document.createElement('span');
-          label.textContent = t;
-          label.title = fresh.has(t) ? 'New — will be added on Confirm' : 'Already on this image';
-          chip.appendChild(label);
-          previewChips.appendChild(chip);
-        }
-      });
-      wrap.appendChild(panel);
-      singleViewEl.appendChild(wrap);
+      singleViewEl.appendChild(buildSeqBody(seqEntry, false));
       return;
     }
   }
@@ -2996,12 +3034,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     // active gallery, so fall back to the top rather than silently doing
     // nothing from an unexpected context.
     if (startIdx < 0){ toast('Sequential walks the current filter — this image is outside it (e.g. Disabled).'); return; }
-    seqQueue = list;
-    seqIdx = startIdx;
-    seqActive = true;
-    seqPanelForcedCollapse = !getRightPanelCollapsedRef();
-    setRightPanelCollapsedRef(true);
-    switchView('single');
+    beginSequential(list, startIdx);
   }, { title: 'Enter sequential mode starting at this image (walks the current filter image by image)' });
 
   // Originals are managed by the Bucket Images dock's Revert, not Disable.

@@ -291,8 +291,9 @@ bootstrap tags onto untagged imports.
 
 ### Sequential tagging
 
-Desktop-only, started from the **▶ Sequential from first / from selected** buttons under Master
-Tag Control's selection summary. It takes over Single view and walks your current filter image by image;
+Started from the **▶ Sequential from first / from selected** buttons under Master Tag Control's
+selection summary, or **▶ Sequential from here** in an image's 3-dot menu. On desktop it takes over
+Single view; on Android it opens as a full-screen panel (Back closes it). Either way it walks your current filter image by image;
 "from selected" starts at your first selected image instead of the top. Each image shows the
 same quick-modify panel:
 
@@ -528,7 +529,8 @@ This guide covers the desktop app. Two siblings share this repo:
 - **Osmium Workshop for Android** (`mobile/`) — the same app as desktop (same themes, Theme
   Studio, Past Tag Preview, rules and tools), in a touch layout:
   - Panels become bottom sheets, and tag editing happens in the image modal (tap a card).
-  - Compact view, Single view, Sequential tagging and Bucket Images are left out.
+  - Compact view, Single view and Bucket Images are left out. Sequential tagging runs in a
+    full-screen panel instead of Single view.
   - The folder picker uses Android's own storage access with a persisted grant, and **File ▸ Add
     images…** can pull from any installed gallery or file-manager app.
   - WD14 tagging runs either on-device (models download on first use) or through your own
