@@ -1251,7 +1251,8 @@
           </div>
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--green)"></span><h3>Osmium Workshop — Mobile</h3></div>
-            <p>Android port for tagging on the go. Touch layout, on-device WD14, ComfyUI generation over LAN or Tailscale. In testing — early APKs are on the GitHub releases page as pre-releases.</p>
+            <p>The same app on Android, for tagging on the go. Touch layout, on-device WD14, ComfyUI generation over LAN or Tailscale.</p>
+            <a class="btn btn-ghost btn-sm app-dl" data-dl="osmium-android" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
           </div>
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--blue)"></span><h3>Comfy Bridge</h3></div>
@@ -1744,6 +1745,7 @@
   // version number in the filename (see gh release create's asset names).
   var targets = [
     { attr: 'osmium-desktop', re: /^Osmium\.Workshop-.*-win\.zip$/ },
+    { attr: 'osmium-android', re: /^OsmiumWorkshop-.*-android\.apk$/ },
     { attr: 'cbridge-desktop', re: /^Comfy\.Bridge-.*-win\.zip$/ },
     { attr: 'cbridge-android', re: /^ComfyBridge-.*-android\.apk$/ }
   ];

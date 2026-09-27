@@ -540,7 +540,8 @@ This guide covers the desktop app. Two siblings share this repo:
   - The phone's **Back** closes whatever is open first (menus, dialogs, panels, then back through
     the tabs you visited) and asks before leaving the app.
   - The in-app ❓ Help is rewritten for touch; read that instead of this guide on mobile.
-  - Test builds are posted as GitHub pre-releases.
+  - Released since v1.8.0: each release has an `OsmiumWorkshop-<version>-android.apk`. Install it
+    over any earlier build to keep your data.
 - **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
   featuring a built-in workflow: no node graph to navigate, every generation saves straight to
   disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or

@@ -8,8 +8,8 @@ android {
         applicationId "com.osmiumworkshop.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.8.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // ARM64 only: ONNX Runtime (on-device WD14) ships one ~18 MB native
         // library per ABI, and the x86/x86_64/armeabi-v7a copies were 53 MB of

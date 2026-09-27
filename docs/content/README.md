@@ -30,6 +30,7 @@ I don't know go eat a rock or something
 - [Quick start (using the app)](#quick-start-using-the-app)
 - [Apps in this repo](#apps-in-this-repo)
 - [Full user guide](USER_GUIDE.md) — a walkthrough of every tab and feature
+- [Patch notes](PATCH_NOTES.md) — what changed in every release, from v1.0.0 on
 - [Features](#features)
 - [Themes & the shop economy](#themes--the-shop-economy)
 - [Updating](#updating)
@@ -69,8 +70,10 @@ Three related apps share this repository (and much of their renderer code):
    through Android's Storage Access Framework (a folder you pick stays accessible across
    restarts). It also does on-device WD14 tagging, downloading the model on first use, plus
    tagging and generation against your own ComfyUI instance over the network. Bucket Images,
-   Compact/Single view stay desktop-only; Sequential tagging runs in a full-screen panel. **Still in testing** — early
-   APKs are posted as GitHub pre-releases, or build it from source (see below).
+   Compact/Single view stay desktop-only; Sequential tagging runs in a full-screen panel. Released
+   in v1.8.0: sideload `OsmiumWorkshop-<version>-android.apk` from the
+   [releases page](https://github.com/Valteil/osmium-workshop/releases), or build it from source
+   (see below).
 3. **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
    featuring a built-in workflow: no node graph to navigate, every generation saves straight to
    disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
