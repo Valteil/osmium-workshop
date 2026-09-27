@@ -10,6 +10,16 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ---
 
+## Next version (unreleased)
+
+### Osmium Workshop
+
+- **Change tag category**: right-click a tag ▸ Change tag category to move it to another category
+  when the automatic sorting gets it wrong. It applies on every image and in every dataset;
+  **Automatic** in the same row undoes it.
+
+---
+
 ## v1.9.0
 
 ### Osmium Workshop

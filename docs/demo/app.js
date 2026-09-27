@@ -22482,7 +22482,20 @@ Image: ${entry.imgName}`,
     id: rule.id,
     res: rule.keywords.map((k) => new RegExp(`(?:^|[^a-z0-9])${escapeRegex(k)}(?:$|[^a-z0-9])`))
   }));
-  function categorizeTag(tag) {
+  var OVERRIDES_KEY = "dts-tag-category-overrides";
+  var overrides = getJSON(OVERRIDES_KEY, {});
+  function getTagCategoryOverride(tag) {
+    const id = overrides[normalize(tag)];
+    return id && TAG_CATEGORY_ORDER.includes(id) ? id : null;
+  }
+  function setTagCategoryOverride(tag, id) {
+    const t = normalize(tag);
+    if (!t) return;
+    if (id) overrides[t] = id;
+    else delete overrides[t];
+    setJSON(OVERRIDES_KEY, overrides);
+  }
+  function autoCategorizeTag(tag) {
     const t = normalize(tag);
     if (!t) return "other";
     const seeded = TAG_CATEGORY_SEEDS[t];
@@ -22491,6 +22504,9 @@ Image: ${entry.imgName}`,
       if (rule.res.some((re) => re.test(t))) return rule.id;
     }
     return "other";
+  }
+  function categorizeTag(tag) {
+    return getTagCategoryOverride(tag) || autoCategorizeTag(tag);
   }
   function groupTagsByCategory(tags) {
     const buckets = /* @__PURE__ */ new Map();
@@ -25093,6 +25109,48 @@ Image: ${entry.imgName}`,
       closeTagContextMenu();
       openTagDetails(tag);
     });
+    let catRow = null;
+    const catItem = addContextMenuItem(menu, "Change tag category", () => {
+      if (catRow) {
+        catRow.remove();
+        catRow = null;
+        return;
+      }
+      const current = categorizeTag(tag);
+      const overridden = getTagCategoryOverride(tag) !== null;
+      const pick2 = (id) => {
+        setTagCategoryOverride(tag, id);
+        closeTagContextMenu();
+        refreshAllUIRef7();
+        toast(id ? `"${tag}" now sorts under ${TAG_CATEGORY_LABELS[id]}.` : `"${tag}" is back to its automatic category (${TAG_CATEGORY_LABELS[autoCategorizeTag(tag)]}).`);
+      };
+      catRow = document.createElement("div");
+      catRow.className = "ctx-words";
+      for (const id of TAG_CATEGORY_ORDER) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = TAG_CATEGORY_LABELS[id];
+        if (id === current) b.classList.add("active");
+        b.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (id !== current || !overridden) pick2(id);
+        });
+        catRow.appendChild(b);
+      }
+      if (overridden) {
+        const reset = document.createElement("button");
+        reset.type = "button";
+        reset.textContent = `Automatic (${TAG_CATEGORY_LABELS[autoCategorizeTag(tag)]})`;
+        reset.title = "Forget your choice and let the classifier decide again";
+        reset.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          pick2(null);
+        });
+        catRow.appendChild(reset);
+      }
+      catItem.after(catRow);
+      positionMenu(menu, x, y);
+    }, { title: "Move this tag to another category, on every image" });
     if (entry) {
       const renameSep = document.createElement("div");
       renameSep.className = "ctx-sep";

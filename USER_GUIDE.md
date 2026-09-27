@@ -139,7 +139,9 @@ to: if you add one under the wrong heading, it goes where it belongs and a note 
 in that same category order by default, just without the headings, and a newly added tag drops
 straight into its place. Settings ▸ "Sort tags within each card" switches to Order added,
 Alphabetical or By frequency instead. The grouping is a best guess
-from Danbooru tag groups, so the odd tag lands in a neighbouring category. The setting is
+from Danbooru tag groups, so the odd tag lands in a neighbouring category. To fix one, right-click
+the tag ▸ **Change tag category** and pick where it belongs; it moves there on every image and in
+every dataset. Pick **Automatic** in the same row to undo it. The setting is
 remembered. With it on, **＋ Add subject** (next to the pill) splits an image's tags into named
 subjects for multi-character images: rename a subject by typing in its name, add category
 subheaders with **＋ Subheader**, and move tags between subjects by dragging a chip onto a

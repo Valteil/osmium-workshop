@@ -23,7 +23,10 @@ import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTag
 import { openTagDetails } from './tag-details';
 import { attachTagAutocomplete, attachPickAutocomplete, closeAutocomplete } from './tags-autocomplete';
 import { buildTagIndex, refreshStats, filteredEntries, passesFilter } from './tag-index';
-import { categorizeTag, groupTagsByCategory, TAG_CATEGORY_ORDER, TAG_CATEGORY_LABELS } from './tag-categories';
+import {
+  categorizeTag, autoCategorizeTag, groupTagsByCategory, getTagCategoryOverride, setTagCategoryOverride,
+  TAG_CATEGORY_ORDER, TAG_CATEGORY_LABELS
+} from './tag-categories';
 import type { TagCategoryId } from './tag-categories';
 import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid } from './master-tag-control';
 import { renderTagPruners } from './tag-pruner';
@@ -2909,6 +2912,41 @@ function openTagContextMenu(entry: Entry, tag: string, x: number, y: number): vo
     closeTagContextMenu();
     openTagDetails(tag);
   });
+  // Opens a row of the categories right under the item; the pick is global
+  // (every image, every dataset) and beats the classifier.
+  let catRow: HTMLElement | null = null;
+  const catItem = addContextMenuItem(menu, 'Change tag category', () => {
+    if (catRow){ catRow.remove(); catRow = null; return; }
+    const current = categorizeTag(tag);
+    const overridden = getTagCategoryOverride(tag) !== null;
+    const pick = (id: TagCategoryId | null) => {
+      setTagCategoryOverride(tag, id);
+      closeTagContextMenu();
+      refreshAllUIRef();
+      toast(id ? `"${tag}" now sorts under ${TAG_CATEGORY_LABELS[id]}.`
+        : `"${tag}" is back to its automatic category (${TAG_CATEGORY_LABELS[autoCategorizeTag(tag)]}).`);
+    };
+    catRow = document.createElement('div');
+    catRow.className = 'ctx-words';
+    for (const id of TAG_CATEGORY_ORDER){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = TAG_CATEGORY_LABELS[id];
+      if (id === current) b.classList.add('active');
+      b.addEventListener('click', (ev) => { ev.stopPropagation(); if (id !== current || !overridden) pick(id); });
+      catRow.appendChild(b);
+    }
+    if (overridden){
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.textContent = `Automatic (${TAG_CATEGORY_LABELS[autoCategorizeTag(tag)]})`;
+      reset.title = 'Forget your choice and let the classifier decide again';
+      reset.addEventListener('click', (ev) => { ev.stopPropagation(); pick(null); });
+      catRow.appendChild(reset);
+    }
+    catItem.after(catRow);
+    positionMenu(menu, x, y);
+  }, { title: 'Move this tag to another category, on every image' });
 
   if (entry){
     const renameSep = document.createElement('div');

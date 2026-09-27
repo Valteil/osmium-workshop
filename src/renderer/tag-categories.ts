@@ -19,6 +19,7 @@ import {
   TAG_CATEGORY_ORDER, TAG_CATEGORY_SEEDS, TAG_CATEGORY_RULES,
   type TagCategoryId
 } from './tag-categories-data';
+import { getJSON, setJSON } from './storage';
 
 export type { TagCategoryId };
 export { TAG_CATEGORY_ORDER };
@@ -55,7 +56,27 @@ const RULE_MATCHERS: { id: TagCategoryId; res: RegExp[] }[] = TAG_CATEGORY_RULES
   res: rule.keywords.map((k) => new RegExp(`(?:^|[^a-z0-9])${escapeRegex(k)}(?:$|[^a-z0-9])`))
 }));
 
-export function categorizeTag(tag: string): TagCategoryId {
+// The user's own choices (tag context menu ▸ Change tag category) beat the
+// classifier. Global, not per dataset, like the quicktags.
+const OVERRIDES_KEY = 'dts-tag-category-overrides';
+const overrides: Record<string, TagCategoryId> = getJSON(OVERRIDES_KEY, {});
+
+export function getTagCategoryOverride(tag: string): TagCategoryId | null {
+  const id = overrides[normalize(tag)];
+  return id && TAG_CATEGORY_ORDER.includes(id) ? id : null;
+}
+
+// null clears the override, handing the tag back to the classifier.
+export function setTagCategoryOverride(tag: string, id: TagCategoryId | null): void {
+  const t = normalize(tag);
+  if (!t) return;
+  if (id) overrides[t] = id;
+  else delete overrides[t];
+  setJSON(OVERRIDES_KEY, overrides);
+}
+
+// What the classifier alone says, ignoring any override.
+export function autoCategorizeTag(tag: string): TagCategoryId {
   const t = normalize(tag);
   if (!t) return 'other';
   const seeded = TAG_CATEGORY_SEEDS[t];
@@ -64,6 +85,10 @@ export function categorizeTag(tag: string): TagCategoryId {
     if (rule.res.some((re) => re.test(t))) return rule.id;
   }
   return 'other';
+}
+
+export function categorizeTag(tag: string): TagCategoryId {
+  return getTagCategoryOverride(tag) || autoCategorizeTag(tag);
 }
 
 export interface TagCategoryGroup {
