@@ -15,7 +15,7 @@ import {
   datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown, dmTabBar,
   achievementsPanel, favoritesPanel, logPanel, tagDetailsPanel, shopPanel
 } from './dom';
-import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, addContextMenuItem, createModalShell } from './shared-ui';
+import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, addContextMenuItem, createModalShell, showPromptModal } from './shared-ui';
 import { pickDatasetFolder } from './folder-picker';
 import { renderAchievementsPanel, trackStat, checkAchievements } from './achievements';
 import { addFavoriteHandle, removeFavoriteByHandle, isFavorited } from './favorites';
@@ -120,37 +120,8 @@ async function hashPassword(password: string, salt: string): Promise<string> {
   return sha256Hex(salt + ':' + password);
 }
 
-// Small single-field modal built on the shared modal shell (shared-ui.ts).
-function promptText(message: string, opts: { okLabel?: string; password?: boolean; placeholder?: string } = {}): Promise<string | null> {
-  return new Promise((resolve) => {
-    const { box, close } = createModalShell({
-      onDismiss: () => { resolve(null); close(); },
-      onShow: () => input.focus()
-    });
-    const msg = document.createElement('div');
-    msg.className = 'confirm-message';
-    msg.textContent = message;
-    box.appendChild(msg);
-    const input = document.createElement('input');
-    input.type = opts.password ? 'password' : 'text';
-    input.className = 'dm-prompt-input';
-    if (opts.placeholder) input.placeholder = opts.placeholder;
-    box.appendChild(input);
-    const btnRow = document.createElement('div');
-    btnRow.className = 'confirm-btn-row';
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = 'Cancel';
-    const okBtn = document.createElement('button');
-    okBtn.textContent = opts.okLabel || 'OK';
-    okBtn.className = 'primary';
-    cancelBtn.addEventListener('click', () => { resolve(null); close(); });
-    okBtn.addEventListener('click', () => { resolve(input.value); close(); });
-    input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { resolve(input.value); close(); } });
-    btnRow.appendChild(cancelBtn);
-    btnRow.appendChild(okBtn);
-    box.appendChild(btnRow);
-  });
-}
+// Single-field prompt: shared-ui.ts showPromptModal.
+const promptText = showPromptModal;
 
 // ---------------- Group CRUD ----------------
 

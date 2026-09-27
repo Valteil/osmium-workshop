@@ -194,6 +194,17 @@
     return makeDirHandle('', res.name || 'dataset', res.uri);
   };
 
+  // "Add images…" with no dataset open: pick a location, create a new
+  // dataset folder named `name` inside it (DtsStoragePlugin.createDatasetFolder
+  // — unique-suffixed if taken), return its handle. The handle's root URI is
+  // the new folder itself, so it persists/revives like any picked dataset.
+  window.__dtsCreateDatasetFolder = async function (name) {
+    if (!Storage) throw new Error('DtsStorage native plugin not available');
+    const res = await Storage.createDatasetFolder({ name });
+    if (!res || !res.uri) throw new Error('No folder was created.');
+    return makeDirHandle('', res.name || name, res.uri);
+  };
+
   // The other half of the toJSON() round-trip above — dataset-manager.ts
   // calls this on any record it loads back out of IndexedDB whose stored
   // `handle` is that plain serialized shape, turning it back into a live,

@@ -595,6 +595,40 @@ export function createModalShell(opts: ModalShellOpts = {}): ModalShell {
   return { backdrop, box, close };
 }
 
+// Small single-field prompt on the shared modal shell. Resolves the typed
+// text, or null when dismissed. (Was dataset-manager.ts's promptText.)
+export function showPromptModal(message: string, opts: { okLabel?: string; password?: boolean; placeholder?: string; value?: string } = {}): Promise<string | null> {
+  return new Promise((resolve) => {
+    const { box, close } = createModalShell({
+      onDismiss: () => { resolve(null); close(); },
+      onShow: () => { input.focus(); input.select(); }
+    });
+    const msg = document.createElement('div');
+    msg.className = 'confirm-message';
+    msg.textContent = message;
+    box.appendChild(msg);
+    const input = document.createElement('input');
+    input.type = opts.password ? 'password' : 'text';
+    input.className = 'dm-prompt-input';
+    if (opts.placeholder) input.placeholder = opts.placeholder;
+    if (opts.value) input.value = opts.value;
+    box.appendChild(input);
+    const btnRow = document.createElement('div');
+    btnRow.className = 'confirm-btn-row';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    const okBtn = document.createElement('button');
+    okBtn.textContent = opts.okLabel || 'OK';
+    okBtn.className = 'primary';
+    cancelBtn.addEventListener('click', () => { resolve(null); close(); });
+    okBtn.addEventListener('click', () => { resolve(input.value); close(); });
+    input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { resolve(input.value); close(); } });
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(okBtn);
+    box.appendChild(btnRow);
+  });
+}
+
 export function showConfirmModal(message: string, opts: ConfirmModalOpts = {}): Promise<boolean> {
   return new Promise((resolve) => {
     const { box, close } = createModalShell({ onDismiss: () => { resolve(false); close(); } });

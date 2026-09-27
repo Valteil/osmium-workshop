@@ -39,7 +39,7 @@ import {
   singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle,
   settingsPanel, fontSizeSlider, fontSizeVal
 } from './dom';
-import { attachScrollHint, closeOpenDropdown, toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, mapPan, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
+import { attachScrollHint, closeOpenDropdown, showPromptModal, toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, mapPan, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
 import {
   PREMIUM_THEMES, applyTheme, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes, themeWantsRefinedClass
@@ -2486,7 +2486,57 @@ import { setIconLabel } from './icons';
     if (!added) { toast(skipped ? 'No images could be added.' : 'Nothing selected.', 2600); return; }
     toast(`Added ${added} image${added === 1 ? '' : 's'}${skipped ? ` (${skipped} skipped)` : ''}.`, 2600);
     await reloadDataset();
+    if (newDatasetPendingTrack && newDatasetPendingTrack === activeHandle){
+      newDatasetPendingTrack = null;
+      void maybePromptAddDataset(activeHandle);
+    }
   }
+
+  // "Add images…" with nothing open: create a new dataset folder where the
+  // user chooses, open it, then import into it. Android builds the folder
+  // natively (mobile-shim.js __dtsCreateDatasetFolder: SAF grants only the
+  // picked location, so the plugin makes the subfolder and addresses it
+  // through that grant); elsewhere it's the folder picker + getDirectoryHandle.
+  async function createDatasetForImport(): Promise<boolean> {
+    const go = await showConfirmModal('No dataset is open. Create a new dataset for these images?\n\nYou\'ll name it, then choose where its folder goes.',
+      { okLabel: 'Create dataset', cancelLabel: 'Cancel' });
+    if (!go) return false;
+    const raw = await showPromptModal('Name the new dataset (this becomes its folder name):',
+      { okLabel: 'Choose location…', placeholder: 'e.g. my_character', value: 'New dataset' });
+    const name = (raw || '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (!name) return false;
+    toast(`Choose where to create "${name}".`, 3200);
+    let handle: DirHandle | null = null;
+    try {
+      const native = (window as unknown as { __dtsCreateDatasetFolder?: (n: string) => Promise<DirHandle> }).__dtsCreateDatasetFolder;
+      if (native){
+        handle = await native(name);
+      } else {
+        const parent = await pickDatasetFolder();
+        if (!parent) return false;
+        let finalName = name;
+        for (let n = 2; n < 1000; n++){
+          try { await parent.getDirectoryHandle(finalName, { create: false }); finalName = `${name} (${n})`; }
+          catch { break; } // not there: free to create
+        }
+        handle = await parent.getDirectoryHandle(finalName, { create: true });
+      }
+    } catch (err){
+      const msg = (err as Error)?.message || '';
+      toast(/cancel/i.test(msg) || (err as DOMException)?.name === 'AbortError'
+        ? 'No location chosen; nothing was created.' : `Couldn't create the dataset folder: ${msg || 'unknown error'}.`, 3600);
+      return false;
+    }
+    if (!handle) return false;
+    dirHandle = handle;
+    try { await loadFolder(); }
+    catch { toast('The folder was created but couldn\'t be opened. Try File ▸ Open dataset folder.', 4200); dirHandle = null; return false; }
+    toast(`Created "${handle.name}". Now pick the images to add.`, 3000);
+    newDatasetPendingTrack = handle;
+    return true;
+  }
+  // Offered once the new dataset has images in it (after the import).
+  let newDatasetPendingTrack: DirHandle | null = null;
 
   if (!document.getElementById('btnAddImages')){
     const btnAddImages = document.createElement('button');
@@ -2494,9 +2544,10 @@ import { setIconLabel } from './icons';
     setIconLabel(btnAddImages, '🖼 Add images…');
     btnAddImages.title = 'Import images from this device into the open dataset folder';
     btnAddImages.addEventListener('click', async () => {
-      if (!dirHandle) { toast('Open a dataset folder first.', 2600); return; }
       fileCatFlyout.style.display = 'none';
       fileCatFlyout.classList.remove('menu-in');
+      // No dataset open: offer to make one first, then carry on to the picker.
+      if (!dirHandle && !(await createDatasetForImport())) return;
       // Android app: the native chooser lists every installed app that can
       // supply images (Photos, Files, file managers…) — mobile-shim.js.
       const nativePick = (window as unknown as { __dtsPickImages?: () => Promise<File[]> }).__dtsPickImages;

@@ -3,6 +3,7 @@ package com.osmiumworkshop.app
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Base64
 import androidx.activity.result.ActivityResult
 import androidx.documentfile.provider.DocumentFile
@@ -80,6 +81,46 @@ class DtsStoragePlugin : Plugin() {
         call.resolve(ret)
     }
 
+    // "Add images…" with no dataset open (index.ts createDatasetForImport):
+    // the user picks WHERE (a folder tree, same picker as pickFolder), and a
+    // new subfolder named `name` is created inside it and becomes the dataset.
+    // SAF only grants the picked tree, so the new folder is addressed as a
+    // document UNDER that tree (tree/<parent>/document/<child>): it works for
+    // every file call through the parent's persisted grant, and
+    // setActiveRoot() below accepts it by checking the tree it belongs to.
+    @PluginMethod
+    fun createDatasetFolder(call: PluginCall) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        intent.addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+        )
+        startActivityForResult(call, intent, "createDatasetFolderResult")
+    }
+
+    @ActivityCallback
+    private fun createDatasetFolderResult(call: PluginCall, result: ActivityResult) {
+        if (result.resultCode != Activity.RESULT_OK || result.data == null) { call.reject("User cancelled"); return }
+        val treeUri: Uri = result.data!!.data ?: run { call.reject("No URI returned"); return }
+        context.contentResolver.takePersistableUriPermission(
+            treeUri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        val parent = DocumentFile.fromTreeUri(context, treeUri) ?: run { call.reject("Can't open that location"); return }
+        val base = (call.getString("name", "New dataset") ?: "New dataset").ifBlank { "New dataset" }
+        var finalName = base
+        var n = 2
+        while (parent.findFile(finalName) != null) finalName = "$base (${n++})"
+        val child = parent.createDirectory(finalName) ?: run { call.reject("Couldn't create the folder there"); return }
+        val childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getDocumentId(child.uri))
+        context.getSharedPreferences(prefsName, 0).edit().putString(uriKey, childUri.toString()).apply()
+        val ret = JSObject()
+        ret.put("uri", childUri.toString())
+        ret.put("name", finalName)
+        call.resolve(ret)
+    }
+
     // "Add images…" (index.ts importImagesToDataset). An <input type=file>
     // in the WebView only ever opens ONE picker (the system photo picker on
     // Android 13+); wrapping ACTION_GET_CONTENT in Intent.createChooser lists
@@ -144,8 +185,13 @@ class DtsStoragePlugin : Plugin() {
         val uriStr = call.getString("uri", "") ?: ""
         if (uriStr.isEmpty()) { call.reject("No uri given"); return }
         val treeUri = Uri.parse(uriStr)
+        // A folder made by createDatasetFolder() is a document under its
+        // parent's tree — the grant to check is that tree's.
+        val grantUri = try {
+            DocumentsContract.buildTreeDocumentUri(treeUri.authority, DocumentsContract.getTreeDocumentId(treeUri))
+        } catch (e: Exception) { treeUri }
         val stillGranted = context.contentResolver.persistedUriPermissions.any {
-            it.uri == treeUri && it.isReadPermission && it.isWritePermission
+            (it.uri == treeUri || it.uri == grantUri) && it.isReadPermission && it.isWritePermission
         }
         if (!stillGranted) { call.reject("Permission for this folder is no longer granted — pick it again"); return }
         context.getSharedPreferences(prefsName, 0).edit().putString(uriKey, treeUri.toString()).apply()

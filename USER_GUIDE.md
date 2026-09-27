@@ -41,7 +41,8 @@ think about the distinction while editing.
 
 **File ▸ Add images…** copies more images into the open dataset folder. Each one arrives untagged,
 with an empty `.txt` beside it. On Android it lets you choose which app to pick from (Photos, Files,
-or any file manager you have installed).
+or any file manager you have installed). With no dataset open, it first offers to create one: name it,
+choose where its folder should go, and the new, empty dataset opens ready for the images.
 
 The app also creates a few of its own files/folders inside your dataset folder as you use it —
 none of them touch your images or captions unless you tell them to:

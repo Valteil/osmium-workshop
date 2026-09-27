@@ -1127,6 +1127,54 @@
     }
     return { backdrop, box, close };
   }
+  function showPromptModal(message, opts = {}) {
+    return new Promise((resolve) => {
+      const { box, close } = createModalShell({
+        onDismiss: () => {
+          resolve(null);
+          close();
+        },
+        onShow: () => {
+          input.focus();
+          input.select();
+        }
+      });
+      const msg = document.createElement("div");
+      msg.className = "confirm-message";
+      msg.textContent = message;
+      box.appendChild(msg);
+      const input = document.createElement("input");
+      input.type = opts.password ? "password" : "text";
+      input.className = "dm-prompt-input";
+      if (opts.placeholder) input.placeholder = opts.placeholder;
+      if (opts.value) input.value = opts.value;
+      box.appendChild(input);
+      const btnRow = document.createElement("div");
+      btnRow.className = "confirm-btn-row";
+      const cancelBtn = document.createElement("button");
+      cancelBtn.textContent = "Cancel";
+      const okBtn = document.createElement("button");
+      okBtn.textContent = opts.okLabel || "OK";
+      okBtn.className = "primary";
+      cancelBtn.addEventListener("click", () => {
+        resolve(null);
+        close();
+      });
+      okBtn.addEventListener("click", () => {
+        resolve(input.value);
+        close();
+      });
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          resolve(input.value);
+          close();
+        }
+      });
+      btnRow.appendChild(cancelBtn);
+      btnRow.appendChild(okBtn);
+      box.appendChild(btnRow);
+    });
+  }
   function showConfirmModal(message, opts = {}) {
     return new Promise((resolve) => {
       const { box, close } = createModalShell({ onDismiss: () => {
@@ -7548,50 +7596,7 @@ Pick your actual dataset folder (the one containing your images and .txt files) 
   async function hashPassword(password, salt) {
     return sha256Hex(salt + ":" + password);
   }
-  function promptText(message, opts = {}) {
-    return new Promise((resolve) => {
-      const { box, close } = createModalShell({
-        onDismiss: () => {
-          resolve(null);
-          close();
-        },
-        onShow: () => input.focus()
-      });
-      const msg = document.createElement("div");
-      msg.className = "confirm-message";
-      msg.textContent = message;
-      box.appendChild(msg);
-      const input = document.createElement("input");
-      input.type = opts.password ? "password" : "text";
-      input.className = "dm-prompt-input";
-      if (opts.placeholder) input.placeholder = opts.placeholder;
-      box.appendChild(input);
-      const btnRow = document.createElement("div");
-      btnRow.className = "confirm-btn-row";
-      const cancelBtn = document.createElement("button");
-      cancelBtn.textContent = "Cancel";
-      const okBtn = document.createElement("button");
-      okBtn.textContent = opts.okLabel || "OK";
-      okBtn.className = "primary";
-      cancelBtn.addEventListener("click", () => {
-        resolve(null);
-        close();
-      });
-      okBtn.addEventListener("click", () => {
-        resolve(input.value);
-        close();
-      });
-      input.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter") {
-          resolve(input.value);
-          close();
-        }
-      });
-      btnRow.appendChild(cancelBtn);
-      btnRow.appendChild(okBtn);
-      box.appendChild(btnRow);
-    });
-  }
+  var promptText = showPromptModal;
   async function createGroupFlow() {
     const name = await promptText("Name this new tab:", { okLabel: "Create", placeholder: "e.g. Private" });
     if (!name || !name.trim()) return;
@@ -26741,19 +26746,71 @@ Image: ${entry.imgName}`,
       }
       toast(`Added ${added} image${added === 1 ? "" : "s"}${skipped ? ` (${skipped} skipped)` : ""}.`, 2600);
       await reloadDataset();
+      if (newDatasetPendingTrack && newDatasetPendingTrack === activeHandle) {
+        newDatasetPendingTrack = null;
+        void maybePromptAddDataset(activeHandle);
+      }
     }
+    async function createDatasetForImport() {
+      const go = await showConfirmModal(
+        "No dataset is open. Create a new dataset for these images?\n\nYou'll name it, then choose where its folder goes.",
+        { okLabel: "Create dataset", cancelLabel: "Cancel" }
+      );
+      if (!go) return false;
+      const raw = await showPromptModal(
+        "Name the new dataset (this becomes its folder name):",
+        { okLabel: "Choose location\u2026", placeholder: "e.g. my_character", value: "New dataset" }
+      );
+      const name = (raw || "").replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+      if (!name) return false;
+      toast(`Choose where to create "${name}".`, 3200);
+      let handle = null;
+      try {
+        const native = window.__dtsCreateDatasetFolder;
+        if (native) {
+          handle = await native(name);
+        } else {
+          const parent = await pickDatasetFolder();
+          if (!parent) return false;
+          let finalName = name;
+          for (let n = 2; n < 1e3; n++) {
+            try {
+              await parent.getDirectoryHandle(finalName, { create: false });
+              finalName = `${name} (${n})`;
+            } catch {
+              break;
+            }
+          }
+          handle = await parent.getDirectoryHandle(finalName, { create: true });
+        }
+      } catch (err) {
+        const msg = err?.message || "";
+        toast(/cancel/i.test(msg) || err?.name === "AbortError" ? "No location chosen; nothing was created." : `Couldn't create the dataset folder: ${msg || "unknown error"}.`, 3600);
+        return false;
+      }
+      if (!handle) return false;
+      dirHandle = handle;
+      try {
+        await loadFolder();
+      } catch {
+        toast("The folder was created but couldn't be opened. Try File \u25B8 Open dataset folder.", 4200);
+        dirHandle = null;
+        return false;
+      }
+      toast(`Created "${handle.name}". Now pick the images to add.`, 3e3);
+      newDatasetPendingTrack = handle;
+      return true;
+    }
+    let newDatasetPendingTrack = null;
     if (!document.getElementById("btnAddImages")) {
       const btnAddImages = document.createElement("button");
       btnAddImages.id = "btnAddImages";
       setIconLabel(btnAddImages, "\u{1F5BC} Add images\u2026");
       btnAddImages.title = "Import images from this device into the open dataset folder";
       btnAddImages.addEventListener("click", async () => {
-        if (!dirHandle) {
-          toast("Open a dataset folder first.", 2600);
-          return;
-        }
         fileCatFlyout.style.display = "none";
         fileCatFlyout.classList.remove("menu-in");
+        if (!dirHandle && !await createDatasetForImport()) return;
         const nativePick = window.__dtsPickImages;
         if (nativePick) {
           try {
