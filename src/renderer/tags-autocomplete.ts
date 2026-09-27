@@ -52,8 +52,57 @@ function onDocClickCloseAutocomplete(ev: MouseEvent): void {
 // window, whose definition text sits above its field).
 let acBelow = false;
 
-function positionAutocomplete(rect: DOMRect): void {
+// Inside a dialog (createModalShell's .confirm-box, e.g. the quicktag
+// editor) the panel would cover the dialog's own fields, so it pops out
+// BESIDE the dialog instead (right side, else left), level with the field,
+// and closes when that field loses focus (wireModalBlurClose).
+const SIDE_PANEL_W = 280;
+function dialogOf(inputEl: HTMLElement): HTMLElement | null {
+  return inputEl.closest<HTMLElement>('.confirm-box');
+}
+
+// In a dialog the panel closes once its field loses focus (clicking a
+// suggestion doesn't count: the panel's mousedown keeps focus in the field).
+function wireModalBlurClose(inputEl: HTMLInputElement): void {
+  inputEl.addEventListener('blur', () => {
+    if (!dialogOf(inputEl)) return;
+    setTimeout(() => { if (document.activeElement !== inputEl) closeAutocomplete(); }, 0);
+  });
+}
+
+// Created once per panel: a mousedown on a row must not pull focus out of
+// the field (a form control inside, like the definition card's textarea,
+// still takes focus normally).
+function createPanel(): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'ac-panel';
+  el.addEventListener('mousedown', (e) => {
+    if (!(e.target as HTMLElement).closest('textarea, input, button')) e.preventDefault();
+  });
+  document.body.appendChild(el);
+  document.addEventListener('click', onDocClickCloseAutocomplete, true);
+  return el;
+}
+
+function positionAutocomplete(inputEl: HTMLInputElement): void {
   if (!autocompleteEl) return;
+  const rect = inputEl.getBoundingClientRect();
+  const dialog = dialogOf(inputEl);
+  if (dialog){
+    const d = dialog.getBoundingClientRect();
+    const right = d.right + 8, left = d.left - SIDE_PANEL_W - 8;
+    const fitsRight = right + SIDE_PANEL_W <= window.innerWidth - 8;
+    const fitsLeft = left >= 8;
+    if (fitsRight || fitsLeft){
+      autocompleteEl.classList.add('ac-panel-side');
+      autocompleteEl.style.width = SIDE_PANEL_W + 'px';
+      autocompleteEl.style.left = (fitsRight ? right : left) + 'px';
+      const top = Math.min(rect.top, window.innerHeight - autocompleteEl.offsetHeight - 8);
+      autocompleteEl.style.top = Math.max(8, top) + 'px';
+      return;
+    }
+  }
+  autocompleteEl.classList.remove('ac-panel-side');
   autocompleteEl.style.width = Math.max(220, rect.width) + 'px';
   autocompleteEl.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - autocompleteEl.offsetWidth - 8)) + 'px';
   const top = acBelow
@@ -251,15 +300,17 @@ export function attachListAutocomplete(inputEl: HTMLInputElement, getOptions: ()
     }, 100);
   });
   inputEl.addEventListener('keydown', (ev: KeyboardEvent) => { if (ev.key === 'Escape') closeAutocomplete(); });
+  wireModalBlurClose(inputEl);
+}
+
+// A search that lands after its dialog field lost focus mustn't reopen.
+function staleForDialog(inputEl: HTMLInputElement): boolean {
+  return !!dialogOf(inputEl) && document.activeElement !== inputEl;
 }
 
 function renderListAutocompleteResults(inputEl: HTMLInputElement, results: string[], onPick: (val: string) => void): void {
-  if (!autocompleteEl) {
-    autocompleteEl = document.createElement('div');
-    autocompleteEl.className = 'ac-panel';
-    document.body.appendChild(autocompleteEl);
-    document.addEventListener('click', onDocClickCloseAutocomplete, true);
-  }
+  if (staleForDialog(inputEl)) return;
+  if (!autocompleteEl) autocompleteEl = createPanel();
   autocompleteEl.innerHTML = '';
   if (results.length === 0) {
     const empty = document.createElement('div');
@@ -281,7 +332,7 @@ function renderListAutocompleteResults(inputEl: HTMLInputElement, results: strin
     }
     autocompleteEl.appendChild(list);
   }
-  positionAutocomplete(inputEl.getBoundingClientRect());
+  positionAutocomplete(inputEl);
 }
 
 // `segmented`: search only the text after the last comma (tag-add fields
@@ -321,6 +372,7 @@ function attachAutocompleteCore(inputEl: HTMLInputElement, onPick: (tag: string)
   inputEl.addEventListener('keydown', (ev: KeyboardEvent) => {
     if (ev.key === 'Escape') closeAutocomplete();
   });
+  wireModalBlurClose(inputEl);
 }
 
 function runAutocompleteSearch(inputEl: HTMLInputElement, onPick: (tag: string) => void, query: string, segmented = false): void {
@@ -344,12 +396,8 @@ function runAutocompleteSearch(inputEl: HTMLInputElement, onPick: (tag: string) 
 }
 
 function renderAutocompleteResults(inputEl: HTMLInputElement, onPick: (tag: string) => void, results: [string, { count?: number }][]): void {
-  if (!autocompleteEl) {
-    autocompleteEl = document.createElement('div');
-    autocompleteEl.className = 'ac-panel';
-    document.body.appendChild(autocompleteEl);
-    document.addEventListener('click', onDocClickCloseAutocomplete, true);
-  }
+  if (staleForDialog(inputEl)) return;
+  if (!autocompleteEl) autocompleteEl = createPanel();
   autocompleteEl.innerHTML = '';
   if (results.length === 0) {
     const empty = document.createElement('div');
@@ -391,5 +439,5 @@ function renderAutocompleteResults(inputEl: HTMLInputElement, onPick: (tag: stri
     }
     autocompleteEl.appendChild(list);
   }
-  positionAutocomplete(inputEl.getBoundingClientRect());
+  positionAutocomplete(inputEl);
 }
