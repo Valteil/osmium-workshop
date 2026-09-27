@@ -3129,7 +3129,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .of-logo .of-hollow{ fill: var(--of-fill); stroke: var(--of-ink); }
   .of-logo .of-pin{ fill: var(--of-fill); }
   .of-logo .of-rgb0{ fill: var(--accent-danger); }
-  .of-logo .of-rgb1{ fill: var(--accent-success); }
+  /* The "G" of Osmium's RGB nodes is its own green fill, where a green node
+     would vanish; those nodes take the mark's ink instead. */
+  .of-logo .of-rgb1{ fill: var(--of-ink); }
   .of-logo .of-rgb2{ fill: var(--accent-manual); }
   .of-logo .of-split{ opacity: 0.85; }
   .of-logo .of-split-a{ stroke: var(--accent-manual); }
