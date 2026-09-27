@@ -4,7 +4,7 @@
 //   1. docs/demo/  <- renderer/ (index.html, styles.css, app.js, fonts/, data/)
 //      The demo is the UNCHANGED desktop renderer running in a plain browser
 //      tab. Only index.html is edited on the way in, four ways, all asserted:
-//      the demo title, a noindex meta, a dts-theme reset at the top of <head>,
+//      the demo title, a noindex meta, a dts-theme reset + opening-flourish skip at the top of <head>,
 //      and demo-shim.js loaded BEFORE app.js
 //      (see the comment this script writes above it for why the order matters).
 //   2. docs/content/README.md + USER_GUIDE.md <- repo root (readme.html /
@@ -41,8 +41,9 @@ html = mustReplace(html, '<title>Osmium Workshop</title>',
 // The demo's theme resets every load, independent of the site's picker. This
 // has to run before the app's own pre-paint script (further down <head>),
 // which applies the saved dts-theme; demo-shim.js runs too late for that.
+// It also skips the app's opening flourish: the demo already opens loaded.
 html = mustReplace(html, '<head>',
-  `<head>\n<script>try { localStorage.removeItem('dts-theme'); } catch (e) {}</script>`, 'the <head> tag');
+  `<head>\n<script>window.__dtsNoOpenFlourish = true; try { localStorage.removeItem('dts-theme'); } catch (e) {}</script>`, 'the <head> tag');
 html = mustReplace(html, '<script src="app.js"></script>',
   `<!-- demo-shim.js MUST load before app.js, not after: SynthDat Overseer's
      tab-init code calls window.electronAPI.onSynthdatPreviewFrame(...)

@@ -155,6 +155,9 @@
    (dts-disable-open-flourish). Styles: styles.css "Opening flourish". */
 (function(){
   var root = document.documentElement;
+  // The site demo opens straight into a loaded app, so it sets this flag
+  // (scripts/sync-site.js) and skips the flourish.
+  if (window.__dtsNoOpenFlourish) return;
   try { if (localStorage.getItem('dts-disable-open-flourish') === '1') return; } catch(e){}
   // No viewport yet (a hidden frame) means nothing to show — and the phone
   // check below would misfire on its zero width.

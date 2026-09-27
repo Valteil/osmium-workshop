@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>try { localStorage.removeItem('dts-theme'); } catch (e) {}</script>
+<script>window.__dtsNoOpenFlourish = true; try { localStorage.removeItem('dts-theme'); } catch (e) {}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Osmium Workshop — Live Demo</title>
@@ -157,6 +157,9 @@
    (dts-disable-open-flourish). Styles: styles.css "Opening flourish". */
 (function(){
   var root = document.documentElement;
+  // The site demo opens straight into a loaded app, so it sets this flag
+  // (scripts/sync-site.js) and skips the flourish.
+  if (window.__dtsNoOpenFlourish) return;
   try { if (localStorage.getItem('dts-disable-open-flourish') === '1') return; } catch(e){}
   // No viewport yet (a hidden frame) means nothing to show — and the phone
   // check below would misfire on its zero width.
