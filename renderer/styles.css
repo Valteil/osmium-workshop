@@ -3222,7 +3222,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     outline: 2px solid var(--accent-manual); outline-offset: -2px;
   }
   .header-cat-flyout .pdrop{ display: block; width: 100%; }
-  .pdrop-menu.theme-pdrop-menu{ max-height: min(60vh, 420px); overflow-y: auto; }
+  .pdrop-menu.theme-pdrop-menu{ max-height: min(60vh, 420px); overflow-y: auto; overflow-x: hidden; }
 
   button {
     font-family: var(--sans);
@@ -3708,6 +3708,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     /* Long lists (Settings ▸ App icon's theme list) scroll inside a short
        flyout instead of running off-screen. */
     max-height: min(300px, 60vh); overflow-y: auto; overscroll-behavior: contain;
+    /* The vertical scrollbar eats into the content width; without this the
+       items overflow by that much and a horizontal scrollbar appears. */
+    overflow-x: hidden;
     box-shadow: 0 12px 30px rgba(0,0,0,0.5);
   }
   .pdrop-item{
