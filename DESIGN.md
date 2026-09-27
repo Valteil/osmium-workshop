@@ -273,8 +273,8 @@ and **Disable opening flourish** turns it off.
 
   Risers float up, fallers drop, and flat pieces spin. Only light-source worlds (per the Native
   Light Rule) glow.
-- **Start:** the animations are created paused and start on the first painted frame, so a slow
-  launch never skips the entry. The entry curve eases in (`cubic-bezier(.33,0,.15,1)`, 700ms).
+- **Start:** the animations are created paused and start once the window is actually on screen, so a slow
+  launch never skips the entry. The entry curve eases in (`cubic-bezier(.33,0,.15,1)`, 800ms).
 - The per-theme table is in `renderer/index.html`'s inline flourish script, because it has to run
   before `app.js`. The styles are the "Opening flourish" block in `styles.css`. A new theme with no
   entry gets Studio's.

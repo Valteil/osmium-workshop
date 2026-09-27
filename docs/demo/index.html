@@ -317,7 +317,7 @@
   var anims = [];
   function run(node, frames, opts){ var a = node.animate(frames, opts); a.pause(); anims.push(a); return a; }
   var ENTER = 'cubic-bezier(0.33, 0, 0.15, 1)', IN = 'cubic-bezier(0.55, 0, 0.85, 0.35)', SWEEP = [0.65, 0, 0.35, 1];
-  var outAt = 1300, outDur = 740;
+  var outAt = 1400, outDur = 760;
 
   if (reduce){
     // No travel: the covered window and mark fade in place, then fade out.
@@ -325,10 +325,10 @@
     band.style.transform = tr(REST);
   } else {
     run(scrim, [{opacity: 0}, {opacity: 1}], {duration: 220, fill: 'forwards'});
-    run(band, [{transform: tr(-BAND)}, {transform: tr(REST)}], {duration: 700, easing: ENTER, fill: 'forwards'});
-    run(markIn, [{transform: tr(-34), opacity: 0}, {transform: tr(0), opacity: 1}], {duration: 600, delay: 200, easing: ENTER, fill: 'backwards'});
-    run(markIn, [{transform: tr(0)}, {transform: tr(1)}], {duration: 440, delay: 800, fill: 'forwards'});
-    run(markIn, [{transform: tr(1), opacity: 1}, {transform: tr(36), opacity: 0}], {duration: 280, delay: 1240, easing: IN, fill: 'forwards'});
+    run(band, [{transform: tr(-BAND)}, {transform: tr(REST)}], {duration: 800, easing: ENTER, fill: 'forwards'});
+    run(markIn, [{transform: tr(-34), opacity: 0}, {transform: tr(0), opacity: 1}], {duration: 680, delay: 220, easing: ENTER, fill: 'backwards'});
+    run(markIn, [{transform: tr(0)}, {transform: tr(1)}], {duration: 440, delay: 900, fill: 'forwards'});
+    run(markIn, [{transform: tr(1), opacity: 1}, {transform: tr(36), opacity: 0}], {duration: 280, delay: 1340, easing: IN, fill: 'forwards'});
     run(band, [{transform: tr(REST)}, {transform: tr(100)}], {duration: outDur, delay: outAt, easing: 'cubic-bezier(' + SWEEP.join(',') + ')', fill: 'forwards'});
     run(scrim, [{opacity: 1}, {opacity: 0}], {duration: 450, delay: outAt + 200, easing: 'ease-out', fill: 'forwards'});
     if (tile) shed();
@@ -427,10 +427,30 @@
   function hurry(){ el.style.pointerEvents = 'none'; anims.forEach(function(a){ try { a.playbackRate = 4; } catch(e){} }); }
   addEventListener('pointerdown', hurry, {once: true, capture: true});
   addEventListener('keydown', hurry, {once: true, capture: true});
-  requestAnimationFrame(function(){ requestAnimationFrame(function(){
-    anims.forEach(function(a){ a.play(); });
-    setTimeout(function(){ el.style.pointerEvents = 'none'; }, outAt + 200);
-  }); });
+  // Start only once the window can actually be seen. The desktop window is
+  // created hidden and shown (maximized) on ready-to-show, which fires after
+  // the first paint, so starting on first paint alone still lost the entry
+  // behind a hidden window. Visible now (web, Android): start on the next
+  // painted frame. Hidden: wait for visibilitychange or window focus.
+  var started = false;
+  function start(){
+    if (started || document.visibilityState !== 'visible') return;
+    started = true;
+    document.removeEventListener('visibilitychange', start);
+    removeEventListener('focus', start);
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){
+      anims.forEach(function(a){ a.play(); });
+      setTimeout(function(){ el.style.pointerEvents = 'none'; }, outAt + 200);
+    }); });
+  }
+  // An embedded frame (the site's demo) never gets window focus.
+  if (document.visibilityState === 'visible' && (document.hasFocus() || window.top !== window)) start();
+  else {
+    document.addEventListener('visibilitychange', start);
+    addEventListener('focus', start);
+    // Visible but never focused (e.g. launched behind another window).
+    setTimeout(start, 1500);
+  }
   Promise.all(anims.map(function(a){ return a.finished; })).then(function(){
     el.remove();
     removeEventListener('pointerdown', hurry, true);
