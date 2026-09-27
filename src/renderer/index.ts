@@ -2436,16 +2436,16 @@ import { setIconLabel } from './icons';
   initDockSystem();
 
 
-  // Mobile-only "Add images to dataset" — desktop has the OS file manager for
-  // this, so it needs no in-app importer; mobile has no casual
-  // file-manager-to-folder workflow. Tapping the button opens the system's
-  // own image picker (gallery/camera, no extra permission needed) and writes
+  // "Add images to dataset" (File menu, both platforms since 2026-09-27 —
+  // it started mobile-only, where there's no casual file-manager-to-folder
+  // workflow). Opens a picker — on Android the native app chooser (Photos,
+  // Files, any installed file manager; mobile-shim.js), elsewhere the normal
+  // file dialog — and writes
   // each chosen file into the open dataset folder through the same DirHandle
   // surface everything else uses (backed by the SAF native plugin on mobile —
   // see mobile-shim.js), with an empty `.txt` sidecar so imports land as
   // untagged. The final reloadDataset() reuses the guarded rescan exactly
-  // (unsaved-changes confirm included). Built in JS, not markup, so neither
-  // shell's index.html changes — and touch-gated, so desktop is untouched.
+  // (unsaved-changes confirm included). Built in JS, not markup.
   async function uniqueDatasetFileName(handle: DirHandle, name: string): Promise<string> {
     const dot = name.lastIndexOf('.');
     const stem = dot < 0 ? name : name.slice(0, dot);
@@ -2462,7 +2462,7 @@ import { setIconLabel } from './icons';
     return `${stem} ${Date.now()}${ext}`;
   }
 
-  async function importImagesToDataset(files: FileList | null): Promise<void> {
+  async function importImagesToDataset(files: FileList | File[] | null): Promise<void> {
     if (!files || !files.length || !dirHandle) return;
     const activeHandle = dirHandle;
     let added = 0, skipped = 0;
@@ -2488,15 +2488,23 @@ import { setIconLabel } from './icons';
     await reloadDataset();
   }
 
-  if (isTouchDevice && !document.getElementById('btnAddImages')){
+  if (!document.getElementById('btnAddImages')){
     const btnAddImages = document.createElement('button');
     btnAddImages.id = 'btnAddImages';
-    btnAddImages.textContent = 'Add images…';
+    setIconLabel(btnAddImages, '🖼 Add images…');
     btnAddImages.title = 'Import images from this device into the open dataset folder';
-    btnAddImages.addEventListener('click', () => {
+    btnAddImages.addEventListener('click', async () => {
       if (!dirHandle) { toast('Open a dataset folder first.', 2600); return; }
       fileCatFlyout.style.display = 'none';
       fileCatFlyout.classList.remove('menu-in');
+      // Android app: the native chooser lists every installed app that can
+      // supply images (Photos, Files, file managers…) — mobile-shim.js.
+      const nativePick = (window as unknown as { __dtsPickImages?: () => Promise<File[]> }).__dtsPickImages;
+      if (nativePick){
+        try { await importImagesToDataset(await nativePick()); }
+        catch { toast('Couldn’t read the picked images.', 3000); }
+        return;
+      }
       const picker = document.createElement('input');
       picker.type = 'file';
       picker.accept = 'image/*';
@@ -2504,7 +2512,8 @@ import { setIconLabel } from './icons';
       picker.addEventListener('change', () => { void importImagesToDataset(picker.files); });
       picker.click();
     });
-    fileCatFlyout.appendChild(btnAddImages);
+    // Right under "Open dataset folder", where adding to a dataset belongs.
+    btnOpen.after(btnAddImages);
   }
 
   // -------- Idle GPU suspend ("draw GPU only when needed") --------

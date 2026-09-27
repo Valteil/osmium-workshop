@@ -39,6 +39,10 @@ app to look something up.
 shown as spaces in the app and converted back to underscores when saved, so you never need to
 think about the distinction while editing.
 
+**File ▸ Add images…** copies more images into the open dataset folder. Each one arrives untagged,
+with an empty `.txt` beside it. On Android it lets you choose which app to pick from (Photos, Files,
+or any file manager you have installed).
+
 The app also creates a few of its own files/folders inside your dataset folder as you use it —
 none of them touch your images or captions unless you tell them to:
 

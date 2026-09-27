@@ -5071,7 +5071,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     "rotate-image": "#7a9fd1",
     "isolate-image": "#b57edc",
     "unflag-review": "#e8a33d",
-    "ghost-remove": "#9791a6"
+    "ghost-remove": "#9791a6",
+    "rule-sweep": "#b98fd6"
   };
   var STAT_TYPE_LABEL = {
     "add-tag": "Tags added",
@@ -5093,7 +5094,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     "rotate-image": "Rotates",
     "isolate-image": "Isolates",
     "unflag-review": "Review flags cleared",
-    "ghost-remove": "Past tags deleted"
+    "ghost-remove": "Past tags deleted",
+    "rule-sweep": "Rules applied"
   };
   function computeStatsBreakdown() {
     const counts = {};
@@ -5588,20 +5590,57 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     if (!rule.canonical && meta.antivoid) return false;
     return true;
   }
-  function applyCanonicalRules(entry) {
+  function applyCanonicalRules(entry, batch) {
     if (entry.disabled) return false;
     let changed = false;
+    const own = batch || /* @__PURE__ */ new Map();
     for (const rule of canonicalRules) {
       if (!ruleAppliesToEntry(rule, entry)) continue;
       const active = activeChildren(rule);
       if (active.length === 0) continue;
       if (!entry.tags.some((t) => active.includes(t))) continue;
+      const prevTags = entry.tags.slice();
       const newTags = entry.tags.filter((t) => !active.includes(t));
       if (rule.canonical && !newTags.includes(rule.canonical)) newTags.push(rule.canonical);
       entry.tags = newTags;
       changed = true;
+      noteSweep(own, rule, entry.base, prevTags, newTags, prevTags.filter((t) => active.includes(t) && t !== rule.canonical));
     }
+    if (!batch && own.size) flushSweep(own);
     return changed;
+  }
+  function noteSweep(batch, rule, base, prevTags, newTags, removed) {
+    if (!removed.length) return;
+    let rec = batch.get(rule.id);
+    if (!rec) {
+      rec = { rule, affected: /* @__PURE__ */ new Map(), removed: /* @__PURE__ */ new Set() };
+      batch.set(rule.id, rec);
+    }
+    const a = rec.affected.get(base);
+    if (a) a.newTags = newTags.slice();
+    else rec.affected.set(base, { base, prevTags: prevTags.slice(), newTags: newTags.slice() });
+    removed.forEach((t) => rec.removed.add(t));
+  }
+  function flushSweep(batch) {
+    for (const { rule, affected, removed } of batch.values()) {
+      const tags = Array.from(removed);
+      const n = affected.size;
+      const tagPhrase = tags.length === 1 ? `"${tags[0]}"` : `${tags.length} tags`;
+      const entry = rule.canonical ? {
+        type: "rule-sweep",
+        summary: `Merge rule folded ${tagPhrase} into "${rule.canonical}" on ${n} image(s).`,
+        affected: Array.from(affected.values()),
+        mergedTags: tags,
+        unifiedTag: rule.canonical
+      } : {
+        type: "rule-sweep",
+        summary: `Void rule removed ${tagPhrase} from ${n} image(s).`,
+        affected: Array.from(affected.values()),
+        voidedTags: tags
+      };
+      pushLogEntry(entry);
+    }
+    ghostCache = null;
   }
   function findBlockingRule(tag, entry) {
     for (const rule of canonicalRules) {
@@ -5621,21 +5660,23 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   }
   function resweepAllEntries() {
     let touched = 0;
+    const batch = /* @__PURE__ */ new Map();
     for (const e of getEntries()) {
       if (e.meta && e.meta.locked) continue;
       if (e.disabled) continue;
-      if (applyCanonicalRules(e)) {
+      if (applyCanonicalRules(e, batch)) {
         markDirtyRef(e);
         touched++;
       }
     }
+    if (batch.size) flushSweep(batch);
     if (touched > 0) refreshAllUIRef2();
     return touched;
   }
   function buildMergeEvidenceIndex(canonical, tags) {
     const index = new Map(tags.map((t) => [t, /* @__PURE__ */ new Set()]));
     for (const le of editLog) {
-      if (le.type !== "merge" || le.unifiedTag !== canonical) continue;
+      if (le.type !== "merge" && le.type !== "rule-sweep" || le.unifiedTag !== canonical) continue;
       const merged = le.mergedTags || [];
       for (const a of le.affected || []) {
         const prev = a.prevTags || [];
@@ -5649,7 +5690,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   function buildVoidEvidenceIndex(tags) {
     const index = new Map(tags.map((t) => [t, /* @__PURE__ */ new Set()]));
     for (const le of editLog) {
-      if (le.type !== "void") continue;
+      if (le.type !== "void" && !(le.type === "rule-sweep" && !le.unifiedTag)) continue;
       const voided = le.voidedTags || [];
       for (const a of le.affected || []) {
         const prev = a.prevTags || [];
@@ -26701,18 +26742,27 @@ Image: ${entry.imgName}`,
       toast(`Added ${added} image${added === 1 ? "" : "s"}${skipped ? ` (${skipped} skipped)` : ""}.`, 2600);
       await reloadDataset();
     }
-    if (isTouchDevice2 && !document.getElementById("btnAddImages")) {
+    if (!document.getElementById("btnAddImages")) {
       const btnAddImages = document.createElement("button");
       btnAddImages.id = "btnAddImages";
-      btnAddImages.textContent = "Add images\u2026";
+      setIconLabel(btnAddImages, "\u{1F5BC} Add images\u2026");
       btnAddImages.title = "Import images from this device into the open dataset folder";
-      btnAddImages.addEventListener("click", () => {
+      btnAddImages.addEventListener("click", async () => {
         if (!dirHandle) {
           toast("Open a dataset folder first.", 2600);
           return;
         }
         fileCatFlyout.style.display = "none";
         fileCatFlyout.classList.remove("menu-in");
+        const nativePick = window.__dtsPickImages;
+        if (nativePick) {
+          try {
+            await importImagesToDataset(await nativePick());
+          } catch {
+            toast("Couldn\u2019t read the picked images.", 3e3);
+          }
+          return;
+        }
         const picker = document.createElement("input");
         picker.type = "file";
         picker.accept = "image/*";
@@ -26722,7 +26772,7 @@ Image: ${entry.imgName}`,
         });
         picker.click();
       });
-      fileCatFlyout.appendChild(btnAddImages);
+      btnOpen.after(btnAddImages);
     }
     const IDLE_SUSPEND_MS = 3500;
     let idleSuspendTimer = null;

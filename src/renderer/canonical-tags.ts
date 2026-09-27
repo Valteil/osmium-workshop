@@ -183,20 +183,65 @@ function ruleAppliesToEntry(rule: CanonicalRule, entry: Entry): boolean {
 // off) is a no-op, same as a disabled rule. Returns whether anything
 // actually changed, so callers can skip a pointless markDirty() when nothing
 // matched.
-export function applyCanonicalRules(entry: Entry): boolean {
+export function applyCanonicalRules(entry: Entry, batch?: SweepBatch): boolean {
   if (entry.disabled) return false;
   let changed = false;
+  const own: SweepBatch = batch || new Map();
   for (const rule of canonicalRules){
     if (!ruleAppliesToEntry(rule, entry)) continue;
     const active = activeChildren(rule);
     if (active.length === 0) continue;
     if (!entry.tags.some((t: string) => active.includes(t))) continue;
+    const prevTags = entry.tags.slice();
     const newTags = entry.tags.filter((t: string) => !active.includes(t));
     if (rule.canonical && !newTags.includes(rule.canonical)) newTags.push(rule.canonical);
     entry.tags = newTags;
     changed = true;
+    noteSweep(own, rule, entry.base, prevTags, newTags, prevTags.filter(t => active.includes(t) && t !== rule.canonical));
   }
+  // A lone correction (a tagger or bulk tool brought in a ruled tag) is
+  // logged right away; a resweep passes its own batch and logs once at the end.
+  if (!batch && own.size) flushSweep(own);
   return changed;
+}
+
+// ---------------- Rule-applied evidence ----------------
+// Tag Pruner's Unify/Void writes a 'merge'/'void' log entry with each image's
+// before/after tags — the evidence unmergeChildren() restores from and
+// ghostTagsFor() previews. A rule applying ON ITS OWN (a tag added straight
+// to a rule in the dock, a rule re-enabled, a ruled tag arriving via WD14 or
+// Master Tags) used to change tags silently, so those images had no ghost
+// chips and got nothing back when the rule was turned off. Every such
+// application now logs a 'rule-sweep' entry in the same shape (voidedTags,
+// or mergedTags + unifiedTag). It's evidence only: it has no Undo button
+// (not in edit-log's TAG_TYPES) — undoing it would just be re-applied by the
+// still-active rule; turning the rule off is the way back.
+type SweepBatch = Map<string, { rule: CanonicalRule; affected: Map<string, EditLogAffected>; removed: Set<string> }>;
+
+function noteSweep(batch: SweepBatch, rule: CanonicalRule, base: string, prevTags: string[], newTags: string[], removed: string[]): void {
+  if (!removed.length) return;
+  let rec = batch.get(rule.id);
+  if (!rec){ rec = { rule, affected: new Map(), removed: new Set() }; batch.set(rule.id, rec); }
+  const a = rec.affected.get(base);
+  if (a) a.newTags = newTags.slice();
+  else rec.affected.set(base, { base, prevTags: prevTags.slice(), newTags: newTags.slice() });
+  removed.forEach(t => rec!.removed.add(t));
+}
+
+function flushSweep(batch: SweepBatch): void {
+  for (const { rule, affected, removed } of batch.values()){
+    const tags = Array.from(removed);
+    const n = affected.size;
+    const tagPhrase = tags.length === 1 ? `"${tags[0]}"` : `${tags.length} tags`;
+    // Same extra fields recordChange() attaches to merge/void entries.
+    const entry = rule.canonical
+      ? { type: 'rule-sweep', summary: `Merge rule folded ${tagPhrase} into "${rule.canonical}" on ${n} image(s).`,
+          affected: Array.from(affected.values()), mergedTags: tags, unifiedTag: rule.canonical }
+      : { type: 'rule-sweep', summary: `Void rule removed ${tagPhrase} from ${n} image(s).`,
+          affected: Array.from(affected.values()), voidedTags: tags };
+    pushLogEntry(entry);
+  }
+  ghostCache = null; // new evidence: the next render must rebuild past tags
 }
 
 // Would typing `tag` onto `entry` right now get silently rewritten/removed
@@ -242,14 +287,17 @@ export function activeVoidTagSet(): Set<string> {
 // later manual trigger.
 export function resweepAllEntries(): number {
   let touched = 0;
+  const batch: SweepBatch = new Map();
   for (const e of getEntries()){
     if (e.meta && e.meta.locked) continue;
     if (e.disabled) continue;
-    if (applyCanonicalRules(e)){
+    if (applyCanonicalRules(e, batch)){
       markDirtyRef(e);
       touched++;
     }
   }
+  // Logged before the refresh, so the re-render already shows the ghosts.
+  if (batch.size) flushSweep(batch);
   if (touched > 0) refreshAllUIRef();
   return touched;
 }
@@ -272,7 +320,7 @@ export function resweepAllEntries(): number {
 function buildMergeEvidenceIndex(canonical: string, tags: string[]): Map<string, Set<string>> {
   const index = new Map<string, Set<string>>(tags.map(t => [t, new Set<string>()]));
   for (const le of editLog){
-    if (le.type !== 'merge' || le.unifiedTag !== canonical) continue;
+    if ((le.type !== 'merge' && le.type !== 'rule-sweep') || le.unifiedTag !== canonical) continue;
     const merged = le.mergedTags || [];
     for (const a of (le.affected || [])){
       const prev = a.prevTags || [];
@@ -289,7 +337,7 @@ function buildMergeEvidenceIndex(canonical: string, tags: string[]): Map<string,
 function buildVoidEvidenceIndex(tags: string[]): Map<string, Set<string>> {
   const index = new Map<string, Set<string>>(tags.map(t => [t, new Set<string>()]));
   for (const le of editLog){
-    if (le.type !== 'void') continue;
+    if (le.type !== 'void' && !(le.type === 'rule-sweep' && !le.unifiedTag)) continue;
     const voided = le.voidedTags || [];
     for (const a of (le.affected || [])){
       const prev = a.prevTags || [];
