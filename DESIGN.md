@@ -238,21 +238,28 @@ The wordmark sits in `--display` over a stacked mono tag ("Dataset Manager") tha
 ### Opening flourish (signature motion)
 The one authored motion moment, played once when the app opens, and it covers the app's own
 start-up. The window dims (a literal photo-style scrim), then a slab of `--accent-flair` sweeps in
-from the left led by two disconnected columns, with the thinner column in front. The theme's Osmium
-mark rides in to the centre in `--bg-base` ink with the wordmark in the theme's brand lettering,
-hovers, and leaves right. The slab follows, its tail crumbling into the theme's particles as the
-dim lifts. Phones run it top to bottom. It is about 1.8 s, transform and opacity only, sped up by
-any press. Under reduced motion it's a fade, and **Disable opening flourish** turns it off.
+from the left led by two disconnected columns, with the thinner column in front, until it
+**covers the whole window** (the columns run off the far edge). The theme's Osmium mark rides in
+to the centre in `--bg-base` ink with the wordmark in the theme's brand lettering, hovers on the
+solid fill, and leaves right. The slab follows through a **cut trailing edge**, which sheds a
+staggered lattice of fill-coloured tiles. Each tile is born at the edge and collapses, so the
+trail tapers from big pieces to specks while the dim lifts. Phones run it top to bottom. It is
+about 2.2 s, transform and opacity only, sped up by any press. Under reduced motion it's a fade,
+and **Disable opening flourish** turns it off.
 - **The mark** is always the Osmium lattice (a decagon ring, even/odd pentagons and spokes). Each
   theme picks the ring (decagon, circle, both, none), the node shape (Studio's squares, Osmium's
   RGB diamonds, Terminal's pixels, Sakura's petals, Forest Moss's leaves, Copper Forge's rivets,
   Celestial Gold's stars…), the stroke weight and cap, and one world device where it has one:
   Cyberpunk's chromatic split, Oriental's cinnabar seal, Blood Moon's moon, Terminal's dashed
   lines.
-- **The particles** are the world's own debris: machined chips, HUD glitch slivers, gold leaf,
-  route rings, phosphor pixels, embers, bubbles, frost flakes, leaves, paper scraps, obsidian
-  shards, neon streaks, hazard chips, lavender buds, confetti, blood drops, stars. Risers float up,
-  fallers drop. Only light-source worlds (per the Native Light Rule) glow.
+- **The tail** pairs a tile with an edge profile, both from the world. **Zigzag teeth** go with
+  diamonds (Studio, Osmium, Arctic Frost), gold leaf (Oriental, Amethyst), shards (Obsidian) and
+  stars (Celestial Gold). **Scallops** go with bubbles, rings, petals, buds, embers, fireflies,
+  confetti and drops. **Steps** go with pixels (Terminal), HUD/neon bars (Cyberpunk, Retro Wave,
+  Aurora) and hazard chips (Toxic Waste). A **torn line** goes with leaves (Forest Moss) and paper
+  scraps (Vintage Paper). Tiles are in the fill colour (Candy Pop's confetti takes the accents).
+  Risers float up, fallers drop, flat pieces spin. Only light-source worlds (per the Native Light
+  Rule) glow.
 - The per-theme table is in `renderer/index.html`'s inline flourish script, because it has to run
   before `app.js`. The styles are the "Opening flourish" block in `styles.css`. A new theme with no
   entry gets Studio's.
