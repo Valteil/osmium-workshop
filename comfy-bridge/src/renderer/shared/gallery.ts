@@ -12,6 +12,7 @@
 import type { StorageBackend } from './storage';
 import { scanImages, groupByFolder, fileNumber, isGalleryImage } from './storage';
 import { showImageLightbox, type LightboxInfo } from './lightbox';
+import { bridgeIcon } from './icons';
 
 export interface GalleryHandles {
   fab: HTMLButtonElement;
@@ -147,18 +148,11 @@ export function mountGallerySidebar(
   const fab = document.createElement('button');
   fab.id = 'galleryFab';
   fab.title = 'Open gallery';
-  // Brand icon instead of the plain emoji: the app's own icon asset, one
-  // folder up from the renderer. Shared gallery also serves the mobile
-  // web shell, where that path doesn't exist — fall back to the emoji.
-  const fabIcon = document.createElement('img');
-  fabIcon.src = '../build/icon.png';
-  fabIcon.alt = 'Open gallery';
-  fabIcon.style.width = '36px';
-  fabIcon.style.height = '36px';
-  fabIcon.style.objectFit = 'contain';
-  fabIcon.style.borderRadius = '8px';
-  fabIcon.addEventListener('error', () => { fab.textContent = '🖼'; fabIcon.remove(); });
-  fab.appendChild(fabIcon);
+  // Osmium's image icon (./icons.ts), the same line drawing Osmium uses, on
+  // both desktop and mobile. It used to be the app's brand icon (desktop) or
+  // the 🖼 emoji (mobile, where that asset path doesn't exist).
+  fab.setAttribute('aria-label', 'Open gallery');
+  fab.innerHTML = bridgeIcon('image');
   const backdrop = document.createElement('div');
   backdrop.id = 'galleryBackdrop';
   const sidebar = document.createElement('aside');

@@ -175,75 +175,6 @@
       </section>
 
       <section class="sec">
-        <details class="settings-panel" open>
-          <summary>Resolution & sampling</summary>
-          <div class="settings-grid">
-            <div class="row reso-row settings-span2">
-              <div>
-                <label>Width</label>
-                <input id="width" type="number" value="920">
-              </div>
-              <button id="btnSwapReso" title="Swap width/height">⇄</button>
-              <div>
-                <label>Height</label>
-                <input id="height" type="number" value="1244">
-              </div>
-            </div>
-            <div>
-              <label>Sampler</label>
-              <input id="sampler" type="text" value="res_multistep" readonly>
-            </div>
-            <div>
-              <label>Scheduler</label>
-              <input id="scheduler" type="text" value="beta" readonly>
-            </div>
-            <div>
-              <label>Steps (pass 1)</label>
-              <input id="steps1" type="number" value="25">
-            </div>
-            <div>
-              <label>CFG (pass 1)</label>
-              <input id="cfg1" type="number" step="0.01" value="4.04">
-            </div>
-            <div class="settings-span2">
-              <label>Seed (pass 1)</label>
-              <input id="seed1" type="number" value="15">
-            </div>
-            <label class="chk-row settings-span2"><input id="use2Pass" type="checkbox"> 2-Pass</label>
-            <div id="pass2Fields" class="settings-span2 settings-grid">
-              <div>
-                <label>Steps (pass 2)</label>
-                <input id="steps2" type="number" value="15">
-              </div>
-              <div>
-                <label>Denoise (pass 2)</label>
-                <input id="denoise2" type="number" step="0.05" value="0.6">
-              </div>
-              <div class="settings-span2">
-                <label>Seed (pass 2)</label>
-                <input id="seed2" type="number" value="15">
-              </div>
-            </div>
-          </div>
-        </details>
-      </section>
-
-      <section class="sec">
-        <div class="sec-head"><span class="d">Upscale (optional)</span></div>
-        <label class="chk-row"><input id="upscaleEnabled" type="checkbox"> Upscale by model before saving</label>
-        <div id="upscaleModelRow">
-          <label>Upscale model</label>
-          <input id="upscaleModel" type="text" readonly placeholder="Tap to choose…">
-          <datalist id="upscaleModelList"></datalist>
-          <div class="row">
-            <button id="btnRefreshUpscaleModels">Refresh from disk</button>
-          </div>
-          <label>Scale by (after model upscale, e.g. 0.5 to bring a 4x model back to 2x)</label>
-          <input id="upscaleScaleBy" type="number" step="0.05" value="0.5">
-        </div>
-      </section>
-
-      <section class="sec">
         <div class="sec-head"><span class="d">Output</span></div>
         <div class="output-folder-row">
           <button id="btnPickOutputFolder">Choose output folder…</button>
@@ -251,55 +182,8 @@
         </div>
         <div class="muted small">Every generation saves here automatically: both passes when 2-Pass runs, and the upscaled image if upscale is on.</div>
 
-        <!-- File naming (src/renderer/file-naming.ts). Part 1 is automatic
-             and read-only; part 2 is the user's. -->
-        <div class="naming-group">
-          <div class="naming-title">Automatic folders</div>
-          <div class="muted small">Set by your prompt, not editable.</div>
-          <div id="namingAutoRating" class="naming-auto"></div>
-          <div id="namingAutoUpscaled" class="naming-auto"></div>
-        </div>
-
-        <div class="naming-group">
-          <div class="naming-title">Character folder</div>
-          <div class="naming-seg" role="radiogroup" aria-label="Character folder">
-            <label><input type="radio" name="charMode" id="charModeTag" value="tag" checked> Tag list</label>
-            <label><input type="radio" name="charMode" id="charModeOC" value="oc"> OC</label>
-            <label><input type="radio" name="charMode" id="charModeCustom" value="custom"> Custom</label>
-          </div>
-          <div id="charTagWrap" class="naming-char-wrap">
-            <input id="charTagName" type="text" autocomplete="off" spellcheck="false" placeholder="Type to search Danbooru characters">
-            <div id="charFolderSuggest" class="naming-suggest" hidden></div>
-          </div>
-          <input id="charCustomName" type="text" spellcheck="false" placeholder="Folder name">
-          <div id="charModeNote" class="muted small"></div>
-        </div>
-
-        <div class="naming-group">
-          <div class="naming-title">Filename</div>
-          <div class="muted small">In this order; anything unticked is left out.</div>
-          <label class="chk-row"><input id="fnCharacter" type="checkbox"> Character name</label>
-          <label class="chk-row"><input id="fnLora" type="checkbox" checked> Main LoRA</label>
-          <label class="chk-row"><input id="fnGen" type="checkbox"> Model and sampler settings</label>
-          <div id="fnGenParts" class="naming-subchecks">
-            <label class="chk-row"><input id="fnModel" type="checkbox" checked> Model</label>
-            <label class="chk-row"><input id="fnSampler" type="checkbox" checked> Sampler</label>
-            <label class="chk-row"><input id="fnScheduler" type="checkbox"> Scheduler</label>
-            <label class="chk-row"><input id="fnSteps" type="checkbox"> Steps</label>
-            <label class="chk-row"><input id="fnCfg" type="checkbox"> CFG</label>
-            <label class="chk-row"><input id="fnSeed" type="checkbox"> Seed</label>
-          </div>
-          <div class="muted small">Then a number, always, so nothing is overwritten.</div>
-        </div>
-
-        <div id="savePathPreview" class="naming-preview"></div>
-
-        <div class="naming-group">
-          <div class="naming-title">ComfyUI's own copy</div>
-          <label class="chk-row"><input id="outputIsComfyOutput" type="checkbox"> This folder is my ComfyUI output folder</label>
-          <label class="chk-row" id="keepComfyCopyRow"><input id="keepComfyCopy" type="checkbox" checked> Also keep ComfyUI's own copy in its output folder</label>
-          <div class="muted small">ComfyUI's copy keeps its old names. With the first box ticked, or the second unticked, ComfyUI only makes a temporary preview and the file above is the only one saved.</div>
-        </div>
+        <div id="savePathSummary" class="save-summary"></div>
+        <div class="muted small">Folders and filename: the 🗂 button on the right.</div>
       </section>
 
     </div>
@@ -344,6 +228,137 @@
 
   </div>
 </div>
+
+  <!-- Right-side slideouts (like the Android app's drawers): generation
+       settings, and the file-saving setup below it. Toggles are stacked above
+       the gallery button; the settings one is on top. One drawer at a time;
+       the backdrop, Escape or ✕ closes it. -->
+  <button id="genSettingsToggle" class="side-drawer-toggle" type="button" title="Generation settings">☰</button>
+  <button id="fileDrawerToggle" class="side-drawer-toggle file-drawer-toggle" type="button" title="File saving: folders and filename">🗂</button>
+  <div id="sideDrawerBackdrop" class="side-drawer-backdrop"></div>
+  <aside id="genSettingsDrawer" class="side-drawer" aria-label="Generation settings">
+    <div class="side-drawer-head">
+      <span class="d">Generation settings</span>
+      <button class="side-drawer-close" type="button" title="Close">✕</button>
+    </div>
+    <div class="side-drawer-sec-head">Resolution &amp; sampling</div>
+          <div class="settings-grid">
+      <div class="row reso-row settings-span2">
+        <div>
+          <label>Width</label>
+          <input id="width" type="number" value="920">
+        </div>
+        <button id="btnSwapReso" title="Swap width/height">⇄</button>
+        <div>
+          <label>Height</label>
+          <input id="height" type="number" value="1244">
+        </div>
+      </div>
+      <div>
+        <label>Sampler</label>
+        <input id="sampler" type="text" value="res_multistep" readonly>
+      </div>
+      <div>
+        <label>Scheduler</label>
+        <input id="scheduler" type="text" value="beta" readonly>
+      </div>
+      <div>
+        <label>Steps (pass 1)</label>
+        <input id="steps1" type="number" value="25">
+      </div>
+      <div>
+        <label>CFG (pass 1)</label>
+        <input id="cfg1" type="number" step="0.01" value="4.04">
+      </div>
+      <div class="settings-span2">
+        <label>Seed (pass 1)</label>
+        <input id="seed1" type="number" value="15">
+      </div>
+      <label class="chk-row settings-span2"><input id="use2Pass" type="checkbox"> 2-Pass</label>
+      <div id="pass2Fields" class="settings-span2 settings-grid">
+        <div>
+          <label>Steps (pass 2)</label>
+          <input id="steps2" type="number" value="15">
+        </div>
+        <div>
+          <label>Denoise (pass 2)</label>
+          <input id="denoise2" type="number" step="0.05" value="0.6">
+        </div>
+        <div class="settings-span2">
+          <label>Seed (pass 2)</label>
+          <input id="seed2" type="number" value="15">
+        </div>
+      </div>
+    </div>
+    <div class="side-drawer-sec-head">Upscale (optional)</div>
+        <label class="chk-row"><input id="upscaleEnabled" type="checkbox"> Upscale by model before saving</label>
+    <div id="upscaleModelRow">
+      <label>Upscale model</label>
+      <input id="upscaleModel" type="text" readonly placeholder="Tap to choose…">
+      <datalist id="upscaleModelList"></datalist>
+      <div class="row">
+        <button id="btnRefreshUpscaleModels">Refresh from disk</button>
+      </div>
+      <label>Scale by (after model upscale, e.g. 0.5 to bring a 4x model back to 2x)</label>
+      <input id="upscaleScaleBy" type="number" step="0.05" value="0.5">
+    </div>
+  </aside>
+  <aside id="fileDrawer" class="side-drawer" aria-label="File saving">
+    <div class="side-drawer-head">
+      <span class="d">File saving</span>
+      <button class="side-drawer-close" type="button" title="Close">✕</button>
+    </div>
+        <!-- File naming (src/renderer/file-naming.ts). Part 1 is automatic
+         and read-only; part 2 is the user's. -->
+    <div class="naming-group">
+      <div class="naming-title">Automatic folders</div>
+      <div class="muted small">Set by your prompt, not editable.</div>
+      <div id="namingAutoRating" class="naming-auto"></div>
+      <div id="namingAutoUpscaled" class="naming-auto"></div>
+    </div>
+
+    <div class="naming-group">
+      <div class="naming-title">Character folder</div>
+      <div class="naming-seg" role="radiogroup" aria-label="Character folder">
+        <label><input type="radio" name="charMode" id="charModeTag" value="tag" checked> Tag list</label>
+        <label><input type="radio" name="charMode" id="charModeOC" value="oc"> OC</label>
+        <label><input type="radio" name="charMode" id="charModeCustom" value="custom"> Custom</label>
+      </div>
+      <div id="charTagWrap" class="naming-char-wrap">
+        <input id="charTagName" type="text" autocomplete="off" spellcheck="false" placeholder="Type to search Danbooru characters">
+        <div id="charFolderSuggest" class="naming-suggest" hidden></div>
+      </div>
+      <input id="charCustomName" type="text" spellcheck="false" placeholder="Folder name">
+      <div id="charModeNote" class="muted small"></div>
+    </div>
+
+    <div class="naming-group">
+      <div class="naming-title">Filename</div>
+      <div class="muted small">In this order; anything unticked is left out.</div>
+      <label class="chk-row"><input id="fnCharacter" type="checkbox"> Character name</label>
+      <label class="chk-row"><input id="fnLora" type="checkbox" checked> Main LoRA</label>
+      <label class="chk-row"><input id="fnGen" type="checkbox"> Model and sampler settings</label>
+      <div id="fnGenParts" class="naming-subchecks">
+        <label class="chk-row"><input id="fnModel" type="checkbox" checked> Model</label>
+        <label class="chk-row"><input id="fnSampler" type="checkbox" checked> Sampler</label>
+        <label class="chk-row"><input id="fnScheduler" type="checkbox"> Scheduler</label>
+        <label class="chk-row"><input id="fnSteps" type="checkbox"> Steps</label>
+        <label class="chk-row"><input id="fnCfg" type="checkbox"> CFG</label>
+        <label class="chk-row"><input id="fnSeed" type="checkbox"> Seed</label>
+      </div>
+      <div class="muted small">Then a number, always, so nothing is overwritten.</div>
+    </div>
+
+    <div id="savePathPreview" class="naming-preview"></div>
+
+    <div class="naming-group">
+      <div class="naming-title">ComfyUI's own copy</div>
+      <label class="chk-row"><input id="outputIsComfyOutput" type="checkbox"> This folder is my ComfyUI output folder</label>
+      <label class="chk-row" id="keepComfyCopyRow"><input id="keepComfyCopy" type="checkbox" checked> Also keep ComfyUI's own copy in its output folder</label>
+      <div class="muted small">ComfyUI's copy keeps its old names. With the first box ticked, or the second unticked, ComfyUI only makes a temporary preview and the file above is the only one saved.</div>
+    </div>
+  </aside>
+
 <script src="app.js"></script>
 </body>
 </html>

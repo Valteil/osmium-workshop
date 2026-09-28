@@ -11,6 +11,7 @@ import {
   initTheme, mountThemePicker, THEMES, DEFAULT_THEME
 } from './shared';
 import { openThemeStudio } from './theme-studio';
+import { bridgeIcon } from './shared/icons';
 import { initUiZoom, buildUiZoomRow } from './ui-zoom';
 import { buildGenInfoPanel, stampOutputKind } from './gen-info';
 import { characterIndex, recognizeCharacter, ratingFolder, nextSavePath, safeSegment, fileBaseName, joinNameParts, previewFileName } from './file-naming';
@@ -825,6 +826,7 @@ const fnSteps = $<HTMLInputElement>('fnSteps');
 const fnCfg = $<HTMLInputElement>('fnCfg');
 const fnSeed = $<HTMLInputElement>('fnSeed');
 const savePathPreview = $<HTMLDivElement>('savePathPreview');
+const savePathSummary = $<HTMLDivElement>('savePathSummary');
 const outputIsComfyOutput = $<HTMLInputElement>('outputIsComfyOutput');
 const keepComfyCopy = $<HTMLInputElement>('keepComfyCopy');
 const keepComfyCopyRow = $<HTMLLabelElement>('keepComfyCopyRow');
@@ -892,6 +894,13 @@ async function refreshSavePreview(): Promise<void> {
     : charTagName.value.trim() ? ''
     : n.recognized ? 'Empty: uses the character recognized in the Character field.'
     : 'No character recognized in the Character field, so no character folder.';
+
+  // The middle column's one-line summary (the full breakdown is in the drawer).
+  savePathSummary.textContent = '';
+  const sumLabel = document.createElement('span');
+  sumLabel.className = 'muted';
+  sumLabel.textContent = 'Saves as: ';
+  savePathSummary.append(sumLabel, joinRel(n.relDir, previewFileName(n.base)).split('/').join(' / '));
 
   // The path, one folder per line, automatic parts greyed.
   savePathPreview.innerHTML = '';
@@ -972,6 +981,37 @@ charTagName.addEventListener('blur', hideCharSuggest);
 // restoreUiState() already ran (above) without firing 'change'.
 applyNamingUI();
 void refreshSavePreview();
+
+// ---------------- Right-side slideouts ----------------
+// Generation settings (resolution, sampling, 2-Pass, upscale) and file
+// saving (folders, filename) moved out of the middle column into drawers, as
+// on Android. One open at a time; the backdrop, Escape or ✕ closes it.
+const sideDrawerBackdrop = $<HTMLDivElement>('sideDrawerBackdrop');
+const sideDrawers: [HTMLButtonElement, HTMLElement][] = [
+  [$<HTMLButtonElement>('genSettingsToggle'), $<HTMLElement>('genSettingsDrawer')],
+  [$<HTMLButtonElement>('fileDrawerToggle'), $<HTMLElement>('fileDrawer')],
+];
+$<HTMLButtonElement>('genSettingsToggle').innerHTML = bridgeIcon('settings');
+$<HTMLButtonElement>('fileDrawerToggle').innerHTML = bridgeIcon('folder');
+function closeSideDrawers(): void {
+  for (const [btn, d] of sideDrawers) { d.classList.remove('open'); btn.classList.remove('active'); }
+  sideDrawerBackdrop.classList.remove('open');
+}
+for (const [btn, drawer] of sideDrawers) {
+  btn.addEventListener('click', () => {
+    const wasOpen = drawer.classList.contains('open');
+    closeSideDrawers();
+    if (wasOpen) return;
+    drawer.classList.add('open');
+    btn.classList.add('active');
+    sideDrawerBackdrop.classList.add('open');
+  });
+  drawer.querySelector<HTMLButtonElement>('.side-drawer-close')!.addEventListener('click', closeSideDrawers);
+}
+sideDrawerBackdrop.addEventListener('click', closeSideDrawers);
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && sideDrawers.some(([, d]) => d.classList.contains('open'))) closeSideDrawers();
+});
 
 // IPC-backed storage backend for the shared gallery/numbering — the
 // desktop half of the mobile SAF/Documents backend. Mobile-only storage

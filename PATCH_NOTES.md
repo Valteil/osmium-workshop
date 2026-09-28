@@ -35,7 +35,14 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 - **Arrow keys in the gallery**: with an image open from the gallery, ← and → step to the previous
   and next image in the folder.
-- **New file naming** (Windows), in the Output section:
+- **Tidier middle column** (Windows): generation settings (resolution, sampler, steps, CFG, seed,
+  2-Pass and Upscale) now live in a slide-out panel on the right, opened by the gear button. File
+  saving (folders and filename, below) has its own panel under it, the folder button. The Output
+  section keeps the folder picker and a one-line "Saves as" preview. Like the Android app's
+  drawers: one open at a time, and clicking outside, Esc or ✕ closes it.
+- **Osmium's look** (Windows and Android): the gallery button and the new panel buttons use
+  Osmium's line icons, and checkboxes match Osmium's (rounded, filled in the theme's accent).
+- **New file naming** (Windows), in the File saving panel:
   - **Automatic folders** (shown, not editable): the rating folder is `explicit` or `safe` when
     the Rating field says so, and none otherwise (images go straight into the output folder).
     Upscaled images go in an `Upscaled` folder.

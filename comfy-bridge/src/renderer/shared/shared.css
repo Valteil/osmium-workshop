@@ -39,7 +39,31 @@
 .ui-zoom-val{ min-width:3.2em; text-align:right; color:var(--muted); font-variant-numeric:tabular-nums; }
 .ui-zoom-reset{ font:inherit; font-size:11px; padding:2px 7px; min-height:0; }
 
-#galleryFab{position:fixed;right:14px;bottom:18px;z-index:500;width:56px;height:56px;border-radius:50%;background:var(--accent);border-color:var(--accent);font-size:24px;padding:0;min-height:0;box-shadow:0 4px 16px rgba(0,0,0,.5);}
+#galleryFab{position:fixed;right:14px;bottom:18px;z-index:500;width:56px;height:56px;border-radius:50%;background:var(--accent);border-color:var(--accent);font-size:24px;padding:0;min-height:0;box-shadow:0 4px 16px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;color:var(--c-pri-fg, #fff);}
+/* Checkboxes: Osmium's custom box (its renderer/styles.css), so neither app
+   falls back to the OS look — rounded, accent fill, a drawn tick sized in %.
+   Plain (not :where) specificity on purpose: the Bridge's own `input{width:100%}`
+   and `.chk-row input{width:auto}` would otherwise size the box away. */
+input[type="checkbox"]{
+  appearance:none; -webkit-appearance:none; margin:0;
+  width:15px; height:15px; min-height:0; padding:0; flex-shrink:0; position:relative; vertical-align:middle;
+  border:1.5px solid var(--border-strong, var(--border)); border-radius:var(--r-check, 4px);
+  background:var(--bg-elevated, var(--panel2)); cursor:pointer;
+  transition:background .12s ease, border-color .12s ease;
+}
+input[type="checkbox"]:hover:not(:disabled){ border-color:var(--accent-manual, var(--accent)); }
+input[type="checkbox"]:checked{ background:var(--accent-manual, var(--accent)); border-color:var(--accent-manual, var(--accent)); }
+input[type="checkbox"]:checked::after{
+  content:''; position:absolute; left:50%; top:45%;
+  width:28%; height:55%; border:solid var(--bg-base, var(--bg, #fff)); border-width:0 2px 2px 0;
+  transform:translate(-50%, -50%) rotate(45deg);
+}
+input[type="checkbox"]:focus-visible{ outline:2px solid var(--accent-manual, var(--accent)); outline-offset:1px; }
+input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
+
+/* Osmium's line icons (shared/icons.ts): stroke in the current text colour. */
+.bridge-ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:var(--icon-stroke, 1.75);stroke-linecap:var(--icon-cap, round);stroke-linejoin:var(--icon-join, round);flex-shrink:0;}
+#galleryFab .bridge-ic{width:26px;height:26px;}
 #galleryBackdrop{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.55);display:none;}
 #galleryBackdrop.show{display:block;}
 #gallerySidebar{position:fixed;top:0;right:0;bottom:0;z-index:601;width:min(88vw,380px);background:var(--panel);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .22s ease-out;display:flex;flex-direction:column;padding:12px 14px;}
