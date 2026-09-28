@@ -92,7 +92,10 @@ Three related apps share this repository (and much of their renderer code):
      `--listen 0.0.0.0 --enable-cors-header` and allow inbound TCP 8188 through the firewall), or
      tick **Let the phone app use it** under the desktop Bridge's Local ComfyUI. The desktop Bridge
      then shows its addresses (Tailscale first) and serves Local ComfyUI to the phone on port 8189,
-     with no password, like ComfyUI's own `--listen`.
+     with no password, like ComfyUI's own `--listen`. With **Persist Comfy** on as well, the
+     kept-open ComfyUI serves the phone itself, so the phone keeps working after you close the
+     Bridge (Connect once to start it). The phone always uses 8189; 8190 is the Bridge's private
+     line to ComfyUI and only works on the PC.
    - The desktop build has its own Theme Studio for a Custom theme, and reads theme files exported
      from Osmium Workshop.
 

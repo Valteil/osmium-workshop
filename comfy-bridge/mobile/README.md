@@ -113,6 +113,16 @@ cd android
   build), so nothing here is different. The first request starts Local
   ComfyUI on the PC if it isn't running (about 25s), and the ComfyUI terminal
   panel shows that PC's ComfyUI output.
+  - **With Persist Comfy on (desktop)**, the PC's kept-open ComfyUI serves
+    this API itself (the runner's `ShareServer`), so the phone keeps working
+    after the desktop Bridge closes. It must have been started once with
+    Connect on the PC; the phone can't start it in this mode.
+  - **Port 8189, never 8190**: 8190 is the desktop Bridge's private
+    127.0.0.1 line to its runner and isn't reachable from a phone.
+- **Connection check timeout**: `comfyGetObjectInfo` (behind Test connection
+  and the model lists) gives up after 45s with a message naming the ports
+  (8188 for a ComfyUI server, 8189 for a shared Local ComfyUI), instead of
+  hanging on an address that silently drops packets.
 - **Generate queues**, like desktop: pressing Generate while one runs queues
   another with the settings as they are then; they run in order, and Stop
   (or the notification's Cancel) ends the current one and clears the queue.
