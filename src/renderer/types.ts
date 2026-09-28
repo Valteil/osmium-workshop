@@ -70,14 +70,23 @@ export interface EntryMeta {
   tagAssign?: Record<string, string>; // tag -> subject id
 }
 
-// A named subject header in Tag Sorting's multi-subject tree (e.g. "Girl 1"),
-// holding the category subheaders the user chose to add under it. `subheaders`
-// holds TagCategoryId values (kept as plain strings so this renderer-only type
-// file doesn't import the generated data module).
+// A named character section in Tag Sorting, drawn under the Character
+// category (e.g. "Character 1"). It starts empty; tags join it only through
+// tagAssign. `subheaders` is from the old tree layout and is ignored now.
+// `presetId` links it to the dataset preset it was loaded from, whose tags
+// missing from the image are offered as ghost chips.
 export interface TagSubject {
   id: string;
   name: string;
-  subheaders: string[];
+  subheaders?: string[];
+  presetId?: string;
+}
+
+// A saved character (per dataset, _dts_subject_presets.json).
+export interface SubjectPreset {
+  id: string;
+  name: string;
+  tags: string[];
 }
 
 export interface GalleryFilter {

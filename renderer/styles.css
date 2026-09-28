@@ -4217,10 +4217,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .tagcat-seg-empty .tagcat-count { opacity: 0.55; }
   .tagcat-add-input { width: 100%; }
 
-  /* Multi-subject tree (Tag Sorting, opt-in): user-named subject headers, each
-     with indented category subheaders. Tags are assigned by dragging a chip onto
-     a subject, or shift-clicking chips then "Move tags to:". */
-  .tagsub-tree { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+  /* Character sections (Tag Sorting, opt-in): empty named sections under the
+     Character category. Tags move in by dragging a chip or a whole category
+     header onto one, or shift-clicking chips then "Move tags to:". */
   .tagsub-addsubject {
     align-self: flex-start; font-size: 11px; padding: 4px 10px; border-radius: 999px;
   }
@@ -4248,6 +4247,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .tagsub-count { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
   .tagsub-empty { font-size: 11px; color: var(--text-faint); font-style: italic; }
   .tagsub-chip { cursor: grab; }
+  .tagsub-subject { margin-left: 18px; }
+  .tagsub-draghead { cursor: grab; }
+  .chip.tagsub-offer {
+    border-style: dashed; opacity: 0.7; background: transparent; cursor: pointer;
+    font: inherit; font-size: 12px; padding: 3px 9px;
+  }
+  .chip.tagsub-offer:hover { opacity: 1; border-color: var(--accent-manual); }
   .chip.tagsub-selected { outline: 2px solid var(--accent-manual); outline-offset: 1px; }
   .tagsub-movetoolbar {
     position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;

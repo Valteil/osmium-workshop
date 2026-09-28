@@ -69,6 +69,7 @@ import {
   renderStatsTab, initEditLog
 } from './edit-log';
 import { initCanonicalTags, loadCanonicalRulesForFolder } from './canonical-tags';
+import { initSubjectPresets, loadSubjectPresetsForFolder } from './subject-presets';
 import { initBucketImages } from './bucket-images';
 import {
   markDirty, updateDirtyUI, recordChange, applyTagDirection, applyRenameDirection, applyPixelDirection, getIsolateState, updateUndoRedoButtons,
@@ -1472,6 +1473,7 @@ import { setIconLabel } from './icons';
   });
 
   // Retroactive Merge/Void dock (right sidebar) moved to ./canonical-tags.ts
+  initSubjectPresets({ getDirHandle: () => dirHandle });
   initCanonicalTags({
     getDirHandle: () => dirHandle,
     getEntries: () => entries,
@@ -1893,6 +1895,37 @@ import { setIconLabel } from './icons';
     } catch(err){}
   }
 
+  // A disable copies the pair into Disabled/ and then deletes the root copy;
+  // if that delete failed, the next scan found the image in both places. The
+  // Disabled entry took the stem's entryByBase mapping, so the gallery showed
+  // the root copy while every action hit the disabled one ("already
+  // disabled"). Finish the move: when the root image is the same file (same
+  // size) as its Disabled copy, delete the root pair and drop that entry.
+  // A different file that merely shares the name is left alone.
+  async function finishInterruptedDisables(): Promise<void> {
+    if (!dirHandle || !disabledDirHandle) return;
+    const disabledByBase = new Map(entries.filter(e => e.disabled && !e.original).map(e => [e.base, e]));
+    const leftovers: Entry[] = [];
+    for (const e of entries){
+      if (e.disabled || e.original) continue;
+      const twin = disabledByBase.get(e.base);
+      if (!twin || twin.imgName !== e.imgName) continue;
+      try {
+        const [a, b] = await Promise.all([e.imgHandle.getFile(), twin.imgHandle.getFile()]);
+        if (a.size !== b.size) continue;
+        await dirHandle.removeEntry(e.imgName!);
+        try { await dirHandle.removeEntry(e.txtName!); } catch(err){ /* no root .txt */ }
+        leftovers.push(e);
+      } catch(err){ /* still locked: keep it visible rather than lose track of it */ }
+    }
+    if (!leftovers.length) return;
+    for (const e of leftovers){
+      if (e.objectUrl) URL.revokeObjectURL(e.objectUrl);
+      entries.splice(entries.indexOf(e), 1);
+    }
+    toast(`Finished disabling ${leftovers.length} image(s) whose root copy was left behind last time.`, 3600);
+  }
+
   async function loadFolder(){
     if (!dirHandle) return;
     exitSequentialDetail();
@@ -1921,6 +1954,7 @@ import { setIconLabel } from './icons';
       disabledDirHandle = null;
       originalDirHandle = null;
     }
+    await finishInterruptedDisables();
 
     try {
       // original_images/ holds the pre-bucketing originals the "Bucket Images"
@@ -1982,6 +2016,7 @@ import { setIconLabel } from './icons';
     // reconstructs standing rules from past merge/void log entries when this
     // dataset has no _dts_canonical_tags.json of its own yet.
     await loadCanonicalRulesForFolder();
+    await loadSubjectPresetsForFolder();
     resetRulesDirty();
     await loadSynthDatSettingsForFolder();
 
@@ -2041,6 +2076,7 @@ import { setIconLabel } from './icons';
     await loadEditLogForFolder();
     await loadFolderStats();
     await loadCanonicalRulesForFolder();
+    await loadSubjectPresetsForFolder();
     resetRulesDirty();
     await loadSynthDatSettingsForFolder();
 

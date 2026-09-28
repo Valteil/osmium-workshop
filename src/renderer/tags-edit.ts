@@ -326,10 +326,19 @@ export async function moveEntry(entry: Entry, toDisabled: boolean, opts?: { sile
     const newImgHandle = await targetDir.getFileHandle(entry.imgName!, { create: true });
     await writeBytes(newImgHandle, file);
 
+    // A failed delete used to be swallowed, leaving the image in both folders
+    // (see index.ts's finishInterruptedDisables, which cleans that up on the
+    // next open). Retry once, since a just-read file can be briefly busy.
+    let leftBehind = false;
     if (sourceDir){
-      try { await sourceDir.removeEntry(entry.imgName!); } catch(e){}
+      try { await sourceDir.removeEntry(entry.imgName!); }
+      catch(e){
+        await new Promise(r => setTimeout(r, 300));
+        try { await sourceDir.removeEntry(entry.imgName!); } catch(e2){ leftBehind = true; }
+      }
       try { await sourceDir.removeEntry(entry.txtName!); } catch(e){}
     }
+    if (leftBehind) toast(`Couldn't remove the old copy of "${entry.imgName}" (file in use?). It'll be cleaned up the next time this dataset opens.`, 4200);
     entry.imgHandle = newImgHandle;
 
     if (entry.tags.length > 0){

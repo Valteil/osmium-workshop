@@ -6403,16 +6403,24 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       const file = await entry.imgHandle.getFile();
       const newImgHandle = await targetDir.getFileHandle(entry.imgName, { create: true });
       await writeBytes(newImgHandle, file);
+      let leftBehind = false;
       if (sourceDir) {
         try {
           await sourceDir.removeEntry(entry.imgName);
         } catch (e) {
+          await new Promise((r) => setTimeout(r, 300));
+          try {
+            await sourceDir.removeEntry(entry.imgName);
+          } catch (e2) {
+            leftBehind = true;
+          }
         }
         try {
           await sourceDir.removeEntry(entry.txtName);
         } catch (e) {
         }
       }
+      if (leftBehind) toast(`Couldn't remove the old copy of "${entry.imgName}" (file in use?). It'll be cleaned up the next time this dataset opens.`, 4200);
       entry.imgHandle = newImgHandle;
       if (entry.tags.length > 0) {
         const newTxtHandle = await targetDir.getFileHandle(entry.txtName, { create: true });
@@ -8569,6 +8577,54 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     });
   }
 
+  // src/renderer/subject-presets.ts
+  var PRESETS_FILE_NAME = "_dts_subject_presets.json";
+  var subjectPresets = [];
+  var getDirHandle7 = () => null;
+  function initSubjectPresets(deps3) {
+    getDirHandle7 = deps3.getDirHandle;
+  }
+  async function loadSubjectPresetsForFolder() {
+    subjectPresets = [];
+    const dirHandle = getDirHandle7();
+    if (!dirHandle) return;
+    try {
+      const handle = await dirHandle.getFileHandle(PRESETS_FILE_NAME, { create: false });
+      const parsed = JSON.parse((await (await handle.getFile()).text()).trim() || "[]");
+      if (Array.isArray(parsed)) subjectPresets = parsed.filter((p) => p && typeof p.name === "string" && Array.isArray(p.tags)).map((p) => ({ id: String(p.id || p.name), name: p.name, tags: p.tags.filter((t) => typeof t === "string") }));
+    } catch (err) {
+    }
+  }
+  async function saveSubjectPresets() {
+    const dirHandle = getDirHandle7();
+    if (!dirHandle) return;
+    try {
+      const handle = await dirHandle.getFileHandle(PRESETS_FILE_NAME, { create: true });
+      await writeBytes(handle, JSON.stringify(subjectPresets, null, 2));
+    } catch (err) {
+    }
+  }
+  function upsertSubjectPreset(name, tags) {
+    const key = name.trim().toLowerCase();
+    let preset = subjectPresets.find((p) => p.name.trim().toLowerCase() === key);
+    if (preset) {
+      preset.name = name.trim();
+      preset.tags = tags.slice();
+    } else {
+      preset = { id: "preset-" + Date.now().toString(36), name: name.trim(), tags: tags.slice() };
+      subjectPresets.push(preset);
+    }
+    void saveSubjectPresets();
+    return preset;
+  }
+  function deleteSubjectPreset(id) {
+    subjectPresets = subjectPresets.filter((p) => p.id !== id);
+    void saveSubjectPresets();
+  }
+  function subjectPresetById(id) {
+    return id ? subjectPresets.find((p) => p.id === id) : void 0;
+  }
+
   // src/bucket-core.ts
   function getValidBuckets(sideMin, sideMax, step = 64) {
     const sMin = Math.floor(sideMin), sMax = Math.floor(sideMax), st = Math.max(1, Math.floor(step));
@@ -8590,7 +8646,7 @@ If you choose No, this won't ask again for any folder. You can still add the ope
   // src/renderer/bucket-images.ts
   var ORIGINAL_DIR = "original_images";
   var SETTINGS_KEY = "dts-bucket-settings";
-  var getDirHandle7 = () => null;
+  var getDirHandle8 = () => null;
   var getEntries3 = () => [];
   var reload = async () => {
   };
@@ -8620,7 +8676,7 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     return dims;
   }
   async function originalDir(create) {
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) return null;
     try {
       return await dirHandle.getDirectoryHandle(ORIGINAL_DIR, { create });
@@ -8665,7 +8721,7 @@ If you choose No, this won't ask again for any folder. You can still add the ope
   }
   async function run() {
     if (busy) return;
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) {
       toast("Open a dataset folder first.");
       return;
@@ -8780,7 +8836,7 @@ Each image is moved into original_images/ (treated as disabled \u2014 the new Or
   }
   async function revert() {
     if (busy) return;
-    const dirHandle = getDirHandle7();
+    const dirHandle = getDirHandle8();
     if (!dirHandle) {
       toast("Open a dataset folder first.");
       return;
@@ -8883,7 +8939,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     }
   }
   function initBucketImages(deps3) {
-    getDirHandle7 = deps3.getDirHandle;
+    getDirHandle8 = deps3.getDirHandle;
     getEntries3 = deps3.getEntries;
     reload = deps3.reload;
     saveAllDirty2 = deps3.saveAllDirty;
@@ -10781,7 +10837,7 @@ Image: ${entry.imgName}`,
     saveTimer = setTimeout(saveSettings2, 400);
   }
   async function saveSettings2() {
-    const dirHandle = getDirHandle8();
+    const dirHandle = getDirHandle9();
     if (!dirHandle) return;
     try {
       const handle = await dirHandle.getFileHandle(SETTINGS_FILE_NAME, { create: true });
@@ -10884,7 +10940,7 @@ Image: ${entry.imgName}`,
     applyUnifiedPromptModeUI();
   }
   async function loadSettingsFromFile() {
-    const dirHandle = getDirHandle8();
+    const dirHandle = getDirHandle9();
     if (!dirHandle) return null;
     let saved = null;
     try {
@@ -10944,7 +11000,7 @@ Image: ${entry.imgName}`,
   }
   async function loadSynthDatSettingsForFolder() {
     resetSettingsToDefault();
-    const dirHandle = getDirHandle8();
+    const dirHandle = getDirHandle9();
     if (!dirHandle) {
       document.querySelectorAll("#synthDatTab textarea").forEach((el) => growTextarea(el));
       return;
@@ -11408,7 +11464,7 @@ Image: ${entry.imgName}`,
     });
   }
   var template = null;
-  var getDirHandle8 = () => null;
+  var getDirHandle9 = () => null;
   var addEntryFromNewFile = async () => null;
   var refreshAllUIRef6 = () => {
   };
@@ -12042,7 +12098,7 @@ Image: ${entry.imgName}`,
       toast(`Pick a reference image first (or check "I don't want to use a reference image").`);
       return;
     }
-    const dirHandle = getDirHandle8();
+    const dirHandle = getDirHandle9();
     if (!dirHandle) {
       toast("Open a dataset folder first.");
       return;
@@ -12144,7 +12200,7 @@ Image: ${entry.imgName}`,
     return { next: maxNum + 1, width: Math.max(width, String(maxNum + 1).length) };
   }
   async function writeImageEntry(bytes, base, imgName, tags, disable) {
-    const dirHandle = getDirHandle8();
+    const dirHandle = getDirHandle9();
     if (!dirHandle) return null;
     try {
       if (disable) {
@@ -12173,7 +12229,7 @@ Image: ${entry.imgName}`,
     return previewBytes === pass1Bytes ? pass2Bytes : pass1Bytes;
   }
   async function acceptImage() {
-    const dirHandle = getDirHandle8();
+    const dirHandle = getDirHandle9();
     if (!dirHandle) {
       toast("Open a dataset folder first.");
       return;
@@ -12199,7 +12255,7 @@ Image: ${entry.imgName}`,
     clearPreview();
   }
   async function rejectImage() {
-    const dirHandle = getDirHandle8();
+    const dirHandle = getDirHandle9();
     if (!dirHandle) {
       toast("Open a dataset folder first.");
       return;
@@ -12271,7 +12327,7 @@ Image: ${entry.imgName}`,
     });
   }
   function initSynthDatOverseer(deps3) {
-    getDirHandle8 = deps3.getDirHandle;
+    getDirHandle9 = deps3.getDirHandle;
     addEntryFromNewFile = deps3.addEntryFromNewFile;
     refreshAllUIRef6 = deps3.refreshAllUI;
     loadTemplate();
@@ -23983,7 +24039,10 @@ Image: ${entry.imgName}`,
     const bar = document.createElement("div");
     bar.className = "tagcat-bar";
     bar.appendChild(buildTagSortToggle(onChange));
-    if (tagSortingActive) bar.appendChild(buildAddSubjectButton(entry, onChange));
+    if (tagSortingActive) {
+      bar.appendChild(buildAddSubjectButton(entry, onChange));
+      if (subjectPresets.length) bar.appendChild(buildLoadPresetButton(entry, onChange));
+    }
     return bar;
   }
   function buildTagSortToggle(onToggle) {
@@ -24011,10 +24070,40 @@ Image: ${entry.imgName}`,
     const ghosts = pastTags(entry);
     const ghostByTag = new Map(ghosts.map((g) => [g.tag, g]));
     const subjects = entry.meta?.tagSubjects || [];
-    if (subjects.length) return buildSubjectTree(entry, ordered, tagIndex, onChange, ghostByTag);
+    if (subjectSelectionBase !== entry.base) {
+      subjectSelectionBase = entry.base;
+      subjectSelectedTags = /* @__PURE__ */ new Set();
+    }
+    const validIds = new Set(subjects.map((s) => s.id));
+    const assign = entry.meta?.tagAssign || {};
+    const mainTags = [];
+    const bySubject = /* @__PURE__ */ new Map();
+    for (const tag of [...ordered, ...ghosts.map((g) => g.tag)]) {
+      const sid = assign[tag];
+      if (sid && validIds.has(sid)) {
+        const list = bySubject.get(sid);
+        if (list) list.push(tag);
+        else bySubject.set(sid, [tag]);
+      } else mainTags.push(tag);
+    }
+    const movable = subjects.length > 0;
     const wrap = document.createElement("div");
     wrap.className = "tagcat-groups";
-    const groups2 = new Map(groupTagsByCategory([...ordered, ...ghosts.map((g) => g.tag)]).map((g) => [g.id, g.tags]));
+    if (movable) {
+      wrap.addEventListener("dragover", (ev) => {
+        if (ev.dataTransfer?.types.includes(SUBJECT_DRAG_TYPE)) ev.preventDefault();
+      });
+      wrap.addEventListener("drop", (ev) => {
+        const tags = draggedSubjectTags(ev);
+        if (!tags.length) return;
+        ev.preventDefault();
+        subjectSelectedTags = /* @__PURE__ */ new Set();
+        assignTagsToSubject(entry, tags, null);
+        onChange();
+      });
+      if (subjectSelectedTags.size) wrap.appendChild(buildMoveToolbar(entry, subjects, onChange));
+    }
+    const groups2 = new Map(groupTagsByCategory(mainTags).map((g) => [g.id, g.tags]));
     for (const cat of TAG_CATEGORY_ORDER) {
       const groupTags = groups2.get(cat) || [];
       const real = groupTags.filter((t) => !ghostByTag.has(t));
@@ -24031,15 +24120,25 @@ Image: ${entry.imgName}`,
       head.appendChild(name);
       head.appendChild(count);
       head.appendChild(buildCategoryAddButton(entry, cat, seg, onChange));
+      if (movable && real.length) makeCategoryHeadDraggable(head, real);
       seg.appendChild(head);
       if (groupTags.length) {
         const chiprow = document.createElement("div");
         chiprow.className = "chiprow";
-        for (const tag of real) chiprow.appendChild(buildChip2(entry, tag, onChange, tagIndex));
+        for (const tag of real) {
+          const chip = buildChip2(entry, tag, onChange, tagIndex);
+          if (movable) makeChipMovable(chip, tag, onChange);
+          chiprow.appendChild(chip);
+        }
         for (const tag of groupTags) if (ghostByTag.has(tag)) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(tag), onChange));
         seg.appendChild(chiprow);
       }
       wrap.appendChild(seg);
+      if (cat === "character") {
+        subjects.forEach((subject, i) => {
+          wrap.appendChild(buildSubjectBlock(entry, subject, i, bySubject.get(subject.id) || [], tagIndex, onChange, ghostByTag));
+        });
+      }
     }
     return wrap;
   }
@@ -24109,57 +24208,139 @@ Image: ${entry.imgName}`,
   function nextSubjectId() {
     return "subj-" + Date.now().toString(36) + "-" + (subjectIdCounter++).toString(36);
   }
+  function subjectLabel(subject, index) {
+    return subject.name.trim() || `Character ${index + 1}`;
+  }
   function buildAddSubjectButton(entry, onChange) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "tagsub-addsubject";
-    btn.textContent = "\uFF0B Add subject";
-    btn.title = "Split this image's tags into named subjects (e.g. Girl 1, Girl 2)";
+    btn.textContent = "\uFF0B Add character";
+    btn.title = "Add an empty character section under Character, then move categories or tags into it";
     btn.addEventListener("click", () => {
       const meta = ensureEntryMeta(entry);
       const subjects = meta.tagSubjects || (meta.tagSubjects = []);
-      subjects.push({ id: nextSubjectId(), name: `Subject ${subjects.length + 1}`, subheaders: [] });
+      subjects.push({ id: nextSubjectId(), name: `Character ${subjects.length + 1}` });
       persistEntryMeta(entry);
       onChange();
     });
     return btn;
   }
+  function buildLoadPresetButton(entry, onChange) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tagsub-addsubject";
+    setIconLabel(btn, "Load character \u25BE");
+    btn.title = "Load a character saved in this dataset; its tags on this image move into its section";
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      document.querySelectorAll(".tagsub-picker").forEach((el) => el.remove());
+      const menu = document.createElement("div");
+      menu.className = "ctx-menu tagsub-picker";
+      const header = document.createElement("div");
+      header.className = "ctx-header";
+      header.textContent = "Load character";
+      menu.appendChild(header);
+      for (const preset of subjectPresets) {
+        addContextMenuItem(menu, `${preset.name} (${preset.tags.length})`, () => {
+          menu.remove();
+          loadSubjectPreset(entry, preset);
+          onChange();
+        });
+      }
+      const delHeader = document.createElement("div");
+      delHeader.className = "ctx-header";
+      delHeader.textContent = "Delete a saved character";
+      menu.appendChild(delHeader);
+      for (const preset of subjectPresets) {
+        addContextMenuItem(menu, `\u2715 ${preset.name}`, () => {
+          menu.remove();
+          void showConfirmModal(`Delete the saved character "${preset.name}" from this dataset? Sections already loaded on images keep their tags.`, { okLabel: "Delete", danger: true }).then((ok) => {
+            if (!ok) return;
+            deleteSubjectPreset(preset.id);
+            onChange();
+          });
+        });
+      }
+      document.body.appendChild(menu);
+      const r = btn.getBoundingClientRect();
+      positionMenu(menu, r.left, r.bottom + 4);
+      const onOutside = (e) => {
+        if (!menu.contains(e.target)) {
+          menu.remove();
+          document.removeEventListener("click", onOutside, true);
+        }
+      };
+      setTimeout(() => document.addEventListener("click", onOutside, true), 0);
+    });
+    return btn;
+  }
+  function loadSubjectPreset(entry, preset) {
+    const meta = ensureEntryMeta(entry);
+    const subjects = meta.tagSubjects || (meta.tagSubjects = []);
+    let subject = subjects.find((s) => s.presetId === preset.id);
+    if (!subject) {
+      subject = { id: nextSubjectId(), name: preset.name, presetId: preset.id };
+      subjects.push(subject);
+    }
+    const present = preset.tags.filter((t) => entry.tags.includes(t));
+    assignTagsToSubject(entry, present, subject.id);
+    const missing = preset.tags.length - present.length;
+    toast(`Moved ${present.length} tag${present.length === 1 ? "" : "s"} into ${subjectLabel(subject, subjects.indexOf(subject))}` + (missing ? `; ${missing} saved tag${missing === 1 ? "" : "s"} not on this image ${missing === 1 ? "is" : "are"} offered there.` : "."), 3600);
+  }
+  function saveSubjectAsPreset(entry, subject, index, onChange) {
+    const assign = entry.meta?.tagAssign || {};
+    const tags = entry.tags.filter((t) => assign[t] === subject.id);
+    if (!tags.length) {
+      toast("Move some tags into this character first, then save it.", 3200);
+      return;
+    }
+    const preset = upsertSubjectPreset(subjectLabel(subject, index), tags);
+    subject.presetId = preset.id;
+    persistEntryMeta(entry);
+    toast(`Saved "${preset.name}" (${tags.length} tags) to this dataset. Load it on any image from "Load character".`, 3600);
+    onChange();
+  }
   function assignTagsToSubject(entry, tags, subjectId) {
     const meta = ensureEntryMeta(entry);
     const assign = meta.tagAssign || (meta.tagAssign = {});
-    for (const t of tags) assign[t] = subjectId;
+    for (const t of tags) {
+      if (subjectId) assign[t] = subjectId;
+      else delete assign[t];
+    }
     persistEntryMeta(entry);
   }
-  function buildSubjectTree(entry, ordered, tagIndex, onChange, ghostByTag = /* @__PURE__ */ new Map()) {
-    const meta = ensureEntryMeta(entry);
-    const subjects = meta.tagSubjects;
-    const assign = meta.tagAssign || (meta.tagAssign = {});
-    if (subjectSelectionBase !== entry.base) {
-      subjectSelectionBase = entry.base;
-      subjectSelectedTags = /* @__PURE__ */ new Set();
-    }
-    const validIds = new Set(subjects.map((s) => s.id));
-    const defaultId = subjects[0].id;
-    const bySubject = /* @__PURE__ */ new Map();
-    for (const tag of [...ordered, ...ghostByTag.keys()]) {
-      const sid = assign[tag] && validIds.has(assign[tag]) ? assign[tag] : defaultId;
-      let cats = bySubject.get(sid);
-      if (!cats) {
-        cats = /* @__PURE__ */ new Map();
-        bySubject.set(sid, cats);
-      }
-      const cat = categorizeTag(tag);
-      const list = cats.get(cat);
-      if (list) list.push(tag);
-      else cats.set(cat, [tag]);
-    }
-    const root = document.createElement("div");
-    root.className = "tagsub-tree";
-    if (subjectSelectedTags.size) root.appendChild(buildMoveToolbar(entry, subjects, onChange));
-    for (const subject of subjects) {
-      root.appendChild(buildSubjectBlock(entry, subject, bySubject.get(subject.id), tagIndex, onChange, ghostByTag));
-    }
-    return root;
+  var SUBJECT_DRAG_TYPE = "application/x-dts-subject-tags";
+  function draggedSubjectTags(ev) {
+    return (ev.dataTransfer?.getData(SUBJECT_DRAG_TYPE) || "").split("\n").filter(Boolean);
+  }
+  function startSubjectDrag(ev, tags) {
+    if (!ev.dataTransfer) return;
+    ev.dataTransfer.setData(SUBJECT_DRAG_TYPE, tags.join("\n"));
+    ev.dataTransfer.effectAllowed = "move";
+    ev.stopPropagation();
+  }
+  function makeChipMovable(chip, tag, onChange) {
+    chip.classList.add("tagsub-chip");
+    if (subjectSelectedTags.has(tag)) chip.classList.add("tagsub-selected");
+    chip.draggable = true;
+    chip.addEventListener("dragstart", (ev) => {
+      startSubjectDrag(ev, subjectSelectedTags.has(tag) ? Array.from(subjectSelectedTags) : [tag]);
+    });
+    chip.addEventListener("click", (ev) => {
+      if (!ev.shiftKey) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (subjectSelectedTags.has(tag)) subjectSelectedTags.delete(tag);
+      else subjectSelectedTags.add(tag);
+      onChange();
+    }, true);
+  }
+  function makeCategoryHeadDraggable(head, tags) {
+    head.draggable = true;
+    head.classList.add("tagsub-draghead");
+    head.title = `Drag to move all ${tags.length} tag${tags.length === 1 ? "" : "s"} at once`;
+    head.addEventListener("dragstart", (ev) => startSubjectDrag(ev, tags));
   }
   function buildMoveToolbar(entry, subjects, onChange) {
     const bar = document.createElement("div");
@@ -24171,18 +24352,20 @@ Image: ${entry.imgName}`,
     const flyout = document.createElement("div");
     flyout.className = "tagsub-moveflyout";
     flyout.style.display = "none";
-    for (const s of subjects) {
+    const target = (label, subjectId) => {
       const b = document.createElement("button");
       b.type = "button";
-      b.textContent = s.name || "(unnamed)";
+      b.textContent = label;
       b.addEventListener("click", () => {
         const tags = Array.from(subjectSelectedTags);
         subjectSelectedTags = /* @__PURE__ */ new Set();
-        assignTagsToSubject(entry, tags, s.id);
+        assignTagsToSubject(entry, tags, subjectId);
         onChange();
       });
       flyout.appendChild(b);
-    }
+    };
+    subjects.forEach((s, i) => target(subjectLabel(s, i), s.id));
+    target("Main field", null);
     const moveBtn = document.createElement("button");
     moveBtn.type = "button";
     moveBtn.className = "tagsub-movebtn";
@@ -24203,34 +24386,37 @@ Image: ${entry.imgName}`,
     bar.appendChild(clearBtn);
     return bar;
   }
-  function buildSubjectBlock(entry, subject, cats, tagIndex, onChange, ghostByTag = /* @__PURE__ */ new Map()) {
+  function buildSubjectBlock(entry, subject, index, tags, tagIndex, onChange, ghostByTag) {
     const block = document.createElement("div");
     block.className = "tagsub-subject";
-    const dropHere = (ev) => {
+    block.addEventListener("dragover", (ev) => {
+      if (!ev.dataTransfer?.types.includes(SUBJECT_DRAG_TYPE)) return;
       ev.preventDefault();
       ev.stopPropagation();
-      block.classList.remove("drop-hover");
-      const payload = ev.dataTransfer?.getData("text/plain") || "";
-      const tags = payload.split("\n").filter(Boolean);
-      if (!tags.length) return;
-      subjectSelectedTags = /* @__PURE__ */ new Set();
-      assignTagsToSubject(entry, tags, subject.id);
-      onChange();
-    };
-    block.addEventListener("dragover", (ev) => {
-      ev.preventDefault();
       block.classList.add("drop-hover");
     });
-    block.addEventListener("dragleave", () => block.classList.remove("drop-hover"));
-    block.addEventListener("drop", dropHere);
+    block.addEventListener("dragleave", (ev) => {
+      if (!block.contains(ev.relatedTarget)) block.classList.remove("drop-hover");
+    });
+    block.addEventListener("drop", (ev) => {
+      const dropped = draggedSubjectTags(ev);
+      block.classList.remove("drop-hover");
+      if (!dropped.length) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      subjectSelectedTags = /* @__PURE__ */ new Set();
+      assignTagsToSubject(entry, dropped, subject.id);
+      onChange();
+    });
     const head = document.createElement("div");
     head.className = "tagsub-subject-head";
     const nameInput = document.createElement("input");
     nameInput.type = "text";
     nameInput.className = "tagsub-name";
     nameInput.value = subject.name;
-    nameInput.title = "Name this subject (e.g. Girl 1)";
-    nameInput.setAttribute("aria-label", "Subject name");
+    nameInput.placeholder = `Character ${index + 1}`;
+    nameInput.title = "Name this character";
+    nameInput.setAttribute("aria-label", "Character name");
     nameInput.addEventListener("keydown", (ev) => ev.stopPropagation());
     nameInput.addEventListener("input", () => {
       subject.name = nameInput.value;
@@ -24240,124 +24426,88 @@ Image: ${entry.imgName}`,
     head.appendChild(nameInput);
     const actions = document.createElement("div");
     actions.className = "tagsub-head-actions";
-    const addSub = document.createElement("button");
-    addSub.type = "button";
-    addSub.textContent = "\uFF0B Subheader";
-    addSub.title = "Add a category subheader under this subject";
-    addSub.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      openSubheaderPicker(entry, subject, ev.clientX, ev.clientY, onChange);
-    });
-    actions.appendChild(addSub);
+    const save = document.createElement("button");
+    save.type = "button";
+    save.textContent = subject.presetId && subjectPresetById(subject.presetId) ? "Update saved" : "Save";
+    save.title = "Save this character and its tags to the dataset, to load on other images";
+    save.addEventListener("click", () => saveSubjectAsPreset(entry, subject, index, onChange));
+    actions.appendChild(save);
     const del = document.createElement("button");
     del.type = "button";
     del.className = "tagsub-del";
     setIconLabel(del, "\u2715");
-    del.title = "Remove this subject (its tags fall back to the first subject)";
+    del.title = "Remove this section (its tags go back to the main field)";
     del.addEventListener("click", () => removeSubject(entry, subject.id, onChange));
     actions.appendChild(del);
     head.appendChild(actions);
     block.appendChild(head);
-    const present = cats || /* @__PURE__ */ new Map();
-    const catIds = /* @__PURE__ */ new Set([...present.keys(), ...subject.subheaders]);
-    const orderedCats = TAG_CATEGORY_ORDER.filter((c) => catIds.has(c));
-    if (!orderedCats.length) {
+    const preset = subjectPresetById(subject.presetId);
+    const offers = preset ? preset.tags.filter((t) => !entry.tags.includes(t)) : [];
+    if (!tags.length && !offers.length) {
       const empty = document.createElement("div");
       empty.className = "tagsub-empty";
-      empty.textContent = "No tags here yet \u2014 drag chips onto this subject, or add a subheader.";
+      empty.textContent = "Empty. Drag a category header or chips here from the fields around it.";
       block.appendChild(empty);
       return block;
     }
-    for (const cat of orderedCats) {
+    for (const group of groupTagsByCategory(tags)) {
+      const real = group.tags.filter((t) => !ghostByTag.has(t));
       const sub = document.createElement("div");
       sub.className = "tagsub-sub";
-      sub.addEventListener("dragover", (ev) => {
-        ev.preventDefault();
-      });
-      sub.addEventListener("drop", dropHere);
       const subHead = document.createElement("div");
       subHead.className = "tagsub-sub-head";
       const catName = document.createElement("span");
       catName.className = "tagsub-cat";
-      catName.textContent = TAG_CATEGORY_LABELS[cat] || cat;
+      catName.textContent = TAG_CATEGORY_LABELS[group.id];
       const countEl = document.createElement("span");
       countEl.className = "tagsub-count";
-      const all = present.get(cat) || [];
-      const tags = all.filter((t) => !ghostByTag.has(t));
-      const catGhosts = all.filter((t) => ghostByTag.has(t));
-      countEl.textContent = String(tags.length);
+      countEl.textContent = String(real.length);
       subHead.appendChild(catName);
       subHead.appendChild(countEl);
-      subHead.appendChild(buildCategoryAddButton(entry, cat, sub, onChange, subject.id));
+      subHead.appendChild(buildCategoryAddButton(entry, group.id, sub, onChange, subject.id));
+      if (real.length) makeCategoryHeadDraggable(subHead, real);
       sub.appendChild(subHead);
       const chiprow = document.createElement("div");
       chiprow.className = "chiprow";
-      if (!tags.length && !catGhosts.length) {
-        const none = document.createElement("span");
-        none.className = "tagsub-empty";
-        none.textContent = "\u2014";
-        chiprow.appendChild(none);
-      }
-      for (const tag of tags) {
+      for (const tag of real) {
         const chip = buildChip2(entry, tag, onChange, tagIndex);
-        chip.classList.add("tagsub-chip");
-        if (subjectSelectedTags.has(tag)) chip.classList.add("tagsub-selected");
-        chip.draggable = true;
-        chip.addEventListener("dragstart", (ev) => {
-          const payload = subjectSelectedTags.has(tag) ? Array.from(subjectSelectedTags).join("\n") : tag;
-          ev.dataTransfer?.setData("text/plain", payload);
-          if (ev.dataTransfer) ev.dataTransfer.effectAllowed = "move";
-        });
-        chip.addEventListener("click", (ev) => {
-          if (!ev.shiftKey) return;
-          ev.preventDefault();
-          ev.stopPropagation();
-          if (subjectSelectedTags.has(tag)) subjectSelectedTags.delete(tag);
-          else subjectSelectedTags.add(tag);
-          onChange();
-        }, true);
+        makeChipMovable(chip, tag, onChange);
         chiprow.appendChild(chip);
       }
-      for (const t of catGhosts) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(t), onChange));
+      for (const t of group.tags) if (ghostByTag.has(t)) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(t), onChange));
+      sub.appendChild(chiprow);
+      block.appendChild(sub);
+    }
+    if (offers.length) {
+      const sub = document.createElement("div");
+      sub.className = "tagsub-sub";
+      const subHead = document.createElement("div");
+      subHead.className = "tagsub-sub-head";
+      const label = document.createElement("span");
+      label.className = "tagsub-cat";
+      label.textContent = `Saved, not on this image`;
+      subHead.appendChild(label);
+      sub.appendChild(subHead);
+      const chiprow = document.createElement("div");
+      chiprow.className = "chiprow";
+      for (const t of offers) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip tagsub-offer";
+        b.textContent = "+ " + t;
+        b.title = `Add "${t}" to this image, in this character`;
+        b.addEventListener("click", () => {
+          addTagToEntry(entry, t);
+          if (entry.tags.includes(t)) assignTagsToSubject(entry, [t], subject.id);
+          onChange();
+          refreshRightPanels();
+        });
+        chiprow.appendChild(b);
+      }
       sub.appendChild(chiprow);
       block.appendChild(sub);
     }
     return block;
-  }
-  function openSubheaderPicker(entry, subject, x, y, onChange) {
-    document.querySelectorAll(".tagsub-picker").forEach((el) => el.remove());
-    const menu = document.createElement("div");
-    menu.className = "ctx-menu tagsub-picker";
-    const header = document.createElement("div");
-    header.className = "ctx-header";
-    header.textContent = "Add subheader";
-    menu.appendChild(header);
-    let any = false;
-    for (const cat of TAG_CATEGORY_ORDER) {
-      if (subject.subheaders.includes(cat)) continue;
-      any = true;
-      addContextMenuItem(menu, TAG_CATEGORY_LABELS[cat] || cat, () => {
-        subject.subheaders.push(cat);
-        persistEntryMeta(entry);
-        menu.remove();
-        onChange();
-      });
-    }
-    if (!any) {
-      const none = document.createElement("div");
-      none.className = "ctx-item";
-      none.textContent = "All categories added";
-      menu.appendChild(none);
-    }
-    document.body.appendChild(menu);
-    positionMenu(menu, x, y);
-    const onOutside = (ev) => {
-      if (!menu.contains(ev.target)) {
-        menu.remove();
-        document.removeEventListener("click", onOutside, true);
-      }
-    };
-    setTimeout(() => document.addEventListener("click", onOutside, true), 0);
   }
   function removeSubject(entry, subjectId, onChange) {
     const meta = ensureEntryMeta(entry);
@@ -27199,6 +27349,7 @@ Image: ${entry.imgName}`,
       getUndoStack: () => undoStack,
       getRedoStack: () => redoStack
     });
+    initSubjectPresets({ getDirHandle: () => dirHandle });
     initCanonicalTags({
       getDirHandle: () => dirHandle,
       getEntries: () => entries,
@@ -27539,6 +27690,33 @@ Image: ${entry.imgName}`,
       } catch (err) {
       }
     }
+    async function finishInterruptedDisables() {
+      if (!dirHandle || !disabledDirHandle) return;
+      const disabledByBase = new Map(entries.filter((e) => e.disabled && !e.original).map((e) => [e.base, e]));
+      const leftovers = [];
+      for (const e of entries) {
+        if (e.disabled || e.original) continue;
+        const twin = disabledByBase.get(e.base);
+        if (!twin || twin.imgName !== e.imgName) continue;
+        try {
+          const [a, b] = await Promise.all([e.imgHandle.getFile(), twin.imgHandle.getFile()]);
+          if (a.size !== b.size) continue;
+          await dirHandle.removeEntry(e.imgName);
+          try {
+            await dirHandle.removeEntry(e.txtName);
+          } catch (err) {
+          }
+          leftovers.push(e);
+        } catch (err) {
+        }
+      }
+      if (!leftovers.length) return;
+      for (const e of leftovers) {
+        if (e.objectUrl) URL.revokeObjectURL(e.objectUrl);
+        entries.splice(entries.indexOf(e), 1);
+      }
+      toast(`Finished disabling ${leftovers.length} image(s) whose root copy was left behind last time.`, 3600);
+    }
     async function loadFolder() {
       if (!dirHandle) return;
       exitSequentialDetail();
@@ -27565,6 +27743,7 @@ Image: ${entry.imgName}`,
         disabledDirHandle = null;
         originalDirHandle = null;
       }
+      await finishInterruptedDisables();
       try {
         originalDirHandle = await dirHandle.getDirectoryHandle("original_images", { create: false });
         await scanDirInto(originalDirHandle, true, true);
@@ -27601,6 +27780,7 @@ Image: ${entry.imgName}`,
       await loadEditLogForFolder();
       await loadFolderStats();
       await loadCanonicalRulesForFolder();
+      await loadSubjectPresetsForFolder();
       resetRulesDirty();
       await loadSynthDatSettingsForFolder();
       renderAll();
@@ -27647,6 +27827,7 @@ Image: ${entry.imgName}`,
       await loadEditLogForFolder();
       await loadFolderStats();
       await loadCanonicalRulesForFolder();
+      await loadSubjectPresetsForFolder();
       resetRulesDirty();
       await loadSynthDatSettingsForFolder();
       renderAll();

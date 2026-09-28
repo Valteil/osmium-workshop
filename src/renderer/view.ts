@@ -6,7 +6,7 @@
 // toggles, galleryFilter/cardTagSortMode/masterTagModeActive which are
 // mutated from dropdowns/tabs that live in index.ts) are injected once via
 // initView(), since index.ts's IIFE can't export them.
-import type { Entry, EntryMeta, TagSubject, GalleryFilter, CardTagSortMode, DirHandle, FileHandle } from './types';
+import type { Entry, EntryMeta, TagSubject, SubjectPreset, GalleryFilter, CardTagSortMode, DirHandle, FileHandle } from './types';
 import { getJSON, setJSON, getBool, setBool } from './storage';
 import { writeBytes } from './fs-access';
 import {
@@ -33,6 +33,7 @@ import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
 import { setIconLabel, iconSvg } from './icons';
 import { ghostTagsFor, type GhostTag } from './canonical-tags';
+import { subjectPresets, upsertSubjectPreset, deleteSubjectPreset, subjectPresetById } from './subject-presets';
 
 export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
 export let viewMode: ViewMode = 'grid';
@@ -1674,12 +1675,16 @@ function computeIsolatedTagSet(tagIndex: TagIndex): Set<string> {
 }
 
 // The bar above the chip block in Single mode and the card modal: the Tag
-// Sorting toggle, plus (while sorting is on) the "+ Add subject" button.
+// Sorting toggle, plus (while sorting is on) "+ Add character" and, when the
+// dataset has saved characters, "Load character".
 function buildTagSortBar(entry: Entry, onChange: () => void): HTMLElement {
   const bar = document.createElement('div');
   bar.className = 'tagcat-bar';
   bar.appendChild(buildTagSortToggle(onChange));
-  if (tagSortingActive) bar.appendChild(buildAddSubjectButton(entry, onChange));
+  if (tagSortingActive){
+    bar.appendChild(buildAddSubjectButton(entry, onChange));
+    if (subjectPresets.length) bar.appendChild(buildLoadPresetButton(entry, onChange));
+  }
   return bar;
 }
 
@@ -1702,9 +1707,10 @@ function buildTagSortToggle(onToggle: () => void): HTMLElement {
 
 // The chips block shared by Single mode and the card modal.
 //  - Tag Sorting off  -> one flat chiprow.
-//  - Tag Sorting on   -> category segments ("+ Add subject" lives in buildTagSortBar).
-//  - Subjects present -> the multi-subject tree (subject headers with indented
-//    category subheaders), where tags are assigned to a subject manually.
+//  - Tag Sorting on   -> category segments (the main chip field). Character
+//    sections ("+ Add character" in buildTagSortBar) sit right under the
+//    Character segment; each starts empty and only holds the tags moved into
+//    it (tagAssign), which leave the main field.
 // Ordering within a segment follows orderedTagsForDisplay(), so search matches
 // still float to the top of their own category.
 function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void): HTMLElement {
@@ -1719,14 +1725,42 @@ function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void)
   const ghosts = pastTags(entry);
   const ghostByTag = new Map(ghosts.map(g => [g.tag, g]));
   const subjects = entry.meta?.tagSubjects || [];
-  if (subjects.length) return buildSubjectTree(entry, ordered, tagIndex, onChange, ghostByTag);
+  if (subjectSelectionBase !== entry.base){ subjectSelectionBase = entry.base; subjectSelectedTags = new Set(); }
+
+  // Split every tag (ghosts included) between the main field and the
+  // character section it was moved into.
+  const validIds = new Set(subjects.map(s => s.id));
+  const assign = entry.meta?.tagAssign || {};
+  const mainTags: string[] = [];
+  const bySubject = new Map<string, string[]>();
+  for (const tag of [...ordered, ...ghosts.map(g => g.tag)]){
+    const sid = assign[tag];
+    if (sid && validIds.has(sid)){
+      const list = bySubject.get(sid);
+      if (list) list.push(tag); else bySubject.set(sid, [tag]);
+    } else mainTags.push(tag);
+  }
+  const movable = subjects.length > 0;
 
   const wrap = document.createElement('div');
   wrap.className = 'tagcat-groups';
+  if (movable){
+    // Dropping chips or a category header back on the main field un-assigns them.
+    wrap.addEventListener('dragover', (ev) => { if (ev.dataTransfer?.types.includes(SUBJECT_DRAG_TYPE)) ev.preventDefault(); });
+    wrap.addEventListener('drop', (ev) => {
+      const tags = draggedSubjectTags(ev);
+      if (!tags.length) return;
+      ev.preventDefault();
+      subjectSelectedTags = new Set();
+      assignTagsToSubject(entry, tags, null);
+      onChange();
+    });
+    if (subjectSelectedTags.size) wrap.appendChild(buildMoveToolbar(entry, subjects, onChange));
+  }
   // Ghosts are classified with the real tags, then drawn last in their
   // category (and a category holding only ghosts still shows up). Empty
   // categories get a dimmed header too, so their "+" can start them.
-  const groups = new Map(groupTagsByCategory([...ordered, ...ghosts.map(g => g.tag)]).map(g => [g.id, g.tags]));
+  const groups = new Map(groupTagsByCategory(mainTags).map(g => [g.id, g.tags]));
   for (const cat of TAG_CATEGORY_ORDER){
     const groupTags = groups.get(cat) || [];
     const real = groupTags.filter(t => !ghostByTag.has(t));
@@ -1743,15 +1777,25 @@ function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void)
     head.appendChild(name);
     head.appendChild(count);
     head.appendChild(buildCategoryAddButton(entry, cat, seg, onChange));
+    if (movable && real.length) makeCategoryHeadDraggable(head, real);
     seg.appendChild(head);
     if (groupTags.length){
       const chiprow = document.createElement('div');
       chiprow.className = 'chiprow';
-      for (const tag of real) chiprow.appendChild(buildChip(entry, tag, onChange, tagIndex));
+      for (const tag of real){
+        const chip = buildChip(entry, tag, onChange, tagIndex);
+        if (movable) makeChipMovable(chip, tag, onChange);
+        chiprow.appendChild(chip);
+      }
       for (const tag of groupTags) if (ghostByTag.has(tag)) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(tag)!, onChange));
       seg.appendChild(chiprow);
     }
     wrap.appendChild(seg);
+    if (cat === 'character'){
+      subjects.forEach((subject, i) => {
+        wrap.appendChild(buildSubjectBlock(entry, subject, i, bySubject.get(subject.id) || [], tagIndex, onChange, ghostByTag));
+      });
+    }
   }
   return wrap;
 }
@@ -1827,54 +1871,156 @@ function nextSubjectId(): string {
   return 'subj-' + Date.now().toString(36) + '-' + (subjectIdCounter++).toString(36);
 }
 
+// A section's label: its name, or "Character N" (its position) when blank.
+function subjectLabel(subject: TagSubject, index: number): string {
+  return subject.name.trim() || `Character ${index + 1}`;
+}
+
 function buildAddSubjectButton(entry: Entry, onChange: () => void): HTMLElement {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'tagsub-addsubject';
-  btn.textContent = '＋ Add subject';
-  btn.title = 'Split this image\'s tags into named subjects (e.g. Girl 1, Girl 2)';
+  btn.textContent = '＋ Add character';
+  btn.title = 'Add an empty character section under Character, then move categories or tags into it';
   btn.addEventListener('click', () => {
     const meta = ensureEntryMeta(entry);
     const subjects = meta.tagSubjects || (meta.tagSubjects = []);
-    subjects.push({ id: nextSubjectId(), name: `Subject ${subjects.length + 1}`, subheaders: [] });
+    subjects.push({ id: nextSubjectId(), name: `Character ${subjects.length + 1}` });
     persistEntryMeta(entry);
     onChange();
   });
   return btn;
 }
 
-function assignTagsToSubject(entry: Entry, tags: Iterable<string>, subjectId: string): void {
+// "Load character ▾": the dataset's saved presets, plus a way to delete them.
+function buildLoadPresetButton(entry: Entry, onChange: () => void): HTMLElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'tagsub-addsubject';
+  setIconLabel(btn, 'Load character ▾');
+  btn.title = 'Load a character saved in this dataset; its tags on this image move into its section';
+  btn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    document.querySelectorAll('.tagsub-picker').forEach((el) => el.remove());
+    const menu = document.createElement('div');
+    menu.className = 'ctx-menu tagsub-picker';
+    const header = document.createElement('div');
+    header.className = 'ctx-header';
+    header.textContent = 'Load character';
+    menu.appendChild(header);
+    for (const preset of subjectPresets){
+      addContextMenuItem(menu, `${preset.name} (${preset.tags.length})`, () => {
+        menu.remove();
+        loadSubjectPreset(entry, preset);
+        onChange();
+      });
+    }
+    const delHeader = document.createElement('div');
+    delHeader.className = 'ctx-header';
+    delHeader.textContent = 'Delete a saved character';
+    menu.appendChild(delHeader);
+    for (const preset of subjectPresets){
+      addContextMenuItem(menu, `✕ ${preset.name}`, () => {
+        menu.remove();
+        void showConfirmModal(`Delete the saved character "${preset.name}" from this dataset? Sections already loaded on images keep their tags.`, { okLabel: 'Delete', danger: true }).then((ok) => {
+          if (!ok) return;
+          deleteSubjectPreset(preset.id);
+          onChange();
+        });
+      });
+    }
+    document.body.appendChild(menu);
+    const r = btn.getBoundingClientRect();
+    positionMenu(menu, r.left, r.bottom + 4);
+    const onOutside = (e: MouseEvent): void => {
+      if (!menu.contains(e.target as Node)){ menu.remove(); document.removeEventListener('click', onOutside, true); }
+    };
+    setTimeout(() => document.addEventListener('click', onOutside, true), 0);
+  });
+  return btn;
+}
+
+// Loading a preset reuses the image's section already linked to it (or adds
+// one), then vacuums every preset tag the image has into it, from the main
+// field or another section. Missing ones show there as ghost offers.
+function loadSubjectPreset(entry: Entry, preset: SubjectPreset): void {
+  const meta = ensureEntryMeta(entry);
+  const subjects = meta.tagSubjects || (meta.tagSubjects = []);
+  let subject = subjects.find(s => s.presetId === preset.id);
+  if (!subject){
+    subject = { id: nextSubjectId(), name: preset.name, presetId: preset.id };
+    subjects.push(subject);
+  }
+  const present = preset.tags.filter(t => entry.tags.includes(t));
+  assignTagsToSubject(entry, present, subject.id);
+  const missing = preset.tags.length - present.length;
+  toast(`Moved ${present.length} tag${present.length === 1 ? '' : 's'} into ${subjectLabel(subject, subjects.indexOf(subject))}` +
+    (missing ? `; ${missing} saved tag${missing === 1 ? '' : 's'} not on this image ${missing === 1 ? 'is' : 'are'} offered there.` : '.'), 3600);
+}
+
+function saveSubjectAsPreset(entry: Entry, subject: TagSubject, index: number, onChange: () => void): void {
+  const assign = entry.meta?.tagAssign || {};
+  const tags = entry.tags.filter(t => assign[t] === subject.id);
+  if (!tags.length){ toast('Move some tags into this character first, then save it.', 3200); return; }
+  const preset = upsertSubjectPreset(subjectLabel(subject, index), tags);
+  subject.presetId = preset.id;
+  persistEntryMeta(entry);
+  toast(`Saved "${preset.name}" (${tags.length} tags) to this dataset. Load it on any image from "Load character".`, 3600);
+  onChange();
+}
+
+// subjectId null = back to the main field.
+function assignTagsToSubject(entry: Entry, tags: Iterable<string>, subjectId: string | null): void {
   const meta = ensureEntryMeta(entry);
   const assign = meta.tagAssign || (meta.tagAssign = {});
-  for (const t of tags) assign[t] = subjectId;
+  for (const t of tags){
+    if (subjectId) assign[t] = subjectId; else delete assign[t];
+  }
   persistEntryMeta(entry);
 }
 
-function buildSubjectTree(entry: Entry, ordered: string[], tagIndex: TagIndex, onChange: () => void, ghostByTag: Map<string, GhostTag> = new Map()): HTMLElement {
-  const meta = ensureEntryMeta(entry);
-  const subjects = meta.tagSubjects as TagSubject[];
-  const assign = meta.tagAssign || (meta.tagAssign = {});
-  if (subjectSelectionBase !== entry.base){ subjectSelectionBase = entry.base; subjectSelectedTags = new Set(); }
+// Chips and category headers drag under their own type, so a drop target
+// only reacts to Tag Sorting moves.
+const SUBJECT_DRAG_TYPE = 'application/x-dts-subject-tags';
 
-  const validIds = new Set(subjects.map((s) => s.id));
-  const defaultId = subjects[0].id;
-  const bySubject = new Map<string, Map<string, string[]>>();
-  for (const tag of [...ordered, ...ghostByTag.keys()]){
-    const sid = assign[tag] && validIds.has(assign[tag]) ? assign[tag] : defaultId;
-    let cats = bySubject.get(sid);
-    if (!cats){ cats = new Map(); bySubject.set(sid, cats); }
-    const cat = categorizeTag(tag);
-    const list = cats.get(cat);
-    if (list) list.push(tag); else cats.set(cat, [tag]);
-  }
+function draggedSubjectTags(ev: DragEvent): string[] {
+  return (ev.dataTransfer?.getData(SUBJECT_DRAG_TYPE) || '').split('\n').filter(Boolean);
+}
 
-  const root = document.createElement('div');
-  root.className = 'tagsub-tree';
-  if (subjectSelectedTags.size) root.appendChild(buildMoveToolbar(entry, subjects, onChange));
-  for (const subject of subjects){
-    root.appendChild(buildSubjectBlock(entry, subject, bySubject.get(subject.id), tagIndex, onChange, ghostByTag));
-  }
-  return root;
+function startSubjectDrag(ev: DragEvent, tags: string[]): void {
+  if (!ev.dataTransfer) return;
+  ev.dataTransfer.setData(SUBJECT_DRAG_TYPE, tags.join('\n'));
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.stopPropagation();
+}
+
+// A chip that can be dragged to a section / the main field, or shift-clicked
+// into the selection the "Move tags to:" bar acts on.
+function makeChipMovable(chip: HTMLElement, tag: string, onChange: () => void): void {
+  chip.classList.add('tagsub-chip');
+  if (subjectSelectedTags.has(tag)) chip.classList.add('tagsub-selected');
+  chip.draggable = true;
+  chip.addEventListener('dragstart', (ev) => {
+    startSubjectDrag(ev, subjectSelectedTags.has(tag) ? Array.from(subjectSelectedTags) : [tag]);
+  });
+  // Capture phase so shift-click toggles selection instead of opening the
+  // tag's context menu (buildChip's own click handler sits on the label).
+  chip.addEventListener('click', (ev) => {
+    if (!ev.shiftKey) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (subjectSelectedTags.has(tag)) subjectSelectedTags.delete(tag);
+    else subjectSelectedTags.add(tag);
+    onChange();
+  }, true);
+}
+
+// Dragging a category header carries every (real) tag under it.
+function makeCategoryHeadDraggable(head: HTMLElement, tags: string[]): void {
+  head.draggable = true;
+  head.classList.add('tagsub-draghead');
+  head.title = `Drag to move all ${tags.length} tag${tags.length === 1 ? '' : 's'} at once`;
+  head.addEventListener('dragstart', (ev) => startSubjectDrag(ev, tags));
 }
 
 function buildMoveToolbar(entry: Entry, subjects: TagSubject[], onChange: () => void): HTMLElement {
@@ -1888,18 +2034,20 @@ function buildMoveToolbar(entry: Entry, subjects: TagSubject[], onChange: () => 
   const flyout = document.createElement('div');
   flyout.className = 'tagsub-moveflyout';
   flyout.style.display = 'none';
-  for (const s of subjects){
+  const target = (label: string, subjectId: string | null): void => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.textContent = s.name || '(unnamed)';
+    b.textContent = label;
     b.addEventListener('click', () => {
       const tags = Array.from(subjectSelectedTags);
       subjectSelectedTags = new Set();
-      assignTagsToSubject(entry, tags, s.id);
+      assignTagsToSubject(entry, tags, subjectId);
       onChange();
     });
     flyout.appendChild(b);
-  }
+  };
+  subjects.forEach((s, i) => target(subjectLabel(s, i), s.id));
+  target('Main field', null);
 
   const moveBtn = document.createElement('button');
   moveBtn.type = 'button';
@@ -1919,23 +2067,29 @@ function buildMoveToolbar(entry: Entry, subjects: TagSubject[], onChange: () => 
   return bar;
 }
 
-function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, string[]> | undefined, tagIndex: TagIndex, onChange: () => void, ghostByTag: Map<string, GhostTag> = new Map()): HTMLElement {
+// One character section: its name, then its tags grouped by category (only
+// categories it holds), then — when loaded from a preset — the preset's tags
+// this image doesn't have, as click-to-add offers.
+function buildSubjectBlock(entry: Entry, subject: TagSubject, index: number, tags: string[], tagIndex: TagIndex, onChange: () => void, ghostByTag: Map<string, GhostTag>): HTMLElement {
   const block = document.createElement('div');
   block.className = 'tagsub-subject';
-  const dropHere = (ev: DragEvent): void => {
+  block.addEventListener('dragover', (ev) => {
+    if (!ev.dataTransfer?.types.includes(SUBJECT_DRAG_TYPE)) return;
     ev.preventDefault();
     ev.stopPropagation();
+    block.classList.add('drop-hover');
+  });
+  block.addEventListener('dragleave', (ev) => { if (!block.contains(ev.relatedTarget as Node)) block.classList.remove('drop-hover'); });
+  block.addEventListener('drop', (ev) => {
+    const dropped = draggedSubjectTags(ev);
     block.classList.remove('drop-hover');
-    const payload = ev.dataTransfer?.getData('text/plain') || '';
-    const tags = payload.split('\n').filter(Boolean);
-    if (!tags.length) return;
+    if (!dropped.length) return;
+    ev.preventDefault();
+    ev.stopPropagation();
     subjectSelectedTags = new Set();
-    assignTagsToSubject(entry, tags, subject.id);
+    assignTagsToSubject(entry, dropped, subject.id);
     onChange();
-  };
-  block.addEventListener('dragover', (ev) => { ev.preventDefault(); block.classList.add('drop-hover'); });
-  block.addEventListener('dragleave', () => block.classList.remove('drop-hover'));
-  block.addEventListener('drop', dropHere);
+  });
 
   const head = document.createElement('div');
   head.className = 'tagsub-subject-head';
@@ -1943,8 +2097,9 @@ function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, 
   nameInput.type = 'text';
   nameInput.className = 'tagsub-name';
   nameInput.value = subject.name;
-  nameInput.title = 'Name this subject (e.g. Girl 1)';
-  nameInput.setAttribute('aria-label', 'Subject name');
+  nameInput.placeholder = `Character ${index + 1}`;
+  nameInput.title = 'Name this character';
+  nameInput.setAttribute('aria-label', 'Character name');
   nameInput.addEventListener('keydown', (ev) => ev.stopPropagation());
   nameInput.addEventListener('input', () => { subject.name = nameInput.value; });
   nameInput.addEventListener('change', () => persistEntryMeta(entry));
@@ -1953,121 +2108,90 @@ function buildSubjectBlock(entry: Entry, subject: TagSubject, cats: Map<string, 
 
   const actions = document.createElement('div');
   actions.className = 'tagsub-head-actions';
-  const addSub = document.createElement('button');
-  addSub.type = 'button';
-  addSub.textContent = '＋ Subheader';
-  addSub.title = 'Add a category subheader under this subject';
-  addSub.addEventListener('click', (ev) => { ev.stopPropagation(); openSubheaderPicker(entry, subject, ev.clientX, ev.clientY, onChange); });
-  actions.appendChild(addSub);
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.textContent = subject.presetId && subjectPresetById(subject.presetId) ? 'Update saved' : 'Save';
+  save.title = 'Save this character and its tags to the dataset, to load on other images';
+  save.addEventListener('click', () => saveSubjectAsPreset(entry, subject, index, onChange));
+  actions.appendChild(save);
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'tagsub-del';
   setIconLabel(del, '✕');
-  del.title = 'Remove this subject (its tags fall back to the first subject)';
+  del.title = 'Remove this section (its tags go back to the main field)';
   del.addEventListener('click', () => removeSubject(entry, subject.id, onChange));
   actions.appendChild(del);
   head.appendChild(actions);
   block.appendChild(head);
 
-  const present = cats || new Map<string, string[]>();
-  const catIds = new Set<string>([...present.keys(), ...subject.subheaders]);
-  const orderedCats = TAG_CATEGORY_ORDER.filter((c) => catIds.has(c));
-  if (!orderedCats.length){
+  const preset = subjectPresetById(subject.presetId);
+  const offers = preset ? preset.tags.filter(t => !entry.tags.includes(t)) : [];
+  if (!tags.length && !offers.length){
     const empty = document.createElement('div');
     empty.className = 'tagsub-empty';
-    empty.textContent = 'No tags here yet — drag chips onto this subject, or add a subheader.';
+    empty.textContent = 'Empty. Drag a category header or chips here from the fields around it.';
     block.appendChild(empty);
     return block;
   }
-  for (const cat of orderedCats){
+  for (const group of groupTagsByCategory(tags)){
+    const real = group.tags.filter(t => !ghostByTag.has(t));
     const sub = document.createElement('div');
     sub.className = 'tagsub-sub';
-    sub.addEventListener('dragover', (ev) => { ev.preventDefault(); });
-    sub.addEventListener('drop', dropHere);
     const subHead = document.createElement('div');
     subHead.className = 'tagsub-sub-head';
     const catName = document.createElement('span');
     catName.className = 'tagsub-cat';
-    catName.textContent = TAG_CATEGORY_LABELS[cat] || cat;
+    catName.textContent = TAG_CATEGORY_LABELS[group.id];
     const countEl = document.createElement('span');
     countEl.className = 'tagsub-count';
-    const all = present.get(cat) || [];
-    const tags = all.filter(t => !ghostByTag.has(t));
-    const catGhosts = all.filter(t => ghostByTag.has(t));
-    countEl.textContent = String(tags.length);
+    countEl.textContent = String(real.length);
     subHead.appendChild(catName);
     subHead.appendChild(countEl);
-    subHead.appendChild(buildCategoryAddButton(entry, cat as TagCategoryId, sub, onChange, subject.id));
+    subHead.appendChild(buildCategoryAddButton(entry, group.id, sub, onChange, subject.id));
+    if (real.length) makeCategoryHeadDraggable(subHead, real);
     sub.appendChild(subHead);
 
     const chiprow = document.createElement('div');
     chiprow.className = 'chiprow';
-    if (!tags.length && !catGhosts.length){
-      const none = document.createElement('span');
-      none.className = 'tagsub-empty';
-      none.textContent = '—';
-      chiprow.appendChild(none);
-    }
-    for (const tag of tags){
+    for (const tag of real){
       const chip = buildChip(entry, tag, onChange, tagIndex);
-      chip.classList.add('tagsub-chip');
-      if (subjectSelectedTags.has(tag)) chip.classList.add('tagsub-selected');
-      chip.draggable = true;
-      chip.addEventListener('dragstart', (ev) => {
-        const payload = subjectSelectedTags.has(tag) ? Array.from(subjectSelectedTags).join('\n') : tag;
-        ev.dataTransfer?.setData('text/plain', payload);
-        if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
-      });
-      // Capture phase so shift-click toggles selection instead of opening the
-      // tag's context menu (buildChip's own click handler sits on the label).
-      chip.addEventListener('click', (ev) => {
-        if (!ev.shiftKey) return;
-        ev.preventDefault();
-        ev.stopPropagation();
-        if (subjectSelectedTags.has(tag)) subjectSelectedTags.delete(tag);
-        else subjectSelectedTags.add(tag);
-        onChange();
-      }, true);
+      makeChipMovable(chip, tag, onChange);
       chiprow.appendChild(chip);
     }
-    for (const t of catGhosts) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(t)!, onChange));
+    for (const t of group.tags) if (ghostByTag.has(t)) chiprow.appendChild(buildGhostChip(entry, ghostByTag.get(t)!, onChange));
+    sub.appendChild(chiprow);
+    block.appendChild(sub);
+  }
+  if (offers.length){
+    const sub = document.createElement('div');
+    sub.className = 'tagsub-sub';
+    const subHead = document.createElement('div');
+    subHead.className = 'tagsub-sub-head';
+    const label = document.createElement('span');
+    label.className = 'tagsub-cat';
+    label.textContent = `Saved, not on this image`;
+    subHead.appendChild(label);
+    sub.appendChild(subHead);
+    const chiprow = document.createElement('div');
+    chiprow.className = 'chiprow';
+    for (const t of offers){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip tagsub-offer';
+      b.textContent = '+ ' + t;
+      b.title = `Add "${t}" to this image, in this character`;
+      b.addEventListener('click', () => {
+        addTagToEntry(entry, t);
+        if (entry.tags.includes(t)) assignTagsToSubject(entry, [t], subject.id);
+        onChange();
+        refreshRightPanels();
+      });
+      chiprow.appendChild(b);
+    }
     sub.appendChild(chiprow);
     block.appendChild(sub);
   }
   return block;
-}
-
-function openSubheaderPicker(entry: Entry, subject: TagSubject, x: number, y: number, onChange: () => void): void {
-  document.querySelectorAll('.tagsub-picker').forEach((el) => el.remove());
-  const menu = document.createElement('div');
-  menu.className = 'ctx-menu tagsub-picker';
-  const header = document.createElement('div');
-  header.className = 'ctx-header';
-  header.textContent = 'Add subheader';
-  menu.appendChild(header);
-  let any = false;
-  for (const cat of TAG_CATEGORY_ORDER){
-    if (subject.subheaders.includes(cat)) continue;
-    any = true;
-    addContextMenuItem(menu, TAG_CATEGORY_LABELS[cat] || cat, () => {
-      subject.subheaders.push(cat);
-      persistEntryMeta(entry);
-      menu.remove();
-      onChange();
-    });
-  }
-  if (!any){
-    const none = document.createElement('div');
-    none.className = 'ctx-item';
-    none.textContent = 'All categories added';
-    menu.appendChild(none);
-  }
-  document.body.appendChild(menu);
-  positionMenu(menu, x, y);
-  const onOutside = (ev: MouseEvent): void => {
-    if (!menu.contains(ev.target as Node)){ menu.remove(); document.removeEventListener('click', onOutside, true); }
-  };
-  setTimeout(() => document.addEventListener('click', onOutside, true), 0);
 }
 
 function removeSubject(entry: Entry, subjectId: string, onChange: () => void): void {
