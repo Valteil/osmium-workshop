@@ -377,14 +377,14 @@ function showWd14ReviewModal(rows: Wd14ReviewRow[]): Promise<Wd14AcceptedRow[] |
 }
 
 function commitTags(accepted: Wd14AcceptedRow[]): void {
-  const affected: { base: string; prevTags: string[]; newTags: string[] }[] = [];
+  const affected: { base: string; original?: boolean; prevTags: string[]; newTags: string[] }[] = [];
   for (const { entry, tags } of accepted){
     const prevTags = entry.tags.slice();
     const newTags = Array.from(new Set(tags));
     if (newTags.length === prevTags.length && newTags.every((t, i) => t === prevTags[i])) continue;
     entry.tags = newTags;
     markDirty(entry);
-    affected.push({ base: entry.base, prevTags, newTags: newTags.slice() });
+    affected.push({ base: entry.base, original: entry.original || undefined, prevTags, newTags: newTags.slice() });
   }
   if (affected.length === 0){ toast('No tag changes to apply.'); return; }
   const summary = `WD14-tagged ${affected.length} image(s).`;
@@ -662,7 +662,7 @@ export function initWd14Tagger(deps: Wd14TaggerDeps): void {
 
   btnWd14TagSelected.addEventListener('click', () => {
     if (running) { cancelRequested = true; return; }
-    const entries = getEntries().filter(e => masterSelectedImages.has(e.base) && !e.disabled && !e.meta?.locked);
+    const entries = getEntries().filter(e => masterSelectedImages.has(e) && !e.meta?.locked);
     runBatch(entries);
   });
 }
