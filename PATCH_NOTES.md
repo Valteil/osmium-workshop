@@ -23,8 +23,9 @@ v1.9.0 before this, download it again.
 - **Generate queues**: pressing Generate while a generation is running queues another one with
   the settings as they are at that moment. Queued generations run one after another; the status
   line shows how many are waiting, and Stop ends the current one and clears the queue. In
-  SynthDat Overseer the result on screen stays until the next one arrives, so you can Accept or
-  Reject it while the next generates.
+  SynthDat Overseer nothing is auto-rejected any more: results that finish while you're still
+  deciding on one wait their turn, and each Accept or Reject shows the next. Generation carries
+  on in the meantime.
 
 ### Comfy Bridge
 
