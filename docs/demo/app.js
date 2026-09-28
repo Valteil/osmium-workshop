@@ -385,6 +385,7 @@
   var synthDatVaeDatalist = $("synthDatVaeDatalist");
   var synthDatMainLora = $("synthDatMainLora");
   var synthDatMainLoraDatalist = $("synthDatMainLoraDatalist");
+  var synthDatMainLoraStrength = $("synthDatMainLoraStrength");
   var synthDatLoraDatalist = $("synthDatLoraDatalist");
   var synthDatLoraStackRows = $("synthDatLoraStackRows");
   var btnSynthDatAddLora = $("btnSynthDatAddLora");
@@ -9554,6 +9555,8 @@ Content-Type: application/octet-stream\r
     prompt["16"].inputs.text = cfg.negative;
     prompt["41"].inputs.unet_name = cfg.diffModel;
     prompt["51"].inputs.lora_name = cfg.mainLora.trim() || cfg.noLoraStandIn;
+    const mainStrength = parseFloat(cfg.mainLoraStrength ?? "");
+    if (Number.isFinite(mainStrength)) prompt["248"].inputs.strength_model = mainStrength;
     if (cfg.clip) {
       prompt["249"].inputs.clip_name = cfg.clip;
       prompt["47:45"].inputs.clip_name = cfg.clip;
@@ -10806,6 +10809,7 @@ Image: ${entry.imgName}`,
         clip: synthDatClip.value,
         vae: synthDatVae.value,
         mainLora: synthDatMainLora.value,
+        mainLoraStrength: synthDatMainLoraStrength.value,
         loraRows: loraRows.map((r) => ({ lora: r.input.value, strength: r.strength.value })),
         lliteStrength: synthDatLLLiteStrength.value,
         lliteStartPercent: synthDatLLLiteStartPercent.value,
@@ -10854,6 +10858,7 @@ Image: ${entry.imgName}`,
     synthDatClip.value = "";
     synthDatVae.value = "";
     synthDatMainLora.value = "";
+    synthDatMainLoraStrength.value = "1";
     synthDatLoraStackRows.innerHTML = "";
     loraRows = [];
     synthDatLLLiteStrength.value = "1";
@@ -10913,6 +10918,7 @@ Image: ${entry.imgName}`,
     synthDatClip.value = saved.clip || "";
     synthDatVae.value = saved.vae || "";
     synthDatMainLora.value = saved.mainLora || "";
+    synthDatMainLoraStrength.value = saved.mainLoraStrength != null ? saved.mainLoraStrength : "1";
     synthDatLLLiteStrength.value = saved.lliteStrength != null ? saved.lliteStrength : 1;
     synthDatLLLiteStartPercent.value = saved.lliteStartPercent != null ? saved.lliteStartPercent : 0;
     synthDatLLLiteEndPercent.value = saved.lliteEndPercent != null ? saved.lliteEndPercent : 0.3;
@@ -11939,6 +11945,7 @@ Image: ${entry.imgName}`,
       negative: fieldValue(synthDatNegative),
       diffModel: synthDatDiffModel.value,
       mainLora: synthDatMainLora.value,
+      mainLoraStrength: synthDatMainLoraStrength.value,
       clip: synthDatClip.value,
       vae: synthDatVae.value,
       loraRows: loraRows.map((r) => ({ input: r.input.value, strength: r.strength.value })),
@@ -12312,6 +12319,7 @@ Image: ${entry.imgName}`,
       synthDatClip,
       synthDatVae,
       synthDatMainLora,
+      synthDatMainLoraStrength,
       synthDatLLLiteStrength,
       synthDatLLLiteStartPercent,
       synthDatLLLiteEndPercent,

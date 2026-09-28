@@ -84,6 +84,7 @@ const vae = $<HTMLInputElement>('vae');
 const vaeList = $<HTMLElement>('vaeList');
 const mainLora = $<HTMLInputElement>('mainLora');
 const mainLoraList = $<HTMLElement>('mainLoraList');
+const mainLoraStrength = $<HTMLInputElement>('mainLoraStrength');
 const btnRefreshModels = $<HTMLButtonElement>('btnRefreshModels');
 
 const loraStackRows = $<HTMLDivElement>('loraStackRows');
@@ -766,6 +767,7 @@ function buildPrompt(): any {
     negative: fieldValue(negative),
     diffModel: diffModel.value,
     mainLora: mainLora.value,
+    mainLoraStrength: mainLoraStrength.value,
     clip: clip.value,
     vae: vae.value,
     loraRows: loraRows.map(r => ({ input: r.input.value, strength: r.strength.value })),
@@ -979,7 +981,7 @@ btnGenerate.addEventListener('click', generate);
 // whatever was already sitting in those fields from before the import,
 // silently mixing old and new settings.
 const RESET_TEXT_FIELDS: (HTMLInputElement | HTMLTextAreaElement)[] = [
-  diffModel, clip, vae, mainLora,
+  diffModel, clip, vae, mainLora, mainLoraStrength,
   lliteStrength, lliteStartPercent, lliteEndPercent,
   unifiedPrompt, global_, character, characterTrigger, rating, hair, face, chest, body_,
   clothes, limbs, sexual, pose, scene, effects, extra, negative,
@@ -1020,6 +1022,7 @@ function applyImportedPrompt(prompt: Record<string, any>): void {
   }
   if (s('41', 'unet_name')) diffModel.value = s('41', 'unet_name');
   if (s('51', 'lora_name') && s('51', 'lora_name') !== 'None' && s('51', 'lora_name') !== 'Anima-n') mainLora.value = s('51', 'lora_name');
+  if (s('248', 'strength_model')) mainLoraStrength.value = s('248', 'strength_model');
   if (s('249', 'clip_name')) clip.value = s('249', 'clip_name');
   if (s('47:46', 'vae_name')) vae.value = s('47:46', 'vae_name');
 

@@ -22,7 +22,7 @@ import {
   synthDatResizedPreview, synthDatResizedPreviewLabel, btnSynthDatPickImage, btnSynthDatInterrogate,
   synthDatWd14Result, synthDatTagAssign, btnSynthDatMigratePose, synthDatDiffModel, synthDatUnetDatalist,
   synthDatClip, synthDatClipDatalist, synthDatVae, synthDatVaeDatalist,
-  synthDatMainLora, synthDatMainLoraDatalist, synthDatLoraDatalist,
+  synthDatMainLora, synthDatMainLoraDatalist, synthDatMainLoraStrength, synthDatLoraDatalist,
   synthDatLoraStackRows, btnSynthDatAddLora, btnSynthDatRefreshModels, btnSynthDatConnect, synthDatConnStatus,
   synthDatLLLiteStrength, synthDatLLLiteStartPercent, synthDatLLLiteEndPercent, synthDatLLLitePreserveWrapper,
   synthDatResizeFit, synthDatResizeMethod, synthDatSampler, synthDatScheduler,
@@ -152,6 +152,7 @@ async function saveSettings(): Promise<void> {
       body: synthDatBody.value, clothes: synthDatClothes.value, limbs: synthDatLimbs.value, sexual: synthDatSexual.value, pose: synthDatPose.value,
       scene: synthDatScene.value, effects: synthDatEffects.value, extra: synthDatExtra.value, negative: synthDatNegative.value,
       diffModel: synthDatDiffModel.value, clip: synthDatClip.value, vae: synthDatVae.value, mainLora: synthDatMainLora.value,
+      mainLoraStrength: synthDatMainLoraStrength.value,
       loraRows: loraRows.map(r => ({ lora: r.input.value, strength: r.strength.value })),
       lliteStrength: synthDatLLLiteStrength.value, lliteStartPercent: synthDatLLLiteStartPercent.value,
       lliteEndPercent: synthDatLLLiteEndPercent.value, llitePreserveWrapper: synthDatLLLitePreserveWrapper.checked,
@@ -177,7 +178,7 @@ function resetSettingsToDefault(){
   synthDatRating.value = ''; synthDatHair.value = ''; synthDatFace.value = ''; synthDatChest.value = '';
   synthDatBody.value = ''; synthDatClothes.value = ''; synthDatLimbs.value = ''; synthDatSexual.value = ''; synthDatPose.value = '';
   synthDatScene.value = ''; synthDatEffects.value = ''; synthDatExtra.value = ''; synthDatNegative.value = '';
-  synthDatDiffModel.value = ''; synthDatClip.value = ''; synthDatVae.value = ''; synthDatMainLora.value = '';
+  synthDatDiffModel.value = ''; synthDatClip.value = ''; synthDatVae.value = ''; synthDatMainLora.value = ''; synthDatMainLoraStrength.value = '1';
   synthDatLoraStackRows.innerHTML = ''; loraRows = [];
   synthDatLLLiteStrength.value = '1'; synthDatLLLiteStartPercent.value = '0'; synthDatLLLiteEndPercent.value = '0.3';
   synthDatLLLitePreserveWrapper.checked = true;
@@ -210,6 +211,7 @@ async function loadSettingsFromFile(){
   synthDatExtra.value = saved.extra || ''; synthDatNegative.value = saved.negative || '';
   synthDatDiffModel.value = saved.diffModel || ''; synthDatClip.value = saved.clip || ''; synthDatVae.value = saved.vae || '';
   synthDatMainLora.value = saved.mainLora || '';
+  synthDatMainLoraStrength.value = saved.mainLoraStrength != null ? saved.mainLoraStrength : '1';
   synthDatLLLiteStrength.value = saved.lliteStrength != null ? saved.lliteStrength : 1;
   synthDatLLLiteStartPercent.value = saved.lliteStartPercent != null ? saved.lliteStartPercent : 0;
   synthDatLLLiteEndPercent.value = saved.lliteEndPercent != null ? saved.lliteEndPercent : 0.3;
@@ -1197,6 +1199,7 @@ function buildPromptFromFields(): SynthDatPrompt {
     negative: fieldValue(synthDatNegative),
     diffModel: synthDatDiffModel.value,
     mainLora: synthDatMainLora.value,
+    mainLoraStrength: synthDatMainLoraStrength.value,
     clip: synthDatClip.value,
     vae: synthDatVae.value,
     loraRows: loraRows.map(r => ({ input: r.input.value, strength: r.strength.value })),
@@ -1649,7 +1652,7 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   btnSynthDatPromptPanelClose.addEventListener('click', closeSynthDatPromptPanel);
 
   [
-    synthDatHost, synthDatDiffModel, synthDatClip, synthDatVae, synthDatMainLora, synthDatLLLiteStrength,
+    synthDatHost, synthDatDiffModel, synthDatClip, synthDatVae, synthDatMainLora, synthDatMainLoraStrength, synthDatLLLiteStrength,
     synthDatLLLiteStartPercent, synthDatLLLiteEndPercent, synthDatLLLitePreserveWrapper,
     synthDatResizeMethod,
     synthDatSampler, synthDatScheduler, synthDatSteps1, synthDatCfg1, synthDatSteps2, synthDatUse2Pass,

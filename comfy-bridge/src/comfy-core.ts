@@ -88,6 +88,9 @@ export interface SynthDatPromptConfig {
   limbs: string; sexual: string; pose: string; extra: string; effects: string; scene: string;
   negative: string;
   diffModel: string; mainLora: string; clip: string; vae: string;
+  // Main LoRA weight (node 248's strength_model). Optional: blank or
+  // unparseable keeps the template's 1.
+  mainLoraStrength?: string;
   loraRows: SynthDatLoraRow[];
   noLoraStandIn: string;
   skipRefImage: boolean;
@@ -124,6 +127,9 @@ export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromp
   // An empty string isn't a valid value for this combo input, so leaving Main
   // LoRA blank to mean "skip it" sent ComfyUI something it rejected outright.
   prompt['51'].inputs.lora_name = cfg.mainLora.trim() || cfg.noLoraStandIn;
+  // #51 only names the LoRA; #248 (LoraLoaderModelOnly) applies it.
+  const mainStrength = parseFloat(cfg.mainLoraStrength ?? '');
+  if (Number.isFinite(mainStrength)) prompt['248'].inputs.strength_model = mainStrength;
   // The template has two CLIPLoader nodes (249, 47:45) both loading the same
   // file — kept in sync here rather than exposed as two separate fields.
   if (cfg.clip) { prompt['249'].inputs.clip_name = cfg.clip; prompt['47:45'].inputs.clip_name = cfg.clip; }

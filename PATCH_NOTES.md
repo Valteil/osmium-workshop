@@ -17,6 +17,13 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Change tag category**: right-click a tag ▸ Change tag category to move it to another category
   when the automatic sorting gets it wrong. It applies on every image and in every dataset;
   **Automatic** in the same row undoes it.
+- **Main LoRA weight** (SynthDat Overseer): a field under Main LoRA sets how strongly it's applied
+  (1 = full, as before). Saved per dataset like the other settings.
+
+### Comfy Bridge
+
+- **Main LoRA weight** (Windows and Android): a field under Main LoRA sets how strongly it's
+  applied (1 = full, as before). Importing a PNG brings its weight back too.
 
 ---
 

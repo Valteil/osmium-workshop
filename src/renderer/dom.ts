@@ -276,6 +276,7 @@ export const synthDatVae = $<HTMLInputElement>('synthDatVae');
 export const synthDatVaeDatalist = $('synthDatVaeDatalist');
 export const synthDatMainLora = $<HTMLInputElement>('synthDatMainLora');
 export const synthDatMainLoraDatalist = $('synthDatMainLoraDatalist');
+export const synthDatMainLoraStrength = $<HTMLInputElement>('synthDatMainLoraStrength');
 export const synthDatLoraDatalist = $('synthDatLoraDatalist');
 export const synthDatLoraStackRows = $('synthDatLoraStackRows');
 export const btnSynthDatAddLora = $<HTMLButtonElement>('btnSynthDatAddLora');
