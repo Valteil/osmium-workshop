@@ -225,6 +225,12 @@
     position:relative; z-index:2;
     display:grid; grid-template-columns:1.1fr 0.9fr; gap:40px; align-items:center;
   }
+  /* "Next version": on main, not in the current release download yet. */
+  .next-tag{
+    display:inline-block; font-family:var(--f-mono); font-size:0.72rem; letter-spacing:0.03em;
+    color:var(--ink-soft); border:1px solid var(--line-strong); border-radius:999px;
+    padding:1px 8px; margin-right:4px; vertical-align:0.08em; white-space:nowrap;
+  }
   .kicker-chip{
     display:inline-flex; align-items:center; gap:8px;
     font-family:var(--f-mono); font-size:0.78rem; letter-spacing:0.03em;
@@ -707,6 +713,7 @@
     <nav class="links">
       <a href="#demo">Look inside</a>
       <a href="#features">Toolset</a>
+      <a href="#bridge">Comfy Bridge</a>
       <a href="#apps">Three apps</a>
     </nav>
     <div class="nav-ctas">
@@ -756,7 +763,7 @@
           <span><strong>Every edit</strong> logged and undoable.</span>
           <span><strong>Zero</strong> telemetry.</span>
         </div>
-        <p class="hero-gen-note">Tagging needs nothing beyond this app. Generation (<strong>SynthDat Overseer</strong>, <strong>Comfy Bridge</strong>) is separate: both run on a bundled workflow built around Anima, a diffusion model by Circlestone Labs, and need a running ComfyUI instance. Other model families will probably load, but expect weird results outside of Anima.</p>
+        <p class="hero-gen-note">Tagging needs nothing beyond this app. Generation (<strong>SynthDat Overseer</strong>, <strong>Comfy Bridge</strong>) is separate: both run on a bundled workflow built around Anima, a diffusion model by Circlestone Labs, and need ComfyUI: a running server, or (on Windows) your own install, which they start for you. Other model families will probably load, but expect weird results outside of Anima.</p>
       </div>
       <div class="hero-art" aria-hidden="true">
         <svg class="lattice" viewBox="0 0 250 250">
@@ -1003,6 +1010,7 @@
         <div class="conn-copy">
           <h3>SynthDat Overseer — grow a thin dataset (needs ComfyUI)</h3>
           <p>Only have five good images of a character? Train a quick first-pass LoRA on what you've got, then point SynthDat at it to generate more, ControlNet-posed off one reference. That's how you grow the dataset for a stronger second pass. It pulls pose tags from the reference automatically, runs a 1- or 2-pass generation, and shows you the result before anything gets written. <strong>Accept</strong> puts it straight in the dataset. <strong>Reject</strong> parks it in Disabled instead of throwing it away.</p>
+          <p>No need to keep ComfyUI open, either: point Osmium at your install and it starts it itself, loading only what this workflow needs (<strong>Local ComfyUI</strong>). Press Generate again while one's running to queue more; every result waits its turn for your Accept or Reject, nothing gets thrown out behind your back. <span class="next-tag">Next version</span> A <strong>Main LoRA weight</strong> field.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-synthdat" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -1186,6 +1194,140 @@
     </div>
   </section>
 
+  <!-- ============ COMFY BRIDGE ============ -->
+  <!-- Screenshots: solid-colour "generations", fake model names and
+       placeholder addresses (100.64.0.7 / 192.168.0.20), captured from the
+       real Bridge UI with a stubbed API. See notes/Apps/Website.md. -->
+  <section id="bridge">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Comfy Bridge: just the image</h2>
+        <p>ComfyUI is great until you have to wrangle a node graph to make one picture. Comfy Bridge puts SynthDat's workflow behind a plain form: prompt fields, models, a LoRA stack, 1 or 2 passes, an optional upscale, and every result saved straight to a folder you pick, named the way ComfyUI names it. Windows and Android.</p>
+      </div>
+
+      <div class="conn-row">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
+            <rect x="34" y="70" width="60" height="60" rx="4"/><rect x="118" y="80" width="48" height="40" rx="3"/>
+            <line x1="94" y1="100" x2="118" y2="100"/>
+          </g>
+          <circle cx="64" cy="100" r="6" fill="var(--blue)"/>
+          <g fill="var(--green)"><circle cx="132" cy="100" r="3.4"/><circle cx="142" cy="100" r="3.4"/><circle cx="152" cy="100" r="3.4"/></g></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>Runs your own ComfyUI install, no server</h3>
+          <p>Set <strong>Run on</strong> to <strong>Local ComfyUI</strong>, choose your ComfyUI folder and hit Connect. The Bridge starts that install itself, loading only what its workflow needs instead of every custom node you've got, and its ComfyUI Terminal shows what it's doing. Press Generate again while one's running and it queues, with the settings as they were when you pressed it. <span class="next-tag">Next version</span> <strong>Persist Comfy</strong> keeps it open with the models loaded after you close the Bridge, so the next session starts instantly.</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-local" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
+        </div>
+      </div>
+
+      <div class="conn-steps" id="steps-bridge-local">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-view multi"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:3">
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-1-local-comfyui.png" data-w="1920" data-h="1000" data-alt="Comfy Bridge with Run on set to Local ComfyUI, a ComfyUI folder chosen, Persist Comfy ticked and Local ComfyUI 0.37.0 running, beside the prompt fields." data-cap="Point it at your ComfyUI folder and Connect. It runs your install itself."><span class="node" aria-hidden="true"></span><span class="st-name">Connect</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-2-queue.png" data-w="376" data-h="470" data-alt="The Generate panel reading Generating, step 14 of 25, 2 queued, with a live preview." data-cap="Hit Generate a few times. They queue and run one after another, with a live preview."><span class="node" aria-hidden="true"></span><span class="st-name">Queue a few</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-3-result.png" data-w="376" data-h="810" data-alt="A finished generation as three slides, Pass 1, Pass 2 and Upscaled, while the next queued one runs." data-cap="Each result comes back as Pass 1, Pass 2 and Upscaled, all saved, while the next one runs."><span class="node" aria-hidden="true"></span><span class="st-name">Results</span></button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+
+      <div class="conn-row rev">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
+            <rect x="28" y="72" width="62" height="44" rx="3"/><line x1="44" y1="126" x2="74" y2="126"/>
+            <rect x="138" y="66" width="30" height="56" rx="5"/>
+          </g>
+          <path d="M92 94 C110 80, 120 80, 136 94" fill="none" stroke="var(--blue)" stroke-width="1.6" stroke-dasharray="3 4"/>
+          <circle cx="59" cy="94" r="4" fill="var(--blue)"/><circle cx="153" cy="94" r="4" fill="var(--green)"/></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>Generate from your phone <span class="next-tag">Next version</span></h3>
+          <p>The Android app talks to any ComfyUI you can reach. Tick <strong>Let the phone app use it</strong> under Local ComfyUI and the Bridge on your PC lists the addresses to use (your Tailscale one first) and serves it to the phone like a ComfyUI server: generate, stop, queue, live preview, and the PC's ComfyUI output right in the phone's terminal panel. It works away from home over your tailnet. There's no password, same as ComfyUI's own <code>--listen</code>, so keep it to networks you trust.</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-phone" data-n="2"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in two steps</span></button>
+        </div>
+      </div>
+
+      <div class="conn-steps" id="steps-bridge-phone">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-view multi"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:2">
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-phone-1-share.png" data-w="340" data-h="450" data-alt="The desktop Bridge's Connection section with Let the phone app use it ticked on port 8189, listing a Tailscale address and a Wi-Fi address for the phone." data-cap="On the PC, tick Let the phone app use it. The Bridge lists the address to type in."><span class="node" aria-hidden="true"></span><span class="st-name">Share it</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-phone-2-connected.png" data-w="412" data-h="915" data-alt="The Comfy Bridge Android app connected to the PC's address on port 8189, generating step 9 of 25 with one more queued." data-cap="On the phone, enter that address. It generates on your PC like any ComfyUI server."><span class="node" aria-hidden="true"></span><span class="st-name">Connect the phone</span></button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+
+      <div class="conn-row">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
+            <path d="M100 62 c-12-9-28-13-48-13 v90 c20 0 36 4 48 13 c12-9 28-13 48-13 v-90 c-20 0-36 4-48 13z"/><line x1="100" y1="62" x2="100" y2="152"/>
+          </g>
+          <g fill="var(--blue)"><circle cx="70" cy="84" r="3"/><circle cx="70" cy="100" r="3"/><circle cx="70" cy="116" r="3"/></g>
+          <circle cx="130" cy="100" r="5" fill="var(--green)"/></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>Tag wiki, right beside your prompt <span class="next-tag">Next version</span></h3>
+          <p>Not sure what a tag actually means before you prompt with it? The <strong>Wiki</strong> button opens the same definition window as Osmium Workshop: search as you type, post counts, See also links, and your own notes for tags without an entry. The definitions ship with the app, so it works offline, on desktop and on the phone.</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-wiki" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show the screen</span></button>
+        </div>
+      </div>
+
+      <div class="conn-steps" id="steps-bridge-wiki">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-view"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:1" hidden>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-wiki.png" data-w="650" data-h="938" data-alt="The Tag wiki window showing the definition of twintails with its post count, and a list of suggested tags beside it for the query twin." data-cap="Definitions, post counts and suggestions, beside whatever you're writing."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+
+      <div class="conn-row rev">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
+            <rect x="40" y="56" width="120" height="88" rx="4"/>
+          </g>
+          <g stroke="var(--ink-soft)" stroke-width="1.3"><line x1="54" y1="78" x2="118" y2="78"/><line x1="54" y1="94" x2="140" y2="94"/><line x1="54" y1="110" x2="104" y2="110"/></g>
+          <rect x="54" y="122" width="10" height="6" fill="var(--green)"/></svg>
+        </div>
+        <div class="conn-copy">
+          <h3>See what ComfyUI is doing</h3>
+          <p>The Log keeps the Bridge's own story (queued, saved, failed), and the <strong>ComfyUI Terminal</strong> shows ComfyUI's actual output, live while it generates, whether that's a server or your own install.</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-term" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show the screen</span></button>
+        </div>
+      </div>
+
+      <div class="conn-steps" id="steps-bridge-term">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-view"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:1" hidden>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-terminal.png" data-w="386" data-h="560" data-alt="The Bridge's Log listing queued and saved generations, above the ComfyUI Terminal showing Local ComfyUI's output and a progress bar." data-cap="The Log, and ComfyUI's own output underneath."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ VISUAL CUSTOMIZABILITY ============ -->
   <section id="customization">
     <div class="wrap">
@@ -1256,7 +1398,7 @@
           </div>
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--blue)"></span><h3>Comfy Bridge</h3></div>
-            <p>A simpler ComfyUI web UI with one built-in workflow, for when you just want the image without wrangling a node graph. Desktop and Android.</p>
+            <p>A simpler ComfyUI web UI with one built-in workflow, for when you just want the image without wrangling a node graph. Runs your own ComfyUI install for you on Windows, and the Android app can generate on it from anywhere on your tailnet. <a href="#bridge">More below ↑</a></p>
             <div class="app-item-ctas">
               <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-desktop" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Windows</a>
               <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-android" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>

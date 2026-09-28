@@ -79,6 +79,13 @@ input[type=text],input[type=number],select,textarea{
 }
 textarea{resize:none;min-height:28px;overflow-y:hidden;}
 .row{display:flex;gap:8px;align-items:center;margin:6px 0;}
+/* Local ComfyUI rows in the narrow left column: the labels stay on one
+   line, and the folder path drops under its button instead of squeezing it. */
+#backendRow label{white-space:nowrap;}
+#backendRow select{flex:1;min-width:0;}
+#localFields{flex-wrap:wrap;}
+#btnPickComfyFolder{white-space:nowrap;}
+#comfyFolderLabel{flex-basis:100%;overflow-wrap:anywhere;font-size:12px;}
 .reso-row{align-items:flex-end;}
 .reso-row > div{flex:1;}
 button{
