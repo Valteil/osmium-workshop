@@ -1269,52 +1269,107 @@ function clearObjectUrlOn(el: HTMLImageElement): void {
   if (prev){ URL.revokeObjectURL(prev); el.removeAttribute('data-object-url'); el.removeAttribute('src'); }
 }
 
+// ---- Generation queue ----
+// Generate never blocks: it snapshots the prompt, reference and tag list as
+// they are at that moment and queues the job; jobs run one at a time, in
+// order. A result replaces the one on screen only when it arrives, so the
+// user can Accept/Reject one image while the next generates; an undecided
+// one is auto-rejected then (autoRejectPendingIfAny). Stop ends the running
+// job and drops the queue.
+interface GenJob {
+  host: string;
+  prompt: ReturnType<typeof buildPromptFromFields>;
+  imageFilename: string | null;
+  imageBytes: Uint8Array | null;
+  tagSnapshot: string[];
+}
+const genQueue: GenJob[] = [];
+let genRunning = false;
+let genStopped = false;
+
+// Accept, Reject and a result arriving all commit/replace the pending image;
+// run them one after another so one can't write the same image twice.
+let commitChain: Promise<unknown> = Promise.resolve();
+function serialized<T>(fn: () => Promise<T>): Promise<T> {
+  const next = commitChain.then(fn, fn);
+  commitChain = next.catch(() => undefined);
+  return next;
+}
+
+function queueNote(): string {
+  return genQueue.length ? ` · ${genQueue.length} queued` : '';
+}
+
+function updateQueueUI(): void {
+  btnSynthDatStop.disabled = !genRunning;
+  btnSynthDatGenerate.title = genRunning ? 'Queue another generation with the current settings' : '';
+}
+
 async function generate(): Promise<void> {
   const skipRefImage = synthDatSkipRefImage.checked;
   if (!skipRefImage && !refFile){ toast('Pick a reference image first (or check "I don\'t want to use a reference image").'); return; }
   const dirHandle = getDirHandle();
   if (!dirHandle){ toast('Open a dataset folder first.'); return; }
-  await autoRejectPendingIfAny();
   await loadTemplate();
-  const host = getHost();
-  const prompt = buildPromptFromFields();
-  const bytes = skipRefImage ? null : new Uint8Array(await refFile!.arrayBuffer());
   // Snapshot the tag list from the same field values buildPromptFromFields()
   // just read — this becomes the tag card's frozen contents if generation
-  // succeeds, independent of any further field edits made while it's running.
-  const tagSnapshot = baseTagList();
+  // succeeds, independent of any further field edits made while it's queued
+  // or running.
+  genQueue.push({
+    host: getHost(),
+    prompt: buildPromptFromFields(),
+    imageFilename: skipRefImage ? null : refFilename,
+    imageBytes: skipRefImage ? null : new Uint8Array(await refFile!.arrayBuffer()),
+    tagSnapshot: baseTagList()
+  });
+  if (genRunning){
+    toast(`Queued (${genQueue.length} waiting).`);
+    setGenStatus((synthDatGenStatus.textContent || 'Generating…').replace(/ · \d+ queued$/, '') + queueNote());
+    return;
+  }
+  genRunning = true;
+  genStopped = false;
+  updateQueueUI();
+  try {
+    while (genQueue.length && !genStopped) await runGenJob(genQueue.shift()!);
+  } finally {
+    genRunning = false;
+    genQueue.length = 0;
+    updateQueueUI();
+  }
+}
 
-  btnSynthDatGenerate.disabled = true;
-  btnSynthDatStop.disabled = false;
-  btnSynthDatAccept.disabled = true;
-  btnSynthDatReject.disabled = true;
-  btnSynthDatReinterrogateOutput.disabled = true;
-  synthDatReinterrogateResult.style.display = 'none';
+function stopGeneration(): void {
+  genStopped = true;
+  const dropped = genQueue.length;
+  genQueue.length = 0;
+  if (dropped) toast(`Dropped ${dropped} queued generation${dropped === 1 ? '' : 's'}.`);
+  window.electronAPI.synthdatStopGeneration(getHost());
+}
+
+async function runGenJob(job: GenJob): Promise<void> {
   clearObjectUrlOn(synthDatLivePreview);
   synthDatLivePreviewWrap.style.display = 'none';
-  pendingTagSnapshot = null;
-  excludedTags = new Set();
-  mergedTagOverrides = new Map();
-  markedVoidTags = new Set();
-  renderTagCard();
-  setGenStatus('Generating… this can take a while.');
+  setGenStatus('Generating… this can take a while.' + queueNote());
 
   const res = await window.electronAPI.synthdatQueueAndFetch({
-    host,
-    imageFilename: skipRefImage ? null : refFilename,
-    imageBytes: bytes,
-    prompt
+    host: job.host,
+    imageFilename: job.imageFilename,
+    imageBytes: job.imageBytes,
+    prompt: job.prompt
   });
 
-  btnSynthDatGenerate.disabled = false;
-  btnSynthDatStop.disabled = true;
   synthDatLivePreviewWrap.style.display = 'none';
   if (!res.ok){
     if (res.interrupted) toast('Generation stopped.');
-    setGenStatus(res.interrupted ? '' : (res.error || 'Generation failed.'));
+    setGenStatus(res.interrupted ? '' : (res.error || 'Generation failed.') + queueNote());
     return;
   }
-  setGenStatus('');
+  setGenStatus(genQueue.length && !genStopped ? `Done${queueNote()}` : '');
+  await serialized(async () => { await autoRejectPendingIfAny(); showGenResult(res, job.tagSnapshot); });
+}
+
+function showGenResult(res: { imageBytes?: Uint8Array; pass1ImageBytes?: Uint8Array }, tagSnapshot: string[]): void {
   previewBytes = res.imageBytes || null;
   pendingBase = `synth_${Date.now().toString(36)}`;
   pendingImgName = `${pendingBase}.png`;
@@ -1619,7 +1674,7 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
     synthDatLivePreviewWrap.style.display = 'flex';
   });
   window.electronAPI.onSynthdatProgress((_event, { value, max }) => {
-    setGenStatus(`Generating… step ${value}/${max}`);
+    setGenStatus(`Generating… step ${value}/${max}${queueNote()}`);
   });
 
   btnSynthDatPickImage.addEventListener('click', pickReferenceImage);
@@ -1653,9 +1708,9 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   attachPickerModal(synthDatVae, 'VAE', () => datalistOptions(synthDatVaeDatalist));
   attachPickerModal(synthDatMainLora, 'Main LoRA', () => datalistOptions(synthDatMainLoraDatalist));
   btnSynthDatGenerate.addEventListener('click', generate);
-  btnSynthDatStop.addEventListener('click', () => window.electronAPI.synthdatStopGeneration(getHost()));
-  btnSynthDatAccept.addEventListener('click', acceptImage);
-  btnSynthDatReject.addEventListener('click', rejectImage);
+  btnSynthDatStop.addEventListener('click', stopGeneration);
+  btnSynthDatAccept.addEventListener('click', () => serialized(acceptImage));
+  btnSynthDatReject.addEventListener('click', () => serialized(rejectImage));
   synthDatPickPass1.addEventListener('click', () => selectPass(1));
   synthDatPickPass2.addEventListener('click', () => selectPass(2));
   btnSynthDatReinterrogateOutput.addEventListener('click', reinterrogateOutput);

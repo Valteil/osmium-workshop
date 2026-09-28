@@ -39,15 +39,10 @@ export interface SynthdatQueuePayload {
   prompt: SynthDatPrompt;
 }
 
-// Local ComfyUI (src/comfy-local.ts): the chosen folder and whether it
-// resolves to a usable install (ComfyUI + its Python + the DSM pack).
-export interface ComfyLocalStatus {
-  folder: string;
-  ok: boolean;
-  error?: string;
-  python?: string;
-  running: boolean;
-}
+// Local ComfyUI (src/comfy-local.ts): defined in shared-types so Comfy
+// Bridge's synced copy has it too.
+import type { ComfyLocalStatus } from './shared-types';
+export type { ComfyLocalStatus };
 
 export interface ExportAppStateResult {
   ok: boolean;

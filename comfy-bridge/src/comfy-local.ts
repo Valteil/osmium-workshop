@@ -1,3 +1,6 @@
+// GENERATED FILE — do not edit. Synced from ../../src/comfy-local.ts by
+// scripts/sync-comfy-core.js. Edit the root file and re-run the sync.
+
 // Local ComfyUI: SynthDat without a running ComfyUI server. The user points
 // Osmium at their ComfyUI folder once (Settings live in
 // userData/comfy-local.json); Osmium then launches

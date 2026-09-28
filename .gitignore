@@ -27,6 +27,7 @@ tauri-port/src-tauri/gen/
 comfy-bridge/main.js
 comfy-bridge/preload.js
 comfy-bridge/comfy-core.js
+comfy-bridge/comfy-local.js
 comfy-bridge/renderer/app.js
 comfy-bridge/renderer/shared.css
 comfy-bridge/renderer/fonts/

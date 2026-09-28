@@ -15,7 +15,24 @@ export interface ComfyResult<T = unknown> {
   tagsCsv?: string;
   imageBytes?: Uint8Array;
   pass1ImageBytes?: Uint8Array;
+  // Comfy Bridge: the upscaled branch, and each SaveImage's path under
+  // ComfyUI's output folder (the File Namer's scheme, mirrored on disk).
+  upscaledImageBytes?: Uint8Array;
+  saveRel?: string | null;
+  pass1SaveRel?: string | null;
+  upscaledSaveRel?: string | null;
   interrupted?: boolean;
+}
+
+// Local ComfyUI (src/comfy-local.ts, synced into Comfy Bridge): the chosen
+// folder and whether it resolves to a usable install (ComfyUI + its Python +
+// the DSM pack).
+export interface ComfyLocalStatus {
+  folder: string;
+  ok: boolean;
+  error?: string;
+  python?: string;
+  running: boolean;
 }
 
 export interface SynthDatPromptNode {
@@ -45,4 +62,23 @@ export interface Wd14LocalDownloadProgress {
   name: string;
   part: string;
   percent: number;
+}
+
+// ---- Aspect-ratio bucketing (src/bucket-local.ts) ----
+
+export interface BucketModelStatus {
+  present: boolean;
+  sizeBytes?: number;
+}
+
+export interface BucketDownloadProgress {
+  percent: number;
+}
+
+export interface BucketImageResult {
+  ok: boolean;
+  error?: string;
+  pngBytes?: Uint8Array;
+  bucket?: [number, number];
+  provider?: string;
 }

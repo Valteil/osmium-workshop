@@ -16,6 +16,13 @@ const https = require('https');
 const WS = require('ws');
 import { parseComboValues, uploadImage, queuePrompt, pollHistory, extractPngTextChunks as extractPngChunks } from './comfy-core';
 import type { ComfyTransport } from './comfy-core';
+import { configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop } from './comfy-local';
+
+// Local ComfyUI (comfy-local.ts, shared with Osmium): the Bridge launches the
+// user's own ComfyUI install headless instead of talking to a server. The
+// renderer passes LOCAL_COMFY_HOST ('local') as the host to use it.
+configureComfyLocal({ appName: 'Comfy Bridge', progressChannel: 'gen-progress', previewChannel: 'preview-frame' });
+registerComfyLocalHandlers(ipcMain);
 
 function createWindow() {
   const windowIcon = path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
@@ -211,6 +218,7 @@ const nodeComfyTransport: ComfyTransport = {
 };
 
 ipcMain.handle('synthdat-get-object-info', async (event, { host, classType, inputName }) => {
+  if (host === LOCAL_COMFY_HOST) return localObjectInfo(classType, inputName);
   try {
     const res = await comfyRequest(host, `/object_info/${encodeURIComponent(classType)}`, { timeoutMs: 6000 });
     if (res.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${res.status} looking up ${classType}.` };
@@ -226,6 +234,7 @@ ipcMain.handle('synthdat-get-object-info', async (event, { host, classType, inpu
 let activeGen: { cancelled: boolean; ws: any } | null = null;
 
 ipcMain.handle('synthdat-stop-generation', async (event, host) => {
+  if (host === LOCAL_COMFY_HOST) { localStop(); return { ok: true }; }
   if (activeGen) activeGen.cancelled = true;
   try { await comfyRequest(host, '/interrupt', { method: 'POST', timeoutMs: 5000 }); } catch (err) { /* best effort */ }
   return { ok: true };
@@ -235,6 +244,8 @@ ipcMain.handle('synthdat-stop-generation', async (event, host) => {
 // endpoint its own frontend's Logs panel reads (see the websocket
 // subscription below for the live-streaming half of this).
 ipcMain.handle('comfy-fetch-logs', async (event, { host }) => {
+  // Local ComfyUI has no server to ask: its output is in its own console window.
+  if (host === LOCAL_COMFY_HOST) return { ok: true, entries: [{ t: '', m: 'Local ComfyUI writes its output to its own console window ("Comfy Bridge - local ComfyUI").' }] };
   try {
     const res = await comfyRequest(host, '/internal/logs/raw', { timeoutMs: 8000 });
     if (res.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${res.status} fetching logs.` };
@@ -247,6 +258,7 @@ ipcMain.handle('comfy-fetch-logs', async (event, { host }) => {
 });
 
 ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, imageBytes, prompt }) => {
+  if (host === LOCAL_COMFY_HOST) return localGenerate(event.sender, prompt, imageBytes);
   let ws: any = null;
   try {
     if (imageBytes && prompt['239']) {

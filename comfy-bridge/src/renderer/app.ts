@@ -31,7 +31,12 @@ interface ElectronAPI {
   onPreviewFrame(callback: (event: unknown, data: { mime: string; bytes: Uint8Array }) => void): void;
   onGenProgress(callback: (event: unknown, data: { value: number; max: number }) => void): void;
   onComfyLog(callback: (event: unknown, entries: { t: string; m: string }[]) => void): void;
+  // Local ComfyUI (comfy-local.ts); absent on older preloads.
+  comfyLocalStatus?(): Promise<ComfyLocalStatus>;
+  comfyLocalPickFolder?(): Promise<ComfyLocalStatus>;
+  comfyLocalConnect?(): Promise<{ ok: boolean; comfyVersion?: string; error?: string }>;
 }
+interface ComfyLocalStatus { folder: string; ok: boolean; error?: string; python?: string; running: boolean; }
 declare global { interface Window { electronAPI: ElectronAPI; } }
 export {};
 
@@ -156,7 +161,42 @@ function log(msg: string): void {
   logBox.scrollTop = logBox.scrollHeight;
 }
 
-function getHost(): string { return (host.value || '').trim() || 'http://127.0.0.1:8188'; }
+// ---------------- Backend: ComfyUI server or Local ComfyUI ----------------
+// Local = the user's own ComfyUI install, launched by the Bridge (main
+// process comfy-local.ts, shared with Osmium) with only the workflow's nodes.
+// Every IPC call takes 'local' as the host to use it; nothing else differs.
+const LOCAL_HOST = 'local';
+const hasLocalComfy = typeof window.electronAPI.comfyLocalStatus === 'function';
+const backendRow = $<HTMLDivElement>('backendRow');
+const backend = $<HTMLSelectElement>('backend');
+const localFields = $<HTMLDivElement>('localFields');
+const btnPickComfyFolder = $<HTMLButtonElement>('btnPickComfyFolder');
+const comfyFolderLabel = $<HTMLSpanElement>('comfyFolderLabel');
+function isLocal(): boolean { return hasLocalComfy && backend.value === 'local'; }
+
+function getHost(): string { return isLocal() ? LOCAL_HOST : ((host.value || '').trim() || 'http://127.0.0.1:8188'); }
+
+function showLocalStatus(s: ComfyLocalStatus): void {
+  comfyFolderLabel.textContent = s.folder ? (s.ok ? s.folder : `${s.folder} — ${s.error}`) : 'No folder chosen';
+  comfyFolderLabel.style.color = s.folder && !s.ok ? 'var(--danger, #e06c6c)' : '';
+}
+function applyBackendUI(): void {
+  const local = isLocal();
+  localFields.style.display = local ? '' : 'none';
+  host.style.display = local ? 'none' : '';
+  btnConnect.textContent = local ? 'Connect' : 'Test';
+  btnConnect.title = local ? 'Start your ComfyUI install (opens its own console window)' : 'Check that the ComfyUI server answers';
+  if (local) window.electronAPI.comfyLocalStatus!().then(showLocalStatus).catch(() => {});
+}
+if (hasLocalComfy) {
+  backendRow.style.display = '';
+  backend.addEventListener('change', applyBackendUI);
+  btnPickComfyFolder.addEventListener('click', async () => {
+    const s = await window.electronAPI.comfyLocalPickFolder!();
+    showLocalStatus(s);
+    connStatus.style.display = 'none';
+  });
+}
 
 // ---------------- ComfyUI terminal (real stdout/stderr) ----------------
 // Same internal API ComfyUI's own frontend "Logs" panel uses: a one-shot
@@ -393,6 +433,17 @@ btnConnect.addEventListener('click', async () => {
   connStatus.style.display = 'block';
   connStatus.style.color = '';
   connStatus.textContent = 'Connecting…';
+  if (isLocal()) {
+    // Starts the runner (its console window appears after a few seconds;
+    // loading takes 15-60s), then fills the model lists from it.
+    connStatus.textContent = 'Starting local ComfyUI… its console window shows progress.';
+    const started = await window.electronAPI.comfyLocalConnect!();
+    if (!started.ok) { connStatus.textContent = started.error || 'Could not start local ComfyUI.'; return; }
+    connStatus.style.color = 'var(--accent-ok)';
+    connStatus.textContent = `✓ Local ComfyUI ${started.comfyVersion || ''} is running`;
+    btnRefreshModels.click();
+    return;
+  }
   const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'UNETLoader', inputName: 'unet_name' });
   if (res.ok) {
     connStatus.style.color = 'var(--accent-ok)';
@@ -548,6 +599,7 @@ function restoreUiState(): void {
   applyUse2PassUI();
   applyUpscaleUI();
   applyUnifiedPromptModeUI();
+  applyBackendUI();
   autoGrowAll();
 }
 let uiSaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -741,8 +793,16 @@ function buildPrompt(): any {
 }
 
 // ---------------- Generate ----------------
+// Generate never blocks: it snapshots the prompt, host and reference as they
+// are at that moment and queues the job; jobs run one at a time, in order.
+// Stop ends the running job and drops the queue.
 
-let generating = false;
+interface GenJob { host: string; prompt: any; imageFilename: string | null; imageBytes: Uint8Array | null; }
+const genQueue: GenJob[] = [];
+let genRunning = false;
+let genStopped = false;
+
+function queueNote(): string { return genQueue.length ? ` · ${genQueue.length} queued` : ''; }
 
 window.electronAPI.onPreviewFrame((_event, data) => {
   const blob = new Blob([data.bytes as BlobPart], { type: data.mime });
@@ -751,7 +811,7 @@ window.electronAPI.onPreviewFrame((_event, data) => {
 });
 window.electronAPI.onGenProgress((_event, data) => {
   if (!data || !data.max) return;
-  genStatus.textContent = `Generating… step ${data.value}/${data.max}`;
+  genStatus.textContent = `Generating… step ${data.value}/${data.max}${queueNote()}`;
 });
 
 async function saveBytes(bytes: Uint8Array, filename: string): Promise<boolean> {
@@ -830,34 +890,45 @@ previewCarousel.addEventListener('scroll', () => {
 });
 
 async function generate(): Promise<void> {
-  if (generating) return;
   if (!skipRefImage.checked && !refFile) { log('Pick a reference image first (or check "No reference image").'); return; }
   await loadTemplate();
-  generating = true;
-  btnGenerate.disabled = true;
+  genQueue.push({
+    host: getHost(),
+    prompt: buildPrompt(),
+    imageFilename: skipRefImage.checked ? null : refFilename,
+    imageBytes: skipRefImage.checked ? null : new Uint8Array(await refFile!.arrayBuffer())
+  });
+  if (genRunning) {
+    log(`Queued a generation (${genQueue.length} waiting).`);
+    genStatus.textContent = (genStatus.textContent || 'Generating…').replace(/ · \d+ queued$/, '') + queueNote();
+    return;
+  }
+  genRunning = true;
+  genStopped = false;
   btnStop.disabled = false;
+  btnGenerate.title = 'Queue another generation with the current settings';
+  try {
+    while (genQueue.length && !genStopped) await runGenJob(genQueue.shift()!);
+  } finally {
+    genRunning = false;
+    genQueue.length = 0;
+    btnStop.disabled = true;
+    btnGenerate.title = '';
+  }
+}
+
+async function runGenJob(job: GenJob): Promise<void> {
   livePreview.src = '';
   livePreviewWrap.style.display = 'none';
   genStatus.style.display = 'block';
-  genStatus.textContent = 'Generating… this can take a while.';
+  genStatus.textContent = 'Generating… this can take a while.' + queueNote();
 
-  const prompt = buildPrompt();
-  const bytes = skipRefImage.checked ? null : new Uint8Array(await refFile!.arrayBuffer());
+  const res = await window.electronAPI.synthdatQueueAndFetch(job);
 
-  const res = await window.electronAPI.synthdatQueueAndFetch({
-    host: getHost(),
-    imageFilename: skipRefImage.checked ? null : refFilename,
-    imageBytes: bytes,
-    prompt
-  });
-
-  generating = false;
-  btnGenerate.disabled = false;
-  btnStop.disabled = true;
   livePreviewWrap.style.display = 'none';
 
   if (!res.ok) {
-    genStatus.textContent = res.interrupted ? '' : (res.error || 'Generation failed.');
+    genStatus.textContent = res.interrupted ? '' : (res.error || 'Generation failed.') + queueNote();
     if (res.interrupted) { genStatus.style.display = 'none'; log('Generation stopped.'); }
     else log(res.error || 'Generation failed.');
     return;
@@ -1059,6 +1130,10 @@ btnImportGen.addEventListener('click', async () => {
   }
 });
 btnStop.addEventListener('click', async () => {
+  genStopped = true;
+  const dropped = genQueue.length;
+  genQueue.length = 0;
+  if (dropped) log(`Dropped ${dropped} queued generation${dropped === 1 ? '' : 's'}.`);
   await window.electronAPI.synthdatStopGeneration(getHost());
 });
 

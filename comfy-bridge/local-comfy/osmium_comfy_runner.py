@@ -1,3 +1,5 @@
+# GENERATED FILE - do not edit. Synced from ../../local-comfy/osmium_comfy_runner.py by
+# scripts/sync-comfy-core.js. Edit the root file and re-run the sync.
 """Osmium's local ComfyUI runner (SynthDat and Comfy Bridge without a running
 ComfyUI server).
 
