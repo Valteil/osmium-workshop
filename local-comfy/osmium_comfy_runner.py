@@ -26,6 +26,7 @@ Events:    {"event": "progress", "value", "max"} / {"event": "preview", "mime", 
 """
 import argparse
 import base64
+import gc
 import io
 import json
 import os
@@ -115,6 +116,27 @@ if os.name == "nt" and args.cuda_device is None and args.default_device is None 
         and os.environ.get("CUDA_VISIBLE_DEVICES") is None:
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # same single-GPU default as main.py
 import cuda_malloc  # noqa: E402,F401  (sets the allocator env before torch loads)
+if os.name == "nt":
+    os.environ["MIMALLOC_PURGE_DELAY"] = "0"  # as main.py
+
+# DynamicVRAM (comfy-aimdo), set up the way main.py does: this half before
+# torch loads, the device half after comfy.model_management below. Without it
+# models load through the legacy patcher, RAM pressure evicts the cached
+# loader outputs, and every generation reloads VAE, text encoder and UNet.
+from comfy.cli_args import enables_dynamic_vram  # noqa: E402
+try:
+    import comfy_aimdo.control  # noqa: E402
+except ImportError:
+    comfy_aimdo = None
+if comfy_aimdo is not None and enables_dynamic_vram():
+    _headroom = None if args.reserve_vram is None else int(args.reserve_vram * 1024 ** 3)
+    try:
+        comfy_aimdo.control.init(simple_vram_headroom=_headroom, nvml_pressure=not args.disable_nvml_pressure)
+    except TypeError:
+        try:
+            comfy_aimdo.control.init(simple_vram_headroom=_headroom)
+        except TypeError:
+            comfy_aimdo.control.init()
 
 import asyncio  # noqa: E402
 import logging  # noqa: E402
@@ -136,6 +158,34 @@ import nodes  # noqa: E402
 import comfyui_version  # noqa: E402
 from comfy_execution.progress import get_progress_state  # noqa: E402
 from comfy_execution.utils import get_executing_context  # noqa: E402
+
+import comfy.memory_management  # noqa: E402
+import comfy.model_patcher  # noqa: E402
+
+
+def setup_dynamic_vram():
+    """main.py's device half of the DynamicVRAM setup."""
+    mm = comfy.model_management
+    supported = mm.is_nvidia() or (mm.is_amd() and getattr(mm, "rocm_version", (0, 0)) >= (7, 14))
+    if comfy_aimdo is None or not (args.enable_dynamic_vram or (enables_dynamic_vram() and supported)):
+        return
+    if not args.enable_dynamic_vram and mm.torch_version_numeric < (2, 8):
+        return
+    devices = mm.get_all_torch_devices()
+    try:
+        ok = comfy_aimdo.control.init_devices((d.index, int(args.vram_headroom * 1024 ** 3)) for d in devices)
+    except TypeError:
+        ok = comfy_aimdo.control.init_devices(d.index for d in devices)
+    if ok:
+        comfy_aimdo.control.set_log_info()
+        comfy.model_patcher.CoreModelPatcher = comfy.model_patcher.ModelPatcherDynamic
+        comfy.memory_management.aimdo_enabled = True
+        logging.info("DynamicVRAM support detected and enabled")
+    else:
+        logging.warning("No working comfy-aimdo install detected. DynamicVRAM support disabled.")
+
+
+setup_dynamic_vram()
 
 if comfyui_version.__version__ != TESTED_COMFY_VERSION:
     say(f"Warning: built against ComfyUI {TESTED_COMFY_VERSION}, this is {comfyui_version.__version__}.")
@@ -388,6 +438,11 @@ def main():
             comfy.model_management.interrupt_current_processing(False)
         reply["id"] = req.get("id")
         send(reply)
+        if req.get("cmd") == "generate":
+            # After replying, like main.py's prompt_worker after a prompt.
+            # Cached node outputs (the loaded models) stay in the executor.
+            gc.collect()
+            comfy.model_management.soft_empty_cache()
     say("Osmium disconnected; exiting.")
 
 
