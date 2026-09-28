@@ -552,12 +552,22 @@ def is_link(v):
     return isinstance(v, list) and len(v) == 2 and isinstance(v[0], str)
 
 
+def is_capture(node):
+    """An output node whose image goes back to the app: every SaveImage, and a
+    PreviewImage that Comfy Bridge marked `_meta.capture` — its outputs when
+    the user wants no copy in ComfyUI's output folder (the image then only
+    exists in ComfyUI's temp folder until the Bridge saves it). The template's
+    own PreviewImages carry no mark and stay pruned as UI-only."""
+    ct = node.get("class_type")
+    return ct == "SaveImage" or (ct == "PreviewImage" and bool((node.get("_meta") or {}).get("capture")))
+
+
 def prepare(prompt):
-    """Prune every node the SaveImage nodes don't depend on (the UI-only
+    """Prune every node the captured outputs don't depend on (the UI-only
     PreviewImages). SaveImage runs as-is, filename chain included, exactly as
     it would on a ComfyUI server."""
     out = prompt
-    captures = [nid for nid, node in prompt.items() if node.get("class_type") == "SaveImage"]
+    captures = [nid for nid, node in prompt.items() if is_capture(node)]
     if not captures:
         raise ValueError("The workflow has no SaveImage node to return an image from.")
     keep, stack = set(), list(captures)

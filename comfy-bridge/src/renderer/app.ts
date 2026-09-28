@@ -1060,7 +1060,10 @@ function buildPrompt(): any {
   // and the Bridge's named file is the only one saved.
   if (outputIsComfyOutput.checked || !keepComfyCopy.checked) {
     for (const id of ['192', '192_pass1', '192_upscaled']) {
-      if (prompt[id]) prompt[id] = { class_type: 'PreviewImage', inputs: { images: prompt[id].inputs.images }, _meta: prompt[id]._meta };
+      // `_meta.capture` tells the Local ComfyUI runner these are the outputs
+      // to return (it otherwise only returns SaveImage and prunes previews as
+      // UI-only). ComfyUI itself ignores `_meta`.
+      if (prompt[id]) prompt[id] = { class_type: 'PreviewImage', inputs: { images: prompt[id].inputs.images }, _meta: { ...(prompt[id]._meta || {}), capture: true } };
     }
   }
   return prompt;
