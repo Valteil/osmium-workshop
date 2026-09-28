@@ -41,7 +41,12 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Persist Comfy** (Windows, Local ComfyUI): keeps Local ComfyUI running, with its models
   loaded, after you close Comfy Bridge. Next time, Connect picks it straight back up instead of
   loading again. To stop it, close its console window ("Comfy Bridge - local ComfyUI (stays
-  open)"). It takes effect the next time Local ComfyUI starts.
+  open)"). It takes effect the next time Local ComfyUI starts. With **Let the phone app use it**
+  on too, the kept-open ComfyUI serves the phone itself, so the phone keeps working after you
+  close Comfy Bridge (Connect once to start it).
+- **The phone no longer hangs on a wrong address or port**: after 45 seconds without an answer
+  it says so, and reminds you which port is which (8188 for a ComfyUI server, 8189 for a PC
+  sharing Local ComfyUI).
 
 ---
 

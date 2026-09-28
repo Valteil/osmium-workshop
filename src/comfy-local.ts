@@ -31,7 +31,11 @@ export const LOCAL_COMFY_HOST = 'local';
 // whether "Persist Comfy" is offered (Comfy Bridge only).
 const config = {
   appName: 'Osmium', progressChannel: 'synthdat-progress', previewChannel: 'synthdat-preview-frame',
-  allowPersist: false
+  allowPersist: false,
+  // Comfy Bridge hooks, for its phone sharing: the runner came up (or was
+  // reconnected to), and Persist Comfy was switched.
+  onStarted: null as null | (() => void),
+  onPersistChange: null as null | (() => void)
 };
 export function configureComfyLocal(c: Partial<typeof config>): void {
   Object.assign(config, c);
@@ -157,8 +161,32 @@ function start(): Promise<Reply> {
   if (ready) return ready;
   const resolved = resolveInstall(readFolder());
   if ('error' in resolved) return Promise.resolve({ ok: false, error: resolved.error });
-  ready = persistOn() ? startPersistent(resolved.install) : startPipe(resolved.install);
-  return ready;
+  const persistent = persistOn();
+  const r = persistent ? startPersistent(resolved.install) : startPipe(resolved.install);
+  ready = r;
+  r.then((res) => {
+    if (!res.ok || ready !== r) return;
+    connIsPersistent = persistent;
+    config.onStarted?.();
+  });
+  return r;
+}
+
+// Whether the live connection is to a kept-open (Persist Comfy) runner.
+let connIsPersistent = false;
+export function localIsPersistentConnection(): boolean {
+  return !!conn && connIsPersistent;
+}
+export function localPersistEnabled(): boolean {
+  return persistOn();
+}
+
+// Persist Comfy's phone sharing: the kept-open runner itself serves the
+// phone's ComfyUI API on `port` (0 = stop), so it keeps working after the app
+// closes. See the runner's ShareServer.
+export async function localSetShare(port: number): Promise<{ ok: boolean; error?: string; port?: number }> {
+  const r = await request('share', { port });
+  return { ok: r.ok, error: r.error || undefined, port: r.port as number | undefined };
 }
 
 function startPipe({ root, comfyDir, python }: Install): Promise<Reply> {
@@ -371,6 +399,7 @@ export function registerComfyLocalHandlers(ipcMain: IpcMain): void {
   // starts. A runner that's already open stays as it is.
   ipcMain.handle('comfy-local-set-persist', (_event, on: boolean) => {
     if (config.allowPersist) writeConfig({ persist: !!on });
+    config.onPersistChange?.();
     return status();
   });
   app.on('will-quit', stopRunner);

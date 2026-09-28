@@ -42,6 +42,7 @@ interface ElectronAPI {
 }
 interface RelayStatus {
   enabled: boolean; port: number; running: boolean; error: string;
+  servedBy?: 'bridge' | 'comfy';
   addresses: { ip: string; tailscale: boolean }[];
 }
 interface ComfyLocalStatus { folder: string; ok: boolean; error?: string; python?: string; running: boolean; persist?: boolean; }
@@ -223,11 +224,16 @@ function showRelayStatus(s: RelayStatus): void {
   if (s.error) { relayInfo.textContent = s.error; return; }
   const ts = s.addresses.filter((a) => a.tailscale).map((a) => `http://${a.ip}:${s.port}`);
   const lan = s.addresses.filter((a) => !a.tailscale).map((a) => `http://${a.ip}:${s.port}`);
+  const byComfy = s.servedBy === 'comfy';
   relayInfo.textContent = s.running
     ? `Phone: set its host to ${ts.length ? ts.join(' or ') + ' (Tailscale)' : lan[0] || `port ${s.port}`}` +
-      (ts.length && lan.length ? `, or ${lan.join(' / ')} on the same Wi-Fi` : '') +
-      '. Windows may ask to allow Comfy Bridge through the firewall.'
-    : 'Not running.';
+      (ts.length && lan.length ? `, or ${lan.join(' / ')} on the same Wi-Fi` : '') + '. ' +
+      (byComfy
+        ? 'Served by Local ComfyUI itself (Persist Comfy), so it keeps working after Comfy Bridge closes, until you close its window. Windows may ask to allow its Python through the firewall.'
+        : 'Windows may ask to allow Comfy Bridge through the firewall.')
+    : byComfy
+      ? 'With Persist Comfy on, Local ComfyUI serves the phone itself, even after Comfy Bridge closes. Click Connect to start it.'
+      : 'Not running.';
 }
 async function applyRelay(): Promise<void> {
   showRelayStatus(await window.electronAPI.comfyRelaySet!({ enabled: relayEnabled.checked, port: Number(relayPort.value) }));
@@ -503,6 +509,9 @@ btnConnect.addEventListener('click', async () => {
     connStatus.style.color = 'var(--accent-ok)';
     connStatus.textContent = `✓ Local ComfyUI ${started.comfyVersion || ''} is running`;
     btnRefreshModels.click();
+    // With Persist Comfy, connecting is what makes Local ComfyUI start serving
+    // the phone (main applies it right after the runner comes up).
+    if (hasRelay) setTimeout(() => window.electronAPI.comfyRelayStatus!().then(showRelayStatus).catch(() => {}), 1500);
     return;
   }
   const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'UNETLoader', inputName: 'unet_name' });

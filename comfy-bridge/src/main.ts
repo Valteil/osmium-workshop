@@ -16,7 +16,10 @@ const https = require('https');
 const WS = require('ws');
 import { parseComboValues, uploadImage, queuePrompt, pollHistory, extractPngTextChunks as extractPngChunks } from './comfy-core';
 import type { ComfyTransport } from './comfy-core';
-import { configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop, localLogs, onLocalLogs } from './comfy-local';
+import {
+  configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop, localLogs, onLocalLogs,
+  localPersistEnabled, localIsPersistentConnection, localSetShare
+} from './comfy-local';
 import { startRelay, stopRelay, relayState, relayAddresses } from './local-relay';
 
 // Local ComfyUI (comfy-local.ts, shared with Osmium): the Bridge launches the
@@ -41,18 +44,55 @@ function readRelayConfig(): { enabled: boolean; port: number } {
     return { enabled: !!c.enabled, port: Number(c.port) || DEFAULT_RELAY_PORT };
   } catch { return { enabled: false, port: DEFAULT_RELAY_PORT }; }
 }
-function relayStatus() {
+// Who serves the phone depends on Persist Comfy:
+// - off: this app's relay (local-relay.ts). It dies with the app.
+// - on: the kept-open runner itself (its ShareServer, switched with
+//   localSetShare), so the phone keeps working after the app closes. The app's
+//   relay stays off then (same port). The runner only shares once it's up:
+//   Connect once, then it serves the phone until its window is closed.
+let shareState = { running: false, error: '' };
+async function applyRelay(): Promise<void> {
   const cfg = readRelayConfig();
-  return { ...cfg, ...relayState(), addresses: relayAddresses() };
+  if (localPersistEnabled()) {
+    stopRelay();
+    if (localIsPersistentConnection()) {
+      const r = await localSetShare(cfg.enabled ? cfg.port : 0);
+      shareState = { running: cfg.enabled && r.ok, error: r.ok ? '' : (r.error || 'Could not share Local ComfyUI.') };
+    } else {
+      // Not connected (yet): a runner kept open from before may still be
+      // serving; report it as running if something answers on the port.
+      shareState = { running: cfg.enabled && await portAnswers(cfg.port), error: '' };
+    }
+  } else {
+    shareState = { running: false, error: '' };
+    if (cfg.enabled) await startRelay(cfg.port); else stopRelay();
+  }
+}
+function portAnswers(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const s = require('net').connect({ host: '127.0.0.1', port });
+    const done = (v: boolean) => { s.destroy(); resolve(v); };
+    s.once('connect', () => done(true));
+    s.once('error', () => done(false));
+    setTimeout(() => done(false), 800);
+  });
+}
+async function relayStatus() {
+  const cfg = readRelayConfig();
+  const byComfy = localPersistEnabled();
+  if (byComfy && !localIsPersistentConnection()) await applyRelay(); // refresh the port probe
+  const state = byComfy ? { ...shareState, port: cfg.port } : relayState();
+  return { ...cfg, ...state, servedBy: byComfy ? 'comfy' : 'bridge', addresses: relayAddresses() };
 }
 ipcMain.handle('comfy-relay-status', () => relayStatus());
 ipcMain.handle('comfy-relay-set', async (_event, { enabled, port }) => {
   const cfg = { enabled: !!enabled, port: Math.min(65535, Math.max(1024, Number(port) || DEFAULT_RELAY_PORT)) };
   fs.writeFileSync(RELAY_FILE(), JSON.stringify(cfg));
-  if (cfg.enabled) await startRelay(cfg.port); else stopRelay();
+  await applyRelay();
   return relayStatus();
 });
-app.whenReady().then(() => { const cfg = readRelayConfig(); if (cfg.enabled) startRelay(cfg.port); });
+configureComfyLocal({ onStarted: () => { applyRelay(); }, onPersistChange: () => { applyRelay(); } });
+app.whenReady().then(() => { applyRelay(); });
 app.on('will-quit', stopRelay);
 
 function createWindow() {

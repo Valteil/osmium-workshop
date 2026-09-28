@@ -489,16 +489,28 @@ declare const BridgeShared: {
   // parser that only understood the classic shape silently found nothing
   // for upscale models specifically while every other dropdown kept
   // working, on any host, dev machine included.
+  // A wrong port or an address that silently drops packets used to leave this
+  // fetch (and Test connection) hanging with no answer at all. 45s leaves room
+  // for a cold start of a PC's Local ComfyUI behind the Bridge (~25s).
+  const OBJECT_INFO_TIMEOUT_MS = 45000;
   async function comfyGetObjectInfo(classType: string, inputName: string): Promise<ObjectInfoResult> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), OBJECT_INFO_TIMEOUT_MS);
     try {
-      const res = await fetch(new URL('/object_info/' + encodeURIComponent(classType), getHost()));
+      const res = await fetch(new URL('/object_info/' + encodeURIComponent(classType), getHost()), { signal: ctrl.signal });
       if (!res.ok) return { ok: false, error: 'ComfyUI returned HTTP ' + res.status + ' looking up ' + classType + '.' };
       const parsed = await res.json();
       const values = BridgeShared.parseComboValues(parsed[classType], inputName);
       if (!Array.isArray(values)) return { ok: false, error: 'Could not find "' + inputName + '" on ' + classType + '.' };
       return { ok: true, values };
     } catch (err) {
+      if (ctrl.signal.aborted) {
+        return { ok: false, error: 'No answer from ' + getHost() + ' after ' + (OBJECT_INFO_TIMEOUT_MS / 1000) + 's. Check the address and port: '
+          + 'a ComfyUI server uses 8188, and a PC sharing Comfy Bridge\'s Local ComfyUI uses 8189 (not 8190, which only works on that PC).' };
+      }
       return { ok: false, error: 'Could not reach ComfyUI at ' + getHost() + (isLikelyCorsFailure(err) ? corsHint() : ' (' + errMsg(err) + ')') };
+    } finally {
+      clearTimeout(timer);
     }
   }
 

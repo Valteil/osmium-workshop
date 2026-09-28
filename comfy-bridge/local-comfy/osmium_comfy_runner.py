@@ -292,6 +292,13 @@ class StubServer:
 
 SERVER = StubServer()
 
+# The job queue the main loop works through: the app's requests, and (Persist
+# Comfy + phone sharing) the phone's /prompt jobs from the share server below.
+JOBS = queue.Queue()
+# The running job's phone client id when the job came from the share server,
+# so its progress/preview go to that phone's websocket instead of the app.
+_JOB_CLIENT = None
+
 
 def progress_hook(value, total, preview_image, prompt_id=None, node_id=None):
     ctx = get_executing_context()
@@ -299,7 +306,10 @@ def progress_hook(value, total, preview_image, prompt_id=None, node_id=None):
         node_id = ctx.node_id if ctx is not None else SERVER.last_node_id
     comfy.model_management.throw_exception_if_processing_interrupted()
     get_progress_state().update_progress(node_id, value, total, preview_image)
-    send({"event": "progress", "value": value, "max": total})
+    if _JOB_CLIENT is not None:
+        SHARE.to_client(_JOB_CLIENT, text=json.dumps({"type": "progress", "data": {"value": value, "max": total}}))
+    else:
+        send({"event": "progress", "value": value, "max": total})
     if preview_image is not None:
         fmt, img, max_size = preview_image
         try:
@@ -308,9 +318,233 @@ def progress_hook(value, total, preview_image, prompt_id=None, node_id=None):
                 img.thumbnail((max_size, max_size))
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=85)
-            send({"event": "preview", "mime": "image/jpeg", "b64": base64.b64encode(buf.getvalue()).decode("ascii")})
+            if _JOB_CLIENT is not None:
+                # ComfyUI's binary preview frame: event 1, image type 1 = JPEG.
+                SHARE.to_client(_JOB_CLIENT, binary=(1).to_bytes(4, "big") + (1).to_bytes(4, "big") + buf.getvalue())
+            else:
+                send({"event": "preview", "mime": "image/jpeg", "b64": base64.b64encode(buf.getvalue()).decode("ascii")})
         except Exception:  # a preview is never worth failing a generation over
             pass
+
+
+# ---- phone share server (Persist Comfy) -------------------------------------
+class ShareServer:
+    """The slice of ComfyUI's HTTP + websocket API the Comfy Bridge Android
+    app uses, served by this runner itself, so the phone keeps working after
+    Comfy Bridge closes (the app's own relay, local-relay.ts, dies with the
+    app). Same endpoints as local-relay.ts; started and stopped by the app's
+    "share" command. aiohttp is ComfyUI's own dependency. Binds 0.0.0.0 like
+    ComfyUI's --listen, with no auth; CORS is open for the phone's WebView."""
+
+    KEEP = 12
+
+    def __init__(self):
+        self.loop = None
+        self.runner = None
+        self.port = 0
+        self.sockets = {}      # client id -> WebSocketResponse
+        self.log_subs = set()  # client ids streaming the console
+        self.uploads = {}      # name -> bytes
+        self.history = {}      # prompt id -> /history record ({} while running)
+        self.views = {}        # "subfolder/filename" -> bytes
+        self.number = 0
+
+    def _ensure_loop(self):
+        if self.loop is None:
+            self.loop = asyncio.new_event_loop()
+            threading.Thread(target=self.loop.run_forever, daemon=True).start()
+
+    def start(self, port):
+        """(ok, error). Restarts on a different port; a no-op on the same one."""
+        if self.runner is not None and self.port == port:
+            return True, ""
+        self.stop()
+        self._ensure_loop()
+        try:
+            asyncio.run_coroutine_threadsafe(self._start(port), self.loop).result(15)
+        except OSError as err:
+            self.runner = None
+            return False, f"Port {port} is already in use." if getattr(err, "errno", None) in (98, 10048) else str(err)
+        except Exception as err:  # noqa: BLE001
+            self.runner = None
+            return False, str(err)
+        self.port = port
+        say(f"Serving the phone app on port {port} (every network this PC is on). It keeps working after {APP_NAME} closes.")
+        return True, ""
+
+    def stop(self):
+        if self.runner is None:
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(self.runner.cleanup(), self.loop).result(10)
+        except Exception:  # noqa: BLE001
+            pass
+        self.runner, self.port = None, 0
+        self.sockets.clear()
+        self.log_subs.clear()
+        say("Stopped serving the phone app.")
+
+    async def _start(self, port):
+        from aiohttp import web
+
+        @web.middleware
+        async def cors(request, handler):
+            if request.method == "OPTIONS":
+                resp = web.Response(status=204)
+            else:
+                try:
+                    resp = await handler(request)
+                except web.HTTPException as exc:
+                    resp = exc
+            if not getattr(resp, "prepared", False):
+                resp.headers["Access-Control-Allow-Origin"] = "*"
+                resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, OPTIONS"
+                resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            return resp
+
+        def err(status, message):
+            return web.json_response({"error": {"message": message}}, status=status)
+
+        async def object_info(request):
+            cls = request.match_info["cls"]
+            r = await asyncio.get_running_loop().run_in_executor(None, cmd_node_info, {"class_type": cls})
+            if not r.get("ok"):
+                return err(404, r.get("error", ""))
+            return web.json_response({cls: {"input": r["input"], "name": cls}})
+
+        async def upload(request):
+            data = await request.post()
+            f = data.get("image")
+            if f is None or not hasattr(f, "file"):
+                return err(400, "No image in the upload.")
+            name = (getattr(f, "filename", "") or "upload.png").replace("/", "_").replace("\\", "_")
+            self.uploads[name] = f.file.read()
+            while len(self.uploads) > self.KEEP:
+                self.uploads.pop(next(iter(self.uploads)))
+            return web.json_response({"name": name, "subfolder": "", "type": "input"})
+
+        async def prompt(request):
+            try:
+                body = await request.json()
+            except ValueError:
+                return err(400, "Invalid JSON.")
+            graph = body.get("prompt") if isinstance(body, dict) else None
+            if not isinstance(graph, dict):
+                return err(400, "No prompt in the request.")
+            ref = ((graph.get("239") or {}).get("inputs") or {}).get("image")
+            ref_bytes = self.uploads.get(ref) if isinstance(ref, str) else None
+            pid = str(uuid.uuid4())
+            self.history[pid] = {}
+            while len(self.history) > self.KEEP:
+                self.history.pop(next(iter(self.history)))
+            self.number += 1
+            JOBS.put({"cmd": "generate", "prompt": graph, "_http": pid, "_client": str(body.get("client_id") or ""),
+                      "image_b64": base64.b64encode(ref_bytes).decode("ascii") if ref_bytes else None})
+            return web.json_response({"prompt_id": pid, "number": self.number, "node_errors": {}})
+
+        async def history(request):
+            pid = request.match_info["pid"]
+            rec = self.history.get(pid)
+            return web.json_response({pid: rec} if rec else {})
+
+        async def view(request):
+            key = f"{request.query.get('subfolder', '')}/{request.query.get('filename', '')}"
+            data = self.views.get(key)
+            if data is None:
+                return err(404, "No such image.")
+            return web.Response(body=data, content_type="image/png")
+
+        async def interrupt(_request):
+            comfy.model_management.interrupt_current_processing(True)
+            return web.json_response({})
+
+        async def logs_raw(_request):
+            return web.json_response({"entries": list(app.logger.get_logs() or []), "size": {}})
+
+        async def logs_subscribe(request):
+            try:
+                body = await request.json()
+            except ValueError:
+                body = {}
+            cid = str(body.get("clientId") or "")
+            if cid:
+                (self.log_subs.discard if body.get("enabled") is False else self.log_subs.add)(cid)
+            return web.json_response({})
+
+        async def ws(request):
+            sock = web.WebSocketResponse()
+            await sock.prepare(request)
+            cid = request.query.get("clientId") or str(uuid.uuid4())
+            self.sockets[cid] = sock
+            await sock.send_str(json.dumps({"type": "status", "data": {"status": {"exec_info": {"queue_remaining": 0}}, "sid": cid}}))
+            try:
+                async for _msg in sock:  # the phone's feature_flags etc.: nothing to do
+                    pass
+            finally:
+                if self.sockets.get(cid) is sock:
+                    self.sockets.pop(cid, None)
+                    self.log_subs.discard(cid)
+            return sock
+
+        async def root(_request):
+            return web.json_response({"relay": f"{APP_NAME} Local ComfyUI", "system": {"comfyui_version": comfyui_version.__version__}})
+
+        webapp = web.Application(middlewares=[cors], client_max_size=64 * 1024 * 1024)
+        webapp.router.add_get("/object_info/{cls}", object_info)
+        webapp.router.add_post("/upload/image", upload)
+        webapp.router.add_post("/prompt", prompt)
+        webapp.router.add_get("/history/{pid}", history)
+        webapp.router.add_get("/view", view)
+        webapp.router.add_post("/interrupt", interrupt)
+        webapp.router.add_get("/internal/logs/raw", logs_raw)
+        webapp.router.add_route("PATCH", "/internal/logs/subscribe", logs_subscribe)
+        webapp.router.add_get("/ws", ws)
+        webapp.router.add_get("/", root)
+        webapp.router.add_get("/system_stats", root)
+        webapp.router.add_route("OPTIONS", "/{tail:.*}", root)
+        runner = web.AppRunner(webapp, access_log=None)
+        await runner.setup()
+        try:
+            await web.TCPSite(runner, "0.0.0.0", port).start()
+        except BaseException:
+            await runner.cleanup()
+            raise
+        self.runner = runner
+
+    def to_client(self, cid, text=None, binary=None):
+        sock = self.sockets.get(cid)
+        if sock is None or self.loop is None or sock.closed:
+            return
+        coro = sock.send_str(text) if text is not None else sock.send_bytes(binary)
+        asyncio.run_coroutine_threadsafe(coro, self.loop)
+
+    def logs(self, entries):
+        if not self.log_subs or self.loop is None:
+            return
+        msg = json.dumps({"type": "logs", "data": {"entries": entries, "size": {}}})
+        for cid in list(self.log_subs):
+            self.to_client(cid, text=msg)
+
+    def finish(self, pid, reply):
+        """A phone job's result -> its /history record (+ images for /view)."""
+        if not reply.get("ok"):
+            self.history[pid] = {"status": {"status_str": "error", "completed": False,
+                                            "messages": [["execution_error", {"exception_message": reply.get("error", "")}]]},
+                                 "outputs": {}}
+            return
+        outputs = {}
+        paths = reply.get("paths") or {}
+        for nid, b64 in (reply.get("images") or {}).items():
+            rel = (paths.get(nid) or f"{pid}_{nid}.png").replace("\\", "/")
+            sub, _, fname = rel.rpartition("/")
+            self.views[f"{sub}/{fname}"] = base64.b64decode(b64)
+            outputs[nid] = {"images": [{"filename": fname, "subfolder": sub, "type": "output"}]}
+        while len(self.views) > self.KEEP * 3:
+            self.views.pop(next(iter(self.views)))
+        self.history[pid] = {"status": {"status_str": "success", "completed": True, "messages": []}, "outputs": outputs}
+
+
+SHARE = ShareServer()
 
 
 # ---- prompt preparation ---------------------------------------------------
@@ -487,11 +721,16 @@ def main():
     comfy.utils.set_progress_bar_global_hook(progress_hook)
     # The console output ComfyUI's logger buffers (its /internal/logs on a
     # server): new lines go out as events, e.g. to a phone's ComfyUI Terminal.
-    app.logger.on_flush(lambda entries: entries and send({"event": "logs", "entries": entries}))
+    def on_logs(entries):
+        if entries:
+            send({"event": "logs", "entries": entries})
+            SHARE.logs(entries)
+
+    app.logger.on_flush(on_logs)
     say(f"Ready (ComfyUI {comfyui_version.__version__}, device {comfy.model_management.get_torch_device_name(comfy.model_management.get_torch_device())}).")
     ready = {"event": "ready", "comfy_version": comfyui_version.__version__, "comfy_dir": COMFY_DIR}
 
-    jobs = queue.Queue()
+    jobs = JOBS
 
     def reader(stream, on_end):
         for line in stream:
@@ -507,6 +746,14 @@ def main():
                 send({"id": req.get("id"), "ok": True})
             elif req.get("cmd") == "logs":  # nor must reading the log
                 send({"id": req.get("id"), "ok": True, "entries": list(app.logger.get_logs() or [])})
+            elif req.get("cmd") == "share":  # the phone share server: port, or 0 = off
+                port = int(req.get("port") or 0)
+                if port:
+                    ok, error = SHARE.start(port)
+                else:
+                    SHARE.stop()
+                    ok, error = True, ""
+                send({"id": req.get("id"), "ok": ok, "error": error, "port": SHARE.port})
             else:
                 jobs.put(req)
         on_end()
@@ -549,11 +796,14 @@ def main():
     else:
         send(ready)
         threading.Thread(target=reader, args=(sys.stdin, lambda: jobs.put(None)), daemon=True).start()  # pipe closed: exit
+    global _JOB_CLIENT
     while True:
         req = jobs.get()
         if req is None:
             break
         handler = COMMANDS.get(req.get("cmd"))
+        # A phone job (share server): its events go to that phone's websocket.
+        _JOB_CLIENT = req.get("_client") if "_http" in req else None
         try:
             reply = handler(req) if handler else {"ok": False, "error": f"Unknown command {req.get('cmd')}"}
         except Exception as err:
@@ -561,8 +811,12 @@ def main():
             reply = {"ok": False, "error": str(err), "trace": traceback.format_exc()[-2000:]}
         finally:
             comfy.model_management.interrupt_current_processing(False)
-        reply["id"] = req.get("id")
-        send(reply)
+            _JOB_CLIENT = None
+        if "_http" in req:
+            SHARE.finish(req["_http"], reply)
+        else:
+            reply["id"] = req.get("id")
+            send(reply)
         if req.get("cmd") == "generate":
             # After replying, like main.py's prompt_worker after a prompt.
             # Cached node outputs (the loaded models) stay in the executor.

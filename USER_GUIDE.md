@@ -618,7 +618,10 @@ This guide covers the desktop app. Two siblings share this repo:
     listens on 8188) and allow inbound TCP 8188 through the firewall, or tick **Let the phone app
     use it** under Local ComfyUI. The Bridge then lists this PC's addresses, Tailscale first; type
     one into the phone app's host field, e.g. `http://<your PC's Tailscale IP>:8189`. There's no
-    password, so only turn it on for networks you trust, like your own tailnet.
+    password, so only turn it on for networks you trust, like your own tailnet. With **Persist
+    Comfy** on as well, the kept-open ComfyUI serves the phone itself, so it keeps working after you
+    close the Bridge. Connect once to start it. Use 8189 on the phone, not 8190: 8190 is the
+    Bridge's private line to ComfyUI and only works on the PC itself.
 
 ---
 
