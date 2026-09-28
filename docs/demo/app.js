@@ -12385,6 +12385,16 @@ Image: ${entry.imgName}`,
       growTextarea(synthDatNegative);
       scheduleSave();
     });
+    const grownWidths = /* @__PURE__ */ new WeakMap();
+    const regrow = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const w = e.contentRect.width;
+        if (grownWidths.get(e.target) === w) continue;
+        grownWidths.set(e.target, w);
+        if (w > 0) growTextarea(e.target);
+      }
+    });
+    [...promptFields, synthDatNegative].forEach((el) => regrow.observe(el));
     synthDatStripHairFace.addEventListener("change", () => {
       scheduleSave();
     });

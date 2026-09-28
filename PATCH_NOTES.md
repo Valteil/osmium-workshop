@@ -26,6 +26,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   it (or shift-click tags ▸ Move tags to). **Save** keeps that character in the dataset; **Load
   character** on another image pulls its tags into a section and offers the saved ones the image
   doesn't have yet.
+- **SynthDat Overseer's prompt boxes re-fit their text** when the font size or the window width
+  changes, instead of cutting the last lines off until you type.
 - **Main LoRA weight** (SynthDat Overseer): a field under Main LoRA sets how strongly it's applied
   (1 = full, as before). Saved per dataset like the other settings.
 
@@ -34,7 +36,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Arrow keys in the gallery**: with an image open from the gallery, ← and → step to the previous
   and next image in the folder.
 - **Text size** (Windows): a slider at the top of the theme menu makes the whole window bigger or
-  smaller (80–160%). It's remembered, and **Reset** puts it back to 100%.
+  smaller (80–160%). It's remembered, and **Reset** puts it back to 100%. Prompt boxes re-fit
+  their text as the size changes (and when the window or the right column is resized), instead
+  of cutting the last lines off until you type.
 
 ### Comfy Bridge for Android
 

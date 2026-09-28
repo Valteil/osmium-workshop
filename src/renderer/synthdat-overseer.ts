@@ -1644,6 +1644,20 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   ];
   promptFields.forEach(el => el.addEventListener('input', () => { growTextarea(el); scheduleSave(); }));
   synthDatNegative.addEventListener('input', () => { growTextarea(synthDatNegative); scheduleSave(); });
+  // A width change re-wraps the text without any 'input' (Settings' font
+  // size zoom, a window or dock resize), which left boxes at their old height
+  // with lines cut off. Re-fit on width changes only, so growTextarea's own
+  // height change doesn't re-trigger it.
+  const grownWidths = new WeakMap<Element, number>();
+  const regrow = new ResizeObserver((entries) => {
+    for (const e of entries){
+      const w = e.contentRect.width;
+      if (grownWidths.get(e.target) === w) continue;
+      grownWidths.set(e.target, w);
+      if (w > 0) growTextarea(e.target);
+    }
+  });
+  [...promptFields, synthDatNegative].forEach(el => regrow.observe(el));
   synthDatStripHairFace.addEventListener('change', () => { scheduleSave(); });
   synthDatUnifiedPromptMode.addEventListener('change', () => { applyUnifiedPromptModeUI(); scheduleSave(); });
   applyUnifiedPromptModeUI();

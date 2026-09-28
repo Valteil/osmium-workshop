@@ -70,8 +70,25 @@ function autoGrow(el: HTMLTextAreaElement): void {
   el.style.height = 'auto';
   el.style.height = `${el.scrollHeight}px`;
 }
+// A width change re-wraps the text without any 'input' (the Text size
+// slider's page zoom, a window resize, dragging the right column), which left
+// boxes at their old height with the extra lines cut off. Re-fit on width
+// changes only: autoGrow's own height change must not re-trigger it.
+const autoGrowWidths = new WeakMap<Element, number>();
+const autoGrowObserver = new ResizeObserver((entries) => {
+  for (const e of entries) {
+    const w = e.contentRect.width;
+    if (autoGrowWidths.get(e.target) === w) continue;
+    autoGrowWidths.set(e.target, w);
+    if (w > 0) autoGrow(e.target as HTMLTextAreaElement);
+  }
+});
+document.querySelectorAll('textarea').forEach((el) => autoGrowObserver.observe(el));
 function autoGrowAll(): void {
-  document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach(autoGrow);
+  document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach((el) => {
+    autoGrowObserver.observe(el);
+    autoGrow(el);
+  });
 }
 document.addEventListener('input', (ev) => {
   if (ev.target instanceof HTMLTextAreaElement) autoGrow(ev.target);
