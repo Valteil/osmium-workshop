@@ -77,7 +77,7 @@ import {
   markRulesDirty, rulesDirty, resetRulesDirty, renameAllEntriesSequentially, saveAllDirty
 } from './tags-edit';
 import {
-  masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid, initMasterTagControl
+  masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGridIfStale, initMasterTagControl
 } from './master-tag-control';
 import { initWd14Tagger } from './wd14-tagger';
 import { initSynthDatOverseer, loadSynthDatSettingsForFolder, getWd14TransferSets } from './synthdat-overseer';
@@ -252,7 +252,7 @@ import { setIconLabel } from './icons';
   btnOpenTagPrunerList.addEventListener('click', () => openDockListModal('Tag Pruner', tagPrunerList));
   btnOpenUnifyVoidList.addEventListener('click', () => openDockListModal('Unify or void selected tags', unifyVoidRows));
   btnOpenCanonicalTagsList.addEventListener('click', () => openDockListModal('Retroactive Merge/Void rules', canonicalTagsList));
-  btnOpenMasterMiniGrid.addEventListener('click', () => openDockListModal('Select images', masterMiniGrid));
+  btnOpenMasterMiniGrid.addEventListener('click', () => { renderMasterMiniGridIfStale(); openDockListModal('Select images', masterMiniGrid); });
   btnOpenTagFrequencyList.addEventListener('click', () => openDockListModal('Tags', tagFamilyListArea));
 
   // buildPersistentDropdown moved to ./shared-ui.ts
@@ -522,6 +522,7 @@ import { setIconLabel } from './icons';
       statsTab.style.display = (tab === 'stats') ? 'block' : 'none';
       synthDatTab.style.display = (tab === 'synthdat') ? 'block' : 'none';
       masterTagModeActive = (tab === 'master');
+      if (masterTagModeActive) renderMasterMiniGridIfStale();
       // Keeps the mobile bottom-panel sheet (#left/#right) in sync with
       // whatever switchTab() itself just decided — there are several ways
       // to reach 'master' besides the panel's own 🔭 toggle button

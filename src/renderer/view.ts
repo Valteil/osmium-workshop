@@ -28,7 +28,7 @@ import {
   TAG_CATEGORY_ORDER, TAG_CATEGORY_LABELS
 } from './tag-categories';
 import type { TagCategoryId } from './tag-categories';
-import { masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGrid } from './master-tag-control';
+import { masterSelectedImages, renderMasterSelectionSummary, refreshMasterMiniGrid } from './master-tag-control';
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
 import { setIconLabel, iconSvg } from './icons';
@@ -81,7 +81,6 @@ export function renderCurrentView(){
   if (viewMode === 'single') renderSingleView();
   else if (viewMode === 'compact') renderCompactGrid();
   else renderGallery();
-  if (getMasterTagModeActive()) renderMasterMiniGrid();
   updateFilterMatchCount();
 }
 
@@ -347,6 +346,7 @@ function renderGallery(){
   lister.appendChunk();
   if (scroller && anchor) lister.ensureBuilt(anchor.base);
   restoreAnchor(galleryGrid, scroller, anchor);
+  refreshMasterMiniGrid();
 }
 
 function renderCompactGrid(){
@@ -368,6 +368,7 @@ function renderCompactGrid(){
   if (scroller && anchor) lister.ensureBuilt(anchor.base);
   restoreAnchor(compactGrid, scroller, anchor);
   renderCompactCompareArea();
+  refreshMasterMiniGrid();
 }
 
 function buildCompactCard(e: Entry): HTMLElement {
@@ -1524,6 +1525,7 @@ function buildSingleTopbar(): HTMLElement {
 }
 
 function renderSingleView(){
+  refreshMasterMiniGrid();
   // Image Quicktagging (./quick-tag.ts) and the compact layout own the view
   // only while this shows ONE ordinary image; re-applied below once known.
   hideQuickTag();

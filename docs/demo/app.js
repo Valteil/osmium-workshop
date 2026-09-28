@@ -9043,7 +9043,22 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     }
     refreshImmunizeTogglesRef();
   }
+  var miniGridStale = true;
+  function refreshMasterMiniGrid() {
+    if (masterMiniGrid.getClientRects().length) renderMasterMiniGrid();
+    else miniGridStale = true;
+  }
+  function renderMasterMiniGridIfStale() {
+    if (miniGridStale) renderMasterMiniGrid();
+  }
+  var miniGridWasVisible = false;
+  new ResizeObserver(() => {
+    const visible = masterMiniGrid.getClientRects().length > 0;
+    if (visible && !miniGridWasVisible) renderMasterMiniGridIfStale();
+    miniGridWasVisible = visible;
+  }).observe(masterMiniGrid);
   function renderMasterMiniGrid() {
+    miniGridStale = false;
     masterMiniGrid.innerHTML = "";
     masterMiniGrid.style.setProperty("--mini-grid-size", String(miniGridSize));
     masterMiniGrid.appendChild(buildMiniGridSizeRow());
@@ -22679,7 +22694,6 @@ Image: ${entry.imgName}`,
     if (viewMode2 === "single") renderSingleView();
     else if (viewMode2 === "compact") renderCompactGrid();
     else renderGallery();
-    if (getMasterTagModeActive()) renderMasterMiniGrid();
     updateFilterMatchCount();
   }
   function updateFilterMatchCount() {
@@ -22877,6 +22891,7 @@ Image: ${entry.imgName}`,
     lister.appendChunk();
     if (scroller && anchor) lister.ensureBuilt(anchor.base);
     restoreAnchor(galleryGrid, scroller, anchor);
+    refreshMasterMiniGrid();
   }
   function renderCompactGrid() {
     const scroller = findVerticalScroller(compactGrid);
@@ -22900,6 +22915,7 @@ Image: ${entry.imgName}`,
     if (scroller && anchor) lister.ensureBuilt(anchor.base);
     restoreAnchor(compactGrid, scroller, anchor);
     renderCompactCompareArea();
+    refreshMasterMiniGrid();
   }
   function buildCompactCard(e) {
     const card = document.createElement("div");
@@ -23910,6 +23926,7 @@ Image: ${entry.imgName}`,
     return bar;
   }
   function renderSingleView() {
+    refreshMasterMiniGrid();
     hideQuickTag();
     setSingleCompact(false);
     if (masterSelectedImages.size > 1 && !seqActive) {
@@ -26465,7 +26482,10 @@ Image: ${entry.imgName}`,
     btnOpenTagPrunerList.addEventListener("click", () => openDockListModal("Tag Pruner", tagPrunerList));
     btnOpenUnifyVoidList.addEventListener("click", () => openDockListModal("Unify or void selected tags", unifyVoidRows));
     btnOpenCanonicalTagsList.addEventListener("click", () => openDockListModal("Retroactive Merge/Void rules", canonicalTagsList));
-    btnOpenMasterMiniGrid.addEventListener("click", () => openDockListModal("Select images", masterMiniGrid));
+    btnOpenMasterMiniGrid.addEventListener("click", () => {
+      renderMasterMiniGridIfStale();
+      openDockListModal("Select images", masterMiniGrid);
+    });
     btnOpenTagFrequencyList.addEventListener("click", () => openDockListModal("Tags", tagFamilyListArea));
     initThemeStudio({
       getOwnedThemes: () => ownedThemes,
@@ -26695,6 +26715,7 @@ Image: ${entry.imgName}`,
         statsTab.style.display = tab === "stats" ? "block" : "none";
         synthDatTab.style.display = tab === "synthdat" ? "block" : "none";
         masterTagModeActive = tab === "master";
+        if (masterTagModeActive) renderMasterMiniGridIfStale();
         if (!skipDrawerSync) {
           if (tab === "master") openDrawer("right");
           else closeDrawers();
