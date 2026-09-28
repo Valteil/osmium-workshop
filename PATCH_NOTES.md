@@ -12,10 +12,31 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ## v1.9.0
 
-### Osmium Workshop
+### Hotfix (2026-09-28)
 
-Comfy Bridge and the ComfyUI node pack are unchanged; get them from
+Osmium Workshop was rebuilt, and Comfy Bridge for Windows joins this release. If you downloaded
+v1.9.0 before this, download it again.
+
+- **Local ComfyUI no longer reloads the models for every generation.** Only the first generation
+  loads them; the ones after it start straight away, as they do on a ComfyUI server. (Osmium's
+  ComfyUI now uses ComfyUI's own DynamicVRAM memory handling, which it had been skipping.)
+- **Generate queues**: pressing Generate while a generation is running queues another one with
+  the settings as they are at that moment. Queued generations run one after another; the status
+  line shows how many are waiting, and Stop ends the current one and clears the queue. In
+  SynthDat Overseer the result on screen stays until the next one arrives, so you can Accept or
+  Reject it while the next generates.
+
+### Comfy Bridge
+
+- **Local ComfyUI** (Windows): set Run on to Local ComfyUI and choose your ComfyUI folder, then
+  Connect. Comfy Bridge starts that install itself in its own console window, loading only the
+  nodes its workflow needs (including the upscale models). Same setup as Osmium's.
+- **Generate queues**, as above.
+
+The Comfy Bridge Android app and the ComfyUI node pack are unchanged; get them from
 [v1.8.0](https://github.com/Valteil/osmium-workshop/releases/tag/v1.8.0).
+
+### Osmium Workshop
 
 - **Opening flourish**: when the app opens, a sweep of your theme's colour crosses the dimmed
   window carrying that theme's own Osmium mark, then leaves trailing the theme's particles. On
