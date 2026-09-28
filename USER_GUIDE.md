@@ -415,6 +415,11 @@ image runs on-device, so set Tag Overseer's WD14 Autotagger to **On-device**.
    - **1-Pass** is the default (fast). Check "Enable 2nd pass" for an optional refinement pass —
      when it's on, BOTH results come back and you pick which to keep before deciding.
    - Watch the live preview while it runs; **⏹ Stop** interrupts a running generation.
+   - **Generate again while one is running to queue it**, with the settings as they are when you
+     press it. Queued generations run one after another (the status line shows how many are
+     waiting), and Stop also clears the queue. Each result stays on screen until the next one
+     arrives, so you can Accept or Reject it meanwhile; one you haven't decided on by then is
+     rejected into Disabled/.
 5. **Review the result.** A "🐍 Re-interrogate output with WD14" button lets you check what the
    model actually drew (it sometimes adds details nobody prompted for). Prune any tags you don't
    want from the final "pending" tag card — it'll also suggest merges based on your Retroactive

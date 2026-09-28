@@ -11990,6 +11990,22 @@ Image: ${entry.imgName}`,
       el.removeAttribute("src");
     }
   }
+  var genQueue = [];
+  var genRunning = false;
+  var genStopped = false;
+  var commitChain = Promise.resolve();
+  function serialized(fn) {
+    const next = commitChain.then(fn, fn);
+    commitChain = next.catch(() => void 0);
+    return next;
+  }
+  function queueNote() {
+    return genQueue.length ? ` \xB7 ${genQueue.length} queued` : "";
+  }
+  function updateQueueUI() {
+    btnSynthDatStop.disabled = !genRunning;
+    btnSynthDatGenerate.title = genRunning ? "Queue another generation with the current settings" : "";
+  }
   async function generate() {
     const skipRefImage = synthDatSkipRefImage.checked;
     if (!skipRefImage && !refFile) {
@@ -12001,41 +12017,60 @@ Image: ${entry.imgName}`,
       toast("Open a dataset folder first.");
       return;
     }
-    await autoRejectPendingIfAny();
     await loadTemplate();
-    const host = getHost();
-    const prompt = buildPromptFromFields();
-    const bytes = skipRefImage ? null : new Uint8Array(await refFile.arrayBuffer());
-    const tagSnapshot = baseTagList();
-    btnSynthDatGenerate.disabled = true;
-    btnSynthDatStop.disabled = false;
-    btnSynthDatAccept.disabled = true;
-    btnSynthDatReject.disabled = true;
-    btnSynthDatReinterrogateOutput.disabled = true;
-    synthDatReinterrogateResult.style.display = "none";
+    genQueue.push({
+      host: getHost(),
+      prompt: buildPromptFromFields(),
+      imageFilename: skipRefImage ? null : refFilename,
+      imageBytes: skipRefImage ? null : new Uint8Array(await refFile.arrayBuffer()),
+      tagSnapshot: baseTagList()
+    });
+    if (genRunning) {
+      toast(`Queued (${genQueue.length} waiting).`);
+      setGenStatus((synthDatGenStatus.textContent || "Generating\u2026").replace(/ · \d+ queued$/, "") + queueNote());
+      return;
+    }
+    genRunning = true;
+    genStopped = false;
+    updateQueueUI();
+    try {
+      while (genQueue.length && !genStopped) await runGenJob(genQueue.shift());
+    } finally {
+      genRunning = false;
+      genQueue.length = 0;
+      updateQueueUI();
+    }
+  }
+  function stopGeneration() {
+    genStopped = true;
+    const dropped = genQueue.length;
+    genQueue.length = 0;
+    if (dropped) toast(`Dropped ${dropped} queued generation${dropped === 1 ? "" : "s"}.`);
+    window.electronAPI.synthdatStopGeneration(getHost());
+  }
+  async function runGenJob(job) {
     clearObjectUrlOn(synthDatLivePreview);
     synthDatLivePreviewWrap.style.display = "none";
-    pendingTagSnapshot = null;
-    excludedTags = /* @__PURE__ */ new Set();
-    mergedTagOverrides = /* @__PURE__ */ new Map();
-    markedVoidTags = /* @__PURE__ */ new Set();
-    renderTagCard();
-    setGenStatus("Generating\u2026 this can take a while.");
+    setGenStatus("Generating\u2026 this can take a while." + queueNote());
     const res = await window.electronAPI.synthdatQueueAndFetch({
-      host,
-      imageFilename: skipRefImage ? null : refFilename,
-      imageBytes: bytes,
-      prompt
+      host: job.host,
+      imageFilename: job.imageFilename,
+      imageBytes: job.imageBytes,
+      prompt: job.prompt
     });
-    btnSynthDatGenerate.disabled = false;
-    btnSynthDatStop.disabled = true;
     synthDatLivePreviewWrap.style.display = "none";
     if (!res.ok) {
       if (res.interrupted) toast("Generation stopped.");
-      setGenStatus(res.interrupted ? "" : res.error || "Generation failed.");
+      setGenStatus(res.interrupted ? "" : (res.error || "Generation failed.") + queueNote());
       return;
     }
-    setGenStatus("");
+    setGenStatus(genQueue.length && !genStopped ? `Done${queueNote()}` : "");
+    await serialized(async () => {
+      await autoRejectPendingIfAny();
+      showGenResult(res, job.tagSnapshot);
+    });
+  }
+  function showGenResult(res, tagSnapshot) {
     previewBytes = res.imageBytes || null;
     pendingBase = `synth_${Date.now().toString(36)}`;
     pendingImgName = `${pendingBase}.png`;
@@ -12314,7 +12349,7 @@ Image: ${entry.imgName}`,
       synthDatLivePreviewWrap.style.display = "flex";
     });
     window.electronAPI.onSynthdatProgress((_event, { value, max }) => {
-      setGenStatus(`Generating\u2026 step ${value}/${max}`);
+      setGenStatus(`Generating\u2026 step ${value}/${max}${queueNote()}`);
     });
     btnSynthDatPickImage.addEventListener("click", pickReferenceImage);
     btnSynthDatInterrogate.addEventListener("click", interrogateReference);
@@ -12345,9 +12380,9 @@ Image: ${entry.imgName}`,
     attachPickerModal(synthDatVae, "VAE", () => datalistOptions(synthDatVaeDatalist));
     attachPickerModal(synthDatMainLora, "Main LoRA", () => datalistOptions(synthDatMainLoraDatalist));
     btnSynthDatGenerate.addEventListener("click", generate);
-    btnSynthDatStop.addEventListener("click", () => window.electronAPI.synthdatStopGeneration(getHost()));
-    btnSynthDatAccept.addEventListener("click", acceptImage);
-    btnSynthDatReject.addEventListener("click", rejectImage);
+    btnSynthDatStop.addEventListener("click", stopGeneration);
+    btnSynthDatAccept.addEventListener("click", () => serialized(acceptImage));
+    btnSynthDatReject.addEventListener("click", () => serialized(rejectImage));
     synthDatPickPass1.addEventListener("click", () => selectPass(1));
     synthDatPickPass2.addEventListener("click", () => selectPass(2));
     btnSynthDatReinterrogateOutput.addEventListener("click", reinterrogateOutput);
