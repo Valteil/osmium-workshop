@@ -36,12 +36,13 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Arrow keys in the gallery**: with an image open from the gallery, ← and → step to the previous
   and next image in the folder.
 - **Tidier middle column** (Windows): generation settings (resolution, sampler, steps, CFG, seed,
-  2-Pass and Upscale) now live in a slide-out panel on the right, opened by the gear button. File
-  saving (folders and filename, below) has its own panel under it, the folder button. The Output
-  section keeps the folder picker and a one-line "Saves as" preview. Like the Android app's
-  drawers: one open at a time, and clicking outside, Esc or ✕ closes it. The two buttons sit in a
-  row to the left of the gallery button and stay faded until you point at them, so they don't
-  hide what's underneath.
+  2-Pass and Upscale) now live in a slide-out panel opened by the gear button. File saving
+  (folders and filename, below) has its own panel, opened by the folder button. The Output
+  section keeps the folder picker and a one-line "Saves as" preview. The panels slide in from
+  the left, so the buttons (bottom right) stay uncovered and clicking the same one again closes
+  its panel; clicking outside, Esc or ✕ works too. One panel is open at a time. The two buttons
+  sit in a row to the left of the gallery button and stay faded until you point at them, so they
+  don't hide what's underneath.
 - **Comfy Bridge opens maximized** (Windows).
 - **No more ComfyUI Terminal panel** (Windows): Local ComfyUI's own console window shows the same
   output. Scrolled to the bottom, the right column now ends in empty space, so the round buttons

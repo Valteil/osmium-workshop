@@ -183,7 +183,7 @@
         <div class="muted small">Every generation saves here automatically: both passes when 2-Pass runs, and the upscaled image if upscale is on.</div>
 
         <div id="savePathSummary" class="save-summary"></div>
-        <div class="muted small">Folders and filename: the 🗂 button on the right.</div>
+        <div class="muted small">Folders and filename: the folder button at the bottom right.</div>
       </section>
 
     </div>
@@ -219,10 +219,11 @@
   </div>
 </div>
 
-  <!-- Right-side slideouts (like the Android app's drawers): generation
-       settings, and the file-saving setup below it. Toggles are stacked above
-       the gallery button; the settings one is on top. One drawer at a time;
-       the backdrop, Escape or ✕ closes it. -->
+  <!-- Slideouts (like the Android app's drawers): generation settings and the
+       file-saving setup. They open from the left; their toggles sit in a row
+       left of the gallery button, bottom right, and stay clickable while a
+       drawer is open. One drawer at a time; its toggle again, the backdrop,
+       Escape or ✕ closes it. -->
   <button id="genSettingsToggle" class="side-drawer-toggle" type="button" title="Generation settings">☰</button>
   <button id="fileDrawerToggle" class="side-drawer-toggle file-drawer-toggle" type="button" title="File saving: folders and filename">🗂</button>
   <div id="sideDrawerBackdrop" class="side-drawer-backdrop"></div>

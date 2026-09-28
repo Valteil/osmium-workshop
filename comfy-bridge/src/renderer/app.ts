@@ -963,7 +963,7 @@ charTagName.addEventListener('blur', hideCharSuggest);
 applyNamingUI();
 void refreshSavePreview();
 
-// ---------------- Right-side slideouts ----------------
+// ---------------- Slideouts (open from the left) ----------------
 // Generation settings (resolution, sampling, 2-Pass, upscale) and file
 // saving (folders, filename) moved out of the middle column into drawers, as
 // on Android. One open at a time; the backdrop, Escape or ✕ closes it.

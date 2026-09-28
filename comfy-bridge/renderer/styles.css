@@ -184,13 +184,16 @@ html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(
 .theme-item-custom{ border-top:1px solid var(--border); margin-top:4px; padding-top:8px; }
 .theme-item-studio{ color:var(--accent); font-weight:600; }
 
-/* Right-side slideouts (index.html's #genSettingsDrawer / #fileDrawer), like
-   the Android app's drawers. Toggles sit in a row left of the gallery button
+/* Slideouts (index.html's #genSettingsDrawer / #fileDrawer), like the
+   Android app's drawers. They open from the LEFT edge (the user's call) so
+   the toggles, bottom-right, stay uncovered: clicking the same toggle again
+   closes the drawer. Toggles sit in a row left of the gallery button
    (#galleryFab: right 14px, bottom 18px, 56px), centred on it: gear, folder,
    gallery. They fade back until hovered or focused so they don't hide what's
-   under them; drawers cover them when open. */
+   under them, and sit ABOVE the backdrop (z 520 vs 505) so they stay
+   clickable while a drawer is open. */
 .side-drawer-toggle{
-  position:fixed; right:136px; bottom:23px; z-index:500;
+  position:fixed; right:136px; bottom:23px; z-index:520;
   width:46px; height:46px; min-height:46px; border-radius:50%; padding:0;
   background:var(--panel); border:1.5px solid var(--muted); color:var(--text);
   display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgb(0 0 0 / 35%);
@@ -206,14 +209,14 @@ html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(
 }
 .side-drawer-backdrop.open{ opacity:1; pointer-events:auto; }
 .side-drawer{
-  position:fixed; top:0; right:0; bottom:0; width:min(92vw, 400px); z-index:510;
-  background:var(--panel); border-left:1px solid var(--border-strong, var(--border));
-  transform:translateX(100%); transition:transform .25s cubic-bezier(0.32,0.72,0,1), box-shadow .25s ease;
+  position:fixed; top:0; left:0; bottom:0; width:min(92vw, 400px); z-index:510;
+  background:var(--panel); border-right:1px solid var(--border-strong, var(--border));
+  transform:translateX(-100%); transition:transform .25s cubic-bezier(0.32,0.72,0,1), box-shadow .25s ease;
   display:flex; flex-direction:column; gap:4px; overflow-y:auto; padding:14px 16px 20px;
 }
 /* The shadow only while open: a closed drawer sits just off-screen, and its
-   shadow spilled back in as a dark strip down the right edge. */
-.side-drawer.open{ transform:translateX(0); box-shadow:-12px 0 36px rgb(0 0 0 / 35%); }
+   shadow spilled back in as a dark strip down the screen edge. */
+.side-drawer.open{ transform:translateX(0); box-shadow:12px 0 36px rgb(0 0 0 / 35%); }
 .side-drawer-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
 .side-drawer-head .d{ font-weight:600; font-size:15px; }
 .side-drawer-close{ background:none; border:none; color:var(--muted); font-size:18px; padding:4px 8px; min-height:0; }
