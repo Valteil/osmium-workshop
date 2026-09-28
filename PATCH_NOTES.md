@@ -24,6 +24,10 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 - **Main LoRA weight** (Windows and Android): a field under Main LoRA sets how strongly it's
   applied (1 = full, as before). Importing a PNG brings its weight back too.
+- **Tag wiki** (Windows): a **Wiki** button in the top bar opens the same tag-definition window as
+  Osmium's, for checking what a tag means while writing a prompt. Suggestions as you type, See also
+  links, and your own notes for tags without a definition. The definitions ship with the app, so
+  it works offline.
 
 ---
 

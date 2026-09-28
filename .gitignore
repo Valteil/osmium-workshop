@@ -31,6 +31,9 @@ comfy-bridge/comfy-local.js
 comfy-bridge/renderer/app.js
 comfy-bridge/renderer/shared.css
 comfy-bridge/renderer/fonts/
+# Tag wiki data, copied from renderer/data by comfy-bridge/scripts/copy-wiki-data.js
+comfy-bridge/renderer/data/wiki.json.gzdat
+comfy-bridge/renderer/data/all_tags.json.gzdat
 comfy-bridge/mobile/www/shared.js
 comfy-bridge/mobile/www/shared.css
 comfy-bridge/mobile/www/app.js

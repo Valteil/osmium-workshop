@@ -159,16 +159,76 @@ button:disabled{opacity:0.5;cursor:default;}
    main app's premium fill: a scaled ::after in the theme's --fx-* tokens.
    Excludes every fixed/absolute or bare glyph button — forcing
    position:relative onto #galleryFab or the close buttons would unpin them. */
-html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(#galleryCloseBtn):not(.picker-close):not(.lightbox-close):not(.gallery-crumb-btn):not(.gallery-pin-btn):not(.gallery-folder-open){
+html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(#galleryCloseBtn):not(.picker-close):not(.lightbox-close):not(.gallery-crumb-btn):not(.gallery-pin-btn):not(.gallery-folder-open):not(.tag-wiki-link):not(.tag-wiki-ac-row){
   position:relative; overflow:clip; isolation:isolate;
 }
-html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(#galleryCloseBtn):not(.picker-close):not(.lightbox-close):not(.gallery-crumb-btn):not(.gallery-pin-btn):not(.gallery-folder-open)::after{
+html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(#galleryCloseBtn):not(.picker-close):not(.lightbox-close):not(.gallery-crumb-btn):not(.gallery-pin-btn):not(.gallery-folder-open):not(.tag-wiki-link):not(.tag-wiki-ac-row)::after{
   content:''; position:absolute; left:0; top:var(--fx-top); width:100%; height:var(--fx-h);
   background:var(--fx-fill); opacity:var(--fx-o); transform:scaleX(0); transform-origin:left center;
   transition:transform .24s cubic-bezier(.23,1,.32,1), opacity .2s ease; z-index:-1; pointer-events:none;
 }
-html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(#galleryCloseBtn):not(.picker-close):not(.lightbox-close):not(.gallery-crumb-btn):not(.gallery-pin-btn):not(.gallery-folder-open):hover:not(:disabled)::after{
+html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(#galleryCloseBtn):not(.picker-close):not(.lightbox-close):not(.gallery-crumb-btn):not(.gallery-pin-btn):not(.gallery-folder-open):not(.tag-wiki-link):not(.tag-wiki-ac-row):hover:not(:disabled)::after{
   transform:scaleX(var(--fx-w));
 }
 .theme-item-custom{ border-top:1px solid var(--border); margin-top:4px; padding-top:8px; }
 .theme-item-studio{ color:var(--accent); font-weight:600; }
+
+/* ---- Tag wiki (src/renderer/tag-wiki.ts) ----
+   Top-bar button left of the theme picker, and a floating window that stays
+   open until closed: the definition on top, the lookup field under it,
+   suggestions (.tag-wiki-ac) beside the window. Same layout as Osmium's.
+   .tag-wiki-link / .tag-wiki-ac-row are all:unset buttons, so the fill rule
+   above excludes them. */
+#btnTagWiki{
+  margin-left:auto; display:flex; align-items:center; gap:6px; align-self:center;
+  background:var(--panel2); color:var(--text); border:1px solid var(--border);
+  border-radius:4px; padding:4px 8px; font:inherit; font-size:12px; cursor:pointer;
+}
+#btnTagWiki:focus-visible{ outline:1px solid var(--accent); }
+#btnTagWiki + #themeWrap{ margin-left:0; }
+.tag-wiki-ic{ width:14px; height:14px; flex-shrink:0; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round; }
+.tag-wiki-window{
+  position:fixed; width:360px; max-width:calc(100vw - 16px); max-height:70vh; z-index:900;
+  background:var(--panel3); border:1px solid var(--border-strong); border-radius:var(--r-panel);
+  padding:12px 14px 14px; box-shadow:0 16px 40px rgba(0,0,0,0.5);
+  display:flex; flex-direction:column; gap:10px;
+  opacity:0; transform:translateY(-8px) scale(0.98); pointer-events:none;
+  transition:opacity var(--panel-dur) var(--pop-ease), transform var(--panel-dur) var(--pop-ease);
+}
+.tag-wiki-window.visible{ opacity:1; transform:none; pointer-events:auto; }
+.tag-wiki-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:move; user-select:none; touch-action:none; }
+.tag-wiki-title{ display:flex; align-items:center; gap:6px; font-family:var(--head-font); font-weight:600; font-size:12.5px; color:var(--text); }
+.tag-wiki-close{ padding:0 8px; font-size:16px; line-height:1.4; }
+.tag-wiki-body{ display:flex; flex-direction:column; gap:8px; min-height:80px; overflow-y:auto; font-size:12.5px; }
+.tag-wiki-tag{ font-weight:600; font-size:14px; color:var(--text); }
+.tag-wiki-note{ color:var(--faint); font-style:italic; }
+.tag-wiki-meta{ display:flex; gap:10px; font-family:var(--mono); font-size:11px; color:var(--muted); }
+.tag-wiki-def{
+  line-height:1.5; color:var(--text); white-space:pre-wrap;
+  background:var(--panel2); border:1px solid var(--border); border-radius:var(--r-field); padding:10px 12px;
+}
+.tag-wiki-def.greyed{ color:var(--faint); font-style:italic; }
+.tag-wiki-seealso{ display:flex; flex-direction:column; gap:6px; }
+.tag-wiki-seealso-head{ font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--accent); }
+.tag-wiki-seealso-list{ display:flex; flex-wrap:wrap; gap:4px 12px; }
+.tag-wiki-link{
+  all:unset; cursor:pointer; font-size:12.5px; color:var(--accent);
+  text-decoration:underline; text-decoration-color:color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset:2px;
+}
+.tag-wiki-link:hover, .tag-wiki-link:focus-visible{ text-decoration-color:currentColor; }
+.tag-wiki-plain{ font-size:12.5px; color:var(--muted); }
+.tag-wiki-notes{ min-height:70px; resize:vertical; }
+.tag-wiki-input{ width:100%; }
+.tag-wiki-ac{
+  position:fixed; z-index:901; max-height:320px; overflow-y:auto;
+  background:var(--panel); border:1px solid var(--border-strong); border-radius:var(--r-panel);
+  padding:4px; box-shadow:0 10px 28px rgb(0 0 0 / 55%);
+}
+.tag-wiki-ac-row{
+  all:unset; box-sizing:border-box; width:100%; display:flex; justify-content:space-between; gap:10px;
+  padding:5px 8px; border-radius:4px; cursor:pointer; font-size:12.5px; color:var(--text);
+}
+.tag-wiki-ac-row:hover, .tag-wiki-ac-row:focus-visible{ background:var(--panel2); }
+.tag-wiki-ac-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tag-wiki-ac-count{ color:var(--muted); font-family:var(--mono); font-size:11px; flex-shrink:0; }
+.tag-wiki-ac-empty{ padding:6px 8px; color:var(--faint); font-style:italic; font-size:12px; }

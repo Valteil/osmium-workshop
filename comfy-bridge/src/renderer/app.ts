@@ -11,6 +11,7 @@ import {
   initTheme, mountThemePicker, THEMES, DEFAULT_THEME
 } from './shared';
 import { openThemeStudio } from './theme-studio';
+import { initTagWiki } from './tag-wiki';
 export {};
 
 interface ElectronAPI {
@@ -1143,6 +1144,7 @@ btnStop.addEventListener('click', async () => {
 // ---------------- Init ----------------
 
 mountGallerySidebar(desktopBackend, () => outputFolder || 'No folder chosen', { navigable: true });
+initTagWiki($<HTMLButtonElement>('btnTagWiki'));
 refreshSamplerLists();
 window.electronAPI.getAppVersion().then((v) => { $<HTMLSpanElement>('appVersion').textContent = `v${v}`; }).catch(() => {});
 log('Comfy Bridge ready. Pick an output folder, set your host, and Generate.');
