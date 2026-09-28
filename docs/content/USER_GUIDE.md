@@ -401,7 +401,7 @@ into new reference poses via ControlNet instead of hand-posing/hand-drawing more
 this repo for exactly what and why (some of it is bundled there directly).
 
 **You don't have to keep ComfyUI running (desktop).** In the ComfyUI connection section, set
-**Run on** to **Local ComfyUI (no server)** and choose your ComfyUI folder once (the portable folder
+**Run on** to **Osmium Comfy** and choose your ComfyUI folder once (the portable folder
 or the `ComfyUI` folder inside it). Click **Connect** and Osmium starts that install itself, in its
 own console window, loading only what this workflow needs rather than all your custom nodes. The
 first start takes a little while and the first generation loads the models; after that it's quick.
@@ -620,14 +620,14 @@ This guide covers the desktop app. Two siblings share this repo:
   pin favorites), model picker modals, the zoomable image lightbox, a **Wiki** button (the same
   tag-definition window as Osmium's), a **Main LoRA weight** field, and a Generate queue. Mobile
   details live in `comfy-bridge/mobile/README.md`.
-  - **Local ComfyUI (Windows):** set **Run on** to **Local ComfyUI**, choose your ComfyUI folder,
+  - **Osmium Comfy (Windows):** set **Run on** to **Osmium Comfy**, choose your ComfyUI folder,
     then **Connect**. The Bridge starts that install itself, just like SynthDat does above, and
     its ComfyUI Terminal shows that install's output.
-  - **Persist Comfy:** keeps Local ComfyUI running, with its models loaded, after you close the
+  - **Persist Comfy:** keeps Osmium Comfy running, with its models loaded, after you close the
     Bridge. Connect picks it back up next time. Close its console window to stop it.
   - **Using a phone:** either start ComfyUI with `--listen 0.0.0.0 --enable-cors-header` (it
     listens on 8188) and allow inbound TCP 8188 through the firewall, or tick **Let the phone app
-    use it** under Local ComfyUI. The Bridge then lists this PC's addresses, Tailscale first; type
+    use it** under Osmium Comfy. The Bridge then lists this PC's addresses, Tailscale first; type
     one into the phone app's host field, e.g. `http://<your PC's Tailscale IP>:8189`. There's no
     password, so only turn it on for networks you trust, like your own tailnet. With **Persist
     Comfy** on as well, the kept-open ComfyUI serves the phone itself, so it keeps working after you

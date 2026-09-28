@@ -134,7 +134,7 @@ async function handlePrompt(req: http.IncomingMessage, res: http.ServerResponse)
   // message; a start still in progress is waited for by the generation.
   const starting = ensureLocalStarted();
   const early = await Promise.race([starting, new Promise<null>((r) => setTimeout(() => r(null), 2000))]);
-  if (early && !early.ok) { sendJson(res, 400, { error: { message: early.error || 'Local ComfyUI could not start.' } }); return; }
+  if (early && !early.ok) { sendJson(res, 400, { error: { message: early.error || 'Osmium Comfy could not start.' } }); return; }
 
   const ref = prompt['239'] && prompt['239'].inputs && prompt['239'].inputs.image;
   const imageBytes = typeof ref === 'string' && uploads.has(ref) ? uploads.get(ref)! : null;
@@ -203,7 +203,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (req.method === 'POST' && p === '/interrupt') { localStop(); sendJson(res, 200, {}); return; }
   if (p === '/internal/logs/raw') {
     const logs = await localLogs();
-    const entries = logs.ok ? logs.entries : [{ t: '', m: (logs.error || 'Local ComfyUI isn\'t running.') + '\n' }];
+    const entries = logs.ok ? logs.entries : [{ t: '', m: (logs.error || 'Osmium Comfy isn\'t running.') + '\n' }];
     sendJson(res, 200, { entries, size: {} });
     return;
   }
@@ -216,10 +216,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return;
   }
   if (req.method === 'GET' && (p === '/' || p === '/system_stats')) {
-    sendJson(res, 200, { relay: 'Comfy Bridge Local ComfyUI', system: { comfyui_version: 'local' } });
+    sendJson(res, 200, { relay: 'Comfy Bridge Osmium Comfy', system: { comfyui_version: 'local' } });
     return;
   }
-  sendJson(res, 404, { error: { message: `Not available on the Local ComfyUI relay: ${req.method} ${p}` } });
+  sendJson(res, 404, { error: { message: `Not available on the Osmium Comfy relay: ${req.method} ${p}` } });
 }
 
 export function startRelay(port: number): Promise<{ ok: boolean; error?: string }> {

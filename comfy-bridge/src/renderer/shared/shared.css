@@ -161,6 +161,8 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
   display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--text);
 }
 .gen-info-title{ font-family:var(--head-font, inherit); font-weight:600; font-size:14px; }
+.gen-info-file{ font-family:var(--mono, monospace); font-size:11.5px; color:var(--text); overflow-wrap:anywhere; user-select:text; margin-bottom:2px; }
+.gen-info-file-dir{ color:var(--muted); }
 .gen-info-empty{ color:var(--faint, var(--muted)); font-style:italic; line-height:1.5; }
 .gen-info-use{ align-self:flex-start; margin:4px 0 2px; font-size:12px; }
 .gen-info-section{

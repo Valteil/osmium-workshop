@@ -57,7 +57,7 @@ async function applyRelay(): Promise<void> {
     stopRelay();
     if (localIsPersistentConnection()) {
       const r = await localSetShare(cfg.enabled ? cfg.port : 0);
-      shareState = { running: cfg.enabled && r.ok, error: r.ok ? '' : (r.error || 'Could not share Local ComfyUI.') };
+      shareState = { running: cfg.enabled && r.ok, error: r.ok ? '' : (r.error || 'Could not share Osmium Comfy.') };
     } else {
       // Not connected (yet): a runner kept open from before may still be
       // serving; report it as running if something answers on the port.

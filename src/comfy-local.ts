@@ -209,7 +209,7 @@ function startPipe({ root, comfyDir, python }: Install): Promise<Reply> {
       handleLine(line, (msg) => settle({ ok: true, comfyVersion: msg.comfy_version })));
     proc.on('error', (err) => settle({ ok: false, error: `Could not start ComfyUI's Python: ${err.message}` }));
     proc.on('exit', (code) => {
-      const error = `Local ComfyUI stopped (exit code ${code}). Its console window shows why; Connect starts it again.`;
+      const error = `Osmium Comfy stopped (exit code ${code}). Its console window shows why; Connect starts it again.`;
       settle({ ok: false, error });
       failAll(error);
       if (conn === c) { conn = null; ready = null; }
@@ -250,7 +250,7 @@ async function startPersistent({ root, comfyDir, python }: Install): Promise<Rep
       sock = await tryConnect(1000);
     }
   }
-  if (!sock) { ready = null; return { ok: false, error: `Local ComfyUI didn't come up on port ${PERSIST_PORT}. Its console window shows why.` }; }
+  if (!sock) { ready = null; return { ok: false, error: `Osmium Comfy didn't come up on port ${PERSIST_PORT}. Its console window shows why.` }; }
   const s = sock;
   s.setNoDelay(true);
   const c: RunnerConn = { write: (line) => { s.write(line); }, close: () => { s.end(); } };
@@ -261,7 +261,7 @@ async function startPersistent({ root, comfyDir, python }: Install): Promise<Rep
     readline.createInterface({ input: s }).on('line', (line) => handleLine(line, (msg) => {
       const runningDir = String(msg.comfy_dir || '');
       if (runningDir && path.resolve(runningDir).toLowerCase() !== path.resolve(comfyDir).toLowerCase()) {
-        settle({ ok: false, error: `The Local ComfyUI still open from before runs ${runningDir}, not ${comfyDir}. Close its console window, then Connect again.` });
+        settle({ ok: false, error: `The Osmium Comfy that's still open from before runs ${runningDir}, not ${comfyDir}. Close its console window, then Connect again.` });
         s.end();
         return;
       }
@@ -269,7 +269,7 @@ async function startPersistent({ root, comfyDir, python }: Install): Promise<Rep
     }));
     s.on('error', () => { /* 'close' follows */ });
     s.on('close', () => {
-      const error = 'Lost the connection to Local ComfyUI (its window was closed?). Connect starts or reconnects it.';
+      const error = 'Lost the connection to Osmium Comfy (its window was closed?). Connect starts or reconnects it.';
       settle({ ok: false, error });
       failAll(error);
       if (conn === c) { conn = null; ready = null; }
@@ -290,7 +290,7 @@ function stopRunner(): void {
 // stopped fail instead of launching it (SynthDat refreshes its model lists on
 // app load, which used to start local ComfyUI unasked).
 async function request(cmd: string, payload: Record<string, unknown> = {}): Promise<Reply> {
-  if (!ready) return { ok: false, error: 'Local ComfyUI isn\'t running. Click Connect to start it.' };
+  if (!ready) return { ok: false, error: 'Osmium Comfy isn\'t running. Click Connect to start it.' };
   const started = await ready;
   if (!started.ok || !conn) return started;
   const id = ++nextId;

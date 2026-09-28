@@ -4339,7 +4339,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         README covering exactly what's needed and why.` : `see <code>ComfyUI-dependencies/README.md</code> in the app's own folder for exactly what
         and why.`}</p>
       ${isTouchDevice ? "" : `<p><b>You don't have to keep ComfyUI running.</b> In the ComfyUI
-      connection section, set <b>Run on</b> to <b>Local ComfyUI (no server)</b> and choose your
+      connection section, set <b>Run on</b> to <b>Osmium Comfy</b> and choose your
       ComfyUI folder once. Osmium then starts that install itself when you click Connect, in its
       own console window, and loads only what this workflow needs, not your other custom nodes.
       Use it instead of your usual ComfyUI, not alongside it. Reference interrogation then runs
@@ -10852,7 +10852,7 @@ Image: ${entry.imgName}`,
         preferGpu: settings2.gpu !== false
       });
     }
-    if (backend === "local") return { ok: false, error: "Local ComfyUI doesn't run WD14. Set Tag Overseer's WD14 Autotagger to On-device to interrogate without a server." };
+    if (backend === "local") return { ok: false, error: "Osmium Comfy doesn't run WD14. Set Tag Overseer's WD14 Autotagger to On-device to interrogate without a server." };
     if (!settings2.model) return { ok: false, error: "No WD14 model configured \u2014 set one up in Tag Overseer's WD14 Autotagger section first." };
     return window.electronAPI.wd14TagImage({ host: getHost(), filename, imageBytes: bytes, settings: settings2 });
   }
@@ -11825,11 +11825,11 @@ Image: ${entry.imgName}`,
     synthDatConnStatus.style.display = "block";
     synthDatConnStatus.style.color = "";
     if (backend === "local") {
-      synthDatConnStatus.textContent = "Starting local ComfyUI\u2026 its console window shows progress.";
+      synthDatConnStatus.textContent = "Starting Osmium Comfy\u2026 its console window shows progress.";
       const r = await window.electronAPI.comfyLocalConnect();
       synthDatConnStatus.style.color = r.ok ? "var(--accent-ok, #3a9)" : "";
-      if (r.ok) setIconLabel(synthDatConnStatus, `\u2713 Local ComfyUI ${r.comfyVersion || ""} ready`);
-      else synthDatConnStatus.textContent = r.error || "Could not start local ComfyUI.";
+      if (r.ok) setIconLabel(synthDatConnStatus, `\u2713 Osmium Comfy ${r.comfyVersion || ""} ready`);
+      else synthDatConnStatus.textContent = r.error || "Could not start Osmium Comfy.";
       if (r.ok) void refreshModelLists();
       return;
     }
@@ -12484,7 +12484,7 @@ Image: ${entry.imgName}`,
     if (hasLocalComfy) {
       buildPersistentDropdown(synthDatBackendDropdown, [
         { value: "server", label: "ComfyUI server" },
-        { value: "local", label: "Local ComfyUI (no server)" }
+        { value: "local", label: "Osmium Comfy" }
       ], () => backend, (val) => {
         backend = val === "local" ? "local" : "server";
         setString(BACKEND_KEY, backend);

@@ -45,6 +45,13 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   don't hide what's underneath.
 - **The gallery slides in from the left too** (Windows and Android), so the gallery button stays
   uncovered: press it again to close the gallery.
+- **Back and Esc in the gallery** (Windows and Android): Esc, your mouse's Back side button or
+  Android's Back button step back one level: an open image closes, then you go up a folder,
+  then the gallery closes. On Android, Back also closes an open panel or menu and only then
+  leaves the app (it used to quit straight away).
+- **The image info panel shows the file's name** and the folders it's in.
+- **"Local ComfyUI" is now called "Osmium Comfy"** in both apps: the Run on choice, its messages
+  and its console window.
 - **Comfy Bridge opens maximized** (Windows).
 - **No more ComfyUI Terminal panel** (Windows): Local ComfyUI's own console window shows the same
   output. Scrolled to the bottom, the right column now ends in empty space, so the round buttons

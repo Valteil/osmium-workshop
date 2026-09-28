@@ -337,7 +337,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         : `see <code>ComfyUI-dependencies/README.md</code> in the app's own folder for exactly what
         and why.`}</p>
       ${isTouchDevice ? '' : `<p><b>You don't have to keep ComfyUI running.</b> In the ComfyUI
-      connection section, set <b>Run on</b> to <b>Local ComfyUI (no server)</b> and choose your
+      connection section, set <b>Run on</b> to <b>Osmium Comfy</b> and choose your
       ComfyUI folder once. Osmium then starts that install itself when you click Connect, in its
       own console window, and loads only what this workflow needs, not your other custom nodes.
       Use it instead of your usual ComfyUI, not alongside it. Reference interrogation then runs

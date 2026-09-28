@@ -1010,7 +1010,7 @@
         <div class="conn-copy">
           <h3>SynthDat Overseer — grow a thin dataset (needs ComfyUI)</h3>
           <p>Only have five good images of a character? Train a quick first-pass LoRA on what you've got, then point SynthDat at it to generate more, ControlNet-posed off one reference. That's how you grow the dataset for a stronger second pass. It pulls pose tags from the reference automatically, runs a 1- or 2-pass generation, and shows you the result before anything gets written. <strong>Accept</strong> puts it straight in the dataset. <strong>Reject</strong> parks it in Disabled instead of throwing it away.</p>
-          <p>No need to keep ComfyUI open, either: point Osmium at your install and it starts it itself, loading only what this workflow needs (<strong>Local ComfyUI</strong>). Press Generate again while one's running to queue more; every result waits its turn for your Accept or Reject, nothing gets thrown out behind your back. <span class="next-tag">Next version</span> A <strong>Main LoRA weight</strong> field.</p>
+          <p>No need to keep ComfyUI open, either: point Osmium at your install and it starts it itself, loading only what this workflow needs (<strong>Osmium Comfy</strong>). Press Generate again while one's running to queue more; every result waits its turn for your Accept or Reject, nothing gets thrown out behind your back. <span class="next-tag">Next version</span> A <strong>Main LoRA weight</strong> field.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-synthdat" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -1232,7 +1232,7 @@
         </div>
         <div class="conn-copy">
           <h3>Runs your own ComfyUI install, no server</h3>
-          <p>Set <strong>Run on</strong> to <strong>Local ComfyUI</strong>, choose your ComfyUI folder and hit Connect. The Bridge starts that install itself, loading only what its workflow needs instead of every custom node you've got, and its ComfyUI Terminal shows what it's doing. Press Generate again while one's running and it queues, with the settings as they were when you pressed it. <strong>Persist Comfy</strong> keeps it open with the models loaded after you close the Bridge, so the next session starts instantly.</p>
+          <p>Set <strong>Run on</strong> to <strong>Osmium Comfy</strong>, choose your ComfyUI folder and hit Connect. The Bridge starts that install itself, loading only what its workflow needs instead of every custom node you've got, and its ComfyUI Terminal shows what it's doing. Press Generate again while one's running and it queues, with the settings as they were when you pressed it. <strong>Persist Comfy</strong> keeps it open with the models loaded after you close the Bridge, so the next session starts instantly.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-local" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -1245,7 +1245,7 @@
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-1-local-comfyui.png" data-w="1920" data-h="1000" data-alt="Comfy Bridge with Run on set to Local ComfyUI, a ComfyUI folder chosen, Persist Comfy ticked and Local ComfyUI 0.37.0 running, beside the prompt fields." data-cap="Point it at your ComfyUI folder and Connect. It runs your install itself."><span class="node" aria-hidden="true"></span><span class="st-name">Connect</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-1-local-comfyui.png" data-w="1920" data-h="1000" data-alt="Comfy Bridge with Run on set to Osmium Comfy, a ComfyUI folder chosen, Persist Comfy ticked and Osmium Comfy 0.37.0 running, beside the prompt fields." data-cap="Point it at your ComfyUI folder and Connect. It runs your install itself."><span class="node" aria-hidden="true"></span><span class="st-name">Connect</span></button></li>
             <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-2-queue.png" data-w="376" data-h="470" data-alt="The Generate panel reading Generating, step 14 of 25, 2 queued, with a live preview." data-cap="Hit Generate a few times. They queue and run one after another, with a live preview."><span class="node" aria-hidden="true"></span><span class="st-name">Queue a few</span></button></li>
             <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-3-result.png" data-w="376" data-h="810" data-alt="A finished generation as three slides, Pass 1, Pass 2 and Upscaled, while the next queued one runs." data-cap="Each result comes back as Pass 1, Pass 2 and Upscaled, all saved, while the next one runs."><span class="node" aria-hidden="true"></span><span class="st-name">Results</span></button></li>
           </ol>
@@ -1264,7 +1264,7 @@
         </div>
         <div class="conn-copy">
           <h3>Generate from your phone</h3>
-          <p>The Android app talks to any ComfyUI you can reach. Tick <strong>Let the phone app use it</strong> under Local ComfyUI and the Bridge on your PC lists the addresses to use (your Tailscale one first) and serves it to the phone like a ComfyUI server: generate, stop, queue, live preview, and the PC's ComfyUI output right in the phone's terminal panel. It works away from home over your tailnet, and with <strong>Persist Comfy</strong> on, it keeps working after you close the Bridge: the kept-open ComfyUI serves the phone itself. There's no password, same as ComfyUI's own <code>--listen</code>, so keep it to networks you trust.</p>
+          <p>The Android app talks to any ComfyUI you can reach. Tick <strong>Let the phone app use it</strong> under Osmium Comfy and the Bridge on your PC lists the addresses to use (your Tailscale one first) and serves it to the phone like a ComfyUI server: generate, stop, queue, live preview, and the PC's ComfyUI output right in the phone's terminal panel. It works away from home over your tailnet, and with <strong>Persist Comfy</strong> on, it keeps working after you close the Bridge: the kept-open ComfyUI serves the phone itself. There's no password, same as ComfyUI's own <code>--listen</code>, so keep it to networks you trust.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-phone" data-n="2"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in two steps</span></button>
         </div>
       </div>
@@ -1336,7 +1336,7 @@
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:1" hidden>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-terminal.png" data-w="386" data-h="560" data-alt="The Bridge's Log listing queued and saved generations, above the ComfyUI Terminal showing Local ComfyUI's output and a progress bar." data-cap="The Log, and ComfyUI's own output underneath."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
+            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-terminal.png" data-w="386" data-h="560" data-alt="The Bridge's Log listing queued and saved generations, above the ComfyUI Terminal showing Osmium Comfy's output and a progress bar." data-cap="The Log, and ComfyUI's own output underneath."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>

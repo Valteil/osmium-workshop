@@ -37,6 +37,16 @@ function attachLightboxPinch(img: HTMLImageElement, onZoomDelta: (delta: number)
   );
 }
 
+// The open lightbox's close(), so Back (mouse side button, Android Back) can
+// close it from outside — see the gallery's galleryBack().
+let closeOpenLightbox: (() => void) | null = null;
+export function isLightboxOpen(): boolean { return !!closeOpenLightbox; }
+export function closeLightbox(): boolean {
+  if (!closeOpenLightbox) return false;
+  closeOpenLightbox();
+  return true;
+}
+
 // `siblings`, when given, returns the image URLs the lightbox can step
 // through with ← / → (the gallery passes its loaded thumbnails, in order).
 // `info`, when given (desktop gallery only), builds a side panel for the shown
@@ -45,6 +55,7 @@ function attachLightboxPinch(img: HTMLImageElement, onZoomDelta: (delta: number)
 export type LightboxInfo = (src: string, close: () => void) => HTMLElement | null;
 export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo): void {
   if (!src) return;
+  closeLightbox();
   const backdrop = document.createElement('div');
   backdrop.className = 'lightbox-backdrop';
   const img = document.createElement('img');
@@ -141,10 +152,12 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   attachLightboxPinch(img, (delta: number) => zoomBy(delta * 0.02));
 
   function close(): void {
+    if (closeOpenLightbox === close) closeOpenLightbox = null;
     backdrop.classList.remove('modal-visible');
     setTimeout(() => backdrop.remove(), 160);
     document.removeEventListener('keydown', onKey);
   }
+  closeOpenLightbox = close;
   let infoEl: HTMLElement | null = null;
   function renderInfo(): void {
     if (!info) return;

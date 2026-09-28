@@ -87,7 +87,7 @@ if os.name == "nt":
     _k32 = ctypes.windll.kernel32
     _k32.FreeConsole()
     _k32.AllocConsole()
-    _k32.SetConsoleTitleW(f"{APP_NAME} - local ComfyUI" + (" (stays open)" if LISTEN_PORT else ""))
+    _k32.SetConsoleTitleW(f"{APP_NAME} - Osmium Comfy" + (" (stays open)" if LISTEN_PORT else ""))
     _hwnd = _k32.GetConsoleWindow()
     if _hwnd:
         ctypes.windll.user32.ShowWindow(_hwnd, 5)  # SW_SHOW
@@ -152,7 +152,7 @@ os.chdir(COMFY_DIR)
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 os.environ.setdefault("DO_NOT_TRACK", "1")
 
-say(f"Local ComfyUI runner starting from {COMFY_DIR}")
+say(f"Osmium Comfy starting from {COMFY_DIR}")
 say(f"This window is {APP_NAME}'s ComfyUI. Closing it stops local generation.")
 
 import comfy.options  # noqa: E402

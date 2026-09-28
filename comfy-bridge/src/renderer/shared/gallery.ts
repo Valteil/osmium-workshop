@@ -11,7 +11,7 @@
 // thumbnail for the zoomable lightbox.
 import type { StorageBackend } from './storage';
 import { scanImages, groupByFolder, fileNumber, isGalleryImage } from './storage';
-import { showImageLightbox, type LightboxInfo } from './lightbox';
+import { showImageLightbox, isLightboxOpen, closeLightbox, type LightboxInfo } from './lightbox';
 import { bridgeIcon } from './icons';
 
 export interface GalleryHandles {
@@ -27,12 +27,24 @@ export interface GalleryHandles {
   sortBtn: HTMLButtonElement;
 }
 
+// The generation-parameters panel beside an opened image (desktop only);
+// `relPath` is the image's path inside the output folder.
+export type GalleryImageInfo = (src: string, close: () => void, relPath: string) => HTMLElement | null;
 export interface GalleryOptions {
   navigable?: boolean;
-  // Desktop only: the generation-parameters panel beside an opened image.
-  imageInfo?: LightboxInfo;
+  imageInfo?: GalleryImageInfo;
 }
-let imageInfo: LightboxInfo | undefined;
+let imageInfo: GalleryImageInfo | undefined;
+
+// One step back out of the gallery (v2.0.0): close the open image, else go up
+// a folder, else close the gallery. Returns false when the gallery isn't
+// open, so a caller (Android's Back button) can fall through to its own
+// handling. Esc and the mouse's Back side button use it too (wired in
+// mountGallerySidebar).
+let galleryBackStep: (() => boolean) | null = null;
+export function galleryBack(): boolean {
+  return galleryBackStep ? galleryBackStep() : false;
+}
 
 export type GallerySortMode = 'name-asc' | 'name-desc' | 'date-desc' | 'date-asc';
 const SORT_KEY = 'bridge-shared-gallery-sort';
@@ -117,7 +129,12 @@ async function renderThumbSlice(
       continue;
     }
     img.src = url;
-    img.addEventListener('click', () => showImageLightbox(url, () => galleryThumbUrls(h), imageInfo));
+    // The info panel also gets the image's path in the output folder (the
+    // thumbnail's alt), looked up by URL so it follows ← / → steps.
+    const info: LightboxInfo | undefined = imageInfo
+      ? (src, close) => imageInfo!(src, close, galleryThumbRel(h, src))
+      : undefined;
+    img.addEventListener('click', () => showImageLightbox(url, () => galleryThumbUrls(h), info));
   }
   return true;
 }
@@ -128,6 +145,13 @@ function galleryThumbUrls(h: GalleryHandles): string[] {
   return Array.from(h.grid.querySelectorAll<HTMLImageElement>('img.gallery-thumb'))
     .map((t) => t.src)
     .filter(Boolean);
+}
+
+function galleryThumbRel(h: GalleryHandles, src: string): string {
+  for (const t of Array.from(h.grid.querySelectorAll<HTMLImageElement>('img.gallery-thumb'))) {
+    if (t.src === src) return t.alt;
+  }
+  return '';
 }
 
 function appendMoreButton(h: GalleryHandles, remaining: number, onMore: () => void): void {
@@ -184,13 +208,14 @@ export function mountGallerySidebar(
   // Per-mount browser state (desktop only uses it).
   let relDir = '';
   let sortMode: GallerySortMode = loadSortMode();
+  const browserState = (): BrowserState => ({ getDir: () => relDir, setDir: (d: string) => { relDir = d; }, getSort: () => sortMode, setSort: (s: GallerySortMode) => { sortMode = s; } });
   function open(): void {
     sidebar.classList.add('open');
     backdrop.classList.add('show');
     fab.classList.add('gallery-open');
     if (navigable) {
       relDir = '';
-      void renderBrowserLevel(getBackend(), h, getLocationLabel(), { getDir: () => relDir, setDir: (d: string) => { relDir = d; }, getSort: () => sortMode, setSort: (s: GallerySortMode) => { sortMode = s; } });
+      void renderBrowserLevel(getBackend(), h, getLocationLabel(), browserState());
     } else {
       void renderGallery(getBackend(), h, getLocationLabel());
     }
@@ -206,6 +231,30 @@ export function mountGallerySidebar(
   fab.addEventListener('click', () => { if (sidebar.classList.contains('open')) close(); else open(); });
   h.closeBtn.addEventListener('click', close);
   backdrop.addEventListener('click', close);
+
+  galleryBackStep = (): boolean => {
+    if (!sidebar.classList.contains('open')) return false;
+    if (closeLightbox()) return true;
+    if (navigable && relDir) {
+      relDir = relDir.includes('/') ? relDir.slice(0, relDir.lastIndexOf('/')) : '';
+      void renderBrowserLevel(getBackend(), h, getLocationLabel(), browserState());
+      return true;
+    }
+    close();
+    return true;
+  };
+  // Esc: the open image handles its own Esc, so only act when none is open.
+  // Registered at mount, i.e. before any lightbox's own listener.
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape' || isLightboxOpen() || !sidebar.classList.contains('open')) return;
+    ev.preventDefault();
+    galleryBack();
+  });
+  // The mouse's Back side button (button 3), also while an image is open.
+  window.addEventListener('mouseup', (ev) => {
+    if (ev.button !== 3) return;
+    if (galleryBack()) ev.preventDefault();
+  });
   return h;
 }
 

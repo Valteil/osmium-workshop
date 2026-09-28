@@ -20,6 +20,7 @@
 // are the native Capacitor plugins this shell talks to. Loosely typed for now
 // — tighten as the shell gets real types.
 interface CapacitorPlugins {
+  App?: any;
   BridgeStorage?: any;
   Filesystem?: any;
   GenProgress?: any;
@@ -44,6 +45,7 @@ declare const BridgeShared: {
   mountThemePicker: (opts: any) => void;
   initTagWiki: (button: HTMLElement) => void;
   mountGallerySidebar: (backend: any, label: any) => any;
+  galleryBack: () => boolean;
   showImageLightbox: (src: string) => void;
   THEMES: any;
   DEFAULT_THEME: any;
@@ -525,7 +527,7 @@ declare const BridgeShared: {
     } catch (err) {
       if (ctrl.signal.aborted) {
         return { ok: false, error: 'No answer from ' + getHost() + ' after ' + (OBJECT_INFO_TIMEOUT_MS / 1000) + 's. Check the address and port: '
-          + 'a ComfyUI server uses 8188, and a PC sharing Comfy Bridge\'s Local ComfyUI uses 8189 (not 8190, which only works on that PC).' };
+          + 'a ComfyUI server uses 8188, and a PC sharing Comfy Bridge\'s Osmium Comfy uses 8189 (not 8190, which only works on that PC).' };
       }
       return { ok: false, error: 'Could not reach ComfyUI at ' + getHost() + (isLikelyCorsFailure(err) ? corsHint() : ' (' + errMsg(err) + ')') };
     } finally {
@@ -836,6 +838,24 @@ declare const BridgeShared: {
   connInfoClose.addEventListener('click', closeConnInfo);
   connInfoBackdrop.addEventListener('click', (ev) => { if (ev.target === connInfoBackdrop) closeConnInfo(); });
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeConnInfo(); });
+
+  // ---------------- Android Back (@capacitor/app) ----------------
+  // Registering a backButton listener replaces Android's default, which
+  // quit the app from anywhere. Back now steps out of the top layer: the
+  // gallery first (open image, then up a folder, then close — shared
+  // galleryBack()), then the connection help, the theme menu or an open
+  // drawer; only with nothing open does it leave the app.
+  const AppPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (AppPlugin) {
+    AppPlugin.addListener('backButton', () => {
+      if (BridgeShared.galleryBack()) return;
+      if (!connInfoBackdrop.hidden) { closeConnInfo(); return; }
+      const themeMenu = document.getElementById('themeMenu');
+      if (themeMenu && !themeMenu.hidden) { themeMenu.hidden = true; return; }
+      if (drawers.some((d) => d.classList.contains('open'))) { closeAllDrawers(); return; }
+      AppPlugin.exitApp();
+    });
+  }
 
   upscaleEnabled.addEventListener('change', () => { upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none'; });
   upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none';

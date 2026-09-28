@@ -120,7 +120,7 @@ async function wd14TagBytes(filename: string, bytes: Uint8Array): Promise<ComfyR
       characterThreshold: settings.characterThreshold, preferGpu: settings.gpu !== false
     });
   }
-  if (backend === 'local') return { ok: false, error: 'Local ComfyUI doesn\'t run WD14. Set Tag Overseer\'s WD14 Autotagger to On-device to interrogate without a server.' };
+  if (backend === 'local') return { ok: false, error: 'Osmium Comfy doesn\'t run WD14. Set Tag Overseer\'s WD14 Autotagger to On-device to interrogate without a server.' };
   if (!settings.model) return { ok: false, error: 'No WD14 model configured — set one up in Tag Overseer\'s WD14 Autotagger section first.' };
   return window.electronAPI.wd14TagImage({ host: getHost(), filename, imageBytes: bytes, settings });
 }
@@ -920,11 +920,11 @@ async function testSynthdatConnection(): Promise<void> {
   if (backend === 'local'){
     // Starts the runner (its console window shows the load); the first start
     // takes a while, later ones are instant.
-    synthDatConnStatus.textContent = 'Starting local ComfyUI… its console window shows progress.';
+    synthDatConnStatus.textContent = 'Starting Osmium Comfy… its console window shows progress.';
     const r = await window.electronAPI.comfyLocalConnect!();
     synthDatConnStatus.style.color = r.ok ? 'var(--accent-ok, #3a9)' : '';
-    if (r.ok) setIconLabel(synthDatConnStatus, `✓ Local ComfyUI ${r.comfyVersion || ''} ready`);
-    else synthDatConnStatus.textContent = r.error || 'Could not start local ComfyUI.';
+    if (r.ok) setIconLabel(synthDatConnStatus, `✓ Osmium Comfy ${r.comfyVersion || ''} ready`);
+    else synthDatConnStatus.textContent = r.error || 'Could not start Osmium Comfy.';
     if (r.ok) void refreshModelLists();
     return;
   }
@@ -1736,7 +1736,7 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   if (hasLocalComfy){
     buildPersistentDropdown(synthDatBackendDropdown, [
       { value: 'server', label: 'ComfyUI server' },
-      { value: 'local', label: 'Local ComfyUI (no server)' }
+      { value: 'local', label: 'Osmium Comfy' }
     ], () => backend, (val) => {
       backend = val === 'local' ? 'local' : 'server';
       setString(BACKEND_KEY, backend);

@@ -229,8 +229,8 @@ if (hasPersist) {
     const s = await window.electronAPI.comfyLocalSetPersist!(persistComfy.checked);
     showLocalStatus(s);
     if (s.running) log(persistComfy.checked
-      ? 'Persist Comfy is on. It applies the next time Local ComfyUI starts; the one open now still closes with Comfy Bridge.'
-      : 'Persist Comfy is off. A Local ComfyUI window that was kept open stays open until you close it.');
+      ? 'Persist Comfy is on. It applies the next time Osmium Comfy starts; the one open now still closes with Comfy Bridge.'
+      : 'Persist Comfy is off. An Osmium Comfy window that was kept open stays open until you close it.');
   });
 }
 
@@ -261,10 +261,10 @@ function showRelayStatus(s: RelayStatus): void {
     ? `Phone: set its host to ${ts.length ? ts.join(' or ') + ' (Tailscale)' : lan[0] || `port ${s.port}`}` +
       (ts.length && lan.length ? `, or ${lan.join(' / ')} on the same Wi-Fi` : '') + '. ' +
       (byComfy
-        ? 'Served by Local ComfyUI itself (Persist Comfy), so it keeps working after Comfy Bridge closes, until you close its window. Windows may ask to allow its Python through the firewall.'
+        ? 'Served by Osmium Comfy itself (Persist Comfy), so it keeps working after Comfy Bridge closes, until you close its window. Windows may ask to allow its Python through the firewall.'
         : 'Windows may ask to allow Comfy Bridge through the firewall.')
     : byComfy
-      ? 'With Persist Comfy on, Local ComfyUI serves the phone itself, even after Comfy Bridge closes. Click Connect to start it.'
+      ? 'With Persist Comfy on, Osmium Comfy serves the phone itself, even after Comfy Bridge closes. Click Connect to start it.'
       : 'Not running.';
 }
 async function applyRelay(): Promise<void> {
@@ -528,11 +528,11 @@ btnConnect.addEventListener('click', async () => {
   if (isLocal()) {
     // Starts the runner (its console window appears after a few seconds;
     // loading takes 15-60s), then fills the model lists from it.
-    connStatus.textContent = 'Starting local ComfyUI… its console window shows progress.';
+    connStatus.textContent = 'Starting Osmium Comfy… its console window shows progress.';
     const started = await window.electronAPI.comfyLocalConnect!();
-    if (!started.ok) { connStatus.textContent = started.error || 'Could not start local ComfyUI.'; return; }
+    if (!started.ok) { connStatus.textContent = started.error || 'Could not start Osmium Comfy.'; return; }
     connStatus.style.color = 'var(--accent-ok)';
-    connStatus.textContent = `✓ Local ComfyUI ${started.comfyVersion || ''} is running`;
+    connStatus.textContent = `✓ Osmium Comfy ${started.comfyVersion || ''} is running`;
     btnRefreshModels.click();
     // With Persist Comfy, connecting is what makes Local ComfyUI start serving
     // the phone (main applies it right after the runner comes up).
@@ -1476,11 +1476,11 @@ mountGallerySidebar(desktopBackend, () => outputFolder || 'No folder chosen', {
   navigable: true,
   // Generation parameters left of an opened gallery image (./gen-info.ts);
   // "Use these settings" loads them like Import generation and closes it.
-  imageInfo: (src, close) => buildGenInfoPanel(src, (prompt) => {
+  imageInfo: (src, close, relPath) => buildGenInfoPanel(src, (prompt) => {
     applyImportedPrompt(prompt);
     log('Loaded generation settings from a gallery image.');
     close();
-  }),
+  }, relPath),
 });
 initTagWiki($<HTMLButtonElement>('btnTagWiki'));
 refreshSamplerLists();

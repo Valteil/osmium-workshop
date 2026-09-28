@@ -91,7 +91,9 @@ function isLink(v: unknown): boolean {
   return Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && typeof v[1] === 'number';
 }
 
-export function buildGenInfoPanel(src: string, onUse: (prompt: Record<string, any>) => void): HTMLElement | null {
+// `relPath`: the image's path inside the output folder, shown under the title
+// (the file name, with its folders greyed before it).
+export function buildGenInfoPanel(src: string, onUse: (prompt: Record<string, any>) => void, relPath = ''): HTMLElement | null {
   const info = readGenInfo(src);
   const panel = document.createElement('aside');
   panel.className = 'gen-info';
@@ -99,6 +101,20 @@ export function buildGenInfoPanel(src: string, onUse: (prompt: Record<string, an
   title.className = 'gen-info-title';
   title.textContent = 'Generation';
   panel.appendChild(title);
+  if (relPath) {
+    const file = document.createElement('div');
+    file.className = 'gen-info-file';
+    file.title = relPath;
+    const cut = relPath.lastIndexOf('/');
+    if (cut >= 0) {
+      const dir = document.createElement('span');
+      dir.className = 'gen-info-file-dir';
+      dir.textContent = relPath.slice(0, cut + 1);
+      file.appendChild(dir);
+    }
+    file.appendChild(document.createTextNode(relPath.slice(cut + 1)));
+    panel.appendChild(file);
+  }
   if (!info) {
     const none = document.createElement('div');
     none.className = 'gen-info-empty';
