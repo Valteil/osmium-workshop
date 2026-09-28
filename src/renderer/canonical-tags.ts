@@ -381,7 +381,7 @@ export function unmergeChildren(rule: CanonicalRule, childrenBeingTurnedOff: str
       if (changed){
         markDirtyRef(e);
         touched++;
-        affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
+        affected.push({ base: e.base, original: e.original || undefined, prevTags, newTags: e.tags.slice() });
       }
     }
     if (touched > 0){
@@ -415,7 +415,7 @@ export function unmergeChildren(rule: CanonicalRule, childrenBeingTurnedOff: str
       if (changed){
         markDirtyRef(e);
         touched++;
-        affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
+        affected.push({ base: e.base, original: e.original || undefined, prevTags, newTags: e.tags.slice() });
       }
     }
     if (touched > 0){

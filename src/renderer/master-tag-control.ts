@@ -23,7 +23,11 @@ import { markDirty, recordChange } from './tags-edit';
 import { attachFillAutocomplete } from './tags-autocomplete';
 import { setIconLabel, plainLabel } from './icons';
 
-export let masterSelectedImages = new Set<string>();
+// Holds the entries themselves, not their stems: an original_images/ copy
+// shares its stem with a Gallery image, so a stem-keyed selection ticked both.
+// It also survives Disable/Restore, which move the same Entry object.
+export let masterSelectedImages = new Set<Entry>();
+const miniCellEntry = new WeakMap<HTMLElement, Entry>();
 
 // A button whose label is too long to have a short form that still reads
 // as a sentence ("Select all visible", "Sequential from first", etc.) gets
@@ -129,8 +133,9 @@ export function renderMasterMiniGrid(): void {
   const list = filteredEntriesRef();
   list.forEach(e => {
     const cell = document.createElement('div');
-    cell.className = 'master-mini-cell' + (masterSelectedImages.has(e.base) ? ' selected' : '');
+    cell.className = 'master-mini-cell' + (masterSelectedImages.has(e) ? ' selected' : '');
     cell.dataset.base = e.base;
+    miniCellEntry.set(cell, e);
     const img = document.createElement('img');
     img.src = e.objectUrl;
     img.loading = 'lazy';
@@ -139,7 +144,7 @@ export function renderMasterMiniGrid(): void {
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.className = 'master-mini-cb';
-    cb.checked = masterSelectedImages.has(e.base);
+    cb.checked = masterSelectedImages.has(e);
     cb.addEventListener('click', (ev) => ev.stopPropagation());
     // Also stop pointerdown specifically — the cell's own pointerdown
     // (below) starts a drag-paint using cb.checked's CURRENT value as its
@@ -149,8 +154,8 @@ export function renderMasterMiniGrid(): void {
     // 'change' events.
     cb.addEventListener('pointerdown', (ev) => ev.stopPropagation());
     cb.addEventListener('change', () => {
-      if (cb.checked) masterSelectedImages.add(e.base);
-      else masterSelectedImages.delete(e.base);
+      if (cb.checked) masterSelectedImages.add(e);
+      else masterSelectedImages.delete(e);
       cell.classList.toggle('selected', cb.checked);
       updateMasterSelectionText();
       renderCurrentViewRef();
@@ -178,8 +183,8 @@ export function renderMasterMiniGrid(): void {
 
 export function syncMasterMiniGrid(): void {
   masterMiniGrid.querySelectorAll<HTMLElement>('.master-mini-cell').forEach(cell => {
-    const base = cell.dataset.base!;
-    const selected = masterSelectedImages.has(base);
+    const entry = miniCellEntry.get(cell);
+    const selected = !!entry && masterSelectedImages.has(entry);
     cell.classList.toggle('selected', selected);
     const cb = cell.querySelector('.master-mini-cb') as HTMLInputElement | null;
     if (cb) cb.checked = selected;
@@ -267,7 +272,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   ]) attachFillAutocomplete(inp);
 
   btnMasterSelectAll.addEventListener('click', () => {
-    for (const e of filteredEntriesRef()) masterSelectedImages.add(e.base);
+    for (const e of filteredEntriesRef()) masterSelectedImages.add(e);
     renderMasterSelectionSummary();
     renderCurrentViewRef();
   });
@@ -286,9 +291,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
     if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
     const meta = getEntryMeta();
     let changed = 0;
-    for (const base of masterSelectedImages){
-      const e = getEntryByBase(base);
-      if (!e) continue;
+    for (const e of masterSelectedImages){
       if (!e.meta) e.meta = {};
       if (!!e.meta?.locked === locked) continue;
       e.meta.locked = locked;
@@ -356,9 +359,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
     if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
     const meta = getEntryMeta();
     let changed = 0;
-    for (const base of masterSelectedImages){
-      const e = getEntryByBase(base);
-      if (!e) continue;
+    for (const e of masterSelectedImages){
       if (!e.meta) e.meta = {};
       const keys = Object.keys(flags);
       if (keys.every(k => !!(e.meta as Record<string, unknown>)[k] === flags[k])) continue;
@@ -383,9 +384,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   // so they stay accurate as the user clicks through the gallery.
   function computeAllHaveFlags(flags: string[]): boolean {
     if (masterSelectedImages.size === 0) return false;
-    for (const base of masterSelectedImages){
-      const e = getEntryByBase(base);
-      if (!e) return false;
+    for (const e of masterSelectedImages){
       for (const f of flags){
         if (!(e.meta as Record<string, unknown> | undefined)?.[f]) return false;
       }
@@ -443,7 +442,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
   refreshImmunizeToggles();
 
   function selectedEntries(): Entry[] {
-    return Array.from(masterSelectedImages).map(base => getEntryByBase(base)).filter((e): e is Entry => !!e);
+    return Array.from(masterSelectedImages);
   }
 
   // Tag inputs are normalized the same way on every bulk op (underscores ->
@@ -471,7 +470,7 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
       const prevTags = e.tags.slice();
       opts.apply(e);
       markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
+      affected.push({ base: e.base, original: e.original || undefined, prevTags, newTags: e.tags.slice() });
     }
     if (affected.length === 0) { toast(opts.emptyMsg); return; }
     const summary = opts.summary(affected.length);

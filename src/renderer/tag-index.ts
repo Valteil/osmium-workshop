@@ -371,18 +371,11 @@ export function filteredEntries(): Entry[] {
   return sortEntries(getEntries().filter(e => passesFilter(e)));
 }
 
-// The Tag Overseer grid (and its popup) only ever lists active images: its
-// tools skip disabled ones anyway, so it ignores the gallery's Disabled /
-// Originals view and applies the rest of the filter as the Gallery view would.
-export function activeFilteredEntries(): Entry[] {
-  return sortEntries(getEntries().filter(e => passesFilter(e, true)));
-}
-
-export function passesFilter(e: Entry, activeOnly = false): boolean {
+export function passesFilter(e: Entry): boolean {
   const galleryFilter = getGalleryFilter();
-  if (!activeOnly && galleryFilter.originalsView){
+  if (galleryFilter.originalsView){
     if (!e.original) return false;
-  } else if (!activeOnly && galleryFilter.disabledView){
+  } else if (galleryFilter.disabledView){
     if (!e.disabled || e.original) return false;
   } else {
     if (e.disabled) return false;

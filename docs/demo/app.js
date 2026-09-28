@@ -5831,7 +5831,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         if (changed) {
           markDirtyRef(e);
           touched++;
-          affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
+          affected.push({ base: e.base, original: e.original || void 0, prevTags, newTags: e.tags.slice() });
         }
       }
       if (touched > 0) {
@@ -5867,7 +5867,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         if (changed) {
           markDirtyRef(e);
           touched++;
-          affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
+          affected.push({ base: e.base, original: e.original || void 0, prevTags, newTags: e.tags.slice() });
         }
       }
       if (touched > 0) {
@@ -6177,7 +6177,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   async function applyPixelDirection(affected, direction) {
     let count = 0;
     for (const a of affected) {
-      const e = getEntryByBase2(a.base);
+      const e = entryForAffected(a);
       const st = typeof a.logId === "number" ? pixelStates.get(a.logId) : void 0;
       if (!e || !st) continue;
       const bytes = direction === "undo" ? st.prev : st.next;
@@ -6358,10 +6358,14 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     pushLogEntry({ type, summary, affected, ...extra });
     return record;
   }
+  function entryForAffected(a) {
+    if (a.original) return getEntries2().find((e) => e.original && e.base === a.base);
+    return getEntryByBase2(a.base);
+  }
   function applyTagDirection(affected, direction) {
     let count = 0;
     for (const a of affected) {
-      const e = getEntryByBase2(a.base);
+      const e = entryForAffected(a);
       if (!e) continue;
       const target = direction === "undo" ? a.prevTags : a.newTags;
       if (!target) continue;
@@ -6657,7 +6661,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       if (!newTags.includes(unified)) newTags.push(unified);
       e.tags = newTags;
       markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
+      affected.push({ base: e.base, original: e.original || void 0, prevTags, newTags: newTags.slice() });
     }
     const mergedTagsList = Array.from(tagsSet);
     const mergeSummary = `Merged ${tagsSet.size} tag(s) into "${unified}" across ${affected.length} image(s).`;
@@ -6697,7 +6701,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       const newTags = e.tags.filter((t) => !tagsSet.has(t));
       e.tags = newTags;
       markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
+      affected.push({ base: e.base, original: e.original || void 0, prevTags, newTags: newTags.slice() });
     }
     const voidSummary = `Voided ${tagsSet.size} tag(s), removed from ${affected.length} image(s).`;
     toast(voidSummary);
@@ -8963,6 +8967,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
 
   // src/renderer/master-tag-control.ts
   var masterSelectedImages = /* @__PURE__ */ new Set();
+  var miniCellEntry = /* @__PURE__ */ new WeakMap();
   function attachIconFallback(btn, icon) {
     const label = (btn.dataset.iconLabel || btn.textContent || "").trim();
     btn.classList.add("icon-fallback-btn");
@@ -9045,8 +9050,9 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     const list = filteredEntriesRef();
     list.forEach((e) => {
       const cell = document.createElement("div");
-      cell.className = "master-mini-cell" + (masterSelectedImages.has(e.base) ? " selected" : "");
+      cell.className = "master-mini-cell" + (masterSelectedImages.has(e) ? " selected" : "");
       cell.dataset.base = e.base;
+      miniCellEntry.set(cell, e);
       const img = document.createElement("img");
       img.src = e.objectUrl;
       img.loading = "lazy";
@@ -9055,12 +9061,12 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.className = "master-mini-cb";
-      cb.checked = masterSelectedImages.has(e.base);
+      cb.checked = masterSelectedImages.has(e);
       cb.addEventListener("click", (ev) => ev.stopPropagation());
       cb.addEventListener("pointerdown", (ev) => ev.stopPropagation());
       cb.addEventListener("change", () => {
-        if (cb.checked) masterSelectedImages.add(e.base);
-        else masterSelectedImages.delete(e.base);
+        if (cb.checked) masterSelectedImages.add(e);
+        else masterSelectedImages.delete(e);
         cell.classList.toggle("selected", cb.checked);
         updateMasterSelectionText();
         renderCurrentViewRef2();
@@ -9087,8 +9093,8 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
   }
   function syncMasterMiniGrid() {
     masterMiniGrid.querySelectorAll(".master-mini-cell").forEach((cell) => {
-      const base = cell.dataset.base;
-      const selected = masterSelectedImages.has(base);
+      const entry = miniCellEntry.get(cell);
+      const selected = !!entry && masterSelectedImages.has(entry);
       cell.classList.toggle("selected", selected);
       const cb = cell.querySelector(".master-mini-cb");
       if (cb) cb.checked = selected;
@@ -9144,7 +9150,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
       masterRenameFrom
     ]) attachFillAutocomplete(inp);
     btnMasterSelectAll.addEventListener("click", () => {
-      for (const e of filteredEntriesRef()) masterSelectedImages.add(e.base);
+      for (const e of filteredEntriesRef()) masterSelectedImages.add(e);
       renderMasterSelectionSummary();
       renderCurrentViewRef2();
     });
@@ -9160,9 +9166,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
       }
       const meta = getEntryMeta();
       let changed = 0;
-      for (const base of masterSelectedImages) {
-        const e = getEntryByBase3(base);
-        if (!e) continue;
+      for (const e of masterSelectedImages) {
         if (!e.meta) e.meta = {};
         if (!!e.meta?.locked === locked) continue;
         e.meta.locked = locked;
@@ -9225,9 +9229,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
       }
       const meta = getEntryMeta();
       let changed = 0;
-      for (const base of masterSelectedImages) {
-        const e = getEntryByBase3(base);
-        if (!e) continue;
+      for (const e of masterSelectedImages) {
         if (!e.meta) e.meta = {};
         const keys = Object.keys(flags);
         if (keys.every((k) => !!e.meta[k] === flags[k])) continue;
@@ -9245,9 +9247,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     }
     function computeAllHaveFlags(flags) {
       if (masterSelectedImages.size === 0) return false;
-      for (const base of masterSelectedImages) {
-        const e = getEntryByBase3(base);
-        if (!e) return false;
+      for (const e of masterSelectedImages) {
         for (const f of flags) {
           if (!e.meta?.[f]) return false;
         }
@@ -9306,7 +9306,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     }
     refreshImmunizeToggles();
     function selectedEntries() {
-      return Array.from(masterSelectedImages).map((base) => getEntryByBase3(base)).filter((e) => !!e);
+      return Array.from(masterSelectedImages);
     }
     const readTag = (el) => el.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
     function runMassTagOp(opts) {
@@ -9316,7 +9316,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
         const prevTags = e.tags.slice();
         opts.apply(e);
         markDirty(e);
-        affected.push({ base: e.base, prevTags, newTags: e.tags.slice() });
+        affected.push({ base: e.base, original: e.original || void 0, prevTags, newTags: e.tags.slice() });
       }
       if (affected.length === 0) {
         toast(opts.emptyMsg);
@@ -10310,7 +10310,7 @@ Image: ${entry.imgName}`,
       if (newTags.length === prevTags.length && newTags.every((t, i) => t === prevTags[i])) continue;
       entry.tags = newTags;
       markDirty(entry);
-      affected.push({ base: entry.base, prevTags, newTags: newTags.slice() });
+      affected.push({ base: entry.base, original: entry.original || void 0, prevTags, newTags: newTags.slice() });
     }
     if (affected.length === 0) {
       toast("No tag changes to apply.");
@@ -10566,7 +10566,7 @@ Image: ${entry.imgName}`,
         cancelRequested = true;
         return;
       }
-      const entries = getEntries5().filter((e) => masterSelectedImages.has(e.base) && !e.disabled && !e.meta?.locked);
+      const entries = getEntries5().filter((e) => masterSelectedImages.has(e) && !e.meta?.locked);
       runBatch(entries);
     });
   }
@@ -12970,14 +12970,11 @@ Image: ${entry.imgName}`,
   function filteredEntries() {
     return sortEntries(getEntries6().filter((e) => passesFilter(e)));
   }
-  function activeFilteredEntries() {
-    return sortEntries(getEntries6().filter((e) => passesFilter(e, true)));
-  }
-  function passesFilter(e, activeOnly = false) {
+  function passesFilter(e) {
     const galleryFilter = getGalleryFilter();
-    if (!activeOnly && galleryFilter.originalsView) {
+    if (galleryFilter.originalsView) {
       if (!e.original) return false;
-    } else if (!activeOnly && galleryFilter.disabledView) {
+    } else if (galleryFilter.disabledView) {
       if (!e.disabled || e.original) return false;
     } else {
       if (e.disabled) return false;
@@ -23032,11 +23029,11 @@ Image: ${entry.imgName}`,
       const selCb = document.createElement("input");
       selCb.type = "checkbox";
       selCb.className = "master-select-cb";
-      selCb.checked = masterSelectedImages.has(e.base);
+      selCb.checked = masterSelectedImages.has(e);
       selCb.addEventListener("click", (ev) => ev.stopPropagation());
       selCb.addEventListener("change", () => {
-        if (selCb.checked) masterSelectedImages.add(e.base);
-        else masterSelectedImages.delete(e.base);
+        if (selCb.checked) masterSelectedImages.add(e);
+        else masterSelectedImages.delete(e);
         renderMasterSelectionSummary();
       });
       thumbwrap.appendChild(selCb);
@@ -23184,7 +23181,7 @@ Image: ${entry.imgName}`,
     singlePos.textContent = `${masterSelectedImages.size} selected`;
     singlePrevBtn.disabled = true;
     singleNextBtn.disabled = true;
-    const selectedEntries = Array.from(masterSelectedImages).map((b) => getEntryByBase4(b)).filter((e) => !!e);
+    const selectedEntries = Array.from(masterSelectedImages);
     const allTags = /* @__PURE__ */ new Set();
     selectedEntries.forEach((e) => e.tags.forEach((t) => allTags.add(t)));
     const tagList = Array.from(allTags).sort((a, b) => a.localeCompare(b));
@@ -23281,7 +23278,7 @@ Image: ${entry.imgName}`,
       newTags = Array.from(new Set(newTags));
       e.tags = newTags;
       markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
+      affected.push({ base: e.base, original: e.original || void 0, prevTags, newTags: newTags.slice() });
     }
     if (affected.length === 0) return;
     const summary = `Renamed "${oldTag}" \u2192 "${newTag}" across ${affected.length} selected image(s).`;
@@ -23359,7 +23356,7 @@ Image: ${entry.imgName}`,
         toast("Select at least one image first.");
         return;
       }
-      startIdx = list.findIndex((e) => masterSelectedImages.has(e.base));
+      startIdx = list.findIndex((e) => masterSelectedImages.has(e));
       if (startIdx < 0) {
         toast("No selected images match the current filter.");
         return;
@@ -27240,7 +27237,7 @@ Image: ${entry.imgName}`,
         const prevTags = e.tags.slice();
         e.tags = [];
         markDirty(e);
-        affected.push({ base: e.base, prevTags, newTags: [] });
+        affected.push({ base: e.base, original: e.original || void 0, prevTags, newTags: [] });
       }
       if (affected.length === 0) {
         toast("No tags to purge.");
@@ -27319,7 +27316,7 @@ Image: ${entry.imgName}`,
     initMasterTagControl({
       getEntries: () => entries,
       getEntryByBase: (base) => entryByBase.get(base),
-      filteredEntries: () => activeFilteredEntries(),
+      filteredEntries: () => filteredEntries(),
       renderCurrentView: () => renderCurrentView(),
       refreshAllUI: () => refreshAllUI(),
       getEntryMeta: () => entryMeta,
@@ -27518,7 +27515,7 @@ Image: ${entry.imgName}`,
       if (idx !== -1) entries.splice(idx, 1);
       entryByBase.delete(entry.base);
       delete entryMeta[entry.base];
-      masterSelectedImages.delete(entry.base);
+      masterSelectedImages.delete(entry);
       try {
         URL.revokeObjectURL(entry.objectUrl);
       } catch (e) {

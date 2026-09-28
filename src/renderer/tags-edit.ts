@@ -76,7 +76,7 @@ export function recordPixelChange(type: string, summary: string, base: string, s
 export async function applyPixelDirection(affected: EditLogAffected[], direction: 'undo' | 'redo'): Promise<number> {
   let count = 0;
   for (const a of affected){
-    const e = getEntryByBase(a.base);
+    const e = entryForAffected(a);
     const st = typeof a.logId === 'number' ? pixelStates.get(a.logId) : undefined;
     if (!e || !st) continue;
     const bytes = direction === 'undo' ? st.prev : st.next;
@@ -275,10 +275,18 @@ export function recordChange(type: string, summary: string, affected: EditLogAff
   return record;
 }
 
+// entryByBase maps a stem to the Gallery image, but an original_images/ copy
+// shares that stem — a log entry made on the original says so, and resolves
+// to it instead.
+function entryForAffected(a: EditLogAffected): Entry | undefined {
+  if (a.original) return getEntries().find(e => e.original && e.base === a.base);
+  return getEntryByBase(a.base);
+}
+
 export function applyTagDirection(affected: EditLogAffected[], direction: string): number {
   let count = 0;
   for (const a of affected){
-    const e = getEntryByBase(a.base);
+    const e = entryForAffected(a);
     if (!e) continue;
     const target = direction === 'undo' ? a.prevTags : a.newTags;
     if (!target) continue;
@@ -663,7 +671,7 @@ export function applyUnifyToTags(tagsSet: Set<string>, unified: string): boolean
     if (!newTags.includes(unified)) newTags.push(unified);
     e.tags = newTags;
     markDirty(e);
-    affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
+    affected.push({ base: e.base, original: e.original || undefined, prevTags, newTags: newTags.slice() });
   }
 
   const mergedTagsList = Array.from(tagsSet);
@@ -705,7 +713,7 @@ export async function applyVoidToTags(tagsSet: Set<string>): Promise<boolean> {
     const newTags = e.tags.filter(t => !tagsSet.has(t));
     e.tags = newTags;
     markDirty(e);
-    affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
+    affected.push({ base: e.base, original: e.original || undefined, prevTags, newTags: newTags.slice() });
   }
 
   const voidSummary = `Voided ${tagsSet.size} tag(s), removed from ${affected.length} image(s).`;

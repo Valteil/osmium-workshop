@@ -88,7 +88,7 @@ import {
 } from './tag-details';
 import { initTagWiki } from './tag-wiki';
 import {
-  buildTagIndex, refreshStats, filteredEntries, activeFilteredEntries, passesFilter, setBaseFilter,
+  buildTagIndex, refreshStats, filteredEntries, passesFilter, setBaseFilter,
   parseFilterTerms, setContainsFilter, setExcludesFilter, setMirroredSelectionFilter, initTagIndex,
   resetReviewFlagged
 } from './tag-index';
@@ -1332,7 +1332,7 @@ import { setIconLabel } from './icons';
       const prevTags = e.tags.slice();
       e.tags = [];
       markDirty(e);
-      affected.push({ base: e.base, prevTags, newTags: [] });
+      affected.push({ base: e.base, original: e.original || undefined, prevTags, newTags: [] });
     }
     if (affected.length === 0){ toast('No tags to purge.'); return; }
     recordChange('void', `Purged ALL tags across ${affected.length} image(s).`, affected);
@@ -1425,7 +1425,7 @@ import { setIconLabel } from './icons';
   initMasterTagControl({
     getEntries: () => entries,
     getEntryByBase: (base) => entryByBase.get(base),
-    filteredEntries: () => activeFilteredEntries(),
+    filteredEntries: () => filteredEntries(),
     renderCurrentView: () => renderCurrentView(),
     refreshAllUI: () => refreshAllUI(),
     getEntryMeta: () => entryMeta,
@@ -1690,7 +1690,7 @@ import { setIconLabel } from './icons';
     if (idx !== -1) entries.splice(idx, 1);
     entryByBase.delete(entry.base);
     delete entryMeta[entry.base];
-    masterSelectedImages.delete(entry.base);
+    masterSelectedImages.delete(entry);
     try { URL.revokeObjectURL(entry.objectUrl); } catch(e){}
     return true;
   }

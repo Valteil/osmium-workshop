@@ -109,6 +109,9 @@ export type LeftSortDir = 'asc' | 'desc';
 
 export interface EditLogAffected {
   base: string;
+  // Set when the entry is an original_images/ shadow copy, which shares its
+  // stem with a Gallery image; undo/redo resolves it to the original then.
+  original?: boolean;
   prevTags?: string[];
   newTags?: string[];
   // Rename-only (see tags-edit.ts's renameAllEntriesSequentially()): `base`

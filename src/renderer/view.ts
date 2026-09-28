@@ -6,7 +6,7 @@
 // toggles, galleryFilter/cardTagSortMode/masterTagModeActive which are
 // mutated from dropdowns/tabs that live in index.ts) are injected once via
 // initView(), since index.ts's IIFE can't export them.
-import type { Entry, EntryMeta, TagSubject, SubjectPreset, GalleryFilter, CardTagSortMode, DirHandle, FileHandle } from './types';
+import type { Entry, EntryMeta, EditLogAffected, TagSubject, SubjectPreset, GalleryFilter, CardTagSortMode, DirHandle, FileHandle } from './types';
 import { getJSON, setJSON, getBool, setBool } from './storage';
 import { writeBytes } from './fs-access';
 import {
@@ -504,11 +504,11 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
     const selCb = document.createElement('input');
     selCb.type = 'checkbox';
     selCb.className = 'master-select-cb';
-    selCb.checked = masterSelectedImages.has(e.base);
+    selCb.checked = masterSelectedImages.has(e);
     selCb.addEventListener('click', (ev) => ev.stopPropagation());
     selCb.addEventListener('change', () => {
-      if (selCb.checked) masterSelectedImages.add(e.base);
-      else masterSelectedImages.delete(e.base);
+      if (selCb.checked) masterSelectedImages.add(e);
+      else masterSelectedImages.delete(e);
       renderMasterSelectionSummary();
     });
     thumbwrap.appendChild(selCb);
@@ -682,7 +682,7 @@ function renderMultiCompareView(): void {
   singlePrevBtn.disabled = true;
   singleNextBtn.disabled = true;
 
-  const selectedEntries = Array.from(masterSelectedImages).map(b => getEntryByBase(b)).filter((e): e is Entry => !!e);
+  const selectedEntries = Array.from(masterSelectedImages);
   const allTags = new Set<string>();
   selectedEntries.forEach(e => e.tags.forEach(t => allTags.add(t)));
   const tagList = Array.from(allTags).sort((a,b) => a.localeCompare(b));
@@ -781,7 +781,7 @@ function renderMultiCompareView(): void {
 }
 
 function renameTagAcrossEntries(oldTag: string, newTag: string, entriesList: Entry[]): void {
-  const affected: { base: string; prevTags: string[]; newTags: string[] }[] = [];
+  const affected: EditLogAffected[] = [];
   for (const e of entriesList){
     if (!e.tags.includes(oldTag)) continue;
     const prevTags = e.tags.slice();
@@ -789,7 +789,7 @@ function renameTagAcrossEntries(oldTag: string, newTag: string, entriesList: Ent
     newTags = Array.from(new Set(newTags));
     e.tags = newTags;
     markDirty(e);
-    affected.push({ base: e.base, prevTags, newTags: newTags.slice() });
+    affected.push({ base: e.base, original: e.original || undefined, prevTags, newTags: newTags.slice() });
   }
   if (affected.length === 0) return;
   const summary = `Renamed "${oldTag}" → "${newTag}" across ${affected.length} selected image(s).`;
@@ -880,7 +880,7 @@ export function startSequentialDetail(from: 'first' | 'selected'): void {
   let startIdx = 0;
   if (from === 'selected'){
     if (masterSelectedImages.size === 0) { toast('Select at least one image first.'); return; }
-    startIdx = list.findIndex((e) => masterSelectedImages.has(e.base));
+    startIdx = list.findIndex((e) => masterSelectedImages.has(e));
     if (startIdx < 0) { toast('No selected images match the current filter.'); return; }
   }
   beginSequential(list, startIdx);
