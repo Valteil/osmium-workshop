@@ -41,6 +41,13 @@
           <button id="btnPickComfyFolder">Choose ComfyUI folder…</button>
           <span id="comfyFolderLabel" class="muted"></span>
         </div>
+        <!-- Network relay (local-relay.ts): the phone app generates on this
+             PC's Local ComfyUI over Tailscale/LAN. -->
+        <div id="relayRow" class="row" style="display:none">
+          <label class="chk-row" title="Serves Local ComfyUI to the Comfy Bridge phone app (and any ComfyUI client) on this port, on every network this PC is on, including Tailscale. No password, like ComfyUI's own --listen."><input id="relayEnabled" type="checkbox"> Let the phone app use it, on port</label>
+          <input id="relayPort" type="number" min="1024" max="65535" value="8189" style="width:84px">
+        </div>
+        <div id="relayInfo" class="status-line muted" style="display:none"></div>
         <div class="row">
           <input id="host" type="text" placeholder="http://127.0.0.1:8188" value="http://127.0.0.1:8188">
           <button id="btnConnect">Test</button>

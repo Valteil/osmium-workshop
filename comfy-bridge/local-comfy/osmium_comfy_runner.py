@@ -24,9 +24,10 @@ Channels:
   script log, like ComfyUI's own terminal. fd 1/2 are pointed at it so stray
   print()s and tqdm bars can never corrupt the protocol.
 
-Requests:  {"id": n, "cmd": "hello"|"object_info"|"generate"|"stop"|"unload", ...}
+Requests:  {"id": n, "cmd": "hello"|"object_info"|"node_info"|"generate"|"stop"|"logs"|"unload", ...}
 Replies:   {"id": n, "ok": true, ...} or {"id": n, "ok": false, "error": "..."}
 Events:    {"event": "progress", "value", "max"} / {"event": "preview", "mime", "b64"}
+           / {"event": "logs", "entries": [{"t", "m"}, ...]} (new console output)
 """
 import argparse
 import base64
@@ -154,6 +155,7 @@ if comfy_aimdo is not None and enables_dynamic_vram():
 
 import asyncio  # noqa: E402
 import logging  # noqa: E402
+import app.logger  # noqa: E402
 from app.logger import setup_logger  # noqa: E402
 from comfy.cli_args import get_console_log_level  # noqa: E402
 setup_logger(log_level=get_console_log_level(args.verbose), use_stdout=False)
@@ -329,6 +331,38 @@ def cmd_object_info(req):
     return {"ok": False, "error": f'Could not find "{req["input"]}" on {req["class_type"]}.'}
 
 
+def _json_safe(v):
+    try:
+        json.dumps(v)
+        return v
+    except (TypeError, ValueError):
+        return str(v)
+
+
+def cmd_node_info(req):
+    """A node's inputs in /object_info's shape ({"required": {...}, "optional":
+    {...}}), so Comfy Bridge's network relay can answer /object_info/<class>
+    for a phone. Combo lists are kept; other specs are made JSON-safe."""
+    cls = nodes.NODE_CLASS_MAPPINGS.get(req["class_type"])
+    if cls is None:
+        return {"ok": False, "error": f"{req['class_type']} is not loaded in the local runner."}
+    out = {}
+    for section, specs in (cls.INPUT_TYPES() or {}).items():
+        if section not in ("required", "optional") or not isinstance(specs, dict):
+            continue
+        out[section] = {}
+        for name, spec in specs.items():
+            spec = list(spec) if isinstance(spec, (list, tuple)) else [spec]
+            head = spec[0] if spec else None
+            if isinstance(head, (list, tuple)):
+                head = [_json_safe(x) for x in head]
+            else:
+                head = _json_safe(head)
+            opts = spec[1] if len(spec) > 1 and isinstance(spec[1], dict) else None
+            out[section][name] = [head] + ([{k: _json_safe(v) for k, v in opts.items()}] if opts else [])
+    return {"ok": True, "input": out}
+
+
 def cmd_generate(req):
     global EXECUTOR
     prompt, captures = prepare(req["prompt"])
@@ -410,6 +444,7 @@ def cmd_unload(_req):
 COMMANDS = {
     "hello": lambda _r: {"ok": True, "comfy_version": comfyui_version.__version__},
     "object_info": cmd_object_info,
+    "node_info": cmd_node_info,
     "generate": cmd_generate,
     "unload": cmd_unload,
 }
@@ -418,6 +453,9 @@ COMMANDS = {
 def main():
     load_nodes()
     comfy.utils.set_progress_bar_global_hook(progress_hook)
+    # The console output ComfyUI's logger buffers (its /internal/logs on a
+    # server): new lines go out as events, e.g. to a phone's ComfyUI Terminal.
+    app.logger.on_flush(lambda entries: entries and send({"event": "logs", "entries": entries}))
     say(f"Ready (ComfyUI {comfyui_version.__version__}, device {comfy.model_management.get_torch_device_name(comfy.model_management.get_torch_device())}).")
     send({"event": "ready", "comfy_version": comfyui_version.__version__})
 
@@ -435,6 +473,8 @@ def main():
             if req.get("cmd") == "stop":  # must not wait behind the running job
                 comfy.model_management.interrupt_current_processing(True)
                 send({"id": req.get("id"), "ok": True})
+            elif req.get("cmd") == "logs":  # nor must reading the log
+                send({"id": req.get("id"), "ok": True, "entries": list(app.logger.get_logs() or [])})
             else:
                 jobs.put(req)
         jobs.put(None)  # Osmium closed the pipe: exit

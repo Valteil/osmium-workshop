@@ -11,7 +11,7 @@ import {
   initTheme, mountThemePicker, THEMES, DEFAULT_THEME
 } from './shared';
 import { openThemeStudio } from './theme-studio';
-import { initTagWiki } from './tag-wiki';
+import { initTagWiki } from './shared/tag-wiki';
 export {};
 
 interface ElectronAPI {
@@ -36,6 +36,12 @@ interface ElectronAPI {
   comfyLocalStatus?(): Promise<ComfyLocalStatus>;
   comfyLocalPickFolder?(): Promise<ComfyLocalStatus>;
   comfyLocalConnect?(): Promise<{ ok: boolean; comfyVersion?: string; error?: string }>;
+  comfyRelayStatus?(): Promise<RelayStatus>;
+  comfyRelaySet?(payload: { enabled: boolean; port: number }): Promise<RelayStatus>;
+}
+interface RelayStatus {
+  enabled: boolean; port: number; running: boolean; error: string;
+  addresses: { ip: string; tailscale: boolean }[];
 }
 interface ComfyLocalStatus { folder: string; ok: boolean; error?: string; python?: string; running: boolean; }
 declare global { interface Window { electronAPI: ElectronAPI; } }
@@ -182,13 +188,47 @@ function showLocalStatus(s: ComfyLocalStatus): void {
   comfyFolderLabel.textContent = s.folder ? (s.ok ? s.folder : `${s.folder} — ${s.error}`) : 'No folder chosen';
   comfyFolderLabel.style.color = s.folder && !s.ok ? 'var(--danger, #e06c6c)' : '';
 }
+// Network relay (main-process local-relay.ts): the phone app connects to
+// http://<this PC's address>:<port> as if it were a ComfyUI server. Its
+// on/off + port live in the main process (userData/comfy-relay.json), not
+// the UI-state snapshot.
+const relayRow = $<HTMLDivElement>('relayRow');
+const relayEnabled = $<HTMLInputElement>('relayEnabled');
+const relayPort = $<HTMLInputElement>('relayPort');
+const relayInfo = $<HTMLDivElement>('relayInfo');
+const hasRelay = typeof window.electronAPI.comfyRelayStatus === 'function';
+function showRelayStatus(s: RelayStatus): void {
+  relayEnabled.checked = s.enabled;
+  relayPort.value = String(s.port);
+  relayInfo.style.display = s.enabled ? 'block' : 'none';
+  relayInfo.style.color = s.error ? 'var(--accent-danger)' : '';
+  if (s.error) { relayInfo.textContent = s.error; return; }
+  const ts = s.addresses.filter((a) => a.tailscale).map((a) => `http://${a.ip}:${s.port}`);
+  const lan = s.addresses.filter((a) => !a.tailscale).map((a) => `http://${a.ip}:${s.port}`);
+  relayInfo.textContent = s.running
+    ? `Phone: set its host to ${ts.length ? ts.join(' or ') + ' (Tailscale)' : lan[0] || `port ${s.port}`}` +
+      (ts.length && lan.length ? `, or ${lan.join(' / ')} on the same Wi-Fi` : '') +
+      '. Windows may ask to allow Comfy Bridge through the firewall.'
+    : 'Not running.';
+}
+async function applyRelay(): Promise<void> {
+  showRelayStatus(await window.electronAPI.comfyRelaySet!({ enabled: relayEnabled.checked, port: Number(relayPort.value) }));
+}
+if (hasRelay) {
+  relayEnabled.addEventListener('change', applyRelay);
+  relayPort.addEventListener('change', () => { if (relayEnabled.checked) applyRelay(); });
+}
+
 function applyBackendUI(): void {
   const local = isLocal();
   localFields.style.display = local ? '' : 'none';
+  relayRow.style.display = local && hasRelay ? '' : 'none';
+  if (!local) relayInfo.style.display = 'none';
   host.style.display = local ? 'none' : '';
   btnConnect.textContent = local ? 'Connect' : 'Test';
   btnConnect.title = local ? 'Start your ComfyUI install (opens its own console window)' : 'Check that the ComfyUI server answers';
   if (local) window.electronAPI.comfyLocalStatus!().then(showLocalStatus).catch(() => {});
+  if (local && hasRelay) window.electronAPI.comfyRelayStatus!().then(showRelayStatus).catch(() => {});
 }
 if (hasLocalComfy) {
   backendRow.style.display = '';
@@ -561,7 +601,8 @@ addLoraRow('', 0.8);
 // population above (preset defaults / seeded LoRA rows), so user values
 // always win over defaults.
 const UI_STATE_KEY = 'comfybridge-ui-state';
-const UI_EXCLUDED = new Set<string>();
+// The relay's settings are the main process's (comfy-relay.json).
+const UI_EXCLUDED = new Set<string>(['relayEnabled', 'relayPort']);
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 function captureUiState(): void {
   const state: Record<string, unknown> = {};

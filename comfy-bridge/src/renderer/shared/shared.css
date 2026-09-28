@@ -88,3 +88,64 @@
 .lightbox-backdrop.modal-visible{opacity:1;}
 .lightbox-backdrop img{max-width:94vw;max-height:92vh;object-fit:contain;box-shadow:0 30px 80px rgba(0,0,0,.6);border-radius:4px;touch-action:none;}
 .lightbox-close{position:fixed;top:10px;right:10px;z-index:701;background:none;border:none;color:var(--text);font-size:28px;min-height:0;padding:8px 14px;}
+
+/* ---- Tag wiki (shared/tag-wiki.ts), desktop + mobile ----
+   Top-bar button left of the theme picker, and a floating window that stays
+   open until closed: the definition on top, the lookup field under it,
+   suggestions (.tag-wiki-ac) beside the window. Same layout as Osmium's. Every Bridge-only var has a fallback, since the mobile shell
+   defines fewer of them.
+   .tag-wiki-link / .tag-wiki-ac-row are all:unset buttons, so the fill rule
+   above excludes them. */
+#btnTagWiki{
+  margin-left:auto; display:flex; align-items:center; gap:6px; align-self:center;
+  background:var(--panel2); color:var(--text); border:1px solid var(--border);
+  border-radius:4px; padding:4px 8px; font:inherit; font-size:12px; cursor:pointer;
+}
+#btnTagWiki:focus-visible{ outline:1px solid var(--accent); }
+#btnTagWiki + #themeWrap{ margin-left:0; }
+.tag-wiki-ic{ width:14px; height:14px; flex-shrink:0; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round; }
+.tag-wiki-window{
+  position:fixed; width:360px; max-width:calc(100vw - 16px); max-height:70vh; z-index:900;
+  background:var(--panel3, var(--panel2)); border:1px solid var(--border-strong, var(--border)); border-radius:var(--r-panel, 8px);
+  padding:12px 14px 14px; box-shadow:0 16px 40px rgba(0,0,0,0.5);
+  display:flex; flex-direction:column; gap:10px;
+  opacity:0; transform:translateY(-8px) scale(0.98); pointer-events:none;
+  transition:opacity var(--panel-dur, 160ms) var(--pop-ease, ease-out), transform var(--panel-dur, 160ms) var(--pop-ease, ease-out);
+}
+.tag-wiki-window.visible{ opacity:1; transform:none; pointer-events:auto; }
+.tag-wiki-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:move; user-select:none; touch-action:none; }
+.tag-wiki-title{ display:flex; align-items:center; gap:6px; font-family:var(--head-font, inherit); font-weight:600; font-size:12.5px; color:var(--text); }
+.tag-wiki-close{ padding:0 8px; font-size:16px; line-height:1.4; }
+.tag-wiki-body{ display:flex; flex-direction:column; gap:8px; min-height:80px; overflow-y:auto; font-size:12.5px; }
+.tag-wiki-tag{ font-weight:600; font-size:14px; color:var(--text); }
+.tag-wiki-note{ color:var(--faint, var(--muted)); font-style:italic; }
+.tag-wiki-meta{ display:flex; gap:10px; font-family:var(--mono, monospace); font-size:11px; color:var(--muted); }
+.tag-wiki-def{
+  line-height:1.5; color:var(--text); white-space:pre-wrap;
+  background:var(--panel2); border:1px solid var(--border); border-radius:var(--r-field, 5px); padding:10px 12px;
+}
+.tag-wiki-def.greyed{ color:var(--faint, var(--muted)); font-style:italic; }
+.tag-wiki-seealso{ display:flex; flex-direction:column; gap:6px; }
+.tag-wiki-seealso-head{ font-family:var(--mono, monospace); font-size:10.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--accent); }
+.tag-wiki-seealso-list{ display:flex; flex-wrap:wrap; gap:4px 12px; }
+.tag-wiki-link{
+  all:unset; cursor:pointer; font-size:12.5px; color:var(--accent);
+  text-decoration:underline; text-decoration-color:color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset:2px;
+}
+.tag-wiki-link:hover, .tag-wiki-link:focus-visible{ text-decoration-color:currentColor; }
+.tag-wiki-plain{ font-size:12.5px; color:var(--muted); }
+.tag-wiki-notes{ min-height:70px; resize:vertical; }
+.tag-wiki-input{ width:100%; }
+.tag-wiki-ac{
+  position:fixed; z-index:901; max-height:320px; overflow-y:auto;
+  background:var(--panel); border:1px solid var(--border-strong, var(--border)); border-radius:var(--r-panel, 8px);
+  padding:4px; box-shadow:0 10px 28px rgb(0 0 0 / 55%);
+}
+.tag-wiki-ac-row{
+  all:unset; box-sizing:border-box; width:100%; display:flex; justify-content:space-between; gap:10px;
+  padding:5px 8px; border-radius:4px; cursor:pointer; font-size:12.5px; color:var(--text);
+}
+.tag-wiki-ac-row:hover, .tag-wiki-ac-row:focus-visible{ background:var(--panel2); }
+.tag-wiki-ac-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tag-wiki-ac-count{ color:var(--muted); font-family:var(--mono, monospace); font-size:11px; flex-shrink:0; }
+.tag-wiki-ac-empty{ padding:6px 8px; color:var(--faint, var(--muted)); font-style:italic; font-size:12px; }

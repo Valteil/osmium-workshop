@@ -16,7 +16,7 @@
 // configureComfyLocal() for its own name and event channels.
 
 import { app, dialog, BrowserWindow } from 'electron';
-import type { IpcMain, OpenDialogOptions, WebContents } from 'electron';
+import type { IpcMain, OpenDialogOptions } from 'electron';
 import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -77,8 +77,22 @@ let child: ChildProcess | null = null;
 let ready: Promise<Reply> | null = null;
 let nextId = 0;
 const pending = new Map<number, (r: Reply) => void>();
-// Where the running generation's progress/preview events go.
-let eventSink: WebContents | null = null;
+// Where the running generation's progress/preview events go: the renderer's
+// WebContents, or anything else with the same send() (Comfy Bridge's network
+// relay forwards them to a phone's websocket).
+export interface ComfyLocalEventSink { send(channel: string, payload: unknown): void; }
+let eventSink: ComfyLocalEventSink | null = null;
+
+// The runner's console output, in ComfyUI's /internal/logs entry shape. It
+// pushes new lines as they're written; localLogs() reads the buffer (the
+// last 300 entries). Comfy Bridge shows them in its ComfyUI Terminal and
+// relays them to the phone.
+export type LogEntry = { t: string; m: string };
+const logListeners = new Set<(entries: LogEntry[]) => void>();
+export function onLocalLogs(cb: (entries: LogEntry[]) => void): () => void {
+  logListeners.add(cb);
+  return () => { logListeners.delete(cb); };
+}
 
 function runnerScript(): string {
   // The runner has to exist on disk for Python: asarUnpack'd in a package.
@@ -113,6 +127,7 @@ function start(): Promise<Reply> {
       try { msg = JSON.parse(line); } catch { return; }
       if (msg.event === 'ready') { settle({ ok: true, comfyVersion: msg.comfy_version }); return; }
       if (msg.event === 'progress') { eventSink?.send(config.progressChannel, { value: msg.value, max: msg.max }); return; }
+      if (msg.event === 'logs') { for (const cb of logListeners) cb(msg.entries as LogEntry[]); return; }
       if (msg.event === 'preview') {
         eventSink?.send(config.previewChannel, { mime: msg.mime, bytes: new Uint8Array(Buffer.from(String(msg.b64), 'base64')) });
         return;
@@ -159,14 +174,43 @@ async function request(cmd: string, payload: Record<string, unknown> = {}): Prom
   });
 }
 
+// Starts the runner if it isn't running (Connect's path). Comfy Bridge's
+// relay uses it too: a phone's request is an explicit ask, like Connect.
+export async function ensureLocalStarted(): Promise<{ ok: boolean; error?: string; comfyVersion?: string }> {
+  const r = await start();
+  return r.ok ? { ok: true, comfyVersion: r.comfyVersion as string } : { ok: false, error: r.error };
+}
+
 // ---- what main.ts's synthdat-* handlers call ------------------------------
+
+export async function localLogs(): Promise<{ ok: boolean; entries?: LogEntry[]; error?: string }> {
+  const r = await request('logs');
+  return r.ok ? { ok: true, entries: (r.entries || []) as LogEntry[] } : { ok: false, error: r.error };
+}
+
+// A node's inputs in /object_info's shape ({ required, optional }), for the
+// relay's /object_info/<class>.
+export async function localNodeInputs(classType: string): Promise<{ ok: boolean; input?: unknown; error?: string }> {
+  const r = await request('node_info', { class_type: classType });
+  return r.ok ? { ok: true, input: r.input } : { ok: false, error: r.error };
+}
 
 export async function localObjectInfo(classType: string, inputName: string): Promise<ComfyResult> {
   const r = await request('object_info', { class_type: classType, input: inputName });
   return r.ok ? { ok: true, values: r.values as string[] } : { ok: false, error: r.error };
 }
 
-export async function localGenerate(sender: WebContents, prompt: SynthDatPrompt, imageBytes: Uint8Array | null): Promise<ComfyResult> {
+// One generation at a time: the runner already works through its jobs in
+// order, but events must go to the sink of the job actually running, and
+// Comfy Bridge's relay can submit next to the app's own Generate.
+let generateChain: Promise<unknown> = Promise.resolve();
+export function localGenerate(sender: ComfyLocalEventSink, prompt: SynthDatPrompt, imageBytes: Uint8Array | null): Promise<ComfyResult> {
+  const run = generateChain.then(() => runGenerate(sender, prompt, imageBytes));
+  generateChain = run.catch(() => undefined);
+  return run;
+}
+
+async function runGenerate(sender: ComfyLocalEventSink, prompt: SynthDatPrompt, imageBytes: Uint8Array | null): Promise<ComfyResult> {
   eventSink = sender;
   try {
     const r = await request('generate', {

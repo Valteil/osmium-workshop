@@ -36,6 +36,7 @@
       "preload.js",
       "comfy-core.js",
       "comfy-local.js",
+      "local-relay.js",
       "local-comfy/**/*",
       "renderer/**/*",
       "node_modules/ws/**/*",

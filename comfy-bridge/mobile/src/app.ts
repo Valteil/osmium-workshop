@@ -42,6 +42,7 @@ declare const BridgeShared: {
   attachPickerModal: (input: any, title: string, getOptions: () => any) => void;
   initTheme: (themes: any, def: any) => void;
   mountThemePicker: (opts: any) => void;
+  initTagWiki: (button: HTMLElement) => void;
   mountGallerySidebar: (backend: any, label: any) => any;
   showImageLightbox: (src: string) => void;
   THEMES: any;
@@ -1456,6 +1457,7 @@ declare const BridgeShared: {
   // popover in the topbar. Persisted per-device via comfybridge-theme.
   BridgeShared.initTheme(BridgeShared.THEMES, BridgeShared.DEFAULT_THEME);
   BridgeShared.mountThemePicker({ wrap: 'themeWrap', btn: 'themeBtn', btnLabel: 'themeBtnLabel', menu: 'themeMenu' });
+  BridgeShared.initTagWiki($<HTMLButtonElement>('btnTagWiki'));
   BridgeShared.attachPickerModal(diffModel, 'Diffusion model', () => BridgeShared.optionsFromDatalist(diffModelList));
   BridgeShared.attachPickerModal(clip, 'CLIP', () => BridgeShared.optionsFromDatalist(clipList));
   BridgeShared.attachPickerModal(vae, 'VAE', () => BridgeShared.optionsFromDatalist(vaeList));

@@ -1,4 +1,5 @@
-// Tag wiki window (top bar's "Wiki" button): look up any Danbooru tag's
+// Tag wiki window (top bar's "Wiki" button, desktop and mobile — shared, so
+// the phone gets it via BridgeShared): look up any Danbooru tag's
 // definition while writing a prompt. A port of Osmium Workshop's
 // src/renderer/tag-wiki.ts, self-contained here because Osmium's version
 // leans on its own tag-details/autocomplete modules (dataset stats,
@@ -182,7 +183,11 @@ function positionSuggestions(): void {
   const w = win.getBoundingClientRect(), f = inputEl.getBoundingClientRect();
   const width = 260;
   acEl.style.width = width + 'px';
-  // Beside the window, level with the field; below it only when neither side fits.
+  acEl.style.maxHeight = '';
+  acEl.style.bottom = '';
+  // Beside the window, level with the field (desktop). A phone has no room
+  // either side, so the list goes under the field, or above it when there's
+  // less space below (the on-screen keyboard takes the bottom).
   if (w.right + 8 + width <= window.innerWidth - 8) {
     acEl.style.left = (w.right + 8) + 'px';
   } else if (w.left - 8 - width >= 8) {
@@ -190,7 +195,15 @@ function positionSuggestions(): void {
   } else {
     acEl.style.left = f.left + 'px';
     acEl.style.width = f.width + 'px';
-    acEl.style.top = (f.bottom + 4) + 'px';
+    const below = window.innerHeight - f.bottom - 12, above = f.top - 12;
+    if (below >= 160 || below >= above) {
+      acEl.style.top = (f.bottom + 4) + 'px';
+      acEl.style.maxHeight = Math.min(320, below) + 'px';
+    } else {
+      acEl.style.top = '';
+      acEl.style.bottom = (window.innerHeight - f.top + 4) + 'px';
+      acEl.style.maxHeight = Math.min(320, above) + 'px';
+    }
     return;
   }
   const h = acEl.offsetHeight;

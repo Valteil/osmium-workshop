@@ -24,10 +24,17 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 - **Main LoRA weight** (Windows and Android): a field under Main LoRA sets how strongly it's
   applied (1 = full, as before). Importing a PNG brings its weight back too.
-- **Tag wiki** (Windows): a **Wiki** button in the top bar opens the same tag-definition window as
-  Osmium's, for checking what a tag means while writing a prompt. Suggestions as you type, See also
-  links, and your own notes for tags without a definition. The definitions ship with the app, so
-  it works offline.
+- **Tag wiki** (Windows and Android): a **Wiki** button in the top bar opens the same
+  tag-definition window as Osmium's, for checking what a tag means while writing a prompt.
+  Suggestions as you type, See also links, and your own notes for tags without a definition. The
+  definitions ship with the app, so it works offline.
+- **Use your PC's Local ComfyUI from your phone**: on Windows, with Run on set to Local ComfyUI,
+  tick **Let the phone app use it** (port 8189 by default). The Android app then connects to your
+  PC's address, such as its Tailscale IP, exactly like a ComfyUI server: generate, stop, live
+  preview, and the ComfyUI Terminal showing the PC's ComfyUI output. The first request starts
+  Local ComfyUI on the PC if it isn't running. There's no password (the same as ComfyUI's own
+  `--listen`), so only turn it on for networks you trust, like your tailnet.
+- **ComfyUI Terminal in Local ComfyUI mode** (Windows): shows Local ComfyUI's own output, live.
 
 ---
 

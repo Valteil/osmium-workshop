@@ -16,13 +16,44 @@ const https = require('https');
 const WS = require('ws');
 import { parseComboValues, uploadImage, queuePrompt, pollHistory, extractPngTextChunks as extractPngChunks } from './comfy-core';
 import type { ComfyTransport } from './comfy-core';
-import { configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop } from './comfy-local';
+import { configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop, localLogs, onLocalLogs } from './comfy-local';
+import { startRelay, stopRelay, relayState, relayAddresses } from './local-relay';
 
 // Local ComfyUI (comfy-local.ts, shared with Osmium): the Bridge launches the
 // user's own ComfyUI install headless instead of talking to a server. The
 // renderer passes LOCAL_COMFY_HOST ('local') as the host to use it.
 configureComfyLocal({ appName: 'Comfy Bridge', progressChannel: 'gen-progress', previewChannel: 'preview-frame' });
 registerComfyLocalHandlers(ipcMain);
+// The runner's console output streams into the ComfyUI Terminal, like a
+// server's log subscription does.
+onLocalLogs((entries) => {
+  for (const w of BrowserWindow.getAllWindows()) w.webContents.send('comfy-log', entries);
+});
+
+// Network relay (local-relay.ts): lets the Android app (over Tailscale or
+// the LAN) generate on this PC's Local ComfyUI. Opt-in, remembered in
+// userData/comfy-relay.json, started at launch when on.
+const RELAY_FILE = () => path.join(app.getPath('userData'), 'comfy-relay.json');
+const DEFAULT_RELAY_PORT = 8189;
+function readRelayConfig(): { enabled: boolean; port: number } {
+  try {
+    const c = JSON.parse(fs.readFileSync(RELAY_FILE(), 'utf8'));
+    return { enabled: !!c.enabled, port: Number(c.port) || DEFAULT_RELAY_PORT };
+  } catch { return { enabled: false, port: DEFAULT_RELAY_PORT }; }
+}
+function relayStatus() {
+  const cfg = readRelayConfig();
+  return { ...cfg, ...relayState(), addresses: relayAddresses() };
+}
+ipcMain.handle('comfy-relay-status', () => relayStatus());
+ipcMain.handle('comfy-relay-set', async (_event, { enabled, port }) => {
+  const cfg = { enabled: !!enabled, port: Math.min(65535, Math.max(1024, Number(port) || DEFAULT_RELAY_PORT)) };
+  fs.writeFileSync(RELAY_FILE(), JSON.stringify(cfg));
+  if (cfg.enabled) await startRelay(cfg.port); else stopRelay();
+  return relayStatus();
+});
+app.whenReady().then(() => { const cfg = readRelayConfig(); if (cfg.enabled) startRelay(cfg.port); });
+app.on('will-quit', stopRelay);
 
 function createWindow() {
   const windowIcon = path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
@@ -244,8 +275,9 @@ ipcMain.handle('synthdat-stop-generation', async (event, host) => {
 // endpoint its own frontend's Logs panel reads (see the websocket
 // subscription below for the live-streaming half of this).
 ipcMain.handle('comfy-fetch-logs', async (event, { host }) => {
-  // Local ComfyUI has no server to ask: its output is in its own console window.
-  if (host === LOCAL_COMFY_HOST) return { ok: true, entries: [{ t: '', m: 'Local ComfyUI writes its output to its own console window ("Comfy Bridge - local ComfyUI").' }] };
+  // Local ComfyUI: the runner's own log buffer (new lines arrive live via
+  // onLocalLogs below).
+  if (host === LOCAL_COMFY_HOST) return localLogs();
   try {
     const res = await comfyRequest(host, '/internal/logs/raw', { timeoutMs: 8000 });
     if (res.status !== 200) return { ok: false, error: `ComfyUI returned HTTP ${res.status} fetching logs.` };
