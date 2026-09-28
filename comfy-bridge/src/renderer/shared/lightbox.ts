@@ -39,7 +39,11 @@ function attachLightboxPinch(img: HTMLImageElement, onZoomDelta: (delta: number)
 
 // `siblings`, when given, returns the image URLs the lightbox can step
 // through with ← / → (the gallery passes its loaded thumbnails, in order).
-export function showImageLightbox(src: string, siblings?: () => string[]): void {
+// `info`, when given (desktop gallery only), builds a side panel for the shown
+// image, placed left of it and rebuilt on every step; it gets `close` so a
+// button in it can dismiss the lightbox.
+export type LightboxInfo = (src: string, close: () => void) => HTMLElement | null;
+export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo): void {
   if (!src) return;
   const backdrop = document.createElement('div');
   backdrop.className = 'lightbox-backdrop';
@@ -141,6 +145,17 @@ export function showImageLightbox(src: string, siblings?: () => string[]): void 
     setTimeout(() => backdrop.remove(), 160);
     document.removeEventListener('keydown', onKey);
   }
+  let infoEl: HTMLElement | null = null;
+  function renderInfo(): void {
+    if (!info) return;
+    const next = info(img.src, close);
+    if (infoEl) infoEl.remove();
+    infoEl = next;
+    if (infoEl) {
+      backdrop.classList.add('has-info');
+      backdrop.insertBefore(infoEl, img);
+    }
+  }
   function step(dir: 1 | -1): void {
     const list = siblings ? siblings() : [];
     const i = list.indexOf(img.src);
@@ -151,6 +166,7 @@ export function showImageLightbox(src: string, siblings?: () => string[]): void 
     panX = 0;
     panY = 0;
     applyTransform();
+    renderInfo();
   }
   function onKey(ev: KeyboardEvent): void {
     if (ev.key === 'Escape') close();
@@ -169,6 +185,7 @@ export function showImageLightbox(src: string, siblings?: () => string[]): void 
   });
   closeBtn.addEventListener('click', close);
   document.addEventListener('keydown', onKey);
+  renderInfo();
   document.body.appendChild(backdrop);
   requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));
 }

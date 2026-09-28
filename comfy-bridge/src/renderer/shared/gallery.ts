@@ -11,7 +11,7 @@
 // thumbnail for the zoomable lightbox.
 import type { StorageBackend } from './storage';
 import { scanImages, groupByFolder, fileNumber, isGalleryImage } from './storage';
-import { showImageLightbox } from './lightbox';
+import { showImageLightbox, type LightboxInfo } from './lightbox';
 
 export interface GalleryHandles {
   fab: HTMLButtonElement;
@@ -28,7 +28,10 @@ export interface GalleryHandles {
 
 export interface GalleryOptions {
   navigable?: boolean;
+  // Desktop only: the generation-parameters panel beside an opened image.
+  imageInfo?: LightboxInfo;
 }
+let imageInfo: LightboxInfo | undefined;
 
 export type GallerySortMode = 'name-asc' | 'name-desc' | 'date-desc' | 'date-asc';
 const SORT_KEY = 'bridge-shared-gallery-sort';
@@ -113,7 +116,7 @@ async function renderThumbSlice(
       continue;
     }
     img.src = url;
-    img.addEventListener('click', () => showImageLightbox(url, () => galleryThumbUrls(h)));
+    img.addEventListener('click', () => showImageLightbox(url, () => galleryThumbUrls(h), imageInfo));
   }
   return true;
 }
@@ -140,6 +143,7 @@ export function mountGallerySidebar(
   opts?: GalleryOptions
 ): GalleryHandles {
   const navigable = !!opts?.navigable;
+  imageInfo = opts?.imageInfo;
   const fab = document.createElement('button');
   fab.id = 'galleryFab';
   fab.title = 'Open gallery';

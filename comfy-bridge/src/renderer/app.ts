@@ -12,6 +12,7 @@ import {
 } from './shared';
 import { openThemeStudio } from './theme-studio';
 import { initUiZoom, buildUiZoomRow } from './ui-zoom';
+import { buildGenInfoPanel, stampOutputKind } from './gen-info';
 import { initTagWiki } from './shared/tag-wiki';
 export {};
 
@@ -1043,16 +1044,18 @@ async function runGenJob(job: GenJob): Promise<void> {
   const slides: { label: string; bytes: Uint8Array }[] = [];
   // 2-Pass: save BOTH passes, per this app's whole reason for existing —
   // SynthDat only ever keeps one (via Accept), this keeps both always.
+  // Each saved copy is stamped with which output it is (./gen-info.ts): the
+  // gallery's parameters panel can't tell pass 1 from pass 2 otherwise.
   if (res.pass1ImageBytes) {
-    if (!(await saveBytes(res.pass1ImageBytes, res.pass1SaveRel || `${await fallbackN()}_pass1.png`))) saveFailed = true;
+    if (!(await saveBytes(stampOutputKind(res.pass1ImageBytes, 'pass1'), res.pass1SaveRel || `${await fallbackN()}_pass1.png`))) saveFailed = true;
     slides.push({ label: 'Pass 1', bytes: res.pass1ImageBytes });
   }
   if (res.imageBytes) {
-    if (!(await saveBytes(res.imageBytes, res.saveRel || `${await fallbackN()}.png`))) saveFailed = true;
+    if (!(await saveBytes(stampOutputKind(res.imageBytes, res.pass1ImageBytes ? 'pass2' : 'single'), res.saveRel || `${await fallbackN()}.png`))) saveFailed = true;
     slides.push({ label: res.pass1ImageBytes ? 'Pass 2' : 'Pass 1', bytes: res.imageBytes });
   }
   if (res.upscaledImageBytes) {
-    if (!(await saveBytes(res.upscaledImageBytes, res.upscaledSaveRel || `${await fallbackN()}_upscaled.png`))) saveFailed = true;
+    if (!(await saveBytes(stampOutputKind(res.upscaledImageBytes, 'upscaled'), res.upscaledSaveRel || `${await fallbackN()}_upscaled.png`))) saveFailed = true;
     slides.push({ label: 'Upscaled', bytes: res.upscaledImageBytes });
   }
   if (saveFailed) {
@@ -1233,7 +1236,16 @@ btnStop.addEventListener('click', async () => {
 
 // ---------------- Init ----------------
 
-mountGallerySidebar(desktopBackend, () => outputFolder || 'No folder chosen', { navigable: true });
+mountGallerySidebar(desktopBackend, () => outputFolder || 'No folder chosen', {
+  navigable: true,
+  // Generation parameters left of an opened gallery image (./gen-info.ts);
+  // "Use these settings" loads them like Import generation and closes it.
+  imageInfo: (src, close) => buildGenInfoPanel(src, (prompt) => {
+    applyImportedPrompt(prompt);
+    log('Loaded generation settings from a gallery image.');
+    close();
+  }),
+});
 initTagWiki($<HTMLButtonElement>('btnTagWiki'));
 refreshSamplerLists();
 window.electronAPI.getAppVersion().then((v) => { $<HTMLSpanElement>('appVersion').textContent = `v${v}`; }).catch(() => {});

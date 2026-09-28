@@ -121,6 +121,34 @@
   transition:opacity var(--panel-dur, 160ms) var(--pop-ease, ease-out), transform var(--panel-dur, 160ms) var(--pop-ease, ease-out);
 }
 .tag-wiki-window.visible{ opacity:1; transform:none; pointer-events:auto; }
+
+/* Generation parameters left of an opened gallery image (desktop only,
+   src/renderer/gen-info.ts), styled after the Tag wiki window. */
+.lightbox-backdrop.has-info img{ max-width:calc(94vw - 400px); margin-left:380px; }
+.gen-info{
+  position:fixed; left:16px; top:50%; transform:translateY(-50%); width:350px; max-height:88vh; overflow-y:auto;
+  background:var(--panel3, var(--panel2)); border:1px solid var(--border-strong, var(--border)); border-radius:var(--r-panel, 8px);
+  padding:12px 14px 14px; box-shadow:0 16px 40px rgba(0,0,0,0.5); cursor:default;
+  display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--text);
+}
+.gen-info-title{ font-family:var(--head-font, inherit); font-weight:600; font-size:14px; }
+.gen-info-empty{ color:var(--faint, var(--muted)); font-style:italic; line-height:1.5; }
+.gen-info-use{ align-self:flex-start; margin:4px 0 2px; font-size:12px; }
+.gen-info-section{
+  margin-top:8px; padding-bottom:2px; border-bottom:1px solid var(--border);
+  font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--accent);
+}
+.gen-info-row{ display:flex; gap:10px; align-items:baseline; line-height:1.45; }
+.gen-info-row.block{ flex-direction:column; gap:1px; }
+.gen-info-k{ flex:0 0 auto; min-width:92px; color:var(--muted); font-size:11.5px; }
+.gen-info-v{ flex:1; min-width:0; overflow-wrap:anywhere; white-space:pre-wrap; user-select:text; }
+.gen-info-row.block .gen-info-v{
+  background:var(--panel2); border:1px solid var(--border); border-radius:var(--r-field, 5px); padding:6px 9px;
+}
+.gen-info-all{ margin-top:10px; }
+.gen-info-all summary{ cursor:pointer; color:var(--muted); font-size:11.5px; }
+.gen-info-node{ margin-top:8px; font-family:var(--mono, monospace); font-size:11px; color:var(--text); }
+.gen-info-all .gen-info-row{ padding-left:10px; font-size:11.5px; }
 .tag-wiki-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:move; user-select:none; touch-action:none; }
 .tag-wiki-title{ display:flex; align-items:center; gap:6px; font-family:var(--head-font, inherit); font-weight:600; font-size:12.5px; color:var(--text); }
 .tag-wiki-close{ padding:0 8px; font-size:16px; line-height:1.4; }

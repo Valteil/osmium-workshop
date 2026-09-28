@@ -35,6 +35,12 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 - **Arrow keys in the gallery**: with an image open from the gallery, ← and → step to the previous
   and next image in the folder.
+- **Generation settings beside gallery images** (Windows): opening an image from the gallery shows
+  how it was made in a panel to its left: which output it is (Pass 1, Pass 2, Upscaled or single
+  pass), the prompt field by field, the negative, models and LoRAs with weights, size, seed, steps,
+  CFG, sampler, scheduler, the 2-Pass, upscale and reference-image settings, and every other node
+  setting under **All node settings**. **Use these settings** loads them into the generator, like
+  Import generation. Images saved before this version can't say whether they're Pass 1 or Pass 2.
 - **Text size** (Windows): a slider at the top of the theme menu makes the whole window bigger or
   smaller (80–160%). It's remembered, and **Reset** puts it back to 100%. Prompt boxes re-fit
   their text as the size changes (and when the window or the right column is resized), instead
