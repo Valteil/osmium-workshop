@@ -39,7 +39,10 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   2-Pass and Upscale) now live in a slide-out panel on the right, opened by the gear button. File
   saving (folders and filename, below) has its own panel under it, the folder button. The Output
   section keeps the folder picker and a one-line "Saves as" preview. Like the Android app's
-  drawers: one open at a time, and clicking outside, Esc or ✕ closes it.
+  drawers: one open at a time, and clicking outside, Esc or ✕ closes it. The two buttons sit in a
+  row to the left of the gallery button and stay faded until you point at them, so they don't
+  hide what's underneath.
+- **Comfy Bridge opens maximized** (Windows).
 - **Osmium's look** (Windows and Android): the gallery button and the new panel buttons use
   Osmium's line icons, and checkboxes match Osmium's (rounded, filled in the theme's accent).
 - **New file naming** (Windows), in the File saving panel:

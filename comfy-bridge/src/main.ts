@@ -113,7 +113,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js')
     }
   });
-  win.once('ready-to-show', () => win.show());
+  // Opens maximized (the user's call); un-maximizing falls back to 1280x860.
+  win.once('ready-to-show', () => { win.maximize(); win.show(); });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 

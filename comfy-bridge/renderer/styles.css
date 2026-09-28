@@ -181,16 +181,20 @@ html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(
 .theme-item-studio{ color:var(--accent); font-weight:600; }
 
 /* Right-side slideouts (index.html's #genSettingsDrawer / #fileDrawer), like
-   the Android app's drawers. Toggles stack above the gallery button
-   (#galleryFab, bottom 18px, 56px tall); drawers cover them when open. */
+   the Android app's drawers. Toggles sit in a row left of the gallery button
+   (#galleryFab: right 14px, bottom 18px, 56px), centred on it: gear, folder,
+   gallery. They fade back until hovered or focused so they don't hide what's
+   under them; drawers cover them when open. */
 .side-drawer-toggle{
-  position:fixed; right:19px; bottom:146px; z-index:500;
+  position:fixed; right:136px; bottom:23px; z-index:500;
   width:46px; height:46px; min-height:46px; border-radius:50%; padding:0;
   background:var(--panel); border:1.5px solid var(--muted); color:var(--text);
   display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgb(0 0 0 / 35%);
+  opacity:.4; transition:opacity .15s ease;
 }
+.side-drawer-toggle:hover, .side-drawer-toggle:focus-visible, .side-drawer-toggle.active{ opacity:1; }
 .side-drawer-toggle .bridge-ic{ width:22px; height:22px; }
-.side-drawer-toggle.file-drawer-toggle{ bottom:88px; }
+.side-drawer-toggle.file-drawer-toggle{ right:80px; }
 .side-drawer-toggle.active{ border-color:var(--accent); color:var(--accent); }
 .side-drawer-backdrop{
   position:fixed; inset:0; z-index:505; background:rgb(0 0 0 / 40%);
@@ -200,11 +204,12 @@ html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(
 .side-drawer{
   position:fixed; top:0; right:0; bottom:0; width:min(92vw, 400px); z-index:510;
   background:var(--panel); border-left:1px solid var(--border-strong, var(--border));
-  box-shadow:-12px 0 36px rgb(0 0 0 / 35%);
-  transform:translateX(100%); transition:transform .25s cubic-bezier(0.32,0.72,0,1);
+  transform:translateX(100%); transition:transform .25s cubic-bezier(0.32,0.72,0,1), box-shadow .25s ease;
   display:flex; flex-direction:column; gap:4px; overflow-y:auto; padding:14px 16px 20px;
 }
-.side-drawer.open{ transform:translateX(0); }
+/* The shadow only while open: a closed drawer sits just off-screen, and its
+   shadow spilled back in as a dark strip down the right edge. */
+.side-drawer.open{ transform:translateX(0); box-shadow:-12px 0 36px rgb(0 0 0 / 35%); }
 .side-drawer-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
 .side-drawer-head .d{ font-weight:600; font-size:15px; }
 .side-drawer-close{ background:none; border:none; color:var(--muted); font-size:18px; padding:4px 8px; min-height:0; }
