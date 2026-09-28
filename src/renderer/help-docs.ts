@@ -33,6 +33,11 @@ export const HELP_SECTIONS: HelpSection[] = [
         <li><b>_dts_meta.json</b> — per-image notes, review flags, locks, and similar metadata.</li>
         <li><b>_dts_synthdat_settings.json</b> — SynthDat Overseer's prompt/generation settings for
         this dataset (only appears once you've used that tab).</li>
+        <li><b>_dts_achievements.json</b> — achievements unlocked in this dataset.</li>
+        <li><b>_dts_subject_presets.json</b> — characters saved from Tag sorting's character
+        sections (only appears once you save one).</li>
+        ${isTouchDevice ? '' : `<li><b>initial_state/</b> — originals kept by Bucket Images, shown in the
+        🖼 Initial State view (only appears once you bucket).</li>`}
       </ul>
       <p><b>File ▸ Add images…</b> copies more images into the open dataset, each arriving untagged
       with an empty <code>.txt</code>.${isTouchDevice ? ' You choose which app to pick them from — Photos, Files, or any file manager you have installed.' : ''}
@@ -69,7 +74,8 @@ export const HELP_SECTIONS: HelpSection[] = [
         close it.</li>`}
         <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
         ${isTouchDevice ? '' : `<li><b>🖼 Initial State</b> — the pre-bucketing originals kept by Bucket Images (see Power
-        tools). Read-only here; Bucket Images' Revert is what moves them back.</li>`}
+        tools). Their tags can be edited, but they can't be disabled or restored; Bucket Images'
+        Revert is what moves them back.</li>`}
         <li><b>🔢 Rename all</b> — renames every loaded image (+ its .txt) to a simple zero-padded
         1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
         first; logged and undoable from the Log panel. WebP images are converted to PNG on the way,
@@ -92,11 +98,13 @@ export const HELP_SECTIONS: HelpSection[] = [
       follow that category order, just without headings (Settings ▸ "Sort tags within each card"
       offers Order added, Alphabetical or By frequency instead). The grouping is a best
       guess from Danbooru tag groups, so the odd tag lands in a neighbouring category. With it on,
-      <b>＋ Add subject</b> (next to the pill) splits an image's tags into named subjects (e.g.
-      "Girl 1", "Girl 2") for multi-character images: rename a subject by typing in its name,
-      add category subheaders with <b>＋ Subheader</b>, and move tags between subjects by
-      dragging a chip onto a subject${isTouchDevice ? '' : ', or shift-clicking chips then "Move tags to:"'}.
-      Subjects are saved per image; removing them all returns to the plain category list.</p>
+      <b>＋ Add character</b> (next to the pill) adds an empty section under Character, named
+      Character 1, 2… until you type a name, for multi-character images. Drag a whole category
+      heading or single tags into it${isTouchDevice ? '' : ' (or shift-click tags, then "Move tags to:")'};
+      drop them back on the main list to take them out. <b>Save</b> keeps that character in the
+      dataset, and <b>Load character</b> on another image pulls its tags into a section, with
+      the saved tags the image doesn't have shown as dashed <b>+ tag</b> chips to add.
+      Sections are saved per image; ✕ removes one and its tags go back to the main list.</p>
       <p><b>Filtering</b> — the search box on the left supports multiple tags combined with AND /
       OR / XOR / NOT. Type 2 or more characters and a suggestions list appears below the box:
       direct matches first, then other tags that share a word with them (searching "dr" suggests
@@ -256,7 +264,10 @@ export const HELP_SECTIONS: HelpSection[] = [
       while it's already open takes you back to the Gallery.${isTouchDevice ? '' : ` If the right sidebar
       is tucked away, clicking this tab opens it, and clicking the tab again tucks it back.`}</p>
       <p><b>Master Tag Control</b> — select images by ${isTouchDevice ? 'tapping' : 'clicking'} thumbnails in the mini-grid here, or
-      by selecting them in the main Gallery first (selection stays in sync either way). From there
+      by selecting them in the main Gallery first (selection stays in sync either way). The
+      mini-grid always shows what the Gallery shows, so switch the Gallery to Disabled${isTouchDevice ? '' : ' or Initial State'}
+      to pick those images; it updates as soon as the Gallery changes. The selection tools act on
+      whatever you selected, while the dataset-wide ones only touch active images. From there
       you can apply or remove a tag across the whole selection, conditionally apply one tag based
       on another already being present (or its own separate row for the inverse — based on it
       being ABSENT), conditionally remove a tag from every image that has another, or run a

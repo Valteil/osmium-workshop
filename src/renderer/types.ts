@@ -37,9 +37,10 @@ export interface Entry {
   dirty: boolean;
   disabled: boolean;
   // True for images living in the dataset's initial_state/ folder (the
-  // pre-bucketing originals). They are ALSO `disabled: true` — that's what
-  // "treated as disabled" means for every existing mass/auto tool — but the
-  // Disabled view excludes them so they only show in the Originals view.
+  // pre-bucketing originals). They are ALSO `disabled: true`, so the
+  // whole-folder tools skip them (the selected-image tools act on whatever is
+  // selected), and the Disabled view excludes them so they only show in the
+  // Initial State view.
   original?: boolean;
   meta?: EntryMeta;
   imgName?: string;
@@ -64,8 +65,8 @@ export interface EntryMeta {
   locked?: boolean;
   dateAdded?: number;
   blurred?: boolean;
-  // Tag Sorting's per-image subject tree (see notes/Features/Tag-Sorting.md).
-  // Absent/empty = the flat category view.
+  // Tag Sorting's per-image character sections (see notes/Features/Tag-Sorting.md).
+  // A tag not in tagAssign stays in the main category list.
   tagSubjects?: TagSubject[];
   tagAssign?: Record<string, string>; // tag -> subject id
 }

@@ -45,7 +45,8 @@ export let stickyCompareImages: string[] = [];
 const TAG_SORTING_KEY = 'dts-tag-sorting';
 let tagSortingActive = getBool(TAG_SORTING_KEY);
 
-// Shift-click selection in the multi-subject tree (module-level so it survives
+// Shift-click selection for moving tags between character sections and the
+// main list (module-level so it survives
 // the re-render each selection change triggers). Reset when the entry changes.
 let subjectSelectedTags = new Set<string>();
 let subjectSelectionBase: string | null = null;
@@ -1805,8 +1806,8 @@ function buildChipsBlock(entry: Entry, tagIndex: TagIndex, onChange: () => void)
 // Tag Sorting's per-category "+": opens a small add field right under that
 // category's header. Tags always land in the category the classifier puts
 // them in (it's not a manual assignment), so a tag that belongs elsewhere is
-// added anyway and the user is told where it went. In the subject tree the
-// added tags are also assigned to that subject.
+// added anyway and the user is told where it went. Inside a character
+// section the added tags are also assigned to that section.
 function buildCategoryAddButton(entry: Entry, cat: TagCategoryId, host: HTMLElement, onChange: () => void, subjectId?: string): HTMLElement {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -1856,7 +1857,7 @@ function addTagsToCategory(entry: Entry, raw: string, cat: TagCategoryId, subjec
   }
 }
 
-// ---------------- Multi-subject tree (Tag Sorting) ----------------
+// ---------------- Character sections (Tag Sorting) ----------------
 
 function ensureEntryMeta(entry: Entry): EntryMeta {
   if (!entry.meta) entry.meta = {};

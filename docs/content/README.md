@@ -147,7 +147,8 @@ cropped region as a *new* image instead, leaving the source untouched.
 - **Tag Sorting** (Single view + image modal) — groups an image's chips into Character, Hair,
   Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects and Other. Each category's
   **+** adds tags right there (a tag that belongs elsewhere goes there, and you're told). For
-  multi-character images, split tags into named subjects with their own category subheaders.
+  multi-character images, move tags into named character sections, save a character to the
+  dataset and load it onto other images.
 - **Add images** (File menu) — copy more images into the open dataset, or start a new dataset
   folder for them when nothing is open.
 - **Filter sidebar** (left) — multi-tag AND/OR/XOR/NOT search (with a Lock to keep the mode)

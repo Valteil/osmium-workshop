@@ -54,6 +54,9 @@ none of them touch your images or captions unless you tell them to:
 | `_dts_canonical_tags.json` | Your Retroactive Merge/Void rules |
 | `_dts_meta.json` | Per-image notes, review flags, locks, and other metadata |
 | `_dts_synthdat_settings.json` | SynthDat Overseer's prompt/generation settings for this dataset (only appears once you've used that tab) |
+| `_dts_achievements.json` | Achievements unlocked in this dataset |
+| `_dts_subject_presets.json` | Characters saved from Tag sorting's character sections (only appears once you save one) |
+| `initial_state/` | Originals kept by Bucket Images, shown in the 🖼 Initial State view (only appears once you bucket) |
 
 ---
 
@@ -101,7 +104,8 @@ which you chose (desktop).
 - **❌ Disabled** — images you've moved out of the active set. Use it for maybes you don't want
   to delete.
 - **🖼 Initial State** — the pre-bucketing originals kept by [Bucket Images](#bucket-images).
-  Read-only here; the dock's Revert is what moves them back.
+  Their tags can be edited, but they can't be disabled or restored; the dock's Revert is what moves
+  them back.
 - **🔢 Rename all** — renames every loaded image (+ its `.txt`) to a simple zero-padded `1`-`N`
   sequence (active dataset first, then `Disabled/`, continuing the same count), confirmed first.
   Logged and undoable from the Log panel like any other bulk action. Use it to normalize a folder
@@ -142,12 +146,16 @@ Alphabetical or By frequency instead. The grouping is a best guess
 from Danbooru tag groups, so the odd tag lands in a neighbouring category. To fix one, right-click
 the tag ▸ **Change tag category** and pick where it belongs; it moves there on every image and in
 every dataset. Pick **Automatic** in the same row to undo it. The setting is
-remembered. With it on, **＋ Add subject** (next to the pill) splits an image's tags into named
-subjects for multi-character images: rename a subject by typing in its name, add category
-subheaders with **＋ Subheader**, and move tags between subjects by dragging a chip onto a
-subject, or shift-clicking chips then **Move tags to:**. Every tag starts under the first subject
-and keeps its category when moved. Subjects are saved per image; removing them all returns to the
-plain category list.
+remembered.
+
+**Character sections** (multi-character images): with Tag sorting on, **＋ Add character** (next
+to the pill) adds an empty section under Character, named Character 1, 2… until you type a name.
+Drag a whole category heading, or single tags, into it; or shift-click tags and use **Move tags
+to:**. Tags keep their category inside the section, and dropping them back on the main list takes
+them out. **Save** keeps the character in the dataset (`_dts_subject_presets.json`), and saving
+the same name again updates it. On any other image, **Load character** pulls every saved tag that
+image has into a section; saved tags it doesn't have show as dashed **+ tag** chips you can click
+to add. Sections are saved per image; ✕ removes one and its tags go back to the main list.
 
 **Filtering:** the sidebar filter box supports multi-tag search combined with AND / OR / XOR /
 NOT, plus quick filters for All / Untagged / Unsaved. Typing 2+ characters shows a suggestions
@@ -298,7 +306,10 @@ opens it, and toggling back via the tab tucks it away again.
 
 ### Master Tag Control
 1. Select images — click thumbnails in the mini-grid here, or select in the main Gallery first
-   (selection stays in sync both ways).
+   (selection stays in sync both ways). The mini-grid always shows what the Gallery shows, so
+   switch the Gallery to ❌ Disabled or 🖼 Initial State to pick those images. It updates as soon
+   as the Gallery changes. The selection tools below (apply/remove, Lock, the flags, WD14 on
+   selected) act on whatever you selected; the dataset-wide ones only touch active images.
 2. Apply or remove a tag across the whole selection, conditionally apply one tag based on another
    being present — or the inverse, based on it being ABSENT (its own separate row, right below the
    first) — conditionally **remove** a tag from every image that has another (e.g. take "breasts"
