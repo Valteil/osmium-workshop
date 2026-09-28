@@ -88,7 +88,7 @@ import {
 } from './tag-details';
 import { initTagWiki } from './tag-wiki';
 import {
-  buildTagIndex, refreshStats, filteredEntries, passesFilter, setBaseFilter,
+  buildTagIndex, refreshStats, filteredEntries, activeFilteredEntries, passesFilter, setBaseFilter,
   parseFilterTerms, setContainsFilter, setExcludesFilter, setMirroredSelectionFilter, initTagIndex,
   resetReviewFlagged
 } from './tag-index';
@@ -1425,7 +1425,7 @@ import { setIconLabel } from './icons';
   initMasterTagControl({
     getEntries: () => entries,
     getEntryByBase: (base) => entryByBase.get(base),
-    filteredEntries: () => filteredEntries(),
+    filteredEntries: () => activeFilteredEntries(),
     renderCurrentView: () => renderCurrentView(),
     refreshAllUI: () => refreshAllUI(),
     getEntryMeta: () => entryMeta,

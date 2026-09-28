@@ -17,6 +17,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Change tag category**: right-click a tag ▸ Change tag category to move it to another category
   when the automatic sorting gets it wrong. It applies on every image and in every dataset;
   **Automatic** in the same row undoes it.
+- **Character sections** (Tag sorting): **＋ Add character** adds an empty section under
+  Character, named Character 1, 2… until you rename it. Drag a whole category or single tags into
+  it (or shift-click tags ▸ Move tags to). **Save** keeps that character in the dataset; **Load
+  character** on another image pulls its tags into a section and offers the saved ones the image
+  doesn't have yet.
 - **Main LoRA weight** (SynthDat Overseer): a field under Main LoRA sets how strongly it's applied
   (1 = full, as before). Saved per dataset like the other settings.
 
@@ -52,6 +57,12 @@ v1.9.0 before this, download it again.
   SynthDat Overseer nothing is auto-rejected any more: results that finish while you're still
   deciding on one wait their turn, and each Accept or Reject shows the next. Generation carries
   on in the meantime.
+- **Disabled images stay disabled.** If an image's old copy couldn't be removed when you disabled
+  it, it showed up in the Gallery again after a restart and couldn't be disabled ("already
+  disabled"). Opening the dataset now finishes that move, and a failed removal tells you instead
+  of failing silently.
+- **Tag Overseer's image grid only lists active images**, even while the Gallery is showing the
+  Disabled or Originals view.
 
 ### Comfy Bridge
 

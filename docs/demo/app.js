@@ -12968,13 +12968,16 @@ Image: ${entry.imgName}`,
     return arr;
   }
   function filteredEntries() {
-    return sortEntries(getEntries6().filter(passesFilter));
+    return sortEntries(getEntries6().filter((e) => passesFilter(e)));
   }
-  function passesFilter(e) {
+  function activeFilteredEntries() {
+    return sortEntries(getEntries6().filter((e) => passesFilter(e, true)));
+  }
+  function passesFilter(e, activeOnly = false) {
     const galleryFilter = getGalleryFilter();
-    if (galleryFilter.originalsView) {
+    if (!activeOnly && galleryFilter.originalsView) {
       if (!e.original) return false;
-    } else if (galleryFilter.disabledView) {
+    } else if (!activeOnly && galleryFilter.disabledView) {
       if (!e.disabled || e.original) return false;
     } else {
       if (e.disabled) return false;
@@ -27316,7 +27319,7 @@ Image: ${entry.imgName}`,
     initMasterTagControl({
       getEntries: () => entries,
       getEntryByBase: (base) => entryByBase.get(base),
-      filteredEntries: () => filteredEntries(),
+      filteredEntries: () => activeFilteredEntries(),
       renderCurrentView: () => renderCurrentView(),
       refreshAllUI: () => refreshAllUI(),
       getEntryMeta: () => entryMeta,
