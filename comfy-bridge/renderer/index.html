@@ -245,27 +245,61 @@
 
       <section class="sec">
         <div class="sec-head"><span class="d">Output</span></div>
-        <div class="row">
+        <div class="output-folder-row">
           <button id="btnPickOutputFolder">Choose output folder…</button>
           <span id="outputFolderLabel" class="muted">(none chosen)</span>
         </div>
-        <div class="muted small">Every generation saves automatically here — both passes when 2-Pass runs, upscaled if enabled. No Accept/Reject; this is just a ComfyUI interface.</div>
-        <!-- File naming (src/renderer/file-naming.ts): rating/character folder + a filename pattern. -->
-        <label for="charFolder">Character folder</label>
-        <div class="row naming-char-row">
-          <div class="naming-char-wrap">
-            <input id="charFolder" type="text" placeholder="Automatic" autocomplete="off" spellcheck="false" title="Leave empty to use the character recognized in the Character field. Type to pick a Danbooru character, or any name you like.">
+        <div class="muted small">Every generation saves here automatically: both passes when 2-Pass runs, and the upscaled image if upscale is on.</div>
+
+        <!-- File naming (src/renderer/file-naming.ts). Part 1 is automatic
+             and read-only; part 2 is the user's. -->
+        <div class="naming-group">
+          <div class="naming-title">Automatic folders</div>
+          <div class="muted small">Set by your prompt, not editable.</div>
+          <div id="namingAutoRating" class="naming-auto"></div>
+          <div id="namingAutoUpscaled" class="naming-auto"></div>
+        </div>
+
+        <div class="naming-group">
+          <div class="naming-title">Character folder</div>
+          <div class="naming-seg" role="radiogroup" aria-label="Character folder">
+            <label><input type="radio" name="charMode" id="charModeTag" value="tag" checked> Tag list</label>
+            <label><input type="radio" name="charMode" id="charModeOC" value="oc"> OC</label>
+            <label><input type="radio" name="charMode" id="charModeCustom" value="custom"> Custom</label>
+          </div>
+          <div id="charTagWrap" class="naming-char-wrap">
+            <input id="charTagName" type="text" autocomplete="off" spellcheck="false" placeholder="Type to search Danbooru characters">
             <div id="charFolderSuggest" class="naming-suggest" hidden></div>
           </div>
-          <button id="btnCharOC" type="button" title="Save original characters in one OC folder">OC</button>
+          <input id="charCustomName" type="text" spellcheck="false" placeholder="Folder name">
+          <div id="charModeNote" class="muted small"></div>
         </div>
-        <label for="filenamePattern">Filename</label>
-        <input id="filenamePattern" type="text" value="{old}" spellcheck="false" title="Free text and {tokens}; a counter like _00001_ is always added">
-        <div id="filenameTokens" class="naming-tokens"></div>
+
+        <div class="naming-group">
+          <div class="naming-title">Filename</div>
+          <div class="muted small">In this order; anything unticked is left out.</div>
+          <label class="chk-row"><input id="fnCharacter" type="checkbox"> Character name</label>
+          <label class="chk-row"><input id="fnLora" type="checkbox" checked> Main LoRA</label>
+          <label class="chk-row"><input id="fnGen" type="checkbox"> Model and sampler settings</label>
+          <div id="fnGenParts" class="naming-subchecks">
+            <label class="chk-row"><input id="fnModel" type="checkbox" checked> Model</label>
+            <label class="chk-row"><input id="fnSampler" type="checkbox" checked> Sampler</label>
+            <label class="chk-row"><input id="fnScheduler" type="checkbox"> Scheduler</label>
+            <label class="chk-row"><input id="fnSteps" type="checkbox"> Steps</label>
+            <label class="chk-row"><input id="fnCfg" type="checkbox"> CFG</label>
+            <label class="chk-row"><input id="fnSeed" type="checkbox"> Seed</label>
+          </div>
+          <div class="muted small">Then a number, always, so nothing is overwritten.</div>
+        </div>
+
         <div id="savePathPreview" class="naming-preview"></div>
-        <label class="chk-row"><input id="outputIsComfyOutput" type="checkbox"> This folder is my ComfyUI output folder</label>
-        <label class="chk-row" id="keepComfyCopyRow"><input id="keepComfyCopy" type="checkbox" checked> Also keep ComfyUI's own copy in its output folder</label>
-        <div class="muted small">ComfyUI's own copy keeps its old names. With the first box ticked, or the second unticked, ComfyUI only makes a temporary preview, so the file above is the only one saved.</div>
+
+        <div class="naming-group">
+          <div class="naming-title">ComfyUI's own copy</div>
+          <label class="chk-row"><input id="outputIsComfyOutput" type="checkbox"> This folder is my ComfyUI output folder</label>
+          <label class="chk-row" id="keepComfyCopyRow"><input id="keepComfyCopy" type="checkbox" checked> Also keep ComfyUI's own copy in its output folder</label>
+          <div class="muted small">ComfyUI's copy keeps its old names. With the first box ticked, or the second unticked, ComfyUI only makes a temporary preview and the file above is the only one saved.</div>
+        </div>
       </section>
 
     </div>

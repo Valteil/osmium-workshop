@@ -180,11 +180,26 @@ html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(
 .theme-item-custom{ border-top:1px solid var(--border); margin-top:4px; padding-top:8px; }
 .theme-item-studio{ color:var(--accent); font-weight:600; }
 
-/* File naming (Output section, src/renderer/file-naming.ts). */
-.naming-char-row{ align-items:stretch; }
-.naming-char-wrap{ position:relative; flex:1; min-width:0; }
-.naming-char-wrap input{ width:100%; }
-#btnCharOC{ flex:0 0 auto; }
+/* File naming (Output section, src/renderer/file-naming.ts). Everything here
+   wraps rather than widening the column, so it stays readable at any Text size. */
+.output-folder-row{ display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; margin:6px 0; }
+#outputFolderLabel{ min-width:0; flex:1 1 160px; overflow-wrap:anywhere; font-size:12px; }
+.naming-group{ margin-top:12px; padding-top:10px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:4px; min-width:0; }
+.naming-title{ font-weight:600; font-size:12.5px; color:var(--text); }
+.naming-group .small, .naming-auto{ overflow-wrap:anywhere; line-height:1.45; }
+.naming-auto{
+  font-size:12px; color:var(--muted); background:var(--panel2); border:1px solid var(--border);
+  border-radius:5px; padding:5px 8px; opacity:.8; cursor:not-allowed; user-select:none;
+}
+.naming-seg{ display:flex; flex-wrap:wrap; gap:4px; margin:2px 0 4px; }
+.naming-seg label{
+  display:flex; align-items:center; gap:5px; font-size:12px; padding:4px 10px; border:1px solid var(--border);
+  border-radius:999px; cursor:pointer; color:var(--text);
+}
+.naming-seg label:has(input:checked){ border-color:var(--accent); color:var(--accent); font-weight:600; }
+.naming-seg input{ width:auto; margin:0; }
+.naming-char-wrap{ position:relative; min-width:0; }
+.naming-char-wrap input, #charCustomName{ width:100%; }
 .naming-suggest{
   position:absolute; left:0; right:0; top:calc(100% + 2px); z-index:50; max-height:240px; overflow-y:auto;
   background:var(--panel); border:1px solid var(--border-strong, var(--border)); border-radius:6px; padding:3px;
@@ -192,10 +207,15 @@ html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(
 }
 .naming-suggest-item{
   display:block; width:100%; text-align:left; background:none; border:none; color:var(--text);
-  font:inherit; font-size:12px; padding:5px 8px; border-radius:4px; min-height:0;
+  font:inherit; font-size:12px; padding:5px 8px; border-radius:4px; min-height:0; white-space:normal;
 }
 .naming-suggest-item:hover{ background:var(--panel2); }
-.naming-tokens{ display:flex; flex-wrap:wrap; gap:4px; margin:5px 0 2px; }
-.naming-token{ font-family:var(--mono, monospace); font-size:11px; padding:2px 6px; min-height:0; }
-.naming-preview{ margin:8px 0 4px; padding:6px 8px; border:1px dashed var(--border); border-radius:5px; }
-.naming-preview-path{ font-family:var(--mono, monospace); font-size:11.5px; color:var(--text); overflow-wrap:anywhere; }
+.naming-group .chk-row{ margin:3px 0; }
+.naming-subchecks{ display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:0 10px; padding-left:22px; }
+.naming-preview{ margin:12px 0 4px; padding:8px 10px; border:1px dashed var(--border-strong, var(--border)); border-radius:6px; min-width:0; }
+.naming-preview-head{ font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:3px; }
+.naming-preview-line{ font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.naming-preview-line.root{ color:var(--muted); }
+.naming-preview-line.auto{ color:var(--muted); font-style:italic; }
+.naming-preview-line.user{ color:var(--text); font-weight:600; }
+.naming-preview-line.file{ color:var(--accent); font-weight:600; }

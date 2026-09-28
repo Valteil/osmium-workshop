@@ -13,7 +13,7 @@ import {
 import { openThemeStudio } from './theme-studio';
 import { initUiZoom, buildUiZoomRow } from './ui-zoom';
 import { buildGenInfoPanel, stampOutputKind } from './gen-info';
-import { NAME_TOKENS, characterIndex, recognizeCharacter, ratingFolder, expandPattern, nextSavePath, safeSegment } from './file-naming';
+import { characterIndex, recognizeCharacter, ratingFolder, nextSavePath, safeSegment, fileBaseName, joinNameParts, previewFileName } from './file-naming';
 import { initTagWiki } from './shared/tag-wiki';
 export {};
 
@@ -418,8 +418,10 @@ function snapshotPromptFields(): Record<string, string | boolean> {
     scene: scene.value,
     effects: effects.value,
     extra: extra.value,
-    // The character-folder override belongs to the character (v2.0.0).
-    charFolder: charFolder.value
+    // The character folder choice belongs to the character (v2.0.0).
+    charMode: charMode(),
+    charTagName: charTagName.value,
+    charCustomName: charCustomName.value
   };
 }
 
@@ -441,7 +443,13 @@ function applyPromptFields(fields: Record<string, string | boolean>): void {
   scene.value = String(fields.scene || '');
   effects.value = String(fields.effects || '');
   extra.value = String(fields.extra || '');
-  charFolder.value = String(fields.charFolder || '');
+  const mode = String(fields.charMode || 'tag');
+  charModeTag.checked = mode === 'tag';
+  charModeOC.checked = mode === 'oc';
+  charModeCustom.checked = mode === 'custom';
+  charTagName.value = String(fields.charTagName || '');
+  charCustomName.value = String(fields.charCustomName || '');
+  applyNamingUI();
   applyUnifiedPromptModeUI();
   void refreshSavePreview();
   autoGrowAll();
@@ -792,43 +800,76 @@ btnPickOutputFolder.addEventListener('click', async () => {
 });
 
 // ---------------- File naming ----------------
-// Folder <rating>/<character>/ and a filename pattern (./file-naming.ts).
-// The Character folder field overrides the character recognized from the
-// Character field; empty = automatic. The preview line shows where the next
-// generation will save and why.
-const charFolder = $<HTMLInputElement>('charFolder');
+// Two parts (./file-naming.ts): automatic folders the user can see but not
+// change (rating, Upscaled), and the user's own — the character folder (tag
+// list / OC / custom) and the filename's fixed-order toggles. The preview
+// shows where the next generation will save.
+const charModeTag = $<HTMLInputElement>('charModeTag');
+const charModeOC = $<HTMLInputElement>('charModeOC');
+const charModeCustom = $<HTMLInputElement>('charModeCustom');
+const charTagWrap = $<HTMLDivElement>('charTagWrap');
+const charTagName = $<HTMLInputElement>('charTagName');
+const charCustomName = $<HTMLInputElement>('charCustomName');
 const charFolderSuggest = $<HTMLDivElement>('charFolderSuggest');
-const btnCharOC = $<HTMLButtonElement>('btnCharOC');
-const filenamePattern = $<HTMLInputElement>('filenamePattern');
-const filenameTokens = $<HTMLDivElement>('filenameTokens');
+const charModeNote = $<HTMLDivElement>('charModeNote');
+const namingAutoRating = $<HTMLDivElement>('namingAutoRating');
+const namingAutoUpscaled = $<HTMLDivElement>('namingAutoUpscaled');
+const fnCharacter = $<HTMLInputElement>('fnCharacter');
+const fnLora = $<HTMLInputElement>('fnLora');
+const fnGen = $<HTMLInputElement>('fnGen');
+const fnGenParts = $<HTMLDivElement>('fnGenParts');
+const fnModel = $<HTMLInputElement>('fnModel');
+const fnSampler = $<HTMLInputElement>('fnSampler');
+const fnScheduler = $<HTMLInputElement>('fnScheduler');
+const fnSteps = $<HTMLInputElement>('fnSteps');
+const fnCfg = $<HTMLInputElement>('fnCfg');
+const fnSeed = $<HTMLInputElement>('fnSeed');
 const savePathPreview = $<HTMLDivElement>('savePathPreview');
 const outputIsComfyOutput = $<HTMLInputElement>('outputIsComfyOutput');
 const keepComfyCopy = $<HTMLInputElement>('keepComfyCopy');
 const keepComfyCopyRow = $<HTMLLabelElement>('keepComfyCopyRow');
 
-interface SaveNaming { relDir: string; base: string; character: string; source: 'set' | 'recognized' | 'none'; }
+type CharMode = 'tag' | 'oc' | 'custom';
+function charMode(): CharMode { return charModeOC.checked ? 'oc' : charModeCustom.checked ? 'custom' : 'tag'; }
+
+interface SaveNaming { relDir: string; base: string; rating: string; character: string; recognized: string; }
 
 function joinRel(...parts: string[]): string { return parts.filter(Boolean).join('/'); }
 
+// The text the rating folder is read from: the Rating field, or the unified
+// prompt in unified mode (it has no separate Rating field).
+function ratingText(): string { return unifiedPromptMode.checked ? unifiedPrompt.value : rating.value; }
+
 async function currentNaming(): Promise<SaveNaming> {
-  const override = safeSegment(charFolder.value);
-  let characterName = override;
-  let source: SaveNaming['source'] = override ? 'set' : 'none';
-  if (!override) {
-    try {
-      characterName = safeSegment(recognizeCharacter(fieldValue(character), await characterIndex()));
-      if (characterName) source = 'recognized';
-    } catch { /* tag list unavailable: no character folder */ }
-  }
-  const allText = [unifiedPrompt, global_, rating, character, characterTrigger, hair, face, chest, body_, clothes, limbs, sexual, pose, scene, effects, extra]
-    .map((el) => el.value).join(' ');
-  const ratingName = ratingFolder(allText);
-  const base = expandPattern(filenamePattern.value || '{old}', {
-    mainLora: mainLora.value, character: characterName, rating: ratingName, model: diffModel.value,
-    sampler: sampler.value, scheduler: scheduler.value, seed: seed1.value, steps: steps1.value, cfg: cfg1.value,
-    width: width.value, height: height.value, when: new Date(),
-  });
-  return { relDir: joinRel(ratingName, characterName), base, character: characterName, source };
+  let recognized = '';
+  try { recognized = safeSegment(recognizeCharacter(fieldValue(character), await characterIndex())); } catch { /* tag list unavailable */ }
+  const mode = charMode();
+  const characterName = mode === 'oc' ? 'OC'
+    : mode === 'custom' ? safeSegment(charCustomName.value)
+    : safeSegment(charTagName.value) || recognized;
+  const ratingName = ratingFolder(ratingText());
+  const lora = mainLora.value && mainLora.value !== 'None' && mainLora.value !== 'Anima-n' ? fileBaseName(mainLora.value) : '';
+  const cfgNum = parseFloat(cfg1.value);
+  const gen = fnGen.checked;
+  const base = joinNameParts([
+    fnCharacter.checked ? characterName : '',
+    fnLora.checked ? lora : '',
+    gen && fnModel.checked ? fileBaseName(diffModel.value) : '',
+    gen && fnSampler.checked ? sampler.value : '',
+    gen && fnScheduler.checked ? scheduler.value : '',
+    gen && fnSteps.checked && steps1.value ? `steps${steps1.value}` : '',
+    gen && fnCfg.checked && !isNaN(cfgNum) ? `cfg${parseFloat(cfgNum.toFixed(2))}` : '',
+    gen && fnSeed.checked && seed1.value ? `seed${seed1.value}` : '',
+  ]);
+  return { relDir: joinRel(ratingName, characterName), base, rating: ratingName, character: characterName, recognized };
+}
+
+function applyNamingUI(): void {
+  const mode = charMode();
+  charTagWrap.style.display = mode === 'tag' ? '' : 'none';
+  charCustomName.style.display = mode === 'custom' ? '' : 'none';
+  fnGenParts.style.display = fnGen.checked ? '' : 'none';
+  keepComfyCopyRow.style.display = outputIsComfyOutput.checked ? 'none' : '';
 }
 
 let previewToken = 0;
@@ -836,97 +877,100 @@ async function refreshSavePreview(): Promise<void> {
   const token = ++previewToken;
   const n = await currentNaming();
   if (token !== previewToken) return;
-  const why = n.source === 'set' ? 'character folder set by you'
-    : n.source === 'recognized' ? 'character recognized in the Character field'
-    : 'no character recognized, so it saves in the rating folder';
-  savePathPreview.textContent = '';
-  const path = document.createElement('div');
-  path.className = 'naming-preview-path';
-  path.textContent = `Saves to: ${joinRel(n.relDir, `${n.base}_#####_.png`).split('/').join(' / ')}`;
-  const note = document.createElement('div');
-  note.className = 'muted small';
-  note.textContent = why;
-  savePathPreview.append(path, note);
+
+  namingAutoRating.textContent = n.rating
+    ? `Rating: ${n.rating} (the ${unifiedPromptMode.checked ? 'prompt' : 'Rating field'} says ${n.rating})`
+    : `Rating: none, so images go straight into the output folder (the ${unifiedPromptMode.checked ? 'prompt' : 'Rating field'} says neither explicit nor safe)`;
+  namingAutoUpscaled.textContent = upscaleEnabled.checked
+    ? 'Upscaled: on, upscaled images go in an Upscaled folder inside'
+    : 'Upscaled: off';
+
+  const mode = charMode();
+  charTagName.placeholder = n.recognized ? `${n.recognized} (recognized)` : 'Type to search Danbooru characters';
+  charModeNote.textContent = mode === 'oc' ? 'Original characters all go in one OC folder.'
+    : mode === 'custom' ? (n.character ? '' : 'Empty: no character folder.')
+    : charTagName.value.trim() ? ''
+    : n.recognized ? 'Empty: uses the character recognized in the Character field.'
+    : 'No character recognized in the Character field, so no character folder.';
+
+  // The path, one folder per line, automatic parts greyed.
+  savePathPreview.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'naming-preview-head';
+  head.textContent = 'Saves to';
+  savePathPreview.appendChild(head);
+  const line = (text: string, cls: string, depth: number): void => {
+    const el = document.createElement('div');
+    el.className = `naming-preview-line ${cls}`;
+    el.style.paddingLeft = `${depth * 14}px`;
+    el.textContent = (depth ? '└ ' : '') + text;
+    savePathPreview.appendChild(el);
+  };
+  let depth = 0;
+  line(outputFolder || 'Output folder (not chosen yet)', 'root', depth++);
+  if (n.rating) line(n.rating, 'auto', depth++);
+  if (n.character) line(n.character, 'user', depth++);
+  line(previewFileName(n.base), 'file', depth);
+  if (upscaleEnabled.checked) {
+    const up = document.createElement('div');
+    up.className = 'muted small';
+    up.textContent = 'Upscaled copies: the same name in an Upscaled folder next to it.';
+    savePathPreview.appendChild(up);
+  }
 }
 let previewTimer: ReturnType<typeof setTimeout> | null = null;
 function schedulePreview(): void {
   if (previewTimer) clearTimeout(previewTimer);
-  previewTimer = setTimeout(() => { void refreshSavePreview(); }, 150);
+  previewTimer = setTimeout(() => { applyNamingUI(); void refreshSavePreview(); }, 120);
 }
 // Any field can change the preview (character, rating text, sampler, seed…).
 document.addEventListener('input', schedulePreview, true);
 document.addEventListener('change', schedulePreview, true);
 
-// Token chips insert at the caret.
-for (const [token, title] of NAME_TOKENS) {
-  const chip = document.createElement('button');
-  chip.type = 'button';
-  chip.className = 'naming-token';
-  chip.textContent = `{${token}}`;
-  chip.title = title;
-  chip.addEventListener('click', () => {
-    const s = filenamePattern.selectionStart ?? filenamePattern.value.length;
-    const e = filenamePattern.selectionEnd ?? s;
-    const text = `{${token}}`;
-    filenamePattern.value = filenamePattern.value.slice(0, s) + text + filenamePattern.value.slice(e);
-    filenamePattern.focus();
-    filenamePattern.setSelectionRange(s + text.length, s + text.length);
-    filenamePattern.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  filenameTokens.appendChild(chip);
-}
-
-btnCharOC.addEventListener('click', () => {
-  charFolder.value = 'OC';
-  charFolder.dispatchEvent(new Event('input', { bubbles: true }));
-});
-
-// Danbooru character suggestions under the Character folder field.
+// Danbooru character suggestions under the tag-list field.
 function hideCharSuggest(): void { charFolderSuggest.hidden = true; charFolderSuggest.innerHTML = ''; }
-charFolder.addEventListener('input', async () => {
-  const q = charFolder.value.trim().toLowerCase();
+charTagName.addEventListener('input', async () => {
+  const q = charTagName.value.trim().toLowerCase();
   if (q.length < 2) { hideCharSuggest(); return; }
   const { names } = await characterIndex();
-  if (charFolder.value.trim().toLowerCase() !== q) return;
+  if (charTagName.value.trim().toLowerCase() !== q) return;
   const starts: string[] = [];
   const contains: string[] = [];
-  for (const n of names) {
-    const l = n.toLowerCase();
-    if (l.startsWith(q)) starts.push(n);
-    else if (l.includes(q)) contains.push(n);
+  for (const nm of names) {
+    const l = nm.toLowerCase();
+    if (l.startsWith(q)) starts.push(nm);
+    else if (l.includes(q)) contains.push(nm);
     if (starts.length >= 10) break;
   }
   const picks = [...starts, ...contains].slice(0, 10);
   charFolderSuggest.innerHTML = '';
-  if (!picks.length || (picks.length === 1 && picks[0] === charFolder.value)) { hideCharSuggest(); return; }
-  for (const name of picks) {
+  if (!picks.length || (picks.length === 1 && picks[0] === charTagName.value)) { hideCharSuggest(); return; }
+  for (const nm of picks) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'naming-suggest-item';
-    b.textContent = name;
+    b.textContent = nm;
     b.addEventListener('mousedown', (ev) => {
       ev.preventDefault();
-      charFolder.value = name;
+      charTagName.value = nm;
       hideCharSuggest();
-      charFolder.dispatchEvent(new Event('change', { bubbles: true }));
+      charTagName.dispatchEvent(new Event('change', { bubbles: true }));
     });
     charFolderSuggest.appendChild(b);
   }
   charFolderSuggest.hidden = false;
 });
-charFolder.addEventListener('keydown', (ev) => {
+charTagName.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') hideCharSuggest();
   else if (ev.key === 'Enter' && !charFolderSuggest.hidden) {
     const first = charFolderSuggest.querySelector<HTMLButtonElement>('.naming-suggest-item');
     if (first) { ev.preventDefault(); first.dispatchEvent(new MouseEvent('mousedown')); }
   }
 });
-charFolder.addEventListener('blur', hideCharSuggest);
+charTagName.addEventListener('blur', hideCharSuggest);
 
-function applyComfyCopyUI(): void { keepComfyCopyRow.style.display = outputIsComfyOutput.checked ? 'none' : ''; }
-outputIsComfyOutput.addEventListener('change', applyComfyCopyUI);
 // restoreUiState() already ran (above) without firing 'change'.
-applyComfyCopyUI();
+applyNamingUI();
 void refreshSavePreview();
 
 // IPC-backed storage backend for the shared gallery/numbering — the

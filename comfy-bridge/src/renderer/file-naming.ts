@@ -1,36 +1,26 @@
 // Where and under what name the Bridge saves each generation (desktop only;
-// Android keeps ComfyUI's names for now).
+// Android keeps ComfyUI's names for now). Two parts:
 //
-// Folder: <rating>/<character>/ (+ "Upscaled/" for the upscaled output).
-//  - Rating: "explicit" when any prompt field contains "explicit", else
-//    "safe" — the same rule as the workflow's Rating Checker.
-//  - Character: the user's override when set ("OC" is just a folder name),
-//    otherwise recognized from the Character field only. Recognition is a
-//    whole-tag, exact match against the Danbooru character tags (category 4)
-//    in the bundled tag list, the one Osmium's wiki build ships. The old
-//    in-workflow detector (DSM Danbooru Character Detect) matched substrings
-//    across the whole prompt with "_" as a separator, so e.g. score_7 turned
-//    into a 7-tan folder.
-// Filename: a pattern of free text and {tokens}, then ComfyUI's counter
-// style "_00001_" (counted per folder and base name, so nothing is ever
-// overwritten).
+// 1. Automatic folders (shown greyed, not editable): the rating folder —
+//    "explicit" if the Rating field says explicit, else "safe" if it says
+//    safe, else none (the output folder's root) — and "Upscaled" for the
+//    upscaled output.
+// 2. The user's part:
+//    - Character folder: a Danbooru character from the tag list (defaulting
+//      to the one recognized in the Character field), "OC", or a custom name.
+//      Recognition is a whole-tag, exact match of the Character field's
+//      entries against the Danbooru character tags (category 4) in the
+//      bundled tag list, the one Osmium's wiki build ships. The old
+//      in-workflow detector (DSM Danbooru Character Detect) substring-matched
+//      the whole prompt with "_" as a separator, so e.g. score_7 turned into
+//      a 7-tan folder.
+//    - Filename: toggles in a fixed order — character name, LoRA, then model
+//      and sampler settings (each its own toggle) — then the counter. A part
+//      that's off (or empty) just drops out.
+//
+// Final path: [rating/][character/][Upscaled/]<name>_00001_.png
 import { allTags } from './shared/tag-wiki';
 import type { StorageBackend } from './shared/storage';
-
-export const NAME_TOKENS: [string, string][] = [
-  ['old', 'The Main LoRA\'s name (the old naming)'],
-  ['character', 'Character folder name'],
-  ['rating', 'safe / explicit'],
-  ['model', 'Diffusion model'],
-  ['sampler', 'Sampler'],
-  ['scheduler', 'Scheduler'],
-  ['seed', 'Seed'],
-  ['steps', 'Steps'],
-  ['cfg', 'CFG'],
-  ['size', 'Width x height'],
-  ['date', 'Date (YYYY-MM-DD)'],
-  ['time', 'Time (HH-MM-SS)'],
-];
 
 // ---- Character index ----
 
@@ -80,42 +70,33 @@ export function recognizeCharacter(field: string, index: CharacterIndex): string
   return '';
 }
 
-export function ratingFolder(allPromptText: string): string {
-  return /explicit/i.test(allPromptText) ? 'explicit' : 'safe';
+// The automatic rating folder: '' means none (the output folder's root).
+export function ratingFolder(ratingText: string): string {
+  if (/\bexplicit\b/i.test(ratingText)) return 'explicit';
+  if (/\bsafe\b/i.test(ratingText)) return 'safe';
+  return '';
 }
 
 // ---- Names ----
 
-// One path segment / filename stem: no characters Windows forbids, no
+// One path segment / filename part: no characters Windows forbids, no
 // trailing dots or spaces.
 export function safeSegment(s: string): string {
   return s.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '');
 }
 
-function baseName(path: string): string {
+export function fileBaseName(path: string): string {
   return (path.split(/[\\/]/).pop() || '').replace(/\.(safetensors|ckpt|pt|pth|bin|gguf)$/i, '');
 }
 
-export interface NameContext {
-  mainLora: string; character: string; rating: string; model: string;
-  sampler: string; scheduler: string; seed: string; steps: string; cfg: string;
-  width: string; height: string; when: Date;
+// The filename's parts, already in their fixed order; empty ones drop out.
+export function joinNameParts(parts: string[]): string {
+  return parts.map(safeSegment).filter(Boolean).join('_');
 }
 
-export function expandPattern(pattern: string, ctx: NameContext): string {
-  const pad = (n: number): string => String(n).padStart(2, '0');
-  const d = ctx.when;
-  const lora = ctx.mainLora && ctx.mainLora !== 'None' && ctx.mainLora !== 'Anima-n' ? baseName(ctx.mainLora) : '';
-  const values: Record<string, string> = {
-    old: lora, character: ctx.character, rating: ctx.rating, model: baseName(ctx.model),
-    sampler: ctx.sampler, scheduler: ctx.scheduler, seed: ctx.seed, steps: ctx.steps, cfg: ctx.cfg,
-    size: ctx.width && ctx.height ? `${ctx.width}x${ctx.height}` : '',
-    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-    time: `${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`,
-  };
-  const out = pattern.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? values[k] : m));
-  // A token that came out empty leaves its separator behind: tidy those up.
-  return safeSegment(out.replace(/([_\- ])\1+/g, '$1').replace(/^[_\- ]+|[_\- ]+$/g, '')) || 'image';
+function counterFile(base: string, n: number): string {
+  const num = String(n).padStart(5, '0');
+  return base ? `${base}_${num}_.png` : `${num}.png`;
 }
 
 // "<dir>/<base>_00012_.png": one past the highest counter already used by
@@ -126,15 +107,19 @@ export async function nextSavePath(backend: StorageBackend, relDir: string, base
   let max = 0;
   try {
     const esc = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(`^${esc}_(\\d{5,})_\\.png$`, 'i');
+    const re = base ? new RegExp(`^${esc}_(\\d{5,})_?\\.png$`, 'i') : /^(\d{5,})_?\.png$/i;
     for (const e of await backend.listDir(relDir)) {
       const m = e.kind === 'file' ? re.exec(e.name) : null;
       if (m) max = Math.max(max, parseInt(m[1], 10));
     }
   } catch { /* folder doesn't exist yet */ }
-  const at = (n: number): string => `${relDir ? relDir + '/' : ''}${base}_${String(n).padStart(5, '0')}_.png`;
+  const at = (n: number): string => `${relDir ? relDir + '/' : ''}${counterFile(base, n)}`;
   let n = max + 1;
   while (taken && taken.has(at(n).toLowerCase())) n++;
   taken?.add(at(n).toLowerCase());
   return at(n);
+}
+
+export function previewFileName(base: string): string {
+  return counterFile(base, 1).replace('00001', '#####');
 }
