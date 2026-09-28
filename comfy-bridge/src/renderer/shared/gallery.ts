@@ -187,6 +187,7 @@ export function mountGallerySidebar(
   function open(): void {
     sidebar.classList.add('open');
     backdrop.classList.add('show');
+    fab.classList.add('gallery-open');
     if (navigable) {
       relDir = '';
       void renderBrowserLevel(getBackend(), h, getLocationLabel(), { getDir: () => relDir, setDir: (d: string) => { relDir = d; }, getSort: () => sortMode, setSort: (s: GallerySortMode) => { sortMode = s; } });
@@ -197,9 +198,12 @@ export function mountGallerySidebar(
   function close(): void {
     sidebar.classList.remove('open');
     backdrop.classList.remove('show');
+    fab.classList.remove('gallery-open');
     galleryRenderToken++;
   }
-  fab.addEventListener('click', open);
+  // The button toggles: the gallery opens from the left, so the button stays
+  // uncovered (and above the backdrop) while it's open.
+  fab.addEventListener('click', () => { if (sidebar.classList.contains('open')) close(); else open(); });
   h.closeBtn.addEventListener('click', close);
   backdrop.addEventListener('click', close);
   return h;

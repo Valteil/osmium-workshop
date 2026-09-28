@@ -66,7 +66,12 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 #galleryFab .bridge-ic{width:26px;height:26px;}
 #galleryBackdrop{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.55);display:none;}
 #galleryBackdrop.show{display:block;}
-#gallerySidebar{position:fixed;top:0;right:0;bottom:0;z-index:601;width:min(88vw,380px);background:var(--panel);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .22s ease-out;display:flex;flex-direction:column;padding:12px 14px;}
+/* The gallery slides in from the LEFT (v2.0.0, like the desktop's settings
+   drawers), so the gallery button, bottom right, stays uncovered: while the
+   gallery is open it's raised above the backdrop (z 610 vs 600) and toggles
+   the gallery shut. Only then, so other panels still cover it as before. */
+#galleryFab.gallery-open{z-index:610;}
+#gallerySidebar{position:fixed;top:0;left:0;bottom:0;z-index:601;width:min(380px,calc(100vw - 84px));background:var(--panel);border-right:1px solid var(--border);transform:translateX(-100%);transition:transform .22s ease-out;display:flex;flex-direction:column;padding:12px 14px;}
 #gallerySidebar.open{transform:translateX(0);}
 .gallery-side-head{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;margin-bottom:8px;}
 .gallery-side-head .d{flex:1;}

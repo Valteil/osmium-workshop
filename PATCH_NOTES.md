@@ -43,6 +43,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   its panel; clicking outside, Esc or ✕ works too. One panel is open at a time. The two buttons
   sit in a row to the left of the gallery button and stay faded until you point at them, so they
   don't hide what's underneath.
+- **The gallery slides in from the left too** (Windows and Android), so the gallery button stays
+  uncovered: press it again to close the gallery.
 - **Comfy Bridge opens maximized** (Windows).
 - **No more ComfyUI Terminal panel** (Windows): Local ComfyUI's own console window shows the same
   output. Scrolled to the bottom, the right column now ends in empty space, so the round buttons
