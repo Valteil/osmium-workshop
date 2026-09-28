@@ -126,7 +126,29 @@ export function updateMasterSelectionText(): void {
   refreshImmunizeTogglesRef();
 }
 
+// The grid mirrors the Gallery's list, so every gallery rebuild (view switch,
+// filter, sort, tag edit…) calls this: rebuild now if the grid is on screen
+// (Tag Overseer panel or its popup), otherwise just mark it stale so the next
+// time it's shown rebuilds it first.
+let miniGridStale = true;
+export function refreshMasterMiniGrid(): void {
+  if (masterMiniGrid.getClientRects().length) renderMasterMiniGrid();
+  else miniGridStale = true;
+}
+export function renderMasterMiniGridIfStale(): void {
+  if (miniGridStale) renderMasterMiniGrid();
+}
+// Catches every other way the grid comes on screen (the right panel or its
+// dock expanding): going from no size to some size rebuilds a stale grid.
+let miniGridWasVisible = false;
+new ResizeObserver(() => {
+  const visible = masterMiniGrid.getClientRects().length > 0;
+  if (visible && !miniGridWasVisible) renderMasterMiniGridIfStale();
+  miniGridWasVisible = visible;
+}).observe(masterMiniGrid);
+
 export function renderMasterMiniGrid(): void {
+  miniGridStale = false;
   masterMiniGrid.innerHTML = '';
   masterMiniGrid.style.setProperty('--mini-grid-size', String(miniGridSize));
   masterMiniGrid.appendChild(buildMiniGridSizeRow());

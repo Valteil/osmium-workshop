@@ -30,7 +30,8 @@ v1.9.0 before this, download it again.
   it, it showed up in the Gallery again after a restart and couldn't be disabled ("already
   disabled"). Opening the dataset now finishes that move, and a failed removal tells you instead
   of failing silently.
-- **Tag Overseer's image grid follows the Gallery's view**: Gallery, Disabled or Originals.
+- **Tag Overseer's image grid follows the Gallery's view**: Gallery, Disabled or Originals, and
+  updates the moment the Gallery changes (switching views, filtering, sorting, editing).
   Selecting an image no longer also selects its original (they share a file name), and the
   selected-image tools work on whatever you selected there. Undo after editing an original now
   changes the original, not the Gallery image with the same name.
