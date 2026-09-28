@@ -85,6 +85,25 @@ declare const BridgeShared: {
   document.addEventListener('input', (ev) => {
     if (ev.target instanceof HTMLTextAreaElement) autoGrow(ev.target);
   }, true);
+  // Re-fit when the text re-wraps without typing (v2.0.0, as on desktop):
+  // a width change (rotating the phone) — width only, so the grow's own
+  // height change can't loop — and a theme change, which swaps the font at
+  // the same width: data-theme / inline theme vars, then again once its
+  // fonts have loaded.
+  const grownWidths = new WeakMap<Element, number>();
+  const widthObserver = new ResizeObserver((entries) => {
+    for (const e of entries) {
+      const w = e.contentRect.width;
+      if (grownWidths.get(e.target) === w) continue;
+      grownWidths.set(e.target, w);
+      if (w > 0) autoGrow(e.target as HTMLTextAreaElement);
+    }
+  });
+  document.querySelectorAll('textarea').forEach((el) => widthObserver.observe(el));
+  let regrowFrame = 0;
+  const regrowSoon = () => { cancelAnimationFrame(regrowFrame); regrowFrame = requestAnimationFrame(autoGrowAll); };
+  new MutationObserver(regrowSoon).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] });
+  document.fonts.addEventListener('loadingdone', regrowSoon);
 
   const host = $<HTMLInputElement>('host');
   const btnConnect = $<HTMLButtonElement>('btnConnect');

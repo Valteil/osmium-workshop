@@ -87,6 +87,16 @@ const autoGrowObserver = new ResizeObserver((entries) => {
   }
 });
 document.querySelectorAll('textarea').forEach((el) => autoGrowObserver.observe(el));
+// A theme change swaps the font (v2.0.0), which re-wraps the text at the same
+// width, so the observer above never fires. Re-fit when the theme changes
+// (data-theme / the inline theme vars) and again once its fonts have loaded.
+let themeRegrowFrame = 0;
+function regrowSoon(): void {
+  cancelAnimationFrame(themeRegrowFrame);
+  themeRegrowFrame = requestAnimationFrame(() => autoGrowAll());
+}
+new MutationObserver(regrowSoon).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] });
+document.fonts.addEventListener('loadingdone', regrowSoon);
 function autoGrowAll(): void {
   document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach((el) => {
     autoGrowObserver.observe(el);

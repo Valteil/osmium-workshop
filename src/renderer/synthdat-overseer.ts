@@ -1658,6 +1658,16 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
     }
   });
   [...promptFields, synthDatNegative].forEach(el => regrow.observe(el));
+  // A theme change swaps the font, which re-wraps the text at the same width
+  // (so the observer above never fires): re-fit on data-theme / inline theme
+  // vars (Custom), and again once the new theme's fonts have loaded.
+  let themeRegrowFrame = 0;
+  const regrowAllSoon = (): void => {
+    cancelAnimationFrame(themeRegrowFrame);
+    themeRegrowFrame = requestAnimationFrame(() => [...promptFields, synthDatNegative].forEach(el => growTextarea(el)));
+  };
+  new MutationObserver(regrowAllSoon).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] });
+  document.fonts.addEventListener('loadingdone', regrowAllSoon);
   synthDatStripHairFace.addEventListener('change', () => { scheduleSave(); });
   synthDatUnifiedPromptMode.addEventListener('change', () => { applyUnifiedPromptModeUI(); scheduleSave(); });
   applyUnifiedPromptModeUI();

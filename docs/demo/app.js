@@ -12395,6 +12395,13 @@ Image: ${entry.imgName}`,
       }
     });
     [...promptFields, synthDatNegative].forEach((el) => regrow.observe(el));
+    let themeRegrowFrame = 0;
+    const regrowAllSoon = () => {
+      cancelAnimationFrame(themeRegrowFrame);
+      themeRegrowFrame = requestAnimationFrame(() => [...promptFields, synthDatNegative].forEach((el) => growTextarea(el)));
+    };
+    new MutationObserver(regrowAllSoon).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "style"] });
+    document.fonts.addEventListener("loadingdone", regrowAllSoon);
     synthDatStripHairFace.addEventListener("change", () => {
       scheduleSave();
     });

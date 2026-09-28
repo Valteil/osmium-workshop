@@ -26,8 +26,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   it (or shift-click tags ▸ Move tags to). **Save** keeps that character in the dataset; **Load
   character** on another image pulls its tags into a section and offers the saved ones the image
   doesn't have yet.
-- **SynthDat Overseer's prompt boxes re-fit their text** when the font size or the window width
-  changes, instead of cutting the last lines off until you type.
+- **SynthDat Overseer's prompt boxes re-fit their text** when the font size, the window width or
+  the theme changes, instead of cutting the last lines off until you type.
 - **Main LoRA weight** (SynthDat Overseer): a field under Main LoRA sets how strongly it's applied
   (1 = full, as before). Saved per dataset like the other settings.
 
@@ -56,7 +56,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Themes bring their fonts** (Windows and Android): each theme now uses the same fonts as in
   Osmium, e.g. Candy Pop's Fredoka, Terminal's VT323 headings, Vintage Paper's IM Fell. The fonts
   ship with the app, so they work offline. In Theme Studio, remixing a theme starts from its
-  fonts too.
+  fonts too. Prompt boxes re-fit their text when you switch themes, and on Android also when you
+  rotate the phone.
 - **New file naming** (Windows), in the File saving panel:
   - **Automatic folders** (shown, not editable): the rating folder is `explicit` or `safe` when
     the Rating field says so, and none otherwise (images go straight into the output folder).
