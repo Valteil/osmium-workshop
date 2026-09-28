@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   synthdatQueueAndFetch: (payload) => ipcRenderer.invoke('synthdat-queue-and-fetch', payload),
   synthdatStopGeneration: (host) => ipcRenderer.invoke('synthdat-stop-generation', host),
   comfyFetchLogs: (payload) => ipcRenderer.invoke('comfy-fetch-logs', payload),
+  // Local ComfyUI (comfy-local.ts)
+  comfyLocalStatus: () => ipcRenderer.invoke('comfy-local-status'),
+  comfyLocalPickFolder: () => ipcRenderer.invoke('comfy-local-pick-folder'),
+  comfyLocalConnect: () => ipcRenderer.invoke('comfy-local-connect'),
+  comfyLocalShutdown: () => ipcRenderer.invoke('comfy-local-shutdown'),
   onPreviewFrame: (callback) => ipcRenderer.on('preview-frame', callback),
   onGenProgress: (callback) => ipcRenderer.on('gen-progress', callback),
   onComfyLog: (callback) => ipcRenderer.on('comfy-log', callback)

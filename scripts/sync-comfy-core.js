@@ -14,9 +14,21 @@ const banner =
   '// scripts/sync-comfy-core.js. Edit the root file and re-run the sync.\n\n';
 
 // comfy-core.ts imports the shared domain types (type-only); both must travel
-// together so the bridge copy's import resolves.
-for (const file of ['comfy-core.ts', 'shared-types.d.ts']) {
+// together so the bridge copy's import resolves. comfy-local.ts is the Local
+// ComfyUI backend (the Bridge configures it with configureComfyLocal()).
+for (const file of ['comfy-core.ts', 'comfy-local.ts', 'shared-types.d.ts']) {
   const body = fs.readFileSync(path.join(rootSrc, file), 'utf8');
   fs.writeFileSync(path.join(bridgeSrc, file), banner.replace('%NAME%', file) + body);
   console.log(`Synced src/${file} -> comfy-bridge/src/${file}`);
 }
+
+// The runner comfy-local.ts launches, next to the Bridge's main.js like the
+// root app's.
+const runner = 'osmium_comfy_runner.py';
+const runnerDir = path.join(__dirname, '..', 'comfy-bridge', 'local-comfy');
+fs.mkdirSync(runnerDir, { recursive: true });
+fs.writeFileSync(path.join(runnerDir, runner),
+  '# GENERATED FILE - do not edit. Synced from ../../local-comfy/' + runner + ' by\n' +
+  '# scripts/sync-comfy-core.js. Edit the root file and re-run the sync.\n' +
+  fs.readFileSync(path.join(__dirname, '..', 'local-comfy', runner), 'utf8'));
+console.log(`Synced local-comfy/${runner} -> comfy-bridge/local-comfy/${runner}`);

@@ -26,6 +26,19 @@
 
       <section class="sec">
         <div class="sec-head"><span class="d">Connection</span></div>
+        <!-- Run on: a ComfyUI server, or the user's own install launched by
+             the Bridge (comfy-local.ts). Hidden where the API is missing. -->
+        <div id="backendRow" class="row" style="display:none">
+          <label for="backend" class="muted">Run on</label>
+          <select id="backend">
+            <option value="server">ComfyUI server</option>
+            <option value="local">Local ComfyUI (no server)</option>
+          </select>
+        </div>
+        <div id="localFields" class="row" style="display:none">
+          <button id="btnPickComfyFolder">Choose ComfyUI folder…</button>
+          <span id="comfyFolderLabel" class="muted"></span>
+        </div>
         <div class="row">
           <input id="host" type="text" placeholder="http://127.0.0.1:8188" value="http://127.0.0.1:8188">
           <button id="btnConnect">Test</button>
