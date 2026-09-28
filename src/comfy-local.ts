@@ -17,7 +17,8 @@
 
 import { app, dialog, BrowserWindow } from 'electron';
 import type { IpcMain, OpenDialogOptions } from 'electron';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
+import * as net from 'net';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
@@ -25,24 +26,36 @@ import type { ComfyResult, ComfyLocalStatus, SynthDatPrompt } from './shared-typ
 
 export const LOCAL_COMFY_HOST = 'local';
 
-// What differs per app: the name on the runner's console window, and the
-// channels the running generation's progress/preview events go out on.
-const config = { appName: 'Osmium', progressChannel: 'synthdat-progress', previewChannel: 'synthdat-preview-frame' };
+// What differs per app: the name on the runner's console window, the
+// channels the running generation's progress/preview events go out on, and
+// whether "Persist Comfy" is offered (Comfy Bridge only).
+const config = {
+  appName: 'Osmium', progressChannel: 'synthdat-progress', previewChannel: 'synthdat-preview-frame',
+  allowPersist: false
+};
 export function configureComfyLocal(c: Partial<typeof config>): void {
   Object.assign(config, c);
 }
 
 const CONFIG_FILE = () => path.join(app.getPath('userData'), 'comfy-local.json');
 const PACK_NAME = 'ComfyUI-DataSetManagerNodes';
+// Persist Comfy: the runner listens here (127.0.0.1 only) instead of on a
+// pipe, so it outlives the app and the app reconnects on the next Connect.
+const PERSIST_PORT = 8190;
 
 interface Install { root: string; comfyDir: string; python: string; }
 
-function readFolder(): string {
+function readConfig(): { folder: string; persist: boolean } {
   try {
-    const folder = JSON.parse(fs.readFileSync(CONFIG_FILE(), 'utf8')).folder;
-    return typeof folder === 'string' ? folder : '';
-  } catch { return ''; }
+    const c = JSON.parse(fs.readFileSync(CONFIG_FILE(), 'utf8'));
+    return { folder: typeof c.folder === 'string' ? c.folder : '', persist: !!c.persist };
+  } catch { return { folder: '', persist: false }; }
 }
+function writeConfig(patch: Partial<{ folder: string; persist: boolean }>): void {
+  fs.writeFileSync(CONFIG_FILE(), JSON.stringify({ ...readConfig(), ...patch }));
+}
+const readFolder = (): string => readConfig().folder;
+const persistOn = (): boolean => config.allowPersist && readConfig().persist;
 
 // Accepts the portable root (…/ComfyUI_windows_portable) or the ComfyUI
 // folder inside it. Python: the portable's python_standalone / python_embeded,
@@ -73,9 +86,16 @@ function resolveInstall(folder: string): { ok: true; install: Install } | { ok: 
 // ---- the runner process ----------------------------------------------------
 
 type Reply = { ok: boolean; error?: string; trace?: string; [k: string]: unknown };
-let child: ChildProcess | null = null;
+// The line-JSON channel to the runner: its stdin/stdout pipe, or (Persist
+// Comfy) a socket to a runner that may have been started by an earlier run
+// of the app. close() on a pipe ends the runner; on a socket it only
+// disconnects.
+interface RunnerConn { write(line: string): void; close(): void; }
+let conn: RunnerConn | null = null;
 let ready: Promise<Reply> | null = null;
-let nextId = 0;
+// Ids start from the clock, so a reconnected persistent runner's late reply
+// to an earlier app session can't match one of this session's requests.
+let nextId = Date.now();
 const pending = new Map<number, (r: Reply) => void>();
 // Where the running generation's progress/preview events go: the renderer's
 // WebContents, or anything else with the same send() (Comfy Bridge's network
@@ -104,60 +124,138 @@ function failAll(error: string): void {
   pending.clear();
 }
 
-function start(): Promise<Reply> {
-  if (ready) return ready;
-  const resolved = resolveInstall(readFolder());
-  if ('error' in resolved) return Promise.resolve({ ok: false, error: resolved.error });
-  const { root, comfyDir, python } = resolved.install;
+// One protocol line from the runner, whichever channel it came on.
+function handleLine(line: string, onReady: (msg: Reply) => void): void {
+  let msg: Reply & { id?: number; event?: string };
+  try { msg = JSON.parse(line); } catch { return; }
+  if (msg.event === 'ready') { onReady(msg); return; }
+  if (msg.event === 'progress') { eventSink?.send(config.progressChannel, { value: msg.value, max: msg.max }); return; }
+  if (msg.event === 'logs') { for (const cb of logListeners) cb(msg.entries as LogEntry[]); return; }
+  if (msg.event === 'preview') {
+    eventSink?.send(config.previewChannel, { mime: msg.mime, bytes: new Uint8Array(Buffer.from(String(msg.b64), 'base64')) });
+    return;
+  }
+  if (typeof msg.id === 'number') {
+    const resolveReq = pending.get(msg.id);
+    pending.delete(msg.id);
+    if (msg.trace) console.error('[comfy-local]', msg.trace);
+    resolveReq?.(msg);
+  }
+}
+
+function runnerEnv(root: string): NodeJS.ProcessEnv {
   // The same environment run_nvidia_gpu.bat sets up, where the folders exist.
   const env: NodeJS.ProcessEnv = { ...process.env, PYTHONIOENCODING: 'utf-8' };
   const hf = path.join(root, 'HuggingFaceHub'), torchHome = path.join(root, 'TorchHome'), pyc = path.join(root, 'pycache');
   if (fs.existsSync(hf)) env.HF_HUB_CACHE = hf;
   if (fs.existsSync(torchHome)) env.TORCH_HOME = torchHome;
   if (fs.existsSync(pyc)) env.PYTHONPYCACHEPREFIX = pyc;
+  return env;
+}
+
+function start(): Promise<Reply> {
+  if (ready) return ready;
+  const resolved = resolveInstall(readFolder());
+  if ('error' in resolved) return Promise.resolve({ ok: false, error: resolved.error });
+  ready = persistOn() ? startPersistent(resolved.install) : startPipe(resolved.install);
+  return ready;
+}
+
+function startPipe({ root, comfyDir, python }: Install): Promise<Reply> {
   const proc = spawn(python, ['-s', runnerScript(), '--comfy', comfyDir, '--app', config.appName], {
-    cwd: root, env, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: false
+    cwd: root, env: runnerEnv(root), stdio: ['pipe', 'pipe', 'ignore'], windowsHide: false
   });
-  child = proc;
-  ready = new Promise<Reply>((resolve) => {
+  const c: RunnerConn = {
+    write: (line) => { proc.stdin!.write(line); },
+    close: () => {
+      try { proc.stdin?.end(); } catch { /* already closed */ }
+      // Closing stdin makes the runner exit on its own; kill that PID if it hangs.
+      setTimeout(() => { if (proc.exitCode === null) proc.kill(); }, 5000);
+    }
+  };
+  conn = c;
+  return new Promise<Reply>((resolve) => {
     let settled = false;
     const settle = (r: Reply) => { if (!settled) { settled = true; resolve(r); } };
-    readline.createInterface({ input: proc.stdout! }).on('line', (line) => {
-      let msg: Reply & { id?: number; event?: string };
-      try { msg = JSON.parse(line); } catch { return; }
-      if (msg.event === 'ready') { settle({ ok: true, comfyVersion: msg.comfy_version }); return; }
-      if (msg.event === 'progress') { eventSink?.send(config.progressChannel, { value: msg.value, max: msg.max }); return; }
-      if (msg.event === 'logs') { for (const cb of logListeners) cb(msg.entries as LogEntry[]); return; }
-      if (msg.event === 'preview') {
-        eventSink?.send(config.previewChannel, { mime: msg.mime, bytes: new Uint8Array(Buffer.from(String(msg.b64), 'base64')) });
-        return;
-      }
-      if (typeof msg.id === 'number') {
-        const resolveReq = pending.get(msg.id);
-        pending.delete(msg.id);
-        if (msg.trace) console.error('[comfy-local]', msg.trace);
-        resolveReq?.(msg);
-      }
-    });
+    readline.createInterface({ input: proc.stdout! }).on('line', (line) =>
+      handleLine(line, (msg) => settle({ ok: true, comfyVersion: msg.comfy_version })));
     proc.on('error', (err) => settle({ ok: false, error: `Could not start ComfyUI's Python: ${err.message}` }));
     proc.on('exit', (code) => {
       const error = `Local ComfyUI stopped (exit code ${code}). Its console window shows why; Connect starts it again.`;
       settle({ ok: false, error });
       failAll(error);
-      if (child === proc) { child = null; ready = null; }
+      if (conn === c) { conn = null; ready = null; }
     });
   });
-  return ready;
 }
 
+function tryConnect(timeoutMs: number): Promise<net.Socket | null> {
+  return new Promise((resolve) => {
+    const sock = net.connect({ host: '127.0.0.1', port: PERSIST_PORT });
+    const done = (s: net.Socket | null) => { clearTimeout(timer); sock.removeAllListeners('error'); resolve(s); };
+    const timer = setTimeout(() => { sock.destroy(); done(null); }, timeoutMs);
+    sock.once('connect', () => done(sock));
+    sock.once('error', () => { sock.destroy(); done(null); });
+  });
+}
+
+// Persist Comfy: reconnect to the runner that's already listening, or start
+// one detached (it opens its own console window, which is the only way to end
+// it) and connect once it's up.
+async function startPersistent({ root, comfyDir, python }: Install): Promise<Reply> {
+  let sock = await tryConnect(1500);
+  if (!sock) {
+    try {
+      const proc = spawn(python, ['-s', runnerScript(), '--comfy', comfyDir, '--app', config.appName, '--listen-port', String(PERSIST_PORT)], {
+        cwd: root, env: runnerEnv(root), stdio: 'ignore', detached: true, windowsHide: false
+      });
+      proc.on('error', () => { /* reported as "didn't come up" below */ });
+      proc.unref();
+    } catch (err) {
+      ready = null;
+      return { ok: false, error: `Could not start ComfyUI's Python: ${(err as Error).message}` };
+    }
+    // The runner claims the port within a few seconds of starting; the
+    // "ready" message comes once its models are set up.
+    for (let i = 0; i < 60 && !sock; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      sock = await tryConnect(1000);
+    }
+  }
+  if (!sock) { ready = null; return { ok: false, error: `Local ComfyUI didn't come up on port ${PERSIST_PORT}. Its console window shows why.` }; }
+  const s = sock;
+  s.setNoDelay(true);
+  const c: RunnerConn = { write: (line) => { s.write(line); }, close: () => { s.end(); } };
+  conn = c;
+  return new Promise<Reply>((resolve) => {
+    let settled = false;
+    const settle = (r: Reply) => { if (!settled) { settled = true; resolve(r); } };
+    readline.createInterface({ input: s }).on('line', (line) => handleLine(line, (msg) => {
+      const runningDir = String(msg.comfy_dir || '');
+      if (runningDir && path.resolve(runningDir).toLowerCase() !== path.resolve(comfyDir).toLowerCase()) {
+        settle({ ok: false, error: `The Local ComfyUI still open from before runs ${runningDir}, not ${comfyDir}. Close its console window, then Connect again.` });
+        s.end();
+        return;
+      }
+      settle({ ok: true, comfyVersion: msg.comfy_version });
+    }));
+    s.on('error', () => { /* 'close' follows */ });
+    s.on('close', () => {
+      const error = 'Lost the connection to Local ComfyUI (its window was closed?). Connect starts or reconnects it.';
+      settle({ ok: false, error });
+      failAll(error);
+      if (conn === c) { conn = null; ready = null; }
+    });
+  });
+}
+
+// Pipe: ends the runner. Persist Comfy: only disconnects; the runner stays
+// open with its models loaded until its window is closed.
 function stopRunner(): void {
-  const proc = child;
-  child = null;
+  const c = conn;
+  conn = null;
   ready = null;
-  if (!proc) return;
-  try { proc.stdin?.end(); } catch { /* already closed */ }
-  // Closing stdin makes the runner exit on its own; kill that PID if it hangs.
-  setTimeout(() => { if (proc.exitCode === null) proc.kill(); }, 5000);
+  c?.close();
 }
 
 // Only Connect (comfy-local-connect) starts the runner: requests while it's
@@ -166,11 +264,12 @@ function stopRunner(): void {
 async function request(cmd: string, payload: Record<string, unknown> = {}): Promise<Reply> {
   if (!ready) return { ok: false, error: 'Local ComfyUI isn\'t running. Click Connect to start it.' };
   const started = await ready;
-  if (!started.ok || !child) return started;
+  if (!started.ok || !conn) return started;
   const id = ++nextId;
+  const c = conn;
   return new Promise<Reply>((resolve) => {
     pending.set(id, resolve);
-    child!.stdin!.write(JSON.stringify({ id, cmd, ...payload }) + '\n');
+    c.write(JSON.stringify({ id, cmd, ...payload }) + '\n');
   });
 }
 
@@ -236,7 +335,7 @@ async function runGenerate(sender: ComfyLocalEventSink, prompt: SynthDatPrompt, 
 export function localStop(): void {
   // Sent straight to the runner (not via request()): it must not wait behind
   // the running generation, and it must not start a runner that isn't there.
-  if (child) child.stdin!.write(JSON.stringify({ id: ++nextId, cmd: 'stop' }) + '\n');
+  conn?.write(JSON.stringify({ id: ++nextId, cmd: 'stop' }) + '\n');
 }
 
 function status(): ComfyLocalStatus {
@@ -247,7 +346,8 @@ function status(): ComfyLocalStatus {
     ok: resolved.ok,
     error: 'error' in resolved ? resolved.error : undefined,
     python: 'install' in resolved ? resolved.install.python : undefined,
-    running: !!child
+    running: !!conn,
+    persist: persistOn()
   };
 }
 
@@ -259,7 +359,7 @@ export function registerComfyLocalHandlers(ipcMain: IpcMain): void {
     const picked = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
     if (picked.canceled || !picked.filePaths[0]) return status();
     stopRunner(); // a different install: the next request starts the new one
-    fs.writeFileSync(CONFIG_FILE(), JSON.stringify({ folder: picked.filePaths[0] }));
+    writeConfig({ folder: picked.filePaths[0] });
     return status();
   });
   ipcMain.handle('comfy-local-connect', async () => {
@@ -267,5 +367,11 @@ export function registerComfyLocalHandlers(ipcMain: IpcMain): void {
     return r.ok ? { ok: true, comfyVersion: r.comfyVersion } : { ok: false, error: r.error };
   });
   ipcMain.handle('comfy-local-shutdown', () => { stopRunner(); return status(); });
+  // Persist Comfy (Comfy Bridge): takes effect the next time Local ComfyUI
+  // starts. A runner that's already open stays as it is.
+  ipcMain.handle('comfy-local-set-persist', (_event, on: boolean) => {
+    if (config.allowPersist) writeConfig({ persist: !!on });
+    return status();
+  });
   app.on('will-quit', stopRunner);
 }

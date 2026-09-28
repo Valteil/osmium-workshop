@@ -22,7 +22,7 @@ import { startRelay, stopRelay, relayState, relayAddresses } from './local-relay
 // Local ComfyUI (comfy-local.ts, shared with Osmium): the Bridge launches the
 // user's own ComfyUI install headless instead of talking to a server. The
 // renderer passes LOCAL_COMFY_HOST ('local') as the host to use it.
-configureComfyLocal({ appName: 'Comfy Bridge', progressChannel: 'gen-progress', previewChannel: 'preview-frame' });
+configureComfyLocal({ appName: 'Comfy Bridge', progressChannel: 'gen-progress', previewChannel: 'preview-frame', allowPersist: true });
 registerComfyLocalHandlers(ipcMain);
 // The runner's console output streams into the ComfyUI Terminal, like a
 // server's log subscription does.

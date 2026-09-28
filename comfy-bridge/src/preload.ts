@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   comfyLocalPickFolder: () => ipcRenderer.invoke('comfy-local-pick-folder'),
   comfyLocalConnect: () => ipcRenderer.invoke('comfy-local-connect'),
   comfyLocalShutdown: () => ipcRenderer.invoke('comfy-local-shutdown'),
+  comfyLocalSetPersist: (on) => ipcRenderer.invoke('comfy-local-set-persist', on),
   // Network relay for the Android app (local-relay.ts)
   comfyRelayStatus: () => ipcRenderer.invoke('comfy-relay-status'),
   comfyRelaySet: (payload) => ipcRenderer.invoke('comfy-relay-set', payload),

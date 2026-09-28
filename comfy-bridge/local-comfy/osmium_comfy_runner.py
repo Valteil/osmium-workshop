@@ -50,8 +50,33 @@ if "--app" in sys.argv[1:]:
     if _i + 1 < len(sys.argv):
         APP_NAME = sys.argv[_i + 1]
 
+# Persistent mode (--listen-port N, Comfy Bridge's "Persist Comfy"): the
+# protocol runs over a 127.0.0.1 socket instead of stdin/stdout, so this
+# process outlives the app that started it and the app can reconnect later.
+# One app connection at a time; when it drops, models stay loaded and the
+# runner waits for the next. Only closing the console window ends it. The
+# port is claimed here, before anything heavy, so a second copy started while
+# one already runs exits at once.
+LISTEN_PORT = 0
+if "--listen-port" in sys.argv[1:]:
+    _i = sys.argv.index("--listen-port")
+    LISTEN_PORT = int(sys.argv[_i + 1]) if _i + 1 < len(sys.argv) else 0
+_LISTENER = None
+if LISTEN_PORT:
+    import socket
+    _LISTENER = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        _LISTENER.bind(("127.0.0.1", LISTEN_PORT))
+        _LISTENER.listen(4)
+    except OSError:
+        sys.exit(0)  # another persistent runner already has the port
+
 _PROTO = os.fdopen(os.dup(1), "w", encoding="utf-8", buffering=1)
 _PROTO_LOCK = threading.Lock()
+# Where send() writes: the stdout pipe, or the connected app's socket in
+# persistent mode (None while no app is connected: events are dropped).
+_OUT = None if LISTEN_PORT else _PROTO
+_CLIENT = None
 if os.name == "nt":
     # Open our own visible window, like ComfyUI's terminal. Launched from
     # Osmium (a GUI app) this process inherits a console with no visible
@@ -62,7 +87,7 @@ if os.name == "nt":
     _k32 = ctypes.windll.kernel32
     _k32.FreeConsole()
     _k32.AllocConsole()
-    _k32.SetConsoleTitleW(f"{APP_NAME} - local ComfyUI")
+    _k32.SetConsoleTitleW(f"{APP_NAME} - local ComfyUI" + (" (stays open)" if LISTEN_PORT else ""))
     _hwnd = _k32.GetConsoleWindow()
     if _hwnd:
         ctypes.windll.user32.ShowWindow(_hwnd, 5)  # SW_SHOW
@@ -77,10 +102,16 @@ sys.stderr = _CON
 
 
 def send(obj):
+    global _OUT
     line = json.dumps(obj, separators=(",", ":"))
     with _PROTO_LOCK:
-        _PROTO.write(line + "\n")
-        _PROTO.flush()
+        if _OUT is None:
+            return
+        try:
+            _OUT.write(line + "\n")
+            _OUT.flush()
+        except (OSError, ValueError):  # the app went away mid-write
+            _OUT = None
 
 
 def say(msg):
@@ -96,6 +127,7 @@ if "--" in argv:
 ap = argparse.ArgumentParser()
 ap.add_argument("--comfy", required=True)
 ap.add_argument("--app", default="Osmium")
+ap.add_argument("--listen-port", type=int, default=0)
 opts = ap.parse_args(argv)
 
 COMFY_DIR = os.path.abspath(opts.comfy)
@@ -442,7 +474,7 @@ def cmd_unload(_req):
 
 
 COMMANDS = {
-    "hello": lambda _r: {"ok": True, "comfy_version": comfyui_version.__version__},
+    "hello": lambda _r: {"ok": True, "comfy_version": comfyui_version.__version__, "comfy_dir": COMFY_DIR},
     "object_info": cmd_object_info,
     "node_info": cmd_node_info,
     "generate": cmd_generate,
@@ -457,12 +489,12 @@ def main():
     # server): new lines go out as events, e.g. to a phone's ComfyUI Terminal.
     app.logger.on_flush(lambda entries: entries and send({"event": "logs", "entries": entries}))
     say(f"Ready (ComfyUI {comfyui_version.__version__}, device {comfy.model_management.get_torch_device_name(comfy.model_management.get_torch_device())}).")
-    send({"event": "ready", "comfy_version": comfyui_version.__version__})
+    ready = {"event": "ready", "comfy_version": comfyui_version.__version__, "comfy_dir": COMFY_DIR}
 
     jobs = queue.Queue()
 
-    def reader():
-        for line in sys.stdin:
+    def reader(stream, on_end):
+        for line in stream:
             line = line.strip()
             if not line:
                 continue
@@ -477,9 +509,46 @@ def main():
                 send({"id": req.get("id"), "ok": True, "entries": list(app.logger.get_logs() or [])})
             else:
                 jobs.put(req)
-        jobs.put(None)  # Osmium closed the pipe: exit
+        on_end()
 
-    threading.Thread(target=reader, daemon=True).start()
+    def serve_clients():
+        # Persistent mode: one app at a time; a new connection replaces the
+        # old one. Each gets its own "ready" as soon as it connects.
+        global _OUT, _CLIENT
+        while True:
+            conn, _addr = _LISTENER.accept()
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            rf = conn.makefile("r", encoding="utf-8", newline="\n")
+            wf = conn.makefile("w", encoding="utf-8", newline="\n")
+            with _PROTO_LOCK:
+                old, _CLIENT, _OUT = _CLIENT, conn, wf
+            if old is not None:
+                try:
+                    old.close()
+                except OSError:
+                    pass
+            say(f"{APP_NAME} connected.")
+            send(ready)
+
+            def ended(c=conn):
+                global _OUT, _CLIENT
+                with _PROTO_LOCK:
+                    current = _CLIENT is c
+                    if current:
+                        _CLIENT, _OUT = None, None
+                # Outside the lock: printing flushes the log, and the log
+                # listener calls send(), which takes the same lock.
+                if current:
+                    say(f"{APP_NAME} disconnected. Staying open with the models loaded; close this window to stop it.")
+
+            threading.Thread(target=reader, args=(rf, ended), daemon=True).start()
+
+    if LISTEN_PORT:
+        say(f"Staying open for {APP_NAME} on 127.0.0.1:{LISTEN_PORT} until this window is closed.")
+        threading.Thread(target=serve_clients, daemon=True).start()
+    else:
+        send(ready)
+        threading.Thread(target=reader, args=(sys.stdin, lambda: jobs.put(None)), daemon=True).start()  # pipe closed: exit
     while True:
         req = jobs.get()
         if req is None:

@@ -38,6 +38,10 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   Local ComfyUI on the PC if it isn't running. There's no password (the same as ComfyUI's own
   `--listen`), so only turn it on for networks you trust, like your tailnet.
 - **ComfyUI Terminal in Local ComfyUI mode** (Windows): shows Local ComfyUI's own output, live.
+- **Persist Comfy** (Windows, Local ComfyUI): keeps Local ComfyUI running, with its models
+  loaded, after you close Comfy Bridge. Next time, Connect picks it straight back up instead of
+  loading again. To stop it, close its console window ("Comfy Bridge - local ComfyUI (stays
+  open)"). It takes effect the next time Local ComfyUI starts.
 
 ---
 

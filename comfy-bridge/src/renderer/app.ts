@@ -36,6 +36,7 @@ interface ElectronAPI {
   comfyLocalStatus?(): Promise<ComfyLocalStatus>;
   comfyLocalPickFolder?(): Promise<ComfyLocalStatus>;
   comfyLocalConnect?(): Promise<{ ok: boolean; comfyVersion?: string; error?: string }>;
+  comfyLocalSetPersist?(on: boolean): Promise<ComfyLocalStatus>;
   comfyRelayStatus?(): Promise<RelayStatus>;
   comfyRelaySet?(payload: { enabled: boolean; port: number }): Promise<RelayStatus>;
 }
@@ -43,7 +44,7 @@ interface RelayStatus {
   enabled: boolean; port: number; running: boolean; error: string;
   addresses: { ip: string; tailscale: boolean }[];
 }
-interface ComfyLocalStatus { folder: string; ok: boolean; error?: string; python?: string; running: boolean; }
+interface ComfyLocalStatus { folder: string; ok: boolean; error?: string; python?: string; running: boolean; persist?: boolean; }
 declare global { interface Window { electronAPI: ElectronAPI; } }
 export {};
 
@@ -184,9 +185,26 @@ function isLocal(): boolean { return hasLocalComfy && backend.value === 'local';
 
 function getHost(): string { return isLocal() ? LOCAL_HOST : ((host.value || '').trim() || 'http://127.0.0.1:8188'); }
 
+// Persist Comfy: the runner stays open (models loaded) after Comfy Bridge
+// closes; Connect reconnects to it. The setting lives in the main process
+// (comfy-local.json) and applies the next time Local ComfyUI starts.
+const persistRow = $<HTMLDivElement>('persistRow');
+const persistComfy = $<HTMLInputElement>('persistComfy');
+const hasPersist = typeof window.electronAPI.comfyLocalSetPersist === 'function';
+if (hasPersist) {
+  persistComfy.addEventListener('change', async () => {
+    const s = await window.electronAPI.comfyLocalSetPersist!(persistComfy.checked);
+    showLocalStatus(s);
+    if (s.running) log(persistComfy.checked
+      ? 'Persist Comfy is on. It applies the next time Local ComfyUI starts; the one open now still closes with Comfy Bridge.'
+      : 'Persist Comfy is off. A Local ComfyUI window that was kept open stays open until you close it.');
+  });
+}
+
 function showLocalStatus(s: ComfyLocalStatus): void {
   comfyFolderLabel.textContent = s.folder ? (s.ok ? s.folder : `${s.folder} — ${s.error}`) : 'No folder chosen';
   comfyFolderLabel.style.color = s.folder && !s.ok ? 'var(--danger, #e06c6c)' : '';
+  persistComfy.checked = !!s.persist;
 }
 // Network relay (main-process local-relay.ts): the phone app connects to
 // http://<this PC's address>:<port> as if it were a ComfyUI server. Its
@@ -223,6 +241,7 @@ function applyBackendUI(): void {
   const local = isLocal();
   localFields.style.display = local ? '' : 'none';
   relayRow.style.display = local && hasRelay ? '' : 'none';
+  persistRow.style.display = local && hasPersist ? '' : 'none';
   if (!local) relayInfo.style.display = 'none';
   host.style.display = local ? 'none' : '';
   btnConnect.textContent = local ? 'Connect' : 'Test';
@@ -602,7 +621,7 @@ addLoraRow('', 0.8);
 // always win over defaults.
 const UI_STATE_KEY = 'comfybridge-ui-state';
 // The relay's settings are the main process's (comfy-relay.json).
-const UI_EXCLUDED = new Set<string>(['relayEnabled', 'relayPort']);
+const UI_EXCLUDED = new Set<string>(['relayEnabled', 'relayPort', 'persistComfy']);
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 function captureUiState(): void {
   const state: Record<string, unknown> = {};

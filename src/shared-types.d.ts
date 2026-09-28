@@ -30,6 +30,8 @@ export interface ComfyLocalStatus {
   error?: string;
   python?: string;
   running: boolean;
+  // Comfy Bridge's Persist Comfy: the runner stays open after the app closes.
+  persist?: boolean;
 }
 
 export interface SynthDatPromptNode {

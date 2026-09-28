@@ -41,6 +41,11 @@
           <button id="btnPickComfyFolder">Choose ComfyUI folder…</button>
           <span id="comfyFolderLabel" class="muted"></span>
         </div>
+        <!-- Persist Comfy (comfy-local.ts): the runner stays open after
+             Comfy Bridge closes; closing its console window ends it. -->
+        <div id="persistRow" class="row" style="display:none">
+          <label class="chk-row" title="Local ComfyUI keeps running, with its models loaded, after you close Comfy Bridge; Connect picks it up again next time. To stop it, close its console window. Takes effect the next time it starts."><input id="persistComfy" type="checkbox"> Persist Comfy (stays open after Comfy Bridge closes)</label>
+        </div>
         <!-- Network relay (local-relay.ts): the phone app generates on this
              PC's Local ComfyUI over Tailscale/LAN. -->
         <div id="relayRow" class="row" style="display:none">
