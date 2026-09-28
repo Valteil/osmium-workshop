@@ -1272,10 +1272,11 @@ function clearObjectUrlOn(el: HTMLImageElement): void {
 // ---- Generation queue ----
 // Generate never blocks: it snapshots the prompt, reference and tag list as
 // they are at that moment and queues the job; jobs run one at a time, in
-// order. A result replaces the one on screen only when it arrives, so the
-// user can Accept/Reject one image while the next generates; an undecided
-// one is auto-rejected then (autoRejectPendingIfAny). Stop ends the running
-// job and drops the queue.
+// order. Nothing is ever auto-rejected: a result that arrives while another
+// is still waiting for Accept/Reject is held (heldResults) and shown only
+// after that decision, one at a time, in order. Generation carries on in the
+// meantime. Stop ends the running job and drops the queue, never the held
+// results.
 interface GenJob {
   host: string;
   prompt: ReturnType<typeof buildPromptFromFields>;
@@ -1296,8 +1297,42 @@ function serialized<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+type GenResult = { imageBytes?: Uint8Array; pass1ImageBytes?: Uint8Array };
+const heldResults: { res: GenResult; tagSnapshot: string[] }[] = [];
+
 function queueNote(): string {
-  return genQueue.length ? ` · ${genQueue.length} queued` : '';
+  return (genQueue.length ? ` · ${genQueue.length} queued` : '')
+    + (heldResults.length ? ` · ${heldResults.length} waiting for review` : '');
+}
+
+// Re-renders the " · N queued · N waiting for review" tail of the status
+// line after either count changes, keeping whatever it says before that.
+function refreshQueueNote(): void {
+  if (genRunning){
+    const head = (synthDatGenStatus.textContent || '').split(' · ')[0] || 'Generating…';
+    setGenStatus(head + queueNote());
+  } else {
+    setGenStatus(heldResults.length ? `${heldResults.length} more result${heldResults.length === 1 ? '' : 's'} waiting for review` : '');
+  }
+}
+
+// A finished result: shown now if nothing is waiting for a decision,
+// otherwise held until the current one is Accepted/Rejected.
+function deliverResult(res: GenResult, tagSnapshot: string[]): void {
+  if (previewBytes){
+    heldResults.push({ res, tagSnapshot });
+    toast(`New result ready — Accept or Reject the current one to see it (${heldResults.length} waiting).`);
+  } else {
+    showGenResult(res, tagSnapshot);
+  }
+}
+
+// After Accept/Reject: the next held result, if any, takes the empty slot.
+function showNextHeld(): void {
+  if (previewBytes) return; // the decision didn't go through (e.g. no dataset open)
+  const next = heldResults.shift();
+  if (next) showGenResult(next.res, next.tagSnapshot);
+  refreshQueueNote();
 }
 
 function updateQueueUI(): void {
@@ -1324,18 +1359,22 @@ async function generate(): Promise<void> {
   });
   if (genRunning){
     toast(`Queued (${genQueue.length} waiting).`);
-    setGenStatus((synthDatGenStatus.textContent || 'Generating…').replace(/ · \d+ queued$/, '') + queueNote());
+    refreshQueueNote();
     return;
   }
   genRunning = true;
   genStopped = false;
   updateQueueUI();
+  let last: 'ok' | 'stopped' | 'failed' = 'ok';
   try {
-    while (genQueue.length && !genStopped) await runGenJob(genQueue.shift()!);
+    while (genQueue.length && !genStopped) last = await runGenJob(genQueue.shift()!);
   } finally {
     genRunning = false;
     genQueue.length = 0;
     updateQueueUI();
+    // A failure keeps its error on the status line; otherwise it says how
+    // many results are still waiting for review, or clears.
+    if (last !== 'failed') refreshQueueNote();
   }
 }
 
@@ -1347,7 +1386,7 @@ function stopGeneration(): void {
   window.electronAPI.synthdatStopGeneration(getHost());
 }
 
-async function runGenJob(job: GenJob): Promise<void> {
+async function runGenJob(job: GenJob): Promise<'ok' | 'stopped' | 'failed'> {
   clearObjectUrlOn(synthDatLivePreview);
   synthDatLivePreviewWrap.style.display = 'none';
   setGenStatus('Generating… this can take a while.' + queueNote());
@@ -1361,15 +1400,16 @@ async function runGenJob(job: GenJob): Promise<void> {
 
   synthDatLivePreviewWrap.style.display = 'none';
   if (!res.ok){
-    if (res.interrupted) toast('Generation stopped.');
-    setGenStatus(res.interrupted ? '' : (res.error || 'Generation failed.') + queueNote());
-    return;
+    if (res.interrupted){ toast('Generation stopped.'); return 'stopped'; }
+    setGenStatus((res.error || 'Generation failed.') + queueNote());
+    return 'failed';
   }
-  setGenStatus(genQueue.length && !genStopped ? `Done${queueNote()}` : '');
-  await serialized(async () => { await autoRejectPendingIfAny(); showGenResult(res, job.tagSnapshot); });
+  await serialized(async () => deliverResult(res, job.tagSnapshot));
+  if (genQueue.length && !genStopped) setGenStatus('Done' + queueNote());
+  return 'ok';
 }
 
-function showGenResult(res: { imageBytes?: Uint8Array; pass1ImageBytes?: Uint8Array }, tagSnapshot: string[]): void {
+function showGenResult(res: GenResult, tagSnapshot: string[]): void {
   previewBytes = res.imageBytes || null;
   pendingBase = `synth_${Date.now().toString(36)}`;
   pendingImgName = `${pendingBase}.png`;
@@ -1515,23 +1555,6 @@ async function rejectImage(){
   clearPreview();
 }
 
-// Generate() calls this first — if a previous generation is still sitting
-// there un-decided (the user started a new one instead of clicking Accept
-// or Reject), every pass it produced gets auto-rejected into Disabled/
-// rather than silently vanishing when clearPreview() resets the pending
-// state for the new run.
-async function autoRejectPendingIfAny(){
-  if (!previewBytes) return;
-  const dirHandle = getDirHandle();
-  if (!dirHandle) return;
-  const tags = pendingTagSnapshot || [];
-  await writeImageEntry(previewBytes, pendingBase, pendingImgName, tags, true);
-  const alt = otherPassBytes();
-  if (alt) await writeImageEntry(alt, `${pendingBase}_altpass`, `${pendingBase}_altpass.png`, tags, true);
-  toast('Previous generation wasn\'t Accepted/Rejected — auto-rejected into Disabled/.');
-  refreshAllUIRef();
-  clearPreview();
-}
 
 function clearPreview(){
   previewBytes = null;
@@ -1709,8 +1732,8 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
   attachPickerModal(synthDatMainLora, 'Main LoRA', () => datalistOptions(synthDatMainLoraDatalist));
   btnSynthDatGenerate.addEventListener('click', generate);
   btnSynthDatStop.addEventListener('click', stopGeneration);
-  btnSynthDatAccept.addEventListener('click', () => serialized(acceptImage));
-  btnSynthDatReject.addEventListener('click', () => serialized(rejectImage));
+  btnSynthDatAccept.addEventListener('click', () => serialized(async () => { await acceptImage(); showNextHeld(); }));
+  btnSynthDatReject.addEventListener('click', () => serialized(async () => { await rejectImage(); showNextHeld(); }));
   synthDatPickPass1.addEventListener('click', () => selectPass(1));
   synthDatPickPass2.addEventListener('click', () => selectPass(2));
   btnSynthDatReinterrogateOutput.addEventListener('click', reinterrogateOutput);

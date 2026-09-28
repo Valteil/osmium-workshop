@@ -11999,8 +11999,31 @@ Image: ${entry.imgName}`,
     commitChain = next.catch(() => void 0);
     return next;
   }
+  var heldResults = [];
   function queueNote() {
-    return genQueue.length ? ` \xB7 ${genQueue.length} queued` : "";
+    return (genQueue.length ? ` \xB7 ${genQueue.length} queued` : "") + (heldResults.length ? ` \xB7 ${heldResults.length} waiting for review` : "");
+  }
+  function refreshQueueNote() {
+    if (genRunning) {
+      const head = (synthDatGenStatus.textContent || "").split(" \xB7 ")[0] || "Generating\u2026";
+      setGenStatus(head + queueNote());
+    } else {
+      setGenStatus(heldResults.length ? `${heldResults.length} more result${heldResults.length === 1 ? "" : "s"} waiting for review` : "");
+    }
+  }
+  function deliverResult(res, tagSnapshot) {
+    if (previewBytes) {
+      heldResults.push({ res, tagSnapshot });
+      toast(`New result ready \u2014 Accept or Reject the current one to see it (${heldResults.length} waiting).`);
+    } else {
+      showGenResult(res, tagSnapshot);
+    }
+  }
+  function showNextHeld() {
+    if (previewBytes) return;
+    const next = heldResults.shift();
+    if (next) showGenResult(next.res, next.tagSnapshot);
+    refreshQueueNote();
   }
   function updateQueueUI() {
     btnSynthDatStop.disabled = !genRunning;
@@ -12027,18 +12050,20 @@ Image: ${entry.imgName}`,
     });
     if (genRunning) {
       toast(`Queued (${genQueue.length} waiting).`);
-      setGenStatus((synthDatGenStatus.textContent || "Generating\u2026").replace(/ · \d+ queued$/, "") + queueNote());
+      refreshQueueNote();
       return;
     }
     genRunning = true;
     genStopped = false;
     updateQueueUI();
+    let last = "ok";
     try {
-      while (genQueue.length && !genStopped) await runGenJob(genQueue.shift());
+      while (genQueue.length && !genStopped) last = await runGenJob(genQueue.shift());
     } finally {
       genRunning = false;
       genQueue.length = 0;
       updateQueueUI();
+      if (last !== "failed") refreshQueueNote();
     }
   }
   function stopGeneration() {
@@ -12060,15 +12085,16 @@ Image: ${entry.imgName}`,
     });
     synthDatLivePreviewWrap.style.display = "none";
     if (!res.ok) {
-      if (res.interrupted) toast("Generation stopped.");
-      setGenStatus(res.interrupted ? "" : (res.error || "Generation failed.") + queueNote());
-      return;
+      if (res.interrupted) {
+        toast("Generation stopped.");
+        return "stopped";
+      }
+      setGenStatus((res.error || "Generation failed.") + queueNote());
+      return "failed";
     }
-    setGenStatus(genQueue.length && !genStopped ? `Done${queueNote()}` : "");
-    await serialized(async () => {
-      await autoRejectPendingIfAny();
-      showGenResult(res, job.tagSnapshot);
-    });
+    await serialized(async () => deliverResult(res, job.tagSnapshot));
+    if (genQueue.length && !genStopped) setGenStatus("Done" + queueNote());
+    return "ok";
   }
   function showGenResult(res, tagSnapshot) {
     previewBytes = res.imageBytes || null;
@@ -12181,18 +12207,6 @@ Image: ${entry.imgName}`,
     const alt = otherPassBytes();
     if (alt) await writeImageEntry(alt, `${pendingBase}_altpass`, `${pendingBase}_altpass.png`, tags, true);
     toast("Rejected into Disabled/.");
-    refreshAllUIRef6();
-    clearPreview();
-  }
-  async function autoRejectPendingIfAny() {
-    if (!previewBytes) return;
-    const dirHandle = getDirHandle8();
-    if (!dirHandle) return;
-    const tags = pendingTagSnapshot || [];
-    await writeImageEntry(previewBytes, pendingBase, pendingImgName, tags, true);
-    const alt = otherPassBytes();
-    if (alt) await writeImageEntry(alt, `${pendingBase}_altpass`, `${pendingBase}_altpass.png`, tags, true);
-    toast("Previous generation wasn't Accepted/Rejected \u2014 auto-rejected into Disabled/.");
     refreshAllUIRef6();
     clearPreview();
   }
@@ -12381,8 +12395,14 @@ Image: ${entry.imgName}`,
     attachPickerModal(synthDatMainLora, "Main LoRA", () => datalistOptions(synthDatMainLoraDatalist));
     btnSynthDatGenerate.addEventListener("click", generate);
     btnSynthDatStop.addEventListener("click", stopGeneration);
-    btnSynthDatAccept.addEventListener("click", () => serialized(acceptImage));
-    btnSynthDatReject.addEventListener("click", () => serialized(rejectImage));
+    btnSynthDatAccept.addEventListener("click", () => serialized(async () => {
+      await acceptImage();
+      showNextHeld();
+    }));
+    btnSynthDatReject.addEventListener("click", () => serialized(async () => {
+      await rejectImage();
+      showNextHeld();
+    }));
     synthDatPickPass1.addEventListener("click", () => selectPass(1));
     synthDatPickPass2.addEventListener("click", () => selectPass(2));
     btnSynthDatReinterrogateOutput.addEventListener("click", reinterrogateOutput);
