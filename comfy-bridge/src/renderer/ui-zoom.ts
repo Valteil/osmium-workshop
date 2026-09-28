@@ -27,7 +27,7 @@ export function initUiZoom(): void {
 }
 
 // The "Text size" row: a range slider (80–160 %, steps of 10) with its value
-// and a reset, applied live while dragging.
+// and a reset. The label follows the drag; the zoom applies on release.
 export function buildUiZoomRow(): HTMLElement {
   const row = document.createElement('div');
   row.className = 'ui-zoom-row';
@@ -47,7 +47,12 @@ export function buildUiZoomRow(): HTMLElement {
   reset.className = 'ui-zoom-reset';
   reset.textContent = 'Reset';
   const show = (): void => { val.textContent = slider.value + '%'; reset.disabled = slider.value === '100'; };
-  slider.addEventListener('input', () => { applyUiZoom(parseInt(slider.value, 10) / 100); show(); });
+  // Zooming rescales the slider itself, so applying it mid-drag moved the
+  // track under the held pointer, which changed the value again: a runaway
+  // to min/max. While dragging only the label follows ('input'); the zoom
+  // applies on release ('change', which arrow keys also fire per step).
+  slider.addEventListener('input', show);
+  slider.addEventListener('change', () => { applyUiZoom(parseInt(slider.value, 10) / 100); show(); });
   reset.addEventListener('click', () => { slider.value = '100'; applyUiZoom(1); show(); });
   // Arrow keys adjust the slider only (the gallery lightbox also listens for
   // ← / → on document).
