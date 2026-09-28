@@ -16,7 +16,7 @@
     <!-- Tag wiki window (src/renderer/tag-wiki.ts); the button toggles it. -->
     <button id="btnTagWiki" type="button" title="Tag wiki: look up any tag's definition in a window that stays open until you close it"><svg class="tag-wiki-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-1.8-1.4-4.3-2-7.5-2v14c3.2 0 5.7.6 7.5 2 1.8-1.4 4.3-2 7.5-2v-14c-3.2 0-5.7.6-7.5 2z"/><path d="M12 6.5v14"/></svg>Wiki</button>
     <div id="themeWrap">
-      <button id="themeBtn" title="Theme colors (Osmium palettes, colors only)">
+      <button id="themeBtn" title="Theme: Osmium's colors and fonts">
         <span id="themeBtnLabel"></span><span class="theme-arrow">▾</span>
       </button>
       <div id="themeMenu" hidden></div>
@@ -213,16 +213,6 @@
       <section class="sec">
         <div class="sec-head"><span class="d">Log</span></div>
         <div id="log" class="log-box"></div>
-      </section>
-      <section class="sec">
-        <details class="settings-panel">
-          <summary>ComfyUI Terminal</summary>
-          <div class="row">
-            <button id="btnRefreshComfyLog" type="button">Refresh</button>
-            <span class="muted small">Live during generation; Refresh fetches on demand.</span>
-          </div>
-          <div id="comfyTerminal" class="log-box comfy-terminal"></div>
-        </details>
       </section>
     </div>
 

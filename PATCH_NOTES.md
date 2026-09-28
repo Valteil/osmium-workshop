@@ -43,6 +43,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   row to the left of the gallery button and stay faded until you point at them, so they don't
   hide what's underneath.
 - **Comfy Bridge opens maximized** (Windows).
+- **No more ComfyUI Terminal panel** (Windows): Local ComfyUI's own console window shows the same
+  output. Scrolled to the bottom, the right column now ends in empty space, so the round buttons
+  never cover the Log. (The Android app keeps its terminal.)
+- **The theme menu stays open when you pick a theme**, so you can click through them; clicking
+  outside it, Esc or the button closes it.
 - **Osmium's look** (Windows and Android): the gallery button and the new panel buttons use
   Osmium's line icons, and checkboxes match Osmium's (rounded, filled in the theme's accent).
 - **Themes bring their fonts** (Windows and Android): each theme now uses the same fonts as in

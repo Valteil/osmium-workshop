@@ -287,29 +287,10 @@ if (hasLocalComfy) {
   });
 }
 
-// ---------------- ComfyUI terminal (real stdout/stderr) ----------------
-// Same internal API ComfyUI's own frontend "Logs" panel uses: a one-shot
-// GET for whatever's already buffered server-side, plus a live websocket
-// subscription during generation (see main.ts). Not this app's own
-// diagnostic messages (that's logBox above) — this is the actual server
-// console output.
-const comfyTerminal = $<HTMLDivElement>('comfyTerminal');
-const btnRefreshComfyLog = $<HTMLButtonElement>('btnRefreshComfyLog');
-// eslint-disable-next-line no-control-regex
-const ANSI_ESCAPE_RE = /\x1b\[[0-9;]*m/g;
-function appendComfyLogEntries(entries: { t: string; m: string }[]): void {
-  for (const e of entries) {
-    comfyTerminal.appendChild(document.createTextNode(e.m.replace(ANSI_ESCAPE_RE, '')));
-  }
-  comfyTerminal.scrollTop = comfyTerminal.scrollHeight;
-}
-btnRefreshComfyLog.addEventListener('click', async () => {
-  const res = await window.electronAPI.comfyFetchLogs({ host: getHost() });
-  if (!res.ok) { log(res.error || 'Could not fetch ComfyUI logs.'); return; }
-  comfyTerminal.textContent = '';
-  appendComfyLogEntries(res.entries || []);
-});
-window.electronAPI.onComfyLog((_event, entries) => appendComfyLogEntries(entries));
+// The desktop's "ComfyUI Terminal" dock was removed in v2.0.0 (the user's
+// call): Local ComfyUI runs in its own console window, which shows the same
+// output. main.ts still forwards ComfyUI's log ('comfy-log' /
+// comfyFetchLogs) — the phone relay and the Android app's terminal use it.
 
 function fillDatalist(el: HTMLElement, values: string[]): void {
   el.innerHTML = '';

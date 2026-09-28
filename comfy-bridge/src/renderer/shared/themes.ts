@@ -113,12 +113,23 @@ export function mountThemePicker(opts: { wrap: string; btn: string; btnLabel: st
     const cur = palettes.find((t) => t.name === name);
     labelEl.textContent = cur ? cur.label : 'Theme';
   }
-  function item(label: string, current: boolean, onPick: () => void, extra = ''): void {
+  // Picking a theme keeps the menu open (the user's call), so themes can be
+  // tried one after another; the ✓ moves to the new one. It closes on an
+  // outside click, Escape, the button again, or "Theme Studio…" (`closes`).
+  function item(label: string, current: boolean, onPick: () => void, extra = '', closes = false): void {
     const el = document.createElement('button');
     el.type = 'button';
     el.className = 'theme-item' + (current ? ' current' : '') + (extra ? ' ' + extra : '');
     el.textContent = label;
-    el.addEventListener('click', () => { onPick(); menu.hidden = true; refresh(); });
+    el.addEventListener('click', () => {
+      if (closes) menu.hidden = true;
+      onPick();
+      refresh();
+      if (!closes) {
+        menu.querySelectorAll('.theme-item.current').forEach((c) => c.classList.remove('current'));
+        el.classList.add('current');
+      }
+    });
     menu.appendChild(el);
   }
   function buildMenu(): void {
@@ -129,7 +140,7 @@ export function mountThemePicker(opts: { wrap: string; btn: string; btnLabel: st
     if (readCustomVars()) item(customThemeName(), cur === 'custom', () => applyTheme('custom'), 'theme-item-custom');
     if (opts.onStudio){
       const studio = opts.onStudio;
-      item('Theme Studio…', false, () => studio(), 'theme-item-studio');
+      item('Theme Studio…', false, () => studio(), 'theme-item-studio', true);
     }
   }
   btn.addEventListener('click', () => {
