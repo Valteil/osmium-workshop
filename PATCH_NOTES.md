@@ -20,33 +20,19 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Main LoRA weight** (SynthDat Overseer): a field under Main LoRA sets how strongly it's applied
   (1 = full, as before). Saved per dataset like the other settings.
 
-### Comfy Bridge
+### Comfy Bridge for Android
 
-- **Generate queues on Android too**, like on Windows: pressing Generate while one is running
-  queues another with the settings as they are then. They run one after another; Stop (or the
-  notification's Cancel) ends the current one and clears the queue.
-- **Main LoRA weight** (Windows and Android): a field under Main LoRA sets how strongly it's
-  applied (1 = full, as before). Importing a PNG brings its weight back too.
-- **Tag wiki** (Windows and Android): a **Wiki** button in the top bar opens the same
-  tag-definition window as Osmium's, for checking what a tag means while writing a prompt.
-  Suggestions as you type, See also links, and your own notes for tags without a definition. The
-  definitions ship with the app, so it works offline.
-- **Use your PC's Local ComfyUI from your phone**: on Windows, with Run on set to Local ComfyUI,
-  tick **Let the phone app use it** (port 8189 by default). The Android app then connects to your
-  PC's address, such as its Tailscale IP, exactly like a ComfyUI server: generate, stop, live
-  preview, and the ComfyUI Terminal showing the PC's ComfyUI output. The first request starts
-  Local ComfyUI on the PC if it isn't running. There's no password (the same as ComfyUI's own
-  `--listen`), so only turn it on for networks you trust, like your tailnet.
-- **ComfyUI Terminal in Local ComfyUI mode** (Windows): shows Local ComfyUI's own output, live.
-- **Persist Comfy** (Windows, Local ComfyUI): keeps Local ComfyUI running, with its models
-  loaded, after you close Comfy Bridge. Next time, Connect picks it straight back up instead of
-  loading again. To stop it, close its console window ("Comfy Bridge - local ComfyUI (stays
-  open)"). It takes effect the next time Local ComfyUI starts. With **Let the phone app use it**
-  on too, the kept-open ComfyUI serves the phone itself, so the phone keeps working after you
-  close Comfy Bridge (Connect once to start it).
-- **The phone no longer hangs on a wrong address or port**: after 45 seconds without an answer
-  it says so, and reminds you which port is which (8188 for a ComfyUI server, 8189 for a PC
-  sharing Local ComfyUI).
+In testing: get it from the
+[test build](https://github.com/Valteil/osmium-workshop/releases/tag/comfybridge-android-test).
+
+- **Generate queues**, like on Windows: pressing Generate while one is running queues another
+  with the settings as they are then. They run one after another; Stop (or the notification's
+  Cancel) ends the current one and clears the queue.
+- **Tag wiki**: a **Wiki** button in the header opens the tag-definition window.
+- **Main LoRA weight**: a field under Main LoRA.
+- **No more silent hangs on a wrong address or port**: after 45 seconds without an answer it says
+  so, and reminds you which port is which (8188 for a ComfyUI server, 8189 for a PC sharing Local
+  ComfyUI).
 
 ---
 
@@ -69,13 +55,39 @@ v1.9.0 before this, download it again.
 
 ### Comfy Bridge
 
+Comfy Bridge for Windows was rebuilt again later on 2026-09-28 with everything below. If you
+downloaded it before then, download it again.
+
 - **Local ComfyUI** (Windows): set Run on to Local ComfyUI and choose your ComfyUI folder, then
   Connect. Comfy Bridge starts that install itself in its own console window, loading only the
-  nodes its workflow needs (including the upscale models). Same setup as Osmium's.
+  nodes its workflow needs (including the upscale models). Same setup as Osmium's. The
+  **ComfyUI Terminal** shows its output, live.
+- **Persist Comfy**: keeps Local ComfyUI running, with its models loaded, after you close Comfy
+  Bridge. Next time, Connect picks it straight back up instead of loading again. To stop it, close
+  its console window ("Comfy Bridge - local ComfyUI (stays open)"). It takes effect the next time
+  Local ComfyUI starts.
+- **Use your PC's Local ComfyUI from your phone**: tick **Let the phone app use it** (port 8189 by
+  default). The Android app then connects to your PC's address, such as its Tailscale IP, exactly
+  like a ComfyUI server: generate, stop, live preview, and the ComfyUI Terminal showing the PC's
+  ComfyUI output. With Persist Comfy on as well, the kept-open ComfyUI serves the phone itself, so
+  it keeps working after you close Comfy Bridge (Connect once to start it). Without it, the
+  phone's first request starts Local ComfyUI if it isn't running. There's no password (the same
+  as ComfyUI's own `--listen`), so only turn it on for networks you trust, like your tailnet.
+  The phone uses 8189; 8190 is Comfy Bridge's private line to ComfyUI and only works on the PC.
 - **Generate queues**, as above.
+- **Tag wiki**: a **Wiki** button in the top bar opens the same tag-definition window as
+  Osmium's, for checking what a tag means while writing a prompt. Suggestions as you type, See
+  also links, and your own notes for tags without a definition. The definitions ship with the
+  app, so it works offline.
+- **Main LoRA weight**: a field under Main LoRA sets how strongly it's applied (1 = full, as
+  before). Importing a PNG brings its weight back too.
+- Tidier Local ComfyUI controls: labels stay on one line, and the folder path sits under its
+  button.
 
-The Comfy Bridge Android app and the ComfyUI node pack are unchanged; get them from
-[v1.8.0](https://github.com/Valteil/osmium-workshop/releases/tag/v1.8.0).
+The Comfy Bridge Android app and the ComfyUI node pack are unchanged in this release; get them
+from [v1.8.0](https://github.com/Valteil/osmium-workshop/releases/tag/v1.8.0). The v1.8.0 phone app
+already works with **Let the phone app use it**. A newer Android build is in testing (see
+"Next version" above).
 
 ### Osmium Workshop
 
