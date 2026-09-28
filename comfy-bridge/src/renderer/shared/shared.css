@@ -30,6 +30,14 @@
 .theme-item:hover{ background:var(--panel2); }
 .theme-item.current{ color:var(--accent); font-weight:600; }
 .theme-item.current::after{ content:' ✓'; color:var(--accent); margin-left:auto; }
+/* Text size slider at the top of the theme menu (desktop only, src/renderer/ui-zoom.ts). */
+.ui-zoom-row{
+  display:flex; align-items:center; gap:8px; padding:6px 9px 8px; margin-bottom:4px;
+  border-bottom:1px solid var(--border); font-size:12px; color:var(--text); white-space:nowrap;
+}
+.ui-zoom-row input[type=range]{ flex:1; min-width:90px; accent-color:var(--accent); }
+.ui-zoom-val{ min-width:3.2em; text-align:right; color:var(--muted); font-variant-numeric:tabular-nums; }
+.ui-zoom-reset{ font:inherit; font-size:11px; padding:2px 7px; min-height:0; }
 
 #galleryFab{position:fixed;right:14px;bottom:18px;z-index:500;width:56px;height:56px;border-radius:50%;background:var(--accent);border-color:var(--accent);font-size:24px;padding:0;min-height:0;box-shadow:0 4px 16px rgba(0,0,0,.5);}
 #galleryBackdrop{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.55);display:none;}

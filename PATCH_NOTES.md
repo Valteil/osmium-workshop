@@ -33,6 +33,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 - **Arrow keys in the gallery**: with an image open from the gallery, ← and → step to the previous
   and next image in the folder.
+- **Text size** (Windows): a slider at the top of the theme menu makes the whole window bigger or
+  smaller (80–160%). It's remembered, and **Reset** puts it back to 100%.
 
 ### Comfy Bridge for Android
 

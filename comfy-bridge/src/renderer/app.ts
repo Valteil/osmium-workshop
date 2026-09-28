@@ -11,10 +11,12 @@ import {
   initTheme, mountThemePicker, THEMES, DEFAULT_THEME
 } from './shared';
 import { openThemeStudio } from './theme-studio';
+import { initUiZoom, buildUiZoomRow } from './ui-zoom';
 import { initTagWiki } from './shared/tag-wiki';
 export {};
 
 interface ElectronAPI {
+  setZoomFactor(factor: number): void;
   getAppVersion(): Promise<string>;
   pickOutputFolder(): Promise<{ ok: boolean; path?: string }>;
   importWorkflow(): Promise<{ ok: boolean; cancelled?: boolean; error?: string; prompt?: Record<string, any> }>;
@@ -692,9 +694,11 @@ captureUiState();
 // comfybridge-theme; mountThemePicker() wires the popover (native <select>
 // popup refused to expand in this Electron window).
 initTheme(THEMES, DEFAULT_THEME);
+initUiZoom();
 const themePicker = mountThemePicker({
   wrap: 'themeWrap', btn: 'themeBtn', btnLabel: 'themeBtnLabel', menu: 'themeMenu',
   onStudio: () => openThemeStudio({ onSaved: () => themePicker.refresh() }),
+  menuTop: buildUiZoomRow,
 });
 
 // ---------------- Right column width (drag-resizable) ----------------

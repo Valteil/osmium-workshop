@@ -1,6 +1,9 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Text size slider (shared/ui-zoom.ts): Chromium page zoom, applied in this
+  // renderer directly (webFrame works in a sandboxed preload; no IPC needed).
+  setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   pickOutputFolder: () => ipcRenderer.invoke('pick-output-folder'),
   importWorkflow: () => ipcRenderer.invoke('import-workflow-file'),

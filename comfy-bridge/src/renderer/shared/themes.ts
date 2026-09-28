@@ -96,8 +96,9 @@ export function applyTheme(name: string): void {
 // desktop, and mobile reuses the same control shape. Closes on outside
 // click / Escape; the current palette is marked in the list. A saved Custom
 // theme is listed by its Studio name; `onStudio` (desktop only) adds a
-// "Theme Studio…" entry at the end.
-export function mountThemePicker(opts: { wrap: string; btn: string; btnLabel: string; menu: string; onStudio?: () => void }): { refresh: () => void } {
+// "Theme Studio…" entry at the end, and `menuTop` (desktop only: the Text size
+// slider) a row above the palettes.
+export function mountThemePicker(opts: { wrap: string; btn: string; btnLabel: string; menu: string; onStudio?: () => void; menuTop?: () => HTMLElement }): { refresh: () => void } {
   const btn = document.getElementById(opts.btn) as HTMLButtonElement;
   const labelEl = document.getElementById(opts.btnLabel) as HTMLSpanElement;
   const menu = document.getElementById(opts.menu) as HTMLDivElement;
@@ -118,6 +119,7 @@ export function mountThemePicker(opts: { wrap: string; btn: string; btnLabel: st
   }
   function buildMenu(): void {
     menu.innerHTML = '';
+    if (opts.menuTop) menu.appendChild(opts.menuTop());
     const cur = currentThemeName();
     for (const t of palettes) item(t.label, t.name === cur, () => applyTheme(t.name));
     if (readCustomVars()) item(customThemeName(), cur === 'custom', () => applyTheme('custom'), 'theme-item-custom');
