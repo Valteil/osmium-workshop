@@ -31,9 +31,11 @@ function wikiData(): Promise<Record<string, string>> {
     .catch((err) => { console.error('wiki.json.gzdat load failed:', err); return {}; });
 }
 
-type TagMeta = { category: number; count: number };
+export type TagMeta = { category: number; count: number };
 let tagsP: Promise<Map<string, TagMeta>> | null = null;
-function allTags(): Promise<Map<string, TagMeta>> {
+// Also used by the desktop's file naming (../file-naming.ts) for its
+// character-tag index, so the one bundled list is loaded once.
+export function allTags(): Promise<Map<string, TagMeta>> {
   return tagsP ??= fetchGzipJson('./data/all_tags.json.gzdat').then((list) => {
     const map = new Map<string, TagMeta>();
     for (const row of list as unknown[]) {

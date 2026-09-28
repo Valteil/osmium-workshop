@@ -35,6 +35,20 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 - **Arrow keys in the gallery**: with an image open from the gallery, ← and → step to the previous
   and next image in the folder.
+- **New file naming** (Windows): images still save to `rating/character/`, but you're in control
+  of both parts.
+  - The character folder now comes only from the **Character** field, and only from an entry
+    that is exactly a Danbooru character tag. Tags like `score_7` no longer send images to a
+    random character's folder (7-tan).
+  - **Character folder** overrides it: type any name, pick a Danbooru character from the
+    suggestions, or press **OC** to keep original characters in one `OC` folder. Prompt presets
+    remember it.
+  - **Filename** is a pattern: `{old}` (the Main LoRA's name, as before) plus any text and tokens
+    such as `{sampler}`, `{seed}`, `{model}`, `{date}`. A counter like `_00001_` is always added,
+    so nothing is overwritten.
+  - A line under the fields shows where the next image will save, and why.
+  - **This folder is my ComfyUI output folder** and **Also keep ComfyUI's own copy** decide whether
+    ComfyUI saves its own (old-named) copy too. When it doesn't, you get exactly one file.
 - **Generation settings beside gallery images** (Windows): opening an image from the gallery shows
   how it was made in a panel to its left: which output it is (Pass 1, Pass 2, Upscaled or single
   pass), the prompt field by field, the negative, models and LoRAs with weights, size, seed, steps,

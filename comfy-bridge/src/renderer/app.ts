@@ -13,6 +13,7 @@ import {
 import { openThemeStudio } from './theme-studio';
 import { initUiZoom, buildUiZoomRow } from './ui-zoom';
 import { buildGenInfoPanel, stampOutputKind } from './gen-info';
+import { NAME_TOKENS, characterIndex, recognizeCharacter, ratingFolder, expandPattern, nextSavePath, safeSegment } from './file-naming';
 import { initTagWiki } from './shared/tag-wiki';
 export {};
 
@@ -54,7 +55,7 @@ export {};
 
 import {
   mountGallerySidebar, attachPickerModal, optionsFromDatalist,
-  showImageLightbox, nextFileNumber, bytesToBase64, base64ToBytes
+  showImageLightbox, bytesToBase64, base64ToBytes
 } from './shared/index';
 import type { StorageBackend, DirEntry } from './shared/storage';
 import { buildSynthDatPrompt } from '../comfy-core';
@@ -416,7 +417,9 @@ function snapshotPromptFields(): Record<string, string | boolean> {
     pose: pose.value,
     scene: scene.value,
     effects: effects.value,
-    extra: extra.value
+    extra: extra.value,
+    // The character-folder override belongs to the character (v2.0.0).
+    charFolder: charFolder.value
   };
 }
 
@@ -438,7 +441,9 @@ function applyPromptFields(fields: Record<string, string | boolean>): void {
   scene.value = String(fields.scene || '');
   effects.value = String(fields.effects || '');
   extra.value = String(fields.extra || '');
+  charFolder.value = String(fields.charFolder || '');
   applyUnifiedPromptModeUI();
+  void refreshSavePreview();
   autoGrowAll();
 }
 
@@ -786,6 +791,144 @@ btnPickOutputFolder.addEventListener('click', async () => {
   }
 });
 
+// ---------------- File naming ----------------
+// Folder <rating>/<character>/ and a filename pattern (./file-naming.ts).
+// The Character folder field overrides the character recognized from the
+// Character field; empty = automatic. The preview line shows where the next
+// generation will save and why.
+const charFolder = $<HTMLInputElement>('charFolder');
+const charFolderSuggest = $<HTMLDivElement>('charFolderSuggest');
+const btnCharOC = $<HTMLButtonElement>('btnCharOC');
+const filenamePattern = $<HTMLInputElement>('filenamePattern');
+const filenameTokens = $<HTMLDivElement>('filenameTokens');
+const savePathPreview = $<HTMLDivElement>('savePathPreview');
+const outputIsComfyOutput = $<HTMLInputElement>('outputIsComfyOutput');
+const keepComfyCopy = $<HTMLInputElement>('keepComfyCopy');
+const keepComfyCopyRow = $<HTMLLabelElement>('keepComfyCopyRow');
+
+interface SaveNaming { relDir: string; base: string; character: string; source: 'set' | 'recognized' | 'none'; }
+
+function joinRel(...parts: string[]): string { return parts.filter(Boolean).join('/'); }
+
+async function currentNaming(): Promise<SaveNaming> {
+  const override = safeSegment(charFolder.value);
+  let characterName = override;
+  let source: SaveNaming['source'] = override ? 'set' : 'none';
+  if (!override) {
+    try {
+      characterName = safeSegment(recognizeCharacter(fieldValue(character), await characterIndex()));
+      if (characterName) source = 'recognized';
+    } catch { /* tag list unavailable: no character folder */ }
+  }
+  const allText = [unifiedPrompt, global_, rating, character, characterTrigger, hair, face, chest, body_, clothes, limbs, sexual, pose, scene, effects, extra]
+    .map((el) => el.value).join(' ');
+  const ratingName = ratingFolder(allText);
+  const base = expandPattern(filenamePattern.value || '{old}', {
+    mainLora: mainLora.value, character: characterName, rating: ratingName, model: diffModel.value,
+    sampler: sampler.value, scheduler: scheduler.value, seed: seed1.value, steps: steps1.value, cfg: cfg1.value,
+    width: width.value, height: height.value, when: new Date(),
+  });
+  return { relDir: joinRel(ratingName, characterName), base, character: characterName, source };
+}
+
+let previewToken = 0;
+async function refreshSavePreview(): Promise<void> {
+  const token = ++previewToken;
+  const n = await currentNaming();
+  if (token !== previewToken) return;
+  const why = n.source === 'set' ? 'character folder set by you'
+    : n.source === 'recognized' ? 'character recognized in the Character field'
+    : 'no character recognized, so it saves in the rating folder';
+  savePathPreview.textContent = '';
+  const path = document.createElement('div');
+  path.className = 'naming-preview-path';
+  path.textContent = `Saves to: ${joinRel(n.relDir, `${n.base}_#####_.png`).split('/').join(' / ')}`;
+  const note = document.createElement('div');
+  note.className = 'muted small';
+  note.textContent = why;
+  savePathPreview.append(path, note);
+}
+let previewTimer: ReturnType<typeof setTimeout> | null = null;
+function schedulePreview(): void {
+  if (previewTimer) clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => { void refreshSavePreview(); }, 150);
+}
+// Any field can change the preview (character, rating text, sampler, seed…).
+document.addEventListener('input', schedulePreview, true);
+document.addEventListener('change', schedulePreview, true);
+
+// Token chips insert at the caret.
+for (const [token, title] of NAME_TOKENS) {
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'naming-token';
+  chip.textContent = `{${token}}`;
+  chip.title = title;
+  chip.addEventListener('click', () => {
+    const s = filenamePattern.selectionStart ?? filenamePattern.value.length;
+    const e = filenamePattern.selectionEnd ?? s;
+    const text = `{${token}}`;
+    filenamePattern.value = filenamePattern.value.slice(0, s) + text + filenamePattern.value.slice(e);
+    filenamePattern.focus();
+    filenamePattern.setSelectionRange(s + text.length, s + text.length);
+    filenamePattern.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  filenameTokens.appendChild(chip);
+}
+
+btnCharOC.addEventListener('click', () => {
+  charFolder.value = 'OC';
+  charFolder.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+// Danbooru character suggestions under the Character folder field.
+function hideCharSuggest(): void { charFolderSuggest.hidden = true; charFolderSuggest.innerHTML = ''; }
+charFolder.addEventListener('input', async () => {
+  const q = charFolder.value.trim().toLowerCase();
+  if (q.length < 2) { hideCharSuggest(); return; }
+  const { names } = await characterIndex();
+  if (charFolder.value.trim().toLowerCase() !== q) return;
+  const starts: string[] = [];
+  const contains: string[] = [];
+  for (const n of names) {
+    const l = n.toLowerCase();
+    if (l.startsWith(q)) starts.push(n);
+    else if (l.includes(q)) contains.push(n);
+    if (starts.length >= 10) break;
+  }
+  const picks = [...starts, ...contains].slice(0, 10);
+  charFolderSuggest.innerHTML = '';
+  if (!picks.length || (picks.length === 1 && picks[0] === charFolder.value)) { hideCharSuggest(); return; }
+  for (const name of picks) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'naming-suggest-item';
+    b.textContent = name;
+    b.addEventListener('mousedown', (ev) => {
+      ev.preventDefault();
+      charFolder.value = name;
+      hideCharSuggest();
+      charFolder.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    charFolderSuggest.appendChild(b);
+  }
+  charFolderSuggest.hidden = false;
+});
+charFolder.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') hideCharSuggest();
+  else if (ev.key === 'Enter' && !charFolderSuggest.hidden) {
+    const first = charFolderSuggest.querySelector<HTMLButtonElement>('.naming-suggest-item');
+    if (first) { ev.preventDefault(); first.dispatchEvent(new MouseEvent('mousedown')); }
+  }
+});
+charFolder.addEventListener('blur', hideCharSuggest);
+
+function applyComfyCopyUI(): void { keepComfyCopyRow.style.display = outputIsComfyOutput.checked ? 'none' : ''; }
+outputIsComfyOutput.addEventListener('change', applyComfyCopyUI);
+// restoreUiState() already ran (above) without firing 'change'.
+applyComfyCopyUI();
+void refreshSavePreview();
+
 // IPC-backed storage backend for the shared gallery/numbering — the
 // desktop half of the mobile SAF/Documents backend. Mobile-only storage
 // (SAF picker, Documents fallback) never appears in this bundle.
@@ -835,6 +978,20 @@ async function loadTemplate(): Promise<any> {
 }
 
 function buildPrompt(): any {
+  const prompt = buildPromptForComfy();
+  // No ComfyUI copy wanted (the chosen folder IS ComfyUI's output folder, or
+  // the user turned its own copy off): the save nodes become PreviewImage, so
+  // ComfyUI only writes a temp preview (fetched the same way, type "temp")
+  // and the Bridge's named file is the only one saved.
+  if (outputIsComfyOutput.checked || !keepComfyCopy.checked) {
+    for (const id of ['192', '192_pass1', '192_upscaled']) {
+      if (prompt[id]) prompt[id] = { class_type: 'PreviewImage', inputs: { images: prompt[id].inputs.images }, _meta: prompt[id]._meta };
+    }
+  }
+  return prompt;
+}
+
+function buildPromptForComfy(): any {
   // Thin adapter over the shared builder (comfy-core.ts, synced from the root
   // app) — reads this app's UI into SynthDatPromptConfig. All graph logic lives
   // there so it can't drift from the root app's SynthDat Overseer.
@@ -891,7 +1048,9 @@ function buildPrompt(): any {
 // are at that moment and queues the job; jobs run one at a time, in order.
 // Stop ends the running job and drops the queue.
 
-interface GenJob { host: string; prompt: any; imageFilename: string | null; imageBytes: Uint8Array | null; }
+// `naming` is snapshotted at queue time with the prompt, so a queued job
+// saves under the folder/name its own settings produced.
+interface GenJob { host: string; prompt: any; imageFilename: string | null; imageBytes: Uint8Array | null; naming: SaveNaming; }
 const genQueue: GenJob[] = [];
 let genRunning = false;
 let genStopped = false;
@@ -990,7 +1149,8 @@ async function generate(): Promise<void> {
     host: getHost(),
     prompt: buildPrompt(),
     imageFilename: skipRefImage.checked ? null : refFilename,
-    imageBytes: skipRefImage.checked ? null : new Uint8Array(await refFile!.arrayBuffer())
+    imageBytes: skipRefImage.checked ? null : new Uint8Array(await refFile!.arrayBuffer()),
+    naming: await currentNaming()
   });
   if (genRunning) {
     log(`Queued a generation (${genQueue.length} waiting).`);
@@ -1029,17 +1189,15 @@ async function runGenJob(job: GenJob): Promise<void> {
   }
   genStatus.style.display = 'none';
 
-  // Save with the SAME name/folder scheme ComfyUI's SaveImage used for its
-  // own copy (the File Namer prefix chain: rating folder / character
-  // folder / lora tail, e.g. "explicit/Lumine/mylora_00003.png") — Mirrored
-  // INSIDE the chosen destination folder, per user spec. The app's own
-  // per-folder counter (nextFileNumber) was overwriting that scheme with
-  // plain "N.png" at the destination root — the user's "the naming scheme
-  // gets overwritten when a folder is chosen" bug. ComfyUI's per-folder
-  // counter is the single numbering authority in the scheme, so both
-  // copies share it; the flat fallback numbering below only applies when
-  // history didn't expose a path (older server shapes).
-  const fallbackN = () => nextFileNumber(desktopBackend());
+  // v2.0.0: the folder and name come from the Bridge's own naming (the job's
+  // snapshot, ./file-naming.ts: rating / character / pattern), no longer
+  // from ComfyUI's File Namer chain, whose character detection misfired
+  // (score_7 -> a "7-tan" folder). Each copy gets the next free counter for
+  // its folder + name, so nothing is overwritten.
+  const backend = desktopBackend();
+  const taken = new Set<string>();
+  const savePath = (upscaled: boolean): Promise<string> =>
+    nextSavePath(backend, upscaled ? joinRel(job.naming.relDir, 'Upscaled') : job.naming.relDir, job.naming.base, taken);
   let saveFailed = false;
   const slides: { label: string; bytes: Uint8Array }[] = [];
   // 2-Pass: save BOTH passes, per this app's whole reason for existing —
@@ -1047,15 +1205,15 @@ async function runGenJob(job: GenJob): Promise<void> {
   // Each saved copy is stamped with which output it is (./gen-info.ts): the
   // gallery's parameters panel can't tell pass 1 from pass 2 otherwise.
   if (res.pass1ImageBytes) {
-    if (!(await saveBytes(stampOutputKind(res.pass1ImageBytes, 'pass1'), res.pass1SaveRel || `${await fallbackN()}_pass1.png`))) saveFailed = true;
+    if (!(await saveBytes(stampOutputKind(res.pass1ImageBytes, 'pass1'), await savePath(false)))) saveFailed = true;
     slides.push({ label: 'Pass 1', bytes: res.pass1ImageBytes });
   }
   if (res.imageBytes) {
-    if (!(await saveBytes(stampOutputKind(res.imageBytes, res.pass1ImageBytes ? 'pass2' : 'single'), res.saveRel || `${await fallbackN()}.png`))) saveFailed = true;
+    if (!(await saveBytes(stampOutputKind(res.imageBytes, res.pass1ImageBytes ? 'pass2' : 'single'), await savePath(false)))) saveFailed = true;
     slides.push({ label: res.pass1ImageBytes ? 'Pass 2' : 'Pass 1', bytes: res.imageBytes });
   }
   if (res.upscaledImageBytes) {
-    if (!(await saveBytes(stampOutputKind(res.upscaledImageBytes, 'upscaled'), res.upscaledSaveRel || `${await fallbackN()}_upscaled.png`))) saveFailed = true;
+    if (!(await saveBytes(stampOutputKind(res.upscaledImageBytes, 'upscaled'), await savePath(true)))) saveFailed = true;
     slides.push({ label: 'Upscaled', bytes: res.upscaledImageBytes });
   }
   if (saveFailed) {

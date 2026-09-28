@@ -250,6 +250,22 @@
           <span id="outputFolderLabel" class="muted">(none chosen)</span>
         </div>
         <div class="muted small">Every generation saves automatically here — both passes when 2-Pass runs, upscaled if enabled. No Accept/Reject; this is just a ComfyUI interface.</div>
+        <!-- File naming (src/renderer/file-naming.ts): rating/character folder + a filename pattern. -->
+        <label for="charFolder">Character folder</label>
+        <div class="row naming-char-row">
+          <div class="naming-char-wrap">
+            <input id="charFolder" type="text" placeholder="Automatic" autocomplete="off" spellcheck="false" title="Leave empty to use the character recognized in the Character field. Type to pick a Danbooru character, or any name you like.">
+            <div id="charFolderSuggest" class="naming-suggest" hidden></div>
+          </div>
+          <button id="btnCharOC" type="button" title="Save original characters in one OC folder">OC</button>
+        </div>
+        <label for="filenamePattern">Filename</label>
+        <input id="filenamePattern" type="text" value="{old}" spellcheck="false" title="Free text and {tokens}; a counter like _00001_ is always added">
+        <div id="filenameTokens" class="naming-tokens"></div>
+        <div id="savePathPreview" class="naming-preview"></div>
+        <label class="chk-row"><input id="outputIsComfyOutput" type="checkbox"> This folder is my ComfyUI output folder</label>
+        <label class="chk-row" id="keepComfyCopyRow"><input id="keepComfyCopy" type="checkbox" checked> Also keep ComfyUI's own copy in its output folder</label>
+        <div class="muted small">ComfyUI's own copy keeps its old names. With the first box ticked, or the second unticked, ComfyUI only makes a temporary preview, so the file above is the only one saved.</div>
       </section>
 
     </div>
