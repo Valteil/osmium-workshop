@@ -409,7 +409,8 @@ image runs on-device, so set Tag Overseer's WD14 Autotagger to **On-device**.
    Hair/Face/Chest/Body, Clothes/Limbs/Sexual, Extra/Effects/Scene — can be filled in individually,
    or check **"Use a single unified prompt box"** to paste one ready-made prompt into a single
    field instead (useful if you already have a prompt written and don't want to split it apart).
-   A small **⇄** button next to Width/Height instantly swaps the two.
+   A small **⇄** button next to Width/Height instantly swaps the two. **Main LoRA weight**, under
+   Main LoRA, sets how strongly that LoRA is applied (1 = full); it's saved per dataset.
 4. Set your generation parameters (sampler, seeds, steps, CFG — all live in the Generation section
    now, alongside Generate/Stop) and click **▶ Generate**.
    - **1-Pass** is the default (fast). Check "Enable 2nd pass" for an optional refinement pass —
@@ -605,10 +606,19 @@ This guide covers the desktop app. Two siblings share this repo:
   featuring a built-in workflow: no node graph to navigate, every generation saves straight to
   disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
   `Documents/`). Both builds share the gallery sidebar (browse subfolders, sort by name/date,
-  pin favorites), model picker modals, and the zoomable image lightbox. Mobile details live in
-  `comfy-bridge/mobile/README.md`; to reach ComfyUI from a phone, start it with `--listen
-  0.0.0.0 --enable-cors-header` (ComfyUI already listens on 8188 by default) and allow inbound
-  TCP 8188 through the firewall.
+  pin favorites), model picker modals, the zoomable image lightbox, a **Wiki** button (the same
+  tag-definition window as Osmium's), a **Main LoRA weight** field, and a Generate queue. Mobile
+  details live in `comfy-bridge/mobile/README.md`.
+  - **Local ComfyUI (Windows):** set **Run on** to **Local ComfyUI**, choose your ComfyUI folder,
+    then **Connect**. The Bridge starts that install itself, just like SynthDat does above, and
+    its ComfyUI Terminal shows that install's output.
+  - **Persist Comfy:** keeps Local ComfyUI running, with its models loaded, after you close the
+    Bridge. Connect picks it back up next time. Close its console window to stop it.
+  - **Using a phone:** either start ComfyUI with `--listen 0.0.0.0 --enable-cors-header` (it
+    listens on 8188) and allow inbound TCP 8188 through the firewall, or tick **Let the phone app
+    use it** under Local ComfyUI. The Bridge then lists this PC's addresses, Tailscale first; type
+    one into the phone app's host field, e.g. `http://<your PC's Tailscale IP>:8189`. There's no
+    password, so only turn it on for networks you trust, like your own tailnet.
 
 ---
 

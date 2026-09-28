@@ -105,6 +105,24 @@ cd android
   can reach it (top-level navigation needs no CORS/mixed-content allowance;
   the app's `fetch()` from its `https://localhost` WebView needs both) —
   use the app's own "Test connection" button as the real check.
+- **Or use the PC's Local ComfyUI, with no ComfyUI server at all**: in the
+  desktop Bridge, set Run on to Local ComfyUI and tick "Let the phone app use
+  it" (port 8189 by default). The desktop Bridge lists that PC's addresses
+  (Tailscale first); enter one here, e.g. `http://100.x.y.z:8189`. It answers
+  the same API this app already uses (`src/local-relay.ts` in the desktop
+  build), so nothing here is different. The first request starts Local
+  ComfyUI on the PC if it isn't running (about 25s), and the ComfyUI terminal
+  panel shows that PC's ComfyUI output.
+- **Generate queues**, like desktop: pressing Generate while one runs queues
+  another with the settings as they are then; they run in order, and Stop
+  (or the notification's Cancel) ends the current one and clears the queue.
+  Each queued job keeps its own 2-Pass/upscale stage count for the
+  notification.
+- **Tag wiki** — the header's Wiki button opens the same tag-definition window
+  as desktop (`src/renderer/shared/tag-wiki.ts`). Its data
+  (`www/data/*.gzdat`, ~26 MB) is copied from Osmium's `renderer/data/` at
+  build time and gitignored; suggestions open above the field when the
+  keyboard leaves no room below.
 - **Save location is user-pickable** — "Pick folder…" opens Android's Storage
   Access Framework picker (any folder on the device) via the `BridgeStorage`
   native plugin (ported from the parent app's `DtsStorage` plugin — same

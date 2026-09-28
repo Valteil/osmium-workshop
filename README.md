@@ -15,8 +15,8 @@ I don't know go eat a rock or something
 
 > **Note:** the two generation-facing pieces of this repo, **SynthDat Overseer** and **Comfy
 > Bridge**, both run on the same bundled workflow, which is built around Anima (a diffusion
-> model by Circlestone Labs) and need a ComfyUI install: Comfy Bridge talks to a running ComfyUI,
-> while SynthDat can either do that or (desktop) launch your install itself. ControlNet posing
+> model by Circlestone Labs) and need a ComfyUI install. Both can talk to a running ComfyUI, or
+> (on Windows) launch your install themselves as **Local ComfyUI**, with no server. ControlNet posing
 > specifically needs Anima; other model families will probably load, but expect weird results
 > since the workflow isn't built with them in mind. This is separate from WD14 tagging, which
 > runs on-device by default and doesn't need ComfyUI at all.
@@ -81,11 +81,20 @@ Three related apps share this repository (and much of their renderer code):
    featuring a built-in workflow: no node graph to navigate, every generation saves straight to
    disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
    Documents/). Both builds share the gallery sidebar (browse subfolders, sort by name/date, pin
-   favorites), model picker modals, and the zoomable image lightbox. Mobile details live in
-   `comfy-bridge/mobile/README.md`; to reach ComfyUI from a phone, start it with `--listen
-   0.0.0.0 --enable-cors-header` (ComfyUI already listens on 8188 by default) and allow inbound
-   TCP 8188 through the firewall. The desktop build has its own Theme Studio for a Custom theme,
-   and reads theme files exported from Osmium Workshop.
+   favorites), model picker modals, the zoomable image lightbox, a **Tag wiki** window, a
+   **Main LoRA weight** field, and a **Generate queue** (press Generate again while one runs to
+   queue it). Mobile details live in `comfy-bridge/mobile/README.md`.
+   - **Local ComfyUI (Windows):** like SynthDat, the desktop Bridge can launch your ComfyUI
+     install itself (Run on ▸ Local ComfyUI), loading only what its workflow needs. Its ComfyUI
+     Terminal shows that install's output. With **Persist Comfy** on, it stays open with its models
+     loaded after you close the Bridge, until you close its console window.
+   - **From a phone:** either point the Android app at a ComfyUI server (start ComfyUI with
+     `--listen 0.0.0.0 --enable-cors-header` and allow inbound TCP 8188 through the firewall), or
+     tick **Let the phone app use it** under the desktop Bridge's Local ComfyUI. The desktop Bridge
+     then shows its addresses (Tailscale first) and serves Local ComfyUI to the phone on port 8189,
+     with no password, like ComfyUI's own `--listen`.
+   - The desktop build has its own Theme Studio for a Custom theme, and reads theme files exported
+     from Osmium Workshop.
 
 The rest of this document describes the desktop dataset manager. On mobile, read the in-app ❓
 Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
