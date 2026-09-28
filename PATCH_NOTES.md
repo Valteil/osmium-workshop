@@ -22,6 +22,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **Generate queues on Android too**, like on Windows: pressing Generate while one is running
+  queues another with the settings as they are then. They run one after another; Stop (or the
+  notification's Cancel) ends the current one and clears the queue.
 - **Main LoRA weight** (Windows and Android): a field under Main LoRA sets how strongly it's
   applied (1 = full, as before). Importing a PNG brings its weight back too.
 - **Tag wiki** (Windows and Android): a **Wiki** button in the top bar opens the same

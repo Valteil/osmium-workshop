@@ -129,8 +129,12 @@ async function handlePrompt(req: http.IncomingMessage, res: http.ServerResponse)
   try { payload = JSON.parse((await readBody(req)).toString('utf8')); } catch { sendJson(res, 400, { error: { message: 'Invalid JSON.' } }); return; }
   const prompt = payload && payload.prompt;
   if (!prompt || typeof prompt !== 'object') { sendJson(res, 400, { error: { message: 'No prompt in the request.' } }); return; }
-  const started = await ensureLocalStarted();
-  if (!started.ok) { sendJson(res, 400, { error: { message: started.error || 'Local ComfyUI could not start.' } }); return; }
+  // Reply fast: the phone gives /prompt 10s, and a cold start takes ~25s.
+  // A setup problem (no folder, no pack) fails at once and gets its real
+  // message; a start still in progress is waited for by the generation.
+  const starting = ensureLocalStarted();
+  const early = await Promise.race([starting, new Promise<null>((r) => setTimeout(() => r(null), 2000))]);
+  if (early && !early.ok) { sendJson(res, 400, { error: { message: early.error || 'Local ComfyUI could not start.' } }); return; }
 
   const ref = prompt['239'] && prompt['239'].inputs && prompt['239'].inputs.image;
   const imageBytes = typeof ref === 'string' && uploads.has(ref) ? uploads.get(ref)! : null;
@@ -139,7 +143,10 @@ async function handlePrompt(req: http.IncomingMessage, res: http.ServerResponse)
   trim(history, KEEP);
   sendJson(res, 200, { prompt_id: promptId, number: ++promptNumber, node_errors: {} });
 
-  const r = await localGenerate(sinkFor(String(payload.client_id || '')), prompt, imageBytes ? new Uint8Array(imageBytes) : null);
+  const started = await starting;
+  const r = started.ok
+    ? await localGenerate(sinkFor(String(payload.client_id || '')), prompt, imageBytes ? new Uint8Array(imageBytes) : null)
+    : { ok: false, error: started.error };
   if (!r.ok) {
     history.set(promptId, {
       status: { status_str: 'error', completed: false, messages: [['execution_error', { exception_message: r.error || '' }]] },

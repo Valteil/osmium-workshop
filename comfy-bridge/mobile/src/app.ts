@@ -333,7 +333,7 @@ declare const BridgeShared: {
       }
       if (!genNotifCancelListenerReady) {
         genNotifCancelListenerReady = true;
-        GenProgress.addListener('cancelRequested', () => comfyStopGeneration());
+        GenProgress.addListener('cancelRequested', () => stopGeneration());
       }
       return true;
     } catch (e) { return false; }
@@ -375,9 +375,11 @@ declare const BridgeShared: {
     try { await GenProgress.finish({ title: title, body: body }); } catch (e) { /* best effort */ }
   }
 
-  function resetGenNotificationState() {
-    genPassCount = use2Pass.checked ? 2 : 1;
-    genTotalStages = genPassCount + ((upscaleEnabled.checked && upscaleModel.value.trim()) ? 1 : 0);
+  // Stage counts come from the job's own snapshot (a queued job may have been
+  // set up with different 2-Pass/upscale settings than the form shows now).
+  function resetGenNotificationState(passCount: number, totalStages: number) {
+    genPassCount = passCount;
+    genTotalStages = totalStages;
     genStageIndex = 1;
     genLastStepValue = -1;
   }
@@ -393,7 +395,7 @@ declare const BridgeShared: {
     if (typeof value !== 'number' || typeof max !== 'number' || !max) return;
     if (genLastStepValue >= 0 && value < genLastStepValue && genStageIndex < genPassCount) genStageIndex++;
     genLastStepValue = value;
-    genStatus.textContent = 'Generating… step ' + value + '/' + max;
+    genStatus.textContent = 'Generating… step ' + value + '/' + max + queueNote();
     queueGenNotification({
       title: genStageLabel(genStageIndex) + ' (' + genStageIndex + '/' + genTotalStages + ')',
       body: value + '/' + max, progress: value, max: max, indeterminate: false, showCancel: true
@@ -1143,45 +1145,89 @@ declare const BridgeShared: {
     }, 80);
   });
 
-  let generating = false;
+  // ---------------- Generation queue ----------------
+  // Same as the desktop Bridge: Generate never blocks. Each press snapshots
+  // the prompt, reference and stage counts as they are at that moment and
+  // queues the job; jobs run one at a time, in order. Stop (or the
+  // notification's Cancel) ends the running job and drops the queue.
+  interface GenJob {
+    prompt: Record<string, any>;
+    imageFilename: string | null;
+    imageBytes: Uint8Array | null;
+    passCount: number;
+    totalStages: number;
+  }
+  const genQueue: GenJob[] = [];
+  let genRunning = false;
+  let genStopped = false;
+
+  function queueNote(): string { return genQueue.length ? ' · ' + genQueue.length + ' queued' : ''; }
 
   async function generate() {
-    if (generating) return;
     if (!skipRefImage.checked && !refBytes) { log('Pick a reference image first (or check "No reference image").'); return; }
     await loadTemplate();
-    generating = true;
-    try { await runGeneration(); }
-    catch (err) {
-      genStatus.style.display = 'block';
-      genStatus.textContent = 'Generation failed: ' + errMsg(err);
-      log('Generation failed: ' + errMsg(err));
-      finalizeGenNotification('Generation failed', errMsg(err));
+    const passCount = use2Pass.checked ? 2 : 1;
+    genQueue.push({
+      prompt: buildPrompt(),
+      imageFilename: skipRefImage.checked ? null : refFilename,
+      imageBytes: skipRefImage.checked ? null : refBytes,
+      passCount,
+      totalStages: passCount + ((upscaleEnabled.checked && upscaleModel.value.trim()) ? 1 : 0)
+    });
+    if (genRunning) {
+      log('Queued a generation (' + genQueue.length + ' waiting).');
+      genStatus.textContent = (genStatus.textContent || 'Generating…').split(' · ')[0] + queueNote();
+      return;
+    }
+    runQueue();
+  }
+
+  async function runQueue() {
+    genRunning = true;
+    genStopped = false;
+    btnStop.disabled = false;
+    btnGenerate.title = 'Queue another generation with the current settings';
+    try {
+      while (genQueue.length && !genStopped) {
+        const job = genQueue.shift()!;
+        try { await runGeneration(job); }
+        catch (err) {
+          genStatus.style.display = 'block';
+          genStatus.textContent = 'Generation failed: ' + errMsg(err) + queueNote();
+          log('Generation failed: ' + errMsg(err));
+          finalizeGenNotification('Generation failed', errMsg(err));
+        }
+      }
     } finally {
       // Whatever happened, never leave the UI wedged in "Generating…".
-      generating = false;
-      btnGenerate.disabled = false;
+      genRunning = false;
+      genQueue.length = 0;
       btnStop.disabled = true;
+      btnGenerate.title = '';
       livePreviewWrap.style.display = 'none';
     }
   }
 
-  async function runGeneration() {
-    btnGenerate.disabled = true;
-    btnStop.disabled = false;
+  function stopGeneration() {
+    genStopped = true;
+    const dropped = genQueue.length;
+    genQueue.length = 0;
+    if (dropped) log('Dropped ' + dropped + ' queued generation' + (dropped === 1 ? '' : 's') + '.');
+    comfyStopGeneration();
+  }
+
+  async function runGeneration(job: GenJob) {
     livePreview.src = '';
     livePreviewWrap.style.display = 'none';
     genStatus.style.display = 'block';
-    genStatus.textContent = 'Generating… this can take a while.';
+    genStatus.textContent = 'Generating… this can take a while.' + queueNote();
 
-    resetGenNotificationState();
+    resetGenNotificationState(job.passCount, job.totalStages);
     if (await ensureGenNotifReady()) {
       postGenNotification({ title: genStageLabel(1) + ' (1/' + genTotalStages + ')', body: 'Starting…', progress: 0, max: 0, indeterminate: true, showCancel: true });
     }
 
-    const prompt = buildPrompt();
-    const bytes = skipRefImage.checked ? null : refBytes;
-
-    const res = await comfyQueueAndFetch(skipRefImage.checked ? null : refFilename, bytes, prompt);
+    const res = await comfyQueueAndFetch(job.imageFilename, job.imageBytes, job.prompt);
     livePreviewWrap.style.display = 'none';
 
     if (!res.ok) {
@@ -1195,9 +1241,13 @@ declare const BridgeShared: {
           retry.type = 'button';
           retry.className = 'gen-retry-btn';
           retry.textContent = '↻ Retry upload';
-          // Bytes are already in memory, so this just re-runs Generate with
-          // the same settings — the upload is its first step.
-          retry.addEventListener('click', () => { retry.remove(); generate(); });
+          // Bytes are already in memory, so this just re-runs the same job —
+          // the upload is its first step. It goes to the front of the queue.
+          retry.addEventListener('click', () => {
+            retry.remove();
+            genQueue.unshift(job);
+            if (!genRunning) runQueue();
+          });
           genStatus.appendChild(retry);
         }
       }
@@ -1233,7 +1283,7 @@ declare const BridgeShared: {
   }
 
   btnGenerate.addEventListener('click', generate);
-  btnStop.addEventListener('click', comfyStopGeneration);
+  btnStop.addEventListener('click', stopGeneration);
 
   // ---------------- Import generation ----------------
   // Same feature as the desktop Bridge: read a PNG saved by the integrated
