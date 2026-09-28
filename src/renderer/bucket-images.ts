@@ -7,7 +7,7 @@
 // Same split as WD14's on-device tagging.
 //
 // Flow: every Gallery image NOT already at a valid bucket size is moved into
-// original_images/ (with a copy of its .txt) and a bucketed PNG is written
+// initial_state/ (with a copy of its .txt) and a bucketed PNG is written
 // back to the dataset root under the same name stem, so the copy inherits the
 // caption. Revert undoes exactly that.
 import {
@@ -27,7 +27,10 @@ interface BucketImagesDeps {
   saveAllDirty: (silent?: boolean) => Promise<void>;
 }
 
-const ORIGINAL_DIR = 'original_images';
+// Was 'original_images' until 2026-09-28: LoRA trainers (Anima-TrainFlow) use
+// that name for their own un-bucketed samples, and Revert deletes this folder.
+// An old original_images/ is deliberately never read (it may be the trainer's).
+export const ORIGINAL_DIR = 'initial_state';
 const SETTINGS_KEY = 'dts-bucket-settings';
 
 interface BucketSettings { gpu: boolean; }
@@ -123,7 +126,7 @@ async function run(): Promise<void> {
 
   const ok = await showConfirmModal(
     `Bucket ${active.length} Gallery image(s) at ${sideMin}–${sideMax} (step ${step})?\n\n` +
-    `Each image is moved into original_images/ (treated as disabled — the new Originals view), ` +
+    `Each image is moved into ${ORIGINAL_DIR}/ (treated as disabled, shown in the Initial State view), ` +
     `and a cropped + resized PNG is written back to the dataset root under the same name. ` +
     `Images already at a valid bucket size are left alone.`,
     { okLabel: 'Bucket images' }
@@ -173,7 +176,7 @@ async function run(): Promise<void> {
         continue;
       }
       try {
-        // 1) original image + a copy of its .txt into original_images/
+        // 1) original image + a copy of its .txt into initial_state/
         const origImg = await origDir.getFileHandle(filename, { create: true });
         await writeBytes(origImg, bytes);
         if (entry.txtHandle && entry.txtName) {
@@ -204,7 +207,7 @@ async function run(): Promise<void> {
     log('');
     log(`Done. Bucketed ${processed}, already-bucketed ${skipped}, failed ${failed}.`);
     for (const k of Object.keys(counts).sort()) log(`  ${k}: ${counts[k]}`);
-    toast(`Bucketed ${processed} image(s) — originals are in the Originals view.`, 3600);
+    toast(`Bucketed ${processed} image(s) — originals are in the Initial State view.`, 3600);
   } catch (err) {
     log(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`, true);
     toast('Bucketing failed — see the dock log.', 4200);
@@ -241,7 +244,7 @@ async function revert(): Promise<void> {
   const ok = await showConfirmModal(
     `Revert bucketing for ${originals.length} image(s)?\n\n` +
     `This deletes the bucketed copy in the dataset root and moves the original ` +
-    `back from original_images/ into the Gallery.`,
+    `back from ${ORIGINAL_DIR}/ into the Gallery.`,
     { okLabel: 'Revert bucketing', danger: true }
   );
   if (!ok) return;
@@ -276,7 +279,7 @@ async function revert(): Promise<void> {
     if (orphans.length) {
       const del = await showConfirmModal(
         `${orphans.length} image(s) in the dataset are already bucket-sized but have no saved original ` +
-        `(they were never moved to original_images/).\n\nDelete them too? "Keep them" leaves them in the Gallery.`,
+        `(they were never moved to ${ORIGINAL_DIR}/).\n\nDelete them too? "Keep them" leaves them in the Gallery.`,
         { okLabel: 'Delete them too', cancelLabel: 'Keep them', danger: true }
       );
       if (del) {
@@ -288,7 +291,7 @@ async function revert(): Promise<void> {
       }
     }
 
-    // the folder has served its purpose — drop it so the Originals view empties
+    // the folder has served its purpose — drop it so the Initial State view empties
     try { await dirHandle.removeEntry(ORIGINAL_DIR, { recursive: true }); } catch { /* leave it */ }
 
     log('');

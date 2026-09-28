@@ -124,7 +124,7 @@ Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
 - **Disabled** — a quarantine tab for images pulled out of the active set (drag a card onto it).
   Tags stay editable the whole time, and you can restore anytime. Good for maybes you're not
   ready to delete.
-- **Originals** — the pre-bucketing originals kept by Bucket Images (below).
+- **Initial State** — the pre-bucketing originals kept by Bucket Images (below).
 - **Unlock all** and **Hide tags** — clear every image lock at once, or hide the chips on every card
   while you sort against a filter.
 - **Rename all** — renumber every image (and its `.txt`) into a clean `1`–`N` sequence, undoable.
@@ -167,7 +167,7 @@ cropped region as a *new* image instead, leaving the source untouched.
   if you pause the rule. Use it so a cleanup never has to be repeated.
 - **Bucket Images** (right sidebar) — crops and resizes every image to its nearest LoRA training
   bucket, subject-first via a u2net saliency model (GPU with CPU fallback; ~176 MB, downloaded on
-  first use). Originals move to `original_images/` and can be restored with one click.
+  first use). Originals move to `initial_state/` and can be restored with one click.
 - **Master Tag Control** (tab) — check off a batch of images, then run one tool across all of
   them: add or remove tags, add a tag only where another tag is (or isn't) already present,
   remove a tag from every image that has another, rename a tag dataset-wide, find-and-replace,

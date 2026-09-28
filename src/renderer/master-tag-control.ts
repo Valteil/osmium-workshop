@@ -23,7 +23,7 @@ import { markDirty, recordChange } from './tags-edit';
 import { attachFillAutocomplete } from './tags-autocomplete';
 import { setIconLabel, plainLabel } from './icons';
 
-// Holds the entries themselves, not their stems: an original_images/ copy
+// Holds the entries themselves, not their stems: an initial_state/ copy
 // shares its stem with a Gallery image, so a stem-keyed selection ticked both.
 // It also survives Disable/Restore, which move the same Entry object.
 export let masterSelectedImages = new Set<Entry>();

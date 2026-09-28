@@ -68,7 +68,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         See also tags below (click one to open it). Drag it by its title; it stays open until you
         close it.</li>`}
         <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
-        ${isTouchDevice ? '' : `<li><b>🖼 Originals</b> — the pre-bucketing originals kept by Bucket Images (see Power
+        ${isTouchDevice ? '' : `<li><b>🖼 Initial State</b> — the pre-bucketing originals kept by Bucket Images (see Power
         tools). Read-only here; Bucket Images' Revert is what moves them back.</li>`}
         <li><b>🔢 Rename all</b> — renames every loaded image (+ its .txt) to a simple zero-padded
         1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
@@ -192,8 +192,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       training bucket (Min side / Max side / Step, default 256 / 1024 / 64), so your trainer
       doesn't have to. The crop keeps the subject using a saliency model (a one-time ~176 MB
       download, ⬇ button in the dock). <b>Prefer GPU</b> runs it on your graphics card with an
-      automatic CPU fallback. Originals are never lost: they move to an <code>original_images/</code>
-      folder (browse them via the 🖼 Originals view), and images already at a bucket size are
+      automatic CPU fallback. Originals are never lost: they move to an <code>initial_state/</code>
+      folder (browse them via the 🖼 Initial State view), and images already at a bucket size are
       skipped, so re-running only handles the new ones. <b>↩ Revert bucketing</b> puts the
       originals back.</p>`}
       <p>Merge and Void tend to matter a lot more for a

@@ -17,6 +17,10 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Change tag category**: right-click a tag ▸ Change tag category to move it to another category
   when the automatic sorting gets it wrong. It applies on every image and in every dataset;
   **Automatic** in the same row undoes it.
+- **Originals is now Initial State**, and Bucket Images keeps originals in an `initial_state/`
+  folder instead of `original_images/`, which LoRA trainers use for their own samples. Osmium no
+  longer reads `original_images/`. If Bucket Images made one in a dataset before, rename that
+  folder to `initial_state` to see and revert those images again.
 - **Character sections** (Tag sorting): **＋ Add character** adds an empty section under
   Character, named Character 1, 2… until you rename it. Drag a whole category or single tags into
   it (or shift-click tags ▸ Move tags to). **Save** keeps that character in the dataset; **Load

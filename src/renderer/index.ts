@@ -70,7 +70,7 @@ import {
 } from './edit-log';
 import { initCanonicalTags, loadCanonicalRulesForFolder } from './canonical-tags';
 import { initSubjectPresets, loadSubjectPresetsForFolder } from './subject-presets';
-import { initBucketImages } from './bucket-images';
+import { initBucketImages, ORIGINAL_DIR } from './bucket-images';
 import {
   markDirty, updateDirtyUI, recordChange, applyTagDirection, applyRenameDirection, applyPixelDirection, getIsolateState, updateUndoRedoButtons,
   resetUndoRedo, moveEntry, initTagsEdit, undoStack, redoStack, addTagToEntry,
@@ -1647,7 +1647,7 @@ import { setIconLabel } from './icons';
       meta: { flaggedTags: [], note: '', noteAlwaysVisible: false, locked: false, mergeImmune: false, antivoid: false, dateAdded: Date.now() }
     };
     entries.push(entry);
-    // entryByBase is keyed by bare stem, but an `original_images/` shadow copy
+    // entryByBase is keyed by bare stem, but an `initial_state/` shadow copy
     // (Bucket Images) shares that stem with its bucketed root image — and
     // originalImages is scanned AFTER the root, so a plain set() here let the
     // DISABLED original clobber the real entry's mapping. Every selection-based
@@ -1958,11 +1958,12 @@ import { setIconLabel } from './icons';
     await finishInterruptedDisables();
 
     try {
-      // original_images/ holds the pre-bucketing originals the "Bucket Images"
+      // initial_state/ holds the pre-bucketing originals the "Bucket Images"
       // dock moved out of the root. Scanned as `original: true` AND disabled,
-      // so every existing mass/auto tool already skips them — the Originals
-      // view shows them, and the Disabled view excludes them.
-      originalDirHandle = await dirHandle.getDirectoryHandle('original_images', { create: false });
+      // so the whole-folder tools skip them — the Initial State view shows
+      // them, and the Disabled view excludes them. (Formerly original_images/,
+      // which is no longer read: LoRA trainers use that name for their own.)
+      originalDirHandle = await dirHandle.getDirectoryHandle(ORIGINAL_DIR, { create: false });
       await scanDirInto(originalDirHandle, true, true);
     } catch(e){ originalDirHandle = null; }
 

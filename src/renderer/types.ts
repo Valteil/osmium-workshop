@@ -36,7 +36,7 @@ export interface Entry {
   tags: string[];
   dirty: boolean;
   disabled: boolean;
-  // True for images living in the dataset's original_images/ folder (the
+  // True for images living in the dataset's initial_state/ folder (the
   // pre-bucketing originals). They are ALSO `disabled: true` — that's what
   // "treated as disabled" means for every existing mass/auto tool — but the
   // Disabled view excludes them so they only show in the Originals view.
@@ -109,7 +109,7 @@ export type LeftSortDir = 'asc' | 'desc';
 
 export interface EditLogAffected {
   base: string;
-  // Set when the entry is an original_images/ shadow copy, which shares its
+  // Set when the entry is an initial_state/ shadow copy, which shares its
   // stem with a Gallery image; undo/redo resolves it to the original then.
   original?: boolean;
   prevTags?: string[];

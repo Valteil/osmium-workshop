@@ -275,7 +275,7 @@ export function recordChange(type: string, summary: string, affected: EditLogAff
   return record;
 }
 
-// entryByBase maps a stem to the Gallery image, but an original_images/ copy
+// entryByBase maps a stem to the Gallery image, but an initial_state/ copy
 // shares that stem — a log entry made on the original says so, and resolves
 // to it instead.
 function entryForAffected(a: EditLogAffected): Entry | undefined {
@@ -321,10 +321,10 @@ async function ensureDisabledDir(): Promise<DirHandle> {
 export async function moveEntry(entry: Entry, toDisabled: boolean, opts?: { silent?: boolean }): Promise<void> {
   const dirHandle = getDirHandle();
   if (!dirHandle) return;
-  // Originals live in original_images/, not Disabled/, and are a paired copy of
+  // Originals live in initial_state/, not Disabled/, and are a paired copy of
   // a bucketed image — disable/restore is meaningless for them (the Bucket
   // Images dock's Revert is what moves them back).
-  if (entry.original){ toast('Originals are managed by the Bucket Images tool.'); return; }
+  if (entry.original){ toast('Initial State images are managed by the Bucket Images tool.'); return; }
   const silent = !!opts?.silent;
   try {
     const targetDir = toDisabled ? await ensureDisabledDir() : dirHandle;

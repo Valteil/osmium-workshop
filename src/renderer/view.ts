@@ -1628,7 +1628,7 @@ function renderSingleView(){
 
   const btnRow = document.createElement('div');
   btnRow.className = 'single-btn-row';
-  // Originals live in original_images/ and are a paired copy of a bucketed
+  // Originals live in initial_state/ and are a paired copy of a bucketed
   // image — the Bucket Images dock's Revert is what moves them back, so no
   // disable/restore button here.
   if (!e.original){

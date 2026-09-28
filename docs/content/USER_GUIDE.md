@@ -100,7 +100,7 @@ which you chose (desktop).
   close it with ×.
 - **❌ Disabled** — images you've moved out of the active set. Use it for maybes you don't want
   to delete.
-- **🖼 Originals** — the pre-bucketing originals kept by [Bucket Images](#bucket-images).
+- **🖼 Initial State** — the pre-bucketing originals kept by [Bucket Images](#bucket-images).
   Read-only here; the dock's Revert is what moves them back.
 - **🔢 Rename all** — renames every loaded image (+ its `.txt`) to a simple zero-padded `1`-`N`
   sequence (active dataset first, then `Disabled/`, continuing the same count), confirmed first.
@@ -283,7 +283,7 @@ the dock's **⬇ Download model** button. **Prefer GPU** (on by default) runs it
 card with an automatic CPU fallback; the log names which one handled each image.
 
 Originals are never lost: before an image is replaced, it (plus a copy of its `.txt`) moves to an
-`original_images/` folder, browsable from the Gallery's **🖼 Originals** view. Images already at a
+`initial_state/` folder, browsable from the Gallery's **🖼 Initial State** view. Images already at a
 valid bucket size are left alone, so re-running on a mixed folder only processes the rest.
 **↩ Revert bucketing** restores the originals and removes the bucketed copies. Any unsaved tag
 edits are saved first, since bucketing reloads the folder.

@@ -4074,7 +4074,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         See also tags below (click one to open it). Drag it by its title; it stays open until you
         close it.</li>`}
         <li><b>\u274C Disabled</b> \u2014 the images you've moved out of the active set.</li>
-        ${isTouchDevice ? "" : `<li><b>\u{1F5BC} Originals</b> \u2014 the pre-bucketing originals kept by Bucket Images (see Power
+        ${isTouchDevice ? "" : `<li><b>\u{1F5BC} Initial State</b> \u2014 the pre-bucketing originals kept by Bucket Images (see Power
         tools). Read-only here; Bucket Images' Revert is what moves them back.</li>`}
         <li><b>\u{1F522} Rename all</b> \u2014 renames every loaded image (+ its .txt) to a simple zero-padded
         1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
@@ -4198,8 +4198,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       training bucket (Min side / Max side / Step, default 256 / 1024 / 64), so your trainer
       doesn't have to. The crop keeps the subject using a saliency model (a one-time ~176 MB
       download, \u2B07 button in the dock). <b>Prefer GPU</b> runs it on your graphics card with an
-      automatic CPU fallback. Originals are never lost: they move to an <code>original_images/</code>
-      folder (browse them via the \u{1F5BC} Originals view), and images already at a bucket size are
+      automatic CPU fallback. Originals are never lost: they move to an <code>initial_state/</code>
+      folder (browse them via the \u{1F5BC} Initial State view), and images already at a bucket size are
       skipped, so re-running only handles the new ones. <b>\u21A9 Revert bucketing</b> puts the
       originals back.</p>`}
       <p>Merge and Void tend to matter a lot more for a
@@ -6397,7 +6397,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     const dirHandle = getDirHandle4();
     if (!dirHandle) return;
     if (entry.original) {
-      toast("Originals are managed by the Bucket Images tool.");
+      toast("Initial State images are managed by the Bucket Images tool.");
       return;
     }
     const silent = !!opts?.silent;
@@ -8648,7 +8648,7 @@ If you choose No, this won't ask again for any folder. You can still add the ope
   }
 
   // src/renderer/bucket-images.ts
-  var ORIGINAL_DIR = "original_images";
+  var ORIGINAL_DIR = "initial_state";
   var SETTINGS_KEY = "dts-bucket-settings";
   var getDirHandle8 = () => null;
   var getEntries3 = () => [];
@@ -8741,7 +8741,7 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     const ok = await showConfirmModal(
       `Bucket ${active.length} Gallery image(s) at ${sideMin}\u2013${sideMax} (step ${step})?
 
-Each image is moved into original_images/ (treated as disabled \u2014 the new Originals view), and a cropped + resized PNG is written back to the dataset root under the same name. Images already at a valid bucket size are left alone.`,
+Each image is moved into ${ORIGINAL_DIR}/ (treated as disabled, shown in the Initial State view), and a cropped + resized PNG is written back to the dataset root under the same name. Images already at a valid bucket size are left alone.`,
       { okLabel: "Bucket images" }
     );
     if (!ok) return;
@@ -8829,7 +8829,7 @@ Each image is moved into original_images/ (treated as disabled \u2014 the new Or
       log("");
       log(`Done. Bucketed ${processed}, already-bucketed ${skipped}, failed ${failed}.`);
       for (const k of Object.keys(counts).sort()) log(`  ${k}: ${counts[k]}`);
-      toast(`Bucketed ${processed} image(s) \u2014 originals are in the Originals view.`, 3600);
+      toast(`Bucketed ${processed} image(s) \u2014 originals are in the Initial State view.`, 3600);
     } catch (err) {
       log(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`, true);
       toast("Bucketing failed \u2014 see the dock log.", 4200);
@@ -8865,7 +8865,7 @@ Each image is moved into original_images/ (treated as disabled \u2014 the new Or
     const ok = await showConfirmModal(
       `Revert bucketing for ${originals.length} image(s)?
 
-This deletes the bucketed copy in the dataset root and moves the original back from original_images/ into the Gallery.`,
+This deletes the bucketed copy in the dataset root and moves the original back from ${ORIGINAL_DIR}/ into the Gallery.`,
       { okLabel: "Revert bucketing", danger: true }
     );
     if (!ok) return;
@@ -8906,7 +8906,7 @@ This deletes the bucketed copy in the dataset root and moves the original back f
       }
       if (orphans.length) {
         const del = await showConfirmModal(
-          `${orphans.length} image(s) in the dataset are already bucket-sized but have no saved original (they were never moved to original_images/).
+          `${orphans.length} image(s) in the dataset are already bucket-sized but have no saved original (they were never moved to ${ORIGINAL_DIR}/).
 
 Delete them too? "Keep them" leaves them in the Gallery.`,
           { okLabel: "Delete them too", cancelLabel: "Keep them", danger: true }
@@ -27766,7 +27766,7 @@ Image: ${entry.imgName}`,
       }
       await finishInterruptedDisables();
       try {
-        originalDirHandle = await dirHandle.getDirectoryHandle("original_images", { create: false });
+        originalDirHandle = await dirHandle.getDirectoryHandle(ORIGINAL_DIR, { create: false });
         await scanDirInto(originalDirHandle, true, true);
       } catch (e) {
         originalDirHandle = null;
