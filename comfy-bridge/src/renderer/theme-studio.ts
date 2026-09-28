@@ -59,8 +59,14 @@ export function loadSavedSpec(): ThemeSpec {
   return defaultSpec();
 }
 
-// A palette (colors only) as a spec: its colors over Studio's grammar, with
-// the two tints the Bridge palettes don't carry derived from their accents.
+// A palette as a spec: its colors and fonts over Studio's grammar, with the
+// two tints the Bridge palettes don't carry derived from their accents.
+// Fonts come as CSS stacks ("'Fredoka', 'Segoe UI', …"); the spec wants the
+// bundled face's name, which is the stack's first family.
+function firstFamily(stack: string | undefined): string {
+  const m = stack ? /^\s*'([^']+)'/.exec(stack) : null;
+  return m ? m[1] : '';
+}
 function specFromPalette(vars: Record<string, string>, label: string): ThemeSpec {
   const d = defaultSpec();
   const colors: Record<string, string> = { ...d.colors };
@@ -69,7 +75,15 @@ function specFromPalette(vars: Record<string, string>, label: string): ThemeSpec
   const light = luminance(panel) > 0.4;
   colors['--accent-manual-dim'] = mixHex(panel, colors['--accent-manual'], light ? 0.16 : 0.22);
   colors['--accent-auto-dim'] = mixHex(panel, colors['--accent-auto'], light ? 0.16 : 0.22);
-  return normalizeSpec({ ...d, name: `${label} remix`, colors });
+  const ui = firstFamily(vars['--sans']) || d.fonts.ui;
+  const fonts = {
+    ui,
+    display: firstFamily(vars['--display']) || ui,
+    head: firstFamily(vars['--head-font']) || ui,
+    tab: ui,
+    mono: firstFamily(vars['--mono']) || d.fonts.mono,
+  };
+  return normalizeSpec({ ...d, name: `${label} remix`, colors, fonts });
 }
 
 // The Bridge has no icon sprite; the Studio's handful of glyphs inline here.

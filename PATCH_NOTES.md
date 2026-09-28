@@ -45,6 +45,10 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Comfy Bridge opens maximized** (Windows).
 - **Osmium's look** (Windows and Android): the gallery button and the new panel buttons use
   Osmium's line icons, and checkboxes match Osmium's (rounded, filled in the theme's accent).
+- **Themes bring their fonts** (Windows and Android): each theme now uses the same fonts as in
+  Osmium, e.g. Candy Pop's Fredoka, Terminal's VT323 headings, Vintage Paper's IM Fell. The fonts
+  ship with the app, so they work offline. In Theme Studio, remixing a theme starts from its
+  fonts too.
 - **New file naming** (Windows), in the File saving panel:
   - **Automatic folders** (shown, not editable): the rating folder is `explicit` or `safe` when
     the Rating field says so, and none otherwise (images go straight into the output folder).

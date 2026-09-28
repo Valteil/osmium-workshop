@@ -1,7 +1,8 @@
 // Theme palettes, ported verbatim from the Osmium Workshop desktop app's
 // renderer/styles.css theme blocks (25 palettes: 4 free + 21 shop-tier).
-// The palettes are COLORS ONLY: the Bridge doesn't carry the shop economy's
-// per-theme flourishes. The one exception is Custom, built in the desktop
+// The palettes are colors plus the theme's fonts (since v2.0.0): the Bridge
+// doesn't carry the shop economy's per-theme flourishes. The one exception
+// is Custom, built in the desktop
 // shell's Theme Studio (src/renderer/theme-studio.ts), which also sets faces,
 // shapes, a button fill and surfaces — saved as a compiled var map under
 // CUSTOM_VARS_KEY and applied here like a palette. Single source for BOTH
@@ -87,6 +88,9 @@ export function applyTheme(name: string): void {
   s.setProperty('--accent-danger', v['--accent-danger']);
   s.setProperty('--accent-ok', v['--accent-success']);
   if (v['--accent-flair']) s.setProperty('--accent-flair', v['--accent-flair']);
+  // The theme's fonts (Osmium's faces). Unset ones fall back to the
+  // stylesheet's defaults, since CUSTOM_EXTRA_KEYS were all cleared above.
+  for (const k of ['--sans', '--mono', '--display', '--head-font']) if (v[k]) s.setProperty(k, v[k]);
   root.dataset.theme = palette.name;
   try { localStorage.setItem(THEME_KEY, palette.name); } catch { /* best effort */ }
 }

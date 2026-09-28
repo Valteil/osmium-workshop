@@ -720,7 +720,7 @@ captureUiState();
 // ---------------- Themes (Osmium palettes + a Theme Studio Custom) ----------------
 // The 25 palettes and their CSS-variable mapping live in the shared module
 // (shared/themes.ts + shared/theme-data.ts) so desktop and mobile run the
-// same set. Palettes are colors only; Custom, built in Theme Studio
+// same set. Palettes are colors and fonts; Custom, built in Theme Studio
 // (./theme-studio.ts, desktop only — the menu's last entry), also carries
 // faces, shapes, a button fill and surfaces. initTheme() reads/writes
 // comfybridge-theme; mountThemePicker() wires the popover (native <select>

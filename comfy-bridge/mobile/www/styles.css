@@ -1,15 +1,20 @@
 :root{
   --bg:#16151c; --panel:#1e1d27; --panel2:#26252f; --border:#333241;
   --text:#e8e6f0; --muted:#8b899a; --accent:#7c6bff; --accent-ok:#3a9;
+  /* Fonts: the active theme sets these (shared/theme-data.ts, Osmium's
+     faces, bundled in fonts/); these are the no-theme fallbacks. */
+  --sans: -apple-system, 'Segoe UI', sans-serif; --mono: 'Cascadia Code', Consolas, monospace;
+  --display: var(--sans); --head-font: var(--sans);
 }
 *{box-sizing:border-box;}
-html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,Segoe UI,sans-serif;}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 var(--sans);}
+button{font-family:inherit;}
 #app{display:flex;flex-direction:column;min-height:100%;}
 #topbar{padding:14px 16px;border-bottom:1px solid var(--border);background:var(--panel);display:flex;align-items:center;justify-content:space-between;gap:10px;}
-#topbar h1{font-size:17px;margin:0;}
+#topbar h1{font-size:17px;margin:0;font-family:var(--display);}
 #col{display:flex;flex-direction:column;gap:12px;padding:12px;padding-bottom:140px;}
 .sec{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
-.sec-head{font-weight:600;margin-bottom:8px;font-size:15px;display:flex;align-items:center;gap:8px;}
+.sec-head{font-weight:600;margin-bottom:8px;font-size:15px;display:flex;align-items:center;gap:8px;font-family:var(--head-font);}
 .sec-head .d{flex:1;}
 #saveLocationLabel{font-size:13px;overflow-wrap:anywhere;}
 /* Gallery sidebar, model picker modal, and image lightbox styles live in
@@ -122,7 +127,7 @@ button:disabled{opacity:0.5;}
 }
 .gen-settings-drawer.open{transform:translateX(0);}
 .gen-settings-drawer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-.gen-settings-drawer-head .d{font-weight:600;font-size:15px;}
+.gen-settings-drawer-head .d{font-weight:600;font-size:15px;font-family:var(--head-font);}
 .gen-settings-close{background:none;border:none;color:var(--muted);font-size:18px;padding:4px 8px;min-height:auto;}
 @media (prefers-reduced-motion: reduce){
   .gen-settings-drawer, .gen-settings-backdrop{transition:none;}
@@ -139,7 +144,7 @@ button:disabled{opacity:0.5;}
 .log-drawer .log-box{max-height:140px;}
 .comfy-terminal{
   background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;
-  font-family:'Cascadia Code',Consolas,monospace;font-size:11px;
+  font-family:var(--mono);font-size:11px;
 }
 /* Themed scrollbars, same rule as desktop — most Android WebViews render
    these; harmless no-op where they don't. */

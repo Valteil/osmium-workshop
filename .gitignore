@@ -37,6 +37,7 @@ comfy-bridge/renderer/data/wiki.json.gzdat
 comfy-bridge/renderer/data/all_tags.json.gzdat
 comfy-bridge/mobile/www/data/wiki.json.gzdat
 comfy-bridge/mobile/www/data/all_tags.json.gzdat
+comfy-bridge/mobile/www/fonts/
 comfy-bridge/mobile/www/shared.js
 comfy-bridge/mobile/www/shared.css
 comfy-bridge/mobile/www/app.js
