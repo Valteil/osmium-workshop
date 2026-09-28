@@ -10,7 +10,7 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ---
 
-## Next version (unreleased)
+## Next version: v2.0.0 (unreleased)
 
 ### Osmium Workshop
 
@@ -28,6 +28,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   doesn't have yet.
 - **Main LoRA weight** (SynthDat Overseer): a field under Main LoRA sets how strongly it's applied
   (1 = full, as before). Saved per dataset like the other settings.
+
+### Comfy Bridge
+
+- **Arrow keys in the gallery**: with an image open from the gallery, ← and → step to the previous
+  and next image in the folder.
 
 ### Comfy Bridge for Android
 

@@ -113,9 +113,17 @@ async function renderThumbSlice(
       continue;
     }
     img.src = url;
-    img.addEventListener('click', () => showImageLightbox(url));
+    img.addEventListener('click', () => showImageLightbox(url, () => galleryThumbUrls(h)));
   }
   return true;
+}
+
+// The lightbox's ← / → sequence: every loaded thumbnail in the grid, in order
+// (read live, so a "Show more" page opened meanwhile is included).
+function galleryThumbUrls(h: GalleryHandles): string[] {
+  return Array.from(h.grid.querySelectorAll<HTMLImageElement>('img.gallery-thumb'))
+    .map((t) => t.src)
+    .filter(Boolean);
 }
 
 function appendMoreButton(h: GalleryHandles, remaining: number, onMore: () => void): void {

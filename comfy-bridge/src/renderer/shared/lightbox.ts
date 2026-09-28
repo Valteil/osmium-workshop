@@ -37,7 +37,9 @@ function attachLightboxPinch(img: HTMLImageElement, onZoomDelta: (delta: number)
   );
 }
 
-export function showImageLightbox(src: string): void {
+// `siblings`, when given, returns the image URLs the lightbox can step
+// through with ← / → (the gallery passes its loaded thumbnails, in order).
+export function showImageLightbox(src: string, siblings?: () => string[]): void {
   if (!src) return;
   const backdrop = document.createElement('div');
   backdrop.className = 'lightbox-backdrop';
@@ -139,8 +141,23 @@ export function showImageLightbox(src: string): void {
     setTimeout(() => backdrop.remove(), 160);
     document.removeEventListener('keydown', onKey);
   }
+  function step(dir: 1 | -1): void {
+    const list = siblings ? siblings() : [];
+    const i = list.indexOf(img.src);
+    const next = list[i + dir];
+    if (i === -1 || !next) return;
+    img.src = next;
+    scale = 1;
+    panX = 0;
+    panY = 0;
+    applyTransform();
+  }
   function onKey(ev: KeyboardEvent): void {
     if (ev.key === 'Escape') close();
+    else if (siblings && (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')) {
+      ev.preventDefault();
+      step(ev.key === 'ArrowRight' ? 1 : -1);
+    }
   }
   backdrop.addEventListener('click', (ev: MouseEvent) => {
     if (didDrag) {
