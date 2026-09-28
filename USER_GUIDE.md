@@ -417,9 +417,9 @@ image runs on-device, so set Tag Overseer's WD14 Autotagger to **On-device**.
    - Watch the live preview while it runs; **⏹ Stop** interrupts a running generation.
    - **Generate again while one is running to queue it**, with the settings as they are when you
      press it. Queued generations run one after another (the status line shows how many are
-     waiting), and Stop also clears the queue. Each result stays on screen until the next one
-     arrives, so you can Accept or Reject it meanwhile; one you haven't decided on by then is
-     rejected into Disabled/.
+     waiting), and Stop also clears the queue. Results that finish while you're still deciding on
+     one wait their turn ("N waiting for review"); each Accept or Reject shows the next. Nothing is
+     ever rejected for you, and generation carries on in the meantime.
 5. **Review the result.** A "🐍 Re-interrogate output with WD14" button lets you check what the
    model actually drew (it sometimes adds details nobody prompted for). Prune any tags you don't
    want from the final "pending" tag card — it'll also suggest merges based on your Retroactive
