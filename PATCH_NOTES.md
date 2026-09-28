@@ -26,6 +26,12 @@ v1.9.0 before this, download it again.
   SynthDat Overseer nothing is auto-rejected any more: results that finish while you're still
   deciding on one wait their turn, and each Accept or Reject shows the next. Generation carries
   on in the meantime.
+- **Disabled images stay disabled.** If an image's old copy couldn't be removed when you disabled
+  it, it showed up in the Gallery again after a restart and couldn't be disabled ("already
+  disabled"). Opening the dataset now finishes that move, and a failed removal tells you instead
+  of failing silently.
+- **Tag Overseer's image grid only lists active images**, even while the Gallery is showing the
+  Disabled or Originals view.
 
 ### Comfy Bridge
 
