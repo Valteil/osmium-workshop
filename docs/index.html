@@ -306,6 +306,29 @@
   .section-head p{color:var(--ink-soft); font-size:1.02rem; max-width:60ch; margin:0;}
   .rule{height:1px; background:var(--line); border:0; margin:0;}
 
+  /* ---------- text plates ----------
+     Every block of copy sits on its own lightly toned box, so a busy theme ground (Candy Pop's
+     candy, hatching, grids) drifting behind it never fights the text. The tone is the page ground
+     at partial opacity, so it follows the theme and scroll night mode. */
+  .hero-grid > div:first-child, .section-head, .conn-copy, .app-list, .footer-row{
+    background:color-mix(in srgb, var(--ground) 84%, transparent);
+    border:1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    border-radius:calc(var(--radius) + 4px);
+    padding:22px 26px;
+    -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+  }
+  /* data-plate="off" on a section, tool row or the footer (set from the site editor) drops the box. */
+  [data-plate="off"] .hero-grid > div:first-child, [data-plate="off"] .section-head, [data-plate="off"] .conn-copy,
+  [data-plate="off"] .app-list, [data-plate="off"] .footer-row,
+  [data-plate="off"].footer-row, [data-plate="off"].section-head, [data-plate="off"].conn-copy{
+    background:none; border-color:transparent; padding:0; -webkit-backdrop-filter:none; backdrop-filter:none;
+  }
+  .section-head{max-width:692px;}
+  [data-plate="off"] .section-head, [data-plate="off"].section-head{max-width:640px;}
+  .app-list .app-item:first-child{border-top:0;}
+  .app-list .app-item:last-child{border-bottom:0;}
+  .footer-row{padding:16px 22px;}
+
   /* ---------- proof / screenshots ---------- */
   .proof-frame{
     position:relative; border:1px solid var(--line-strong); background:var(--card);
