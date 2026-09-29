@@ -425,7 +425,10 @@
   .conn-row:last-child{border-bottom:1px solid var(--line);}
   .conn-row.rev{grid-template-columns:1fr 220px;}
   .conn-row.rev .conn-diagram{order:2;}
-  .conn-diagram{aspect-ratio:1/1; }
+  .conn-diagram{aspect-ratio:1/1;
+    /* --gt / --gy: the editor's per-tool graphic nudge (px toward the text, px down). A flipped row mirrors --gt. */
+    transform:translate(var(--gt, 0px), var(--gy, 0px));}
+  .conn-row.rev .conn-diagram{transform:translate(calc(var(--gt, 0px) * -1), var(--gy, 0px));}
   .conn-diagram svg{width:100%; height:100%;}
   .conn-copy h3{font-family:var(--f-display); font-size:1.45rem; margin:0 0 10px; font-weight:600;}
   .conn-copy p{color:var(--ink-soft); margin:0; max-width:56ch;}
@@ -672,7 +675,7 @@
     .hero-grid{grid-template-columns:1fr;}
     .hero-art{max-width:340px; margin:0 auto;}
     .conn-row, .conn-row.rev{grid-template-columns:1fr; gap:20px;}
-    .conn-diagram{max-width:160px;}
+    .conn-diagram, .conn-row.rev .conn-diagram{max-width:160px; transform:none;}
     .conn-row.rev .conn-diagram{order:0;}
     .hub-wrap{grid-template-columns:1fr;}
     nav.links{display:none;}
