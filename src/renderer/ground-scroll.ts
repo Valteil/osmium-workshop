@@ -90,13 +90,126 @@ function plan(cs: CSSStyleDeclaration): Plan {
   return { sizes: outSize, from: from.join(', '), to: to.join(', '), moving };
 }
 
+// ---- Matrix rain (Terminal theme, only while the scroll option is on) ----
+// Falling katakana and digits whose glyphs keep changing, drawn to a canvas that
+// sits behind the gallery's content: a zero-height sticky host at the top of
+// #gallery keeps it pinned while the gallery scrolls.
+const GLYPHS = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789:.=*+-<>|';
+const CELL = 16;
+
+interface Column { head: number; speed: number; len: number; wait: number; glyphs: string[] }
+
+function parseColor(v: string): [number, number, number] {
+  const hex = /^#([0-9a-f]{6})$/i.exec(v.trim());
+  if (hex) return [parseInt(hex[1].slice(0, 2), 16), parseInt(hex[1].slice(2, 4), 16), parseInt(hex[1].slice(4, 6), 16)];
+  const rgb = /(\d+)[ ,]+(\d+)[ ,]+(\d+)/.exec(v);
+  return rgb ? [+rgb[1], +rgb[2], +rgb[3]] : [0, 255, 102];
+}
+
+function createRain(gallery: HTMLElement) {
+  let host: HTMLDivElement | null = null;
+  let canvas: HTMLCanvasElement | null = null;
+  let timer = 0;
+  let ro: ResizeObserver | null = null;
+  let cols: Column[] = [];
+  let rows = 0;
+  let rgb: [number, number, number] = [0, 255, 102];
+  let last = 0;
+  const rand = (a: number, b: number) => a + Math.random() * (b - a);
+  const glyph = () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+
+  const reset = (c: Column, first: boolean) => {
+    c.speed = rand(3, 6);
+    c.len = Math.floor(rand(8, 18));
+    c.head = first ? rand(-rows, rows) : -1;
+    c.wait = first ? rand(0, 5) : rand(1, 8);
+  };
+  const resize = () => {
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = gallery.clientWidth, h = gallery.clientHeight;
+    canvas.width = Math.max(1, Math.floor(w * dpr)); canvas.height = Math.max(1, Math.floor(h * dpr));
+    canvas.style.width = `${w}px`; canvas.style.height = `${h}px`;
+    rows = Math.ceil(h / CELL);
+    const n = Math.floor(w / CELL);
+    while (cols.length < n) {
+      const c: Column = { head: 0, speed: 0, len: 0, wait: 0, glyphs: Array.from({ length: 96 }, glyph) };
+      reset(c, true); cols.push(c);
+    }
+    cols.length = n;
+  };
+  const draw = () => {
+    if (!canvas || document.hidden) return;
+    const now = performance.now(), dt = Math.min(0.25, (now - last) / 1000); last = now;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = `${CELL - 3}px "JetBrains Mono", "MS Gothic", monospace`;
+    ctx.textBaseline = 'top';
+    const [r, g, b] = rgb;
+    cols.forEach((c, i) => {
+      if (c.wait > 0) { c.wait -= dt; return; }
+      c.head += c.speed * dt;
+      if (c.head - c.len > rows) { reset(c, false); return; }
+      const head = Math.floor(c.head);
+      for (let k = 0; k < c.len; k++) {
+        const row = head - k;
+        if (row < 0 || row > rows) continue;
+        const idx = row % c.glyphs.length;
+        if (Math.random() < dt * 0.9) c.glyphs[idx] = glyph();
+        const a = (k === 0 ? 0.3 : 0.17 * Math.pow(1 - k / c.len, 1.6));
+        ctx.fillStyle = `rgba(${r},${g},${b},${a.toFixed(3)})`;
+        ctx.fillText(c.glyphs[idx], i * CELL + 1, row * CELL);
+      }
+    });
+  };
+  return {
+    running: () => !!host,
+    start() {
+      if (host) return;
+      host = document.createElement('div');
+      host.id = 'matrixRainHost';
+      host.style.cssText = 'position:sticky;top:0;height:0;z-index:-1;pointer-events:none;';
+      canvas = document.createElement('canvas');
+      canvas.style.cssText = 'position:absolute;top:0;left:0;display:block;';
+      host.appendChild(canvas);
+      gallery.insertBefore(host, gallery.firstChild);
+      gallery.style.isolation = 'isolate';
+      rgb = parseColor(getComputedStyle(document.documentElement).getPropertyValue('--accent-manual'));
+      cols = [];
+      resize();
+      ro = new ResizeObserver(resize);
+      ro.observe(gallery);
+      last = performance.now();
+      timer = window.setInterval(draw, 60);
+    },
+    stop() {
+      if (!host) return;
+      window.clearInterval(timer);
+      ro?.disconnect(); ro = null;
+      host.remove(); host = null; canvas = null;
+      gallery.style.removeProperty('isolation');
+    },
+  };
+}
+
 export function initGroundScroll(toggle: HTMLInputElement): void {
   const gallery = document.getElementById('gallery');
   if (!gallery) return;
   const root = document.documentElement;
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const rain = createRain(gallery);
   let anim: Animation | null = null;
   let scheduled = false;
+
+  const syncRain = (restart: boolean) => {
+    const want = toggle.checked && !reduced.matches && root.getAttribute('data-theme') === 'terminal'
+      && !root.classList.contains('no-flourish-ambient');
+    if (!want) rain.stop();
+    else if (restart || !rain.running()) { rain.stop(); rain.start(); }
+  };
 
   const stop = () => {
     if (anim) { anim.cancel(); anim = null; }
@@ -104,6 +217,7 @@ export function initGroundScroll(toggle: HTMLInputElement): void {
   };
   const start = () => {
     stop();
+    syncRain(true);
     if (!toggle.checked || reduced.matches) return;
     const p = plan(getComputedStyle(gallery));
     if (!p.moving) return;
@@ -127,9 +241,12 @@ export function initGroundScroll(toggle: HTMLInputElement): void {
   });
   reduced.addEventListener('change', start);
   new MutationObserver((muts) => {
-    if (muts.some(m => m.attributeName === 'class') && anim) {
-      if (root.classList.contains('no-flourish-ambient')) anim.pause();
-      else if (anim.playState === 'paused') anim.play();
+    if (muts.some(m => m.attributeName === 'class')) {
+      if (anim) {
+        if (root.classList.contains('no-flourish-ambient')) anim.pause();
+        else if (anim.playState === 'paused') anim.play();
+      }
+      syncRain(false);
     }
     if (muts.some(m => m.attributeName !== 'class')) refresh();
   }).observe(root, { attributes: true, attributeFilter: ['data-theme', 'style', 'class'] });
