@@ -1566,8 +1566,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   /* Subway: a fine navigation grid, the sibling of Midnight Ocean's chart grid on a tighter 80px cell. */
   html[data-theme="subway"] #gallery{
     background-image:
-      linear-gradient(color-mix(in srgb, var(--accent-manual) 8%, transparent) 1px, transparent 1px),
-      linear-gradient(90deg, color-mix(in srgb, var(--accent-manual) 8%, transparent) 1px, transparent 1px);
+      linear-gradient(color-mix(in srgb, var(--text-primary) 12%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--text-primary) 12%, transparent) 1px, transparent 1px);
     background-size: 80px 80px;
   }
   /* Toxic Waste: hazard bands, wide and barely there. */
