@@ -545,8 +545,9 @@ function buildCard(e: Entry, tagIndex: TagIndex): HTMLElement {
     lockBadge.title = 'Locked — mass tools (Quick Merge, Master Tags, bulk WD14, etc.) skip this image';
     thumbwrap.appendChild(lockBadge);
   }
+  // The Merge Immunize / Antivoid mark sits in the status strip, right after the status pills.
   const mvBadges = buildMergeVoidBadgesEl(e);
-  if (mvBadges) thumbwrap.appendChild(mvBadges);
+  if (mvBadges) statusIconsEl.appendChild(mvBadges);
   if (getShowTagCountBadges()){
     const countBadge = document.createElement('div');
     countBadge.className = 'tagcount-badge';

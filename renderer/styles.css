@@ -4181,6 +4181,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .card > .card-status-icons .status-icon-badge{ font-size: 13px; padding: 3px 7px; }
   .card > .card-status-icons .status-icon-badge .ic{ width: 13px; height: 13px; }
+  /* The Merge Immunize / Antivoid mark rides in this strip, to the right of the status pills. */
+  .card > .card-status-icons .mv-badges{ position: static; align-items: center; }
+  .card > .card-status-icons .mv-badge{ width: 22px; height: 22px; font-size: 13px; }
   .card img {
     width: 100%; height: 100%;
     /* `contain`, not `cover` — the card's box is a fixed 3:4 rectangle
