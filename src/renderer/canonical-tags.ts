@@ -473,8 +473,9 @@ export function ghostTagsFor(entry: Entry): GhostTag[] {
   const list = ghostMap().get(entry.base);
   if (!list) return [];
   const dismissed = entry.meta?.ghostDismissed || [];
+  const voidSet = activeVoidTagSet(); // a voided canonical still means the merge happened
   return list.filter(g => !entry.tags.includes(g.tag) && !dismissed.includes(g.tag)
-    && (g.kind === 'void' || entry.tags.includes(g.canonical!)));
+    && (g.kind === 'void' || entry.tags.includes(g.canonical!) || voidSet.has(g.canonical!)));
 }
 
 // An image that just became immune (Merge Immunize / Antivoid) stops being
@@ -487,13 +488,19 @@ export function restoreEntryFromRules(entry: Entry, kinds: { merge?: boolean; vo
   if (entry.disabled) return false;
   ghostCache = null;
   const dismissed = entry.meta?.ghostDismissed || [];
-  const list = (ghostMap().get(entry.base) || []).filter(g => !entry.tags.includes(g.tag) && !dismissed.includes(g.tag)
-    && (g.kind === 'void' ? !!kinds.void : !!kinds.merge && entry.tags.includes(g.canonical!)));
+  // A merge's canonical tag can itself have been voided since (merge orange → red, void red): the
+  // image then carries neither, but the merge is still what put "red" there, so it still unmerges.
+  const voidSet = activeVoidTagSet();
+  const canonicalGone = (c: string) => entry.tags.includes(c) || voidSet.has(c);
+  const picked = (ghostMap().get(entry.base) || []).filter(g => !entry.tags.includes(g.tag) && !dismissed.includes(g.tag)
+    && (g.kind === 'void' ? !!kinds.void : !!kinds.merge && canonicalGone(g.canonical!)));
+  const canonicals = Array.from(new Set(picked.filter(g => g.kind === 'merge').map(g => g.canonical!)));
+  // ...and a void ghost of that canonical is only the merge's product, not an original tag: skip it.
+  const list = picked.filter(g => !(g.kind === 'void' && canonicals.includes(g.tag)));
   if (!list.length) return false;
   const prevTags = entry.tags.slice();
   const voided = list.filter(g => g.kind === 'void').map(g => g.tag);
   const merged = list.filter(g => g.kind === 'merge');
-  const canonicals = Array.from(new Set(merged.map(g => g.canonical!)));
   entry.tags = [...entry.tags.filter(t => !canonicals.includes(t)), ...list.map(g => g.tag)];
   markDirtyRef(entry);
   const affected = [{ base: entry.base, original: entry.original || undefined, prevTags, newTags: entry.tags.slice() }];
