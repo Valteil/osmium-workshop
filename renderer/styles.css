@@ -545,10 +545,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --icon-stroke: 2; --icon-cap: square; --icon-join: miter;
   }
   html[data-theme="terminal"] #gallery{
-    /* CRT scanlines. The matrix glyphs are a canvas (ground-scroll.ts), drawn
-       only while the gallery scroll option is on. */
-    background-image: linear-gradient(color-mix(in srgb, var(--accent-manual) 9%, transparent) 50%, transparent 50%);
-    background-size: 100% 3px;
+    /* Pure black, so the matrix glyphs (a canvas, ground-scroll.ts, drawn only
+       while the gallery scroll option is on) are the only thing that moves. */
+    background: #000;
   }
   html[data-theme="terminal"] .brand,
   html[data-theme="terminal"] .sec-head .t{ text-shadow: 0 0 6px color-mix(in srgb, var(--accent-manual) 45%, transparent); }
