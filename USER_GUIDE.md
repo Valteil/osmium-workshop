@@ -88,8 +88,8 @@ which you chose (desktop).
   (short, medium, long), breast size (flat, small, medium, large, gigantic), slim / plump, thick
   thighs / slim legs, and looking at viewer / looking away / looking to the side. Each box is
   independent. Ticking adds the tag and unticking removes it, and ticking a breast size also adds
-  `breasts` (Flat doesn't). If no breast size is left ticked and Flat is, `breasts` is removed as
-  well. The filter panel comes back when you leave Single view.
+  `breasts` (Flat doesn't). Unticking a size takes `breasts` off again unless another size is still
+  ticked, and if only Flat is left ticked, `breasts` is removed as well. The filter panel comes back when you leave Single view.
   **Your own quicktags:** each category's **+** adds one, and **+ Add category** (at the bottom)
   adds a category. They're kept for every dataset. For each quicktag you give the tag it writes
   (and optionally the checkbox's label), plus optional rules:

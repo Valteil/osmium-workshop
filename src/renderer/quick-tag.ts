@@ -35,9 +35,10 @@ interface QuickTagStore { groups: QuickTagGroup[]; extra: Record<string, QuickTa
 
 const STORE_KEY = 'dts-quicktags';
 
-// A breast size also writes "breasts" and keeps it on untick; "flat chest"
-// doesn't (plus the Flat rule in applyBuiltinRules).
-const sized = (label: string, tag: string): QuickTagDef => ({ label, tag, adds: ['breasts'], keep: ['breasts'] });
+// A breast size also writes "breasts" and takes it off again on untick, unless
+// another ticked size still needs it; "flat chest" doesn't write it (plus the
+// Flat rule in applyBuiltinRules).
+const sized = (label: string, tag: string): QuickTagDef => ({ label, tag, adds: ['breasts'] });
 const BUILTIN_GROUPS: QuickTagGroup[] = [
   { id: 'hair-length', label: 'Hair length', items: [{ label: 'Short', tag: 'short hair' }, { label: 'Medium', tag: 'medium hair' }, { label: 'Long', tag: 'long hair' }] },
   { id: 'breast-size', label: 'Breast size', items: [{ label: 'Flat', tag: 'flat chest' }, sized('Small', 'small breasts'), sized('Medium', 'medium breasts'), sized('Large', 'large breasts'), sized('Gigantic', 'gigantic breasts')] },

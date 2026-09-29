@@ -65,8 +65,9 @@ export const HELP_SECTIONS: HelpSection[] = [
         box and press Enter to jump straight to that image. <b>Image Quicktagging:</b> while it
         shows one image, the left panel becomes checkboxes for common attributes (hair length,
         breast size, slim/plump, thick thighs/slim legs, looking at viewer/away/to the side). Tick
-        to add, untick to remove; a breast size also adds <code>breasts</code> (Flat doesn't, and
-        with only Flat left ticked <code>breasts</code> is removed). Each category's <b>+</b> adds
+        to add, untick to remove; a breast size also adds <code>breasts</code> (Flat doesn't), and
+        unticking a size takes <code>breasts</code> off again unless another size is still ticked.
+        With only Flat left ticked, <code>breasts</code> is removed too. Each category's <b>+</b> adds
         your own quicktag (kept for every dataset), with optional rules: tags it also adds, which
         of those stay after unticking, tags unticking also removes, and tags that untick it.
         <b>+ Add category</b> adds a category.</li>
