@@ -145,7 +145,9 @@ cd android
   enum, which is also why saves silently failed before this — every call
   used an invalid `DIRECTORY_PICTURES` constant.)
 - **Gallery sidebar** — a FAB opens an off-canvas panel sliding in from the
-  right (× or backdrop closes it) showing a live recursive scan of the save
+  left (× or backdrop closes it; pressing the FAB again also closes it; the Android
+  Back button steps back an open image, then a folder, then the gallery, then any
+  open panel or menu, and only then leaves the app) showing a live recursive scan of the save
   location, grouped under per-subfolder headers (root files under "This
   folder"), newest numbers first. The folder itself is the source of truth
   — no separate history list, no entry cap — so entries survive

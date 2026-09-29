@@ -74,20 +74,33 @@ Three related apps share this repository (and much of their renderer code):
    restarts). It also does on-device WD14 tagging, downloading the model on first use, plus
    tagging and generation against your own ComfyUI instance over the network. Bucket Images,
    Compact/Single view stay desktop-only; Sequential tagging runs in a full-screen panel. Released
-   in v1.8.0: sideload `OsmiumWorkshop-<version>-android.apk` from the
+   since v1.8.0: sideload `OsmiumWorkshop-<version>-android.apk` from the
    [releases page](https://github.com/Valteil/osmium-workshop/releases), or build it from source
    (see below).
 3. **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
    featuring a built-in workflow: no node graph to navigate, every generation saves straight to
    disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
    Documents/). Both builds share the gallery sidebar (browse subfolders, sort by name/date, pin
-   favorites), model picker modals, the zoomable image lightbox, a **Tag wiki** window, a
+   favorites), model picker modals, the zoomable image lightbox, a **Wiki** window, a
    **Main LoRA weight** field, and a **Generate queue** (press Generate again while one runs to
    queue it). Mobile details live in `comfy-bridge/mobile/README.md`.
    - **Osmium Comfy (Windows):** like SynthDat, the desktop Bridge can launch your ComfyUI
-     install itself (Run on ▸ Osmium Comfy), loading only what its workflow needs. Its ComfyUI
-     Terminal shows that install's output. With **Persist Comfy** on, it stays open with its models
-     loaded after you close the Bridge, until you close its console window.
+     install itself (Run on ▸ Osmium Comfy), loading only what its workflow needs. With **Persist
+     Comfy** on, it stays open with its models loaded after you close the Bridge, until you close
+     its console window.
+   - **Desktop layout:** the window opens maximized. Sampler, upscale and pass settings live in a
+     slide-out panel and the file-saving toggles in a second one, both opening from the left (click
+     the button again, or outside, to close). The **Zoom** slider in the header scales the whole
+     interface and prompt boxes re-fit as you zoom or switch themes. Themes bring their fonts.
+   - **File naming (desktop):** saves go to `[explicit|safe/][Character/][Upscaled/]` inside your
+     output folder. The rating folder comes from the Rating field. The character folder is a
+     Danbooru character recognized in the Character field (exact tag match), `OC`, or a custom
+     name. Toggles build the filename from character, LoRA, model and sampler settings, then a
+     counter. Checkboxes decide whether ComfyUI also keeps its own copy of each image.
+   - **Gallery:** slides in from the left; its button toggles it closed. Arrow keys step through
+     images, **Esc** or the mouse Back button steps back (image, then folder, then the gallery),
+     and each image's info panel shows its file name and generation settings (which pass, LoRAs,
+     sampler) with a **Use these settings** button. On Android the Back button does the same.
    - **From a phone:** either point the Android app at a ComfyUI server (start ComfyUI with
      `--listen 0.0.0.0 --enable-cors-header` and allow inbound TCP 8188 through the firewall), or
      tick **Let the phone app use it** under the desktop Bridge's Osmium Comfy. The desktop Bridge
