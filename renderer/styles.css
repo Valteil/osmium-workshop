@@ -1462,10 +1462,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      unconditionally. */
   .fx-flash-reset::after{ transition: none !important; transform: scaleX(0) !important; }
   /* A button that is already lit by its own state (current tab, on toggle,
-     selected item) has nothing to fill: no hover fill, no click flash.
-     Both come back the moment it stops being active. */
-  button.active::after, button.on::after, button.selected::after, button[aria-pressed="true"]::after{
-    animation: none !important; transition: none !important; transform: scaleX(0) !important; opacity: 0 !important;
+     selected item) has nothing to fill, so no hover fill and no refill. A
+     click flash already running (the click that made it active) is left to
+     finish: it floods the whole button, fades, and only then does this rule
+     hold the fill at zero. Everything returns once it stops being active. */
+  button.active:not(.fx-flash)::after, button.on:not(.fx-flash)::after,
+  button.selected:not(.fx-flash)::after, button[aria-pressed="true"]:not(.fx-flash)::after{
+    transition: none !important; transform: scaleX(0) !important; opacity: 0 !important;
   }
 
   /* Card lift: the second Refine Theme reward alongside the button

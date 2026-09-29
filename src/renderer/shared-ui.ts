@@ -728,6 +728,7 @@ export function initClickFlash(): void {
     const target = ev.target as HTMLElement;
     const btn = target.closest('button') as HTMLButtonElement | null;
     if (!btn) return;
+    if (btn.matches('.active, .on, .selected, [aria-pressed="true"]')) return;
     const now = Date.now();
     const prev = flashState.get(btn);
     if (prev && now - prev.lastTrigger < FLASH_CYCLE_MS) return;
