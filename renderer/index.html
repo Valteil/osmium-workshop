@@ -116,7 +116,6 @@
     if (localStorage.getItem('dts-no-flourish-hover') === '1') root.classList.add('no-flourish-hover');
     if (localStorage.getItem('dts-no-flourish-tilt') === '1') root.classList.add('no-flourish-tilt');
     if (localStorage.getItem('dts-no-flourish-ambient') === '1') root.classList.add('no-flourish-ambient');
-    if (localStorage.getItem('dts-mat-scroll') === '1') root.classList.add('mat-scroll');
     if (localStorage.getItem('dts-night-mode') === '1'){
       var canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
       function toHex6(c){
@@ -1461,10 +1460,6 @@
         <label class="ach-toggle-row">
           <input type="checkbox" id="noFlourishAmbientToggle">
           <span>Disable ambient animations (pulses, drifts, sweeps, shimmers)</span>
-        </label>
-        <label class="ach-toggle-row">
-          <input type="checkbox" id="matScrollToggle">
-          <span>Scroll the image mats slowly (the theme's pattern behind gallery images drifts; off by default, and paused by Disable ambient animations)</span>
         </label>
       </div>
     </div>

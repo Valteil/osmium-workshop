@@ -6,7 +6,7 @@ import {
   btnAchievements, achCloseBtn, shopPanel, shopList, btnShop, shopCloseBtn,
   btnFreeEdibits, favoritesPanel, logPanel, tagDetailsPanel,
   themeSelect, btnResetEdibits, btnResetAchievements, achievementPopupHost,
-  btnRefineTheme, suppressThemeFlourishesToggle, noFlourishHoverToggle, noFlourishTiltToggle, noFlourishAmbientToggle, matScrollToggle
+  btnRefineTheme, suppressThemeFlourishesToggle, noFlourishHoverToggle, noFlourishTiltToggle, noFlourishAmbientToggle
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, escapeHtml } from './shared-ui';
 import { setIconLabel, iconSvg, rarityIcon } from './icons';
@@ -474,7 +474,6 @@ export function initAchievementPanels(): void {
   wireFlourishToggle(noFlourishHoverToggle, 'dts-no-flourish-hover', 'no-flourish-hover');
   wireFlourishToggle(noFlourishTiltToggle, 'dts-no-flourish-tilt', 'no-flourish-tilt');
   wireFlourishToggle(noFlourishAmbientToggle, 'dts-no-flourish-ambient', 'no-flourish-ambient');
-  wireFlourishToggle(matScrollToggle, 'dts-mat-scroll', 'mat-scroll');
 
   btnFreeEdibits.addEventListener('click', () => {
     const lines = [
