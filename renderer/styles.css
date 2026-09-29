@@ -2871,8 +2871,20 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     position: absolute; bottom: 8px; left: 34px; z-index: 5;
     display: flex; gap: 4px;
   }
-  /* Single view: the status pills stack in a column over the image; the badge sits beside the first one. */
-  .single-preview .card-status-icons .mv-badges{ position: absolute; left: calc(100% + 5px); top: 4px; }
+  /* Single view (view.ts buildSinglePreview): one column over the image, top to bottom: 3-dot menu,
+     lock, Merge Immunize / Antivoid, then the status pills. Every mark gets the menu button's outline. */
+  .single-icon-col{
+    position: absolute; top: 10px; left: 10px; z-index: 5;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  }
+  .single-icon-col .img-menu-btn,
+  .single-icon-col .lock-badge,
+  .single-icon-col .mv-badge{
+    position: static; flex: none; width: 22px; height: 22px; border: 1px solid rgba(255,255,255,0.25);
+  }
+  .single-icon-col .mv-badges{ position: static; }
+  .single-icon-col .card-status-icons{ position: static; gap: 6px; }
+  .single-icon-col .status-icon-badge{ border: 1px solid rgba(255,255,255,0.25); }
   .mv-badge{
     font-size: 12px; background: rgba(0,0,0,0.55); border-radius: 50%;
     width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;

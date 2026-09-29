@@ -1298,25 +1298,32 @@ function buildSinglePreview(e: Entry): HTMLElement {
   img.draggable = false;
   box.appendChild(img);
 
+  // One left-hand column, top to bottom: the 3-dot menu, the lock and Merge Immunize / Antivoid marks
+  // (each present only when set), then the status pills (Censored / Has text / Perspective), so up to
+  // six rows. Styled together in styles.css (`.single-icon-col`), all with the same outline.
+  const iconCol = document.createElement('div');
+  iconCol.className = 'single-icon-col';
+
   const menuBtn = document.createElement('button');
   menuBtn.className = 'img-menu-btn';
-  menuBtn.style.left = '10px';
-  menuBtn.style.top = '10px';
   menuBtn.textContent = '⋯';
   menuBtn.title = 'More options';
   menuBtn.addEventListener('pointerdown', (ev) => ev.stopPropagation());
   menuBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openImageOptionsMenu(e, ev.clientX, ev.clientY); });
-  box.appendChild(menuBtn);
+  iconCol.appendChild(menuBtn);
 
-  const statusIconsEl = buildStatusIconsEl(e);
-  statusIconsEl.style.left = '10px';
-  statusIconsEl.style.top = '38px';
-  box.appendChild(statusIconsEl);
-
-  // Merge Immunize / Antivoid: part of the status group, just right of the first pill
-  // (`.single-preview .card-status-icons .mv-badges` in styles.css).
+  if (e.meta && e.meta.locked){
+    const lockBadge = document.createElement('div');
+    lockBadge.className = 'lock-badge';
+    setIconLabel(lockBadge, '🔒');
+    lockBadge.title = 'Locked — mass tools (Quick Merge, Master Tags, bulk WD14, etc.) skip this image';
+    iconCol.appendChild(lockBadge);
+  }
   const mvBadges = buildMergeVoidBadgesEl(e);
-  if (mvBadges) statusIconsEl.appendChild(mvBadges);
+  if (mvBadges) iconCol.appendChild(mvBadges);
+
+  iconCol.appendChild(buildStatusIconsEl(e));
+  box.appendChild(iconCol);
 
   const hint = document.createElement('div');
   hint.className = 'single-preview-hint';
