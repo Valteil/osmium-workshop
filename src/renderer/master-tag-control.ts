@@ -20,6 +20,7 @@ import {
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
 import { markDirty, recordChange } from './tags-edit';
+import { resweepAllEntries } from './canonical-tags';
 import { attachFillAutocomplete } from './tags-autocomplete';
 import { setIconLabel, plainLabel } from './icons';
 
@@ -381,16 +382,19 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
     if (masterSelectedImages.size === 0){ toast('Select at least one image first.'); return; }
     const meta = getEntryMeta();
     let changed = 0;
+    let unprotected = false;
     for (const e of masterSelectedImages){
       if (!e.meta) e.meta = {};
       const keys = Object.keys(flags);
       if (keys.every(k => !!(e.meta as Record<string, unknown>)[k] === flags[k])) continue;
+      if (keys.some(k => !flags[k] && (e.meta as Record<string, unknown>)[k])) unprotected = true;
       for (const k of keys) (e.meta as Record<string, unknown>)[k] = flags[k];
       meta[e.base] = e.meta;
       changed++;
     }
     if (changed === 0){ toast(`Nothing to change — already ${actionLabel}.`); return; }
     saveEntryMetaRef();
+    if (unprotected) resweepAllEntries(); // images that lost their protection get the rules applied now
     toast(`${actionLabel[0].toUpperCase()}${actionLabel.slice(1)} ${changed} image(s).`);
     renderCurrentViewRef();
   }

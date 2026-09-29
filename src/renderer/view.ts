@@ -32,7 +32,7 @@ import { masterSelectedImages, renderMasterSelectionSummary, refreshMasterMiniGr
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
 import { setIconLabel, iconSvg } from './icons';
-import { ghostTagsFor, type GhostTag } from './canonical-tags';
+import { ghostTagsFor, resweepAllEntries, type GhostTag } from './canonical-tags';
 import { subjectPresets, upsertSubjectPreset, deleteSubjectPreset, subjectPresetById } from './subject-presets';
 
 export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
@@ -3590,6 +3590,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     entry.meta!.mergeImmune = !entry.meta!.mergeImmune;
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
+    if (!entry.meta!.mergeImmune) resweepAllEntries(); // no longer protected: apply the merge rules now
     setIconLabel(toggleMergeImmuneBtn, mergeImmuneLabel());
     setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
     renderCurrentView();
@@ -3599,6 +3600,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     entry.meta!.antivoid = !entry.meta!.antivoid;
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
+    if (!entry.meta!.antivoid) resweepAllEntries(); // no longer protected: apply the void rules now
     setIconLabel(toggleAntivoidBtn, antivoidLabel());
     setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
     renderCurrentView();
@@ -3610,6 +3612,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     entry.meta!.antivoid = !bothOn;
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
+    if (bothOn) resweepAllEntries(); // protection removed: apply the rules now
     setIconLabel(toggleMergeImmuneBtn, mergeImmuneLabel());
     setIconLabel(toggleAntivoidBtn, antivoidLabel());
     setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());

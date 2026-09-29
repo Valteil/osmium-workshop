@@ -208,29 +208,26 @@ export function resetImageEdits(entry: Entry): void {
 export function addTagToEntry(entry: Entry, raw: string): void {
   const parts = raw.split(',').map(t => t.trim().replace(/_/g, ' ').replace(/\s+/g, ' ')).filter(Boolean);
   if (!parts.length) return;
-  // A standing Retroactive Merge/Void rule affecting this exact tag on this
-  // exact entry (respecting that rule's own enabled/child-toggle state and
-  // this entry's Merge Immunize/Antivoid flags) blocks the add outright
-  // instead of silently rewriting it after the fact — typing a tag by hand
-  // is a deliberate action, and swapping in something else the user didn't
-  // type is more confusing than just saying no. Typing the rule's own
-  // canonical tag is never blocked (see findBlockingRule()'s own comment).
-  const blocked: string[] = [];
-  const added: string[] = [];
+  // A standing Retroactive Merge/Void rule covering a typed tag (respecting the
+  // rule's own enabled/child-toggle state and this entry's Merge Immunize/
+  // Antivoid flags) corrects it on the spot: markDirty() below runs the rules,
+  // so a merged child becomes its canonical tag and a voided one is dropped.
+  // Typing the rule's canonical tag is never affected (findBlockingRule()).
+  const corrected: { tag: string; canonical: string | null }[] = [];
   const prevTags = entry.tags.slice();
   for (const tag of parts){
-    if (findBlockingRule(tag, entry)){ blocked.push(tag); continue; }
-    if (entry.tags.includes(tag) || added.includes(tag)) continue;
+    const rule = findBlockingRule(tag, entry);
+    if (rule) corrected.push({ tag, canonical: rule.canonical });
+    if (entry.tags.includes(tag)) continue;
     entry.tags.push(tag);
-    added.push(tag);
   }
-  if (blocked.length){
-    toast(blocked.length === 1 && parts.length === 1
-      ? 'This tag is affected by a merge/void rule; please check the dock area for details.'
-      : `Skipped ${blocked.map(t => `"${t}"`).join(', ')}: affected by a merge/void rule (see the dock area).`, 3600);
+  markDirty(entry);
+  const added = entry.tags.filter((t: string) => !prevTags.includes(t));
+  if (corrected.length){
+    const msg = corrected.map(c => c.canonical ? `"${c.tag}" → "${c.canonical}"` : `"${c.tag}" removed`).join(', ');
+    toast(`Rule applied: ${msg} (see the merge/void dock).`, 3600);
   }
   if (!added.length) return;
-  markDirty(entry);
   refreshStatsRef();
   const what = added.length === 1 ? `tag "${added[0]}"` : `${added.length} tags (${added.join(', ')})`;
   recordChange('add-tag', `Added ${what} to ${entry.imgName}`,
