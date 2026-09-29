@@ -1799,9 +1799,9 @@
     var n = steps.length;
     var cur = -1;
     var label = btn.querySelector('.st-label');
-    var words = ['', 'one', 'two', 'three'];
+    var words = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
     var openText = n > 1 ? 'Hide the steps' : 'Hide the screen';
-    var closedText = n > 1 ? 'Show it in ' + words[n] + ' steps' : 'Show the screen';
+    var closedText = n > 1 ? 'Show it in ' + (words[n] || n) + ' steps' : 'Show the screen';
 
     var row = panel.previousElementSibling;
     if (row && row.classList.contains('rev')) body.classList.add('flip');

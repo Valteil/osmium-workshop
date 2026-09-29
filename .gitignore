@@ -111,3 +111,8 @@ comfy-bridge/mobile/android/local.properties
 /.impeccable/config.local.json
 /.impeccable/critique/
 /.impeccable/review/
+
+# Site editor: a private, local-only tool for the maintainer, never published
+/tools/site-editor/
+/Site Editor.cmd
+/site-drafts/
