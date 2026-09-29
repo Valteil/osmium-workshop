@@ -4,13 +4,19 @@ Every release of Osmium Workshop (called Dataset Tag Studio up to v1.5.0), newes
 Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 [releases page](https://github.com/Valteil/osmium-workshop/releases).
 
-- [v1.9.0](#v190) · [v1.8.0](#v180) · [v1.7.0](#v170) · [v1.6.5](#v165) · [v1.6.0](#v160) · [v1.5.5](#v155) ·
+- [v1.9.5](#v195) · [v1.9.0](#v190) · [v1.8.0](#v180) · [v1.7.0](#v170) · [v1.6.5](#v165) · [v1.6.0](#v160) · [v1.5.5](#v155) ·
   [v1.5.0](#v150) · [v1.4.0](#v140) · [v1.3.0](#v130) · [v1.2.0](#v120) ·
   [v1.1.5](#v115-tauri--discontinued) · [v1.1.0](#v110) · [v1.0.0](#v100)
 
 ---
 
-## Next version: v2.0.0 (unreleased)
+## v1.9.5
+
+Osmium Workshop and Comfy Bridge for Windows. The Comfy Bridge Android app is in a separate
+[v1.9.5-android pre-release](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.5-android)
+until it's been tested on a phone; the Comfy Bridge items marked Android below come with it. The
+Osmium Android app isn't part of this release; get it from
+[v1.9.0-android](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.0-android).
 
 ### Osmium Workshop
 
@@ -94,8 +100,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge for Android
 
-In testing: get it from the
-[test build](https://github.com/Valteil/osmium-workshop/releases/tag/comfybridge-android-test).
+In the [v1.9.5-android pre-release](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.5-android)
+(not yet tested on a phone). Besides the Android items above:
 
 - **Generate queues**, like on Windows: pressing Generate while one is running queues another
   with the settings as they are then. They run one after another; Stop (or the notification's
@@ -103,8 +109,8 @@ In testing: get it from the
 - **Tag wiki**: a **Wiki** button in the header opens the tag-definition window.
 - **Main LoRA weight**: a field under Main LoRA.
 - **No more silent hangs on a wrong address or port**: after 45 seconds without an answer it says
-  so, and reminds you which port is which (8188 for a ComfyUI server, 8189 for a PC sharing Local
-  ComfyUI).
+  so, and reminds you which port is which (8188 for a ComfyUI server, 8189 for a PC sharing
+  Osmium Comfy).
 
 ---
 
