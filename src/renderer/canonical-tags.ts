@@ -457,7 +457,10 @@ function ghostMap(): Map<string, GhostTag[]> {
     if (!active.length) continue;
     if (!rule.canonical){ voidTags.push(...active); continue; }
     const idx = buildMergeEvidenceIndex(rule.canonical, active);
-    for (const [tag, bases] of idx) for (const base of bases) add(base, { tag, kind: 'merge', canonical: rule.canonical });
+    // A rule that lists its own canonical as a child ("red hair" in the rule folding into "red hair")
+    // took nothing off the image, so that tag is never a merge ghost. Otherwise it would shadow the
+    // void ghost of the same tag (add() keeps one ghost per tag) and a voided "red hair" showed nothing.
+    for (const [tag, bases] of idx) if (tag !== rule.canonical) for (const base of bases) add(base, { tag, kind: 'merge', canonical: rule.canonical });
   }
   if (voidTags.length){
     const idx = buildVoidEvidenceIndex(Array.from(new Set(voidTags)));
