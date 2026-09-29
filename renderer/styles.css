@@ -2871,6 +2871,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     position: absolute; bottom: 8px; left: 34px; z-index: 5;
     display: flex; gap: 4px;
   }
+  /* Single view: the status pills stack in a column over the image; the badge sits beside the first one. */
+  .single-preview .card-status-icons .mv-badges{ position: absolute; left: calc(100% + 5px); top: 4px; }
   .mv-badge{
     font-size: 12px; background: rgba(0,0,0,0.55); border-radius: 50%;
     width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;

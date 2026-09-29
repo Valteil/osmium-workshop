@@ -1313,13 +1313,10 @@ function buildSinglePreview(e: Entry): HTMLElement {
   statusIconsEl.style.top = '38px';
   box.appendChild(statusIconsEl);
 
+  // Merge Immunize / Antivoid: part of the status group, just right of the first pill
+  // (`.single-preview .card-status-icons .mv-badges` in styles.css).
   const mvBadges = buildMergeVoidBadgesEl(e);
-  if (mvBadges){
-    mvBadges.style.position = 'absolute';
-    mvBadges.style.left = '10px';
-    mvBadges.style.bottom = '10px';
-    box.appendChild(mvBadges);
-  }
+  if (mvBadges) statusIconsEl.appendChild(mvBadges);
 
   const hint = document.createElement('div');
   hint.className = 'single-preview-hint';
