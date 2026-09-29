@@ -30,6 +30,9 @@
       if (k.indexOf('dts-') === 0) localStorage.removeItem(k);
     });
     localStorage.setItem('dts-tag-autocomplete', '1');
+    // Right panel at its minimum (RIGHT_PANEL_MIN_WIDTH in index.ts) so the gallery keeps more than
+    // one column of images inside the site's embedded frame.
+    localStorage.setItem('dts-right-panel-width', '260');
     // This script sits at the end of <body>, so the app's markup (and its
     // theme <select>) is already parsed.
     var themeIds = [].map.call(document.querySelectorAll('#themeSelect option'), function (o) { return o.value; })
