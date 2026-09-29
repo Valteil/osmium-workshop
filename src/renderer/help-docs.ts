@@ -19,8 +19,8 @@ export const HELP_SECTIONS: HelpSection[] = [
     id: 'opening',
     title: 'Opening a dataset',
     html: `
-      <p>Osmium is built around <b>Anima</b> and other booru-tag models. It manages datasets for any
-      model, but its tag conventions and generation workflow follow that style.</p>
+      <p>Osmium is made for <b>Anima</b> and the booru-tag models around it. Other models work too,
+      though the tag conventions and the generation workflow follow that style.</p>
       <p><b>File ▸ Open dataset folder</b> and pick the folder with your images and their matching
       <code>.txt</code> caption files (same name, e.g. <code>image.png</code> + <code>image.txt</code>).
       Tags are shown with spaces in the app and saved back to disk with underscores — you never

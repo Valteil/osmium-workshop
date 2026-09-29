@@ -4,10 +4,9 @@ A practical walkthrough of everything in the app, organized by tab. If you just 
 list, see [README.md](README.md#features) instead — this document is the "how do I actually do X"
 companion to that.
 
-Osmium is built around **Anima** (the Circlestone Labs model that SynthDat Overseer and Comfy Bridge
-run on) and the booru-tag models like it: captions are booru-style tag lists, categories follow Danbooru, and
-the defaults follow that style. It's a general dataset manager beyond that, but expect its
-conventions to fit booru-style captions best.
+Osmium is built around **Anima**, the Circlestone Labs model that SynthDat Overseer and Comfy Bridge
+run on, and the booru-tag models in its family. Captions are booru-style tag lists and the categories
+follow Danbooru. Other models work as well, though the defaults suit booru-style captions best.
 
 The app also has its own **❓ Help** button in the topbar — a condensed, in-app copy of most of
 this guide (including the beginner-friendly glossary entries) for when you don't want to leave the
