@@ -1,12 +1,13 @@
 import type { FolderStats, EditLogEntry, DirHandle } from './types';
 import { getJSON, setJSON, getBool, setBool, getInt, setInt } from './storage';
 import { writeBytes } from './fs-access';
+import { initGroundScroll } from './ground-scroll';
 import {
   walletDisplay, achWallet, shopWallet, achievementsPanel, achList, achPopupsToggle,
   btnAchievements, achCloseBtn, shopPanel, shopList, btnShop, shopCloseBtn,
   btnFreeEdibits, favoritesPanel, logPanel, tagDetailsPanel,
   themeSelect, btnResetEdibits, btnResetAchievements, achievementPopupHost,
-  btnRefineTheme, suppressThemeFlourishesToggle, noFlourishHoverToggle, noFlourishTiltToggle, noFlourishAmbientToggle
+  btnRefineTheme, suppressThemeFlourishesToggle, noFlourishHoverToggle, noFlourishTiltToggle, noFlourishAmbientToggle, groundScrollToggle
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, escapeHtml } from './shared-ui';
 import { setIconLabel, iconSvg, rarityIcon } from './icons';
@@ -474,6 +475,7 @@ export function initAchievementPanels(): void {
   wireFlourishToggle(noFlourishHoverToggle, 'dts-no-flourish-hover', 'no-flourish-hover');
   wireFlourishToggle(noFlourishTiltToggle, 'dts-no-flourish-tilt', 'no-flourish-tilt');
   wireFlourishToggle(noFlourishAmbientToggle, 'dts-no-flourish-ambient', 'no-flourish-ambient');
+  initGroundScroll(groundScrollToggle);
 
   btnFreeEdibits.addEventListener('click', () => {
     const lines = [

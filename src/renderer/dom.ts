@@ -213,6 +213,7 @@ export const suppressThemeFlourishesToggle = $<HTMLInputElement>('suppressThemeF
 export const noFlourishHoverToggle = $<HTMLInputElement>('noFlourishHoverToggle');
 export const noFlourishTiltToggle = $<HTMLInputElement>('noFlourishTiltToggle');
 export const noFlourishAmbientToggle = $<HTMLInputElement>('noFlourishAmbientToggle');
+export const groundScrollToggle = $<HTMLInputElement>('groundScrollToggle');
 export const tagDetailsPanel = $('tagDetailsPanel');
 export const tagDetailsTitle = $('tagDetailsTitle');
 export const tagDetailsBody = $('tagDetailsBody');
