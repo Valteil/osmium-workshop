@@ -14,103 +14,67 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 Osmium Workshop and Comfy Bridge for Windows. The Comfy Bridge Android app is in a separate
 [v1.9.5-android pre-release](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.5-android)
-until it's been tested on a phone; the Comfy Bridge items marked Android below come with it. The
-Osmium Android app isn't part of this release; get it from
+until it's been tested on a phone. The Osmium Android app isn't part of this release. Get it from
 [v1.9.0-android](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.0-android).
 
 ### Osmium Workshop
 
-- **Change tag category**: right-click a tag ▸ Change tag category to move it to another category
-  when the automatic sorting gets it wrong. It applies on every image and in every dataset;
+- **Change tag category**: right-click a tag ▸ Change tag category when the automatic sorting puts
+  it in the wrong place. The fix applies to that tag on every image in every dataset, and
   **Automatic** in the same row undoes it.
-- **Originals is now Initial State**, and Bucket Images keeps originals in an `initial_state/`
-  folder instead of `original_images/`, which LoRA trainers use for their own samples. Osmium no
-  longer reads `original_images/`. If Bucket Images made one in a dataset before, rename that
-  folder to `initial_state` to see and revert those images again.
 - **Character sections** (Tag sorting): **＋ Add character** adds an empty section under
-  Character, named Character 1, 2… until you rename it. Drag a whole category or single tags into
-  it (or shift-click tags ▸ Move tags to). **Save** keeps that character in the dataset; **Load
-  character** on another image pulls its tags into a section and offers the saved ones the image
-  doesn't have yet.
-- **SynthDat Overseer's prompt boxes re-fit their text** when the font size, the window width or
-  the theme changes, instead of cutting the last lines off until you type.
-- **Main LoRA weight** (SynthDat Overseer): a field under Main LoRA sets how strongly it's applied
-  (1 = full, as before). Saved per dataset like the other settings.
+  Character, named Character 1, 2 and so on until you rename it. Drag a whole category or single
+  tags into it, or shift-click tags ▸ Move tags to. **Save** keeps the character in the dataset.
+  On another image, **Load character** pulls its tags into a section and offers any saved ones the
+  image doesn't have yet.
+- **Originals is now Initial State.** Bucket Images keeps the pre-bucketing files in
+  `initial_state/` instead of `original_images/`, because LoRA trainers use that name for their own
+  samples. Osmium stops reading `original_images/`, so if Bucket Images made one in a dataset
+  before, rename it to `initial_state` to see and revert those images again.
+- **Main LoRA weight** (SynthDat Overseer): a field under Main LoRA sets how strongly it applies,
+  with 1 as full strength like before. It's saved per dataset with the other settings.
 
 ### Comfy Bridge
 
-- **Arrow keys in the gallery**: with an image open from the gallery, ← and → step to the previous
-  and next image in the folder.
-- **Tidier middle column** (Windows): generation settings (resolution, sampler, steps, CFG, seed,
-  2-Pass and Upscale) now live in a slide-out panel opened by the gear button. File saving
-  (folders and filename, below) has its own panel, opened by the folder button. The Output
-  section keeps the folder picker and a one-line "Saves as" preview. The panels slide in from
-  the left, so the buttons (bottom right) stay uncovered and clicking the same one again closes
-  its panel; clicking outside, Esc or ✕ works too. One panel is open at a time. The two buttons
-  sit in a row to the left of the gallery button and stay faded until you point at them, so they
-  don't hide what's underneath.
-- **The gallery slides in from the left too** (Windows and Android), so the gallery button stays
-  uncovered: press it again to close the gallery.
-- **Back and Esc in the gallery** (Windows and Android): Esc, your mouse's Back side button or
-  Android's Back button step back one level: an open image closes, then you go up a folder,
-  then the gallery closes. On Android, Back also closes an open panel or menu and only then
-  leaves the app (it used to quit straight away).
-- **The image info panel shows the file's name** and the folders it's in.
-- **"Local ComfyUI" is now called "Osmium Comfy"** in both apps: the Run on choice, its messages
-  and its console window.
-- **Comfy Bridge opens maximized** (Windows).
-- **No more ComfyUI Terminal panel** (Windows): Local ComfyUI's own console window shows the same
-  output. Scrolled to the bottom, the right column now ends in empty space, so the round buttons
-  never cover the Log. (The Android app keeps its terminal.)
-- **The theme menu stays open when you pick a theme**, so you can click through them; clicking
-  outside it, Esc or the button closes it.
-- **Osmium's look** (Windows and Android): the gallery button and the new panel buttons use
-  Osmium's line icons, and checkboxes match Osmium's (rounded, filled in the theme's accent).
-- **Themes bring their fonts** (Windows and Android): each theme now uses the same fonts as in
-  Osmium, e.g. Candy Pop's Fredoka, Terminal's VT323 headings, Vintage Paper's IM Fell. The fonts
-  ship with the app, so they work offline. In Theme Studio, remixing a theme starts from its
-  fonts too. Prompt boxes re-fit their text when you switch themes, and on Android also when you
-  rotate the phone.
-- **New file naming** (Windows), in the File saving panel:
-  - **Automatic folders** (shown, not editable): the rating folder is `explicit` or `safe` when
-    the Rating field says so, and none otherwise (images go straight into the output folder).
-    Upscaled images go in an `Upscaled` folder.
-  - **Character folder**: pick from the Danbooru **Tag list** (it starts on the character
-    recognized in the Character field), **OC** (one folder for original characters), or a
-    **Custom** name. Recognition now only accepts an exact Danbooru character tag in the
-    Character field, so tags like `score_7` no longer send images to a random character's folder
-    (7-tan). Prompt presets remember the choice.
-  - **Filename**: tick what goes in, always in this order: character name, Main LoRA (on by
-    default, the old naming), then model and sampler settings (model, sampler, scheduler, steps,
-    CFG, seed). A number is always added, so nothing is overwritten.
-  - **Saves to** shows the full path of the next image, folder by folder.
-  - **This folder is my ComfyUI output folder** and **Also keep ComfyUI's own copy** decide whether
-    ComfyUI saves its own (old-named) copy too. When it doesn't, you get exactly one file.
-  - The Output section's text wraps at any Text size instead of running off the side.
-- **Generation settings beside gallery images** (Windows): opening an image from the gallery shows
-  how it was made in a panel to its left: which output it is (Pass 1, Pass 2, Upscaled or single
-  pass), the prompt field by field, the negative, models and LoRAs with weights, size, seed, steps,
-  CFG, sampler, scheduler, the 2-Pass, upscale and reference-image settings, and every other node
-  setting under **All node settings**. **Use these settings** loads them into the generator, like
-  Import generation. Images saved before this version can't say whether they're Pass 1 or Pass 2.
-- **Text size** (Windows): a slider at the top of the theme menu makes the whole window bigger or
-  smaller (80–160%). It's remembered, and **Reset** puts it back to 100%. Prompt boxes re-fit
-  their text as the size changes (and when the window or the right column is resized), instead
-  of cutting the last lines off until you type.
+- **File naming** (Windows): a File saving panel decides where each image goes and what it's
+  called. Folders are automatic where they can be. An `explicit` or `safe` folder follows the
+  Rating field, and upscaled images go in `Upscaled`. The character folder comes from the
+  Danbooru tag list (it starts on the character in the Character field), a single `OC` folder, or
+  a custom name. Recognition wants an exact Danbooru character tag, so `score_7` no longer files
+  an image under 7-tan. The filename is built from toggles in a fixed order: character, Main
+  LoRA, then model and sampler settings, always ending in a number so nothing is overwritten.
+  **Saves to** previews the next path, and two checkboxes control whether ComfyUI also keeps its
+  own copy. Prompt presets remember the choices.
+- **Generation settings in the gallery** (Windows): opening an image shows how it was made in a
+  panel beside it. That covers the output (Pass 1, Pass 2, Upscaled or single pass), each prompt
+  field, models and LoRAs with weights, size, seed, steps, CFG, sampler, and the 2-Pass, upscale
+  and reference settings. Everything else sits under **All node settings**. **Use these
+  settings** loads them into the generator, same as Import generation. Images saved before this
+  version can't say which pass they came from.
+- **Slide-out panels** (Windows): the middle column got long, so generation settings (resolution,
+  sampler, steps, CFG, seed, 2-Pass, Upscale) moved into a panel opened by the gear button, and
+  file saving into a second one. Both slide in from the left.
+- **Gallery navigation** (Windows and Android): arrow keys step through a folder's images. Esc,
+  the mouse Back button or Android's Back button close an open image, then go up a folder, then
+  close the gallery. On Android, Back also closes open panels and menus before it leaves the app.
+  The info panel now shows the image's file name.
+- **Text size** (Windows): a slider at the top of the theme menu scales the whole window from 80%
+  to 160%. It's remembered, and **Reset** returns to 100%.
+- **Themes bring their fonts** (Windows and Android), the same ones Osmium uses, bundled so they
+  work offline.
+- **"Local ComfyUI" is now "Osmium Comfy"** in both apps, and the ComfyUI Terminal panel is gone
+  from Windows. Osmium Comfy's console window shows the same output.
 
 ### Comfy Bridge for Android
 
-In the [v1.9.5-android pre-release](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.5-android)
-(not yet tested on a phone). Besides the Android items above:
+In the [v1.9.5-android pre-release](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.5-android),
+not yet tested on a phone. It also gets the Back button, gallery and font changes above.
 
-- **Generate queues**, like on Windows: pressing Generate while one is running queues another
-  with the settings as they are then. They run one after another; Stop (or the notification's
-  Cancel) ends the current one and clears the queue.
-- **Tag wiki**: a **Wiki** button in the header opens the tag-definition window.
+- **Generate queues**, like on Windows: press Generate during a run and it queues another with
+  the settings as they are then. Stop, or the notification's Cancel, ends the current run and
+  clears the queue.
+- **Wiki**: a header button opens the tag-definition window.
 - **Main LoRA weight**: a field under Main LoRA.
-- **No more silent hangs on a wrong address or port**: after 45 seconds without an answer it says
-  so, and reminds you which port is which (8188 for a ComfyUI server, 8189 for a PC sharing
-  Osmium Comfy).
 
 ---
 
