@@ -4,6 +4,10 @@ A practical walkthrough of everything in the app, organized by tab. If you just 
 list, see [README.md](README.md#features) instead — this document is the "how do I actually do X"
 companion to that.
 
+Osmium is built around **Anima**, the Circlestone Labs model that SynthDat Overseer and Comfy Bridge
+run on, and the booru-tag models in its family. Captions are booru-style tag lists and the categories
+follow Danbooru. Other models work as well, though the defaults suit booru-style captions best.
+
 The app also has its own **❓ Help** button in the topbar — a condensed, in-app copy of most of
 this guide (including the beginner-friendly glossary entries) for when you don't want to leave the
 app to look something up.
@@ -84,8 +88,8 @@ which you chose (desktop).
   (short, medium, long), breast size (flat, small, medium, large, gigantic), slim / plump, thick
   thighs / slim legs, and looking at viewer / looking away / looking to the side. Each box is
   independent. Ticking adds the tag and unticking removes it, and ticking a breast size also adds
-  `breasts` (Flat doesn't). If no breast size is left ticked and Flat is, `breasts` is removed as
-  well. The filter panel comes back when you leave Single view.
+  `breasts` (Flat doesn't). Unticking a size takes `breasts` off again unless another size is still
+  ticked, and if only Flat is left ticked, `breasts` is removed as well. The filter panel comes back when you leave Single view.
   **Your own quicktags:** each category's **+** adds one, and **+ Add category** (at the bottom)
   adds a category. They're kept for every dataset. For each quicktag you give the tag it writes
   (and optionally the checkbox's label), plus optional rules:
@@ -546,7 +550,10 @@ Flourishes** hides the Refine Theme button and turns off the epic/legendary hove
 effect everywhere (whether a theme has it natively or you bought it via Refine Theme), while
 **Disable hover-fill** / **Disable card hover-tilt** / **Disable ambient animations** let you turn
 off just one specific motion effect app-wide if you'd rather keep the others. None of these touch
-a theme's static colors, textures, or glows.
+a theme's static colors, textures, or glows. **Scroll the gallery background slowly** is the one
+option that adds motion, and it's off by default: the theme's background pattern behind the
+gallery drifts at a gentle pace (glows and Solar Flare's rings stay still). Disable ambient
+animations pauses it.
 
 **Opening flourish.** When the app opens, the window dims and a sweep of your theme's colour
 crosses it, carrying that theme's own version of the Osmium mark, then leaves trailing the theme's
@@ -612,7 +619,8 @@ This guide covers the desktop app. Two siblings share this repo:
     the tabs you visited) and asks before leaving the app.
   - The in-app ❓ Help is rewritten for touch; read that instead of this guide on mobile.
   - Released since v1.8.0: each release has an `OsmiumWorkshop-<version>-android.apk`. Install it
-    over any earlier build to keep your data.
+    over any earlier build to keep your data. The Comfy Bridge Android app is
+    `ComfyBridge-<version>-android.apk`.
 - **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
   featuring a built-in workflow: no node graph to navigate, every generation saves straight to
   disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
@@ -621,8 +629,20 @@ This guide covers the desktop app. Two siblings share this repo:
   tag-definition window as Osmium's), a **Main LoRA weight** field, and a Generate queue. Mobile
   details live in `comfy-bridge/mobile/README.md`.
   - **Osmium Comfy (Windows):** set **Run on** to **Osmium Comfy**, choose your ComfyUI folder,
-    then **Connect**. The Bridge starts that install itself, just like SynthDat does above, and
-    its ComfyUI Terminal shows that install's output.
+    then **Connect**. The Bridge starts that install itself, just like SynthDat does above.
+  - **Desktop layout:** the window opens maximized. Sampler, upscale and pass settings are in a
+    slide-out panel and the file-saving toggles in a second one, both opening from the left; click
+    their button again (or outside them) to close. The header **Zoom** slider scales the whole
+    interface, prompt boxes re-fit as you zoom or change theme, and themes bring their fonts.
+  - **File naming (desktop):** each save lands in `[explicit|safe/][Character/][Upscaled/]` inside
+    your output folder. The rating folder follows the Rating field; the character folder is a
+    Danbooru character recognized in the Character field (whole-tag match), `OC`, or a custom name.
+    Toggles build the filename from character, LoRA, then model and sampler settings, followed by a
+    counter. Checkboxes decide whether ComfyUI also keeps its own copy of each image.
+  - **Gallery:** slides in from the left and its button toggles it closed. Arrow keys move between
+    images; **Esc** or the mouse Back button steps back one level (image, then folder, then the
+    gallery). An image's info panel shows its file name and how it was made (which pass, LoRAs,
+    sampler) with a **Use these settings** button. Android's Back button steps back the same way.
   - **Persist Comfy:** keeps Osmium Comfy running, with its models loaded, after you close the
     Bridge. Connect picks it back up next time. Close its console window to stop it.
   - **Using a phone:** either start ComfyUI with `--listen 0.0.0.0 --enable-cors-header` (it

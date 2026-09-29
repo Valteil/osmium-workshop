@@ -112,6 +112,14 @@ fs.writeFileSync(R('docs', 'assets', 'night-palette.js'),
   '// change the app\'s night mode there and re-run the script. Defines\n' +
   '// window.__dtsNightPalette(readHex) -> { themeVar: nightHex }.\n' +
   '(function(){\n' + rendererIndex.slice(npBegin, npEnd).replace('/* night-palette:begin */', '').trim() + '\n})();\n');
+// Each theme's gallery ground (`html[data-theme="x"] #gallery{...}`): the pattern layers plus any
+// helper vars it declares, so the site can paint and drift the same background (site-theme.js).
+for (const m of css.matchAll(/html\[data-theme="([a-z-]+)"\] #gallery\s*\{([\s\S]*?)\n\s*\}/g)){
+  const t = themes.find((x) => x.id === m[1]);
+  if (!t) continue;
+  const decls = [...m[2].replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(--[\w-]+|background-image|background-size|background-position)\s*:\s*([^;]+);/g)];
+  if (decls.some((d) => d[1] === 'background-image')) t.ground = decls.map((d) => `${d[1]}:${d[2].replace(/\s+/g, ' ').trim()}`).join(';');
+}
 const order = Object.keys(names);
 themes.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
 fs.writeFileSync(R('docs', 'assets', 'themes.json'), JSON.stringify(themes));

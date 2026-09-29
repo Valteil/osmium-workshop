@@ -325,6 +325,7 @@
   var noFlourishHoverToggle = $("noFlourishHoverToggle");
   var noFlourishTiltToggle = $("noFlourishTiltToggle");
   var noFlourishAmbientToggle = $("noFlourishAmbientToggle");
+  var groundScrollToggle = $("groundScrollToggle");
   var tagDetailsPanel = $("tagDetailsPanel");
   var tagDetailsTitle = $("tagDetailsTitle");
   var tagDetailsBody = $("tagDetailsBody");
@@ -1287,6 +1288,7 @@
       const target = ev.target;
       const btn = target.closest("button");
       if (!btn) return;
+      if (btn.matches('.active, .on, .selected, [aria-pressed="true"]')) return;
       const now = Date.now();
       const prev = flashState.get(btn);
       if (prev && now - prev.lastTrigger < FLASH_CYCLE_MS) return;
@@ -4025,6 +4027,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       id: "opening",
       title: "Opening a dataset",
       html: `
+      <p>Osmium is made for <b>Anima</b> and the booru-tag models around it. Other models work too,
+      though the tag conventions and the generation workflow follow that style.</p>
       <p><b>File \u25B8 Open dataset folder</b> and pick the folder with your images and their matching
       <code>.txt</code> caption files (same name, e.g. <code>image.png</code> + <code>image.txt</code>).
       Tags are shown with spaces in the app and saved back to disk with underscores \u2014 you never
@@ -4069,8 +4073,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         box and press Enter to jump straight to that image. <b>Image Quicktagging:</b> while it
         shows one image, the left panel becomes checkboxes for common attributes (hair length,
         breast size, slim/plump, thick thighs/slim legs, looking at viewer/away/to the side). Tick
-        to add, untick to remove; a breast size also adds <code>breasts</code> (Flat doesn't, and
-        with only Flat left ticked <code>breasts</code> is removed). Each category's <b>+</b> adds
+        to add, untick to remove; a breast size also adds <code>breasts</code> (Flat doesn't), and
+        unticking a size takes <code>breasts</code> off again unless another size is still ticked.
+        With only Flat left ticked, <code>breasts</code> is removed too. Each category's <b>+</b> adds
         your own quicktag (kept for every dataset), with optional rules: tags it also adds, which
         of those stay after unticking, tags unticking also removes, and tags that untick it.
         <b>+ Add category</b> adds a category.</li>
@@ -4475,7 +4480,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       everywhere \u2014 whether a theme has it natively or you bought it via Refine Theme. Three
       independent toggles (<b>Disable hover-fill</b>, <b>Disable card hover-tilt</b>, <b>Disable
       ambient animations</b>) let you turn off just one specific motion effect instead of all of
-      them. None of these touch a theme's static colors, textures, or glows.</p>
+      them. None of these touch a theme's static colors, textures, or glows. <b>Scroll the
+      gallery background slowly</b> is the one option that adds motion (off by default): the
+      theme's background pattern behind the gallery drifts gently. Glows and Solar Flare's rings
+      stay still, and Disable ambient animations pauses it.</p>
       <p>When the app opens, a short <b>opening flourish</b> plays in your theme: a sweep of the
       theme's colour carrying its own version of the Osmium mark, trailing the theme's particles as
       it leaves. ${isTouchDevice ? "Tap" : "Click or press any key"} to speed it up, or turn it off
@@ -4635,6 +4643,257 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     document.addEventListener("keydown", (ev) => {
       if (ev.key === "Escape" && helpModal.style.display !== "none") closeHelp();
     });
+  }
+
+  // src/renderer/ground-scroll.ts
+  var KEY = "dts-ground-scroll";
+  var SPEED = 6;
+  var LOOP_S = 120;
+  function splitTop(s) {
+    const out = [];
+    let depth = 0, cur = "";
+    for (const ch of s) {
+      if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+      if (ch === "," && depth === 0) {
+        out.push(cur.trim());
+        cur = "";
+      } else cur += ch;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  }
+  var px = (t) => /^-?\d+(\.\d+)?px$/.test(t) ? parseFloat(t) : t === "0%" || t === "0" ? 0 : null;
+  var isPx = (t) => /^\d+(\.\d+)?px$/.test(t);
+  var num2 = (n) => `${Math.round(n * 100) / 100}px`;
+  function hatchTile(angle, period) {
+    const s = Math.abs(Math.sin(angle * Math.PI / 180)), c = Math.abs(Math.cos(angle * Math.PI / 180));
+    const dim = (trig, k) => trig < 1e-6 ? period : Math.round(k * period / trig);
+    let best = null;
+    for (let k = 1; k <= 12; k++) {
+      const w = dim(s, k), h = dim(c, k);
+      const err = Math.max(s < 1e-6 ? 0 : Math.abs(w * s - k * period) / (k * period), c < 1e-6 ? 0 : Math.abs(h * c - k * period) / (k * period));
+      if (!best || err < best.err - 1e-9) best = { w, h, err };
+      if (err < 4e-3) break;
+    }
+    return best;
+  }
+  function plan(cs) {
+    const imgs = splitTop(cs.backgroundImage), sizes = splitTop(cs.backgroundSize), poss = splitTop(cs.backgroundPosition);
+    const outSize = [], from = [], to = [];
+    let moving = false;
+    imgs.forEach((img, i) => {
+      const size = (sizes[i % sizes.length] || "auto").split(/\s+/);
+      const pos = (poss[i % poss.length] || "0% 0%").split(/\s+/);
+      const x0 = px(pos[0]), y0 = px(pos[1]);
+      let sw = size[0], sh = size[1] || size[0];
+      let dx = 0, dy = 0, ok = x0 !== null && y0 !== null && img !== "none";
+      if (ok && img.startsWith("repeating-linear-gradient(") && sw === "auto" && sh === "auto") {
+        const a = /^repeating-linear-gradient\((-?\d+(?:\.\d+)?)deg/.exec(img);
+        const p = /(\d+(?:\.\d+)?)px\)$/.exec(img);
+        const tile = a && p ? hatchTile(parseFloat(a[1]), parseFloat(p[1])) : null;
+        if (tile) {
+          sw = num2(tile.w);
+          sh = num2(tile.h);
+          const rad = parseFloat(a[1]) * Math.PI / 180;
+          if (Math.abs(Math.sin(rad)) < 1e-6) sw = "auto", dx = -1;
+          else if (Math.abs(Math.cos(rad)) < 1e-6) sh = "auto", dy = -1;
+        } else ok = false;
+      }
+      if (ok && (img.startsWith("repeating-radial") || sw === "auto" && sh === "auto")) ok = false;
+      if (ok) {
+        const wPx = isPx(sw) ? parseFloat(sw) : 0, hPx = isPx(sh) ? parseFloat(sh) : 0;
+        if (!wPx && !hPx) ok = false;
+        else {
+          dx = wPx && dx !== -1 ? Math.max(1, Math.round(SPEED * LOOP_S / wPx)) * wPx : 0;
+          dy = hPx && dy !== -1 ? Math.max(1, Math.round(SPEED * LOOP_S / hPx)) * hPx : 0;
+          if (dx === 0 && dy === 0) ok = false;
+        }
+      }
+      if (ok) {
+        const useW = sw === "auto" ? "100%" : sw, useH = sh === "auto" ? "100%" : sh;
+        outSize.push(`${useW} ${useH}`);
+        from.push(`${num2(x0)} ${num2(y0)}`);
+        to.push(`${num2(x0 + dx)} ${num2(y0 + dy)}`);
+        moving = true;
+      } else {
+        outSize.push(sizes[i % sizes.length] || "auto");
+        const keep = poss[i % poss.length] || "0% 0%";
+        from.push(keep);
+        to.push(keep);
+      }
+    });
+    return { sizes: outSize, from: from.join(", "), to: to.join(", "), moving };
+  }
+  var GLYPHS = "\uFF71\uFF72\uFF73\uFF74\uFF75\uFF76\uFF77\uFF78\uFF79\uFF7A\uFF7B\uFF7C\uFF7D\uFF7E\uFF7F\uFF80\uFF81\uFF82\uFF83\uFF84\uFF85\uFF86\uFF87\uFF88\uFF89\uFF8A\uFF8B\uFF8C\uFF8D\uFF8E\uFF8F\uFF90\uFF91\uFF92\uFF93\uFF94\uFF95\uFF96\uFF97\uFF98\uFF99\uFF9A\uFF9B\uFF9C\uFF9D0123456789:.=*+-<>|";
+  var CELL = 16;
+  function parseColor(v) {
+    const hex = /^#([0-9a-f]{6})$/i.exec(v.trim());
+    if (hex) return [parseInt(hex[1].slice(0, 2), 16), parseInt(hex[1].slice(2, 4), 16), parseInt(hex[1].slice(4, 6), 16)];
+    const rgb = /(\d+)[ ,]+(\d+)[ ,]+(\d+)/.exec(v);
+    return rgb ? [+rgb[1], +rgb[2], +rgb[3]] : [0, 255, 102];
+  }
+  function createRain(gallery) {
+    let host = null;
+    let canvas = null;
+    let timer = 0;
+    let ro = null;
+    let cols = [];
+    let rows = 0;
+    let rgb = [0, 255, 102];
+    let last = 0;
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const glyph = () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+    const reset = (c, first) => {
+      c.speed = rand(3, 6);
+      c.len = Math.floor(rand(8, 18));
+      c.head = first ? rand(-rows, rows) : -1;
+      c.wait = first ? rand(0, 5) : rand(1, 8);
+    };
+    const resize = () => {
+      if (!canvas) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = gallery.clientWidth, h = gallery.clientHeight;
+      canvas.width = Math.max(1, Math.floor(w * dpr));
+      canvas.height = Math.max(1, Math.floor(h * dpr));
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      rows = Math.ceil(h / CELL);
+      const n = Math.floor(w / CELL);
+      while (cols.length < n) {
+        const c = { head: 0, speed: 0, len: 0, wait: 0, glyphs: Array.from({ length: 96 }, glyph) };
+        reset(c, true);
+        cols.push(c);
+      }
+      cols.length = n;
+    };
+    const draw = () => {
+      if (!canvas || document.hidden) return;
+      const now = performance.now(), dt = Math.min(0.25, (now - last) / 1e3);
+      last = now;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const dpr = window.devicePixelRatio || 1;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = `${CELL - 3}px "JetBrains Mono", "MS Gothic", monospace`;
+      ctx.textBaseline = "top";
+      const [r, g, b] = rgb;
+      cols.forEach((c, i) => {
+        if (c.wait > 0) {
+          c.wait -= dt;
+          return;
+        }
+        c.head += c.speed * dt;
+        if (c.head - c.len > rows) {
+          reset(c, false);
+          return;
+        }
+        const head = Math.floor(c.head);
+        for (let k = 0; k < c.len; k++) {
+          const row = head - k;
+          if (row < 0 || row > rows) continue;
+          const idx = row % c.glyphs.length;
+          if (Math.random() < dt * 0.9) c.glyphs[idx] = glyph();
+          const a = k === 0 ? 0.3 : 0.17 * Math.pow(1 - k / c.len, 1.6);
+          ctx.fillStyle = `rgba(${r},${g},${b},${a.toFixed(3)})`;
+          ctx.fillText(c.glyphs[idx], i * CELL + 1, row * CELL);
+        }
+      });
+    };
+    return {
+      running: () => !!host,
+      start() {
+        if (host) return;
+        host = document.createElement("div");
+        host.id = "matrixRainHost";
+        host.style.cssText = "position:sticky;top:0;height:0;z-index:-1;pointer-events:none;";
+        canvas = document.createElement("canvas");
+        canvas.style.cssText = "position:absolute;top:0;left:0;display:block;";
+        host.appendChild(canvas);
+        gallery.insertBefore(host, gallery.firstChild);
+        gallery.style.isolation = "isolate";
+        rgb = parseColor(getComputedStyle(document.documentElement).getPropertyValue("--accent-manual"));
+        cols = [];
+        resize();
+        ro = new ResizeObserver(resize);
+        ro.observe(gallery);
+        last = performance.now();
+        timer = window.setInterval(draw, 60);
+      },
+      stop() {
+        if (!host) return;
+        window.clearInterval(timer);
+        ro?.disconnect();
+        ro = null;
+        host.remove();
+        host = null;
+        canvas = null;
+        gallery.style.removeProperty("isolation");
+      }
+    };
+  }
+  function initGroundScroll(toggle) {
+    const gallery = document.getElementById("gallery");
+    if (!gallery) return;
+    const root = document.documentElement;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const rain = createRain(gallery);
+    let anim = null;
+    let scheduled = false;
+    const syncRain = (restart) => {
+      const want = toggle.checked && !reduced.matches && root.getAttribute("data-theme") === "terminal" && !root.classList.contains("no-flourish-ambient");
+      if (!want) rain.stop();
+      else if (restart || !rain.running()) {
+        rain.stop();
+        rain.start();
+      }
+    };
+    const stop = () => {
+      if (anim) {
+        anim.cancel();
+        anim = null;
+      }
+      gallery.style.removeProperty("background-size");
+    };
+    const start = () => {
+      stop();
+      syncRain(true);
+      if (!toggle.checked || reduced.matches) return;
+      const p = plan(getComputedStyle(gallery));
+      if (!p.moving) return;
+      gallery.style.backgroundSize = p.sizes.join(", ");
+      anim = gallery.animate(
+        [{ backgroundPosition: p.from }, { backgroundPosition: p.to }],
+        { duration: LOOP_S * 1e3, iterations: Infinity, easing: "linear" }
+      );
+      if (root.classList.contains("no-flourish-ambient")) anim.pause();
+    };
+    const refresh2 = () => {
+      if (scheduled) return;
+      scheduled = true;
+      setTimeout(() => {
+        scheduled = false;
+        start();
+      }, 30);
+    };
+    toggle.checked = getBool(KEY);
+    toggle.addEventListener("change", () => {
+      setBool(KEY, toggle.checked);
+      start();
+    });
+    reduced.addEventListener("change", start);
+    new MutationObserver((muts) => {
+      if (muts.some((m) => m.attributeName === "class")) {
+        if (anim) {
+          if (root.classList.contains("no-flourish-ambient")) anim.pause();
+          else if (anim.playState === "paused") anim.play();
+        }
+        syncRain(false);
+      }
+      if (muts.some((m) => m.attributeName !== "class")) refresh2();
+    }).observe(root, { attributes: true, attributeFilter: ["data-theme", "style", "class"] });
+    start();
   }
 
   // src/renderer/achievements.ts
@@ -5060,6 +5319,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     wireFlourishToggle(noFlourishHoverToggle, "dts-no-flourish-hover", "no-flourish-hover");
     wireFlourishToggle(noFlourishTiltToggle, "dts-no-flourish-tilt", "no-flourish-tilt");
     wireFlourishToggle(noFlourishAmbientToggle, "dts-no-flourish-ambient", "no-flourish-ambient");
+    initGroundScroll(groundScrollToggle);
     btnFreeEdibits.addEventListener("click", () => {
       const lines = [
         "The shopkeeper begrudgingly hands you some Edibits.",
@@ -5313,15 +5573,15 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     for (const [label, value] of totalCards) {
       const card = document.createElement("div");
       card.className = "stats-total-card";
-      const num2 = document.createElement("div");
-      num2.className = "num";
+      const num3 = document.createElement("div");
+      num3.className = "num";
       const lbl = document.createElement("div");
       lbl.className = "lbl";
       lbl.textContent = label;
-      card.appendChild(num2);
+      card.appendChild(num3);
       card.appendChild(lbl);
       statsTotals.appendChild(card);
-      animateCountUp(num2, value);
+      animateCountUp(num3, value);
     }
   }
   function renderLogPanel() {
@@ -6518,7 +6778,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       const i = name.lastIndexOf(".");
       return i === -1 ? "" : name.slice(i);
     };
-    const plan = ordered.map((entry, i) => {
+    const plan2 = ordered.map((entry, i) => {
       const newBase = String(i + 1).padStart(width, "0");
       const oldImgName = entry.imgName || entry.base;
       const toPng = isWebpName(oldImgName);
@@ -6534,17 +6794,17 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         toPng
       };
     });
-    const converted = plan.filter((p) => p.toPng).length;
+    const converted = plan2.filter((p) => p.toPng).length;
     try {
-      for (let i = 0; i < plan.length; i++) {
-        const p = plan[i];
+      for (let i = 0; i < plan2.length; i++) {
+        const p = plan2[i];
         p.entry.imgHandle = p.toPng ? await convertToPngInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__.png`) : await renameFileInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__${extOf(p.oldImgName)}`);
         if (p.entry.txtHandle && p.oldTxtName) {
           p.entry.txtHandle = await renameFileInPlace(p.dir, p.oldTxtName, `__dts_rename_tmp_${i}__.txt`);
         }
       }
       const affected = [];
-      for (const p of plan) {
+      for (const p of plan2) {
         p.entry.imgHandle = await renameFileInPlace(p.dir, p.entry.imgHandle.name, p.newImgName);
         if (p.entry.txtHandle) {
           p.entry.txtHandle = await renameFileInPlace(p.dir, p.entry.txtHandle.name, p.newTxtName);
@@ -13172,7 +13432,7 @@ Image: ${entry.imgName}`,
 
   // src/renderer/quick-tag.ts
   var STORE_KEY = "dts-quicktags";
-  var sized = (label, tag) => ({ label, tag, adds: ["breasts"], keep: ["breasts"] });
+  var sized = (label, tag) => ({ label, tag, adds: ["breasts"] });
   var BUILTIN_GROUPS = [
     { id: "hair-length", label: "Hair length", items: [{ label: "Short", tag: "short hair" }, { label: "Medium", tag: "medium hair" }, { label: "Long", tag: "long hair" }] },
     { id: "breast-size", label: "Breast size", items: [{ label: "Flat", tag: "flat chest" }, sized("Small", "small breasts"), sized("Medium", "medium breasts"), sized("Large", "large breasts"), sized("Gigantic", "gigantic breasts")] },
@@ -26763,6 +27023,10 @@ Image: ${entry.imgName}`,
         return;
       }
       const fromTab = tabDatasetManager.classList.contains("active") ? "datasets" : tabMasterTags.classList.contains("active") ? "master" : tabStats.classList.contains("active") ? "stats" : tabSynthDat.classList.contains("active") ? "synthdat" : "gallery";
+      if (fromTab === tab) {
+        applyState();
+        return;
+      }
       const regionOf = (t) => {
         if (onShell(fromTab) && onShell(tab)) return document.getElementById("rightPanelContent");
         if (onShell(t)) return document.getElementById("shell");
@@ -27121,9 +27385,9 @@ Image: ${entry.imgName}`,
       });
     })();
     async function applyFontZoomFromSlider() {
-      const px = fontSizeSlider.value;
-      await applyAppZoom(parseInt(px, 10) / 14);
-      setString("dts-font-size", px);
+      const px2 = fontSizeSlider.value;
+      await applyAppZoom(parseInt(px2, 10) / 14);
+      setString("dts-font-size", px2);
       if (settingsPanel.style.display === "flex") {
         requestAnimationFrame(() => {
           const rect = btnSettings.getBoundingClientRect();
@@ -27136,10 +27400,10 @@ Image: ${entry.imgName}`,
     });
     fontSizeSlider.addEventListener("change", applyFontZoomFromSlider);
     (function initFontSize() {
-      const px = getString("dts-font-size", "14");
-      fontSizeSlider.value = px;
-      fontSizeVal.textContent = px + "px";
-      applyAppZoom(parseInt(px, 10) / 14);
+      const px2 = getString("dts-font-size", "14");
+      fontSizeSlider.value = px2;
+      fontSizeVal.textContent = px2 + "px";
+      applyAppZoom(parseInt(px2, 10) / 14);
     })();
     powerHighlightToggle.addEventListener("change", () => {
       document.documentElement.classList.toggle("power-highlight", powerHighlightToggle.checked);
@@ -28050,8 +28314,8 @@ Image: ${entry.imgName}`,
     function rightPanelMaxWidth() {
       return Math.max(RIGHT_PANEL_MIN_WIDTH, window.innerWidth - 270 - 200);
     }
-    function applyRightPanelWidth(px) {
-      rightPanelWidth = Math.min(rightPanelMaxWidth(), Math.max(RIGHT_PANEL_MIN_WIDTH, px));
+    function applyRightPanelWidth(px2) {
+      rightPanelWidth = Math.min(rightPanelMaxWidth(), Math.max(RIGHT_PANEL_MIN_WIDTH, px2));
       shellEl.style.setProperty("--right-w", rightPanelWidth + "px");
     }
     function repositionRightResizeHandle() {

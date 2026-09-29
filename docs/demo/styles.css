@@ -545,8 +545,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --icon-stroke: 2; --icon-cap: square; --icon-join: miter;
   }
   html[data-theme="terminal"] #gallery{
-    background-image: linear-gradient(color-mix(in srgb, var(--accent-manual) 9%, transparent) 50%, transparent 50%);
-    background-size: 100% 3px;
+    /* Pure black, so the matrix glyphs (a canvas, ground-scroll.ts, drawn only
+       while the gallery scroll option is on) are the only thing that moves. */
+    background: #000;
   }
   html[data-theme="terminal"] .brand,
   html[data-theme="terminal"] .sec-head .t{ text-shadow: 0 0 6px color-mix(in srgb, var(--accent-manual) 45%, transparent); }
@@ -1159,7 +1160,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --icon-stroke: 2; --icon-cap: square; --icon-join: bevel;
   }
   html[data-theme="copper-forge"] #gallery{
-    background-image: repeating-linear-gradient(72deg, color-mix(in srgb, var(--accent-auto) 7%, transparent) 0px, color-mix(in srgb, var(--accent-auto) 7%, transparent) 1px, transparent 1px, transparent 5px);
+    /* Small plus signs on a grid: riveted plate, kept faint. */
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2240%22%20height%3D%2240%22%20viewBox%3D%220%200%2040%2040%22%3E%3Cpath%20d%3D%22M16%2020H24M20%2016V24%22%20fill%3D%22none%22%20stroke%3D%22%23c98a4a%22%20stroke-opacity%3D%22.17%22%20stroke-width%3D%221%22%2F%3E%3C%2Fsvg%3E");
+    background-size: 40px 40px;
   }
   html[data-theme="copper-forge"] .tool-section,
   html[data-theme="copper-forge"] .settings-section{
@@ -1461,6 +1464,15 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      because it must beat the `:hover` rule's own specificity
      unconditionally. */
   .fx-flash-reset::after{ transition: none !important; transform: scaleX(0) !important; }
+  /* A button that is already lit by its own state (current tab, on toggle,
+     selected item) has nothing to fill, so no hover fill and no refill. A
+     click flash already running (the click that made it active) is left to
+     finish: it floods the whole button, fades, and only then does this rule
+     hold the fill at zero. Everything returns once it stops being active. */
+  button.active:not(.fx-flash)::after, button.on:not(.fx-flash)::after,
+  button.selected:not(.fx-flash)::after, button[aria-pressed="true"]:not(.fx-flash)::after{
+    transition: none !important; transform: scaleX(0) !important; opacity: 0 !important;
+  }
 
   /* Card lift: the second Refine Theme reward alongside the button
      hover-fill above — same epic/legendary + `.theme-refined` group, so
@@ -1496,6 +1508,67 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      handled separately above via `--flair-play`. */
   html.no-flourish-tilt .card:hover{ transform: none !important; }
   html.no-flourish-hover button::after{ display: none !important; }
+
+  /* ---------- Gallery grounds for the themes that had none ----------
+     Same rules as the older grounds above: derived from theme vars through
+     color-mix() (night mode inverts them), ink at 3-8% so it reads as texture
+     and vanishes behind cards, and built from tiles or straight hatch so the
+     optional gallery scroll (ground-scroll.ts) can drift them. Each echoes its
+     theme's mat at a larger, quieter scale. */
+  /* Royal Amethyst: a wide gilt argyle, diamonds on hairline gold. */
+  html[data-theme="amethyst"] #gallery{
+    background-image:
+      repeating-linear-gradient(45deg, color-mix(in srgb, var(--accent-auto) 6%, transparent) 0 1px, transparent 1px 44px),
+      repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-auto) 6%, transparent) 0 1px, transparent 1px 44px);
+  }
+  /* Candy Pop: candy silhouettes (wrapped candy, candy corn, marshmallow), all
+     tilted the same 24 degrees. SVG tiles carry literal palette colors at low
+     alpha: a data-URI image can't read theme vars, so night mode leaves them be. */
+  html[data-theme="candy-pop"] #gallery{
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22300%22%20height%3D%22260%22%20viewBox%3D%220%200%20300%20260%22%3E%3Cg%20transform%3D%22translate%2862%2052%29%20rotate%28-24%29%22%3E%3Cg%20fill%3D%22%23ff5fa2%22%20fill-opacity%3D%220.18%22%3E%3Ccircle%20r%3D%2211%22%2F%3E%3Cpath%20d%3D%22M-9%20-1%20L-25%20-10%20Q-29%200%20-25%2010%20L-9%201%20Z%22%2F%3E%3Cpath%20d%3D%22M9%20-1%20L25%20-10%20Q29%200%2025%2010%20L9%201%20Z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3Cg%20transform%3D%22translate%28205%2044%29%20rotate%28-24%29%22%3E%3Cg%20fill%3D%22%23ffb800%22%20fill-opacity%3D%220.26%22%20stroke%3D%22%23ffb800%22%20stroke-opacity%3D%220.26%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22round%22%3E%3Cpolygon%20points%3D%22-0%2C-18%200%2C-18%204.2%2C-7%20-4.2%2C-7%22%2F%3E%3Cpolygon%20points%3D%22-5.2%2C-4.5%205.2%2C-4.5%209.2%2C6%20-9.2%2C6%22%2F%3E%3Cpolygon%20points%3D%22-10.1%2C8.5%2010.1%2C8.5%2013%2C16%20-13%2C16%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3Cg%20transform%3D%22translate%28262%20128%29%20rotate%28-24%29%22%3E%3Crect%20x%3D%22-15%22%20y%3D%22-10%22%20width%3D%2230%22%20height%3D%2220%22%20rx%3D%228%22%20fill%3D%22%232fcfb8%22%20fill-opacity%3D%220.2%22%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%22translate%28150%20140%29%20rotate%28-24%29%22%3E%3Cg%20fill%3D%22%232fcfb8%22%20fill-opacity%3D%220.18%22%3E%3Ccircle%20r%3D%2211%22%2F%3E%3Cpath%20d%3D%22M-9%20-1%20L-25%20-10%20Q-29%200%20-25%2010%20L-9%201%20Z%22%2F%3E%3Cpath%20d%3D%22M9%20-1%20L25%20-10%20Q29%200%2025%2010%20L9%201%20Z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3Cg%20transform%3D%22translate%2852%20196%29%20rotate%28-24%29%22%3E%3Cg%20fill%3D%22%23ff5fa2%22%20fill-opacity%3D%220.17%22%20stroke%3D%22%23ff5fa2%22%20stroke-opacity%3D%220.17%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22round%22%3E%3Cpolygon%20points%3D%22-0%2C-18%200%2C-18%204.2%2C-7%20-4.2%2C-7%22%2F%3E%3Cpolygon%20points%3D%22-5.2%2C-4.5%205.2%2C-4.5%209.2%2C6%20-9.2%2C6%22%2F%3E%3Cpolygon%20points%3D%22-10.1%2C8.5%2010.1%2C8.5%2013%2C16%20-13%2C16%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3Cg%20transform%3D%22translate%28214%20214%29%20rotate%28-24%29%22%3E%3Crect%20x%3D%22-15%22%20y%3D%22-10%22%20width%3D%2230%22%20height%3D%2220%22%20rx%3D%228%22%20fill%3D%22%23ffb800%22%20fill-opacity%3D%220.26%22%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%22translate%28108%20236%29%20rotate%28-24%29%22%3E%3Crect%20x%3D%22-15%22%20y%3D%22-10%22%20width%3D%2230%22%20height%3D%2220%22%20rx%3D%228%22%20fill%3D%22%23ff5fa2%22%20fill-opacity%3D%220.14%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+    background-size: 300px 260px;
+  }
+  /* Cyberpunk: data rails, a thin vertical line every 96px with a node between. */
+  html[data-theme="cyberpunk"] #gallery{
+    background-image:
+      linear-gradient(90deg, color-mix(in srgb, var(--accent-flair) 7%, transparent) 1px, transparent 1px),
+      radial-gradient(circle, color-mix(in srgb, var(--accent-flair) 16%, transparent) 1.2px, transparent 1.8px);
+    background-size: 96px 100%, 96px 96px;
+    background-position: 47px 0, 0 0;
+  }
+  /* Obsidian: long glassy facets, the mat's fracture lines opened out. */
+  html[data-theme="obsidian"] #gallery{
+    background-image:
+      repeating-linear-gradient(115deg, color-mix(in srgb, var(--accent-auto) 5%, transparent) 0 1px, transparent 1px 61px),
+      repeating-linear-gradient(115deg, color-mix(in srgb, var(--text-primary) 4%, transparent) 0 1px, transparent 1px 97px);
+  }
+  /* Osmium: the brand dot field, quieter and wider than the mat's. */
+  html[data-theme="osmium"] #gallery{
+    background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text-primary) 8%, transparent) 1px, transparent 1.5px);
+    background-size: 26px 26px;
+  }
+  /* Rose Gold: Art Deco pinstripe, a paired hairline every 72px. */
+  html[data-theme="rose-gold"] #gallery{
+    background-image: repeating-linear-gradient(90deg,
+      color-mix(in srgb, var(--accent-auto) 8%, transparent) 0 1px, transparent 1px 5px,
+      color-mix(in srgb, var(--accent-auto) 8%, transparent) 5px 6px, transparent 6px 72px);
+  }
+  /* Studio: the workbench pegboard, holes far apart. */
+  html[data-theme="studio"] #gallery{
+    background-image: radial-gradient(circle, color-mix(in srgb, var(--text-primary) 6%, transparent) 1.2px, transparent 1.8px);
+    background-size: 32px 32px;
+  }
+  /* Subway: a fine navigation grid, the sibling of Midnight Ocean's chart grid on a tighter 80px cell. */
+  html[data-theme="subway"] #gallery{
+    background-image:
+      linear-gradient(color-mix(in srgb, var(--text-primary) 12%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--text-primary) 12%, transparent) 1px, transparent 1px);
+    background-size: 80px 80px;
+  }
+  /* Toxic Waste: hazard bands, wide and barely there. */
+  html[data-theme="toxic-waste"] #gallery{
+    background-image: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-auto) 4%, transparent) 0 14px, transparent 14px 56px);
+  }
 
   /* ---------- Image mats: the letterbox behind every image ----------
      A fixed-shape frame (the 3:4 card thumb, Single view's preview, the image
@@ -3831,6 +3904,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   #galleryToolbar.toolbar-collapsed .toolbar-collapse-btn{ display: none; }
   .toolbar-expand-row{ position: sticky; top: 0; z-index: 16; height: 0; }
+  /* No dataset: the toolbar itself is display:none (index.ts), so a ▼ to bring
+     it back has nothing to bring back. */
+  #galleryToolbar[style*="display: none"] + .toolbar-expand-row{ display: none !important; }
   .toolbar-expand-btn{
     position: absolute !important; right: 12px; top: 6px;
     padding: 2px 7px; min-height: 0; line-height: 0;
