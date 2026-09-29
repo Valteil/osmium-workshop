@@ -475,7 +475,10 @@ export const HELP_SECTIONS: HelpSection[] = [
       everywhere — whether a theme has it natively or you bought it via Refine Theme. Three
       independent toggles (<b>Disable hover-fill</b>, <b>Disable card hover-tilt</b>, <b>Disable
       ambient animations</b>) let you turn off just one specific motion effect instead of all of
-      them. None of these touch a theme's static colors, textures, or glows.</p>
+      them. None of these touch a theme's static colors, textures, or glows. <b>Scroll the image
+      mats slowly</b> is the one option that adds motion (off by default): the pattern behind
+      gallery images drifts gently. Custom themes and Solar Flare stay still, and Disable ambient
+      animations pauses it.</p>
       <p>When the app opens, a short <b>opening flourish</b> plays in your theme: a sweep of the
       theme's colour carrying its own version of the Osmium mark, trailing the theme's particles as
       it leaves. ${isTouchDevice ? 'Tap' : 'Click or press any key'} to speed it up, or turn it off

@@ -1670,6 +1670,62 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: var(--c-pri-hover, color-mix(in srgb, var(--accent-manual) 35%, var(--bg-panel)));
   }
 
+  /* ---------- Image mats: optional slow scroll ----------
+     Settings > Visual flourishes > "Scroll the image mats slowly" adds
+     `html.mat-scroll`. Each layer drifts down and right at about 6px/s per
+     axis (one 120s loop), and every layer travels a whole number of its own
+     tiles per loop, so the wrap is invisible and layers of different tile
+     sizes still move at nearly the same speed. Element-sized hatch layers
+     (repeating-linear-gradient, no tile size) get a tile of exactly one
+     period here, only in this block, so the static mats above are untouched.
+     Overlay layers (the ledger's margin rule, Aurora's fade) stay put, and
+     Solar Flare's concentric rings can't tile, so it keeps still.
+     background-position is a paint-only property, which is the price of a
+     pattern that repeats; the drift is too slow to need more. The block below
+     is generated from the mats above; re-derive it if a mat changes. */
+  @keyframes matDrift{
+    from{ background-position: var(--mat-p0); }
+    to{ background-position: var(--mat-p1); }
+  }
+  html.mat-scroll{ --mat-p0: 0px 0px; --mat-p1: 720px 720px; --mat-drift: matDrift; }
+  /* Custom's mat is written inline by Theme Studio (any of its patterns), so
+     none of the tables below describe it: it stays still. */
+  html.mat-scroll[data-theme="custom"]{ --mat-drift: none; }
+  html.mat-scroll[data-theme="cyberpunk"]{ --mat: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-flair) 13%, transparent) 0 1px, transparent 1px 7px) 0 0 / 10px 10px; --mat-p0: 0px 0px; --mat-p1: 720px 720px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="oriental"]{ --mat-p0: 0px 0px, 11px 9px; --mat-p1: 713px 722px, 725px 722px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="subway"]{ --mat-p0: 0px 0px, 0px 0px; --mat-p1: 728px 714px, 728px 714px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="osmium"]{ --mat-p0: 0px 0px; --mat-p1: 720px 720px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="terminal"]{ --mat: repeating-linear-gradient(0deg, color-mix(in srgb, var(--text-primary) 9%, transparent) 0 1px, transparent 1px 3px) 0 0 / 3px 3px; --mat-p0: 0px 0px; --mat-p1: 0px 720px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="sakura"]{ --mat-p0: 6px 8px, 25px 27px; --mat-p1: 744px 711px, 767px 732px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="bioluminescent"]{ --mat-p0: 3px 5px, 17px 19px; --mat-p1: 728px 718px, 748px 722px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="amethyst"]{ --mat: repeating-linear-gradient(45deg, color-mix(in srgb, var(--accent-auto) 13%, transparent) 0 1px, transparent 1px 14px) 0 0 / 20px 20px, repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-auto) 13%, transparent) 0 1px, transparent 1px 14px) 0 0 / 20px 20px; --mat-p0: 0px 0px, 0px 0px; --mat-p1: 720px 720px, 720px 720px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="solarflare"]{ --mat-drift: none; }
+  html.mat-scroll[data-theme="midnight-ocean"]{ --mat-p0: 0px 0px, 0px 0px; --mat-p1: 726px 726px, 726px 726px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="arctic-frost"]{ --mat: repeating-linear-gradient(60deg, var(--mat-ink) 0 1px, transparent 1px 12px) 0 0 / 14px 24px, repeating-linear-gradient(-60deg, var(--mat-ink) 0 1px, transparent 1px 12px) 0 0 / 14px 24px; --mat-p0: 0px 0px, 0px 0px; --mat-p1: 714px 720px, 714px 720px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="forest-moss"]{ --mat-p0: 0px 0px, 4px 6px; --mat-p1: 720px 715px, 719px 727px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="vintage-paper"]{ --mat-p0: 0px 0px, 0px 0px; --mat-p1: 0px 0px, 0px 720px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="obsidian"]{ --mat: repeating-linear-gradient(115deg, color-mix(in srgb, var(--accent-auto) 10%, transparent) 0 1px, transparent 1px 19px) 0 0 / 21px 45px, repeating-linear-gradient(115deg, var(--mat-ink) 0 1px, transparent 1px 31px) 0 0 / 34px 73px; --mat-p0: 0px 0px, 0px 0px; --mat-p1: 714px 720px, 714px 730px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="retrowave"]{ --mat-p0: 0px 0px, 0px 0px; --mat-p1: 720px 720px, 720px 720px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="rose-gold"]{ --mat: repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent-auto) 16%, transparent) 0 1px, transparent 1px 4px, color-mix(in srgb, var(--accent-auto) 16%, transparent) 4px 5px, transparent 5px 22px) 0 0 / 22px 22px; --mat-p0: 0px 0px; --mat-p1: 726px 0px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="coral-reef"]{ --mat-p0: 4px 6px, 20px 24px; --mat-p1: 718px 728px, 748px 728px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="toxic-waste"]{ --mat: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-auto) 5%, transparent) 0 4px, transparent 4px 16px) 0 0 / 23px 23px; --mat-p0: 0px 0px; --mat-p1: 713px 713px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="lavender-fields"]{ --mat-p0: 0px 0px; --mat-p1: 720px 721px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="candy-pop"]{ --mat-p0: 0px 0px, 12px 12px; --mat-p1: 720px 720px, 732px 732px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="copper-forge"]{ --mat-p0: 0px 0px, 7px 7px; --mat-p1: 714px 714px, 721px 721px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="blood-moon"]{ --mat-p0: 5px 3px, 19px 16px; --mat-p1: 718px 732px, 732px 719px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="twilight-garden"]{ --mat-p0: 8px 10px, 30px 29px; --mat-p1: 713px 741px, 733px 771px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="aurora-borealis"]{ --mat: linear-gradient(transparent 35%, var(--bg-base)) 0 0 / 100% 100% no-repeat, repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent-success) 11%, transparent) 0 2px, transparent 2px 9px, color-mix(in srgb, var(--accent-flair) 9%, transparent) 9px 10px, transparent 10px 17px) 0 0 / 17px 17px; --mat-p0: 0px 0px, 0px 0px; --mat-p1: 0px 0px, 714px 0px; --mat-drift: matDrift; }
+  html.mat-scroll[data-theme="celestial-gold"]{ --mat-p0: 7px 11px, 29px 3px, 13px 23px; --mat-p1: 739px 753px, 732px 741px, 735px 736px; --mat-drift: matDrift; }
+  html.mat-scroll .card .thumbwrap,
+  html.mat-scroll .single-preview{
+    animation-name: var(--mat-drift, none); animation-duration: 120s;
+    animation-timing-function: linear; animation-iteration-count: infinite;
+    animation-play-state: var(--flair-play, running);
+  }
+  @media (prefers-reduced-motion: reduce){
+    html.mat-scroll .card .thumbwrap, html.mat-scroll .single-preview{ animation: none; }
+  }
+
   /* ================= End themes ================= */
 
   select#themeSelect{
