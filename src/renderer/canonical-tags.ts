@@ -604,7 +604,7 @@ function buildRuleRow(rule: CanonicalRule): HTMLElement {
   const head = document.createElement('div');
   head.className = 'canonical-rule-head';
 
-  if (rule.canonical){
+  if (rule.canonical !== null){
     const label = document.createElement('span');
     label.className = 'canonical-rule-label';
     label.textContent = `→ ${rule.canonical}`;
@@ -655,7 +655,7 @@ function buildRuleRow(rule: CanonicalRule): HTMLElement {
     markRulesDirtyRef();
     renderCanonicalTagsList();
   });
-  head.appendChild(deleteRuleBtn);
+  if (rule.canonical !== null) head.appendChild(deleteRuleBtn); // the one void box is permanent
   row.appendChild(head);
 
   const chipRow = document.createElement('div');
@@ -726,46 +726,33 @@ voidSectionExpanded = getBool('dts-void-section-expanded', true);
 // since void rules tend to be numerous/set-and-forget once tuned; merge just
 // gets a plain header, mainly so it's clear where void's rules end and
 // merge's begin instead of the list just continuing with no divider.
+// There is exactly ONE void rule, always shown as a single box holding every voided tag (older
+// data or a hand-edited file may hold several: fold them into the first). It is created on demand
+// and only counts as changed data once it has children.
+function ensureVoidRule(): CanonicalRule {
+  const voids = canonicalRules.filter(r => r.canonical === null);
+  if (!voids.length){
+    const rule: CanonicalRule = { id: nextRuleId(), canonical: null, children: [], ...newRuleDefaults() };
+    canonicalRules.push(rule);
+    return rule;
+  }
+  const [first, ...extra] = voids;
+  if (extra.length){
+    for (const r of extra){
+      for (const t of r.children) if (!first.children.includes(t)) first.children.push(t);
+      for (const t of (r.disabledChildren || [])) if (!(first.disabledChildren || (first.disabledChildren = [])).includes(t)) first.disabledChildren.push(t);
+    }
+    canonicalRules = canonicalRules.filter(r => r.canonical !== null || r === first);
+    markRulesDirtyRef();
+  }
+  return first;
+}
+
+// Merge rules sit on top, one row each; the single Void box sits below them and collapses.
 export function renderCanonicalTagsList(){
   canonicalTagsList.innerHTML = '';
-  if (canonicalRules.length === 0){
-    const empty = document.createElement('div');
-    empty.className = 'stats-empty';
-    empty.textContent = 'No standing merge/void rules yet — use Tag Pruner\'s Unify/Void above, or "+ New rule" below.';
-    canonicalTagsList.appendChild(empty);
-    return;
-  }
-
-  const voidRules = canonicalRules.filter(r => !r.canonical);
-  const mergeRules = canonicalRules.filter(r => r.canonical);
-
-  if (voidRules.length){
-    // Void rules are a single shared bucket by design (registerVoidRule()
-    // funnels every voided tag into one rule, no separate rule per tag) —
-    // counting RULES here would almost always just say "(1)" regardless of
-    // how many tags are actually being voided, which reads as wrong even
-    // though it's technically accurate. Count tags instead, since that's
-    // what this section is actually communicating.
-    const voidTagCount = voidRules.reduce((sum, r) => sum + r.children.length, 0);
-    const section = document.createElement('div');
-    section.className = 'settings-section canonical-rule-group';
-    section.classList.toggle('expanded', voidSectionExpanded);
-    const header = document.createElement('button');
-    header.type = 'button';
-    header.className = 'settings-section-header';
-    header.innerHTML = `<span class="settings-section-arrow">${iconSvg('chevron-right')}</span><span>${iconSvg('trash', 'ic-lead')}Void — ${voidTagCount} tag${voidTagCount === 1 ? '' : 's'}</span>`;
-    header.addEventListener('click', () => {
-      voidSectionExpanded = !section.classList.contains('expanded');
-      section.classList.toggle('expanded', voidSectionExpanded);
-      setBool('dts-void-section-expanded', voidSectionExpanded);
-    });
-    section.appendChild(header);
-    const body = document.createElement('div');
-    body.className = 'settings-section-body';
-    for (const rule of voidRules) body.appendChild(buildRuleRow(rule));
-    section.appendChild(body);
-    canonicalTagsList.appendChild(section);
-  }
+  const voidRule = ensureVoidRule();
+  const mergeRules = canonicalRules.filter(r => r.canonical !== null);
 
   if (mergeRules.length){
     const header = document.createElement('div');
@@ -774,6 +761,26 @@ export function renderCanonicalTagsList(){
     canonicalTagsList.appendChild(header);
     for (const rule of mergeRules) canonicalTagsList.appendChild(buildRuleRow(rule));
   }
+
+  const voidTagCount = voidRule.children.length;
+  const section = document.createElement('div');
+  section.className = 'settings-section canonical-rule-group';
+  section.classList.toggle('expanded', voidSectionExpanded);
+  const header = document.createElement('button');
+  header.type = 'button';
+  header.className = 'settings-section-header';
+  header.innerHTML = `<span class="settings-section-arrow">${iconSvg('chevron-right')}</span><span>${iconSvg('trash', 'ic-lead')}Void — ${voidTagCount} tag${voidTagCount === 1 ? '' : 's'}</span>`;
+  header.addEventListener('click', () => {
+    voidSectionExpanded = !section.classList.contains('expanded');
+    section.classList.toggle('expanded', voidSectionExpanded);
+    setBool('dts-void-section-expanded', voidSectionExpanded);
+  });
+  section.appendChild(header);
+  const body = document.createElement('div');
+  body.className = 'settings-section-body';
+  body.appendChild(buildRuleRow(voidRule));
+  section.appendChild(body);
+  canonicalTagsList.appendChild(section);
 }
 
 interface CanonicalTagsDeps {
@@ -796,19 +803,15 @@ export function initCanonicalTags(deps: CanonicalTagsDeps): void {
   btnAddCanonicalRule.addEventListener('click', () => {
     const newRule = { id: nextRuleId(), canonical: '', children: [], ...newRuleDefaults() };
     canonicalRules.push(newRule);
-    // A blank-canonical new rule renders inside the void group (see
-    // renderCanonicalTagsList()) until it's given a name — force that group
-    // open so the inline rename input below is actually visible, even if
-    // the user had collapsed it.
-    voidSectionExpanded = true;
+    // A blank-canonical new rule renders in the merge list (see
+    // renderCanonicalTagsList()) until it's given a name. Void is one permanent box, so
+    // this button only ever makes merge rules.
     renderCanonicalTagsList();
     // The freshly-added row's canonical name still needs typing in — turn
     // its label into an editable input this one time, since every other
     // rule already has a name by the point it exists. Looked up by the
-    // rule's own id (not "the last .canonical-rule-row in the DOM") since
-    // the void/merge grouping above means a blank-canonical (void-shaped)
-    // new rule doesn't necessarily render last — it lands in the void
-    // group, which renders BEFORE merge rules.
+    // rule's own id (not "the last .canonical-rule-row in the DOM"), since the
+    // void box renders after the merge rules.
     const newRow = canonicalTagsList.querySelector(`.canonical-rule-row[data-rule-id="${newRule.id}"]`);
     const head = newRow && newRow.querySelector('.canonical-rule-head');
     if (!head) return;
@@ -816,17 +819,20 @@ export function initCanonicalTags(deps: CanonicalTagsDeps): void {
     if (!label) return;
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
-    nameInput.placeholder = 'Canonical tag name (leave blank for a void rule)';
+    nameInput.placeholder = 'Canonical tag name';
     nameInput.className = 'canonical-rule-name-input';
     function commitName(){
-      const rule = canonicalRules[canonicalRules.length - 1];
-      // Enter followed by a blur (or just blur alone) can both fire this —
-      // only log the creation once, the first time canonical moves off its
-      // '' placeholder.
-      const isFirstCommit = rule.canonical === '';
+      const rule = canonicalRules.find(r => r.id === newRule.id);
+      if (!rule || rule.canonical !== '') return; // Enter then blur can both land here: commit once
       const name = nameInput.value.trim().replace(/_/g, ' ').replace(/\s+/g, ' ');
-      rule.canonical = name || null;
-      if (isFirstCommit) logRuleChange(`Created ${ruleLabel(rule)}.`);
+      if (!name){
+        // No name, no rule: void is the fixed box below, not something this button makes.
+        canonicalRules = canonicalRules.filter(r => r.id !== newRule.id);
+        renderCanonicalTagsList();
+        return;
+      }
+      rule.canonical = name;
+      logRuleChange(`Created ${ruleLabel(rule)}.`);
       markRulesDirtyRef();
       renderCanonicalTagsList();
     }
