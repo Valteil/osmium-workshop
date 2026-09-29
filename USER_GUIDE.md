@@ -613,8 +613,7 @@ This guide covers the desktop app. Two siblings share this repo:
   - The in-app ❓ Help is rewritten for touch; read that instead of this guide on mobile.
   - Released since v1.8.0: each release has an `OsmiumWorkshop-<version>-android.apk`. Install it
     over any earlier build to keep your data. The Comfy Bridge Android app is
-    `ComfyBridge-<version>-android.apk`; a build that hasn't been tested on a phone yet is posted as
-    its own pre-release.
+    `ComfyBridge-<version>-android.apk`.
 - **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
   featuring a built-in workflow: no node graph to navigate, every generation saves straight to
   disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or

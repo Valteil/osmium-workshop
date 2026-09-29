@@ -12,9 +12,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ## v1.9.5
 
-Osmium Workshop and Comfy Bridge for Windows. The Comfy Bridge Android app is in a separate
-[v1.9.5-android pre-release](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.5-android)
-until it's been tested on a phone. The Osmium Android app isn't part of this release. Get it from
+Osmium Workshop and Comfy Bridge for Windows, plus the Comfy Bridge Android app. The Osmium
+Android app isn't part of this release. Get it from
 [v1.9.0-android](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.0-android).
 
 ### Osmium Workshop
@@ -67,8 +66,7 @@ until it's been tested on a phone. The Osmium Android app isn't part of this rel
 
 ### Comfy Bridge for Android
 
-In the [v1.9.5-android pre-release](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.5-android),
-not yet tested on a phone. It also gets the Back button, gallery and font changes above.
+`ComfyBridge-1.9.5-android.apk`. It also gets the Back button, gallery and font changes above.
 
 - **Generate queues**, like on Windows: press Generate during a run and it queues another with
   the settings as they are then. Stop, or the notification's Cancel, ends the current run and
