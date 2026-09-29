@@ -1506,6 +1506,69 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html.no-flourish-tilt .card:hover{ transform: none !important; }
   html.no-flourish-hover button::after{ display: none !important; }
 
+  /* ---------- Gallery grounds for the themes that had none ----------
+     Same rules as the older grounds above: derived from theme vars through
+     color-mix() (night mode inverts them), ink at 3-8% so it reads as texture
+     and vanishes behind cards, and built from tiles or straight hatch so the
+     optional gallery scroll (ground-scroll.ts) can drift them. Each echoes its
+     theme's mat at a larger, quieter scale. */
+  /* Royal Amethyst: a wide gilt argyle, diamonds on hairline gold. */
+  html[data-theme="amethyst"] #gallery{
+    background-image:
+      repeating-linear-gradient(45deg, color-mix(in srgb, var(--accent-auto) 6%, transparent) 0 1px, transparent 1px 44px),
+      repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-auto) 6%, transparent) 0 1px, transparent 1px 44px);
+  }
+  /* Candy Pop: sprinkles, sparse and unmatched, three colors on prime-sized tiles. */
+  html[data-theme="candy-pop"] #gallery{
+    background-image:
+      radial-gradient(circle, color-mix(in srgb, var(--accent-flair) 16%, transparent) 3px, transparent 3.6px),
+      radial-gradient(circle, color-mix(in srgb, var(--accent-manual) 13%, transparent) 2.5px, transparent 3px),
+      radial-gradient(circle, color-mix(in srgb, var(--accent-auto) 13%, transparent) 2px, transparent 2.5px);
+    background-size: 97px 83px, 71px 103px, 127px 89px;
+    background-position: 12px 20px, 44px 61px, 79px 9px;
+  }
+  /* Cyberpunk: data rails, a thin vertical line every 96px with a node between. */
+  html[data-theme="cyberpunk"] #gallery{
+    background-image:
+      linear-gradient(90deg, color-mix(in srgb, var(--accent-flair) 7%, transparent) 1px, transparent 1px),
+      radial-gradient(circle, color-mix(in srgb, var(--accent-flair) 16%, transparent) 1.2px, transparent 1.8px);
+    background-size: 96px 100%, 96px 96px;
+    background-position: 47px 0, 0 0;
+  }
+  /* Obsidian: long glassy facets, the mat's fracture lines opened out. */
+  html[data-theme="obsidian"] #gallery{
+    background-image:
+      repeating-linear-gradient(115deg, color-mix(in srgb, var(--accent-auto) 5%, transparent) 0 1px, transparent 1px 61px),
+      repeating-linear-gradient(115deg, color-mix(in srgb, var(--text-primary) 4%, transparent) 0 1px, transparent 1px 97px);
+  }
+  /* Osmium: the brand dot field, quieter and wider than the mat's. */
+  html[data-theme="osmium"] #gallery{
+    background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text-primary) 8%, transparent) 1px, transparent 1.5px);
+    background-size: 26px 26px;
+  }
+  /* Rose Gold: Art Deco pinstripe, a paired hairline every 72px. */
+  html[data-theme="rose-gold"] #gallery{
+    background-image: repeating-linear-gradient(90deg,
+      color-mix(in srgb, var(--accent-auto) 8%, transparent) 0 1px, transparent 1px 5px,
+      color-mix(in srgb, var(--accent-auto) 8%, transparent) 5px 6px, transparent 6px 72px);
+  }
+  /* Studio: the workbench pegboard, holes far apart. */
+  html[data-theme="studio"] #gallery{
+    background-image: radial-gradient(circle, color-mix(in srgb, var(--text-primary) 6%, transparent) 1.2px, transparent 1.8px);
+    background-size: 32px 32px;
+  }
+  /* Subway: station wall tile, 2:1 glazed tiles with pale grout. */
+  html[data-theme="subway"] #gallery{
+    background-image:
+      linear-gradient(color-mix(in srgb, var(--text-primary) 5%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--text-primary) 5%, transparent) 1px, transparent 1px);
+    background-size: 64px 32px, 64px 32px;
+  }
+  /* Toxic Waste: hazard bands, wide and barely there. */
+  html[data-theme="toxic-waste"] #gallery{
+    background-image: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent-auto) 4%, transparent) 0 14px, transparent 14px 56px);
+  }
+
   /* ---------- Image mats: the letterbox behind every image ----------
      A fixed-shape frame (the 3:4 card thumb, Single view's preview, the image
      modal's image side) leaves bare ground wherever the image's aspect ratio
