@@ -3840,6 +3840,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   #galleryToolbar.toolbar-collapsed .toolbar-collapse-btn{ display: none; }
   .toolbar-expand-row{ position: sticky; top: 0; z-index: 16; height: 0; }
+  /* No dataset: the toolbar itself is display:none (index.ts), so a ▼ to bring
+     it back has nothing to bring back. */
+  #galleryToolbar[style*="display: none"] + .toolbar-expand-row{ display: none !important; }
   .toolbar-expand-btn{
     position: absolute !important; right: 12px; top: 6px;
     padding: 2px 7px; min-height: 0; line-height: 0;
