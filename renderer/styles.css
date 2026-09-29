@@ -2859,6 +2859,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .note-badge:hover{ background: rgba(0,0,0,0.8); }
   .lock-badge{
+    color: #fff;
     position: absolute; bottom: 8px; left: 8px; z-index: 5; font-size: 12px;
     background: rgba(0,0,0,0.55); border-radius: 50%; width: 20px; height: 20px;
     display: flex; align-items: center; justify-content: center;
@@ -2886,6 +2887,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .single-icon-col .card-status-icons{ position: static; gap: 6px; }
   .single-icon-col .status-icon-badge{ border: 1px solid rgba(255,255,255,0.25); }
   .mv-badge{
+    /* white like the status pills beside it: the badge icon follows currentColor, and on a light theme
+       that was near-black on the dark scrim */
+    color: #fff;
     font-size: 12px; background: rgba(0,0,0,0.55); border-radius: 50%;
     width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
   }

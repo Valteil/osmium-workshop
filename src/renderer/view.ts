@@ -1298,9 +1298,9 @@ function buildSinglePreview(e: Entry): HTMLElement {
   img.draggable = false;
   box.appendChild(img);
 
-  // One left-hand column, top to bottom: the 3-dot menu, the lock and Merge Immunize / Antivoid marks
-  // (each present only when set), then the status pills (Censored / Has text / Perspective), so up to
-  // six rows. Styled together in styles.css (`.single-icon-col`), all with the same outline.
+  // One left-hand column, top to bottom: the 3-dot menu, the three status pills (Censored / Has text /
+  // Perspective), then the Merge Immunize / Antivoid mark and the lock (each only when set): rows 1-3
+  // status, 4 immunize, 5 lock. Styled together in styles.css (`.single-icon-col`), same outline.
   const iconCol = document.createElement('div');
   iconCol.className = 'single-icon-col';
 
@@ -1312,6 +1312,9 @@ function buildSinglePreview(e: Entry): HTMLElement {
   menuBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openImageOptionsMenu(e, ev.clientX, ev.clientY); });
   iconCol.appendChild(menuBtn);
 
+  iconCol.appendChild(buildStatusIconsEl(e));
+  const mvBadges = buildMergeVoidBadgesEl(e);
+  if (mvBadges) iconCol.appendChild(mvBadges);
   if (e.meta && e.meta.locked){
     const lockBadge = document.createElement('div');
     lockBadge.className = 'lock-badge';
@@ -1319,10 +1322,6 @@ function buildSinglePreview(e: Entry): HTMLElement {
     lockBadge.title = 'Locked — mass tools (Quick Merge, Master Tags, bulk WD14, etc.) skip this image';
     iconCol.appendChild(lockBadge);
   }
-  const mvBadges = buildMergeVoidBadgesEl(e);
-  if (mvBadges) iconCol.appendChild(mvBadges);
-
-  iconCol.appendChild(buildStatusIconsEl(e));
   box.appendChild(iconCol);
 
   const hint = document.createElement('div');
