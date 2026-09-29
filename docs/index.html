@@ -753,7 +753,7 @@
         <span class="kicker-chip"><span class="dot"></span><span data-latest-ver>v1.6.0</span> · Windows portable · Android</span>
         <h1 class="hero-title display">The denser,<br><em>the better.</em></h1>
         <p class="hero-sub hero-sub-first">You ever see a LoRA out there that looks great, and you wanna make one yourself... but all that comes out is a mess?</p>
-        <p class="hero-sub">Datasets are the foundation of good LoRAs, and mistagging or undertagging kills the output. Osmium Workshop is a free, feature-dense dataset manager for Anima and the booru-tag models around it. It gets you from raw images to a clean, tagged dataset in hours instead of days. Hand-edited quality, none of the overwhelm.</p>
+        <p class="hero-sub">A good LoRA mostly comes down to its dataset, and bad tags sink it. Osmium Workshop is a free dataset manager for Anima and the booru-tag models around it. It takes you from raw images to a clean, tagged dataset in hours instead of days, with hand-edited quality and none of the overwhelm.</p>
         <div class="hero-ctas">
           <a class="btn btn-primary" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download for Windows</a>
           <a class="hero-cta-secondary" href="https://github.com/Valteil/osmium-workshop" target="_blank" rel="noopener">View source on GitHub →</a>
@@ -821,7 +821,7 @@
     <div class="wrap">
       <div class="section-head">
         <h2>Here's what you're getting</h2>
-        <p>Click around. Feel around. I put the damn thing right on this page so you don't even need to download it to give it a try. It opens on a small sample dataset, <strong>Chromatic Void</strong>, with every image still untagged: select them in <strong>Tag Overseer</strong> and run WD14 to tag them. WD14 and SynthDat are mocked up here (no GPU sits behind a web page), and the demo never touches your own files. Reload and it starts fresh.</p>
+        <p>Click around. I put the damn thing right on this page, so you can try it without downloading anything. It opens on a small sample dataset, <strong>Chromatic Void</strong>, with every image still untagged: select them in <strong>Tag Overseer</strong> and run WD14 to tag them. WD14 and SynthDat are mocked up here (no GPU sits behind a web page), and the demo never touches your own files. Reload and it starts fresh.</p>
       </div>
 
       <div id="demoWrap" class="demo-frame">
@@ -904,7 +904,7 @@
         </div>
         <div class="conn-copy">
           <h3>Tag Pruner — Unify &amp; Void</h3>
-          <p>Tired of manually sorting through junk tags that mean the same thing, or tags that shouldn't be in there after using WD14? Unify and Void are persistent, dataset-wide tools that automatically filter out tags from any and all images added, stopping rogue tags from ever appearing <strong>AGAIN</strong>. Just set the rules once, and never worry about outliers from there on! <strong>Flag Isolated Tags</strong> makes this even easier!</p>
+          <p>Sorting through junk tags by hand gets old, whether they all mean the same thing or just shouldn't be there after WD14. Unify and Void are persistent, dataset-wide rules: set one once and it filters those tags out of every image you add afterwards. <strong>Flag Isolated Tags</strong> helps you spot the stray ones worth writing a rule for.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-pruner" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -936,7 +936,7 @@
         </div>
         <div class="conn-copy">
           <h3>Retroactive Merge / Void rules</h3>
-          <p>Unify and Void also automatically apply to images with offending tags, even before you set them. No going back!</p>
+          <p>Rules apply to images that already have the offending tags too, not only the ones you add later.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-rules" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -976,7 +976,7 @@
         </div>
         <div class="conn-copy">
           <h3>WD14 autotagger — no ComfyUI required</h3>
-          <p>Want to tag images seamlessly but don't have ComfyUI? Don't worry. Osmium has WD14 built right in. Use your CPU to tag, or flip on Hardware Acceleration and let your GPU do it faster!</p>
+          <p>No ComfyUI? WD14 is built in. It runs on your CPU, or on your GPU if you turn on Prefer GPU.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-wd14" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -1009,7 +1009,7 @@
         <div class="conn-copy">
           <h3>SynthDat Overseer — grow a thin dataset (needs ComfyUI)</h3>
           <p>Only have five good images of a character? Train a quick first-pass LoRA on what you've got, then point SynthDat at it to generate more, ControlNet-posed off one reference. That's how you grow the dataset for a stronger second pass. It pulls pose tags from the reference automatically, runs a 1- or 2-pass generation, and shows you the result before anything gets written. <strong>Accept</strong> puts it straight in the dataset. <strong>Reject</strong> parks it in Disabled instead of throwing it away.</p>
-          <p>No need to keep ComfyUI open, either: point Osmium at your install and it starts it itself, loading only what this workflow needs (<strong>Osmium Comfy</strong>). It runs headless, and the only thing it asks of your install is Osmium's custom nodes. Press Generate again while one's running to queue more; every result waits its turn for your Accept or Reject, nothing gets thrown out behind your back. The <strong>Main LoRA weight</strong> field sets how hard your character LoRA pulls, with 1 as full strength.</p>
+          <p>No need to keep ComfyUI open, either: point Osmium at your install and it starts it itself, loading only what this workflow needs (<strong>Osmium Comfy</strong>). It runs headless, and the only thing it asks of your install is Osmium's custom nodes. Press Generate again while one's running to queue more. Every result waits its turn for your Accept or Reject, so nothing gets thrown out behind your back. The <strong>Main LoRA weight</strong> field sets how hard your character LoRA pulls, with 1 as full strength.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-synthdat" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -1040,7 +1040,7 @@
         </div>
         <div class="conn-copy">
           <h3>Undo/redo, and a Log to rule them all</h3>
-          <p>Made a mistake? The edit log preserves <strong>ALL</strong> edits, making sure you can edit anything from <strong>ANY</strong> point in time!</p>
+          <p>Made a mistake? The edit log keeps every edit, and you can undo or redo any single entry on its own, not just the latest one.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-log" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show the screen</span></button>
         </div>
       </div>
@@ -1098,7 +1098,7 @@
         </div>
         <div class="conn-copy">
           <h3>Sequential Edit</h3>
-          <p>Need to go over your entire dataset, and refine tags at the same time? Don't waste clicks on manual inspection; Sequential Mode lets you go through <strong>EVERY</strong> image of your dataset, with easy controls per image to indicate text, censorship, perspective, and for those who are naughty, censor types. Yeah I know you guys are gonna use this to make hentai loRA it's basically a given isn't it</p>
+          <p>Want to go through the whole dataset and refine tags as you go? Sequential Mode walks you through every image with quick controls for text, censorship and perspective, plus censor types for the naughty ones. Yeah, I know you're all going to use this for hentai LoRAs. It's basically a given.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-sequential" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
