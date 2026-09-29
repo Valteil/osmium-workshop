@@ -23,7 +23,9 @@ logged, confirmed, and undoable.
 ## Product Purpose
 
 Osmium Workshop is a **local-first dataset tag editor** for AI training images
-(`image` + matching `.txt` caption files). It exists because curating thousands of
+(`image` + matching `.txt` caption files), scoped first and foremost to **Anima** (Circlestone Labs)
+and the booru-tag model families like it. It works as a dataset manager for other models, but
+design and defaults follow Anima's tag-based captioning; SynthDat and Comfy Bridge run its workflow. It exists because curating thousands of
 image/caption pairs is tedious and ComfyUI alone offers no dataset management. It is a
 feature-heavy, ComfyUI-compatible dataset manager: tag editing as clean
 space-separated text (underscores normalized on load, restored on save), plus

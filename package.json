@@ -1,7 +1,7 @@
 {
   "name": "osmium-workshop",
   "version": "1.9.5",
-  "description": "Local dataset tag editor for AI training images, packaged as a desktop app.",
+  "description": "Local dataset tag editor for AI training images (built around Anima and booru-tag models), packaged as a desktop app.",
   "main": "main.js",
   "author": "",
   "license": "MIT",
