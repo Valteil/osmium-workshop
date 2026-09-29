@@ -32,7 +32,7 @@ import { masterSelectedImages, renderMasterSelectionSummary, refreshMasterMiniGr
 import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
 import { setIconLabel, iconSvg } from './icons';
-import { ghostTagsFor, resweepAllEntries, type GhostTag } from './canonical-tags';
+import { ghostTagsFor, resweepAllEntries, restoreEntryFromRules, type GhostTag } from './canonical-tags';
 import { subjectPresets, upsertSubjectPreset, deleteSubjectPreset, subjectPresetById } from './subject-presets';
 
 export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
@@ -3591,6 +3591,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
     if (!entry.meta!.mergeImmune) resweepAllEntries(); // no longer protected: apply the merge rules now
+    else restoreEntryFromRules(entry, { merge: true }); // newly protected: give back what merges took
     setIconLabel(toggleMergeImmuneBtn, mergeImmuneLabel());
     setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
     renderCurrentView();
@@ -3601,6 +3602,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
     if (!entry.meta!.antivoid) resweepAllEntries(); // no longer protected: apply the void rules now
+    else restoreEntryFromRules(entry, { void: true }); // newly protected: give back what voids took
     setIconLabel(toggleAntivoidBtn, antivoidLabel());
     setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
     renderCurrentView();
@@ -3613,6 +3615,7 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     getEntryMeta()[entry.base] = entry.meta!;
     saveEntryMetaRef();
     if (bothOn) resweepAllEntries(); // protection removed: apply the rules now
+    else restoreEntryFromRules(entry, { merge: true, void: true }); // newly protected: give back what the rules took
     setIconLabel(toggleMergeImmuneBtn, mergeImmuneLabel());
     setIconLabel(toggleAntivoidBtn, antivoidLabel());
     setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());

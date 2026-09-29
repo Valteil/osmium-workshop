@@ -477,6 +477,33 @@ export function ghostTagsFor(entry: Entry): GhostTag[] {
     && (g.kind === 'void' || entry.tags.includes(g.canonical!)));
 }
 
+// An image that just became immune (Merge Immunize / Antivoid) stops being
+// rewritten by the rules, and gets back what they already took: the same tags
+// its ghost chips preview. Void ghosts come back as they were; a merge rule's
+// canonical tag is dropped once its children are restored (as unmergeChildren
+// does when a rule is turned off). Applies even to a locked image, since the
+// user just acted on this one image; a Disabled image is left frozen.
+export function restoreEntryFromRules(entry: Entry, kinds: { merge?: boolean; void?: boolean }, refresh = true): boolean {
+  if (entry.disabled) return false;
+  ghostCache = null;
+  const dismissed = entry.meta?.ghostDismissed || [];
+  const list = (ghostMap().get(entry.base) || []).filter(g => !entry.tags.includes(g.tag) && !dismissed.includes(g.tag)
+    && (g.kind === 'void' ? !!kinds.void : !!kinds.merge && entry.tags.includes(g.canonical!)));
+  if (!list.length) return false;
+  const prevTags = entry.tags.slice();
+  const voided = list.filter(g => g.kind === 'void').map(g => g.tag);
+  const merged = list.filter(g => g.kind === 'merge');
+  const canonicals = Array.from(new Set(merged.map(g => g.canonical!)));
+  entry.tags = [...entry.tags.filter(t => !canonicals.includes(t)), ...list.map(g => g.tag)];
+  markDirtyRef(entry);
+  const affected = [{ base: entry.base, original: entry.original || undefined, prevTags, newTags: entry.tags.slice() }];
+  if (merged.length) recordChangeRef('unmerge', `Merge Immunize gave ${entry.imgName} its ${merged.length === 1 ? `tag "${merged[0].tag}"` : `${merged.length} tags`} back.`, affected, { restoredTags: merged.map(g => g.tag), canonical: canonicals[0] });
+  if (voided.length) recordChangeRef('unvoid', `Antivoid gave ${entry.imgName} its ${voided.length === 1 ? `tag "${voided[0]}"` : `${voided.length} tags`} back.`, affected, { revivedTags: voided });
+  ghostCache = null;
+  if (refresh) refreshAllUIRef();
+  return true;
+}
+
 // Rule CONFIG changes (pause/resume, add/remove/toggle a child, create,
 // delete) have no tag-level effect of their own to attach undo/redo to —
 // separate from unmergeChildren()'s own log entry above (which covers
