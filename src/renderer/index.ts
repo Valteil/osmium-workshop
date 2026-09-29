@@ -586,6 +586,8 @@ import { setIconLabel } from './icons';
       : tabMasterTags.classList.contains('active') ? 'master'
       : tabStats.classList.contains('active') ? 'stats'
       : tabSynthDat.classList.contains('active') ? 'synthdat' : 'gallery';
+    // Already on this tab: nothing moves.
+    if (fromTab === tab){ applyState(); return; }
     const regionOf = (t: string): HTMLElement | null => {
       if (onShell(fromTab) && onShell(tab)) return document.getElementById('rightPanelContent');
       if (onShell(t)) return document.getElementById('shell');
