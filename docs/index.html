@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-random-theme>
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -16,6 +16,11 @@
      saved-theme painter. -->
 <script src="assets/night-palette.js"></script>
 <script src="assets/site-theme.js"></script>
+<script>
+  /* Night mode is the visitor's own switch (the moon button next to Theme). A saved "on" is applied
+     before first paint so it never flashes day; the body script clears night-instant after the first frame. */
+  try { if (localStorage.getItem('osmium-site-night') === '1') document.documentElement.classList.add('night', 'night-instant'); } catch (e) {}
+</script>
 <style>
   /* Registered so --night is an animatable <number>, not an opaque token —
      required for the transition below to interpolate it frame by frame
@@ -27,8 +32,8 @@
   }
   :root{
     --night:0;
-    /* Time-based, not scroll-linked: html.night (toggled by JS at the
-       #features boundary, see script below) flips this 0→1 and the page
+    /* Time-based, not scroll-linked: html.night (toggled by the visitor's moon button,
+       see script below) flips this 0→1 and the page
        recolors over a fixed --night-dur whatever the scroll speed.
        One curve for EVERYTHING — ground, text, lines and accents all move
        together, starting the instant the boundary is crossed. (It used to
@@ -52,16 +57,19 @@
        literal invert put red/blue at 3.4–3.5:1 against the inverted ground
        (fails 4.5:1 body-text contrast); ink/ink-soft/green already cleared
        it un-nudged. */
+    /* Osmium, exactly as the app has it: day values are its bg-base / bg-elevated / bg-panel / text-* /
+       border-* / accents, night values are what the app's own night mode (night-palette.js) does to them.
+       Re-check against docs/assets/themes.json when the app's Osmium changes. */
     --ground-l:#f4f4f1;      --ground-d:#0e0e0b;
-    --ground-dim-l:#ececE7;  --ground-dim-d:#151513;
-    --card-l:#ffffff;        --card-d:#1a1a17;
+    --ground-dim-l:#ececea;  --ground-dim-d:#151513;
+    --card-l:#ffffff;        --card-d:#000000;
     --ink-l:#141412;         --ink-d:#ededeb;
-    --ink-soft-l:#4a4a45;    --ink-soft-d:#b0b0a8;
-    --line-l:#d9d9d3;        --line-d:#2c2c26;
-    --line-strong-l:#b7b7ae; --line-strong-d:#4a4a42;
-    --red-l:#e14b3a;         --red-d:#e56557;
+    --ink-soft-l:#4a4a45;    --ink-soft-d:#babab5;
+    --line-l:#deded5;        --line-d:#2a2a21;
+    --line-strong-l:#b7b7ae; --line-strong-d:#515148;
+    --red-l:#e14b3a;         --red-d:#e14b3a;
     --green-l:#3f9d4f;       --green-d:#62c072;
-    --blue-l:#3b76d6;        --blue-d:#5f8fdd;
+    --blue-l:#3b76d6;        --blue-d:#477fd9;
 
     /* The only things every rule in this file actually reads: each token
        mixes its light/dark endpoint on the one --night curve. The endpoints
@@ -104,7 +112,10 @@
     :root{ transition:none; }
   }
   *{box-sizing:border-box;}
+  /* Belt and braces: nothing may widen the page past the viewport (that is what makes a phone open it
+     zoomed in). `clip`, unlike `hidden`, leaves position:sticky alone. */
   html{scroll-behavior:smooth;}
+  body{overflow-x:clip;}
   body{
     margin:0;
     background:var(--ground);
@@ -177,6 +188,15 @@
   }
   .theme-pick-btn:hover, .theme-pick-btn[aria-expanded="true"]{border-color:var(--ink);}
   .theme-pick-btn:focus-visible, .tp-opt:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+  .night-toggle{
+    display:inline-flex; align-items:center; justify-content:center; width:36px; height:34px; padding:0;
+    color:var(--ink); background:transparent; border:1px solid var(--line-strong); border-radius:var(--radius);
+    cursor:pointer; transition:border-color .15s ease, background-color .15s ease;
+  }
+  .night-toggle svg{width:16px; height:16px;}
+  .night-toggle:hover{border-color:var(--ink);}
+  .night-toggle[aria-pressed="true"]{background:var(--ink); color:var(--ground); border-color:var(--ink);}
+  .night-toggle:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
   .tp-sw{display:inline-flex;}
   .tp-sw i{width:11px; height:11px; border-radius:50%; box-shadow:0 0 0 1.5px var(--card); background:var(--line);}
   .tp-sw i + i{margin-left:-3px;}
@@ -412,6 +432,10 @@
 
   /* ---------- inter-section teaser line ---------- */
   .transition-line{ padding-top:56px; }
+  /* With no teaser text left in it the band is just padding: drop it, and tighten the gap into Features
+     (demo bottom 64px + this 24px) so the demo runs straight into the heading. */
+  .transition-line:not(:has(p)){ display:none; }
+  .transition-line:not(:has(p)) + #features{ padding-top:24px; }
   .transition-line p{
     max-width:640px; margin:0; font-family:var(--f-display); letter-spacing:-0.01em;
     font-size:1.3rem; font-weight:600; color:var(--ink);
@@ -625,7 +649,9 @@
   }
   @media (max-width:860px){
     .stair-wrap{ height:auto; display:flex; flex-direction:column; gap:28px; }
-    .stair-shot{ position:static; width:100%; max-width:none; transform:none !important; }
+    /* margin:0 — a <figure>'s default 16px 40px margin on top of width:100% pushed the page 14px wider than
+       a phone, so mobile browsers opened it zoomed in to make the overflow fit. */
+    .stair-shot{ position:static; width:100%; max-width:none; margin:0; transform:none !important; }
   }
 
   /* ---------- hub / apps ---------- */
@@ -690,7 +716,16 @@
   }
   @media (max-width:420px){
     .brand-name{font-size:1rem;}
-    .btn-sm{padding:8px 11px; font-size:0.72rem;}
+    .btn-sm{padding:8px 9px; font-size:0.72rem;}
+    /* The header row (brand + theme + moon + download) must fit the phone: anything wider makes the page
+       scroll sideways and the browser opens it zoomed in. */
+    .brand{gap:8px;}
+    .nav-ctas{gap:6px;}
+    .theme-pick-btn{padding:8px 9px;}
+    .night-toggle{width:32px; height:32px;}
+  }
+  @media (max-width:340px){
+    .brand-name{display:none;}
   }
 </style>
 </head>
@@ -746,10 +781,9 @@
       <span class="brand-name">Osmium Workshop</span>
     </a>
     <nav class="links">
-      <a href="#demo">Look inside</a>
-      <a href="#features">Toolset</a>
+      <a href="#features">Featured Tools</a>
       <a href="#bridge">Comfy Bridge</a>
-      <a href="#apps">Three apps</a>
+      <a href="#apps">Releases</a>
     </nav>
     <div class="nav-ctas">
       <div class="theme-pick">
@@ -762,11 +796,14 @@
         <div class="theme-pick-menu" id="themePickMenu">
           <p class="tp-head">The app's 26 themes, on this page</p>
           <div class="tp-list" id="themePickList" role="listbox" aria-label="Site theme"></div>
-          <p class="tp-foot">Scroll past the demo and you'll see each theme's night mode, the same inversion the app uses.</p>
+          <p class="tp-foot">Use the moon button next to this menu to see each theme's night mode, the same inversion the app uses.</p>
         </div>
       </div>
-      <a class="btn btn-ghost btn-sm" href="#demo">Try it right here</a>
-      <a class="btn btn-primary btn-sm" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download <span data-latest-ver>v1.6.0</span></a>
+      <button type="button" class="night-toggle" id="nightToggle" aria-pressed="false" aria-label="Night mode" title="Night mode">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 12.2A7 7 0 0 1 7.8 3.5a7 7 0 1 0 8.7 8.7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </button>
+      <a class="btn btn-ghost btn-sm" href="#demo">Try it here</a>
+      <a class="btn btn-primary btn-sm" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download Latest</a>
     </div>
   </div>
 </header>
@@ -774,7 +811,7 @@
 <main id="top">
 
   <!-- ============ HERO ============ -->
-  <section class="hero">
+  <section class="hero" data-plate="off">
     <div class="rings" aria-hidden="true">
       <svg width="1400" height="1400" viewBox="0 0 1400 1400">
         <g fill="none" stroke="var(--line)" stroke-width="1">
@@ -786,18 +823,18 @@
     <div class="wrap hero-grid">
       <div>
         <span class="kicker-chip"><span class="dot"></span><span data-latest-ver>v1.6.0</span> · Windows portable · Android</span>
-        <h1 class="hero-title display">The denser,<br><em>the better.</em></h1>
-        <p class="hero-sub hero-sub-first">You ever see a LoRA out there that looks great, and you wanna make one yourself... but all that comes out is a mess?</p>
-        <p class="hero-sub">A good LoRA mostly comes down to its dataset, and bad tags sink it. Osmium Workshop is a free dataset manager for Anima and the booru-tag models around it. It takes you from raw images to a clean, tagged dataset in hours instead of days, with hand-edited quality and none of the overwhelm.</p>
+        <h1 class="hero-title display">The denser the tool,<br><em>the better it is</em></h1>
+        <p class="hero-sub hero-sub-first" data-plate="on">A dataset manager build primarily to build training data for Booru-tag based models, with features primarily built around Anima by Circlestone labs.</p>
+        <p class="hero-sub" data-plate="on">Osmium is feature-dense, comes with plenty of QoL features, and contains a slew of comprehensive visual customization to make curating datasets something that doesn't make you scratch your head like a monkey. </p>
         <div class="hero-ctas">
-          <a class="btn btn-primary" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download for Windows</a>
-          <a class="hero-cta-secondary" href="https://github.com/Valteil/osmium-workshop" target="_blank" rel="noopener">View source on GitHub →</a>
+          <a class="btn btn-primary" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Get it Now</a>
+          <a class="hero-cta-secondary" href="https://github.com/Valteil/osmium-workshop" target="_blank" rel="noopener">View source →</a>
         </div>
         <div class="hero-meta">
           <span><strong>Portable.</strong> Unzip and use immediately.</span>
-          <span><strong>Every edit</strong> logged and undoable.</span>
+          <span><strong>Recommended: ComfyUI installation </strong></span>
         </div>
-        <p class="hero-gen-note">Tagging runs in this app. WD14 autotagging downloads its model on first use and works offline after that, or it can use a WD14 node on your own ComfyUI instead. Generation (<strong>SynthDat Overseer</strong>, <strong>Comfy Bridge</strong>) is separate: both run on a bundled workflow built around Anima, a diffusion model by Circlestone Labs, and need ComfyUI: a running server, or (on Windows) your own install, which they start for you as a headless ComfyUI that loads only what the workflow needs. All it takes on your side is the Osmium custom nodes installed. Other model families will probably load, but expect weird results outside of Anima.</p>
+        <p class="hero-gen-note" data-plate="on">Osmium is capable of running WD14 AND your Comfy installation with its integrated workflow. The latter works by driving your full Comfy server, or by Osmium its own minimalistic server that only loads what it needs on-demand.<br><br>WD14 tagging can run even without Comfy by using your CPU or GPU as configured. <strong>Osmium and ComfyBridge do not share a terminal; you will not be able to run Osmium's SynthDat tab generations on a Cbridge terminal and vice versa.</strong></p>
       </div>
       <div class="hero-art" aria-hidden="true">
         <svg class="lattice" viewBox="0 0 250 250">
@@ -855,8 +892,8 @@
   <section id="demo">
     <div class="wrap">
       <div class="section-head">
-        <h2>Here's what you're getting</h2>
-        <p>Click around. I put the damn thing right on this page, so you can try it without downloading anything. It opens on a small sample dataset, <strong>Chromatic Void</strong>, with every image still untagged: select them in <strong>Tag Overseer</strong> and run WD14 to tag them. WD14 and SynthDat are mocked up here (no GPU sits behind a web page), and the demo never touches your own files. Reload and it starts fresh.</p>
+        <h2>Test it live, right here</h2>
+        <p>Don't wanna download it yet? Don't fret; I put the damn thing right on this page.  That way you can put your slimy little mitts all over my pristine buttons without any committment. <br><br>Since I don't want you to think I'm putting viruses on your PC/Laptop/glorified potato wired to a GTX by asking you to test it on your own datasets, I threw in an example dataset: <strong>Chromatic Void. </strong>Every image is still untagged. <br><br>You can use this opportunity to try out a bunch of Osmium's functions. Note that while the WD14 and SynthDat functions "work" in this demo, they are <strong>faked, preset outputs</strong>.  But hey, cut me some slack okay? I decided against asking you to wire your Comfy to some shady site since it was in bad taste.</p>
       </div>
 
       <div id="demoWrap" class="demo-frame">
@@ -871,75 +908,46 @@
   </section>
 
   <div class="wrap transition-line">
-    <p>Don't have a damn clue on what you're doing? See what you're getting into:</p>
   </div>
 
   <!-- ============ FEATURES / CONNECTIONS ============ -->
-  <section id="features">
+  <section id="features" data-plate="off">
     <div class="wrap">
       <div class="section-head">
-        <h2>The tools you'll actually use</h2>
-        <p>All nine write to the same edit log.</p>
+        <h1>Cool Stuff You're Getting:</h1>
+        <p data-plate="on"><em>As a bonus, almost all of them create logged entries so you can undo them at any time.</em></p>
       </div>
 
-      <div class="conn-row">
+      <div class="conn-row" data-plate="off">
         <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
-            <rect x="30" y="86" width="66" height="28" rx="3"/><rect x="104" y="86" width="44" height="28" rx="3"/>
-            <line x1="160" y1="92" x2="160" y2="108"/>
-            <line x1="63" y1="86" x2="63" y2="50"/><line x1="126" y1="114" x2="126" y2="150"/>
-          </g>
-          <circle cx="63" cy="46" r="4" fill="var(--blue)"/><circle cx="126" cy="154" r="4" fill="var(--blue)"/>
-          <circle cx="160" cy="100" r="3" fill="var(--red)"/>
-          <circle cx="172" cy="100" r="5" fill="var(--green)"/></svg>
+          <svg viewBox="0 0 200 200">
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="50" y="20" width="100" height="150" rx="3"></rect><rect x="60" y="30" width="80" height="40" rx="3"></rect><rect x="60" y="80" width="80" height="80" rx="3"></rect><line x1="70" y1="100" x2="90" y2="100"></line><line x1="100" y1="100" x2="130" y2="100"></line><line x1="70" y1="90" x2="130" y2="90"></line></g>
+  <circle cx="70" cy="50" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="90" cy="50" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="110" cy="50" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="130" cy="50" r="3.5" fill="var(--blue)"></circle><g><path d="M124 150 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path></g>
+</svg>
         </div>
         <div class="conn-copy">
-          <h3>Inline tag editing</h3>
-          <p>Every card is its own little editor. Type into <strong>+ Add tag</strong> and (with autocomplete on in Settings) you get suggestions ranked by how common they are, with the tag's definition a hover away. Click a chip for its options, double-click to rename it, hit × to drop it. Edited cards stay outlined until you save.</p>
-          <button type="button" class="steps-toggle" aria-expanded="true" aria-controls="steps-inline" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Hide the steps</span></button>
+          <h3>The Basics</h3>
+          <p data-plate="on">The default view for the Gallery is Grid View, where every image in your dataset is represented by a <strong>CARD</strong>. Cards consist of a preview of your image, with the tags assigned to it represented by <strong>CHIPS</strong>. When you double click a chip, it allows you to edit the tag directly inline. Right-clicking a chip brings up a context menu for additional options, such as flagging a tag for review or viewing its definition via the built-in wiki.</p>
         </div>
       </div>
 
-      <div class="conn-steps open" id="steps-inline">
-        <div class="cs-inner"><div class="cs-body">
-          <div class="cs-view multi"><div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img alt="" decoding="async" />
-          </div></div>
-          <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-1-autocomplete.png" data-w="760" data-h="600" data-alt="An image card with &quot;sunl&quot; typed into its add-tag box and a list of suggested tags with usage counts." data-cap="Start typing in + Add tag. Suggestions come with how often each tag is used."><span class="node" aria-hidden="true"></span><span class="st-name">Start typing</span></button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-2-tag-added.png" data-w="760" data-h="600" data-alt="The same card with &quot;sunlight&quot; added as a new tag chip and a red unsaved outline." data-cap="Pick one and it lands on the card. The outline means unsaved."><span class="node" aria-hidden="true"></span><span class="st-name">It lands</span></button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/inline-editing-3-chip-menu.png" data-w="760" data-h="740" data-alt="The options menu of the &quot;blonde hair&quot; chip: show images with or without it, Tag Details, rename on this image, flag for review." data-cap="Click any chip to filter by it, read its definition, rename it on this image, or flag it for review."><span class="node" aria-hidden="true"></span><span class="st-name">Chip options</span></button></li>
-          </ol>
-          <p class="cs-cap" aria-live="polite"></p>
-        </div></div>
-      </div>
-
-      <div class="conn-row rev">
+      <div class="conn-row rev" style="--gt:190px" data-plate="off">
         <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
-            <line x1="30" y1="40" x2="100" y2="100"/><line x1="30" y1="100" x2="100" y2="100"/><line x1="30" y1="160" x2="100" y2="100"/>
-            <line x1="100" y1="100" x2="170" y2="100"/>
-          </g>
-          <g fill="var(--red)"><circle cx="30" cy="40" r="4"/><circle cx="30" cy="100" r="4"/><circle cx="30" cy="160" r="4"/></g>
-          <circle cx="100" cy="100" r="6" fill="var(--ink)"/><circle cx="170" cy="100" r="4" fill="var(--green)"/>
-          <!-- Flag Isolated Tags accent: a small hourglass (patience/waiting-
-               to-be-caught) with a trio of exclamation marks (the flag
-               itself), tucked in the corner so it reads as an addendum to
-               the main diagram, not a second competing focal point. -->
-          <g transform="translate(160,28)" opacity=".85">
-            <path d="M-9,-11 L9,-11 L0,0 L9,11 L-9,11 L0,0 Z" fill="none" stroke="var(--ink)" stroke-width="1.3" stroke-linejoin="round"/>
-            <g fill="var(--red)">
-              <rect x="16" y="-14" width="2.2" height="10" rx="1.1"/><circle cx="17.1" cy="-1" r="1.4"/>
-              <rect x="21" y="-14" width="2.2" height="10" rx="1.1"/><circle cx="22.1" cy="-1" r="1.4"/>
-              <rect x="26" y="-14" width="2.2" height="10" rx="1.1"/><circle cx="27.1" cy="-1" r="1.4"/>
-            </g>
-          </g></svg>
+          <svg viewBox="0 0 200 200">
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><line x1="30" y1="40" x2="100" y2="100"></line><line x1="30" y1="100" x2="100" y2="100"></line><line x1="30" y1="160" x2="100" y2="100"></line><line x1="100" y1="100" x2="170" y2="100"></line><rect x="16" y="-14" width="2.2" height="10" rx="3"></rect><rect x="21" y="-14" width="2.2" height="10" rx="3"></rect><rect x="26" y="-14" width="2.2" height="10" rx="3"></rect></g>
+  <circle cx="30" cy="40" r="4" fill="var(--blue)"></circle>
+  <circle cx="30" cy="100" r="4" fill="var(--blue)"></circle>
+  <circle cx="30" cy="160" r="4" fill="var(--blue)"></circle>
+  <circle cx="95" cy="100" r="6" fill="var(--ink)"></circle>
+  <circle cx="170" cy="100" r="4" fill="var(--green)"></circle>
+</svg>
         </div>
         <div class="conn-copy">
           <h3>Tag Pruner — Unify &amp; Void</h3>
-          <p>Sorting through junk tags by hand gets old, whether they all mean the same thing or just shouldn't be there after WD14. Unify and Void are persistent, dataset-wide rules: set one once and it filters those tags out of every image you add afterwards. <strong>Flag Isolated Tags</strong> helps you spot the stray ones worth writing a rule for.</p>
+          <p data-plate="on">Using WD14 can be messy, especially when prepping Character LoRA, when it can apply multiple variations of the same tag on multiple different images (example: one image has Blue Hair while the other has Black Hair, but you know for certain it's blue). <br><br><em>Fret not my little chudling;</em> with Tag Pruner, Osmium grants you greater control over how unwanted tags should be dealt with. This is referred to as adding a <strong>RULE</strong>. Rules are automated tag corrections that will affect all images retroactively once the rule is created. <br><br>Rules are split into 2 categories: <strong>MERGE </strong>and <strong>VOID</strong>. Merge works as mentioned above, while Void deletes a tag entirely from the entire dataset (useful for getting rid of things that never appear, or for tags that aren't helpful in image labeling).</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-pruner" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -952,41 +960,9 @@
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-1-select-variants.png" data-w="380" data-h="750" data-alt="The Tag Pruner searched for &quot;hair&quot;, with blonde hair, blond hair and yellow hair ticked; below, 3 tags selected affecting 18 images." data-cap="Search the Tag Pruner and tick every spelling of the same thing."><span class="node" aria-hidden="true"></span><span class="st-name">Pick the variants</span></button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-2-unify-name.png" data-w="380" data-h="300" data-alt="The Unify or Void box with &quot;blonde hair&quot; typed as the unified tag name next to Apply." data-cap="Type the one name they should all become, then Apply."><span class="node" aria-hidden="true"></span><span class="st-name">Name the result</span></button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-3-merged.png" data-w="1920" data-h="1000" data-alt="The gallery showing all 18 images now tagged &quot;blonde hair&quot;, with a new merge rule listed in the Retroactive Merge/Void dock." data-cap="All 18 images now say blonde hair, and a standing merge rule catches the variants in anything you add later."><span class="node" aria-hidden="true"></span><span class="st-name">Merged</span></button></li>
-          </ol>
-          <p class="cs-cap" aria-live="polite"></p>
-        </div></div>
-      </div>
-
-      <div class="conn-row">
-        <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
-            <line x1="100" y1="100" x2="40" y2="60"/><line x1="100" y1="100" x2="40" y2="140"/>
-            <line x1="100" y1="100" x2="160" y2="60"/><line x1="100" y1="100" x2="160" y2="140"/>
-          </g>
-          <circle cx="100" cy="100" r="6" fill="var(--ink)"/>
-          <g fill="var(--blue)"><circle cx="40" cy="60" r="4"/><circle cx="40" cy="140" r="4"/><circle cx="160" cy="60" r="4"/><circle cx="160" cy="140" r="4"/></g></svg>
-        </div>
-        <div class="conn-copy">
-          <h3>Retroactive Merge / Void rules</h3>
-          <p>Rules apply to images that already have the offending tags too, not only the ones you add later.</p>
-          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-rules" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
-        </div>
-      </div>
-
-      <div class="conn-steps" id="steps-rules">
-        <div class="cs-inner" inert><div class="cs-body">
-          <div class="cs-view multi"><div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img alt="" decoding="async" />
-          </div></div>
-          <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-void-1-select-junk.png" data-w="380" data-h="720" data-alt="The Tag Pruner with watermark, signature and artist name selected, and the Void button ready." data-cap="Select the tags that should never be there: watermark, signature, artist name."><span class="node" aria-hidden="true"></span><span class="st-name">Pick the junk</span></button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-void-2-confirm.png" data-w="400" data-h="264" data-alt="A confirmation dialog: permanently remove 3 tags from every image, with Cancel and Void tags buttons." data-cap="Void asks first, and Undo still works right after."><span class="node" aria-hidden="true"></span><span class="st-name">Confirm</span></button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/extra-standing-merge-rule.png" data-w="380" data-h="280" data-alt="The Retroactive Merge/Void dock showing a merge rule into &quot;blonde hair&quot; with its source tags and an Enabled checkbox." data-cap="Rules stay in the Retroactive Merge/Void dock. Add tags to them, switch them off, or delete them."><span class="node" aria-hidden="true"></span><span class="st-name">The rule stands</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-1-select-variants.png" data-w="380" data-h="750" data-alt="The Tag Pruner searched for &quot;hair&quot;, with blonde hair, blond hair and yellow hair ticked; below, 3 tags selected affecting 18 images." data-cap="Search the Tag Pruner and tick every spelling of the same thing."><span class="node" aria-hidden="true"></span><span class="st-name">Gather tags</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-2-unify-name.png" data-w="380" data-h="300" data-alt="The Unify or Void box with &quot;blonde hair&quot; typed as the unified tag name next to Apply." data-cap="Type the one tag they should all become, then Apply."><span class="node" aria-hidden="true"></span><span class="st-name">Decide canonical</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-3-merged.png" data-w="1920" data-h="1000" data-alt="The gallery showing all 18 images now tagged &quot;blonde hair&quot;, with a new merge rule listed in the Retroactive Merge/Void dock." data-cap="All images now say blonde hair, and a standing merge rule catches the variants in anything you add later."><span class="node" aria-hidden="true"></span><span class="st-name">Tags are merged</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
@@ -1000,18 +976,56 @@
            for "not reached yet" — the only diagram with a literal progress
            state to show, so it earns a dedicated neutral-pending color the
            others don't need. -->
-      <div class="conn-row rev">
+      <div class="conn-row" data-plate="off">
         <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
-            <rect x="24" y="76" width="48" height="48" rx="2"/>
-            <line x1="72" y1="100" x2="176" y2="100"/>
-          </g>
-          <circle cx="176" cy="100" r="6" fill="var(--green)"/>
-          <text x="30" y="105" font-family="JetBrains Mono, monospace" font-size="11" fill="var(--ink-soft)">WD14</text></svg>
+          <svg viewBox="0 0 200 200">
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><line x1="100" y1="30" x2="150" y2="40"></line><line x1="100" y1="30" x2="50" y2="40"></line><line x1="50" y1="40" x2="50" y2="80"></line><line x1="150" y1="40" x2="150" y2="80"></line><line x1="50" y1="80" x2="70" y2="130"></line><line x1="150" y1="80" x2="130" y2="130"></line><line x1="70" y1="130" x2="100" y2="150"></line><line x1="130" y1="130" x2="100" y2="150"></line></g>
+  <circle cx="100" cy="30" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="130" cy="130" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="100" cy="150" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="50" cy="40" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="150" cy="40" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="50" cy="80" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="70" cy="130" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="150" cy="80" r="3.5" fill="var(--blue)"></circle>
+</svg>
         </div>
         <div class="conn-copy">
-          <h3>WD14 autotagger — no ComfyUI required</h3>
-          <p>No ComfyUI? WD14 is built in. It runs on your CPU, or on your GPU if you turn on Prefer GPU.</p>
+          <h3>Immunize and Antivoid</h3>
+          <p data-plate="on">But what if you don't want your rules to apply everywhere? Some images may genuinely have black hair, but you have way more blue haired ones than black. Right click an image to apply <strong>IMMUNIZE </strong>or <strong>ANTIVOID.<br><br></strong>Immunize prevents images from being affected by merges, while Antivoid?<br><br>You're not gonna believe this, but... Antivoid does <strong>exactly </strong>what it says it does. Shocker.</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-rules" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
+        </div>
+      </div>
+
+      <div class="conn-steps" id="steps-rules">
+        <div class="cs-inner" inert><div class="cs-body">
+          <div class="cs-view multi"><div class="proof-frame">
+            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+            <img alt="" decoding="async" />
+          </div></div>
+          <ol class="cs-rail" style="--n:3">
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/merge-1-two-images-2.png" data-w="1548" data-h="820" data-alt="A general view of the gallery, with black and blue hair tags noticed" data-cap="You want black hair and blue hair to be merged into &quot;dark hair&quot; "><span class="node" aria-hidden="true"></span><span class="st-name">Know the offending tags</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/merge-2-rules.png" data-w="349" data-h="462" data-alt="The result of a merge; black hair and blue hair are consolidated" data-cap="Once you've wrangled what you need, apply the rules"><span class="node" aria-hidden="true"></span><span class="st-name">Set the rule</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/merge-3-immunize-merge-icon.png" data-w="508" data-h="636" data-alt="The gallery showing the effects of rules on tags. Immunize is stopping a merge." data-cap="If an image is Immunized or Antivoided, rules will not apply to it"><span class="node" aria-hidden="true"></span><span class="st-name">Immunize to set exceptions</span></button></li>
+          </ol>
+          <p class="cs-cap" aria-live="polite"></p>
+        </div></div>
+      </div>
+
+      <div class="conn-row rev" style="--gt:190px" data-plate="off">
+        <div class="conn-diagram" aria-hidden="true">
+          <svg viewBox="0 0 200 200">
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="10" y="40" width="80" height="110" rx="3"></rect><rect x="120" y="130" width="70" height="20" rx="3"></rect><path d="M144 50 C117 50 117 95 90 95"></path><path d="M90 95 C105 95 105 140 120 140"></path><line x1="130" y1="140" x2="180" y2="140"></line><rect x="20" y="50" width="60" height="40" rx="3"></rect><line x1="20" y1="100" x2="50" y2="100"></line><line x1="60" y1="100" x2="70" y2="100"></line><line x1="20" y1="110" x2="80" y2="110"></line></g>
+  <circle cx="150" cy="50" r="6" fill="var(--green)"></circle>
+  <circle cx="30" cy="70" r="3.5" fill="var(--red)"></circle>
+  <circle cx="50" cy="70" r="3.5" fill="var(--red)"></circle>
+  <circle cx="70" cy="70" r="3.5" fill="var(--red)"></circle>
+</svg>
+        </div>
+        <div class="conn-copy">
+          <h3>WD14 Autotagging</h3>
+          <p data-plate="on">Osmium can run WD14 both with and without ComfyUI. Set whatever server you want WD14 to run from (No ComfyUI still requires a model downloaded for actual inference) and you can configure tags to apply immediately or wait for review.<br><br>WD14 also works for images generated from SynthDat; Interrogate fresh outputs with WD14 to catch gaps in your initial tagging before you accept it into your dataset.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-wd14" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -1032,19 +1046,27 @@
         </div></div>
       </div>
 
-      <div class="conn-row">
+      <div class="conn-row" data-plate="off">
         <div class="conn-diagram" aria-hidden="true">
           <svg viewBox="0 0 200 200">
-          <circle cx="70" cy="100" r="5" fill="var(--ink)"/>
-          <g fill="none" stroke="var(--ink)" stroke-width="1.1" opacity=".8">
-            <line x1="70" y1="100" x2="130" y2="60"/><line x1="70" y1="100" x2="130" y2="100"/><line x1="70" y1="100" x2="130" y2="140"/>
-          </g>
-          <g fill="var(--green)"><circle cx="130" cy="60" r="3.4"/><circle cx="130" cy="100" r="3.4"/><circle cx="130" cy="140" r="3.4"/></g></svg>
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="60" y="65" width="80" height="70" rx="3"></rect><rect x="70" y="75" width="60" height="50" rx="3"></rect><line x1="70" y1="135" x2="60" y2="155"></line><line x1="130" y1="135" x2="140" y2="155"></line><line x1="80" y1="135" x2="70" y2="155"></line><line x1="120" y1="135" x2="130" y2="155"></line><line x1="60" y1="155" x2="140" y2="155"></line><path d="M35 85 C49 85 46 100 60 100"></path><path d="M25 100 C42.5 100 42.5 100 60 100"></path><path d="M35 115 C49 115 46 100 60 100"></path><path d="M165 55 C151 55 154 100 140 100"></path><path d="M175 75 C157.5 75 157.5 100 140 100"></path><path d="M185 100 C162.5 100 162.5 100 140 100"></path><path d="M140 100 C157.5 100 157.5 125 175 125"></path><path d="M140 100 C154 100 151 145 165 145"></path></g>
+  <circle cx="30" cy="85" r="5" fill="var(--red)"></circle>
+  <circle cx="20" cy="100" r="5" fill="var(--red)"></circle>
+  <circle cx="30" cy="115" r="5" fill="var(--red)"></circle>
+  <circle cx="170" cy="55" r="5" fill="var(--blue)"></circle>
+  <circle cx="180" cy="75" r="5" fill="var(--blue)"></circle>
+  <circle cx="170" cy="145" r="5" fill="var(--blue)"></circle>
+  <circle cx="180" cy="125" r="5" fill="var(--blue)"></circle>
+  <circle cx="190" cy="100" r="5" fill="var(--blue)"></circle>
+  <circle cx="100" cy="110" r="5" fill="var(--green)"></circle>
+  <circle cx="85" cy="100" r="5" fill="var(--green)"></circle>
+  <circle cx="100" cy="90" r="5" fill="var(--green)"></circle>
+  <circle cx="115" cy="100" r="5" fill="var(--green)"></circle>
+</svg>
         </div>
         <div class="conn-copy">
-          <h3>SynthDat Overseer — grow a thin dataset (needs ComfyUI)</h3>
-          <p>Only have five good images of a character? Train a quick first-pass LoRA on what you've got, then point SynthDat at it to generate more, ControlNet-posed off one reference. That's how you grow the dataset for a stronger second pass. It pulls pose tags from the reference automatically, runs a 1- or 2-pass generation, and shows you the result before anything gets written. <strong>Accept</strong> puts it straight in the dataset. <strong>Reject</strong> parks it in Disabled instead of throwing it away.</p>
-          <p>No need to keep ComfyUI open, either: point Osmium at your install and it starts it itself, loading only what this workflow needs (<strong>Osmium Comfy</strong>). It runs headless, and the only thing it asks of your install is Osmium's custom nodes. Press Generate again while one's running to queue more. Every result waits its turn for your Accept or Reject. The <strong>Main LoRA weight</strong> field sets how hard your character LoRA pulls, with 1 as full strength.</p>
+          <h3>SynthDat Overseer </h3>
+          <p data-plate="on">If you're training Character LoRA, you may sometimes have less images than you'd like (probably cause you're training off some obscure artist's OC or whatever, lol). Or maybe that character is just genuinely unpopular.<br><br>SynthDat's generation function serves as a solution to thin character datasets. It is recommended to train an at-least somewhat functioning LoRA with your initial images, then come back to Osmium and use SynthDat to generate that character in different poses. <br><br>If you're struggling to get poses right, Osmium comes with <strong>CONTROLNET</strong> using reference images within its integrated workflow; add a reference image and use that as a way to strongarm your character into a certain pose. The Controlnet is built for Anima specifically so don't expect it to work with a different model loaded.<br><br>Osmium can be wired to a running ComfyUI instance (supports Tailscale connections) or to use your current Comfy installation to run Osmium's Comfy setup (which only loads the nodes it needs from its custom node pack - <strong>You need to install that</strong>. <br><br>The practical advantage is that it loads faster (about 20s compared to 2-3 minutes on weaker machines like 30-series Laptops). Simply point Osmium to your ComfyUI folder (it should include the Python env if you're using Portable) and hit connect.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-synthdat" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -1065,7 +1087,7 @@
         </div></div>
       </div>
 
-      <div class="conn-row rev">
+      <div class="conn-row rev" style="--gt:190px" data-plate="off">
         <div class="conn-diagram" aria-hidden="true">
           <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".7">
             <line x1="30" y1="100" x2="70" y2="100"/><line x1="70" y1="100" x2="110" y2="100"/><line x1="110" y1="100" x2="150" y2="100"/><line x1="150" y1="100" x2="170" y2="100"/>
@@ -1074,8 +1096,8 @@
           <circle cx="150" cy="100" r="5" fill="var(--red)"/></svg>
         </div>
         <div class="conn-copy">
-          <h3>Undo/redo, and a Log to rule them all</h3>
-          <p>Made a mistake? The edit log keeps every edit, and you can undo or redo any single entry on its own, not just the latest one.</p>
+          <h3>External Undo/Redo logging</h3>
+          <p data-plate="on">Osmium's undo and redo persist even when you exit the program or save your edits. Unlike standard undo/redo, your edits are all logged in a text file in the dataset root. That way, you can see every edit from the very moment you start curating all the way to the very last one you do.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-log" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show the screen</span></button>
         </div>
       </div>
@@ -1088,22 +1110,39 @@
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:1" hidden>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/ui-edit-log.png" data-w="490" data-h="790" data-alt="The edit log panel: a list of edits with timestamps, each with its own Undo this and Redo this buttons." data-cap="Every edit is listed with its own Undo and Redo, saved in the dataset folder."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/ui-edit-log.png" data-w="490" data-h="790" data-alt="The edit log panel: a list of edits with timestamps, each with its own Undo this and Redo this buttons." data-cap="Every edit is saved and listed with its own Undo and Redo, saved in the dataset folder."><span class="node" aria-hidden="true"></span><span class="st-name">Osmium's Edit Log</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
       </div>
 
-      <div class="conn-row">
+      <div class="conn-row" data-plate="off">
         <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
-            <line x1="60" y1="60" x2="140" y2="140"/><line x1="140" y1="60" x2="60" y2="140"/>
-          </g>
-          <g fill="var(--blue)"><circle cx="60" cy="60" r="4"/><circle cx="140" cy="60" r="4"/><circle cx="60" cy="140" r="4"/><circle cx="140" cy="140" r="4"/></g></svg>
+          <svg viewBox="0 0 200 200">
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><line x1="100" y1="50" x2="100" y2="50"></line><line x1="100" y1="60" x2="60" y2="70"></line><line x1="60" y1="130" x2="100" y2="140"></line><line x1="100" y1="60" x2="140" y2="70"></line><line x1="140" y1="70" x2="170" y2="100"></line><line x1="60" y1="70" x2="30" y2="100"></line><line x1="30" y1="100" x2="60" y2="130"></line><line x1="140" y1="130" x2="170" y2="100"></line><line x1="100" y1="140" x2="140" y2="130"></line><path d="M39.5 45 C65.25 45 65.25 100 91 100"></path><path d="M65 19.5 C65 55.25 100 55.25 100 91"></path><path d="M90 49.5 C90 70.25 100 70.25 100 91"></path><path d="M135 24.5 C135 57.75 100 57.75 100 91"></path><path d="M170.5 60 C139.75 60 139.75 100 109 100"></path><path d="M55 160.5 C55 134.75 100 134.75 100 109"></path><path d="M24.5 135 C57.75 135 57.75 100 91 100"></path><path d="M125 185.5 C125 147.25 100 147.25 100 109"></path><path d="M170.5 150 C139.75 150 139.75 100 109 100"></path><line x1="100" y1="90" x2="70" y2="100"></line><line x1="70" y1="100" x2="100" y2="110"></line><line x1="100" y1="90" x2="130" y2="100"></line><line x1="130" y1="100" x2="100" y2="110"></line></g>
+  <circle cx="100" cy="60" r="4" fill="var(--red)"></circle>
+  <circle cx="60" cy="70" r="4" fill="var(--red)"></circle>
+  <circle cx="140" cy="70" r="4" fill="var(--red)"></circle>
+  <circle cx="30" cy="100" r="4" fill="var(--red)"></circle>
+  <circle cx="60" cy="130" r="4" fill="var(--red)"></circle>
+  <circle cx="100" cy="140" r="4" fill="var(--red)"></circle>
+  <circle cx="140" cy="130" r="4" fill="var(--red)"></circle>
+  <circle cx="170" cy="100" r="4" fill="var(--red)"></circle>
+  <circle cx="100" cy="100" r="9" fill="var(--ink)"></circle>
+  <circle cx="55" cy="165" r="4.5" fill="var(--green)"></circle>
+  <circle cx="125" cy="190" r="4.5" fill="var(--green)"></circle>
+  <circle cx="175" cy="150" r="4.5" fill="var(--green)"></circle>
+  <circle cx="20" cy="135" r="4.5" fill="var(--green)"></circle>
+  <circle cx="35" cy="45" r="4.5" fill="var(--green)"></circle>
+  <circle cx="65" cy="15" r="4.5" fill="var(--green)"></circle>
+  <circle cx="90" cy="45" r="4.5" fill="var(--green)"></circle>
+  <circle cx="135" cy="20" r="4.5" fill="var(--green)"></circle>
+  <circle cx="175" cy="60" r="4.5" fill="var(--green)"></circle>
+</svg>
         </div>
         <div class="conn-copy">
-          <h3>Master Tag Control — bulk passes</h3>
-          <p>Checkbox-select any slice of the gallery and apply, remove, or conditionally apply tags across all of it. Rename or find-and-replace dataset-wide, or delete the selection outright. Anything you've locked or marked merge-immune just sits out, no extra clicks needed.</p>
+          <h3>Tag Overseer</h3>
+          <p data-plate="on">Quickly select images, configure WD14, mass-apply tags, and segregate images into defined bucket dimensions (use <strong>512x1024</strong>, for people like me with dogshit laptops, you're welcome), all within the Tag Overseer. It lives as an alternate righthand panel, accessible either by clicking its <strong>TAB</strong> or the Tag Overseer button in the regular righthand panel.<br><br>This feature works directly (and is also lifted from) Anima Trainflow.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-master" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show the screen</span></button>
         </div>
       </div>
@@ -1122,18 +1161,17 @@
         </div></div>
       </div>
 
-      <div class="conn-row rev">
+      <div class="conn-row rev" style="--gt:190px" data-plate="off">
         <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".7">
-            <line x1="20" y1="100" x2="180" y2="100"/>
-          </g>
-          <g fill="var(--green)"><circle cx="20" cy="100" r="4"/><circle cx="55" cy="100" r="4"/><circle cx="90" cy="100" r="4"/></g>
-          <circle cx="125" cy="100" r="7" fill="var(--ink)"/>
-          <g fill="var(--line-strong)"><circle cx="160" cy="100" r="4"/><circle cx="180" cy="100" r="4"/></g></svg>
+          <svg viewBox="0 0 200 200">
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="20" y="70" width="40" height="60" rx="3"></rect><rect x="80" y="70" width="40" height="60" rx="3"></rect><rect x="140" y="70" width="40" height="60" rx="3"></rect><path d="M40 70 C40 56 70 67.5 70 53.5"></path><path d="M70 53.5 C70 67.5 100 56 100 70"></path><path d="M100 130 C100 144 130 132.5 130 146.5"></path><path d="M130 146.5 C130 132.5 160 144 160 130"></path></g>
+  <circle cx="70" cy="50" r="3.5" fill="var(--blue)"></circle>
+  <circle cx="130" cy="150" r="3.5" fill="var(--blue)"></circle><path d="M34 100 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path><path d="M94 100 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path><path d="M156 96 l8 8 M164 96 l-8 8" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round"></path>
+</svg>
         </div>
         <div class="conn-copy">
           <h3>Sequential Edit</h3>
-          <p>Want to go through the whole dataset and refine tags as you go? Sequential Mode walks you through every image with quick controls for text, censorship and perspective, plus censor types for the naughty ones. Yeah, I know you're all going to use this for hentai LoRAs. It's basically a given.</p>
+          <p data-plate="on">Sequential Mode is a subview of Single Mode, found in Tag Overseer or by the right-click context menu. Sequential mode can be started from the very first image in your dataset or from a specific one. While Single Mode manages image composition and content, Sequential mode is primarily used to classify image technicalities. Censors/Text/Perspective are included under its umbrella. Like Single mode, all these tags can be appended with a single checkbox toggle.<br><br>I added this because WD14 is inconsistent at determining perspective; a lot of images often have it skipped entirely.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-sequential" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -1154,19 +1192,18 @@
         </div></div>
       </div>
 
-      <div class="conn-row">
+      <div class="conn-row" data-plate="off">
         <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
-            <rect x="30" y="50" width="16" height="16" rx="2"/><rect x="30" y="92" width="16" height="16" rx="2"/><rect x="30" y="134" width="16" height="16" rx="2"/>
-            <line x1="58" y1="58" x2="112" y2="58"/><line x1="58" y1="100" x2="100" y2="100"/><line x1="58" y1="142" x2="120" y2="142"/>
-            <rect x="136" y="70" width="40" height="60" rx="3"/>
-          </g>
-          <path d="M33 58 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"/><path d="M33 100 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"/>
-          <g fill="var(--blue)"><circle cx="146" cy="84" r="3"/><circle cx="146" cy="100" r="3"/><circle cx="146" cy="116" r="3"/></g></svg>
+          <svg viewBox="0 0 200 200">
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="10" y="46" width="16" height="16" rx="3"></rect><rect x="10" y="88" width="16" height="16" rx="3"></rect><rect x="10" y="130" width="16" height="16" rx="3"></rect><line x1="38" y1="54" x2="92" y2="54"></line><line x1="38" y1="96" x2="80" y2="96"></line><line x1="38" y1="138" x2="100" y2="138"></line><rect x="110" y="50" width="80" height="100" rx="3"></rect><rect x="120" y="60" width="60" height="30" rx="3"></rect><line x1="120" y1="100" x2="150" y2="100"></line><line x1="160" y1="100" x2="180" y2="100"></line><line x1="120" y1="110" x2="180" y2="110"></line></g><path d="M13 54 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path><path d="M13 96 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path>
+  <circle cx="130" cy="75" r="3" fill="var(--blue)"></circle>
+  <circle cx="150" cy="75" r="3" fill="var(--blue)"></circle>
+  <circle cx="170" cy="75" r="3" fill="var(--blue)"></circle>
+</svg>
         </div>
         <div class="conn-copy">
           <h3>Quicktagging, Tag Sorting and the Wiki</h3>
-          <p><strong>Image Quicktagging</strong> turns the left panel in Single view into checkboxes for the attributes you tag over and over (hair length, body type, where they're looking), so each is one click instead of typing it every time. Add your own quicktags and categories, with rules for what they add and remove. <strong>Tag Sorting</strong> groups an image's tags under Character, Hair, Body, Face, Clothes, Pose, Scene and the rest, with a <strong>+</strong> on every category to add straight into it. And the <strong>Wiki</strong> button opens a small window that looks up what any tag means, and stays open while you work.</p>
+          <p data-plate="on">Single Mode replaces the standard lefthand panel with <strong>QUICKTAGS</strong>. Use this to quickly assign tags to an image that require a lot of case-by-case eyeballling, like breast size or hair length. Quicktags also supports toggle logic: you can set quicktags to automatically tick/untick other quicktags when toggled. <br><strong><br>Tag Sorting</strong> is a purely visual setting that groups an image's tags under Character, Hair, Body, Face, Clothes, Pose, Scene and the rest, to make assessing tags faster at a glance. Lastly, the <strong>WIKI</strong> button opens a small window that looks up what any tag means, and stays open while you work.</p>
         </div>
       </div>
 
@@ -1251,22 +1288,21 @@
   <section id="bridge">
     <div class="wrap">
       <div class="section-head">
-        <h2>Comfy Bridge: just the image</h2>
-        <p>ComfyUI is great until you have to wrangle a node graph to make one picture. Comfy Bridge puts SynthDat's workflow behind a plain form: prompt fields, models, a LoRA stack, 1 or 2 passes, an optional upscale, and every result saved straight to a folder you pick. On Windows the folders and file names are yours to shape: rating, character, LoRA and settings toggles. Windows and Android.</p>
+        <h2>Comfy Bridge: Alternative ComfyUI WebUI</h2>
+        <p data-plate="on">Honestly the name kind of explains it all. It's a bridge between Osmium's integrated workflow and your own ComfyUI installation. Useful for those who want a quick and easy Anima workflow without doing any workflow building themself.</p>
       </div>
 
-      <div class="conn-row">
+      <div class="conn-row" data-plate="off">
         <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
-            <rect x="34" y="70" width="60" height="60" rx="4"/><rect x="118" y="80" width="48" height="40" rx="3"/>
-            <line x1="94" y1="100" x2="118" y2="100"/>
-          </g>
-          <circle cx="64" cy="100" r="6" fill="var(--blue)"/>
-          <g fill="var(--green)"><circle cx="132" cy="100" r="3.4"/><circle cx="142" cy="100" r="3.4"/><circle cx="152" cy="100" r="3.4"/></g></svg>
+          <svg viewBox="0 0 200 200">
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="28" y="72" width="62" height="44" rx="3"></rect><line x1="44" y1="126" x2="74" y2="126"></line><rect x="138" y="66" width="30" height="56" rx="3"></rect></g><g><path d="M92 94 C110 80, 120 80, 136 94" fill="none" stroke="var(--blue)" stroke-width="1.6" stroke-dasharray="3 4"></path></g>
+  <circle cx="59" cy="94" r="4" fill="var(--blue)"></circle>
+  <circle cx="153" cy="94" r="4" fill="var(--green)"></circle>
+</svg>
         </div>
         <div class="conn-copy">
-          <h3>Runs your own ComfyUI install, no server</h3>
-          <p>Set <strong>Run on</strong> to <strong>Osmium Comfy</strong>, choose your ComfyUI folder and hit Connect. The Bridge starts that install itself, loading only what its workflow needs instead of every custom node you've got, and Connect is all it takes. Press Generate again while one's running and it queues, with the settings as they were when you pressed it. <strong>Persist Comfy</strong> keeps it open with the models loaded after you close the Bridge, so the next session starts instantly.</p>
+          <h3>Osmium's Comfy Instance</h3>
+          <p data-plate="on">Osmium comes bundled with a simple, but decent integrated workflow that requires installing its custom node pack. Once set up, you can point Osmium to your Comfy installation folder, and click connect on either Bridge or SynthDat's tab. It will launch an instance of comfy that uses only what Osmium needs to run, for a faster startup. Bridge supports cross-device communication; your phone can steer your home machine's Comfy Instance (Osmium or otherwise) to generate images and save local copies on your device. If you don't want to use Osmium's Comfy, then launch your <strong>own Comfy instance and paste the URL</strong> and its <strong>Port </strong>to have Osmium run its generations there.<br><br><strong>This workflow is built around Anima by Circlestone labs. Do not expect compatibility with other models when using Controlnet.</strong></p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-local" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in three steps</span></button>
         </div>
       </div>
@@ -1279,27 +1315,38 @@
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:3">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-1-local-comfyui.png" data-w="1920" data-h="1000" data-alt="Comfy Bridge with Run on set to Osmium Comfy, a ComfyUI folder chosen, Persist Comfy ticked and Osmium Comfy 0.37.0 running, beside the prompt fields." data-cap="Point it at your ComfyUI folder and Connect. It runs your install itself."><span class="node" aria-hidden="true"></span><span class="st-name">Connect</span></button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-2-queue.png" data-w="376" data-h="470" data-alt="The Generate panel reading Generating, step 14 of 25, 2 queued, with a live preview." data-cap="Hit Generate a few times. They queue and run one after another, with a live preview."><span class="node" aria-hidden="true"></span><span class="st-name">Queue a few</span></button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-3-result.png" data-w="376" data-h="810" data-alt="A finished generation as three slides, Pass 1, Pass 2 and Upscaled, while the next queued one runs." data-cap="Each result comes back as Pass 1, Pass 2 and Upscaled, all saved, while the next one runs."><span class="node" aria-hidden="true"></span><span class="st-name">Results</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/comfy-cross-connect-3.png" data-w="551" data-h="627" data-alt="Comfy Bridge with Run on set to Osmium Comfy, a ComfyUI folder chosen, Persist Comfy ticked and Osmium Comfy 0.37.0 running." data-cap="Select Osmium's Comfy"><span class="node" aria-hidden="true"></span><span class="st-name">Connect</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-2-queue.png" data-w="376" data-h="470" data-alt="The Generate panel reading Generating, step 14 of 25, 2 queued, with a live preview." data-cap="Hit Generate a few times. They queue and run one after another, with a live preview."><span class="node" aria-hidden="true"></span><span class="st-name">Queue a few</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-3-result.png" data-w="376" data-h="810" data-alt="A finished generation as three slides, Pass 1, Pass 2 and Upscaled, while the next queued one runs." data-cap="Each result comes back as Pass 1, Pass 2 and Upscaled, all saved, while the next one runs."><span class="node" aria-hidden="true"></span><span class="st-name">Results</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
       </div>
 
-      <div class="conn-row rev">
+      <div class="conn-row rev" style="--gt:190px">
         <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
-            <rect x="28" y="72" width="62" height="44" rx="3"/><line x1="44" y1="126" x2="74" y2="126"/>
-            <rect x="138" y="66" width="30" height="56" rx="5"/>
-          </g>
-          <path d="M92 94 C110 80, 120 80, 136 94" fill="none" stroke="var(--blue)" stroke-width="1.6" stroke-dasharray="3 4"/>
-          <circle cx="59" cy="94" r="4" fill="var(--blue)"/><circle cx="153" cy="94" r="4" fill="var(--green)"/></svg>
+          <svg viewBox="0 0 200 200">
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><line x1="100" y1="60" x2="100" y2="80"></line><line x1="90" y1="70" x2="100" y2="80"></line><line x1="110" y1="70" x2="100" y2="80"></line><line x1="30" y1="120" x2="30" y2="170"></line><line x1="30" y1="120" x2="80" y2="120"></line><line x1="30" y1="170" x2="80" y2="170"></line><line x1="30" y1="120" x2="10" y2="100"></line><line x1="10" y1="100" x2="60" y2="100"></line><line x1="70" y1="100" x2="90" y2="120"></line><line x1="60" y1="100" x2="70" y2="100"></line><line x1="100" y1="100" x2="100" y2="100"></line><line x1="90" y1="120" x2="110" y2="100"></line><line x1="110" y1="100" x2="180" y2="100"></line><line x1="90" y1="120" x2="90" y2="170"></line><line x1="160" y1="120" x2="160" y2="170"></line><line x1="80" y1="170" x2="160" y2="170"></line><line x1="80" y1="120" x2="160" y2="120"></line><line x1="180" y1="100" x2="160" y2="120"></line></g>
+  <circle cx="60" cy="45" r="12" fill="var(--green)"></circle>
+  <circle cx="80" cy="45" r="3" fill="var(--red)"></circle>
+  <circle cx="90" cy="45" r="3" fill="var(--red)"></circle>
+  <circle cx="100" cy="45" r="3" fill="#d99a1f"></circle>
+  <circle cx="110" cy="45" r="3" fill="#8b5cf6"></circle>
+  <circle cx="120" cy="45" r="3" fill="#8b5cf6"></circle>
+  <circle cx="130" cy="45" r="3" fill="#14b8a6"></circle>
+  <circle cx="60" cy="145" r="11" fill="var(--green)"></circle>
+  <circle cx="100" cy="140" r="3" fill="var(--red)"></circle>
+  <circle cx="110" cy="140" r="3" fill="var(--red)"></circle>
+  <circle cx="120" cy="140" r="3" fill="#d99a1f"></circle>
+  <circle cx="130" cy="140" r="3" fill="#8b5cf6"></circle>
+  <circle cx="140" cy="140" r="3" fill="#8b5cf6"></circle>
+  <circle cx="150" cy="140" r="3" fill="#14b8a6"></circle>
+</svg>
         </div>
         <div class="conn-copy">
-          <h3>Generate from your phone</h3>
-          <p>The Android app talks to any ComfyUI you can reach. Tick <strong>Let the phone app use it</strong> under Osmium Comfy and the Bridge on your PC lists the addresses to use (your Tailscale one first) and serves it to the phone like a ComfyUI server: generate, stop, queue, live preview, and the PC's ComfyUI output right in the phone's terminal panel. It works away from home over your tailnet, and with <strong>Persist Comfy</strong> on, it keeps working after you close the Bridge: the kept-open ComfyUI serves the phone itself. There's no password, same as ComfyUI's own <code>--listen</code>, so keep it to networks you trust.</p>
-          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-phone" data-n="2"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in two steps</span></button>
+          <h3>Automatic Generation Filenames</h3>
+          <p>Bridge has a handy file-naming system for your generations, being able to sort them by content rating, character names, main LoRA used, and generation parameters. These are all toggleable and so you can freely decide how your outputs will be named. You can save them directly to your own Comfy /output folder, or save a copy in a different folder <strong>while deciding if Comfy also concurrently saves its own copy in /output.<br></strong><br>You can set the output folder in the Prompts column in Bridge by scrolling to the very bottom.</p>
+          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-phone" data-n="4"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show it in 4 steps</span></button>
         </div>
       </div>
 
@@ -1310,9 +1357,11 @@
             <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
             <img alt="" decoding="async" />
           </div></div>
-          <ol class="cs-rail" style="--n:2">
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-phone-1-share.png" data-w="340" data-h="450" data-alt="The desktop Bridge's Connection section with Let the phone app use it ticked on port 8189, listing a Tailscale address and a Wi-Fi address for the phone." data-cap="On the PC, tick Let the phone app use it. The Bridge lists the address to type in."><span class="node" aria-hidden="true"></span><span class="st-name">Share it</span></button></li>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-phone-2-connected.png" data-w="412" data-h="915" data-alt="The Comfy Bridge Android app connected to the PC's address on port 8189, generating step 9 of 25 with one more queued." data-cap="On the phone, enter that address. It generates on your PC like any ComfyUI server."><span class="node" aria-hidden="true"></span><span class="st-name">Connect the phone</span></button></li>
+          <ol class="cs-rail" style="--n:4">
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/1-file-saving-drawer.png" data-w="400" data-h="740" data-alt="A panel showing the multiple filenaming options" data-cap="Cbridge gives you multiple ways to name a file"><span class="node" aria-hidden="true"></span><span class="st-name">Configure Filenaming Scheme</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/2-minimal-filename.png" data-w="400" data-h="390" data-alt="A panel showing the filename options all unticked except for Main LoRA name" data-cap="You can make the name as simple or as complex as you want"><span class="node" aria-hidden="true"></span><span class="st-name">Prune unwanted name tokens</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/3-comfyui-output-folder.png" data-w="400" data-h="330" data-alt="ComfyUI output folder setting = true" data-cap="This stops duplicate copies from appearing elsewhere"><span class="node" aria-hidden="true"></span><span class="st-name">Where to Save</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/4-separate-folder-with-comfy-copy.png" data-w="400" data-h="330" data-alt="ComfyUI output folder setting = false" data-cap="This allows Comfy to either save a duplicate copy in its /output folder, or only save in your chosen folder"><span class="node" aria-hidden="true"></span><span class="st-name">Where to Save #2</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
@@ -1320,15 +1369,24 @@
 
       <div class="conn-row">
         <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
-            <path d="M100 62 c-12-9-28-13-48-13 v90 c20 0 36 4 48 13 c12-9 28-13 48-13 v-90 c-20 0-36 4-48 13z"/><line x1="100" y1="62" x2="100" y2="152"/>
-          </g>
-          <g fill="var(--blue)"><circle cx="70" cy="84" r="3"/><circle cx="70" cy="100" r="3"/><circle cx="70" cy="116" r="3"/></g>
-          <circle cx="130" cy="100" r="5" fill="var(--green)"/></svg>
+          <svg viewBox="0 0 200 200">
+  <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="20" y="40" width="70" height="20" rx="3"></rect><rect x="100" y="70" width="90" height="20" rx="3"></rect><rect x="20" y="70" width="70" height="30" rx="3"></rect><rect x="100" y="100" width="80" height="30" rx="3"></rect><line x1="110" y1="80" x2="140" y2="80"></line><line x1="150" y1="80" x2="180" y2="80"></line><line x1="30" y1="80" x2="60" y2="80"></line><line x1="50" y1="90" x2="80" y2="90"></line><line x1="70" y1="80" x2="80" y2="80"></line><line x1="30" y1="90" x2="40" y2="90"></line><line x1="110" y1="110" x2="170" y2="110"></line><line x1="110" y1="120" x2="170" y2="120"></line><line x1="30" y1="50" x2="80" y2="50"></line><line x1="50" y1="150" x2="100" y2="130"></line><line x1="50" y1="150" x2="40" y2="170"></line><line x1="50" y1="150" x2="60" y2="170"></line><line x1="50" y1="150" x2="30" y2="150"></line><line x1="50" y1="150" x2="40" y2="130"></line><rect x="80" y="150" width="40" height="40" rx="3"></rect><line x1="50" y1="150" x2="80" y2="160"></line><line x1="130" y1="160" x2="120" y2="160"></line><path d="M100 80 C86 80 104 50 90 50"></path><path d="M90 85 C104 85 86 115 100 115"></path><path d="M160 160 C146 160 169 160 155 160"></path><path d="M140 160 C154 160 131 160 145 160"></path><path d="M160 180 C146 180 169 180 155 180"></path><path d="M140 180 C154 180 131 180 145 180"></path><path d="M135 175 C135 161 135 179 135 165"></path><path d="M165 175 C165 161 165 179 165 165"></path></g>
+  <circle cx="50" cy="150" r="5" fill="#14b8a6"></circle>
+  <circle cx="40" cy="170" r="5" fill="#14b8a6"></circle>
+  <circle cx="60" cy="170" r="5" fill="#14b8a6"></circle>
+  <circle cx="25" cy="150" r="5" fill="#14b8a6"></circle>
+  <circle cx="40" cy="130" r="5" fill="#14b8a6"></circle>
+  <circle cx="135" cy="160" r="5" fill="var(--red)"></circle>
+  <circle cx="150" cy="160" r="5" fill="var(--red)"></circle>
+  <circle cx="165" cy="160" r="5" fill="var(--red)"></circle>
+  <circle cx="135" cy="180" r="5" fill="var(--red)"></circle>
+  <circle cx="150" cy="180" r="5" fill="var(--red)"></circle>
+  <circle cx="165" cy="180" r="5" fill="var(--red)"></circle><path d="M94 170 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path>
+</svg>
         </div>
         <div class="conn-copy">
-          <h3>Tag wiki, right beside your prompt</h3>
-          <p>Not sure what a tag actually means before you prompt with it? The <strong>Wiki</strong> button opens the same definition window as Osmium Workshop: search as you type, post counts, See also links, and your own notes for tags without an entry. The definitions ship with the app, so it works offline (Android gets it in the next version).</p>
+          <h3>Built-in Booru Tag Wiki</h3>
+          <p>You don't need internet to access Osmium's bundled Danbooru Wiki. In Osmium Desktop, you can pop its tab out in Single View, which will persist everywhere in Osmium until closed. Conversely, Bridge also comes with the wiki built-in, so you can quickly look up what a tag may mean before using it in generation.</p>
           <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-wiki" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show the screen</span></button>
         </div>
       </div>
@@ -1341,40 +1399,12 @@
             <img alt="" decoding="async" />
           </div></div>
           <ol class="cs-rail" style="--n:1" hidden>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-wiki.png" data-w="650" data-h="938" data-alt="The Tag wiki window showing the definition of twintails with its post count, and a list of suggested tags beside it for the query twin." data-cap="Definitions, post counts and suggestions, beside whatever you're writing."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
+          <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-wiki.png" data-w="650" data-h="938" data-alt="The Tag wiki window showing the definition of twintails with its post count, and a list of suggested tags beside it for the query twin." data-cap="Definitions, post counts and suggestions, beside whatever you're writing."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
           </ol>
           <p class="cs-cap" aria-live="polite"></p>
         </div></div>
       </div>
 
-      <div class="conn-row rev">
-        <div class="conn-diagram" aria-hidden="true">
-          <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85">
-            <rect x="40" y="56" width="120" height="88" rx="4"/>
-          </g>
-          <g stroke="var(--ink-soft)" stroke-width="1.3"><line x1="54" y1="78" x2="118" y2="78"/><line x1="54" y1="94" x2="140" y2="94"/><line x1="54" y1="110" x2="104" y2="110"/></g>
-          <rect x="54" y="122" width="10" height="6" fill="var(--green)"/></svg>
-        </div>
-        <div class="conn-copy">
-          <h3>See what ComfyUI is doing</h3>
-          <p>The Log keeps the Bridge's own story (queued, saved, failed). The Android app adds a <strong>ComfyUI terminal</strong> with ComfyUI's actual output, live while it generates.</p>
-          <button type="button" class="steps-toggle" aria-expanded="false" aria-controls="steps-bridge-term" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">Show the screen</span></button>
-        </div>
-      </div>
-
-      <div class="conn-steps" id="steps-bridge-term">
-        <div class="cs-inner" inert><div class="cs-body">
-          <div class="cs-view"><div class="proof-frame">
-            <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-            <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-            <img alt="" decoding="async" />
-          </div></div>
-          <ol class="cs-rail" style="--n:1" hidden>
-            <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-terminal.png" data-w="386" data-h="560" data-alt="The Bridge's Log listing queued and saved generations, above the ComfyUI Terminal showing Osmium Comfy's output and a progress bar." data-cap="The Log, and ComfyUI's own output underneath."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
-          </ol>
-          <p class="cs-cap" aria-live="polite"></p>
-        </div></div>
-      </div>
     </div>
   </section>
 
@@ -1382,8 +1412,8 @@
   <section id="customization">
     <div class="wrap">
       <div class="section-head">
-        <h2>Visual customizability</h2>
-        <p>26 themes, common to legendary, and each one is a whole look: its own typefaces, button and tag shapes, textures, and hover effects, not just a palette swap. Night mode sits on top of whichever one you're using and keeps every label readable. Don't take the screenshots' word for it: pick one from the <strong>Theme</strong> menu up top and this page wears it.</p>
+        <h2>Visual Customizability </h2>
+        <p>If you're going to stare at a dataset for a few hours, why not make it less of an eyesore? Both Osmium and ComfyBridge feature a slew of themes, each with a toggleable animated background. Hopefully it makes staring at the same image a lot less grating (also I don't like ugly dataset managers).</p>
       </div>
       <div class="stair-wrap">
         <figure class="stair-shot s1">
@@ -1418,8 +1448,8 @@
   <section id="apps">
     <div class="wrap">
       <div class="section-head">
-        <h2>Dense, with forms for every function</h2>
-        <p>Same renderer code and file conventions across desktop and mobile.</p>
+        <h2>Because it wasn't enough to have a gazillion vibecoded dataset managers out there</h2>
+        <p>You can shove 3 different flavors of Osmium down your computer's gullet. <br><em><br>How fun.</em></p>
       </div>
       <div class="hub-wrap">
         <div class="hub-art" aria-hidden="true">
@@ -1438,17 +1468,17 @@
         <div class="app-list">
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--ink)"></span><h3>Osmium Workshop — Desktop</h3></div>
-            <p>Everything shown on this page, as a portable Electron app for Windows. Unzip it and run it.</p>
+            <p>The Dataset manager. Used for tagging images and generating additional material for small datasets.</p>
             <a class="btn btn-ghost btn-sm app-dl" data-dl="osmium-desktop" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download (Windows)</a>
           </div>
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--green)"></span><h3>Osmium Workshop — Mobile</h3></div>
-            <p>The same app on Android, for tagging on the go. Touch layout, on-device WD14, ComfyUI generation over LAN or Tailscale.</p>
+            <p>The same app on Android, for tagging on the go. Touch layout, on-device WD14, ComfyUI generation over LAN or Tailscale. Currently in testing.</p>
             <a class="btn btn-ghost btn-sm app-dl" data-dl="osmium-android" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
           </div>
           <div class="app-item">
             <div class="head"><span class="swatch" style="background:var(--blue)"></span><h3>Comfy Bridge</h3></div>
-            <p>A simpler ComfyUI web UI with one built-in workflow, for when you just want the image without wrangling a node graph. Runs your own ComfyUI install for you on Windows, and the Android app can generate on it from anywhere on your tailnet. <a href="#bridge">More below ↑</a></p>
+            <p>A simpler ComfyUI webUI with one built-in workflow, for when you just want the image without wrangling a node graph. </p>
             <div class="app-item-ctas">
               <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-desktop" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Windows</a>
               <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-android" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
@@ -1461,7 +1491,7 @@
 
 </main>
 
-<footer>
+<footer data-plate="off">
   <div class="wrap footer-row">
     <div class="footer-brand">
       <svg class="mark-sm" width="18" height="18" viewBox="0 0 250 250" aria-hidden="true" style="opacity:.75">
@@ -1562,89 +1592,22 @@
 })();
 
 (function(){
-  // Threshold is #features' own top edge, not a hardcoded pixel — see the
-  // CSS comment on html.night. Night mode starts exactly at "The tools
-  // you'll actually use" and reverts above it on scroll-up. Measured live
-  // (not guessed) so it tracks the section's real position regardless of
-  // hero copy length or viewport width, and re-measured on resize since
-  // reflow moves it. rAF-throttled so this never adds scroll-jank;
-  // classList toggle is a no-op when already in the right state, so
-  // re-firing every frame while scrolling past the threshold costs nothing.
-  var featuresSection = document.getElementById('features');
-  var threshold = 0;
-  function measure(){
-    threshold = featuresSection.getBoundingClientRect().top + window.scrollY;
-  }
-  // Hysteresis: once night, it takes scrolling this far back above the
-  // boundary to go day again, so resting a scroll right on the line can't
-  // strobe the page between modes. Every crossing plays the same shift at
-  // the same speed; there's no fast-scroll special case any more (the old
-  // "snap on a fling" made the same crossing sometimes fade, sometimes cut).
-  var HYSTERESIS = 96;
+  // Night mode: the visitor's own switch (the moon button beside the theme picker). Toggling plays the
+  // usual --night fade (see the CSS on html.night); the choice is remembered, and a saved "on" was
+  // already applied before first paint by the small script in <head>.
   var root = document.documentElement;
-  var wasNight = false;
-  var ticking = false;
-  // Until the visitor's first own input, any crossing is the BROWSER
-  // scrolling (an anchor jump like /#apps, scroll restoration on reload) —
-  // the page should simply be in the right mode, not fade into it. Input
-  // only, no timer: html{scroll-behavior:smooth} makes an anchor load a
-  // long SMOOTH scroll that can cross the boundary well after 'load', and
-  // every scroll a visitor causes starts with one of these events anyway
-  // (nav links included — they're a pointerdown first).
-  var settled = false;
-  function settle(){ settled = true; }
-  ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(function(t){
-    window.addEventListener(t, settle, { once: true, passive: true, capture: true });
+  var btn = document.getElementById('nightToggle');
+  if (!btn) return;
+  function sync(){ btn.setAttribute('aria-pressed', root.classList.contains('night') ? 'true' : 'false'); }
+  // setTimeout, not rAF: a background tab pauses rAF and would leave the page stuck without its fade.
+  setTimeout(function(){ root.classList.remove('night-instant'); }, 60);
+  sync();
+  btn.addEventListener('click', function(){
+    var on = !root.classList.contains('night');
+    root.classList.toggle('night', on);
+    try { localStorage.setItem('osmium-site-night', on ? '1' : '0'); } catch (e) {}
+    sync();
   });
-  function apply(){
-    var y = window.scrollY;
-    var isNight = wasNight ? y >= threshold - HYSTERESIS : y >= threshold;
-    if (isNight !== wasNight && !settled){
-      root.classList.add('night-instant');
-      root.classList.toggle('night', isNight);
-      void root.offsetHeight;
-      requestAnimationFrame(function(){ root.classList.remove('night-instant'); });
-    } else {
-      root.classList.toggle('night', isNight);
-    }
-    wasNight = isNight;
-    ticking = false;
-  }
-  function onScroll(){
-    if (!ticking) {
-      ticking = true;
-      requestAnimationFrame(apply);
-    }
-  }
-  // Land in the right mode without animating (reload or anchor link below
-  // the boundary, or a back/forward-cache restore).
-  function applyInstant(){
-    root.classList.add('night-instant');
-    measure(); apply();
-    void root.offsetHeight;
-    requestAnimationFrame(function(){ root.classList.remove('night-instant'); });
-  }
-  applyInstant();
-  window.addEventListener('pageshow', function(e){ if (e.persisted) applyInstant(); });
-  window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', function(){ measure(); apply(); });
-  // window's own 'resize' only fires when the BROWSER WINDOW changes size —
-  // it does NOT fire when page CONTENT above #features grows/shrinks after
-  // this script's first measure() call, which is exactly what the demo
-  // iframe does: its real height is set asynchronously by sizeFrame() (see
-  // that script's own comments — font-load reflow, ResizeObserver, lazy
-  // src load via IntersectionObserver), landing well after this script has
-  // already captured a threshold based on the iframe's small CSS fallback
-  // height. Without this, night mode threshold drifted to wherever the
-  // iframe happened to be sized at THIS script's run time — sometimes
-  // mid-demo, not at #features — instead of consistently at "The tools
-  // you'll actually use". A ResizeObserver on <body> catches that and any
-  // other future source of async reflow above the threshold generically,
-  // rather than wiring this script to know about the demo iframe
-  // specifically.
-  if ('ResizeObserver' in window) {
-    new ResizeObserver(function(){ measure(); apply(); }).observe(document.body);
-  }
 })();
 
 (function(){

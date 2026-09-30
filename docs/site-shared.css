@@ -16,9 +16,9 @@
    landing page (assets/site-theme.js) carries over here too, day values
    only (the page is marked data-static-theme). */
 :root{
-  --ground:#f4f4f1;      --ground-dim:#ececE7;   --card:#ffffff;
+  --ground:#f4f4f1;      --ground-dim:#ececea;   --card:#ffffff;
   --ink:#141412;         --ink-soft:#4a4a45;
-  --line:#d9d9d3;        --line-strong:#b7b7ae;
+  --line:#deded5;        --line-strong:#b7b7ae;
   --red:#e14b3a; --green:#3f9d4f; --blue:#3b76d6;
   --radius:2px; --measure:70ch;
   --f-display:'Chakra Petch',sans-serif; --f-body:'IBM Plex Sans',system-ui,sans-serif; --f-mono:'JetBrains Mono',monospace;
@@ -28,6 +28,9 @@ html{scroll-behavior:smooth;}
 body{
   margin:0;
   background:var(--ground);
+  /* The app's Osmium dot field (styles.css, `html[data-theme="osmium"] #gallery`), static here. */
+  background-image:radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 8%, transparent) 1px, transparent 1.5px);
+  background-size:26px 26px;
   color:var(--ink);
   font-family:var(--f-body);
   font-size:16px;

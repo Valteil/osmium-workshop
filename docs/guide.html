@@ -26,9 +26,9 @@
   #doc-content h4{ font-size:1rem; font-weight:600; margin:20px 0 10px; color:var(--ink-soft); }
   #doc-content p{ color:var(--ink-soft); margin:0 0 16px; line-height:1.7; }
   #doc-content strong{ color:var(--ink); font-weight:600; }
-  #doc-content code{ font-family:var(--f-mono); font-size:0.86em; background:var(--ground-dim); border:1px solid var(--line); border-radius:4px; padding:1px 6px; }
+  #doc-content code{ font-family:var(--f-mono); font-size:0.86em; background:var(--ground-dim); border:1px solid var(--line); border-radius:4px; padding:1px 6px; overflow-wrap:anywhere; }
   #doc-content pre{ background:var(--ground-dim); border:1px solid var(--line); border-radius:6px; padding:16px 18px; overflow-x:auto; margin:0 0 20px; }
-  #doc-content pre code{ background:none; border:none; padding:0; font-size:0.84rem; line-height:1.6; }
+  #doc-content pre code{ overflow-wrap:normal; background:none; border:none; padding:0; font-size:0.84rem; line-height:1.6; }
   #doc-content ul, #doc-content ol{ color:var(--ink-soft); margin:0 0 18px; padding-left:24px; line-height:1.7; }
   #doc-content li{ margin-bottom:6px; }
   #doc-content li strong{ color:var(--ink); }
@@ -37,7 +37,7 @@
   #doc-content hr{ border:0; border-top:1px solid var(--line); margin:36px 0; }
   #doc-content blockquote{ margin:0 0 20px; padding:2px 20px; border-left:3px solid var(--line-strong); color:var(--ink-soft); }
   #doc-content blockquote p{ margin:0; }
-  #doc-content table{ width:100%; border-collapse:collapse; margin:0 0 24px; font-size:0.92rem; }
+  #doc-content table{ display:block; max-width:100%; overflow-x:auto; width:100%; border-collapse:collapse; margin:0 0 24px; font-size:0.92rem; }
   #doc-content th, #doc-content td{ text-align:left; padding:9px 12px; border:1px solid var(--line); vertical-align:top; }
   #doc-content th{ background:var(--ground-dim); font-family:var(--f-display); font-weight:600; }
   #doc-content img{ max-width:100%; border-radius:4px; border:1px solid var(--line); }

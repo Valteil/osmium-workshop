@@ -163,17 +163,80 @@
     root.dataset.siteTheme = rec.id;
     if (rec.ground){ for (var g in rec.ground) set(g, rec.ground[g]); if (rec.ground['--sg-image']){ root.setAttribute('data-site-ground', ''); startGround(); } }
   }
+  // The app's Osmium theme, for the parts the site's own CSS doesn't already carry: its dot-field ground
+  // (styles.css, `html[data-theme="osmium"] #gallery`). Colours are the site defaults (index.html :root).
+  var OSMIUM = {
+    id: 'osmium',
+    vars: { '--bg-base': '#f4f4f1', '--text-primary': '#141412', '--accent-auto': '#e14b3a', '--accent-manual': '#3b76d6',
+      '--accent-flair': '#3f9d4f', '--accent-success': '#3f9d4f', '--accent-danger': '#c9372a', '--border-strong': '#b7b7ae' },
+    ground: 'background-image:radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text-primary) 8%, transparent) 1px, transparent 1.5px);background-size:26px 26px'
+  };
+  function paintOsmiumGround(){
+    if (staticPage) return;
+    var night = window.__dtsNightPalette(function(k){ return String(OSMIUM.vars[k] || '#000000').slice(0, 7); });
+    var g = groundOf(OSMIUM, night);
+    if (!g) return;
+    for (var k in g) set(k, g[k]);
+    root.setAttribute('data-site-ground', '');
+    startGround();
+  }
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch(e){}
+
+  // Random theme on every landing-page load, painted synchronously so there is no flash. The theme list
+  // is cached in localStorage (refreshed after every load), so the pick happens right here in <head>.
+  // Only the landing page opts in (<html data-random-theme>); the guide and readme keep whatever is
+  // current. Skipped when framed (the site editor's preview iframe, which starts on the last theme picked
+  // there) or with ?keep-theme. A "seen" list makes it a shuffle: no theme repeats until all have been
+  // shown, and the first theme of a new round is never the one that just ended the last. A manual pick
+  // in the menu changes what the guide and readme show but doesn't disturb the shuffle.
+  var CACHE_KEY = 'osmium-site-themes', SEEN_KEY = 'osmium-site-theme-seen';
+  var randomize = root.hasAttribute('data-random-theme') && window.self === window.top && !/[?&]keep-theme/.test(location.search);
+  function readJSON(k){ try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch(e){ return null; } }
+  if (randomize){
+    var all = readJSON(CACHE_KEY);
+    if (all && all.length > 1){
+      var seen = readJSON(SEEN_KEY) || [];
+      var pool = all.filter(function(t){ return seen.indexOf(t.id) < 0; });
+      if (!pool.length){
+        // Every theme has had its turn: start a new round, keeping the last few out of its opening so the
+        // one that just ran (or a near neighbour) doesn't come straight back.
+        seen = seen.slice(-5);
+        pool = all.filter(function(t){ return seen.indexOf(t.id) < 0; });
+      }
+      var pick = pool[Math.floor(Math.random() * pool.length)];
+      seen.push(pick.id);
+      try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen)); } catch(e){}
+      if (pick.id === 'osmium'){
+        saved = null;
+        try { localStorage.removeItem(KEY); } catch(e){}
+      } else {
+        saved = build(pick);
+        try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch(e){}
+      }
+    } else if (!readJSON(SEEN_KEY)){
+      // First visit: no list yet, so this load is plain Osmium; it counts as the round's first theme.
+      try { localStorage.setItem(SEEN_KEY, JSON.stringify(['osmium'])); } catch(e){}
+    }
+    // Keep the cached list fresh for the next load (and fill it on the first).
+    window.addEventListener('load', function(){
+      fetch('assets/themes.json').then(function(r){ return r.json(); }).then(function(list){
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(list)); } catch(e){}
+      }).catch(function(){});
+    });
+  }
+  // The guide and readme (data-static-theme) are long-form reading pages: they always keep the site's own
+  // Osmium look and never wear a theme, whatever was picked or randomized on the landing page.
+  if (staticPage) saved = null;
   // A record saved by an older build of this script can lack a token; drop it.
-  if (saved && saved.vars && saved.vars['--ground-l'] && saved.ground) paint(saved); else saved = null;
+  if (saved && saved.vars && saved.vars['--ground-l'] && saved.ground) paint(saved); else { saved = null; paintOsmiumGround(); }
 
   window.OsmiumSiteTheme = {
     current: function(){ return saved; },
     // Apply (and remember) an app theme from themes.json; Osmium resets.
     use: function(theme){
       if (!theme || theme.id === 'osmium'){
-        clear(); saved = null;
+        clear(); saved = null; paintOsmiumGround();
         try { localStorage.removeItem(KEY); } catch(e){}
         return null;
       }
