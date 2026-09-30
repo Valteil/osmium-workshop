@@ -196,7 +196,9 @@ Each item's label is short on purpose — hover any of them for the full explana
   from the Retroactive Merge/Void dock's rules (see below) — merge rules, void rules, or both.
   This is a stronger, always-on version of Lock: Lock only skips mass *tools*, these specifically
   block the standing rule system even when you deliberately re-trigger it. Use it for images that
-  must keep an exception permanently.
+  must keep an exception permanently. Turning one on gives the image back the tags the rules
+  already took (voided tags return; merged tags unmerge), and turning it off applies the rules to
+  the image again right away.
 - **⏮ Reset edits** — revert this image to its earliest known tag state. Use it to undo a bad
   autotag run on one image.
 - **🗑️ Remove all tags** — clears every tag on this image in one click (confirmed first) instead
@@ -248,8 +250,8 @@ same correction keeps applying going forward without you having to repeat it.
 Standing rules of the shape **"these tags → this one canonical tag"** (a merge), or **"these tags
 → nothing"** (a void — deletes outright, no replacement). Whenever any of a rule's tags show up on
 a Gallery image afterward — by WD14, Master Tags, an accepted SynthDat image, or anything else —
-they're automatically corrected. If you try to type one of those tags in by hand, the app blocks
-it instead of silently rewriting it, with a toast pointing you back here.
+they're automatically corrected. If you type one of those tags in by hand, it's corrected on the
+spot (a merged tag becomes its canonical tag, a voided one is dropped) and a toast says which rule did it.
 
 **This only affects Gallery images.** Disabled images are frozen exactly as they are — they only
 get corrected once they're back in the Gallery.
@@ -264,7 +266,8 @@ get corrected once they're back in the Gallery.
   alone shouldn't auto-merge anymore, since not every dress is black.
 - **Per-image Merge Immunize/Antivoid/Antimmunize** (see the 3-dot menu section above) — the
   strongest override, ignoring the dock's settings entirely for one specific image.
-- **+ New rule** adds one by hand instead of waiting for a Unify/Void action to create it.
+- **+ New rule** adds a merge rule by hand (name its canonical tag) instead of waiting for a Unify
+  action to create it. Void rules aren't made this way; see the Void box below.
 
 **Past Tag Preview.** Each image also shows the tags a rule took off it, after its real tags, as
 faded "ghost" tags. A voided tag is struck through, and a merged tag carries a small mark of four
@@ -281,10 +284,9 @@ row is what the Past Tag Preview and the restore-on-pause read. It has no Undo b
 rule would simply apply again; pause the rule instead. Rule setting changes (pausing, toggling a
 tag) are logged without an Undo too.
 
-Void rules and merge rules are shown as two separate groups in this dock — Void is collapsible
-(all your voided tags actually live under one shared rule, so there's normally just one to
-expand), Merge lists each canonical-tag rule on its own. Use standing rules so a cleanup never
-needs repeating.
+In this dock, merge rules are listed first, one row per canonical tag. Below them is a single
+collapsible **Void** box that holds every voided tag; it's permanent and can't be deleted. Use
+standing rules so a cleanup never needs repeating.
 
 ### Bucket Images
 Crops and resizes every Gallery image to its nearest LoRA training bucket, so your trainer
@@ -335,7 +337,10 @@ the model locally — no ComfyUI needed, it downloads on first use, and **Prefer
 only) runs inference via DirectML when available, falling back to CPU automatically, with the
 completion toast naming which engine ran — or **ComfyUI**, which sends images to a WD14 Tagger
 node on your own instance and scrapes its model list live. Either way you also set confidence
-thresholds and whether results apply automatically or go through a review step first. Use it to
+thresholds and whether results apply automatically or go through a review step first. The review
+step shows one card per image with its own chips: new tags are tinted, × drops a tag (click it in
+the Dropped list to put it back), you can type extra tags, and each card has an "Apply to this
+image" tick, plus Apply all / Skip all and an optional sort by category. Use it to
 bootstrap tags onto untagged imports.
 
 ### Sequential tagging

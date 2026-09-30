@@ -4155,7 +4155,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         <li><b>\u{1F6AB} Merge Immunize / \u{1F7E2} Antivoid / \u270B Antimmunize</b> \u2014 permanently exempt this one
         image from the Retroactive Merge/Void dock's rules. This is stronger than Lock: Lock only
         skips mass tools, these specifically block the standing-rule system even when you
-        deliberately re-trigger it (e.g. by editing a rule).</li>
+        deliberately re-trigger it (e.g. by editing a rule). Turning one on gives the image back
+        the tags the rules took; turning it off applies the rules to it again right away.</li>
         <li><b>\u23EE Reset edits</b> \u2014 revert this image back to its earliest known tag state.</li>
         <li><b>\u{1F5D1}\uFE0F Remove all tags</b> \u2014 clears every tag on this image at once (confirmed first)
         instead of ${isTouchDevice ? "tapping" : "clicking"} each chip's own \xD7. Undoable from the main Undo button.</li>
@@ -4196,12 +4197,12 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       <p><b>Retroactive Merge/Void</b> \u2014 standing rules: "these tags \u2192 this one canonical tag" (a
       merge) or "these tags \u2192 nothing" (a void). Whenever a rule's tags show up on a Gallery image
       afterward \u2014 by WD14, Master Tags, an accepted SynthDat image, or typing it in \u2014 they're
-      corrected automatically (typing a blocked tag by hand is refused with a toast, not silently
-      rewritten). This only affects Gallery images; Disabled ones are frozen until restored. A rule
+      corrected automatically (a ruled tag typed by hand is corrected on the spot, with a toast
+      naming the rule). This only affects Gallery images; Disabled ones are frozen until restored. A rule
       can be paused, or one of its tags turned off individually, without losing anything \u2014 both
-      actively restore whatever each affected image originally had. Void rules
-      show in their own collapsible group (they all share one rule, since there's no separate
-      canonical tag to key them by); merge rules list one row per canonical tag.</p>
+      actively restore whatever each affected image originally had. Merge rules list one row per
+      canonical tag (+ New rule only makes merge rules); below them, one permanent collapsible
+      Void box holds every voided tag.</p>
       <p><b>Past Tag Preview</b> \u2014 every image also shows the tags a rule took off it, after its
       real tags, as faded "ghost" tags: struck through for a void, with a four-arrows-inward mark
       for a merge (last in their category with Tag sorting on). They're exactly what the image gets
@@ -4297,7 +4298,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       <p><b>\u{1F40D} WD14 Autotagger</b> \u2014 sends selected images (or a single one, via its 3-dot menu)
       through WD14 and merges the tags it returns onto each card. Expand "\u2699 WD14 settings" to pick
       the tagging source, model, confidence thresholds, and whether results apply automatically or
-      go through a review step first. "Tagging source" is either <b>on-device</b> \u2014 the model runs
+      go through a review step first (one card per image: new tags tinted, \xD7 to drop, type extra
+      tags, untick a card to skip it, optional category sort). "Tagging source" is either <b>on-device</b> \u2014 the model runs
       right here, ${isTouchDevice ? "hardware-accelerated where your phone supports it, falling back to CPU otherwise" : "with <b>Prefer GPU</b> using DirectML when available and falling back to CPU (the completion toast names which one ran)"},
       no ComfyUI needed; models aren't bundled, so pick one from the built-in catalog for a one-tap
       download or paste a HuggingFace repo \u2014 or <b>ComfyUI</b>, which sends images to a WD14 Tagger
@@ -6168,7 +6170,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         continue;
       }
       const idx = buildMergeEvidenceIndex(rule.canonical, active);
-      for (const [tag, bases] of idx) for (const base of bases) add(base, { tag, kind: "merge", canonical: rule.canonical });
+      for (const [tag, bases] of idx) if (tag !== rule.canonical) for (const base of bases) add(base, { tag, kind: "merge", canonical: rule.canonical });
     }
     if (voidTags.length) {
       const idx = buildVoidEvidenceIndex(Array.from(new Set(voidTags)));
@@ -6185,7 +6187,30 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     const list = ghostMap().get(entry.base);
     if (!list) return [];
     const dismissed = entry.meta?.ghostDismissed || [];
-    return list.filter((g) => !entry.tags.includes(g.tag) && !dismissed.includes(g.tag) && (g.kind === "void" || entry.tags.includes(g.canonical)));
+    const voidSet = activeVoidTagSet();
+    return list.filter((g) => !entry.tags.includes(g.tag) && !dismissed.includes(g.tag) && (g.kind === "void" || entry.tags.includes(g.canonical) || voidSet.has(g.canonical)));
+  }
+  function restoreEntryFromRules(entry, kinds, refresh2 = true) {
+    if (entry.disabled) return false;
+    ghostCache = null;
+    const dismissed = entry.meta?.ghostDismissed || [];
+    const voidSet = activeVoidTagSet();
+    const canonicalGone = (c) => entry.tags.includes(c) || voidSet.has(c);
+    const picked = (ghostMap().get(entry.base) || []).filter((g) => !entry.tags.includes(g.tag) && !dismissed.includes(g.tag) && (g.kind === "void" ? !!kinds.void : !!kinds.merge && canonicalGone(g.canonical)));
+    const canonicals = Array.from(new Set(picked.filter((g) => g.kind === "merge").map((g) => g.canonical)));
+    const list = picked.filter((g) => !(g.kind === "void" && canonicals.includes(g.tag)));
+    if (!list.length) return false;
+    const prevTags = entry.tags.slice();
+    const voided = list.filter((g) => g.kind === "void").map((g) => g.tag);
+    const merged = list.filter((g) => g.kind === "merge");
+    entry.tags = [...entry.tags.filter((t) => !canonicals.includes(t)), ...list.map((g) => g.tag)];
+    markDirtyRef(entry);
+    const affected = [{ base: entry.base, original: entry.original || void 0, prevTags, newTags: entry.tags.slice() }];
+    if (merged.length) recordChangeRef("unmerge", `Merge Immunize gave ${entry.imgName} its ${merged.length === 1 ? `tag "${merged[0].tag}"` : `${merged.length} tags`} back.`, affected, { restoredTags: merged.map((g) => g.tag), canonical: canonicals[0] });
+    if (voided.length) recordChangeRef("unvoid", `Antivoid gave ${entry.imgName} its ${voided.length === 1 ? `tag "${voided[0]}"` : `${voided.length} tags`} back.`, affected, { revivedTags: voided });
+    ghostCache = null;
+    if (refresh2) refreshAllUIRef2();
+    return true;
   }
   function ruleLabel(rule) {
     return rule.canonical ? `merge rule \u2192 "${rule.canonical}"` : "void rule";
@@ -6250,7 +6275,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     row.classList.toggle("canonical-rule-disabled", !rule.enabled);
     const head = document.createElement("div");
     head.className = "canonical-rule-head";
-    if (rule.canonical) {
+    if (rule.canonical !== null) {
       const label = document.createElement("span");
       label.className = "canonical-rule-label";
       label.textContent = `\u2192 ${rule.canonical}`;
@@ -6289,7 +6314,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       markRulesDirtyRef();
       renderCanonicalTagsList();
     });
-    head.appendChild(deleteRuleBtn);
+    if (rule.canonical !== null) head.appendChild(deleteRuleBtn);
     row.appendChild(head);
     const chipRow = document.createElement("div");
     chipRow.className = "chiprow";
@@ -6340,45 +6365,54 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   }
   var voidSectionExpanded = true;
   voidSectionExpanded = getBool("dts-void-section-expanded", true);
+  function ensureVoidRule() {
+    const voids = canonicalRules.filter((r) => r.canonical === null);
+    if (!voids.length) {
+      const rule = { id: nextRuleId(), canonical: null, children: [], ...newRuleDefaults() };
+      canonicalRules.push(rule);
+      return rule;
+    }
+    const [first, ...extra] = voids;
+    if (extra.length) {
+      for (const r of extra) {
+        for (const t of r.children) if (!first.children.includes(t)) first.children.push(t);
+        for (const t of r.disabledChildren || []) if (!(first.disabledChildren || (first.disabledChildren = [])).includes(t)) first.disabledChildren.push(t);
+      }
+      canonicalRules = canonicalRules.filter((r) => r.canonical !== null || r === first);
+      markRulesDirtyRef();
+    }
+    return first;
+  }
   function renderCanonicalTagsList() {
     canonicalTagsList.innerHTML = "";
-    if (canonicalRules.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "stats-empty";
-      empty.textContent = `No standing merge/void rules yet \u2014 use Tag Pruner's Unify/Void above, or "+ New rule" below.`;
-      canonicalTagsList.appendChild(empty);
-      return;
-    }
-    const voidRules = canonicalRules.filter((r) => !r.canonical);
-    const mergeRules = canonicalRules.filter((r) => r.canonical);
-    if (voidRules.length) {
-      const voidTagCount = voidRules.reduce((sum, r) => sum + r.children.length, 0);
-      const section = document.createElement("div");
-      section.className = "settings-section canonical-rule-group";
-      section.classList.toggle("expanded", voidSectionExpanded);
-      const header = document.createElement("button");
-      header.type = "button";
-      header.className = "settings-section-header";
-      header.innerHTML = `<span class="settings-section-arrow">${iconSvg("chevron-right")}</span><span>${iconSvg("trash", "ic-lead")}Void \u2014 ${voidTagCount} tag${voidTagCount === 1 ? "" : "s"}</span>`;
-      header.addEventListener("click", () => {
-        voidSectionExpanded = !section.classList.contains("expanded");
-        section.classList.toggle("expanded", voidSectionExpanded);
-        setBool("dts-void-section-expanded", voidSectionExpanded);
-      });
-      section.appendChild(header);
-      const body = document.createElement("div");
-      body.className = "settings-section-body";
-      for (const rule of voidRules) body.appendChild(buildRuleRow(rule));
-      section.appendChild(body);
-      canonicalTagsList.appendChild(section);
-    }
+    const voidRule = ensureVoidRule();
+    const mergeRules = canonicalRules.filter((r) => r.canonical !== null);
     if (mergeRules.length) {
-      const header = document.createElement("div");
-      header.className = "canonical-rule-group-header";
-      header.textContent = `\u2192 Merge rules (${mergeRules.length})`;
-      canonicalTagsList.appendChild(header);
+      const header2 = document.createElement("div");
+      header2.className = "canonical-rule-group-header";
+      header2.textContent = `\u2192 Merge rules (${mergeRules.length})`;
+      canonicalTagsList.appendChild(header2);
       for (const rule of mergeRules) canonicalTagsList.appendChild(buildRuleRow(rule));
     }
+    const voidTagCount = voidRule.children.length;
+    const section = document.createElement("div");
+    section.className = "settings-section canonical-rule-group";
+    section.classList.toggle("expanded", voidSectionExpanded);
+    const header = document.createElement("button");
+    header.type = "button";
+    header.className = "settings-section-header";
+    header.innerHTML = `<span class="settings-section-arrow">${iconSvg("chevron-right")}</span><span>${iconSvg("trash", "ic-lead")}Void \u2014 ${voidTagCount} tag${voidTagCount === 1 ? "" : "s"}</span>`;
+    header.addEventListener("click", () => {
+      voidSectionExpanded = !section.classList.contains("expanded");
+      section.classList.toggle("expanded", voidSectionExpanded);
+      setBool("dts-void-section-expanded", voidSectionExpanded);
+    });
+    section.appendChild(header);
+    const body = document.createElement("div");
+    body.className = "settings-section-body";
+    body.appendChild(buildRuleRow(voidRule));
+    section.appendChild(body);
+    canonicalTagsList.appendChild(section);
   }
   function initCanonicalTags(deps3) {
     getDirHandle3 = deps3.getDirHandle;
@@ -6390,7 +6424,6 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     btnAddCanonicalRule.addEventListener("click", () => {
       const newRule = { id: nextRuleId(), canonical: "", children: [], ...newRuleDefaults() };
       canonicalRules.push(newRule);
-      voidSectionExpanded = true;
       renderCanonicalTagsList();
       const newRow = canonicalTagsList.querySelector(`.canonical-rule-row[data-rule-id="${newRule.id}"]`);
       const head = newRow && newRow.querySelector(".canonical-rule-head");
@@ -6399,14 +6432,19 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       if (!label) return;
       const nameInput = document.createElement("input");
       nameInput.type = "text";
-      nameInput.placeholder = "Canonical tag name (leave blank for a void rule)";
+      nameInput.placeholder = "Canonical tag name";
       nameInput.className = "canonical-rule-name-input";
       function commitName() {
-        const rule = canonicalRules[canonicalRules.length - 1];
-        const isFirstCommit = rule.canonical === "";
+        const rule = canonicalRules.find((r) => r.id === newRule.id);
+        if (!rule || rule.canonical !== "") return;
         const name = nameInput.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
-        rule.canonical = name || null;
-        if (isFirstCommit) logRuleChange(`Created ${ruleLabel(rule)}.`);
+        if (!name) {
+          canonicalRules = canonicalRules.filter((r) => r.id !== newRule.id);
+          renderCanonicalTagsList();
+          return;
+        }
+        rule.canonical = name;
+        logRuleChange(`Created ${ruleLabel(rule)}.`);
         markRulesDirtyRef();
         renderCanonicalTagsList();
       }
@@ -6560,23 +6598,21 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   function addTagToEntry(entry, raw) {
     const parts = raw.split(",").map((t) => t.trim().replace(/_/g, " ").replace(/\s+/g, " ")).filter(Boolean);
     if (!parts.length) return;
-    const blocked = [];
-    const added = [];
+    const corrected = [];
     const prevTags = entry.tags.slice();
     for (const tag of parts) {
-      if (findBlockingRule(tag, entry)) {
-        blocked.push(tag);
-        continue;
-      }
-      if (entry.tags.includes(tag) || added.includes(tag)) continue;
+      const rule = findBlockingRule(tag, entry);
+      if (rule) corrected.push({ tag, canonical: rule.canonical });
+      if (entry.tags.includes(tag)) continue;
       entry.tags.push(tag);
-      added.push(tag);
     }
-    if (blocked.length) {
-      toast(blocked.length === 1 && parts.length === 1 ? "This tag is affected by a merge/void rule; please check the dock area for details." : `Skipped ${blocked.map((t) => `"${t}"`).join(", ")}: affected by a merge/void rule (see the dock area).`, 3600);
+    markDirty(entry);
+    const added = entry.tags.filter((t) => !prevTags.includes(t));
+    if (corrected.length) {
+      const msg = corrected.map((c) => c.canonical ? `"${c.tag}" \u2192 "${c.canonical}"` : `"${c.tag}" removed`).join(", ");
+      toast(`Rule applied: ${msg} (see the merge/void dock).`, 3600);
     }
     if (!added.length) return;
-    markDirty(entry);
     refreshStatsRef();
     const what = added.length === 1 ? `tag "${added[0]}"` : `${added.length} tags (${added.join(", ")})`;
     recordChange(
@@ -9515,11 +9551,15 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
       }
       const meta = getEntryMeta();
       let changed = 0;
+      let unprotected = false;
+      let restored = false;
       for (const e of masterSelectedImages) {
         if (!e.meta) e.meta = {};
         const keys = Object.keys(flags);
         if (keys.every((k) => !!e.meta[k] === flags[k])) continue;
+        if (keys.some((k) => !flags[k] && e.meta[k])) unprotected = true;
         for (const k of keys) e.meta[k] = flags[k];
+        if (restoreEntryFromRules(e, { merge: !!flags.mergeImmune, void: !!flags.antivoid }, false)) restored = true;
         meta[e.base] = e.meta;
         changed++;
       }
@@ -9528,6 +9568,8 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
         return;
       }
       saveEntryMetaRef();
+      if (unprotected) resweepAllEntries();
+      else if (restored) refreshAllUIRef4();
       toast(`${actionLabel[0].toUpperCase()}${actionLabel.slice(1)} ${changed} image(s).`);
       renderCurrentViewRef2();
     }
@@ -9831,3915 +9873,6 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
         }
       });
     });
-  }
-
-  // src/comfy-core.ts
-  function parseComboValues(nodeInfo, inputName) {
-    const raw = nodeInfo?.input?.required?.[inputName];
-    if (!Array.isArray(raw)) return null;
-    if (Array.isArray(raw[0])) return raw[0];
-    const second = raw[1];
-    if (raw[0] === "COMBO" && second && Array.isArray(second.options)) return second.options;
-    return null;
-  }
-  function concatBytes(parts) {
-    let total = 0;
-    for (const p of parts) total += p.length;
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const p of parts) {
-      out.set(p, offset);
-      offset += p.length;
-    }
-    return out;
-  }
-  function buildMultipart(fields, fileField, fileName, fileBytes) {
-    const boundary = "----DTSBoundary" + Date.now().toString(16) + Math.random().toString(16).slice(2);
-    const encoder = new TextEncoder();
-    const parts = [];
-    for (const [key, value] of Object.entries(fields)) {
-      parts.push(encoder.encode(`--${boundary}\r
-Content-Disposition: form-data; name="${key}"\r
-\r
-${value}\r
-`));
-    }
-    const safeName = String(fileName).replace(/"/g, "");
-    parts.push(encoder.encode(`--${boundary}\r
-Content-Disposition: form-data; name="${fileField}"; filename="${safeName}"\r
-Content-Type: application/octet-stream\r
-\r
-`));
-    parts.push(fileBytes);
-    parts.push(encoder.encode(`\r
---${boundary}--\r
-`));
-    return { boundary, body: concatBytes(parts) };
-  }
-  function buildSynthDatPrompt(template2, cfg) {
-    const prompt = JSON.parse(JSON.stringify(template2));
-    const character = [cfg.unified ? cfg.unifiedPrompt : cfg.character, cfg.characterTrigger].filter(Boolean).join(", ");
-    prompt["21"].inputs.value = cfg.global;
-    prompt["8"].inputs.value = cfg.unified ? "" : cfg.rating;
-    prompt["19"].inputs.value = "";
-    prompt["11"].inputs.value = character;
-    prompt["12"].inputs.value = cfg.unified ? "" : cfg.hair;
-    prompt["15"].inputs.value = cfg.unified ? "" : cfg.face;
-    prompt["18"].inputs.value = cfg.unified ? "" : cfg.chest;
-    prompt["9"].inputs.value = cfg.unified ? "" : cfg.body;
-    prompt["6"].inputs.value = cfg.unified ? "" : cfg.clothes;
-    prompt["20"].inputs.value = cfg.unified ? "" : cfg.limbs;
-    prompt["14"].inputs.value = cfg.unified ? "" : cfg.sexual;
-    prompt["7"].inputs.value = cfg.unified ? "" : cfg.pose;
-    prompt["10"].inputs.value = cfg.unified ? "" : cfg.extra;
-    prompt["13"].inputs.value = cfg.unified ? "" : cfg.effects;
-    prompt["17"].inputs.value = cfg.unified ? "" : cfg.scene;
-    prompt["16"].inputs.text = cfg.negative;
-    prompt["41"].inputs.unet_name = cfg.diffModel;
-    prompt["51"].inputs.lora_name = cfg.mainLora.trim() || cfg.noLoraStandIn;
-    const mainStrength = parseFloat(cfg.mainLoraStrength ?? "");
-    if (Number.isFinite(mainStrength)) prompt["248"].inputs.strength_model = mainStrength;
-    if (cfg.clip) {
-      prompt["249"].inputs.clip_name = cfg.clip;
-      prompt["47:45"].inputs.clip_name = cfg.clip;
-    }
-    if (cfg.vae) prompt["47:46"].inputs.vae_name = cfg.vae;
-    const chunks = [];
-    for (let i = 0; i < cfg.loraRows.length; i += 4) chunks.push(cfg.loraRows.slice(i, i + 4));
-    function fillStackInputs(inputs, chunk) {
-      for (let i = 0; i < 4; i++) {
-        const slot = String(i + 1).padStart(2, "0");
-        const r = chunk[i];
-        inputs[`lora_${slot}`] = r ? r.input.trim() || "None" : "None";
-        inputs[`strength_${slot}`] = r ? parseFloat(r.strength) || 0 : 0;
-      }
-    }
-    let lastStackId = "237";
-    fillStackInputs(prompt["237"].inputs, chunks[0] || []);
-    for (let c = 1; c < chunks.length; c++) {
-      const newId = `237_extra_${c}`;
-      const newInputs = { model: [lastStackId, 0], clip: ["47:45", 0] };
-      fillStackInputs(newInputs, chunks[c]);
-      prompt[newId] = { class_type: "DSM Lora Loader Stack", inputs: newInputs, _meta: { title: "DSM Lora Loader Stack" } };
-      lastStackId = newId;
-    }
-    if (lastStackId !== "237") {
-      prompt["243"].inputs.input1 = [lastStackId, 0];
-      prompt["240"].inputs.model = [lastStackId, 0];
-      prompt["195"].inputs.model = [lastStackId, 0];
-    }
-    if (cfg.skipRefImage) {
-      delete prompt["239"];
-      delete prompt["240"];
-      delete prompt["243"];
-      delete prompt["238"];
-      delete prompt["246"];
-      prompt["158:53"].inputs.model = [lastStackId, 0];
-      prompt["158:54"].inputs.model = [lastStackId, 0];
-    } else {
-      prompt["240"].inputs.strength = parseFloat(cfg.lliteStrength) || 0;
-      prompt["240"].inputs.start_percent = parseFloat(cfg.lliteStartPercent) || 0;
-      prompt["240"].inputs.end_percent = parseFloat(cfg.lliteEndPercent) || 0;
-      prompt["240"].inputs.preserve_wrapper = cfg.llitePreserveWrapper;
-      prompt["243"].inputs.select = 2;
-      prompt["238"].inputs.fit = cfg.resizeFit;
-      prompt["238"].inputs.method = cfg.resizeMethod;
-      prompt["240"].inputs.image = ["238", 0];
-    }
-    prompt["168:167"].inputs.sampler_name = cfg.sampler;
-    prompt["158:53"].inputs.scheduler = cfg.scheduler;
-    prompt["158:53"].inputs.steps = parseInt(cfg.steps1, 10) || 1;
-    prompt["158:54"].inputs.cfg = parseFloat(cfg.cfg1) || 1;
-    prompt["174:171"].inputs.value = parseInt(cfg.width, 10) || 920;
-    prompt["174:172"].inputs.value = parseInt(cfg.height, 10) || 1244;
-    prompt["165"].inputs.noise_seed = parseInt(cfg.seed1, 10) || 0;
-    if (cfg.use2Pass) {
-      prompt["227"].inputs.noise_seed = parseInt(cfg.seed2, 10) || 0;
-      prompt["195"].inputs.denoise = parseFloat(cfg.denoise2) || 0;
-      prompt["195"].inputs.scheduler = cfg.scheduler;
-      prompt["195"].inputs.steps = parseInt(cfg.steps2, 10) || 1;
-      prompt["192_pass1"] = { class_type: "SaveImage", inputs: { filename_prefix: prompt["192"].inputs.filename_prefix, images: ["176", 0] }, _meta: { title: "Pass 1 preview" } };
-    } else {
-      delete prompt["190"];
-      delete prompt["191"];
-      delete prompt["195"];
-      delete prompt["227"];
-      delete prompt["224"];
-      prompt["192"].inputs.images = ["176", 0];
-    }
-    if (cfg.upscale && cfg.upscale.enabled && cfg.upscale.model.trim()) {
-      prompt["upscale_model_loader"] = { class_type: "UpscaleModelLoader", inputs: { model_name: cfg.upscale.model.trim() }, _meta: { title: "Upscale Model Loader" } };
-      const scaleBy = parseFloat(cfg.upscale.scaleBy) || 1;
-      prompt["upscale_model_192"] = { class_type: "ImageUpscaleWithModel", inputs: { upscale_model: ["upscale_model_loader", 0], image: prompt["192"].inputs.images }, _meta: { title: "Upscale" } };
-      prompt["upscale_scale_192"] = { class_type: "ImageScaleBy", inputs: { upscale_method: "lanczos", scale_by: scaleBy, image: ["upscale_model_192", 0] }, _meta: { title: "Upscale scale-by" } };
-      prompt["222"].inputs.text_c = "Upscaled";
-      prompt["192_upscaled"] = { class_type: "SaveImage", inputs: { filename_prefix: ["222", 0], images: ["upscale_scale_192", 0] }, _meta: { title: "Upscaled" } };
-    }
-    return prompt;
-  }
-  function buildWd14Prompt(imageRef, settings2) {
-    return {
-      "1": { class_type: "LoadImage", inputs: { image: imageRef, upload: "image" } },
-      "2": {
-        class_type: "WD14Tagger|pysssss",
-        inputs: {
-          image: ["1", 0],
-          model: settings2.model,
-          threshold: settings2.threshold,
-          character_threshold: settings2.characterThreshold,
-          // No longer user-configurable — always false so the node still gets a
-          // value for this required input.
-          replace_underscore: false,
-          trailing_comma: !!settings2.trailingComma,
-          exclude_tags: settings2.excludeTags || ""
-        }
-      }
-    };
-  }
-  function parseQueueResponse(parsed, status, noun) {
-    if (status !== 200) {
-      const errMsg = parsed && parsed.error && parsed.error.message;
-      return { ok: false, error: errMsg ? `ComfyUI rejected the request: ${errMsg}` : `ComfyUI returned HTTP ${status} queuing the ${noun} request.` };
-    }
-    const nodeErrorKeys = parsed && parsed.node_errors ? Object.keys(parsed.node_errors) : [];
-    if (nodeErrorKeys.length) return { ok: false, error: `ComfyUI rejected the workflow: ${JSON.stringify(parsed.node_errors)}` };
-    const promptId = parsed && parsed.prompt_id;
-    if (!promptId) return { ok: false, error: "ComfyUI did not return a prompt id." };
-    return { ok: true, promptId };
-  }
-  function extractWd14Tags(record) {
-    const tags = record && record.outputs && record.outputs["2"] && record.outputs["2"].tags;
-    if (!tags) return null;
-    return Array.isArray(tags) ? tags[0] : tags;
-  }
-  function decodeUtf8(bytes) {
-    return new TextDecoder().decode(bytes);
-  }
-  function safeJson(text) {
-    try {
-      return JSON.parse(text || "{}");
-    } catch {
-      return {};
-    }
-  }
-  async function uploadImage(t, host, filename, bytes, label = "Image") {
-    const { boundary, body } = buildMultipart({ type: "input", overwrite: "true" }, "image", filename, bytes);
-    const res = await t.request(host, "/upload/image", {
-      method: "POST",
-      headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, "Content-Length": body.length },
-      body,
-      timeoutMs: 2e4
-    });
-    if (res.status !== 200) return { ok: false, error: `${label} upload to ComfyUI failed (HTTP ${res.status}).` };
-    const uploaded = safeJson(decodeUtf8(res.body));
-    return { ok: true, ref: uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name };
-  }
-  async function queuePrompt(t, host, prompt, clientId, opts = {}) {
-    const payload = { prompt, client_id: clientId };
-    if (opts.extraData) payload.extra_data = opts.extraData;
-    const body = new TextEncoder().encode(JSON.stringify(payload));
-    const res = await t.request(host, "/prompt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Content-Length": body.length },
-      body,
-      timeoutMs: 1e4
-    });
-    return parseQueueResponse(safeJson(decodeUtf8(res.body)), res.status, opts.noun || "request");
-  }
-  async function pollHistory(t, host, promptId, opts) {
-    const interval = opts.intervalMs ?? 700;
-    const deadline = Date.now() + opts.deadlineMs;
-    const cancelled = () => opts.isCancelled ? opts.isCancelled() : false;
-    const stopped = () => opts.onCancelled ? opts.onCancelled() : { ok: false, error: "Cancelled." };
-    while (Date.now() < deadline) {
-      if (cancelled()) return stopped();
-      await new Promise((r) => setTimeout(r, interval));
-      if (cancelled()) return stopped();
-      let histRes;
-      try {
-        histRes = await t.request(host, `/history/${promptId}`, { timeoutMs: 8e3 });
-      } catch {
-        continue;
-      }
-      if (histRes.status !== 200) continue;
-      const hist = safeJson(decodeUtf8(histRes.body));
-      const record = hist[promptId];
-      if (!record) continue;
-      const value = await opts.extract(record);
-      if (value !== null && value !== void 0) return { ok: true, value };
-      if (record.status && record.status.status_str === "error") return { ok: false, error: opts.errorStatusMessage };
-    }
-    return { ok: false, error: opts.timeoutMessage };
-  }
-
-  // src/renderer/comfy-client.ts
-  function isLikelyCorsFailure(err) {
-    return err instanceof TypeError;
-  }
-  function corsHintSuffix() {
-    return " \u2014 either ComfyUI isn't reachable at that address, or it needs to be started with --enable-cors-header for a phone/browser to reach it directly.";
-  }
-  function normalizeHost(host) {
-    const trimmed = String(host || "").trim();
-    return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
-  }
-  var fetchComfyTransport = {
-    request: async (host, path, init = {}) => {
-      const res = await fetch(new URL(path, host), {
-        method: init.method || "GET",
-        headers: init.headers,
-        body: init.body ?? void 0
-      });
-      return { status: res.status, body: new Uint8Array(await res.arrayBuffer()) };
-    }
-  };
-  async function comfyGetModels(host) {
-    host = normalizeHost(host);
-    let res;
-    try {
-      res = await fetch(new URL("/object_info/WD14Tagger%7Cpysssss", host), { method: "GET" });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : " (" + msg + ")"}` };
-    }
-    if (!res.ok) return { ok: false, error: `ComfyUI returned HTTP ${res.status} \u2014 is the WD14 Tagger (pysssss) custom node installed?` };
-    let parsed;
-    try {
-      parsed = await res.json();
-    } catch {
-      return { ok: false, error: "ComfyUI returned an unexpected response." };
-    }
-    const models = parseComboValues(parsed["WD14Tagger|pysssss"], "model");
-    if (!Array.isArray(models)) return { ok: false, error: "Could not find the WD14 Tagger node on that ComfyUI instance." };
-    return { ok: true, models };
-  }
-  async function comfyTagImage({ host, filename, imageBytes, settings: settings2 }) {
-    host = normalizeHost(host);
-    try {
-      const upload = await uploadImage(fetchComfyTransport, host, filename, imageBytes, "Image");
-      if (!upload.ok) return upload;
-      const clientId = `dts-mobile-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
-      const prompt = buildWd14Prompt(upload.ref, settings2);
-      const queue = await queuePrompt(fetchComfyTransport, host, prompt, clientId, { noun: "tag" });
-      if (!queue.ok) return queue;
-      const poll = await pollHistory(fetchComfyTransport, host, queue.promptId, {
-        deadlineMs: 12e4,
-        extract: (record) => extractWd14Tags(record),
-        errorStatusMessage: "ComfyUI reported an error while tagging this image \u2014 check its console for details.",
-        timeoutMessage: "Timed out waiting for ComfyUI to finish tagging this image."
-      });
-      if (!poll.ok) return poll;
-      return { ok: true, tagsCsv: poll.value };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : " (" + msg + ")"}` };
-    }
-  }
-  async function comfyGetObjectInfo({ host, classType, inputName }) {
-    host = normalizeHost(host);
-    try {
-      const res = await fetch(new URL(`/object_info/${encodeURIComponent(classType)}`, host));
-      if (!res.ok) return { ok: false, error: `ComfyUI returned HTTP ${res.status} looking up ${classType}.` };
-      const parsed = await res.json();
-      const values = parseComboValues(parsed[classType], inputName);
-      if (!Array.isArray(values)) return { ok: false, error: `Could not find "${inputName}" on ${classType} \u2014 is the right custom node installed?` };
-      return { ok: true, values };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : " (" + msg + ")"}` };
-    }
-  }
-  var previewFrameCallback = () => {
-  };
-  var progressCallback = () => {
-  };
-  var activeGen = null;
-  function comfyOnPreviewFrame(cb) {
-    previewFrameCallback = cb;
-  }
-  function comfyOnProgress(cb) {
-    progressCallback = cb;
-  }
-  async function comfyStopGeneration(host) {
-    host = normalizeHost(host);
-    if (activeGen) activeGen.cancelled = true;
-    try {
-      await fetch(new URL("/interrupt", host), { method: "POST" });
-    } catch {
-    }
-    return { ok: true };
-  }
-  async function fetchViewImage(host, image) {
-    const qs = new URLSearchParams({ filename: image.filename, subfolder: image.subfolder || "", type: image.type || "output" });
-    const res = await fetch(new URL(`/view?${qs.toString()}`, host));
-    if (!res.ok) throw new Error(`ComfyUI returned HTTP ${res.status} fetching the generated image.`);
-    return new Uint8Array(await res.arrayBuffer());
-  }
-  async function comfyQueueAndFetch({ host, imageFilename, imageBytes, prompt }) {
-    host = normalizeHost(host);
-    let ws = null;
-    try {
-      if (imageBytes && prompt["239"]) {
-        const upload = await uploadImage(fetchComfyTransport, host, imageFilename, imageBytes, "Reference image");
-        if (!upload.ok) return upload;
-        prompt["239"].inputs.image = upload.ref;
-      }
-      const clientId = `dts-mobile-synthdat-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
-      activeGen = { cancelled: false };
-      try {
-        const wsUrl = `${host.replace(/^http/i, "ws")}/ws?clientId=${encodeURIComponent(clientId)}`;
-        ws = new WebSocket(wsUrl);
-        ws.binaryType = "arraybuffer";
-        ws.addEventListener("open", () => {
-          try {
-            ws.send(JSON.stringify({ type: "feature_flags", data: { supports_preview_metadata: true } }));
-          } catch {
-          }
-        });
-        ws.addEventListener("message", (ev) => {
-          if (ev.data instanceof ArrayBuffer) {
-            const data = new DataView(ev.data);
-            if (ev.data.byteLength < 8) return;
-            const eventType = data.getUint32(0, false);
-            if (eventType === 1) {
-              const imageType = data.getUint32(4, false);
-              previewFrameCallback(null, { mime: imageType === 1 ? "image/jpeg" : "image/png", bytes: new Uint8Array(ev.data.slice(8)) });
-            } else if (eventType === 4) {
-              try {
-                const metaLen = data.getUint32(4, false);
-                const metaBytes = new Uint8Array(ev.data.slice(8, 8 + metaLen));
-                const meta = JSON.parse(new TextDecoder().decode(metaBytes));
-                previewFrameCallback(null, { mime: meta.image_type || "image/jpeg", bytes: new Uint8Array(ev.data.slice(8 + metaLen)) });
-              } catch {
-              }
-            }
-          } else {
-            try {
-              const msg = JSON.parse(ev.data);
-              if (msg.type === "progress" && msg.data) {
-                progressCallback(null, msg.data);
-              } else if (msg.type === "progress_state" && msg.data) {
-                const nodes = msg.data.nodes;
-                if (nodes) {
-                  const running2 = Object.values(nodes).filter((n) => n.state === "running");
-                  if (running2.length) {
-                    const n = running2[running2.length - 1];
-                    progressCallback(null, { value: n.value, max: n.max });
-                  }
-                }
-              }
-            } catch {
-            }
-          }
-        });
-        ws.addEventListener("error", (err) => console.error("[synthdat] preview websocket error:", err));
-        ws.addEventListener("close", (ev) => {
-          if (ev.code !== 1e3) console.error("[synthdat] preview websocket closed:", ev.code, ev.reason);
-        });
-        await new Promise((resolve) => {
-          const timer = setTimeout(resolve, 3e3);
-          ws.addEventListener("open", () => {
-            clearTimeout(timer);
-            resolve();
-          }, { once: true });
-          ws.addEventListener("error", () => {
-            clearTimeout(timer);
-            resolve();
-          }, { once: true });
-        });
-      } catch (err) {
-        console.error("[synthdat] preview websocket setup failed:", err);
-      }
-      const queue = await queuePrompt(fetchComfyTransport, host, prompt, clientId, { extraData: { preview_method: "taesd" }, noun: "generation" });
-      if (!queue.ok) return queue;
-      const promptId = queue.promptId;
-      const poll = await pollHistory(fetchComfyTransport, host, promptId, {
-        deadlineMs: 3e5,
-        isCancelled: () => !!(activeGen && activeGen.cancelled),
-        onCancelled: () => ({ ok: false, error: "Generation stopped.", interrupted: true }),
-        errorStatusMessage: "ComfyUI reported an error while generating this image \u2014 check its console for details.",
-        timeoutMessage: "Timed out waiting for ComfyUI to finish generating this image.",
-        extract: async (record) => {
-          const outputs = record.outputs;
-          const saveOutput = outputs?.["192"];
-          const image = saveOutput?.images?.[0];
-          if (!image) return null;
-          const result = { ok: true, imageBytes: await fetchViewImage(host, image) };
-          const pass1Output = outputs?.["192_pass1"];
-          const pass1Image = pass1Output?.images?.[0];
-          if (pass1Image) {
-            try {
-              result.pass1ImageBytes = await fetchViewImage(host, pass1Image);
-            } catch {
-            }
-          }
-          return result;
-        }
-      });
-      return poll.ok ? poll.value : poll;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: `Could not reach ComfyUI at ${host} (${msg})` };
-    } finally {
-      try {
-        if (ws) ws.close();
-      } catch {
-      }
-      activeGen = null;
-    }
-  }
-  if (window.Capacitor) {
-    const api = window.electronAPI || {};
-    api.synthdatGetObjectInfo = comfyGetObjectInfo;
-    api.synthdatQueueAndFetch = comfyQueueAndFetch;
-    api.synthdatStopGeneration = comfyStopGeneration;
-    api.onSynthdatPreviewFrame = comfyOnPreviewFrame;
-    api.onSynthdatProgress = comfyOnProgress;
-    window.electronAPI = api;
-  }
-
-  // src/renderer/wd14-local-bridge.ts
-  if (window.electronAPI && window.electronAPI.wd14LocalListModels) {
-    let progressListenerAdded = false;
-    const progressCallbacks = /* @__PURE__ */ new Map();
-    const bridge = {
-      async listModels() {
-        return await window.electronAPI.wd14LocalListModels();
-      },
-      async deleteModel(name) {
-        await window.electronAPI.wd14LocalDeleteModel(name);
-      },
-      async downloadModel(opts, onProgress) {
-        if (!progressListenerAdded) {
-          progressListenerAdded = true;
-          window.electronAPI.onWd14LocalDownloadProgress((_event, ev) => {
-            const cb = progressCallbacks.get(ev.name);
-            if (cb) cb(ev);
-          });
-        }
-        if (onProgress) progressCallbacks.set(opts.name, onProgress);
-        try {
-          await window.electronAPI.wd14LocalDownloadModel(opts);
-        } finally {
-          progressCallbacks.delete(opts.name);
-        }
-      },
-      async tagImage(payload) {
-        return await window.electronAPI.wd14LocalTagImage(payload);
-      },
-      async pickImportFiles() {
-        return await window.electronAPI.wd14LocalPickImportFiles();
-      },
-      async importModel(payload) {
-        await window.electronAPI.wd14LocalImportModel(payload);
-      }
-    };
-    window.Wd14Local = bridge;
-  }
-
-  // src/renderer/wd14-tagger.ts
-  var hasElectronComfy = !!(window.electronAPI && window.electronAPI.wd14GetModels);
-  var SETTINGS_KEY2 = "dts-wd14-settings";
-  var DEFAULT_SETTINGS = {
-    host: "http://127.0.0.1:8188",
-    model: "",
-    threshold: 0.35,
-    characterThreshold: 0.85,
-    trailingComma: false,
-    excludeTags: "",
-    autoApply: false,
-    mode: "comfyui",
-    localModel: "",
-    gpu: true
-  };
-  var settings = { ...DEFAULT_SETTINGS };
-  var getEntries5 = () => [];
-  var refreshAllUIRef5 = () => {
-  };
-  var cancelRequested = false;
-  var running = false;
-  var lastProvider = null;
-  function gpuCheckbox() {
-    return document.getElementById("wd14Gpu");
-  }
-  function loadSettings() {
-    const base = { ...DEFAULT_SETTINGS, mode: hasLocalWd14 ? "local" : "comfyui" };
-    settings = { ...base };
-    const saved = getJSON(SETTINGS_KEY2, null);
-    if (saved && typeof saved === "object") settings = { ...base, ...saved };
-  }
-  function saveSettings() {
-    setJSON(SETTINGS_KEY2, settings);
-  }
-  var hasLocalWd14 = !!window.Wd14Local;
-  function applySettingsToUI() {
-    wd14Host.value = settings.host;
-    wd14Threshold.value = String(settings.threshold);
-    wd14CharThreshold.value = String(settings.characterThreshold);
-    wd14TrailingComma.checked = !!settings.trailingComma;
-    wd14ExcludeTags.value = settings.excludeTags;
-    wd14AutoApply.checked = !!settings.autoApply;
-    const gpuEl = gpuCheckbox();
-    if (gpuEl) gpuEl.checked = settings.gpu !== false;
-    if (settings.model) {
-      if (![...wd14ModelSelect.options].some((o) => o.value === settings.model)) {
-        const opt = document.createElement("option");
-        opt.value = settings.model;
-        opt.textContent = settings.model;
-        wd14ModelSelect.appendChild(opt);
-      }
-      wd14ModelSelect.value = settings.model;
-    }
-    wd14ModeRow.style.display = hasLocalWd14 ? "" : "none";
-    if (hasLocalWd14) {
-      wd14ModeSelect.value = settings.mode;
-      wd14ComfyuiFields.style.display = settings.mode === "local" ? "none" : "";
-      wd14LocalFields.style.display = settings.mode === "local" ? "" : "none";
-    }
-  }
-  async function refreshModels(silent) {
-    const host = wd14Host.value.trim() || DEFAULT_SETTINGS.host;
-    const res = hasElectronComfy ? await window.electronAPI.wd14GetModels(host) : await comfyGetModels(host);
-    if (!res.ok) {
-      if (!silent) toast(res.error || "Could not fetch the model list from ComfyUI.", 4200);
-      return;
-    }
-    const current = wd14ModelSelect.value || settings.model;
-    wd14ModelSelect.innerHTML = "";
-    const models = res.models || [];
-    for (const m of models) {
-      const opt = document.createElement("option");
-      opt.value = m;
-      opt.textContent = m;
-      wd14ModelSelect.appendChild(opt);
-    }
-    if (current && models.includes(current)) wd14ModelSelect.value = current;
-    if (!silent) toast(`Loaded ${models.length} model(s) from ComfyUI.`, 2400);
-  }
-  function readSettingsFromUI() {
-    settings = {
-      host: wd14Host.value.trim() || DEFAULT_SETTINGS.host,
-      model: wd14ModelSelect.value,
-      threshold: parseFloat(wd14Threshold.value) || 0,
-      characterThreshold: parseFloat(wd14CharThreshold.value) || 0,
-      trailingComma: wd14TrailingComma.checked,
-      excludeTags: wd14ExcludeTags.value,
-      autoApply: wd14AutoApply.checked,
-      mode: hasLocalWd14 ? wd14ModeSelect.value : "comfyui",
-      localModel: hasLocalWd14 ? wd14LocalModelSelect.value : "",
-      gpu: gpuCheckbox() ? gpuCheckbox().checked : settings.gpu !== false
-    };
-    saveSettings();
-    if (hasLocalWd14) {
-      wd14ComfyuiFields.style.display = settings.mode === "local" ? "none" : "";
-      wd14LocalFields.style.display = settings.mode === "local" ? "" : "none";
-    }
-  }
-  function parseWd14Tags(tagsCsv) {
-    if (!tagsCsv) return [];
-    return tagsCsv.split(",").map((t) => t.replace(/\\\(/g, "(").replace(/\\\)/g, ")").replace(/_/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
-  }
-  function setStatus(text, progressFraction) {
-    if (!text) {
-      wd14Status.style.display = "none";
-      return;
-    }
-    wd14Status.style.display = "block";
-    wd14Status.querySelector("span").textContent = text;
-    const fill = wd14Status.querySelector(".wd14-progress-fill");
-    if (fill) fill.style.width = (progressFraction == null ? 0 : Math.round(progressFraction * 100)) + "%";
-  }
-  async function tagOneWithRetry(entry) {
-    while (true) {
-      if (cancelRequested) return null;
-      let bytes;
-      try {
-        const file = await entry.imgHandle.getFile();
-        bytes = new Uint8Array(await file.arrayBuffer());
-      } catch (err) {
-        toast(`Could not read ${entry.imgName} off disk \u2014 skipping.`, 3600);
-        return null;
-      }
-      const res = hasLocalWd14 && settings.mode === "local" ? await window.Wd14Local.tagImage({
-        name: settings.localModel,
-        imageBytes: bytes,
-        threshold: settings.threshold,
-        characterThreshold: settings.characterThreshold,
-        preferGpu: settings.gpu !== false
-      }) : hasElectronComfy ? await window.electronAPI.wd14TagImage({
-        host: settings.host,
-        filename: entry.imgName || entry.base,
-        imageBytes: bytes,
-        settings
-      }) : await comfyTagImage({ host: settings.host, filename: entry.imgName || entry.base, imageBytes: bytes, settings });
-      if (res.ok) {
-        const provider = res.provider;
-        if (provider) lastProvider = provider;
-        return res.tagsCsv || null;
-      }
-      const retry = await showConfirmModal(
-        `${res.error || "WD14 tagging failed."}
-
-Image: ${entry.imgName}`,
-        { okLabel: "Retry", cancelLabel: "Skip this image", danger: true }
-      );
-      if (!retry) return null;
-    }
-  }
-  function showWd14ReviewModal(rows) {
-    return new Promise((resolve) => {
-      const { box, close: teardown } = createModalShell({ boxClassName: "wd14-review-box", onDismiss: () => close(null) });
-      const msg = document.createElement("div");
-      msg.className = "confirm-message";
-      msg.textContent = `Review WD14 tags for ${rows.length} image(s) before applying. Edit any row, or uncheck to skip it.`;
-      box.appendChild(msg);
-      const list = document.createElement("div");
-      list.className = "wd14-review-list";
-      const rowState = rows.map((r) => ({ ...r, include: true, textEl: null, tagChips: [] }));
-      const isTouchDevice2 = document.documentElement.classList.contains("touch-device");
-      for (const rs of rowState) {
-        const rowEl = document.createElement("div");
-        rowEl.className = "wd14-review-row";
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = true;
-        cb.addEventListener("change", () => {
-          rs.include = cb.checked;
-          rowEl.classList.toggle("excluded", !cb.checked);
-        });
-        rowEl.appendChild(cb);
-        const img = document.createElement("img");
-        img.src = rs.entry.objectUrl;
-        img.loading = "lazy";
-        rowEl.appendChild(img);
-        const colWrap = document.createElement("div");
-        colWrap.className = "wd14-review-col";
-        const label = document.createElement("div");
-        label.className = "wd14-review-name";
-        label.textContent = rs.entry.imgName || rs.entry.base;
-        colWrap.appendChild(label);
-        if (isTouchDevice2) {
-          let renderChips = function() {
-            chipList.innerHTML = "";
-            for (const chip of rs.tagChips) {
-              const chipEl = document.createElement("label");
-              chipEl.className = "wd14-review-chip" + (chip.checked ? "" : " unchecked");
-              const chipCb = document.createElement("input");
-              chipCb.type = "checkbox";
-              chipCb.checked = chip.checked;
-              chipCb.addEventListener("change", () => {
-                chip.checked = chipCb.checked;
-                chipEl.classList.toggle("unchecked", !chip.checked);
-              });
-              chipEl.appendChild(chipCb);
-              const chipText = document.createElement("span");
-              chipText.textContent = chip.tag;
-              chipEl.appendChild(chipText);
-              const dropBtn = document.createElement("button");
-              dropBtn.type = "button";
-              dropBtn.className = "wd14-review-chip-drop";
-              dropBtn.textContent = "\xD7";
-              dropBtn.title = `Drop "${chip.tag}" from this image's tags`;
-              dropBtn.addEventListener("click", (ev) => {
-                ev.preventDefault();
-                rs.tagChips = rs.tagChips.filter((c) => c !== chip);
-                renderChips();
-              });
-              chipEl.appendChild(dropBtn);
-              chipList.appendChild(chipEl);
-            }
-          };
-          rs.tagChips = rs.mergedTags.map((tag) => ({ tag, checked: true }));
-          const chipList = document.createElement("div");
-          chipList.className = "wd14-review-chips";
-          renderChips();
-          colWrap.appendChild(chipList);
-        } else {
-          const textarea = document.createElement("textarea");
-          textarea.value = rs.mergedTags.join(", ");
-          colWrap.appendChild(textarea);
-          rs.textEl = textarea;
-        }
-        rowEl.appendChild(colWrap);
-        list.appendChild(rowEl);
-      }
-      box.appendChild(list);
-      const btnRow = document.createElement("div");
-      btnRow.className = "confirm-btn-row";
-      const cancelBtn = document.createElement("button");
-      cancelBtn.textContent = "Cancel";
-      const okBtn = document.createElement("button");
-      okBtn.className = "primary";
-      okBtn.textContent = "Apply checked rows";
-      function close(result) {
-        teardown();
-        resolve(result);
-      }
-      cancelBtn.addEventListener("click", () => close(null));
-      okBtn.addEventListener("click", () => {
-        const accepted = rowState.filter((rs) => rs.include).map((rs) => ({
-          entry: rs.entry,
-          tags: isTouchDevice2 ? rs.tagChips.filter((c) => c.checked).map((c) => c.tag) : rs.textEl.value.split(",").map((t) => t.replace(/_/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean)
-        }));
-        close(accepted);
-      });
-      btnRow.appendChild(cancelBtn);
-      btnRow.appendChild(okBtn);
-      box.appendChild(btnRow);
-    });
-  }
-  function commitTags(accepted) {
-    const affected = [];
-    for (const { entry, tags } of accepted) {
-      const prevTags = entry.tags.slice();
-      const newTags = Array.from(new Set(tags));
-      if (newTags.length === prevTags.length && newTags.every((t, i) => t === prevTags[i])) continue;
-      entry.tags = newTags;
-      markDirty(entry);
-      affected.push({ base: entry.base, original: entry.original || void 0, prevTags, newTags: newTags.slice() });
-    }
-    if (affected.length === 0) {
-      toast("No tag changes to apply.");
-      return;
-    }
-    const summary = `WD14-tagged ${affected.length} image(s).`;
-    toast(summary);
-    recordChange("add-tag", summary, affected);
-    folderStats.master_ops = (folderStats.master_ops || 0) + 1;
-    trackStat("wd14_images_tagged", affected.length);
-    saveFolderStats();
-    refreshAllUIRef5();
-    checkAchievements();
-  }
-  async function runBatch(entries) {
-    if (running) {
-      cancelRequested = true;
-      return;
-    }
-    if (entries.length === 0) {
-      toast('Select at least one image first (or right-click a single image and choose "Tag with WD14").');
-      return;
-    }
-    const usingLocal = hasLocalWd14 && settings.mode === "local";
-    if (usingLocal && !settings.localModel) {
-      toast("Pick (or download) a local WD14 model first in WD14 settings.");
-      return;
-    }
-    if (!usingLocal && !settings.model) {
-      toast("Pick a WD14 model first \u2014 use the \u{1F504} button in WD14 settings to load the list from ComfyUI.");
-      return;
-    }
-    running = true;
-    cancelRequested = false;
-    lastProvider = null;
-    setIconLabel(btnWd14TagSelected, "\u23F9 Cancel tagging");
-    const results = [];
-    let failCount = 0;
-    for (let i = 0; i < entries.length; i++) {
-      if (cancelRequested) break;
-      const entry = entries[i];
-      setStatus(`Tagging ${i + 1}/${entries.length} \u2014 ${entry.imgName}\u2026`, i / entries.length);
-      const tagsCsv = await tagOneWithRetry(entry);
-      if (tagsCsv == null) {
-        failCount++;
-        continue;
-      }
-      const fresh = parseWd14Tags(tagsCsv);
-      const mergedTags = entry.tags.concat(fresh.filter((t) => !entry.tags.includes(t)));
-      results.push({ entry, mergedTags });
-    }
-    const failNote = failCount > 0 ? ` (${failCount} skipped)` : "";
-    const engineNote = lastProvider ? ` \u2014 on ${lastProvider === "dml" ? "GPU" : "CPU"}` : "";
-    setStatus("");
-    running = false;
-    setIconLabel(btnWd14TagSelected, "\u{1F40D} Tag selected images with WD14");
-    if (cancelRequested && results.length === 0) {
-      toast("WD14 tagging cancelled.");
-      return;
-    }
-    if (results.length === 0) {
-      toast(`Could not tag any of the ${entries.length} image(s).`);
-      return;
-    }
-    if (settings.autoApply) {
-      commitTags(results.map((r) => ({ entry: r.entry, tags: r.mergedTags })));
-      toast(`Applied WD14 tags to ${results.length} image(s)${failNote}${engineNote}.`);
-    } else {
-      const accepted = await showWd14ReviewModal(results);
-      if (!accepted || accepted.length === 0) {
-        toast("WD14 tagging discarded \u2014 nothing was applied.");
-        return;
-      }
-      commitTags(accepted);
-      if (engineNote) toast(`Applied WD14 tags to ${accepted.length} image(s)${engineNote}.`);
-    }
-  }
-  function tagSingleImageWithWd14(entry) {
-    if (running) {
-      toast("A WD14 batch is already running.");
-      return;
-    }
-    runBatch([entry]);
-  }
-  var KNOWN_MODELS = [
-    { repo: "SmilingWolf/wd-vit-tagger-v3", label: "ViT v3", desc: "Smallest/fastest of this set." },
-    { repo: "SmilingWolf/wd-convnext-tagger-v3", label: "ConvNext v3", desc: "Good size/accuracy balance." },
-    { repo: "SmilingWolf/wd-swinv2-tagger-v3", label: "SwinV2 v3", desc: "Strong accuracy, moderate size." },
-    { repo: "SmilingWolf/wd-vit-large-tagger-v3", label: "ViT Large v3", desc: "Higher accuracy, larger download." },
-    { repo: "SmilingWolf/wd-eva02-large-tagger-v3", label: "EVA02 Large v3", desc: "Highest accuracy of this set, largest/slowest." }
-  ];
-  function resolveHfRepo(input) {
-    let path = input.trim().replace(/^https?:\/\/(huggingface\.co|hf\.co)\//i, "");
-    path = path.replace(/^\/+|\/+$/g, "");
-    const segments = path.split("/").filter(Boolean);
-    if (segments.length < 2) return null;
-    const repo = `${segments[0]}/${segments[1]}`;
-    return {
-      name: segments[1],
-      modelUrl: `https://huggingface.co/${repo}/resolve/main/model.onnx`,
-      tagsUrl: `https://huggingface.co/${repo}/resolve/main/selected_tags.csv`
-    };
-  }
-  async function refreshLocalModels() {
-    if (!hasLocalWd14) return;
-    const models = await window.Wd14Local.listModels();
-    const current = wd14LocalModelSelect.value || settings.localModel;
-    wd14LocalModelSelect.innerHTML = "";
-    if (models.length === 0) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "(no models downloaded yet)";
-      wd14LocalModelSelect.appendChild(opt);
-    } else {
-      for (const m of models) {
-        const opt = document.createElement("option");
-        opt.value = m.name;
-        opt.textContent = `${m.name} (${m.tagCount || 0} tags, ${Math.round((m.sizeBytes || 0) / 1e6)}MB)`;
-        wd14LocalModelSelect.appendChild(opt);
-      }
-      if (current && models.some((m) => m.name === current)) wd14LocalModelSelect.value = current;
-    }
-    wd14LocalModelList.innerHTML = "";
-    for (const m of models) {
-      const row = document.createElement("div");
-      row.className = "wd14-local-model-row";
-      const label = document.createElement("span");
-      label.textContent = `${m.name} \u2014 ${m.tagCount || 0} tags, ${Math.round((m.sizeBytes || 0) / 1e6)}MB`;
-      row.appendChild(label);
-      const delBtn = document.createElement("button");
-      delBtn.className = "danger-ghost";
-      setIconLabel(delBtn, "\u2715");
-      delBtn.title = "Delete this downloaded model";
-      delBtn.addEventListener("click", async () => {
-        await window.Wd14Local.deleteModel(m.name);
-        if (settings.localModel === m.name) {
-          settings.localModel = "";
-          saveSettings();
-        }
-        refreshLocalModels();
-      });
-      row.appendChild(delBtn);
-      wd14LocalModelList.appendChild(row);
-    }
-  }
-  async function downloadRepo(resolved, triggerBtn) {
-    const { name, modelUrl, tagsUrl } = resolved;
-    const existing = await window.Wd14Local.listModels();
-    if (existing.some((m) => m.name === name)) {
-      const ok = await showConfirmModal(
-        `"${name}" is already downloaded. Download it again? This overwrites the existing copy.`,
-        { okLabel: "Redownload" }
-      );
-      if (!ok) return;
-    }
-    triggerBtn.disabled = true;
-    wd14LocalDownloadStatus.style.display = "block";
-    wd14LocalDownloadStatus.textContent = `Starting download of "${name}"\u2026`;
-    try {
-      await window.Wd14Local.downloadModel({ name, modelUrl, tagsUrl }, (ev) => {
-        wd14LocalDownloadStatus.textContent = `Downloading "${name}" \u2014 ${ev.part}\u2026 ${ev.percent}%`;
-      });
-      toast(`Downloaded "${name}".`);
-      settings.localModel = name;
-      saveSettings();
-      await refreshLocalModels();
-      wd14LocalModelSelect.value = name;
-    } catch (e) {
-      toast(`Download failed: ${e?.message || e}`, 4200);
-    } finally {
-      triggerBtn.disabled = false;
-      wd14LocalDownloadStatus.style.display = "none";
-    }
-  }
-  async function importFromDisk(triggerBtn) {
-    let picked;
-    try {
-      picked = await window.Wd14Local.pickImportFiles();
-    } catch (e) {
-      toast(`Could not import: ${e?.message || e}`, 4200);
-      return;
-    }
-    if ("canceled" in picked && picked.canceled) return;
-    const { name, modelPath, tagsPath } = picked;
-    const existing = await window.Wd14Local.listModels();
-    if (existing.some((m) => m.name === name)) {
-      const ok = await showConfirmModal(
-        `"${name}" is already downloaded. Import this copy over it? This overwrites the existing copy.`,
-        { okLabel: "Overwrite" }
-      );
-      if (!ok) return;
-    }
-    triggerBtn.disabled = true;
-    try {
-      await window.Wd14Local.importModel({ name, modelPath, tagsPath });
-      toast(`Imported "${name}".`);
-      settings.localModel = name;
-      saveSettings();
-      await refreshLocalModels();
-      wd14LocalModelSelect.value = name;
-    } catch (e) {
-      toast(`Import failed: ${e?.message || e}`, 4200);
-    } finally {
-      triggerBtn.disabled = false;
-    }
-  }
-  function renderLocalCatalog() {
-    wd14LocalCatalog.innerHTML = "";
-    for (const entry of KNOWN_MODELS) {
-      const row = document.createElement("div");
-      row.className = "wd14-local-model-row";
-      const label = document.createElement("span");
-      label.textContent = `${entry.label} \u2014 ${entry.desc}`;
-      row.appendChild(label);
-      const dlBtn = document.createElement("button");
-      dlBtn.className = "primary";
-      setIconLabel(dlBtn, "\u2B07");
-      dlBtn.title = `Download ${entry.repo}`;
-      dlBtn.addEventListener("click", () => downloadRepo(resolveHfRepo(entry.repo), dlBtn));
-      row.appendChild(dlBtn);
-      wd14LocalCatalog.appendChild(row);
-    }
-  }
-  function initWd14Tagger(deps3) {
-    getEntries5 = deps3.getEntries;
-    refreshAllUIRef5 = deps3.refreshAllUI;
-    loadSettings();
-    applySettingsToUI();
-    refreshModels(true);
-    [wd14Host, wd14Threshold, wd14CharThreshold, wd14TrailingComma, wd14ExcludeTags, wd14AutoApply, wd14ModelSelect].forEach((el) => el.addEventListener("change", readSettingsFromUI));
-    btnWd14RefreshModels.addEventListener("click", () => refreshModels(false));
-    if (hasLocalWd14) {
-      wd14ModeSelect.addEventListener("change", readSettingsFromUI);
-      wd14LocalModelSelect.addEventListener("change", readSettingsFromUI);
-      refreshLocalModels();
-      renderLocalCatalog();
-      btnWd14LocalDownload.addEventListener("click", async () => {
-        const resolved = resolveHfRepo(wd14LocalAddRepo.value);
-        if (!resolved) {
-          toast("Enter a HuggingFace repo, e.g. SmilingWolf/wd-swinv2-tagger-v3.");
-          return;
-        }
-        await downloadRepo(resolved, btnWd14LocalDownload);
-        wd14LocalAddRepo.value = "";
-      });
-      if (window.Wd14Local.pickImportFiles) {
-        btnWd14LocalImport.style.display = "";
-        btnWd14LocalImport.addEventListener("click", () => importFromDisk(btnWd14LocalImport));
-      }
-    }
-    btnWd14TagSelected.addEventListener("click", () => {
-      if (running) {
-        cancelRequested = true;
-        return;
-      }
-      const entries = getEntries5().filter((e) => masterSelectedImages.has(e) && !e.meta?.locked);
-      runBatch(entries);
-    });
-  }
-
-  // src/renderer/picker-modal.ts
-  function openPickerModal(title, options, current, onPick) {
-    const backdrop = document.createElement("div");
-    backdrop.className = "picker-backdrop";
-    const box = document.createElement("div");
-    box.className = "picker-box";
-    const head = document.createElement("div");
-    head.className = "picker-head";
-    const titleEl = document.createElement("span");
-    titleEl.textContent = title;
-    const closeBtn = document.createElement("button");
-    closeBtn.className = "picker-close";
-    closeBtn.textContent = "\xD7";
-    closeBtn.title = "Close";
-    head.appendChild(titleEl);
-    head.appendChild(closeBtn);
-    const search = document.createElement("input");
-    search.type = "text";
-    search.placeholder = "Search\u2026";
-    search.className = "picker-search";
-    const list = document.createElement("div");
-    list.className = "picker-list";
-    box.appendChild(head);
-    box.appendChild(search);
-    box.appendChild(list);
-    backdrop.appendChild(box);
-    function close() {
-      backdrop.classList.remove("modal-visible");
-      setTimeout(() => backdrop.remove(), 160);
-      document.removeEventListener("keydown", onKey);
-    }
-    function onKey(ev) {
-      if (ev.key === "Escape") close();
-    }
-    function renderRows() {
-      const raw = search.value.trim().toLowerCase();
-      let matches;
-      if (!raw) {
-        matches = options.slice();
-      } else {
-        const starts = [];
-        const subs = [];
-        for (const o of options) {
-          const lower = o.toLowerCase();
-          if (lower.startsWith(raw)) starts.push(o);
-          else if (lower.includes(raw)) subs.push(o);
-        }
-        matches = starts.concat(subs);
-      }
-      list.innerHTML = "";
-      const clearRow = document.createElement("div");
-      clearRow.className = "picker-row picker-clear";
-      clearRow.textContent = "\u2014 Clear \u2014";
-      clearRow.addEventListener("click", () => {
-        onPick("");
-        close();
-      });
-      list.appendChild(clearRow);
-      if (!matches.length) {
-        const empty = document.createElement("div");
-        empty.className = "picker-empty";
-        empty.textContent = raw ? "No matches." : "No options yet \u2014 try refreshing model lists.";
-        list.appendChild(empty);
-      } else {
-        for (const val of matches) {
-          const row = document.createElement("div");
-          row.className = "picker-row" + (val === current ? " picked" : "");
-          row.textContent = val;
-          row.addEventListener("click", () => {
-            onPick(val);
-            close();
-          });
-          list.appendChild(row);
-        }
-      }
-    }
-    search.addEventListener("input", renderRows);
-    backdrop.addEventListener("click", (ev) => {
-      if (ev.target === backdrop) close();
-    });
-    closeBtn.addEventListener("click", close);
-    document.addEventListener("keydown", onKey);
-    renderRows();
-    document.body.appendChild(backdrop);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      backdrop.classList.add("modal-visible");
-      search.focus();
-    }));
-  }
-  function attachPickerModal(inputEl2, title, getOptions) {
-    inputEl2.readOnly = true;
-    inputEl2.addEventListener("click", () => {
-      openPickerModal(title, getOptions() || [], inputEl2.value, (v) => {
-        inputEl2.value = v;
-        inputEl2.dispatchEvent(new Event("input", { bubbles: true }));
-        inputEl2.dispatchEvent(new Event("change", { bubbles: true }));
-      });
-    });
-  }
-
-  // src/renderer/tag-details.ts
-  var wikiData = null;
-  var allTagsMap = null;
-  async function fetchGzipJson(url) {
-    const res = await fetch(url);
-    const decompressed = res.body.pipeThrough(new DecompressionStream("gzip"));
-    const text = await new Response(decompressed).text();
-    return JSON.parse(text);
-  }
-  async function ensureWikiDataLoaded() {
-    if (wikiData) return wikiData;
-    try {
-      wikiData = await fetchGzipJson("./data/wiki.json.gzdat");
-    } catch (err) {
-      console.error("wiki.json.gzdat load failed:", err);
-      wikiData = {};
-    }
-    return wikiData;
-  }
-  async function ensureAllTagsLoaded() {
-    if (allTagsMap) return allTagsMap;
-    try {
-      const list = await fetchGzipJson("./data/all_tags.json.gzdat");
-      allTagsMap = /* @__PURE__ */ new Map();
-      for (const row of list) {
-        if (Array.isArray(row)) allTagsMap.set(row[0], { category: row[1], count: row[2] });
-      }
-    } catch (err) {
-      console.error("all_tags.json.gzdat load failed:", err);
-      allTagsMap = /* @__PURE__ */ new Map();
-    }
-    return allTagsMap;
-  }
-  var CATEGORY_NAMES = { 0: "General", 1: "Artist", 3: "Copyright", 4: "Character", 5: "Meta" };
-  var CUSTOM_NOTES_KEY = "dts-custom-tag-notes";
-  function getCustomTagNote(tag) {
-    try {
-      const notes = getJSON(CUSTOM_NOTES_KEY, {});
-      return notes[tag] || "";
-    } catch (e) {
-      return "";
-    }
-  }
-  function setCustomTagNote(tag, text) {
-    try {
-      const notes = getJSON(CUSTOM_NOTES_KEY, {});
-      notes[tag] = text;
-      setJSON(CUSTOM_NOTES_KEY, notes);
-    } catch (e) {
-    }
-  }
-  async function openTagDetails(tag) {
-    tagDetailsTitle.textContent = tag;
-    tagDetailsBody.innerHTML = '<div class="stats-empty">Loading\u2026</div>';
-    hidePanel(favoritesPanel);
-    hidePanel(logPanel);
-    hidePanel(achievementsPanel);
-    hidePanel(shopPanel);
-    showPanel(tagDetailsPanel);
-    folderStats.tag_details_opened = (folderStats.tag_details_opened || 0) + 1;
-    saveFolderStats();
-    checkAchievements();
-    const wikiKey = tag.replace(/ /g, "_");
-    const [wiki, allTags] = await Promise.all([ensureWikiDataLoaded(), ensureAllTagsLoaded()]);
-    const def = wiki[wikiKey];
-    const meta = allTags.get(wikiKey);
-    tagDetailsBody.innerHTML = "";
-    if (meta) {
-      const metaRow = document.createElement("div");
-      metaRow.className = "tag-details-meta";
-      metaRow.innerHTML = `<span>${CATEGORY_NAMES[meta.category] || "Unknown"}</span><span>${meta.count.toLocaleString()} posts</span>`;
-      tagDetailsBody.appendChild(metaRow);
-    }
-    if (def) {
-      const defEl = document.createElement("div");
-      defEl.className = "tag-details-def";
-      defEl.textContent = def;
-      tagDetailsBody.appendChild(defEl);
-    } else {
-      const greyed = document.createElement("div");
-      greyed.className = "tag-details-def greyed";
-      greyed.textContent = "No official wiki entry for this tag.";
-      tagDetailsBody.appendChild(greyed);
-      const label = document.createElement("div");
-      label.className = "ctx-sep";
-      label.textContent = "Write your own description (saved on this computer):";
-      tagDetailsBody.appendChild(label);
-      const textarea = document.createElement("textarea");
-      textarea.value = getCustomTagNote(tag);
-      tagDetailsBody.appendChild(textarea);
-      const saveBtn = document.createElement("button");
-      saveBtn.className = "primary";
-      saveBtn.textContent = "Save description";
-      saveBtn.addEventListener("click", () => {
-        setCustomTagNote(tag, textarea.value);
-        toast("Saved your description for this tag.");
-      });
-      tagDetailsBody.appendChild(saveBtn);
-    }
-  }
-  function initTagDetails() {
-    tagDetailsCloseBtn.addEventListener("click", () => hidePanel(tagDetailsPanel));
-  }
-
-  // src/renderer/synthdat-overseer.ts
-  var WD14_SETTINGS_KEY = "dts-wd14-settings";
-  function getWd14Settings() {
-    const defaults = { host: "http://127.0.0.1:8188", model: "", threshold: 0.35, characterThreshold: 0.85, trailingComma: false, excludeTags: "" };
-    const saved = getJSON(WD14_SETTINGS_KEY, null);
-    return saved && typeof saved === "object" ? { ...defaults, ...saved } : defaults;
-  }
-  function getHost() {
-    return backend === "local" ? LOCAL_COMFY_HOST : (synthDatHost.value || "").trim() || "http://127.0.0.1:8188";
-  }
-  var LOCAL_COMFY_HOST = "local";
-  var BACKEND_KEY = "dts-synthdat-backend";
-  var hasLocalComfy = typeof window.electronAPI?.comfyLocalStatus === "function";
-  var backend = hasLocalComfy && getString(BACKEND_KEY) === "local" ? "local" : "server";
-  function applyBackendUI() {
-    synthDatServerFields.style.display = backend === "server" ? "" : "none";
-    synthDatLocalFields.style.display = backend === "local" ? "" : "none";
-    synthDatConnStatus.style.display = "none";
-    if (backend === "local") void refreshLocalStatus();
-  }
-  function showLocalStatus(folder, error) {
-    synthDatLocalFolder.textContent = folder || "Not set";
-    synthDatLocalFolder.title = folder;
-    if (error && folder) {
-      synthDatConnStatus.style.display = "block";
-      synthDatConnStatus.style.color = "";
-      synthDatConnStatus.textContent = error;
-    }
-  }
-  async function refreshLocalStatus() {
-    const s = await window.electronAPI.comfyLocalStatus();
-    showLocalStatus(s.folder, s.error);
-  }
-  async function pickLocalFolder() {
-    const s = await window.electronAPI.comfyLocalPickFolder();
-    synthDatConnStatus.style.display = "none";
-    showLocalStatus(s.folder, s.error);
-  }
-  async function wd14TagBytes(filename, bytes) {
-    const settings2 = getWd14Settings();
-    const onDevice = !!window.Wd14Local && (settings2.mode ?? "local") === "local";
-    if (onDevice) {
-      if (!settings2.localModel) return { ok: false, error: "No on-device WD14 model chosen \u2014 pick one in Tag Overseer's WD14 Autotagger section first." };
-      return window.Wd14Local.tagImage({
-        name: settings2.localModel,
-        imageBytes: bytes,
-        threshold: settings2.threshold,
-        characterThreshold: settings2.characterThreshold,
-        preferGpu: settings2.gpu !== false
-      });
-    }
-    if (backend === "local") return { ok: false, error: "Osmium Comfy doesn't run WD14. Set Tag Overseer's WD14 Autotagger to On-device to interrogate without a server." };
-    if (!settings2.model) return { ok: false, error: "No WD14 model configured \u2014 set one up in Tag Overseer's WD14 Autotagger section first." };
-    return window.electronAPI.wd14TagImage({ host: getHost(), filename, imageBytes: bytes, settings: settings2 });
-  }
-  var SETTINGS_FILE_NAME = "_dts_synthdat_settings.json";
-  var saveTimer = null;
-  function scheduleSave() {
-    if (saveTimer !== null) clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveSettings2, 400);
-  }
-  async function saveSettings2() {
-    const dirHandle = getDirHandle9();
-    if (!dirHandle) return;
-    try {
-      const handle = await dirHandle.getFileHandle(SETTINGS_FILE_NAME, { create: true });
-      await writeBytes(handle, JSON.stringify({
-        host: synthDatHost.value,
-        unifiedPromptMode: synthDatUnifiedPromptMode.checked,
-        unifiedPrompt: synthDatUnifiedPrompt.value,
-        global: synthDatGlobal.value,
-        character: synthDatCharacter.value,
-        characterTrigger: synthDatCharacterTrigger.value,
-        rating: synthDatRating.value,
-        hair: synthDatHair.value,
-        face: synthDatFace.value,
-        chest: synthDatChest.value,
-        body: synthDatBody.value,
-        clothes: synthDatClothes.value,
-        limbs: synthDatLimbs.value,
-        sexual: synthDatSexual.value,
-        pose: synthDatPose.value,
-        scene: synthDatScene.value,
-        effects: synthDatEffects.value,
-        extra: synthDatExtra.value,
-        negative: synthDatNegative.value,
-        diffModel: synthDatDiffModel.value,
-        clip: synthDatClip.value,
-        vae: synthDatVae.value,
-        mainLora: synthDatMainLora.value,
-        mainLoraStrength: synthDatMainLoraStrength.value,
-        loraRows: loraRows.map((r) => ({ lora: r.input.value, strength: r.strength.value })),
-        lliteStrength: synthDatLLLiteStrength.value,
-        lliteStartPercent: synthDatLLLiteStartPercent.value,
-        lliteEndPercent: synthDatLLLiteEndPercent.value,
-        llitePreserveWrapper: synthDatLLLitePreserveWrapper.checked,
-        resizeFit: synthDatResizeFit.value,
-        resizeMethod: synthDatResizeMethod.value,
-        sampler: synthDatSampler.value,
-        scheduler: synthDatScheduler.value,
-        steps1: synthDatSteps1.value,
-        cfg1: synthDatCfg1.value,
-        steps2: synthDatSteps2.value,
-        width: synthDatWidth.value,
-        height: synthDatHeight.value,
-        use2Pass: synthDatUse2Pass.checked,
-        seed1: synthDatSeed1.value,
-        seed2: synthDatSeed2.value,
-        denoise2: synthDatDenoise2.value,
-        stripHairFace: synthDatStripHairFace.checked,
-        skipRefImage: synthDatSkipRefImage.checked
-      }, null, 2));
-    } catch (e) {
-    }
-  }
-  function resetSettingsToDefault() {
-    synthDatHost.value = "";
-    synthDatUnifiedPromptMode.checked = false;
-    synthDatUnifiedPrompt.value = "";
-    synthDatGlobal.value = "";
-    synthDatCharacter.value = "";
-    synthDatCharacterTrigger.value = "";
-    synthDatRating.value = "";
-    synthDatHair.value = "";
-    synthDatFace.value = "";
-    synthDatChest.value = "";
-    synthDatBody.value = "";
-    synthDatClothes.value = "";
-    synthDatLimbs.value = "";
-    synthDatSexual.value = "";
-    synthDatPose.value = "";
-    synthDatScene.value = "";
-    synthDatEffects.value = "";
-    synthDatExtra.value = "";
-    synthDatNegative.value = "";
-    synthDatDiffModel.value = "";
-    synthDatClip.value = "";
-    synthDatVae.value = "";
-    synthDatMainLora.value = "";
-    synthDatMainLoraStrength.value = "1";
-    synthDatLoraStackRows.innerHTML = "";
-    loraRows = [];
-    synthDatLLLiteStrength.value = "1";
-    synthDatLLLiteStartPercent.value = "0";
-    synthDatLLLiteEndPercent.value = "0.3";
-    synthDatLLLitePreserveWrapper.checked = true;
-    synthDatResizeFit.value = "pad";
-    synthDatResizeMethod.value = "lanczos";
-    synthDatSampler.value = "res_multistep";
-    synthDatScheduler.value = "beta";
-    synthDatSteps1.value = "25";
-    synthDatCfg1.value = "4.04";
-    synthDatSteps2.value = "15";
-    synthDatWidth.value = "920";
-    synthDatHeight.value = "1244";
-    synthDatUse2Pass.checked = false;
-    synthDatSeed1.value = "15";
-    synthDatSeed2.value = "15";
-    synthDatDenoise2.value = "0.6";
-    synthDatStripHairFace.checked = true;
-    synthDatSkipRefImage.checked = false;
-    applySkipRefImageUI();
-    applyUnifiedPromptModeUI();
-  }
-  async function loadSettingsFromFile() {
-    const dirHandle = getDirHandle9();
-    if (!dirHandle) return null;
-    let saved = null;
-    try {
-      const handle = await dirHandle.getFileHandle(SETTINGS_FILE_NAME, { create: false });
-      const file = await handle.getFile();
-      saved = JSON.parse((await file.text()).trim() || "null");
-    } catch (e) {
-      return null;
-    }
-    if (!saved) return null;
-    synthDatHost.value = saved.host || "";
-    synthDatUnifiedPromptMode.checked = !!saved.unifiedPromptMode;
-    synthDatUnifiedPrompt.value = saved.unifiedPrompt || "";
-    synthDatGlobal.value = saved.global || "";
-    synthDatCharacter.value = saved.character || "";
-    synthDatCharacterTrigger.value = saved.characterTrigger || "";
-    synthDatRating.value = saved.rating || "";
-    synthDatHair.value = saved.hair || "";
-    synthDatFace.value = saved.face || "";
-    synthDatChest.value = saved.chest || "";
-    synthDatBody.value = saved.body || "";
-    synthDatClothes.value = saved.clothes || "";
-    synthDatLimbs.value = saved.limbs || "";
-    synthDatSexual.value = saved.sexual || "";
-    synthDatPose.value = saved.pose || "";
-    synthDatScene.value = saved.scene || "";
-    synthDatEffects.value = saved.effects || "";
-    synthDatExtra.value = saved.extra || "";
-    synthDatNegative.value = saved.negative || "";
-    synthDatDiffModel.value = saved.diffModel || "";
-    synthDatClip.value = saved.clip || "";
-    synthDatVae.value = saved.vae || "";
-    synthDatMainLora.value = saved.mainLora || "";
-    synthDatMainLoraStrength.value = saved.mainLoraStrength != null ? saved.mainLoraStrength : "1";
-    synthDatLLLiteStrength.value = saved.lliteStrength != null ? saved.lliteStrength : 1;
-    synthDatLLLiteStartPercent.value = saved.lliteStartPercent != null ? saved.lliteStartPercent : 0;
-    synthDatLLLiteEndPercent.value = saved.lliteEndPercent != null ? saved.lliteEndPercent : 0.3;
-    synthDatLLLitePreserveWrapper.checked = saved.llitePreserveWrapper !== false;
-    synthDatResizeFit.value = saved.resizeFit || "pad";
-    synthDatResizeMethod.value = saved.resizeMethod || "lanczos";
-    if (saved.sampler) synthDatSampler.value = saved.sampler;
-    if (saved.scheduler) synthDatScheduler.value = saved.scheduler;
-    synthDatSteps1.value = saved.steps1 || 25;
-    synthDatCfg1.value = saved.cfg1 != null ? saved.cfg1 : 4.04;
-    synthDatSteps2.value = saved.steps2 || 15;
-    synthDatWidth.value = saved.width || 920;
-    synthDatHeight.value = saved.height || 1244;
-    synthDatUse2Pass.checked = !!saved.use2Pass;
-    synthDatSeed1.value = saved.seed1 != null ? saved.seed1 : 15;
-    synthDatSeed2.value = saved.seed2 != null ? saved.seed2 : 15;
-    synthDatDenoise2.value = saved.denoise2 != null ? saved.denoise2 : 0.6;
-    synthDatStripHairFace.checked = saved.stripHairFace !== false;
-    synthDatSkipRefImage.checked = !!saved.skipRefImage;
-    applySkipRefImageUI();
-    applyUnifiedPromptModeUI();
-    return saved;
-  }
-  async function loadSynthDatSettingsForFolder() {
-    resetSettingsToDefault();
-    const dirHandle = getDirHandle9();
-    if (!dirHandle) {
-      document.querySelectorAll("#synthDatTab textarea").forEach((el) => growTextarea(el));
-      return;
-    }
-    const saved = await loadSettingsFromFile();
-    if (saved) {
-      const rows = Array.isArray(saved.loraRows) && saved.loraRows.length ? saved.loraRows : [{ lora: "", strength: 1 }, { lora: "", strength: 0.8 }];
-      for (const r of rows) addLoraRow(r.lora, r.strength);
-    } else {
-      synthDatHost.value = getWd14Settings().host || "http://127.0.0.1:8188";
-      addLoraRow("", 1);
-      addLoraRow("", 0.8);
-    }
-    document.querySelectorAll("#synthDatTab textarea").forEach((el) => growTextarea(el));
-  }
-  var POSE_TAGS = /* @__PURE__ */ new Set([
-    "standing",
-    "sitting",
-    "lying",
-    "kneeling",
-    "squatting",
-    "crouching",
-    "jumping",
-    "running",
-    "walking",
-    "bent over",
-    "on back",
-    "on stomach",
-    "on side",
-    "wariza",
-    "seiza",
-    "all fours",
-    "straddling",
-    "stretching",
-    "falling",
-    "flying",
-    "floating",
-    "dancing",
-    "fighting stance",
-    "looking back",
-    "looking up",
-    "looking down",
-    "looking at viewer",
-    "looking away",
-    "head tilt",
-    "reclining",
-    "curled up",
-    "yoga",
-    "split",
-    "plank",
-    "on one knee",
-    "fetal position",
-    "butterfly sitting",
-    "figure four sitting",
-    "indian style",
-    "lotus position",
-    "hugging own legs",
-    "hug own legs",
-    "sitting on lap",
-    "human chair",
-    "thigh straddling",
-    "upright straddle",
-    "yokozuwari",
-    "balancing",
-    "legs apart",
-    "standing on one leg",
-    "crawling",
-    "midair",
-    "hopping",
-    "pouncing",
-    "walking on wall",
-    "top-down bottom-up",
-    "prostration",
-    "bear position",
-    "bowlegged pose",
-    "chest stand",
-    "cowering",
-    "crucifixion",
-    "faceplant",
-    "full scorpion",
-    "battoujutsu stance",
-    "spread eagle position",
-    "superhero landing",
-    "upside-down",
-    "handstand",
-    "headstand",
-    "scorpion pose",
-    "head down",
-    "head back",
-    "arched back",
-    "bent back",
-    "slouching",
-    "sway back",
-    "twisted torso",
-    "crossed ankles",
-    "leg up",
-    "legs up",
-    "knees to chest",
-    "legs over head",
-    "leg lift",
-    "outstretched leg",
-    "pigeon pose",
-    "standing split",
-    "uneven footing",
-    "knees apart feet together",
-    "knees together feet apart",
-    "knee up",
-    "knees up",
-    "en pointe",
-    "foot dangle",
-    "bowing",
-    "curtsey",
-    "leaning forward",
-    "leaning back",
-    "hunched over",
-    "hanging",
-    "hanging upside down",
-    "climbing",
-    "swimming",
-    "diving",
-    "swinging",
-    "riding",
-    "galloping",
-    "leaning on object"
-  ]);
-  var LIMB_ACTION_TAGS = /* @__PURE__ */ new Set([
-    "arms up",
-    "arms behind back",
-    "arms behind head",
-    "arms crossed",
-    "crossed arms",
-    "hand up",
-    "hands up",
-    "hand on hip",
-    "hands on hips",
-    "hand on own chest",
-    "hand on own cheek",
-    "hand on own chin",
-    "hand on own head",
-    "hands on own face",
-    "reaching",
-    "reaching out",
-    "pointing",
-    "pointing at viewer",
-    "peace sign",
-    "thumbs up",
-    "clenched hand",
-    "clenched hands",
-    "open hand",
-    "open hands",
-    "own hands together",
-    "hands together",
-    "hands clasped",
-    "waving",
-    "arm support",
-    "arm up",
-    "spread legs",
-    "crossed legs",
-    "akimbo",
-    "fingers together",
-    "finger to mouth",
-    "hand on own knee",
-    "hands on own knees",
-    "v",
-    "arm behind back",
-    "victory pose",
-    "outstretched arm",
-    "outstretched arms",
-    "spread arms",
-    "arm at side",
-    "arms at sides",
-    "airplane arms",
-    "flexing",
-    "t-pose",
-    "a-pose",
-    "w arms",
-    "stroking own chin",
-    "outstretched hand",
-    "interlocked fingers",
-    "star hands",
-    "folded",
-    "pin legs",
-    "watson cross",
-    "dorsiflexion",
-    "plantar flexion",
-    "toe scrunch",
-    "tiptoes",
-    "pigeon-toed",
-    "hug",
-    "hugging object",
-    "hugging tail",
-    "arm hug",
-    "hug from behind",
-    "waist hug",
-    "piggyback",
-    "carrying",
-    "princess carry",
-    "shoulder carry",
-    "air quotes",
-    "circle hands",
-    "cupping hands",
-    "double thumbs up",
-    "double thumbs down",
-    "double v",
-    "fist bump",
-    "hand glasses",
-    "heart hands",
-    "high five",
-    "horns pose",
-    "index finger raised",
-    "index fingers together",
-    "palm-fist tap",
-    "pinky swear",
-    "shadow puppet",
-    "steepled fingers",
-    "triangle hands",
-    "x arms",
-    "beckoning",
-    "twirling hair",
-    "middle finger",
-    "pinky out",
-    "shushing",
-    "thumbs down",
-    "pointing at another",
-    "pointing at self",
-    "pointing down",
-    "pointing forward",
-    "pointing up",
-    "crossed fingers",
-    "finger gun",
-    "finger heart",
-    "shaka sign",
-    "v over eye",
-    "v over mouth",
-    "hand of benediction",
-    "ok sign",
-    "w",
-    "facepalm",
-    "salute",
-    "spread fingers",
-    "stop (gesture)",
-    "fist pump",
-    "power fist",
-    "raised fist",
-    "arm around neck",
-    "arm on another's shoulder",
-    "hand on another's shoulder",
-    "hand on own shoulder",
-    "hands on own shoulders",
-    "hand on own ear",
-    "hand on own face",
-    "hands on own face",
-    "hand on own forehead",
-    "hands on own cheeks",
-    "hands on own chin",
-    "hand on own neck",
-    "hands on own neck",
-    "hands on own chest",
-    "hand on own stomach",
-    "hands on own stomach",
-    "hand on own arm",
-    "hand on own elbow",
-    "hand on another's hip",
-    "hands on another's hips",
-    "hand in pocket",
-    "hands in pockets",
-    "headpat",
-    "hand on another's head",
-    "hands on another's head",
-    "arm around shoulder",
-    "hand on another's arm",
-    "hand on another's back",
-    "hand on another's chest",
-    "hand on another's shoulder",
-    "hands on another's shoulder",
-    // Gestures — hand/mouth/body-language expressions common in the reference
-    // poses SynthDat reads, over and above the hand-PLACEMENT tags above.
-    "covering mouth",
-    "covering face",
-    "covering eyes",
-    "covering one eye",
-    "covering nose",
-    "covering ears",
-    "adjusting glasses",
-    "adjusting eyewear",
-    "adjusting headwear",
-    "adjusting clothes",
-    "hair flip",
-    "blowing a kiss",
-    "blowing bubble",
-    "biting lip",
-    "clapping",
-    "snapping fingers",
-    "yawning",
-    "praying",
-    "holding hands",
-    "holding phone",
-    "texting",
-    "smoking",
-    "drinking",
-    "eating",
-    "rolling up sleeves",
-    "hand in own hair",
-    "hand in another's hair",
-    "grabbing another's arm",
-    "grabbing another's hand"
-  ]);
-  var SEXUAL_ACTION_TAGS = /* @__PURE__ */ new Set([
-    "groping motion",
-    "groping",
-    "hand in bra",
-    "nipple tweak",
-    "arm between breasts",
-    "grabbing own breast",
-    "grabbing another's breast",
-    "flat chest grab",
-    "guided breast grab",
-    "breast lift",
-    "breasts squeezed together",
-    "breast suppress",
-    "hand between own legs",
-    "hand on own crotch",
-    "hand on another's crotch",
-    "hands on own crotch",
-    "hand on own ass",
-    "hand on another's ass",
-    "cunnilingus gesture",
-    "fellatio gesture",
-    "handjob gesture",
-    "penetration gesture",
-    "tribadism gesture",
-    "strangling",
-    "foot worship",
-    "kissing foot",
-    "licking foot",
-    "toe sucking",
-    "footjob",
-    "double footjob",
-    "cooperative footjob",
-    "implied footjob",
-    "foot pussy",
-    // Hand/mouth-on-body actions and the physical-interaction tags WD14 returns
-    // most often on explicit reference material — same "what is the body
-    // actively doing" test as the other three sets (states/appearance like
-    // body fluids, arousal markers, or exposure belong in the pending-card
-    // prune instead, since they're content DESCRIPTIONS, not transferable
-    // reference-pose actions).
-    "breast grab",
-    "breast squeezing",
-    "breast sucking",
-    "nipple sucking",
-    "licking nipples",
-    "ass grab",
-    "grabbing own ass",
-    "grabbing another's ass",
-    "hand on another's breast",
-    "spanking",
-    "fingering",
-    "handjob",
-    "paizuri",
-    "thighjob",
-    "armpit job",
-    "deep throat",
-    "irrumatio",
-    "face fuck",
-    "mutual masturbation",
-    "girl on top",
-    "boy on top",
-    "doggystyle",
-    "sex from behind",
-    "standing sex"
-  ]);
-  var SCENE_TAGS = /* @__PURE__ */ new Set([
-    "from front",
-    "from side",
-    "from above",
-    "from below",
-    "from behind",
-    "pov",
-    "close-up",
-    "cowboy shot",
-    "dutch angle",
-    "wide shot",
-    "upper body",
-    "lower body",
-    "full body",
-    "head shot",
-    "selfie",
-    "mirror selfie"
-  ]);
-  function normalizeTag(t) {
-    return String(t).toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  }
-  var POSE_FAMILIES = [
-    [/standing on one leg|balancing|handstand|headstand|scorpion|chest stand|plank|superhero landing|full scorpion/, "Acrobatic"],
-    [/stand/, "Standing"],
-    [/wari|seiza|sitt|lap|thigh straddl|straddl|fetal|butterfly|figure four|indian style|lotus|hug own|hugging own|knees to chest|knees up|knees apart|yokozuwari|curled up/, "Sitting"],
-    [/kneel|on one knee|prostration|bowing|curtsey|cower/, "Kneeling & Bowing"],
-    [/lyi|on back|on stomach|on side|reclin|faceplant/, "Lying"],
-    [/squat|crouch|crawl|all fours|bear position/, "Crouching & Crawling"],
-    [/jump|hop|pounc|midair|falling|flying|floating|leap/, "Airborne"],
-    [/run|walk|pacing|en pointe|tiptoe|step|strut/, "Walking & Stepping"],
-    [/dance|yoga|stretch|split|balancing|pilates|flex/, "Stretch & Dance"],
-    [/leg|foot|feet|ankle|knee|toe/, "Legs & Feet"],
-    [/arched|bent|slouch|sway|twist|torso|chest stand/, "Back & Torso"],
-    [/head tilt|head down|head back|looking face-?plant/, "Head & Neck"],
-    [/climb|swim|dive|swing|ride|gallop|hanging|cat/, "Climbing & Sport"]
-  ];
-  var LIMB_FAMILIES = [
-    [/arm|akimbo|elbow|airplane|w arms|x arms|t-pose|a-pose|flex|salute/, "Arms"],
-    [/hand|finger|thumb|palm|fist|pinky|index|v sign|peace|ok sign|shaka|heart hands|high five|headpat|beckon|shush|clap|snap/, "Hands & Gestures"],
-    [/leg|feet|foot|toe|ankle|dorsiflexion|plantar|tiptoes/, "Legs & Feet"],
-    [/hold|carry|hug|piggyback|in pocket|cupping|roll/, "Holding & Carrying"],
-    [/adjust/, "Adjusting"],
-    [/coveri|touch|point|reach|twirl|hair flip/, "Touch & Point"]
-  ];
-  var SCENE_FAMILIES = [
-    [/from |pov|dutch angle|selfie/, "Camera angle"],
-    [/close-up|cowboy|wide shot|body|head shot/, "Framing"]
-  ];
-  var SEXUAL_FAMILIES = [
-    [/breast|nipple|tit|paizuri|chest/, "Breasts & Chest"],
-    [/penis|ball|cock|handjob|mutual masturbation|boy on top|paizuri/, "Penis"],
-    [/ass|butt|anus|doggystyle|from behind|spanking|anal/, "Butt & Anal"],
-    [/pussy|vagina|crot|cunni|tribadism|fingeri|girl on top/, "Vagina & Oral"],
-    [/blow|oral|deep throat|irrumatio|face fuck|suck|lick|toe suck|foot job|footjob|foot worship|kissing foot|foot pussy/, "Mouth & Oral"],
-    [/foot|feet|toe/, "Feet"],
-    [/hand|finger/, "Hands"],
-    [/sex|standing sex|straddling|thighjob|armpit/, "Positions & Grinding"]
-  ];
-  function groupTagsByFamily(tags, rules) {
-    const groups2 = /* @__PURE__ */ new Map();
-    for (const raw of tags) {
-      const t = normalizeTag(raw);
-      let family = "Other";
-      for (const [re, name] of rules) {
-        if (re.test(t)) {
-          family = name;
-          break;
-        }
-      }
-      if (!groups2.has(family)) groups2.set(family, []);
-      groups2.get(family).push(raw);
-    }
-    return Array.from(groups2.entries()).map(([family, list]) => ({ family, tags: list.sort((a, b) => a.localeCompare(b)) })).sort((a, b) => b.tags.length - a.tags.length);
-  }
-  function getWd14TransferSets() {
-    return [
-      { name: "Pose", desc: "Body posture/position tags \u2014 suggested destination: Pose. Suggested keyword families, not a strict taxonomy.", groups: [] },
-      { name: "Limbs & Hands", desc: "Arm/hand actions and gestures \u2014 suggested destination: Limbs.", groups: [] },
-      { name: "Scene (perspective/composition)", desc: "Camera-angle/composition tags \u2014 suggested destination: Scene.", groups: [] },
-      { name: "Sexual", desc: "Sexual-content actions \u2014 suggested destination: Sexual.", groups: [] }
-    ].map((s, i) => {
-      const groups2 = [
-        groupTagsByFamily([...POSE_TAGS], POSE_FAMILIES),
-        groupTagsByFamily([...LIMB_ACTION_TAGS], LIMB_FAMILIES),
-        groupTagsByFamily([...SCENE_TAGS], SCENE_FAMILIES),
-        groupTagsByFamily([...SEXUAL_ACTION_TAGS], SEXUAL_FAMILIES)
-      ][i];
-      return { name: s.name, desc: s.desc, groups: groups2, total: groups2.reduce((n, g) => n + g.tags.length, 0) };
-    });
-  }
-  var template = null;
-  var getDirHandle9 = () => null;
-  var addEntryFromNewFile = async () => null;
-  var refreshAllUIRef6 = () => {
-  };
-  var refFile = null;
-  var refFilename = "";
-  var refImageEl = null;
-  var lastWd14TagsCsv = "";
-  var previewBytes = null;
-  var loraCombo = null;
-  function growTextarea(el) {
-    const he = el;
-    he.style.height = "auto";
-    he.style.height = `${he.scrollHeight}px`;
-  }
-  async function loadTemplate() {
-    if (template) return template;
-    const res = await fetch("./data/synthdat-workflow.json");
-    template = await res.json();
-    return template;
-  }
-  function setWd14ResultText(text) {
-    if (!text) {
-      synthDatWd14Result.style.display = "none";
-      synthDatWd14Result.textContent = "";
-      return;
-    }
-    synthDatWd14Result.style.display = "block";
-    synthDatWd14Result.textContent = text;
-  }
-  function setGenStatus(text) {
-    if (!text) {
-      synthDatGenStatus.style.display = "none";
-      synthDatGenStatus.textContent = "";
-      return;
-    }
-    synthDatGenStatus.style.display = "block";
-    synthDatGenStatus.textContent = text;
-  }
-  async function pickReferenceImage() {
-    if (!hasOpenFilePicker()) {
-      toast("Your browser does not support file picking here.", 4e3);
-      return;
-    }
-    let handles;
-    try {
-      handles = await pickOpenFiles({
-        types: [{ description: "Images", accept: { "image/*": [".png", ".jpg", ".jpeg", ".webp"] } }],
-        multiple: false
-      });
-    } catch (e) {
-      return;
-    }
-    if (!handles || !handles[0]) return;
-    const file = await handles[0].getFile();
-    refFile = file;
-    refFilename = file.name;
-    const objectUrl = URL.createObjectURL(file);
-    setObjectUrlOn(synthDatRefPreview, file);
-    synthDatRefPreview.style.display = "block";
-    synthDatRefEmpty.style.display = "none";
-    btnSynthDatInterrogate.disabled = false;
-    refImageEl = new Image();
-    refImageEl.onload = () => {
-      updateResizedPreview();
-      updateResoWarning();
-    };
-    refImageEl.src = synthDatRefPreview.dataset.objectUrl;
-    setWd14ResultText("");
-    lastWd14TagsCsv = "";
-    tagAssignments = /* @__PURE__ */ new Map();
-    synthDatTagAssign.innerHTML = "";
-    btnSynthDatMigratePose.disabled = true;
-  }
-  function updateResizedPreview() {
-    if (!refImageEl || !refImageEl.naturalWidth) {
-      synthDatResizedPreviewWrap.style.display = "none";
-      synthDatResizedPreviewLabel.style.display = "none";
-      return;
-    }
-    const targetW = parseInt(synthDatWidth.value, 10) || 920;
-    const targetH = parseInt(synthDatHeight.value, 10) || 1244;
-    const fit = synthDatResizeFit.value || "pad";
-    const w = refImageEl.naturalWidth, h = refImageEl.naturalHeight;
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    let label;
-    if (fit === "crop") {
-      canvas.width = targetW;
-      canvas.height = targetH;
-      const scale = Math.max(targetW / w, targetH / h);
-      const drawW = w * scale, drawH = h * scale;
-      ctx.drawImage(refImageEl, (targetW - drawW) / 2, (targetH - drawH) / 2, drawW, drawH);
-      label = `Parent image is ${w}\xD7${h}, cropped here to fill ${targetW}\xD7${targetH} \u2014 this is what ControlNet actually sees. Updates live as you change Width/Height/Fit.`;
-    } else if (fit === "contain") {
-      const scale = Math.min(targetW / w, targetH / h);
-      canvas.width = Math.round(w * scale);
-      canvas.height = Math.round(h * scale);
-      ctx.drawImage(refImageEl, 0, 0, canvas.width, canvas.height);
-      label = `Parent image is ${w}\xD7${h}, contained here to ${canvas.width}\xD7${canvas.height} (fit inside ${targetW}\xD7${targetH} with no padding) \u2014 this is what ControlNet actually sees. Updates live as you change Width/Height/Fit.`;
-    } else {
-      canvas.width = targetW;
-      canvas.height = targetH;
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, targetW, targetH);
-      const scale = Math.min(targetW / w, targetH / h);
-      const drawW = w * scale, drawH = h * scale;
-      ctx.drawImage(refImageEl, (targetW - drawW) / 2, (targetH - drawH) / 2, drawW, drawH);
-      label = `Parent image is ${w}\xD7${h}, padded here to ${targetW}\xD7${targetH} \u2014 this is what ControlNet actually sees. Updates live as you change Width/Height/Fit.`;
-    }
-    synthDatResizedPreview.src = canvas.toDataURL("image/png");
-    synthDatResizedPreviewWrap.style.display = "block";
-    synthDatResizedPreviewLabel.textContent = label;
-    synthDatResizedPreviewLabel.style.display = "block";
-  }
-  function updateResoWarning() {
-    if (!refImageEl || !refImageEl.naturalWidth) {
-      synthDatResoWarning.style.display = "none";
-      return;
-    }
-    const targetW = parseInt(synthDatWidth.value, 10) || 0;
-    const targetH = parseInt(synthDatHeight.value, 10) || 0;
-    const refPortrait = refImageEl.naturalHeight > refImageEl.naturalWidth;
-    const targetPortrait = targetH > targetW;
-    if (refPortrait !== targetPortrait) {
-      setIconLabel(synthDatResoWarning, `\u26A0 Reference image is ${refPortrait ? "portrait" : "landscape"} (${refImageEl.naturalWidth}\xD7${refImageEl.naturalHeight}) but your generation resolution is ${targetPortrait ? "portrait" : "landscape"} (${targetW}\xD7${targetH}) \u2014 consider swapping Width/Height.`);
-      synthDatResoWarning.style.display = "block";
-    } else {
-      synthDatResoWarning.style.display = "none";
-    }
-  }
-  function applySkipRefImageUI() {
-    synthDatRefImageSection.classList.toggle("synthdat-section-disabled", synthDatSkipRefImage.checked);
-  }
-  function applyUnifiedPromptModeUI() {
-    const unified = synthDatUnifiedPromptMode.checked;
-    synthDatUnifiedPromptRow.style.display = unified ? "" : "none";
-    synthDatSplitFieldsGroup.style.display = unified ? "none" : "";
-    synthDatStripHairFaceRow.style.display = unified ? "none" : "";
-  }
-  function onDocClickOutsidePromptPanel(ev) {
-    const target = ev.target;
-    if (synthDatPromptFieldsDock.contains(target) || btnSynthDatPromptPanelToggle.contains(target)) return;
-    closeSynthDatPromptPanel();
-  }
-  function openSynthDatPromptPanel() {
-    synthDatPromptFieldsDock.style.display = "block";
-    btnSynthDatPromptPanelToggle.style.display = "none";
-    synthDatPromptFieldsDock.querySelectorAll("textarea").forEach((el) => growTextarea(el));
-    setTimeout(() => document.addEventListener("mousedown", onDocClickOutsidePromptPanel), 0);
-  }
-  function closeSynthDatPromptPanel() {
-    synthDatPromptFieldsDock.style.display = "none";
-    btnSynthDatPromptPanelToggle.style.display = "";
-    document.removeEventListener("mousedown", onDocClickOutsidePromptPanel);
-  }
-  async function interrogateReference() {
-    if (!refFile) return;
-    setWd14ResultText("Interrogating\u2026");
-    const bytes = new Uint8Array(await refFile.arrayBuffer());
-    const res = await wd14TagBytes(refFilename, bytes);
-    if (!res.ok) {
-      setWd14ResultText(res.error || "WD14 interrogation failed.");
-      return;
-    }
-    const tagsCsv = res.tagsCsv || "";
-    lastWd14TagsCsv = tagsCsv;
-    setWd14ResultText(parseWd14Tags(tagsCsv).join(", ") || "(no tags returned)");
-    renderTagAssignPicker(parseWd14Tags(tagsCsv));
-  }
-  async function reinterrogateOutput() {
-    if (!previewBytes || !pendingTagSnapshot) return;
-    synthDatReinterrogateResult.style.display = "block";
-    synthDatReinterrogateResult.textContent = "Interrogating output\u2026";
-    const res = await wd14TagBytes(pendingImgName || "output.png", previewBytes);
-    if (!res.ok) {
-      synthDatReinterrogateResult.textContent = res.error || "WD14 interrogation failed.";
-      return;
-    }
-    const outputTags = parseWd14Tags(res.tagsCsv || "");
-    if (synthDatReinterrogateOverwrite.checked) {
-      pendingTagSnapshot = outputTags;
-      excludedTags = /* @__PURE__ */ new Set();
-      mergedTagOverrides = /* @__PURE__ */ new Map();
-      markedVoidTags = /* @__PURE__ */ new Set();
-      renderTagCard();
-      synthDatReinterrogateResult.textContent = `Replaced the list with ${outputTags.length} tag(s) from WD14: ${outputTags.join(", ")}`;
-      return;
-    }
-    const existingNormalized = new Set(pendingTagSnapshot.map(normalizeTag));
-    const newTags = [];
-    for (const tag of outputTags) {
-      const norm = normalizeTag(tag);
-      if (existingNormalized.has(norm)) continue;
-      existingNormalized.add(norm);
-      newTags.push(tag);
-    }
-    if (newTags.length === 0) {
-      synthDatReinterrogateResult.textContent = "No new tags \u2014 WD14 didn't catch anything the list below is missing.";
-      return;
-    }
-    pendingTagSnapshot = pendingTagSnapshot.concat(newTags);
-    renderTagCard();
-    synthDatReinterrogateResult.textContent = `Added ${newTags.length} tag(s) WD14 caught in the output: ${newTags.join(", ")}`;
-  }
-  var tagAssignments = /* @__PURE__ */ new Map();
-  function suggestDestination(tag) {
-    const norm = normalizeTag(tag);
-    if (POSE_TAGS.has(norm)) return "pose";
-    if (LIMB_ACTION_TAGS.has(norm)) return "limbs";
-    if (SEXUAL_ACTION_TAGS.has(norm)) return "sexual";
-    if (SCENE_TAGS.has(norm)) return "scene";
-    return null;
-  }
-  function renderTagAssignPicker(tags) {
-    tagAssignments = /* @__PURE__ */ new Map();
-    synthDatTagAssign.innerHTML = "";
-    const relevant = tags.filter((t) => suggestDestination(t) !== null);
-    if (relevant.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "stats-empty";
-      empty.textContent = "No pose/gesture/perspective tags found in this result.";
-      synthDatTagAssign.appendChild(empty);
-      btnSynthDatMigratePose.disabled = true;
-      return;
-    }
-    const DESTS = [["pose", "Pose"], ["limbs", "Limbs"], ["scene", "Scene"], ["sexual", "Sexual"], [null, "Skip"]];
-    for (const tag of relevant) {
-      tagAssignments.set(tag, suggestDestination(tag));
-      const row = document.createElement("div");
-      row.className = "synthdat-tag-assign-row";
-      const label = document.createElement("span");
-      label.className = "synthdat-tag-assign-label";
-      label.textContent = tag;
-      row.appendChild(label);
-      const btnGroup = document.createElement("div");
-      btnGroup.className = "synthdat-tag-assign-btns";
-      for (const [dest, label2] of DESTS) {
-        const btn = document.createElement("button");
-        btn.textContent = label2;
-        btn.className = "synthdat-tag-assign-btn" + (tagAssignments.get(tag) === dest ? " active" : "");
-        btn.addEventListener("click", () => {
-          tagAssignments.set(tag, dest);
-          btnGroup.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
-          btn.classList.add("active");
-        });
-        btnGroup.appendChild(btn);
-      }
-      row.appendChild(btnGroup);
-      synthDatTagAssign.appendChild(row);
-    }
-    btnSynthDatMigratePose.disabled = false;
-  }
-  function applyTagAssignment() {
-    if (tagAssignments.size === 0) {
-      toast("Interrogate a reference image first.");
-      return;
-    }
-    const byDest = { pose: [], limbs: [], scene: [], sexual: [] };
-    for (const [tag, dest] of tagAssignments) {
-      if (dest && byDest[dest]) byDest[dest].push(tag);
-    }
-    const fieldByDest = { pose: synthDatPose, limbs: synthDatLimbs, scene: synthDatScene, sexual: synthDatSexual };
-    const clearFirst = synthDatMigrateClearFirst.checked;
-    if (clearFirst) {
-      for (const field2 of Object.values(fieldByDest)) {
-        field2.value = "";
-        growTextarea(field2);
-      }
-    }
-    let total = 0;
-    for (const dest of Object.keys(byDest)) {
-      if (byDest[dest].length === 0) continue;
-      const field2 = fieldByDest[dest];
-      const existing = clearFirst ? [] : field2.value.split(",").map((t) => t.trim()).filter(Boolean);
-      field2.value = Array.from(/* @__PURE__ */ new Set([...existing, ...byDest[dest]])).join(", ");
-      growTextarea(field2);
-      total += byDest[dest].length;
-    }
-    if (total === 0) {
-      toast("Nothing assigned \u2014 every tag is set to Skip.");
-      return;
-    }
-    toast(`Applied ${total} tag(s): ${byDest.pose.length} to Pose, ${byDest.limbs.length} to Limbs, ${byDest.scene.length} to Scene, ${byDest.sexual.length} to Sexual.`);
-    scheduleSave();
-  }
-  async function fetchComboValues(classType, inputName) {
-    const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType, inputName });
-    if (!res.ok) {
-      toast(res.error || `Could not load ${classType}'s ${inputName} list from ComfyUI.`, 3600);
-      return null;
-    }
-    return res.values || [];
-  }
-  function fillDatalist(datalistEl, values) {
-    datalistEl.innerHTML = "";
-    for (const v of values) {
-      const opt = document.createElement("option");
-      opt.value = v;
-      datalistEl.appendChild(opt);
-    }
-  }
-  var loraRows = [];
-  function addLoraRow(defaultLora, defaultStrength) {
-    const row = document.createElement("div");
-    row.className = "synthdat-lora-row";
-    const input = document.createElement("input");
-    input.type = "text";
-    input.placeholder = "Click to choose\u2026";
-    input.value = defaultLora || "";
-    attachPickerModal(input, "LoRA", () => loraCombo || []);
-    const strength = document.createElement("input");
-    strength.type = "number";
-    strength.step = "0.05";
-    strength.value = String(defaultStrength != null ? defaultStrength : 1);
-    const removeBtn = document.createElement("button");
-    removeBtn.textContent = "\xD7";
-    removeBtn.title = "Remove this LoRA slot";
-    removeBtn.addEventListener("click", () => {
-      loraRows = loraRows.filter((r) => r.row !== row);
-      row.remove();
-      scheduleSave();
-    });
-    input.addEventListener("change", scheduleSave);
-    strength.addEventListener("change", scheduleSave);
-    row.appendChild(input);
-    row.appendChild(strength);
-    row.appendChild(removeBtn);
-    synthDatLoraStackRows.appendChild(row);
-    loraRows.push({ row, input, strength });
-  }
-  async function testSynthdatConnection() {
-    synthDatConnStatus.style.display = "block";
-    synthDatConnStatus.style.color = "";
-    if (backend === "local") {
-      synthDatConnStatus.textContent = "Starting Osmium Comfy\u2026 its console window shows progress.";
-      const r = await window.electronAPI.comfyLocalConnect();
-      synthDatConnStatus.style.color = r.ok ? "var(--accent-ok, #3a9)" : "";
-      if (r.ok) setIconLabel(synthDatConnStatus, `\u2713 Osmium Comfy ${r.comfyVersion || ""} ready`);
-      else synthDatConnStatus.textContent = r.error || "Could not start Osmium Comfy.";
-      if (r.ok) void refreshModelLists();
-      return;
-    }
-    const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: "UNETLoader", inputName: "unet_name" });
-    if (res.ok) {
-      synthDatConnStatus.style.color = "var(--accent-ok, #3a9)";
-      setIconLabel(synthDatConnStatus, `\u2713 Connected to ${getHost()}`);
-    } else {
-      synthDatConnStatus.style.color = "";
-      synthDatConnStatus.textContent = res.error || "Could not connect.";
-    }
-  }
-  async function refreshModelLists() {
-    const [unetValues, clipValues, vaeValues, mainLoraValues, loraValues] = await Promise.all([
-      fetchComboValues("UNETLoader", "unet_name"),
-      fetchComboValues("CLIPLoader", "clip_name"),
-      fetchComboValues("VAELoader", "vae_name"),
-      fetchComboValues("DSM Lora Name", "lora_name"),
-      fetchComboValues("DSM Lora Loader Stack", "lora_01")
-    ]);
-    if (unetValues) fillDatalist(synthDatUnetDatalist, unetValues);
-    if (clipValues) fillDatalist(synthDatClipDatalist, clipValues);
-    if (vaeValues) fillDatalist(synthDatVaeDatalist, vaeValues);
-    if (mainLoraValues) fillDatalist(synthDatMainLoraDatalist, mainLoraValues);
-    if (loraValues) {
-      loraCombo = loraValues;
-      fillDatalist(synthDatLoraDatalist, loraValues);
-    }
-  }
-  function fieldValue(el) {
-    return (el.value || "").trim();
-  }
-  function buildPositiveTagList() {
-    const unified = synthDatUnifiedPromptMode.checked;
-    const character = [unified ? fieldValue(synthDatUnifiedPrompt) : fieldValue(synthDatCharacter), fieldValue(synthDatCharacterTrigger)].filter(Boolean).join(", ");
-    const stripHairFace = !unified && synthDatStripHairFace.checked;
-    const parts = unified ? [fieldValue(synthDatGlobal), character] : [
-      fieldValue(synthDatGlobal),
-      fieldValue(synthDatRating),
-      character,
-      stripHairFace ? "" : fieldValue(synthDatHair),
-      stripHairFace ? "" : fieldValue(synthDatFace),
-      fieldValue(synthDatChest),
-      fieldValue(synthDatBody),
-      fieldValue(synthDatClothes),
-      fieldValue(synthDatLimbs),
-      fieldValue(synthDatSexual),
-      fieldValue(synthDatPose),
-      fieldValue(synthDatExtra),
-      fieldValue(synthDatEffects),
-      fieldValue(synthDatScene)
-    ];
-    return parts.filter(Boolean);
-  }
-  function baseTagList() {
-    const tags = buildPositiveTagList().flatMap((part) => part.split(",").map((t) => t.trim())).filter(Boolean);
-    return Array.from(new Set(tags.map((t) => t.replace(/_/g, " ").replace(/\s+/g, " ").trim())));
-  }
-  function buildMergeHistoryMap() {
-    const map = /* @__PURE__ */ new Map();
-    for (const rule of canonicalRules) {
-      if (!rule.canonical) continue;
-      for (const child of rule.children || []) {
-        if (normalizeTag(child) !== normalizeTag(rule.canonical)) map.set(normalizeTag(child), rule.canonical);
-      }
-    }
-    return map;
-  }
-  var excludedTags = /* @__PURE__ */ new Set();
-  var mergedTagOverrides = /* @__PURE__ */ new Map();
-  var markedVoidTags = /* @__PURE__ */ new Set();
-  var pendingTagSnapshot = null;
-  var pendingTagMenuEl = null;
-  function closePendingTagMenu() {
-    if (pendingTagMenuEl) {
-      pendingTagMenuEl.remove();
-      pendingTagMenuEl = null;
-    }
-    document.removeEventListener("click", onDocClickClosePendingTagMenu);
-  }
-  function onDocClickClosePendingTagMenu(ev) {
-    if (!pendingTagMenuEl) return;
-    const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
-    if (path.includes(pendingTagMenuEl)) return;
-    closePendingTagMenu();
-  }
-  function openPendingTagMenu(tag, x, y) {
-    closePendingTagMenu();
-    const menu = document.createElement("div");
-    menu.className = "ctx-menu";
-    const header = document.createElement("div");
-    header.className = "ctx-header";
-    header.textContent = tag;
-    menu.appendChild(header);
-    addContextMenuItem(menu, "\u{1F4D6} Definition", () => {
-      closePendingTagMenu();
-      openTagDetails(tag);
-    });
-    const isVoid = markedVoidTags.has(tag);
-    addContextMenuItem(menu, isVoid ? "\u21A9\uFE0F Unmark void" : "\u{1F6AB} Mark as void", () => {
-      if (isVoid) markedVoidTags.delete(tag);
-      else markedVoidTags.add(tag);
-      closePendingTagMenu();
-      renderTagCard();
-    }, {
-      title: isVoid ? "Stop treating this tag as a void rule candidate." : "Drop this tag from what gets saved, and add a Retroactive Void rule for it on Accept \u2014 so it's auto-stripped from future images too, not just this one."
-    });
-    document.body.appendChild(menu);
-    pendingTagMenuEl = menu;
-    positionMenu(menu, x, y);
-    setTimeout(() => document.addEventListener("click", onDocClickClosePendingTagMenu), 0);
-  }
-  function renderTagCard() {
-    closePendingTagMenu();
-    synthDatTagPreview.innerHTML = "";
-    const tags = pendingTagSnapshot || [];
-    if (tags.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "stats-empty";
-      empty.textContent = "(nothing to save yet)";
-      synthDatTagPreview.appendChild(empty);
-      return;
-    }
-    const mergeHistory = buildMergeHistoryMap();
-    const voidSet = activeVoidTagSet();
-    const row = document.createElement("div");
-    row.className = "chiprow";
-    for (const tag of tags) {
-      const displayTag = mergedTagOverrides.get(tag) || tag;
-      const excluded = excludedTags.has(tag);
-      const willVoid = markedVoidTags.has(tag) || voidSet.has(displayTag);
-      const chip = document.createElement("span");
-      chip.className = "chip" + (excluded ? " synthdat-chip-excluded" : "") + (willVoid ? " synthdat-chip-void" : "");
-      const label = document.createElement("span");
-      label.textContent = displayTag;
-      label.title = willVoid ? markedVoidTags.has(tag) ? "Marked as void \u2014 will be dropped and added as a Void rule on Accept." : "Already covered by an existing Void rule \u2014 will be dropped automatically once added to the Gallery." : "Right-click for definition / mark as void";
-      label.style.cursor = "pointer";
-      label.addEventListener("contextmenu", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        openPendingTagMenu(tag, ev.clientX, ev.clientY);
-      });
-      chip.appendChild(label);
-      if (!excluded && displayTag === tag) {
-        const suggestion = mergeHistory.get(normalizeTag(tag));
-        if (suggestion && normalizeTag(suggestion) !== normalizeTag(tag)) {
-          const mergeBtn = document.createElement("button");
-          mergeBtn.className = "synthdat-merge-suggest";
-          mergeBtn.textContent = `\u2192 ${suggestion}`;
-          mergeBtn.title = `This dataset previously merged "${tag}" into "${suggestion}" elsewhere \u2014 click to do the same here.`;
-          mergeBtn.addEventListener("click", () => {
-            mergedTagOverrides.set(tag, suggestion);
-            renderTagCard();
-          });
-          chip.appendChild(mergeBtn);
-        }
-      }
-      const toggleBtn = document.createElement("button");
-      toggleBtn.textContent = excluded ? "+" : "\xD7";
-      toggleBtn.title = excluded ? "Restore this tag" : "Drop this tag from what gets saved";
-      toggleBtn.addEventListener("click", () => {
-        if (excluded) excludedTags.delete(tag);
-        else excludedTags.add(tag);
-        renderTagCard();
-      });
-      chip.appendChild(toggleBtn);
-      row.appendChild(chip);
-    }
-    synthDatTagPreview.appendChild(row);
-  }
-  function finalTagList() {
-    const voidSet = activeVoidTagSet();
-    const tags = (pendingTagSnapshot || []).filter((t) => !excludedTags.has(t) && !markedVoidTags.has(t)).map((t) => mergedTagOverrides.get(t) || t).filter((t) => !voidSet.has(t));
-    return Array.from(new Set(tags));
-  }
-  function buildPromptFromFields() {
-    return buildSynthDatPrompt(template, {
-      unified: synthDatUnifiedPromptMode.checked,
-      global: fieldValue(synthDatGlobal),
-      rating: fieldValue(synthDatRating),
-      character: fieldValue(synthDatCharacter),
-      characterTrigger: fieldValue(synthDatCharacterTrigger),
-      unifiedPrompt: fieldValue(synthDatUnifiedPrompt),
-      hair: fieldValue(synthDatHair),
-      face: fieldValue(synthDatFace),
-      chest: fieldValue(synthDatChest),
-      body: fieldValue(synthDatBody),
-      clothes: fieldValue(synthDatClothes),
-      limbs: fieldValue(synthDatLimbs),
-      sexual: fieldValue(synthDatSexual),
-      pose: fieldValue(synthDatPose),
-      extra: fieldValue(synthDatExtra),
-      effects: fieldValue(synthDatEffects),
-      scene: fieldValue(synthDatScene),
-      negative: fieldValue(synthDatNegative),
-      diffModel: synthDatDiffModel.value,
-      mainLora: synthDatMainLora.value,
-      mainLoraStrength: synthDatMainLoraStrength.value,
-      clip: synthDatClip.value,
-      vae: synthDatVae.value,
-      loraRows: loraRows.map((r) => ({ input: r.input.value, strength: r.strength.value })),
-      noLoraStandIn: "None",
-      skipRefImage: synthDatSkipRefImage.checked,
-      lliteStrength: synthDatLLLiteStrength.value,
-      lliteStartPercent: synthDatLLLiteStartPercent.value,
-      lliteEndPercent: synthDatLLLiteEndPercent.value,
-      llitePreserveWrapper: synthDatLLLitePreserveWrapper.checked,
-      resizeFit: synthDatResizeFit.value,
-      resizeMethod: synthDatResizeMethod.value,
-      sampler: synthDatSampler.value,
-      scheduler: synthDatScheduler.value,
-      steps1: synthDatSteps1.value,
-      cfg1: synthDatCfg1.value,
-      width: synthDatWidth.value,
-      height: synthDatHeight.value,
-      seed1: synthDatSeed1.value,
-      use2Pass: synthDatUse2Pass.checked,
-      seed2: synthDatSeed2.value,
-      denoise2: synthDatDenoise2.value,
-      steps2: synthDatSteps2.value
-    });
-  }
-  var pendingBase = "";
-  var pendingImgName = "";
-  var pass1Bytes = null;
-  var pass2Bytes = null;
-  function selectPass(which) {
-    const bytes = which === 1 ? pass1Bytes : pass2Bytes;
-    if (!bytes) return;
-    previewBytes = bytes;
-    setObjectUrlOn(synthDatPreview, new Blob([bytes], { type: "image/png" }));
-    synthDatPickPass1.classList.toggle("active", which === 1);
-    synthDatPickPass2.classList.toggle("active", which === 2);
-  }
-  function setObjectUrlOn(el, blob) {
-    const prev = el.dataset.objectUrl;
-    if (prev) URL.revokeObjectURL(prev);
-    const url = URL.createObjectURL(blob);
-    el.dataset.objectUrl = url;
-    el.src = url;
-  }
-  function clearObjectUrlOn(el) {
-    const prev = el.dataset.objectUrl;
-    if (prev) {
-      URL.revokeObjectURL(prev);
-      el.removeAttribute("data-object-url");
-      el.removeAttribute("src");
-    }
-  }
-  var genQueue = [];
-  var genRunning = false;
-  var genStopped = false;
-  var commitChain = Promise.resolve();
-  function serialized(fn) {
-    const next = commitChain.then(fn, fn);
-    commitChain = next.catch(() => void 0);
-    return next;
-  }
-  var heldResults = [];
-  function queueNote() {
-    return (genQueue.length ? ` \xB7 ${genQueue.length} queued` : "") + (heldResults.length ? ` \xB7 ${heldResults.length} waiting for review` : "");
-  }
-  function refreshQueueNote() {
-    if (genRunning) {
-      const head = (synthDatGenStatus.textContent || "").split(" \xB7 ")[0] || "Generating\u2026";
-      setGenStatus(head + queueNote());
-    } else {
-      setGenStatus(heldResults.length ? `${heldResults.length} more result${heldResults.length === 1 ? "" : "s"} waiting for review` : "");
-    }
-  }
-  function deliverResult(res, tagSnapshot) {
-    if (previewBytes) {
-      heldResults.push({ res, tagSnapshot });
-      toast(`New result ready \u2014 Accept or Reject the current one to see it (${heldResults.length} waiting).`);
-    } else {
-      showGenResult(res, tagSnapshot);
-    }
-  }
-  function showNextHeld() {
-    if (previewBytes) return;
-    const next = heldResults.shift();
-    if (next) showGenResult(next.res, next.tagSnapshot);
-    refreshQueueNote();
-  }
-  function updateQueueUI() {
-    btnSynthDatStop.disabled = !genRunning;
-    btnSynthDatGenerate.title = genRunning ? "Queue another generation with the current settings" : "";
-  }
-  async function generate() {
-    const skipRefImage = synthDatSkipRefImage.checked;
-    if (!skipRefImage && !refFile) {
-      toast(`Pick a reference image first (or check "I don't want to use a reference image").`);
-      return;
-    }
-    const dirHandle = getDirHandle9();
-    if (!dirHandle) {
-      toast("Open a dataset folder first.");
-      return;
-    }
-    await loadTemplate();
-    genQueue.push({
-      host: getHost(),
-      prompt: buildPromptFromFields(),
-      imageFilename: skipRefImage ? null : refFilename,
-      imageBytes: skipRefImage ? null : new Uint8Array(await refFile.arrayBuffer()),
-      tagSnapshot: baseTagList()
-    });
-    if (genRunning) {
-      toast(`Queued (${genQueue.length} waiting).`);
-      refreshQueueNote();
-      return;
-    }
-    genRunning = true;
-    genStopped = false;
-    updateQueueUI();
-    let last = "ok";
-    try {
-      while (genQueue.length && !genStopped) last = await runGenJob(genQueue.shift());
-    } finally {
-      genRunning = false;
-      genQueue.length = 0;
-      updateQueueUI();
-      if (last !== "failed") refreshQueueNote();
-    }
-  }
-  function stopGeneration() {
-    genStopped = true;
-    const dropped = genQueue.length;
-    genQueue.length = 0;
-    if (dropped) toast(`Dropped ${dropped} queued generation${dropped === 1 ? "" : "s"}.`);
-    window.electronAPI.synthdatStopGeneration(getHost());
-  }
-  async function runGenJob(job) {
-    clearObjectUrlOn(synthDatLivePreview);
-    synthDatLivePreviewWrap.style.display = "none";
-    setGenStatus("Generating\u2026 this can take a while." + queueNote());
-    const res = await window.electronAPI.synthdatQueueAndFetch({
-      host: job.host,
-      imageFilename: job.imageFilename,
-      imageBytes: job.imageBytes,
-      prompt: job.prompt
-    });
-    synthDatLivePreviewWrap.style.display = "none";
-    if (!res.ok) {
-      if (res.interrupted) {
-        toast("Generation stopped.");
-        return "stopped";
-      }
-      setGenStatus((res.error || "Generation failed.") + queueNote());
-      return "failed";
-    }
-    await serialized(async () => deliverResult(res, job.tagSnapshot));
-    if (genQueue.length && !genStopped) setGenStatus("Done" + queueNote());
-    return "ok";
-  }
-  function showGenResult(res, tagSnapshot) {
-    previewBytes = res.imageBytes || null;
-    pendingBase = `synth_${Date.now().toString(36)}`;
-    pendingImgName = `${pendingBase}.png`;
-    pendingTagSnapshot = tagSnapshot;
-    renderTagCard();
-    pass2Bytes = res.imageBytes || null;
-    pass1Bytes = res.pass1ImageBytes || null;
-    if (pass1Bytes) {
-      setObjectUrlOn(synthDatPass1Thumb, new Blob([pass1Bytes], { type: "image/png" }));
-      setObjectUrlOn(synthDatPass2Thumb, new Blob([pass2Bytes], { type: "image/png" }));
-      synthDatPassPickerRow.style.display = "flex";
-      synthDatPickPass1.classList.remove("active");
-      synthDatPickPass2.classList.add("active");
-    } else {
-      synthDatPassPickerRow.style.display = "none";
-    }
-    setObjectUrlOn(synthDatPreview, new Blob([previewBytes], { type: "image/png" }));
-    synthDatPreview.style.display = "block";
-    synthDatPreviewEmpty.style.display = "none";
-    btnSynthDatAccept.disabled = false;
-    btnSynthDatReject.disabled = false;
-    btnSynthDatReinterrogateOutput.disabled = false;
-  }
-  async function computeNextSequentialBase(dirHandle) {
-    let maxNum = 0;
-    let width = 1;
-    for await (const h of dirHandle.values()) {
-      if (h.kind !== "file") continue;
-      const dot = h.name.lastIndexOf(".");
-      const base = dot === -1 ? h.name : h.name.slice(0, dot);
-      if (!/^\d+$/.test(base)) continue;
-      const n = parseInt(base, 10);
-      if (n >= maxNum) {
-        maxNum = n;
-        width = Math.max(width, base.length);
-      }
-    }
-    return { next: maxNum + 1, width: Math.max(width, String(maxNum + 1).length) };
-  }
-  async function writeImageEntry(bytes, base, imgName, tags, disable) {
-    const dirHandle = getDirHandle9();
-    if (!dirHandle) return null;
-    try {
-      if (disable) {
-        const imgHandle2 = await dirHandle.getFileHandle(imgName, { create: true });
-        await writeBytes(imgHandle2, bytes);
-        const txtHandle2 = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
-        await writeBytes(txtHandle2, tags.map((t) => t.replace(/ /g, "_")).join(", "));
-        const entry2 = await addEntryFromNewFile(base, imgHandle2, imgName, txtHandle2, true, tags, false);
-        if (entry2) await moveEntry(entry2, true);
-        return entry2;
-      }
-      const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
-      await writeBytes(imgHandle, bytes);
-      const txtHandle = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
-      await writeBytes(txtHandle, tags.map((t) => t.replace(/ /g, "_")).join(", "));
-      const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false);
-      if (entry) markDirty(entry);
-      return entry;
-    } catch (err) {
-      toastError("Could not save an image", err);
-      return null;
-    }
-  }
-  function otherPassBytes() {
-    if (!pass1Bytes) return null;
-    return previewBytes === pass1Bytes ? pass2Bytes : pass1Bytes;
-  }
-  async function acceptImage() {
-    const dirHandle = getDirHandle9();
-    if (!dirHandle) {
-      toast("Open a dataset folder first.");
-      return;
-    }
-    if (!previewBytes) {
-      toast("Nothing to accept or reject yet.");
-      return;
-    }
-    const tags = finalTagList();
-    if (markedVoidTags.size > 0) registerVoidRule(Array.from(markedVoidTags));
-    let base = pendingBase, imgName = pendingImgName;
-    if (synthDatRenameOnAccept.checked) {
-      const { next, width } = await computeNextSequentialBase(dirHandle);
-      base = String(next).padStart(width, "0");
-      imgName = `${base}.png`;
-    }
-    const entry = await writeImageEntry(previewBytes, base, imgName, tags, false);
-    if (!entry) return;
-    const alt = otherPassBytes();
-    if (alt) await writeImageEntry(alt, `${pendingBase}_altpass`, `${pendingBase}_altpass.png`, tags, true);
-    toast(alt ? "Added to the dataset \u2014 the other pass was rejected into Disabled/." : "Added to the dataset.");
-    refreshAllUIRef6();
-    clearPreview();
-  }
-  async function rejectImage() {
-    const dirHandle = getDirHandle9();
-    if (!dirHandle) {
-      toast("Open a dataset folder first.");
-      return;
-    }
-    if (!previewBytes) {
-      toast("Nothing to accept or reject yet.");
-      return;
-    }
-    const tags = finalTagList();
-    const entry = await writeImageEntry(previewBytes, pendingBase, pendingImgName, tags, true);
-    if (!entry) return;
-    const alt = otherPassBytes();
-    if (alt) await writeImageEntry(alt, `${pendingBase}_altpass`, `${pendingBase}_altpass.png`, tags, true);
-    toast("Rejected into Disabled/.");
-    refreshAllUIRef6();
-    clearPreview();
-  }
-  function clearPreview() {
-    previewBytes = null;
-    pendingBase = "";
-    pendingImgName = "";
-    clearObjectUrlOn(synthDatPreview);
-    clearObjectUrlOn(synthDatPass1Thumb);
-    clearObjectUrlOn(synthDatPass2Thumb);
-    synthDatPreview.style.display = "none";
-    synthDatPreviewEmpty.style.display = "block";
-    synthDatPassPickerRow.style.display = "none";
-    pass1Bytes = null;
-    pass2Bytes = null;
-    btnSynthDatAccept.disabled = true;
-    btnSynthDatReject.disabled = true;
-    btnSynthDatReinterrogateOutput.disabled = true;
-    synthDatReinterrogateResult.style.display = "none";
-    pendingTagSnapshot = null;
-    excludedTags = /* @__PURE__ */ new Set();
-    mergedTagOverrides = /* @__PURE__ */ new Map();
-    markedVoidTags = /* @__PURE__ */ new Set();
-    renderTagCard();
-  }
-  var SAMPLERS = [
-    "res_multistep",
-    "sa_solver_pece",
-    "euler",
-    "euler_ancestral",
-    "dpmpp_2m",
-    "dpmpp_2m_sde",
-    "dpmpp_3m_sde",
-    "dpmpp_sde",
-    "dpmpp_2s_ancestral",
-    "ddim",
-    "uni_pc",
-    "lcm",
-    "deis"
-  ];
-  var SCHEDULERS = ["beta", "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "linear_quadratic"];
-  function fillStaticOptions(selectEl, values, def) {
-    selectEl.innerHTML = "";
-    for (const v of values) {
-      const opt = document.createElement("option");
-      opt.value = v;
-      opt.textContent = v;
-      selectEl.appendChild(opt);
-    }
-    if (def) selectEl.value = def;
-  }
-  function clickToZoom(wrap, img) {
-    wrap.addEventListener("click", () => {
-      if (img.naturalWidth > 0) showImageLightbox(img.src);
-    });
-  }
-  function initSynthDatOverseer(deps3) {
-    getDirHandle9 = deps3.getDirHandle;
-    addEntryFromNewFile = deps3.addEntryFromNewFile;
-    refreshAllUIRef6 = deps3.refreshAllUI;
-    loadTemplate();
-    fillStaticOptions(synthDatSampler, SAMPLERS, "res_multistep");
-    fillStaticOptions(synthDatScheduler, SCHEDULERS, "beta");
-    const promptFields = [
-      synthDatUnifiedPrompt,
-      synthDatGlobal,
-      synthDatCharacter,
-      synthDatCharacterTrigger,
-      synthDatRating,
-      synthDatHair,
-      synthDatFace,
-      synthDatChest,
-      synthDatBody,
-      synthDatClothes,
-      synthDatLimbs,
-      synthDatSexual,
-      synthDatPose,
-      synthDatScene,
-      synthDatEffects,
-      synthDatExtra
-    ];
-    promptFields.forEach((el) => el.addEventListener("input", () => {
-      growTextarea(el);
-      scheduleSave();
-    }));
-    synthDatNegative.addEventListener("input", () => {
-      growTextarea(synthDatNegative);
-      scheduleSave();
-    });
-    const grownWidths = /* @__PURE__ */ new WeakMap();
-    const regrow = new ResizeObserver((entries) => {
-      for (const e of entries) {
-        const w = e.contentRect.width;
-        if (grownWidths.get(e.target) === w) continue;
-        grownWidths.set(e.target, w);
-        if (w > 0) growTextarea(e.target);
-      }
-    });
-    [...promptFields, synthDatNegative].forEach((el) => regrow.observe(el));
-    let themeRegrowFrame = 0;
-    const regrowAllSoon = () => {
-      cancelAnimationFrame(themeRegrowFrame);
-      themeRegrowFrame = requestAnimationFrame(() => [...promptFields, synthDatNegative].forEach((el) => growTextarea(el)));
-    };
-    new MutationObserver(regrowAllSoon).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "style"] });
-    document.fonts.addEventListener("loadingdone", regrowAllSoon);
-    synthDatStripHairFace.addEventListener("change", () => {
-      scheduleSave();
-    });
-    synthDatUnifiedPromptMode.addEventListener("change", () => {
-      applyUnifiedPromptModeUI();
-      scheduleSave();
-    });
-    applyUnifiedPromptModeUI();
-    btnSynthDatPromptPanelToggle.addEventListener("click", openSynthDatPromptPanel);
-    btnSynthDatPromptPanelClose.addEventListener("click", closeSynthDatPromptPanel);
-    [
-      synthDatHost,
-      synthDatDiffModel,
-      synthDatClip,
-      synthDatVae,
-      synthDatMainLora,
-      synthDatMainLoraStrength,
-      synthDatLLLiteStrength,
-      synthDatLLLiteStartPercent,
-      synthDatLLLiteEndPercent,
-      synthDatLLLitePreserveWrapper,
-      synthDatResizeMethod,
-      synthDatSampler,
-      synthDatScheduler,
-      synthDatSteps1,
-      synthDatCfg1,
-      synthDatSteps2,
-      synthDatUse2Pass,
-      synthDatSeed1,
-      synthDatSeed2,
-      synthDatDenoise2
-    ].forEach((el) => el.addEventListener("change", scheduleSave));
-    synthDatResizeFit.addEventListener("change", () => {
-      updateResizedPreview();
-      scheduleSave();
-    });
-    synthDatSkipRefImage.addEventListener("change", () => {
-      applySkipRefImageUI();
-      scheduleSave();
-    });
-    applySkipRefImageUI();
-    synthDatWidth.addEventListener("input", () => {
-      updateResizedPreview();
-      updateResoWarning();
-      scheduleSave();
-    });
-    synthDatHeight.addEventListener("input", () => {
-      updateResizedPreview();
-      updateResoWarning();
-      scheduleSave();
-    });
-    btnSynthDatSwapReso.addEventListener("click", () => {
-      const w = synthDatWidth.value;
-      synthDatWidth.value = synthDatHeight.value;
-      synthDatHeight.value = w;
-      updateResizedPreview();
-      updateResoWarning();
-      scheduleSave();
-    });
-    clickToZoom(synthDatRefPreviewWrap, synthDatRefPreview);
-    clickToZoom(synthDatResizedPreviewWrap, synthDatResizedPreview);
-    clickToZoom(synthDatLivePreviewWrap, synthDatLivePreview);
-    clickToZoom(synthDatPreviewWrap, synthDatPreview);
-    window.electronAPI.onSynthdatPreviewFrame((_event, { mime, bytes }) => {
-      setObjectUrlOn(synthDatLivePreview, new Blob([bytes], { type: mime }));
-      synthDatLivePreviewWrap.style.display = "flex";
-    });
-    window.electronAPI.onSynthdatProgress((_event, { value, max }) => {
-      setGenStatus(`Generating\u2026 step ${value}/${max}${queueNote()}`);
-    });
-    btnSynthDatPickImage.addEventListener("click", pickReferenceImage);
-    btnSynthDatInterrogate.addEventListener("click", interrogateReference);
-    btnSynthDatMigratePose.addEventListener("click", applyTagAssignment);
-    btnSynthDatAddLora.addEventListener("click", () => {
-      addLoraRow("", 1);
-      scheduleSave();
-    });
-    btnSynthDatRefreshModels.addEventListener("click", refreshModelLists);
-    btnSynthDatConnect.addEventListener("click", testSynthdatConnection);
-    if (hasLocalComfy) {
-      buildPersistentDropdown(synthDatBackendDropdown, [
-        { value: "server", label: "ComfyUI server" },
-        { value: "local", label: "Osmium Comfy" }
-      ], () => backend, (val) => {
-        backend = val === "local" ? "local" : "server";
-        setString(BACKEND_KEY, backend);
-        applyBackendUI();
-      });
-      btnSynthDatLocalFolder.addEventListener("click", () => void pickLocalFolder());
-      applyBackendUI();
-    } else {
-      synthDatBackendRow.style.display = "none";
-    }
-    const datalistOptions = (el) => Array.from(el.options).map((o) => o.value);
-    attachPickerModal(synthDatDiffModel, "Diffusion model", () => datalistOptions(synthDatUnetDatalist));
-    attachPickerModal(synthDatClip, "CLIP / text encoder", () => datalistOptions(synthDatClipDatalist));
-    attachPickerModal(synthDatVae, "VAE", () => datalistOptions(synthDatVaeDatalist));
-    attachPickerModal(synthDatMainLora, "Main LoRA", () => datalistOptions(synthDatMainLoraDatalist));
-    btnSynthDatGenerate.addEventListener("click", generate);
-    btnSynthDatStop.addEventListener("click", stopGeneration);
-    btnSynthDatAccept.addEventListener("click", () => serialized(async () => {
-      await acceptImage();
-      showNextHeld();
-    }));
-    btnSynthDatReject.addEventListener("click", () => serialized(async () => {
-      await rejectImage();
-      showNextHeld();
-    }));
-    synthDatPickPass1.addEventListener("click", () => selectPass(1));
-    synthDatPickPass2.addEventListener("click", () => selectPass(2));
-    btnSynthDatReinterrogateOutput.addEventListener("click", reinterrogateOutput);
-    renderTagCard();
-    if (backend !== "local") refreshModelLists();
-    initSynthDatSectionDocks(synthDatCol1);
-  }
-
-  // src/renderer/tag-wiki.ts
-  var POS_KEY = "dts-tag-wiki-pos";
-  var CATEGORY_NAMES2 = { 0: "General", 1: "Artist", 3: "Copyright", 4: "Character", 5: "Meta" };
-  var win = null;
-  var bodyEl;
-  var inputEl;
-  function clampIntoView() {
-    if (!win) return;
-    const r = win.getBoundingClientRect();
-    const left = Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8));
-    const top = Math.max(8, Math.min(r.top, window.innerHeight - 60));
-    win.style.left = left + "px";
-    win.style.top = top + "px";
-  }
-  function attachDrag(handle) {
-    handle.addEventListener("pointerdown", (ev) => {
-      if (ev.target.closest("button")) return;
-      const r = win.getBoundingClientRect();
-      const dx = ev.clientX - r.left, dy = ev.clientY - r.top;
-      handle.setPointerCapture(ev.pointerId);
-      const move = (e) => {
-        win.style.left = e.clientX - dx + "px";
-        win.style.top = e.clientY - dy + "px";
-      };
-      const up = () => {
-        handle.removeEventListener("pointermove", move);
-        handle.removeEventListener("pointerup", up);
-        clampIntoView();
-        const rr = win.getBoundingClientRect();
-        setJSON(POS_KEY, { left: rr.left, top: rr.top });
-      };
-      handle.addEventListener("pointermove", move);
-      handle.addEventListener("pointerup", up);
-    });
-  }
-  var SECTION_AFTER_SEE_ALSO = /^(external links|trivia|notes?|examples?|history|usage|names?|sources?)$/i;
-  function splitSeeAlso(text) {
-    const blocks = text.split(/\n\s*\n/);
-    const at = blocks.findIndex((b) => /^see also:?$/i.test(b.trim()));
-    if (at === -1) return { main: text.trim(), seeAlso: [] };
-    let end = at + 1;
-    const items = [];
-    while (end < blocks.length && !SECTION_AFTER_SEE_ALSO.test(blocks[end].trim().split("\n")[0])) {
-      for (const line of blocks[end].split("\n")) if (line.trim()) items.push(line.trim());
-      end++;
-    }
-    const main = [...blocks.slice(0, at), ...blocks.slice(end)].join("\n\n").trim();
-    return { main, seeAlso: items };
-  }
-  async function showTag(raw) {
-    const tag = raw.trim().replace(/_/g, " ");
-    if (!tag) return;
-    closeAutocomplete();
-    bodyEl.innerHTML = "";
-    const title = document.createElement("div");
-    title.className = "tag-wiki-tag";
-    title.textContent = tag;
-    bodyEl.appendChild(title);
-    const loading = document.createElement("div");
-    loading.className = "stats-empty";
-    loading.textContent = "Loading\u2026";
-    bodyEl.appendChild(loading);
-    const key = tag.replace(/ /g, "_");
-    const [wiki, allTags] = await Promise.all([ensureWikiDataLoaded(), ensureAllTagsLoaded()]);
-    loading.remove();
-    const meta = allTags.get(key);
-    if (meta) {
-      const metaRow = document.createElement("div");
-      metaRow.className = "tag-details-meta";
-      const cat = document.createElement("span");
-      cat.textContent = CATEGORY_NAMES2[meta.category] || "Unknown";
-      const posts = document.createElement("span");
-      posts.textContent = `${meta.count.toLocaleString()} posts`;
-      metaRow.append(cat, posts);
-      bodyEl.appendChild(metaRow);
-    }
-    const def = wiki[key];
-    const custom = def ? "" : getCustomTagNote(tag);
-    const { main, seeAlso } = splitSeeAlso(def || custom || "");
-    const defEl = document.createElement("div");
-    defEl.className = "tag-details-def tag-wiki-def" + (def || custom ? "" : " greyed");
-    defEl.textContent = main || (meta ? "No official wiki entry for this tag." : "Not a known tag, and no wiki entry.");
-    bodyEl.appendChild(defEl);
-    if (seeAlso.length) {
-      const rel = document.createElement("div");
-      rel.className = "tag-wiki-seealso";
-      const head = document.createElement("div");
-      head.className = "tag-wiki-seealso-head";
-      head.textContent = "See also";
-      rel.appendChild(head);
-      const list = document.createElement("div");
-      list.className = "tag-wiki-seealso-list";
-      for (const item of seeAlso) {
-        const known = wiki[item.replace(/ /g, "_")] !== void 0 || allTags.has(item.replace(/ /g, "_"));
-        const el = document.createElement(known ? "button" : "span");
-        el.className = known ? "tag-wiki-link" : "tag-wiki-plain";
-        el.textContent = item;
-        if (known) {
-          el.type = "button";
-          el.addEventListener("click", () => {
-            inputEl.value = item;
-            void showTag(item);
-          });
-        }
-        list.appendChild(el);
-      }
-      rel.appendChild(list);
-      bodyEl.appendChild(rel);
-    }
-    if (!def) {
-      const ta = document.createElement("textarea");
-      ta.placeholder = "Write your own description (saved on this computer)\u2026";
-      ta.value = custom;
-      ta.rows = 3;
-      const save = document.createElement("button");
-      save.className = "primary";
-      save.textContent = "Save description";
-      save.addEventListener("click", () => {
-        setCustomTagNote(tag, ta.value);
-        toast(`Saved your description for "${tag}".`);
-        void showTag(tag);
-      });
-      bodyEl.append(ta, save);
-    }
-  }
-  function build() {
-    const el = document.createElement("div");
-    el.className = "tag-wiki-window";
-    el.setAttribute("role", "dialog");
-    el.setAttribute("aria-label", "Tag wiki");
-    const head = document.createElement("div");
-    head.className = "tag-wiki-head";
-    const title = document.createElement("span");
-    title.className = "theme-panel-head";
-    setIconLabel(title, "Tag wiki");
-    const close = document.createElement("button");
-    close.type = "button";
-    close.className = "tag-wiki-close";
-    close.title = "Close";
-    close.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg>';
-    close.addEventListener("click", closeTagWiki);
-    head.append(title, close);
-    bodyEl = document.createElement("div");
-    bodyEl.className = "tag-wiki-body tag-details-body";
-    const hint = document.createElement("div");
-    hint.className = "tag-details-def greyed";
-    hint.textContent = "Type a tag below to read its definition.";
-    bodyEl.appendChild(hint);
-    inputEl = document.createElement("input");
-    inputEl.type = "text";
-    inputEl.className = "tag-wiki-input";
-    inputEl.placeholder = "Look up a tag\u2026";
-    inputEl.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter" && inputEl.value.trim()) {
-        void showTag(inputEl.value);
-      }
-    });
-    attachLookupAutocomplete(inputEl, (tag) => {
-      inputEl.value = tag;
-      void showTag(tag);
-    });
-    el.append(head, bodyEl, inputEl);
-    attachDrag(head);
-    return el;
-  }
-  function openTagWiki() {
-    if (win) {
-      inputEl.focus();
-      return;
-    }
-    win = build();
-    document.body.appendChild(win);
-    const pos = getJSON(POS_KEY, null);
-    if (pos) {
-      win.style.left = pos.left + "px";
-      win.style.top = pos.top + "px";
-    } else {
-      win.style.left = Math.max(8, window.innerWidth - win.offsetWidth - 24) + "px";
-      win.style.top = "96px";
-    }
-    clampIntoView();
-    requestAnimationFrame(() => requestAnimationFrame(() => win?.classList.add("panel-visible")));
-    inputEl.focus();
-  }
-  function closeTagWiki() {
-    if (!win) return;
-    const el = win;
-    win = null;
-    closeAutocomplete();
-    el.classList.remove("panel-visible");
-    setTimeout(() => el.remove(), 160);
-  }
-  function initTagWiki(button) {
-    button.addEventListener("click", () => win ? closeTagWiki() : openTagWiki());
-    window.addEventListener("resize", clampIntoView);
-  }
-
-  // src/renderer/tag-index.ts
-  var leftSortMode = "family";
-  var leftSortDir = "desc";
-  var familyOrder = [];
-  var getEntries6 = () => [];
-  var getGalleryFilter = () => ({ base: "all", terms: [], mode: "OR", excludes: "", disabledView: false, originalsView: false, exactMatch: false });
-  var getGallerySortMode = () => "filename";
-  var getGallerySortDir = () => "asc";
-  var resetSingleIndex2 = () => {
-  };
-  var renderCurrentViewRef3 = () => {
-  };
-  var refreshFilterModeUI = () => {
-  };
-  var isFilterModeLocked = () => false;
-  var markTagReviewedRef = () => 0;
-  var lastTagIndex = /* @__PURE__ */ new Map();
-  var reviewFlaggedActive = false;
-  var reviewedFlaggedTags = /* @__PURE__ */ new Set();
-  function resetReviewFlagged() {
-    reviewFlaggedActive = false;
-    reviewedFlaggedTags = /* @__PURE__ */ new Set();
-    btnReviewFlagged.classList.remove("active");
-    tagFamilyListArea.classList.remove("review-mode");
-  }
-  function buildTagIndex() {
-    const index = /* @__PURE__ */ new Map();
-    for (const e of getEntries6()) {
-      if (e.disabled) continue;
-      for (const t of e.tags) {
-        if (!index.has(t)) index.set(t, /* @__PURE__ */ new Set());
-        index.get(t).add(e.base);
-      }
-    }
-    return index;
-  }
-  function wordsOf(tag) {
-    return Array.from(new Set(tag.split(" ").filter(Boolean)));
-  }
-  function buildFilterSuggestions(query) {
-    const q = query.trim().toLowerCase();
-    if (!q) return { direct: [], family: [] };
-    const allTags = Array.from(lastTagIndex.keys());
-    const starts = allTags.filter((t) => t.toLowerCase().startsWith(q));
-    const contains = allTags.filter((t) => !starts.includes(t) && t.toLowerCase().includes(q));
-    const direct = starts.concat(contains).slice(0, 12);
-    const familyWords = /* @__PURE__ */ new Set();
-    for (const t of (starts.length ? starts : direct).slice(0, 5)) {
-      for (const w of wordsOf(t)) familyWords.add(w);
-    }
-    const directSet = new Set(direct);
-    const family = allTags.filter((t) => !directSet.has(t) && wordsOf(t).some((w) => familyWords.has(w))).slice(0, 8);
-    return { direct, family };
-  }
-  function currentFilterTermSpan(value) {
-    const lastComma = value.lastIndexOf(",");
-    const prefix = lastComma === -1 ? "" : value.slice(0, lastComma + 1) + " ";
-    const partial = lastComma === -1 ? value : value.slice(lastComma + 1);
-    return { prefix, partial: partial.trim() };
-  }
-  function pickFilterSuggestion(tag) {
-    const { prefix } = currentFilterTermSpan(filterInput.value);
-    filterInput.value = prefix + tag;
-    getGalleryFilter().terms = parseFilterTerms(filterInput.value);
-    hideFilterSuggestions();
-    folderStats.filter_suggestions_used = true;
-    saveFolderStats();
-    checkAchievements();
-    resetSingleIndex2();
-    renderCurrentViewRef3();
-    filterInput.focus();
-  }
-  function hideFilterSuggestions() {
-    filterSuggestions.style.display = "none";
-    filterSuggestions.innerHTML = "";
-  }
-  function buildSuggestionRow(tag) {
-    const row = document.createElement("div");
-    row.className = "ac-row";
-    row.innerHTML = `<span class="ac-row-name">${escapeHtml(tag)}</span>`;
-    row.addEventListener("mousedown", (ev) => {
-      ev.preventDefault();
-      pickFilterSuggestion(tag);
-    });
-    return row;
-  }
-  function updateFilterSuggestions() {
-    const { partial } = currentFilterTermSpan(filterInput.value);
-    if (partial.length < 2) {
-      hideFilterSuggestions();
-      return;
-    }
-    const { direct, family } = buildFilterSuggestions(partial);
-    if (direct.length === 0 && family.length === 0) {
-      hideFilterSuggestions();
-      return;
-    }
-    filterSuggestions.innerHTML = "";
-    const list = document.createElement("div");
-    list.className = "ac-list";
-    for (const tag of direct) list.appendChild(buildSuggestionRow(tag));
-    if (family.length) {
-      const header = document.createElement("div");
-      header.className = "filter-suggestion-family";
-      header.textContent = "Same keyword family";
-      list.appendChild(header);
-      for (const tag of family) list.appendChild(buildSuggestionRow(tag));
-    }
-    filterSuggestions.appendChild(list);
-    filterSuggestions.style.display = "";
-  }
-  function renderFlaggedReviewList() {
-    tagListTitle.textContent = "FLAGGED FOR REVIEW";
-    const counts = /* @__PURE__ */ new Map();
-    for (const e of getEntries6()) {
-      const flagged = e.meta && e.meta.flaggedTags;
-      if (!flagged) continue;
-      for (const t of flagged) counts.set(t, (counts.get(t) || 0) + 1);
-    }
-    const tags = new Set(counts.keys());
-    for (const t of reviewedFlaggedTags) tags.add(t);
-    tagFrequencyList.innerHTML = "";
-    if (tags.size === 0) {
-      const empty = document.createElement("div");
-      empty.className = "freq-empty";
-      setIconLabel(empty, "No tags flagged for review. Use a tag chip's \u{1F6A9} menu to flag one.");
-      tagFrequencyList.appendChild(empty);
-      return;
-    }
-    const sorted = Array.from(tags).sort((a, b) => a.localeCompare(b));
-    for (const tag of sorted) {
-      const stillFlagged = counts.has(tag);
-      const row = document.createElement("div");
-      row.className = "freq-row review-flag-row" + (stillFlagged ? "" : " reviewed");
-      const label = document.createElement("span");
-      label.className = "review-flag-tag";
-      label.textContent = tag;
-      row.appendChild(label);
-      const btn = document.createElement("button");
-      btn.className = "review-done-btn";
-      btn.textContent = "Reviewed";
-      btn.title = stillFlagged ? "Unflag this tag from every image (undoable)" : "Already cleared \u2014 no image lists this tag anymore";
-      btn.disabled = !stillFlagged;
-      btn.addEventListener("click", () => {
-        reviewedFlaggedTags.add(tag);
-        const n = markTagReviewedRef(tag);
-        if (n === 0) toast(`No loaded image still lists "${tag}" as flagged for review.`);
-        refreshStats();
-      });
-      row.appendChild(btn);
-      tagFrequencyList.appendChild(row);
-    }
-  }
-  function renderTagFrequencyList(index) {
-    if (reviewFlaggedActive) {
-      renderFlaggedReviewList();
-      return;
-    }
-    tagListTitle.textContent = "TAGS";
-    const dir = leftSortDir === "asc" ? 1 : -1;
-    tagFrequencyList.innerHTML = "";
-    if (leftSortMode === "family") {
-      const families = /* @__PURE__ */ new Map();
-      for (const [tag] of index) {
-        const words = Array.from(new Set(tag.split(" ").filter(Boolean)));
-        for (const w of words) {
-          if (!families.has(w)) families.set(w, []);
-          if (!families.get(w).includes(tag)) families.get(w).push(tag);
-        }
-      }
-      let familyList = Array.from(families.entries()).filter(([, tags]) => tags.length >= 2);
-      familyList.sort((a, b) => (b[1].length - a[1].length) * dir);
-      familyList = applyFamilyOrder(familyList);
-      if (familyList.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "freq-empty";
-        empty.textContent = "No tags share a common word yet.";
-        tagFrequencyList.appendChild(empty);
-        return;
-      }
-      for (const [word, tags] of familyList) {
-        const header = document.createElement("div");
-        header.className = "freq-family-header";
-        header.draggable = true;
-        header.dataset.word = word;
-        const dragHandle = document.createElement("span");
-        dragHandle.className = "family-drag-handle";
-        setIconLabel(dragHandle, "\u2630");
-        dragHandle.title = "Drag to reorder this family";
-        header.appendChild(dragHandle);
-        const labelSpan = document.createElement("span");
-        labelSpan.textContent = ` \u2014 ${word} (${tags.length}) \u2014`;
-        header.appendChild(labelSpan);
-        header.addEventListener("dragstart", (ev) => {
-          ev.dataTransfer.setData("text/plain", word);
-          ev.dataTransfer.effectAllowed = "move";
-          header.classList.add("family-dragging");
-        });
-        header.addEventListener("dragend", () => header.classList.remove("family-dragging"));
-        header.addEventListener("dragover", (ev) => {
-          ev.preventDefault();
-          header.classList.add("family-drop-target");
-        });
-        header.addEventListener("dragleave", () => header.classList.remove("family-drop-target"));
-        header.addEventListener("drop", (ev) => {
-          ev.preventDefault();
-          header.classList.remove("family-drop-target");
-          const draggedWord = ev.dataTransfer.getData("text/plain");
-          if (draggedWord && draggedWord !== word) reorderFamilyBefore(draggedWord, word, familyList.map((f) => f[0]));
-        });
-        tagFrequencyList.appendChild(header);
-        tags.sort((a, b) => a.localeCompare(b));
-        for (const tag of tags) {
-          tagFrequencyList.appendChild(buildFreqRow(tag, index.get(tag).size));
-        }
-      }
-      return;
-    }
-    let list = Array.from(index.entries());
-    if (leftSortMode === "alphabetical") {
-      list.sort((a, b) => a[0].localeCompare(b[0]) * dir);
-    } else {
-      list.sort((a, b) => (b[1].size - a[1].size) * dir);
-    }
-    for (const [tag, set] of list) {
-      tagFrequencyList.appendChild(buildFreqRow(tag, set.size));
-    }
-  }
-  function buildFreqRow(tag, count) {
-    const row = document.createElement("div");
-    row.className = "freq-row";
-    row.innerHTML = `<span>${escapeHtml(tag)}</span><span class="n">${count}</span>`;
-    row.addEventListener("click", () => setContainsFilter(tag));
-    return row;
-  }
-  function applyFamilyOrder(familyList) {
-    const words = familyList.map(([w]) => w);
-    const known = familyOrder.filter((w) => words.includes(w));
-    const unknown = words.filter((w) => !known.includes(w));
-    const finalOrder = [...known, ...unknown];
-    return finalOrder.map((w) => familyList.find(([fw]) => fw === w));
-  }
-  function saveFamilyOrder() {
-    setJSON("dts-family-order", familyOrder);
-  }
-  (function loadFamilyOrder() {
-    const saved = getJSON("dts-family-order", null);
-    if (Array.isArray(saved)) familyOrder = saved;
-  })();
-  function reorderFamilyBefore(draggedWord, targetWord, currentOrder) {
-    const draggedIdx = currentOrder.indexOf(draggedWord);
-    const targetIdxOriginal = currentOrder.indexOf(targetWord);
-    const movingDown = draggedIdx !== -1 && targetIdxOriginal !== -1 && draggedIdx < targetIdxOriginal;
-    let order = currentOrder.slice();
-    order = order.filter((w) => w !== draggedWord);
-    let insertIdx = order.indexOf(targetWord);
-    if (movingDown) insertIdx += 1;
-    order.splice(insertIdx, 0, draggedWord);
-    familyOrder = order;
-    saveFamilyOrder();
-    refreshStats();
-  }
-  function refreshStats() {
-    const index = buildTagIndex();
-    lastTagIndex = index;
-    const entries = getEntries6();
-    const activeEntries = entries.filter((e) => !e.disabled);
-    $("cardImages").textContent = String(activeEntries.length);
-    $("cardTags").textContent = String(index.size);
-    renderTagFrequencyList(index);
-    return index;
-  }
-  function sortEntries(list) {
-    const gallerySortMode = getGallerySortMode();
-    const dir = getGallerySortDir() === "asc" ? 1 : -1;
-    const arr = list.slice();
-    arr.sort((a, b) => {
-      let cmp = 0;
-      if (gallerySortMode === "filename") {
-        cmp = (a.imgName || "").localeCompare(b.imgName || "", void 0, { numeric: true });
-      } else if (gallerySortMode === "resolution") {
-        const ra = (a.width || 0) * (a.height || 0);
-        const rb = (b.width || 0) * (b.height || 0);
-        cmp = ra - rb;
-      } else if (gallerySortMode === "tagcount") {
-        cmp = a.tags.length - b.tags.length;
-      } else if (gallerySortMode === "dirty") {
-        cmp = (a.dirty ? 1 : 0) - (b.dirty ? 1 : 0);
-      } else if (gallerySortMode === "dateadded") {
-        cmp = (a.meta && a.meta.dateAdded || 0) - (b.meta && b.meta.dateAdded || 0);
-      }
-      return cmp * dir;
-    });
-    return arr;
-  }
-  function filteredEntries() {
-    return sortEntries(getEntries6().filter((e) => passesFilter(e)));
-  }
-  function passesFilter(e) {
-    const galleryFilter = getGalleryFilter();
-    if (galleryFilter.originalsView) {
-      if (!e.original) return false;
-    } else if (galleryFilter.disabledView) {
-      if (!e.disabled || e.original) return false;
-    } else {
-      if (e.disabled) return false;
-      if (galleryFilter.base === "untagged" && e.tags.length !== 0) return false;
-      if (galleryFilter.base === "dirty" && !e.dirty) return false;
-    }
-    if (galleryFilter.terms && galleryFilter.terms.length) {
-      const tagMatches = galleryFilter.exactMatch ? (t, term) => t.toLowerCase() === term : (t, term) => t.toLowerCase().includes(term);
-      const matchCount = galleryFilter.terms.filter((term) => e.tags.some((t) => tagMatches(t, term))).length;
-      const mode = galleryFilter.mode || "OR";
-      if (mode === "AND" && matchCount !== galleryFilter.terms.length) return false;
-      if (mode === "OR" && matchCount === 0) return false;
-      if (mode === "XOR" && matchCount !== 1) return false;
-      if (mode === "NOT" && matchCount > 0) return false;
-    }
-    if (galleryFilter.excludes && e.tags.some((t) => t.toLowerCase().includes(galleryFilter.excludes))) return false;
-    return true;
-  }
-  function setBaseFilter(kind) {
-    getGalleryFilter().base = kind;
-    [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach((b) => b.classList.remove("active"));
-    ({ all: filterAllBtn, untagged: filterUntaggedBtn, dirty: filterDirtyBtn })[kind].classList.add("active");
-    resetSingleIndex2();
-    renderCurrentViewRef3();
-  }
-  function parseFilterTerms(raw) {
-    return raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  }
-  function setContainsFilter(value) {
-    const galleryFilter = getGalleryFilter();
-    galleryFilter.terms = [value.toLowerCase()];
-    if (!isFilterModeLocked()) galleryFilter.mode = "OR";
-    filterInput.value = value;
-    hideFilterSuggestions();
-    resetSingleIndex2();
-    refreshFilterModeUI();
-    renderCurrentViewRef3();
-  }
-  function setMirroredSelectionFilter(tags) {
-    const galleryFilter = getGalleryFilter();
-    const list = Array.from(tags);
-    galleryFilter.terms = list.map((t) => t.toLowerCase());
-    filterInput.value = list.join(", ");
-    hideFilterSuggestions();
-    resetSingleIndex2();
-    refreshFilterModeUI();
-    renderCurrentViewRef3();
-  }
-  function setExcludesFilter(value) {
-    getGalleryFilter().excludes = value.toLowerCase();
-    excludeBadgeText.textContent = value;
-    excludeBadge.style.display = "flex";
-    resetSingleIndex2();
-    renderCurrentViewRef3();
-  }
-  function initTagIndex(deps3) {
-    getEntries6 = deps3.getEntries;
-    getGalleryFilter = deps3.getGalleryFilter;
-    getGallerySortMode = deps3.getGallerySortMode;
-    getGallerySortDir = deps3.getGallerySortDir;
-    resetSingleIndex2 = deps3.resetSingleIndex;
-    renderCurrentViewRef3 = deps3.renderCurrentView;
-    refreshFilterModeUI = deps3.refreshFilterModeUI;
-    isFilterModeLocked = deps3.isFilterModeLocked;
-    markTagReviewedRef = deps3.markTagReviewed;
-    leftSortDirBtn.addEventListener("click", () => {
-      leftSortDir = leftSortDir === "asc" ? "desc" : "asc";
-      setIconLabel(leftSortDirBtn, leftSortDir === "asc" ? "\u25B2" : "\u25BC");
-      refreshStats();
-    });
-    btnResetFamilyOrder.addEventListener("click", () => {
-      familyOrder = [];
-      saveFamilyOrder();
-      refreshStats();
-      toast("Keyword family order reset.");
-    });
-    buildPersistentDropdown(
-      leftSortDropdown,
-      [
-        { value: "family", label: "Keyword family" },
-        { value: "frequency", label: "Frequency" },
-        { value: "alphabetical", label: "Alphabetical" }
-      ],
-      () => leftSortMode,
-      (val) => {
-        leftSortMode = val;
-        refreshStats();
-      }
-    );
-    let filterRenderTimer = null;
-    filterInput.addEventListener("input", () => {
-      getGalleryFilter().terms = parseFilterTerms(filterInput.value);
-      resetSingleIndex2();
-      if (filterRenderTimer) clearTimeout(filterRenderTimer);
-      filterRenderTimer = setTimeout(() => {
-        filterRenderTimer = null;
-        renderCurrentViewRef3();
-      }, 120);
-      updateFilterSuggestions();
-    });
-    filterInput.addEventListener("focus", updateFilterSuggestions);
-    filterInput.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape") hideFilterSuggestions();
-    });
-    document.addEventListener("click", (ev) => {
-      if (ev.target !== filterInput && !filterSuggestions.contains(ev.target)) hideFilterSuggestions();
-    }, true);
-    filterExactToggle.addEventListener("change", () => {
-      getGalleryFilter().exactMatch = filterExactToggle.checked;
-      setBool("dts-filter-exact-match", filterExactToggle.checked);
-      if (filterExactToggle.checked) {
-        folderStats.exact_match_used = true;
-        saveFolderStats();
-        checkAchievements();
-      }
-      resetSingleIndex2();
-      renderCurrentViewRef3();
-    });
-    (function initExactMatchPref() {
-      let on = false;
-      on = getBool("dts-filter-exact-match");
-      filterExactToggle.checked = on;
-      getGalleryFilter().exactMatch = on;
-    })();
-    filterAllBtn.addEventListener("click", () => setBaseFilter("all"));
-    filterUntaggedBtn.addEventListener("click", () => setBaseFilter("untagged"));
-    filterDirtyBtn.addEventListener("click", () => setBaseFilter("dirty"));
-    excludeBadgeClear.addEventListener("click", () => {
-      getGalleryFilter().excludes = "";
-      excludeBadge.style.display = "none";
-      renderCurrentViewRef3();
-    });
-    btnClearFilter.addEventListener("click", () => {
-      filterInput.value = "";
-      const galleryFilter = getGalleryFilter();
-      galleryFilter.terms = [];
-      galleryFilter.excludes = "";
-      if (!isFilterModeLocked()) galleryFilter.mode = "OR";
-      excludeBadge.style.display = "none";
-      hideFilterSuggestions();
-      refreshFilterModeUI();
-      setBaseFilter("all");
-    });
-    btnReviewFlagged.addEventListener("click", () => {
-      reviewFlaggedActive = !reviewFlaggedActive;
-      btnReviewFlagged.classList.toggle("active", reviewFlaggedActive);
-      tagFamilyListArea.classList.toggle("review-mode", reviewFlaggedActive);
-      if (reviewFlaggedActive) reviewedFlaggedTags = /* @__PURE__ */ new Set();
-      refreshStats();
-    });
-  }
-
-  // src/renderer/quick-tag.ts
-  var STORE_KEY = "dts-quicktags";
-  var sized = (label, tag) => ({ label, tag, adds: ["breasts"] });
-  var BUILTIN_GROUPS = [
-    { id: "hair-length", label: "Hair length", items: [{ label: "Short", tag: "short hair" }, { label: "Medium", tag: "medium hair" }, { label: "Long", tag: "long hair" }] },
-    { id: "breast-size", label: "Breast size", items: [{ label: "Flat", tag: "flat chest" }, sized("Small", "small breasts"), sized("Medium", "medium breasts"), sized("Large", "large breasts"), sized("Gigantic", "gigantic breasts")] },
-    { id: "build", label: "Build", items: [{ label: "Slim", tag: "slim" }, { label: "Plump", tag: "plump" }] },
-    { id: "legs", label: "Legs", items: [{ label: "Thick thighs", tag: "thick thighs" }, { label: "Slim legs", tag: "slim legs" }] },
-    { id: "gaze", label: "Gaze", items: [{ label: "Looking at viewer", tag: "looking at viewer" }, { label: "Looking away", tag: "looking away" }, { label: "Looking to the side", tag: "looking to the side" }] }
-  ];
-  var BREAST_SIZES = ["small breasts", "medium breasts", "large breasts", "gigantic breasts"];
-  var deps2 = null;
-  var panel = null;
-  var currentEntry = null;
-  function normTag(t) {
-    return t.trim().replace(/_/g, " ").replace(/\s+/g, " ");
-  }
-  function normList(s) {
-    return Array.from(new Set(s.split(",").map(normTag).filter(Boolean)));
-  }
-  function loadStore() {
-    const s = getJSON(STORE_KEY, null);
-    return { groups: Array.isArray(s?.groups) ? s.groups : [], extra: s?.extra && typeof s.extra === "object" ? s.extra : {} };
-  }
-  function saveStore(s) {
-    setJSON(STORE_KEY, s);
-  }
-  function allGroups() {
-    const store = loadStore();
-    return [
-      ...BUILTIN_GROUPS.map((g) => ({ ...g, items: [...g.items, ...store.extra[g.id] || []] })),
-      ...store.groups.map((g) => ({ ...g, custom: true }))
-    ];
-  }
-  function isCustomItem(groupId, def) {
-    return !BUILTIN_GROUPS.some((g) => g.id === groupId && g.items.includes(def));
-  }
-  function allItems() {
-    return allGroups().flatMap((g) => g.items);
-  }
-  function tick(entry, def) {
-    deps2.addTagToEntry(entry, [def.tag, ...def.adds || []].join(","));
-    for (const other of allItems()) {
-      if (other !== def && other.untickedBy?.includes(def.tag) && entry.tags.includes(other.tag)) untick(entry, other);
-    }
-  }
-  function untick(entry, def) {
-    deps2.removeTagFromEntry(entry, def.tag);
-    const stillTicked = allItems().filter((o) => o !== def && entry.tags.includes(o.tag));
-    for (const t of def.adds || []) {
-      if (def.keep?.includes(t)) continue;
-      if (stillTicked.some((o) => o.adds?.includes(t))) continue;
-      if (entry.tags.includes(t)) deps2.removeTagFromEntry(entry, t);
-    }
-    for (const t of def.untickRemoves || []) if (entry.tags.includes(t)) deps2.removeTagFromEntry(entry, t);
-  }
-  function applyBuiltinRules(entry) {
-    const sizes = BREAST_SIZES.some((t) => entry.tags.includes(t));
-    if (!sizes && entry.tags.includes("flat chest") && entry.tags.includes("breasts")) deps2.removeTagFromEntry(entry, "breasts");
-  }
-  function field(box, label, hint, value, placeholder, list) {
-    const wrap = document.createElement("label");
-    wrap.className = "quicktag-edit-field";
-    const l = document.createElement("span");
-    l.className = "quicktag-edit-label";
-    l.textContent = label;
-    const input = document.createElement("input");
-    input.type = "text";
-    input.value = value;
-    input.placeholder = placeholder;
-    input.addEventListener("keydown", (e) => e.stopPropagation());
-    if (list) attachPickAutocomplete(input, (v) => {
-      input.value = v + ", ";
-      input.focus();
-    });
-    else attachFillAutocomplete(input);
-    wrap.append(l, input);
-    if (hint) {
-      const h = document.createElement("span");
-      h.className = "quicktag-edit-hint";
-      h.textContent = hint;
-      wrap.appendChild(h);
-    }
-    box.appendChild(wrap);
-    return input;
-  }
-  function openEditor(groupLabel, existing) {
-    return new Promise((resolve) => {
-      let done = false;
-      const finish = (v) => {
-        if (!done) {
-          done = true;
-          resolve(v);
-        }
-        close();
-      };
-      const { box, close } = createModalShell({ boxClassName: "quicktag-edit-box", onDismiss: () => finish(null) });
-      const title = document.createElement("div");
-      title.className = "confirm-message";
-      title.textContent = `${existing ? "Edit" : "New"} quicktag in ${groupLabel}`;
-      box.appendChild(title);
-      const tag = field(box, "Quicktag", "The tag ticking this box writes.", existing?.tag || "", "e.g. very long hair", false);
-      const label = field(box, "Checkbox label (optional)", "What the box says; blank shows the tag.", existing?.label || "", "e.g. Very long", false);
-      const adds = field(box, "Ticking also adds", "Extra tags written with it (commas for several).", (existing?.adds || []).join(", "), "e.g. long hair", true);
-      const keep = field(box, "Keep after unticking", "Which of those extra tags stay when this is unticked (the rest are removed with it).", (existing?.keep || []).join(", "), "e.g. long hair", true);
-      const untickRemoves = field(box, "Unticking also removes", "Other tags taken off when this is unticked.", (existing?.untickRemoves || []).join(", "), "", true);
-      const untickedBy = field(box, "Unticked by", "Ticking any of these tags unticks this quicktag.", (existing?.untickedBy || []).join(", "), "e.g. short hair", true);
-      const row = document.createElement("div");
-      row.className = "confirm-btn-row";
-      const cancel = document.createElement("button");
-      cancel.textContent = "Cancel";
-      cancel.addEventListener("click", () => finish(null));
-      const save = document.createElement("button");
-      save.className = "primary";
-      save.textContent = existing ? "Save" : "Add quicktag";
-      save.addEventListener("click", () => {
-        const t = normTag(tag.value);
-        if (!t) {
-          toast("Enter the quicktag (the tag it writes).");
-          tag.focus();
-          return;
-        }
-        const addList = normList(adds.value).filter((x) => x !== t);
-        const keepList = normList(keep.value);
-        const notAdded = keepList.filter((x) => !addList.includes(x));
-        if (notAdded.length) {
-          toast(`"Keep after unticking" can only list tags from "Ticking also adds" (${notAdded.join(", ")} isn't there).`, 4200);
-          keep.focus();
-          return;
-        }
-        const def = { tag: t };
-        if (normTag(label.value)) def.label = label.value.trim();
-        if (addList.length) def.adds = addList;
-        if (keepList.length) def.keep = keepList;
-        const ur = normList(untickRemoves.value).filter((x) => x !== t);
-        if (ur.length) def.untickRemoves = ur;
-        const ub = normList(untickedBy.value).filter((x) => x !== t);
-        if (ub.length) def.untickedBy = ub;
-        finish(def);
-      });
-      row.append(cancel, save);
-      box.appendChild(row);
-      requestAnimationFrame(() => tag.focus());
-    });
-  }
-  async function addQuickTag(group) {
-    const def = await openEditor(group.label, null);
-    if (!def) return;
-    const store = loadStore();
-    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] ||= [];
-    if (group.items.some((d) => d.tag === def.tag)) {
-      toast(`"${def.tag}" is already a quicktag in ${group.label}.`);
-      return;
-    }
-    list.push(def);
-    saveStore(store);
-    refresh();
-  }
-  async function editQuickTag(group, def) {
-    const next = await openEditor(group.label, def);
-    if (!next) return;
-    const store = loadStore();
-    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] || [];
-    const i = list.findIndex((d) => d.tag === def.tag);
-    if (i === -1) return;
-    list[i] = next;
-    saveStore(store);
-    refresh();
-  }
-  async function deleteQuickTag(group, def) {
-    const ok = await showConfirmModal(`Delete the quicktag "${def.label || def.tag}"? Tags already on images stay.`, { okLabel: "Delete", danger: true });
-    if (!ok) return;
-    const store = loadStore();
-    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] || [];
-    const i = list.findIndex((d) => d.tag === def.tag);
-    if (i !== -1) list.splice(i, 1);
-    saveStore(store);
-    refresh();
-  }
-  async function addCategory() {
-    const name = (await showPromptModal("Name the new quicktag category:", { placeholder: "e.g. Eye colour", okLabel: "Add category" }))?.trim();
-    if (!name) return;
-    if (allGroups().some((g) => g.label.toLowerCase() === name.toLowerCase())) {
-      toast(`There's already a "${name}" category.`);
-      return;
-    }
-    const store = loadStore();
-    store.groups.push({ id: "custom-" + Date.now().toString(36), label: name, items: [] });
-    saveStore(store);
-    refresh();
-  }
-  async function deleteCategory(group) {
-    const ok = await showConfirmModal(
-      group.items.length ? `Delete the category "${group.label}" and its ${group.items.length} quicktag(s)? Tags already on images stay.` : `Delete the category "${group.label}"?`,
-      { okLabel: "Delete", danger: true }
-    );
-    if (!ok) return;
-    const store = loadStore();
-    store.groups = store.groups.filter((g) => g.id !== group.id);
-    saveStore(store);
-    refresh();
-  }
-  function refresh() {
-    if (currentEntry) showQuickTag(currentEntry);
-  }
-  function smallButton(text, title, onClick, cls = "") {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "quicktag-mini" + (cls ? " " + cls : "");
-    b.textContent = text;
-    b.title = title;
-    b.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      onClick();
-    });
-    return b;
-  }
-  function initQuickTag(d) {
-    deps2 = d;
-    panel = document.createElement("div");
-    panel.id = "quickTagPanel";
-    panel.className = "quicktag-panel";
-    deps2.leftPanel.appendChild(panel);
-  }
-  function showQuickTag(entry) {
-    if (!deps2 || !panel) return;
-    currentEntry = entry;
-    deps2.leftPanel.classList.add("quicktag-on");
-    panel.innerHTML = "";
-    const title = document.createElement("h3");
-    title.className = "panel-title";
-    title.textContent = "IMAGE QUICKTAGGING";
-    panel.appendChild(title);
-    const note = document.createElement("div");
-    note.className = "quicktag-note";
-    note.textContent = "Tick to add the tag to this image, untick to remove it. + adds your own.";
-    panel.appendChild(note);
-    const has = new Set(entry.tags);
-    for (const group of allGroups()) {
-      const block = document.createElement("div");
-      block.className = "quicktag-group";
-      const head = document.createElement("div");
-      head.className = "quicktag-group-head";
-      const name = document.createElement("span");
-      name.textContent = group.label;
-      head.appendChild(name);
-      const actions = document.createElement("span");
-      actions.className = "quicktag-head-actions";
-      actions.appendChild(smallButton("+", `Add a quicktag to ${group.label}`, () => void addQuickTag(group)));
-      if (group.custom) actions.appendChild(smallButton("\xD7", `Delete the ${group.label} category`, () => void deleteCategory(group), "quicktag-del"));
-      head.appendChild(actions);
-      block.appendChild(head);
-      const row = document.createElement("div");
-      row.className = "quicktag-options";
-      if (!group.items.length) {
-        const empty = document.createElement("div");
-        empty.className = "quicktag-note";
-        empty.textContent = "No quicktags yet \u2014 use +.";
-        row.appendChild(empty);
-      }
-      for (const def of group.items) {
-        const line = document.createElement("div");
-        line.className = "quicktag-line";
-        const opt = document.createElement("label");
-        opt.className = "ach-toggle-row quicktag-option";
-        opt.title = describe(def);
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = has.has(def.tag);
-        cb.addEventListener("change", () => {
-          if (cb.checked) tick(entry, def);
-          else untick(entry, def);
-          applyBuiltinRules(entry);
-          deps2.onChange();
-        });
-        const span = document.createElement("span");
-        span.textContent = def.label || def.tag;
-        opt.append(cb, span);
-        line.appendChild(opt);
-        if (isCustomItem(group.id, def)) {
-          const tools = document.createElement("span");
-          tools.className = "quicktag-item-actions";
-          tools.appendChild(smallButton("\u270E", "Edit this quicktag", () => void editQuickTag(group, def)));
-          tools.appendChild(smallButton("\xD7", "Delete this quicktag", () => void deleteQuickTag(group, def), "quicktag-del"));
-          line.appendChild(tools);
-        }
-        row.appendChild(line);
-      }
-      block.appendChild(row);
-      panel.appendChild(block);
-    }
-    const addCat = document.createElement("button");
-    addCat.type = "button";
-    addCat.className = "quicktag-add-category";
-    addCat.textContent = "+ Add category";
-    addCat.addEventListener("click", () => void addCategory());
-    panel.appendChild(addCat);
-  }
-  function describe(def) {
-    const parts = [`Writes "${def.tag}"`];
-    if (def.adds?.length) parts.push(`also adds ${def.adds.join(", ")}`);
-    if (def.keep?.length) parts.push(`keeps ${def.keep.join(", ")} after unticking`);
-    if (def.untickRemoves?.length) parts.push(`unticking also removes ${def.untickRemoves.join(", ")}`);
-    if (def.untickedBy?.length) parts.push(`unticked by ${def.untickedBy.join(", ")}`);
-    return parts.join("; ");
-  }
-  function hideQuickTag() {
-    if (!deps2) return;
-    deps2.leftPanel.classList.remove("quicktag-on");
   }
 
   // src/renderer/tag-categories-data.ts
@@ -22946,6 +19079,4050 @@ Image: ${entry.imgName}`,
     return groups2;
   }
 
+  // src/comfy-core.ts
+  function parseComboValues(nodeInfo, inputName) {
+    const raw = nodeInfo?.input?.required?.[inputName];
+    if (!Array.isArray(raw)) return null;
+    if (Array.isArray(raw[0])) return raw[0];
+    const second = raw[1];
+    if (raw[0] === "COMBO" && second && Array.isArray(second.options)) return second.options;
+    return null;
+  }
+  function concatBytes(parts) {
+    let total = 0;
+    for (const p of parts) total += p.length;
+    const out = new Uint8Array(total);
+    let offset = 0;
+    for (const p of parts) {
+      out.set(p, offset);
+      offset += p.length;
+    }
+    return out;
+  }
+  function buildMultipart(fields, fileField, fileName, fileBytes) {
+    const boundary = "----DTSBoundary" + Date.now().toString(16) + Math.random().toString(16).slice(2);
+    const encoder = new TextEncoder();
+    const parts = [];
+    for (const [key, value] of Object.entries(fields)) {
+      parts.push(encoder.encode(`--${boundary}\r
+Content-Disposition: form-data; name="${key}"\r
+\r
+${value}\r
+`));
+    }
+    const safeName = String(fileName).replace(/"/g, "");
+    parts.push(encoder.encode(`--${boundary}\r
+Content-Disposition: form-data; name="${fileField}"; filename="${safeName}"\r
+Content-Type: application/octet-stream\r
+\r
+`));
+    parts.push(fileBytes);
+    parts.push(encoder.encode(`\r
+--${boundary}--\r
+`));
+    return { boundary, body: concatBytes(parts) };
+  }
+  function buildSynthDatPrompt(template2, cfg) {
+    const prompt = JSON.parse(JSON.stringify(template2));
+    const character = [cfg.unified ? cfg.unifiedPrompt : cfg.character, cfg.characterTrigger].filter(Boolean).join(", ");
+    prompt["21"].inputs.value = cfg.global;
+    prompt["8"].inputs.value = cfg.unified ? "" : cfg.rating;
+    prompt["19"].inputs.value = "";
+    prompt["11"].inputs.value = character;
+    prompt["12"].inputs.value = cfg.unified ? "" : cfg.hair;
+    prompt["15"].inputs.value = cfg.unified ? "" : cfg.face;
+    prompt["18"].inputs.value = cfg.unified ? "" : cfg.chest;
+    prompt["9"].inputs.value = cfg.unified ? "" : cfg.body;
+    prompt["6"].inputs.value = cfg.unified ? "" : cfg.clothes;
+    prompt["20"].inputs.value = cfg.unified ? "" : cfg.limbs;
+    prompt["14"].inputs.value = cfg.unified ? "" : cfg.sexual;
+    prompt["7"].inputs.value = cfg.unified ? "" : cfg.pose;
+    prompt["10"].inputs.value = cfg.unified ? "" : cfg.extra;
+    prompt["13"].inputs.value = cfg.unified ? "" : cfg.effects;
+    prompt["17"].inputs.value = cfg.unified ? "" : cfg.scene;
+    prompt["16"].inputs.text = cfg.negative;
+    prompt["41"].inputs.unet_name = cfg.diffModel;
+    prompt["51"].inputs.lora_name = cfg.mainLora.trim() || cfg.noLoraStandIn;
+    const mainStrength = parseFloat(cfg.mainLoraStrength ?? "");
+    if (Number.isFinite(mainStrength)) prompt["248"].inputs.strength_model = mainStrength;
+    if (cfg.clip) {
+      prompt["249"].inputs.clip_name = cfg.clip;
+      prompt["47:45"].inputs.clip_name = cfg.clip;
+    }
+    if (cfg.vae) prompt["47:46"].inputs.vae_name = cfg.vae;
+    const chunks = [];
+    for (let i = 0; i < cfg.loraRows.length; i += 4) chunks.push(cfg.loraRows.slice(i, i + 4));
+    function fillStackInputs(inputs, chunk) {
+      for (let i = 0; i < 4; i++) {
+        const slot = String(i + 1).padStart(2, "0");
+        const r = chunk[i];
+        inputs[`lora_${slot}`] = r ? r.input.trim() || "None" : "None";
+        inputs[`strength_${slot}`] = r ? parseFloat(r.strength) || 0 : 0;
+      }
+    }
+    let lastStackId = "237";
+    fillStackInputs(prompt["237"].inputs, chunks[0] || []);
+    for (let c = 1; c < chunks.length; c++) {
+      const newId = `237_extra_${c}`;
+      const newInputs = { model: [lastStackId, 0], clip: ["47:45", 0] };
+      fillStackInputs(newInputs, chunks[c]);
+      prompt[newId] = { class_type: "DSM Lora Loader Stack", inputs: newInputs, _meta: { title: "DSM Lora Loader Stack" } };
+      lastStackId = newId;
+    }
+    if (lastStackId !== "237") {
+      prompt["243"].inputs.input1 = [lastStackId, 0];
+      prompt["240"].inputs.model = [lastStackId, 0];
+      prompt["195"].inputs.model = [lastStackId, 0];
+    }
+    if (cfg.skipRefImage) {
+      delete prompt["239"];
+      delete prompt["240"];
+      delete prompt["243"];
+      delete prompt["238"];
+      delete prompt["246"];
+      prompt["158:53"].inputs.model = [lastStackId, 0];
+      prompt["158:54"].inputs.model = [lastStackId, 0];
+    } else {
+      prompt["240"].inputs.strength = parseFloat(cfg.lliteStrength) || 0;
+      prompt["240"].inputs.start_percent = parseFloat(cfg.lliteStartPercent) || 0;
+      prompt["240"].inputs.end_percent = parseFloat(cfg.lliteEndPercent) || 0;
+      prompt["240"].inputs.preserve_wrapper = cfg.llitePreserveWrapper;
+      prompt["243"].inputs.select = 2;
+      prompt["238"].inputs.fit = cfg.resizeFit;
+      prompt["238"].inputs.method = cfg.resizeMethod;
+      prompt["240"].inputs.image = ["238", 0];
+    }
+    prompt["168:167"].inputs.sampler_name = cfg.sampler;
+    prompt["158:53"].inputs.scheduler = cfg.scheduler;
+    prompt["158:53"].inputs.steps = parseInt(cfg.steps1, 10) || 1;
+    prompt["158:54"].inputs.cfg = parseFloat(cfg.cfg1) || 1;
+    prompt["174:171"].inputs.value = parseInt(cfg.width, 10) || 920;
+    prompt["174:172"].inputs.value = parseInt(cfg.height, 10) || 1244;
+    prompt["165"].inputs.noise_seed = parseInt(cfg.seed1, 10) || 0;
+    if (cfg.use2Pass) {
+      prompt["227"].inputs.noise_seed = parseInt(cfg.seed2, 10) || 0;
+      prompt["195"].inputs.denoise = parseFloat(cfg.denoise2) || 0;
+      prompt["195"].inputs.scheduler = cfg.scheduler;
+      prompt["195"].inputs.steps = parseInt(cfg.steps2, 10) || 1;
+      prompt["192_pass1"] = { class_type: "SaveImage", inputs: { filename_prefix: prompt["192"].inputs.filename_prefix, images: ["176", 0] }, _meta: { title: "Pass 1 preview" } };
+    } else {
+      delete prompt["190"];
+      delete prompt["191"];
+      delete prompt["195"];
+      delete prompt["227"];
+      delete prompt["224"];
+      prompt["192"].inputs.images = ["176", 0];
+    }
+    if (cfg.upscale && cfg.upscale.enabled && cfg.upscale.model.trim()) {
+      prompt["upscale_model_loader"] = { class_type: "UpscaleModelLoader", inputs: { model_name: cfg.upscale.model.trim() }, _meta: { title: "Upscale Model Loader" } };
+      const scaleBy = parseFloat(cfg.upscale.scaleBy) || 1;
+      prompt["upscale_model_192"] = { class_type: "ImageUpscaleWithModel", inputs: { upscale_model: ["upscale_model_loader", 0], image: prompt["192"].inputs.images }, _meta: { title: "Upscale" } };
+      prompt["upscale_scale_192"] = { class_type: "ImageScaleBy", inputs: { upscale_method: "lanczos", scale_by: scaleBy, image: ["upscale_model_192", 0] }, _meta: { title: "Upscale scale-by" } };
+      prompt["222"].inputs.text_c = "Upscaled";
+      prompt["192_upscaled"] = { class_type: "SaveImage", inputs: { filename_prefix: ["222", 0], images: ["upscale_scale_192", 0] }, _meta: { title: "Upscaled" } };
+    }
+    return prompt;
+  }
+  function buildWd14Prompt(imageRef, settings2) {
+    return {
+      "1": { class_type: "LoadImage", inputs: { image: imageRef, upload: "image" } },
+      "2": {
+        class_type: "WD14Tagger|pysssss",
+        inputs: {
+          image: ["1", 0],
+          model: settings2.model,
+          threshold: settings2.threshold,
+          character_threshold: settings2.characterThreshold,
+          // No longer user-configurable — always false so the node still gets a
+          // value for this required input.
+          replace_underscore: false,
+          trailing_comma: !!settings2.trailingComma,
+          exclude_tags: settings2.excludeTags || ""
+        }
+      }
+    };
+  }
+  function parseQueueResponse(parsed, status, noun) {
+    if (status !== 200) {
+      const errMsg = parsed && parsed.error && parsed.error.message;
+      return { ok: false, error: errMsg ? `ComfyUI rejected the request: ${errMsg}` : `ComfyUI returned HTTP ${status} queuing the ${noun} request.` };
+    }
+    const nodeErrorKeys = parsed && parsed.node_errors ? Object.keys(parsed.node_errors) : [];
+    if (nodeErrorKeys.length) return { ok: false, error: `ComfyUI rejected the workflow: ${JSON.stringify(parsed.node_errors)}` };
+    const promptId = parsed && parsed.prompt_id;
+    if (!promptId) return { ok: false, error: "ComfyUI did not return a prompt id." };
+    return { ok: true, promptId };
+  }
+  function extractWd14Tags(record) {
+    const tags = record && record.outputs && record.outputs["2"] && record.outputs["2"].tags;
+    if (!tags) return null;
+    return Array.isArray(tags) ? tags[0] : tags;
+  }
+  function decodeUtf8(bytes) {
+    return new TextDecoder().decode(bytes);
+  }
+  function safeJson(text) {
+    try {
+      return JSON.parse(text || "{}");
+    } catch {
+      return {};
+    }
+  }
+  async function uploadImage(t, host, filename, bytes, label = "Image") {
+    const { boundary, body } = buildMultipart({ type: "input", overwrite: "true" }, "image", filename, bytes);
+    const res = await t.request(host, "/upload/image", {
+      method: "POST",
+      headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, "Content-Length": body.length },
+      body,
+      timeoutMs: 2e4
+    });
+    if (res.status !== 200) return { ok: false, error: `${label} upload to ComfyUI failed (HTTP ${res.status}).` };
+    const uploaded = safeJson(decodeUtf8(res.body));
+    return { ok: true, ref: uploaded.subfolder ? `${uploaded.subfolder}/${uploaded.name}` : uploaded.name };
+  }
+  async function queuePrompt(t, host, prompt, clientId, opts = {}) {
+    const payload = { prompt, client_id: clientId };
+    if (opts.extraData) payload.extra_data = opts.extraData;
+    const body = new TextEncoder().encode(JSON.stringify(payload));
+    const res = await t.request(host, "/prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": body.length },
+      body,
+      timeoutMs: 1e4
+    });
+    return parseQueueResponse(safeJson(decodeUtf8(res.body)), res.status, opts.noun || "request");
+  }
+  async function pollHistory(t, host, promptId, opts) {
+    const interval = opts.intervalMs ?? 700;
+    const deadline = Date.now() + opts.deadlineMs;
+    const cancelled = () => opts.isCancelled ? opts.isCancelled() : false;
+    const stopped = () => opts.onCancelled ? opts.onCancelled() : { ok: false, error: "Cancelled." };
+    while (Date.now() < deadline) {
+      if (cancelled()) return stopped();
+      await new Promise((r) => setTimeout(r, interval));
+      if (cancelled()) return stopped();
+      let histRes;
+      try {
+        histRes = await t.request(host, `/history/${promptId}`, { timeoutMs: 8e3 });
+      } catch {
+        continue;
+      }
+      if (histRes.status !== 200) continue;
+      const hist = safeJson(decodeUtf8(histRes.body));
+      const record = hist[promptId];
+      if (!record) continue;
+      const value = await opts.extract(record);
+      if (value !== null && value !== void 0) return { ok: true, value };
+      if (record.status && record.status.status_str === "error") return { ok: false, error: opts.errorStatusMessage };
+    }
+    return { ok: false, error: opts.timeoutMessage };
+  }
+
+  // src/renderer/comfy-client.ts
+  function isLikelyCorsFailure(err) {
+    return err instanceof TypeError;
+  }
+  function corsHintSuffix() {
+    return " \u2014 either ComfyUI isn't reachable at that address, or it needs to be started with --enable-cors-header for a phone/browser to reach it directly.";
+  }
+  function normalizeHost(host) {
+    const trimmed = String(host || "").trim();
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+  }
+  var fetchComfyTransport = {
+    request: async (host, path, init = {}) => {
+      const res = await fetch(new URL(path, host), {
+        method: init.method || "GET",
+        headers: init.headers,
+        body: init.body ?? void 0
+      });
+      return { status: res.status, body: new Uint8Array(await res.arrayBuffer()) };
+    }
+  };
+  async function comfyGetModels(host) {
+    host = normalizeHost(host);
+    let res;
+    try {
+      res = await fetch(new URL("/object_info/WD14Tagger%7Cpysssss", host), { method: "GET" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : " (" + msg + ")"}` };
+    }
+    if (!res.ok) return { ok: false, error: `ComfyUI returned HTTP ${res.status} \u2014 is the WD14 Tagger (pysssss) custom node installed?` };
+    let parsed;
+    try {
+      parsed = await res.json();
+    } catch {
+      return { ok: false, error: "ComfyUI returned an unexpected response." };
+    }
+    const models = parseComboValues(parsed["WD14Tagger|pysssss"], "model");
+    if (!Array.isArray(models)) return { ok: false, error: "Could not find the WD14 Tagger node on that ComfyUI instance." };
+    return { ok: true, models };
+  }
+  async function comfyTagImage({ host, filename, imageBytes, settings: settings2 }) {
+    host = normalizeHost(host);
+    try {
+      const upload = await uploadImage(fetchComfyTransport, host, filename, imageBytes, "Image");
+      if (!upload.ok) return upload;
+      const clientId = `dts-mobile-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+      const prompt = buildWd14Prompt(upload.ref, settings2);
+      const queue = await queuePrompt(fetchComfyTransport, host, prompt, clientId, { noun: "tag" });
+      if (!queue.ok) return queue;
+      const poll = await pollHistory(fetchComfyTransport, host, queue.promptId, {
+        deadlineMs: 12e4,
+        extract: (record) => extractWd14Tags(record),
+        errorStatusMessage: "ComfyUI reported an error while tagging this image \u2014 check its console for details.",
+        timeoutMessage: "Timed out waiting for ComfyUI to finish tagging this image."
+      });
+      if (!poll.ok) return poll;
+      return { ok: true, tagsCsv: poll.value };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : " (" + msg + ")"}` };
+    }
+  }
+  async function comfyGetObjectInfo({ host, classType, inputName }) {
+    host = normalizeHost(host);
+    try {
+      const res = await fetch(new URL(`/object_info/${encodeURIComponent(classType)}`, host));
+      if (!res.ok) return { ok: false, error: `ComfyUI returned HTTP ${res.status} looking up ${classType}.` };
+      const parsed = await res.json();
+      const values = parseComboValues(parsed[classType], inputName);
+      if (!Array.isArray(values)) return { ok: false, error: `Could not find "${inputName}" on ${classType} \u2014 is the right custom node installed?` };
+      return { ok: true, values };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: `Could not reach ComfyUI at ${host}${isLikelyCorsFailure(err) ? corsHintSuffix() : " (" + msg + ")"}` };
+    }
+  }
+  var previewFrameCallback = () => {
+  };
+  var progressCallback = () => {
+  };
+  var activeGen = null;
+  function comfyOnPreviewFrame(cb) {
+    previewFrameCallback = cb;
+  }
+  function comfyOnProgress(cb) {
+    progressCallback = cb;
+  }
+  async function comfyStopGeneration(host) {
+    host = normalizeHost(host);
+    if (activeGen) activeGen.cancelled = true;
+    try {
+      await fetch(new URL("/interrupt", host), { method: "POST" });
+    } catch {
+    }
+    return { ok: true };
+  }
+  async function fetchViewImage(host, image) {
+    const qs = new URLSearchParams({ filename: image.filename, subfolder: image.subfolder || "", type: image.type || "output" });
+    const res = await fetch(new URL(`/view?${qs.toString()}`, host));
+    if (!res.ok) throw new Error(`ComfyUI returned HTTP ${res.status} fetching the generated image.`);
+    return new Uint8Array(await res.arrayBuffer());
+  }
+  async function comfyQueueAndFetch({ host, imageFilename, imageBytes, prompt }) {
+    host = normalizeHost(host);
+    let ws = null;
+    try {
+      if (imageBytes && prompt["239"]) {
+        const upload = await uploadImage(fetchComfyTransport, host, imageFilename, imageBytes, "Reference image");
+        if (!upload.ok) return upload;
+        prompt["239"].inputs.image = upload.ref;
+      }
+      const clientId = `dts-mobile-synthdat-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+      activeGen = { cancelled: false };
+      try {
+        const wsUrl = `${host.replace(/^http/i, "ws")}/ws?clientId=${encodeURIComponent(clientId)}`;
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = "arraybuffer";
+        ws.addEventListener("open", () => {
+          try {
+            ws.send(JSON.stringify({ type: "feature_flags", data: { supports_preview_metadata: true } }));
+          } catch {
+          }
+        });
+        ws.addEventListener("message", (ev) => {
+          if (ev.data instanceof ArrayBuffer) {
+            const data = new DataView(ev.data);
+            if (ev.data.byteLength < 8) return;
+            const eventType = data.getUint32(0, false);
+            if (eventType === 1) {
+              const imageType = data.getUint32(4, false);
+              previewFrameCallback(null, { mime: imageType === 1 ? "image/jpeg" : "image/png", bytes: new Uint8Array(ev.data.slice(8)) });
+            } else if (eventType === 4) {
+              try {
+                const metaLen = data.getUint32(4, false);
+                const metaBytes = new Uint8Array(ev.data.slice(8, 8 + metaLen));
+                const meta = JSON.parse(new TextDecoder().decode(metaBytes));
+                previewFrameCallback(null, { mime: meta.image_type || "image/jpeg", bytes: new Uint8Array(ev.data.slice(8 + metaLen)) });
+              } catch {
+              }
+            }
+          } else {
+            try {
+              const msg = JSON.parse(ev.data);
+              if (msg.type === "progress" && msg.data) {
+                progressCallback(null, msg.data);
+              } else if (msg.type === "progress_state" && msg.data) {
+                const nodes = msg.data.nodes;
+                if (nodes) {
+                  const running2 = Object.values(nodes).filter((n) => n.state === "running");
+                  if (running2.length) {
+                    const n = running2[running2.length - 1];
+                    progressCallback(null, { value: n.value, max: n.max });
+                  }
+                }
+              }
+            } catch {
+            }
+          }
+        });
+        ws.addEventListener("error", (err) => console.error("[synthdat] preview websocket error:", err));
+        ws.addEventListener("close", (ev) => {
+          if (ev.code !== 1e3) console.error("[synthdat] preview websocket closed:", ev.code, ev.reason);
+        });
+        await new Promise((resolve) => {
+          const timer = setTimeout(resolve, 3e3);
+          ws.addEventListener("open", () => {
+            clearTimeout(timer);
+            resolve();
+          }, { once: true });
+          ws.addEventListener("error", () => {
+            clearTimeout(timer);
+            resolve();
+          }, { once: true });
+        });
+      } catch (err) {
+        console.error("[synthdat] preview websocket setup failed:", err);
+      }
+      const queue = await queuePrompt(fetchComfyTransport, host, prompt, clientId, { extraData: { preview_method: "taesd" }, noun: "generation" });
+      if (!queue.ok) return queue;
+      const promptId = queue.promptId;
+      const poll = await pollHistory(fetchComfyTransport, host, promptId, {
+        deadlineMs: 3e5,
+        isCancelled: () => !!(activeGen && activeGen.cancelled),
+        onCancelled: () => ({ ok: false, error: "Generation stopped.", interrupted: true }),
+        errorStatusMessage: "ComfyUI reported an error while generating this image \u2014 check its console for details.",
+        timeoutMessage: "Timed out waiting for ComfyUI to finish generating this image.",
+        extract: async (record) => {
+          const outputs = record.outputs;
+          const saveOutput = outputs?.["192"];
+          const image = saveOutput?.images?.[0];
+          if (!image) return null;
+          const result = { ok: true, imageBytes: await fetchViewImage(host, image) };
+          const pass1Output = outputs?.["192_pass1"];
+          const pass1Image = pass1Output?.images?.[0];
+          if (pass1Image) {
+            try {
+              result.pass1ImageBytes = await fetchViewImage(host, pass1Image);
+            } catch {
+            }
+          }
+          return result;
+        }
+      });
+      return poll.ok ? poll.value : poll;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: `Could not reach ComfyUI at ${host} (${msg})` };
+    } finally {
+      try {
+        if (ws) ws.close();
+      } catch {
+      }
+      activeGen = null;
+    }
+  }
+  if (window.Capacitor) {
+    const api = window.electronAPI || {};
+    api.synthdatGetObjectInfo = comfyGetObjectInfo;
+    api.synthdatQueueAndFetch = comfyQueueAndFetch;
+    api.synthdatStopGeneration = comfyStopGeneration;
+    api.onSynthdatPreviewFrame = comfyOnPreviewFrame;
+    api.onSynthdatProgress = comfyOnProgress;
+    window.electronAPI = api;
+  }
+
+  // src/renderer/wd14-local-bridge.ts
+  if (window.electronAPI && window.electronAPI.wd14LocalListModels) {
+    let progressListenerAdded = false;
+    const progressCallbacks = /* @__PURE__ */ new Map();
+    const bridge = {
+      async listModels() {
+        return await window.electronAPI.wd14LocalListModels();
+      },
+      async deleteModel(name) {
+        await window.electronAPI.wd14LocalDeleteModel(name);
+      },
+      async downloadModel(opts, onProgress) {
+        if (!progressListenerAdded) {
+          progressListenerAdded = true;
+          window.electronAPI.onWd14LocalDownloadProgress((_event, ev) => {
+            const cb = progressCallbacks.get(ev.name);
+            if (cb) cb(ev);
+          });
+        }
+        if (onProgress) progressCallbacks.set(opts.name, onProgress);
+        try {
+          await window.electronAPI.wd14LocalDownloadModel(opts);
+        } finally {
+          progressCallbacks.delete(opts.name);
+        }
+      },
+      async tagImage(payload) {
+        return await window.electronAPI.wd14LocalTagImage(payload);
+      },
+      async pickImportFiles() {
+        return await window.electronAPI.wd14LocalPickImportFiles();
+      },
+      async importModel(payload) {
+        await window.electronAPI.wd14LocalImportModel(payload);
+      }
+    };
+    window.Wd14Local = bridge;
+  }
+
+  // src/renderer/wd14-tagger.ts
+  var hasElectronComfy = !!(window.electronAPI && window.electronAPI.wd14GetModels);
+  var SETTINGS_KEY2 = "dts-wd14-settings";
+  var DEFAULT_SETTINGS = {
+    host: "http://127.0.0.1:8188",
+    model: "",
+    threshold: 0.35,
+    characterThreshold: 0.85,
+    trailingComma: false,
+    excludeTags: "",
+    autoApply: false,
+    mode: "comfyui",
+    localModel: "",
+    gpu: true
+  };
+  var settings = { ...DEFAULT_SETTINGS };
+  var getEntries5 = () => [];
+  var refreshAllUIRef5 = () => {
+  };
+  var cancelRequested = false;
+  var running = false;
+  var lastProvider = null;
+  function gpuCheckbox() {
+    return document.getElementById("wd14Gpu");
+  }
+  function loadSettings() {
+    const base = { ...DEFAULT_SETTINGS, mode: hasLocalWd14 ? "local" : "comfyui" };
+    settings = { ...base };
+    const saved = getJSON(SETTINGS_KEY2, null);
+    if (saved && typeof saved === "object") settings = { ...base, ...saved };
+  }
+  function saveSettings() {
+    setJSON(SETTINGS_KEY2, settings);
+  }
+  var hasLocalWd14 = !!window.Wd14Local;
+  function applySettingsToUI() {
+    wd14Host.value = settings.host;
+    wd14Threshold.value = String(settings.threshold);
+    wd14CharThreshold.value = String(settings.characterThreshold);
+    wd14TrailingComma.checked = !!settings.trailingComma;
+    wd14ExcludeTags.value = settings.excludeTags;
+    wd14AutoApply.checked = !!settings.autoApply;
+    const gpuEl = gpuCheckbox();
+    if (gpuEl) gpuEl.checked = settings.gpu !== false;
+    if (settings.model) {
+      if (![...wd14ModelSelect.options].some((o) => o.value === settings.model)) {
+        const opt = document.createElement("option");
+        opt.value = settings.model;
+        opt.textContent = settings.model;
+        wd14ModelSelect.appendChild(opt);
+      }
+      wd14ModelSelect.value = settings.model;
+    }
+    wd14ModeRow.style.display = hasLocalWd14 ? "" : "none";
+    if (hasLocalWd14) {
+      wd14ModeSelect.value = settings.mode;
+      wd14ComfyuiFields.style.display = settings.mode === "local" ? "none" : "";
+      wd14LocalFields.style.display = settings.mode === "local" ? "" : "none";
+    }
+  }
+  async function refreshModels(silent) {
+    const host = wd14Host.value.trim() || DEFAULT_SETTINGS.host;
+    const res = hasElectronComfy ? await window.electronAPI.wd14GetModels(host) : await comfyGetModels(host);
+    if (!res.ok) {
+      if (!silent) toast(res.error || "Could not fetch the model list from ComfyUI.", 4200);
+      return;
+    }
+    const current = wd14ModelSelect.value || settings.model;
+    wd14ModelSelect.innerHTML = "";
+    const models = res.models || [];
+    for (const m of models) {
+      const opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = m;
+      wd14ModelSelect.appendChild(opt);
+    }
+    if (current && models.includes(current)) wd14ModelSelect.value = current;
+    if (!silent) toast(`Loaded ${models.length} model(s) from ComfyUI.`, 2400);
+  }
+  function readSettingsFromUI() {
+    settings = {
+      host: wd14Host.value.trim() || DEFAULT_SETTINGS.host,
+      model: wd14ModelSelect.value,
+      threshold: parseFloat(wd14Threshold.value) || 0,
+      characterThreshold: parseFloat(wd14CharThreshold.value) || 0,
+      trailingComma: wd14TrailingComma.checked,
+      excludeTags: wd14ExcludeTags.value,
+      autoApply: wd14AutoApply.checked,
+      mode: hasLocalWd14 ? wd14ModeSelect.value : "comfyui",
+      localModel: hasLocalWd14 ? wd14LocalModelSelect.value : "",
+      gpu: gpuCheckbox() ? gpuCheckbox().checked : settings.gpu !== false
+    };
+    saveSettings();
+    if (hasLocalWd14) {
+      wd14ComfyuiFields.style.display = settings.mode === "local" ? "none" : "";
+      wd14LocalFields.style.display = settings.mode === "local" ? "" : "none";
+    }
+  }
+  function parseWd14Tags(tagsCsv) {
+    if (!tagsCsv) return [];
+    return tagsCsv.split(",").map((t) => t.replace(/\\\(/g, "(").replace(/\\\)/g, ")").replace(/_/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
+  }
+  function setStatus(text, progressFraction) {
+    if (!text) {
+      wd14Status.style.display = "none";
+      return;
+    }
+    wd14Status.style.display = "block";
+    wd14Status.querySelector("span").textContent = text;
+    const fill = wd14Status.querySelector(".wd14-progress-fill");
+    if (fill) fill.style.width = (progressFraction == null ? 0 : Math.round(progressFraction * 100)) + "%";
+  }
+  async function tagOneWithRetry(entry) {
+    while (true) {
+      if (cancelRequested) return null;
+      let bytes;
+      try {
+        const file = await entry.imgHandle.getFile();
+        bytes = new Uint8Array(await file.arrayBuffer());
+      } catch (err) {
+        toast(`Could not read ${entry.imgName} off disk \u2014 skipping.`, 3600);
+        return null;
+      }
+      const res = hasLocalWd14 && settings.mode === "local" ? await window.Wd14Local.tagImage({
+        name: settings.localModel,
+        imageBytes: bytes,
+        threshold: settings.threshold,
+        characterThreshold: settings.characterThreshold,
+        preferGpu: settings.gpu !== false
+      }) : hasElectronComfy ? await window.electronAPI.wd14TagImage({
+        host: settings.host,
+        filename: entry.imgName || entry.base,
+        imageBytes: bytes,
+        settings
+      }) : await comfyTagImage({ host: settings.host, filename: entry.imgName || entry.base, imageBytes: bytes, settings });
+      if (res.ok) {
+        const provider = res.provider;
+        if (provider) lastProvider = provider;
+        return res.tagsCsv || null;
+      }
+      const retry = await showConfirmModal(
+        `${res.error || "WD14 tagging failed."}
+
+Image: ${entry.imgName}`,
+        { okLabel: "Retry", cancelLabel: "Skip this image", danger: true }
+      );
+      if (!retry) return null;
+    }
+  }
+  function showWd14ReviewModal(rows) {
+    return new Promise((resolve) => {
+      const { box, close: teardown } = createModalShell({ boxClassName: "wd14-review-box", onDismiss: () => close(null) });
+      let sorted = getBool("dts-tag-sorting");
+      const rowState = rows.map((r) => ({
+        entry: r.entry,
+        include: true,
+        tags: r.mergedTags.map((tag) => ({ tag, isNew: !r.entry.tags.includes(tag) })),
+        removed: [],
+        cardEl: document.createElement("div"),
+        render: () => {
+        }
+      }));
+      const head = document.createElement("div");
+      head.className = "wd14-rv-head";
+      const msg = document.createElement("div");
+      msg.className = "confirm-message wd14-rv-msg";
+      head.appendChild(msg);
+      const tools = document.createElement("div");
+      tools.className = "wd14-rv-tools";
+      const sortBtn = document.createElement("button");
+      sortBtn.type = "button";
+      sortBtn.className = "tagcat-toggle";
+      const allBtn = document.createElement("button");
+      allBtn.type = "button";
+      allBtn.textContent = "Apply all";
+      const noneBtn = document.createElement("button");
+      noneBtn.type = "button";
+      noneBtn.textContent = "Skip all";
+      tools.appendChild(sortBtn);
+      tools.appendChild(allBtn);
+      tools.appendChild(noneBtn);
+      head.appendChild(tools);
+      box.appendChild(head);
+      const list = document.createElement("div");
+      list.className = "wd14-rv-list";
+      box.appendChild(list);
+      const btnRow = document.createElement("div");
+      btnRow.className = "confirm-btn-row";
+      const cancelBtn = document.createElement("button");
+      cancelBtn.textContent = "Cancel";
+      const okBtn = document.createElement("button");
+      okBtn.className = "primary";
+      btnRow.appendChild(cancelBtn);
+      btnRow.appendChild(okBtn);
+      box.appendChild(btnRow);
+      function refreshSummary() {
+        const inc = rowState.filter((r) => r.include);
+        const newCount = inc.reduce((n, r) => n + r.tags.filter((t) => t.isNew).length, 0);
+        msg.textContent = `Review WD14 tags for ${rows.length} image(s). New tags are tinted; drop or add tags on any card, and untick a card to skip it. (${newCount} new tag(s) across ${inc.length} image(s).)`;
+        okBtn.textContent = inc.length === rows.length ? "Apply all" : `Apply ${inc.length} of ${rows.length}`;
+        okBtn.disabled = inc.length === 0;
+      }
+      function refreshSortBtn() {
+        sortBtn.classList.toggle("active", sorted);
+        setIconLabel(sortBtn, sorted ? "\u{1F3F7} Tag sorting: on" : "\u{1F3F7} Tag sorting");
+        sortBtn.title = sorted ? "Stop grouping tags by category" : "Group each image's tags by category (Character, Hair, Body, Face, Clothes, ...)";
+      }
+      function buildChip3(rs, t) {
+        const chip = document.createElement("span");
+        chip.className = "wd14-rv-chip" + (t.isNew ? " is-new" : "");
+        chip.title = t.isNew ? "New from WD14" : "Already on this image";
+        const text = document.createElement("span");
+        text.textContent = t.tag;
+        chip.appendChild(text);
+        const x = document.createElement("button");
+        x.type = "button";
+        x.className = "wd14-rv-chip-x";
+        x.textContent = "\xD7";
+        x.title = `Drop "${t.tag}" from this image's tags`;
+        x.addEventListener("click", () => {
+          rs.tags = rs.tags.filter((c) => c !== t);
+          rs.removed.push(t);
+          rs.render();
+          refreshSummary();
+        });
+        chip.appendChild(x);
+        return chip;
+      }
+      function buildCard2(rs) {
+        const card = rs.cardEl;
+        card.className = "wd14-rv-card";
+        const pic = document.createElement("div");
+        pic.className = "wd14-rv-pic";
+        const img = document.createElement("img");
+        img.src = rs.entry.objectUrl;
+        img.loading = "lazy";
+        pic.appendChild(img);
+        const name = document.createElement("div");
+        name.className = "wd14-rv-name";
+        name.textContent = (rs.entry.imgName || rs.entry.base) + (rs.entry.width ? ` \xB7 ${rs.entry.width}\xD7${rs.entry.height}` : "");
+        pic.appendChild(name);
+        card.appendChild(pic);
+        const body = document.createElement("div");
+        body.className = "wd14-rv-body";
+        const bar = document.createElement("div");
+        bar.className = "wd14-rv-cardbar";
+        const use = document.createElement("label");
+        use.className = "wd14-rv-use";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = true;
+        cb.addEventListener("change", () => {
+          rs.include = cb.checked;
+          card.classList.toggle("excluded", !rs.include);
+          refreshSummary();
+        });
+        use.appendChild(cb);
+        use.appendChild(document.createTextNode(" Apply to this image"));
+        bar.appendChild(use);
+        const count = document.createElement("span");
+        count.className = "wd14-rv-count";
+        bar.appendChild(count);
+        body.appendChild(bar);
+        const chips = document.createElement("div");
+        chips.className = "wd14-rv-chipfield";
+        body.appendChild(chips);
+        const removedEl = document.createElement("div");
+        removedEl.className = "wd14-rv-removed";
+        body.appendChild(removedEl);
+        const addRow = document.createElement("div");
+        addRow.className = "wd14-rv-add";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "+ Add tag (commas for several), press Enter";
+        function commitAdd() {
+          const parts = input.value.split(",").map((t) => t.replace(/_/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
+          if (!parts.length) return;
+          for (const tag of parts) {
+            if (rs.tags.some((c) => c.tag === tag)) continue;
+            const back = rs.removed.find((c) => c.tag === tag);
+            if (back) {
+              rs.removed = rs.removed.filter((c) => c !== back);
+              rs.tags.push(back);
+            } else rs.tags.push({ tag, isNew: true });
+          }
+          input.value = "";
+          rs.render();
+          refreshSummary();
+        }
+        input.addEventListener("keydown", (ev) => {
+          ev.stopPropagation();
+          if (ev.key === "Enter") {
+            ev.preventDefault();
+            commitAdd();
+          }
+        });
+        addRow.appendChild(input);
+        body.appendChild(addRow);
+        card.appendChild(body);
+        rs.render = () => {
+          const newN = rs.tags.filter((t) => t.isNew).length;
+          count.textContent = `${rs.tags.length} tags \xB7 ${newN} new` + (rs.removed.length ? ` \xB7 ${rs.removed.length} dropped` : "");
+          chips.innerHTML = "";
+          if (sorted) {
+            for (const g of groupTagsByCategory(rs.tags.map((t) => t.tag))) {
+              const seg = document.createElement("div");
+              seg.className = "wd14-rv-cat";
+              const h = document.createElement("div");
+              h.className = "wd14-rv-cat-head";
+              h.textContent = `${g.label} (${g.tags.length})`;
+              seg.appendChild(h);
+              const row = document.createElement("div");
+              row.className = "wd14-rv-chips";
+              for (const tag of g.tags) {
+                const t = rs.tags.find((c) => c.tag === tag);
+                if (t) row.appendChild(buildChip3(rs, t));
+              }
+              seg.appendChild(row);
+              chips.appendChild(seg);
+            }
+          } else {
+            const row = document.createElement("div");
+            row.className = "wd14-rv-chips";
+            for (const g of groupTagsByCategory(rs.tags.map((t) => t.tag))) {
+              for (const tag of g.tags) {
+                const t = rs.tags.find((c) => c.tag === tag);
+                if (t) row.appendChild(buildChip3(rs, t));
+              }
+            }
+            chips.appendChild(row);
+          }
+          removedEl.innerHTML = "";
+          if (rs.removed.length) {
+            const lab = document.createElement("span");
+            lab.className = "wd14-rv-removed-label";
+            lab.textContent = "Dropped (click to put back):";
+            removedEl.appendChild(lab);
+            for (const t of rs.removed) {
+              const b = document.createElement("button");
+              b.type = "button";
+              b.className = "wd14-rv-restore";
+              b.textContent = t.tag;
+              b.addEventListener("click", () => {
+                rs.removed = rs.removed.filter((c) => c !== t);
+                rs.tags.push(t);
+                rs.render();
+                refreshSummary();
+              });
+              removedEl.appendChild(b);
+            }
+          }
+        };
+        rs.render();
+      }
+      for (const rs of rowState) {
+        buildCard2(rs);
+        list.appendChild(rs.cardEl);
+      }
+      sortBtn.addEventListener("click", () => {
+        sorted = !sorted;
+        refreshSortBtn();
+        rowState.forEach((r) => r.render());
+      });
+      const setAll = (v) => {
+        rowState.forEach((r) => {
+          r.include = v;
+          r.cardEl.classList.toggle("excluded", !v);
+          const c = r.cardEl.querySelector(".wd14-rv-use input");
+          if (c) c.checked = v;
+        });
+        refreshSummary();
+      };
+      allBtn.addEventListener("click", () => setAll(true));
+      noneBtn.addEventListener("click", () => setAll(false));
+      refreshSortBtn();
+      refreshSummary();
+      function close(result) {
+        teardown();
+        resolve(result);
+      }
+      cancelBtn.addEventListener("click", () => close(null));
+      okBtn.addEventListener("click", () => {
+        close(rowState.filter((r) => r.include).map((r) => ({ entry: r.entry, tags: r.tags.map((t) => t.tag) })));
+      });
+    });
+  }
+  function commitTags(accepted) {
+    const affected = [];
+    for (const { entry, tags } of accepted) {
+      const prevTags = entry.tags.slice();
+      const newTags = Array.from(new Set(tags));
+      if (newTags.length === prevTags.length && newTags.every((t, i) => t === prevTags[i])) continue;
+      entry.tags = newTags;
+      markDirty(entry);
+      affected.push({ base: entry.base, original: entry.original || void 0, prevTags, newTags: newTags.slice() });
+    }
+    if (affected.length === 0) {
+      toast("No tag changes to apply.");
+      return;
+    }
+    const summary = `WD14-tagged ${affected.length} image(s).`;
+    toast(summary);
+    recordChange("add-tag", summary, affected);
+    folderStats.master_ops = (folderStats.master_ops || 0) + 1;
+    trackStat("wd14_images_tagged", affected.length);
+    saveFolderStats();
+    refreshAllUIRef5();
+    checkAchievements();
+  }
+  async function runBatch(entries) {
+    if (running) {
+      cancelRequested = true;
+      return;
+    }
+    if (entries.length === 0) {
+      toast('Select at least one image first (or right-click a single image and choose "Tag with WD14").');
+      return;
+    }
+    const usingLocal = hasLocalWd14 && settings.mode === "local";
+    if (usingLocal && !settings.localModel) {
+      toast("Pick (or download) a local WD14 model first in WD14 settings.");
+      return;
+    }
+    if (!usingLocal && !settings.model) {
+      toast("Pick a WD14 model first \u2014 use the \u{1F504} button in WD14 settings to load the list from ComfyUI.");
+      return;
+    }
+    running = true;
+    cancelRequested = false;
+    lastProvider = null;
+    setIconLabel(btnWd14TagSelected, "\u23F9 Cancel tagging");
+    const results = [];
+    let failCount = 0;
+    for (let i = 0; i < entries.length; i++) {
+      if (cancelRequested) break;
+      const entry = entries[i];
+      setStatus(`Tagging ${i + 1}/${entries.length} \u2014 ${entry.imgName}\u2026`, i / entries.length);
+      const tagsCsv = await tagOneWithRetry(entry);
+      if (tagsCsv == null) {
+        failCount++;
+        continue;
+      }
+      const fresh = parseWd14Tags(tagsCsv);
+      const mergedTags = entry.tags.concat(fresh.filter((t) => !entry.tags.includes(t)));
+      results.push({ entry, mergedTags });
+    }
+    const failNote = failCount > 0 ? ` (${failCount} skipped)` : "";
+    const engineNote = lastProvider ? ` \u2014 on ${lastProvider === "dml" ? "GPU" : "CPU"}` : "";
+    setStatus("");
+    running = false;
+    setIconLabel(btnWd14TagSelected, "\u{1F40D} Tag selected images with WD14");
+    if (cancelRequested && results.length === 0) {
+      toast("WD14 tagging cancelled.");
+      return;
+    }
+    if (results.length === 0) {
+      toast(`Could not tag any of the ${entries.length} image(s).`);
+      return;
+    }
+    if (settings.autoApply) {
+      commitTags(results.map((r) => ({ entry: r.entry, tags: r.mergedTags })));
+      toast(`Applied WD14 tags to ${results.length} image(s)${failNote}${engineNote}.`);
+    } else {
+      const accepted = await showWd14ReviewModal(results);
+      if (!accepted || accepted.length === 0) {
+        toast("WD14 tagging discarded \u2014 nothing was applied.");
+        return;
+      }
+      commitTags(accepted);
+      if (engineNote) toast(`Applied WD14 tags to ${accepted.length} image(s)${engineNote}.`);
+    }
+  }
+  function tagSingleImageWithWd14(entry) {
+    if (running) {
+      toast("A WD14 batch is already running.");
+      return;
+    }
+    runBatch([entry]);
+  }
+  var KNOWN_MODELS = [
+    { repo: "SmilingWolf/wd-vit-tagger-v3", label: "ViT v3", desc: "Smallest/fastest of this set." },
+    { repo: "SmilingWolf/wd-convnext-tagger-v3", label: "ConvNext v3", desc: "Good size/accuracy balance." },
+    { repo: "SmilingWolf/wd-swinv2-tagger-v3", label: "SwinV2 v3", desc: "Strong accuracy, moderate size." },
+    { repo: "SmilingWolf/wd-vit-large-tagger-v3", label: "ViT Large v3", desc: "Higher accuracy, larger download." },
+    { repo: "SmilingWolf/wd-eva02-large-tagger-v3", label: "EVA02 Large v3", desc: "Highest accuracy of this set, largest/slowest." }
+  ];
+  function resolveHfRepo(input) {
+    let path = input.trim().replace(/^https?:\/\/(huggingface\.co|hf\.co)\//i, "");
+    path = path.replace(/^\/+|\/+$/g, "");
+    const segments = path.split("/").filter(Boolean);
+    if (segments.length < 2) return null;
+    const repo = `${segments[0]}/${segments[1]}`;
+    return {
+      name: segments[1],
+      modelUrl: `https://huggingface.co/${repo}/resolve/main/model.onnx`,
+      tagsUrl: `https://huggingface.co/${repo}/resolve/main/selected_tags.csv`
+    };
+  }
+  async function refreshLocalModels() {
+    if (!hasLocalWd14) return;
+    const models = await window.Wd14Local.listModels();
+    const current = wd14LocalModelSelect.value || settings.localModel;
+    wd14LocalModelSelect.innerHTML = "";
+    if (models.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "(no models downloaded yet)";
+      wd14LocalModelSelect.appendChild(opt);
+    } else {
+      for (const m of models) {
+        const opt = document.createElement("option");
+        opt.value = m.name;
+        opt.textContent = `${m.name} (${m.tagCount || 0} tags, ${Math.round((m.sizeBytes || 0) / 1e6)}MB)`;
+        wd14LocalModelSelect.appendChild(opt);
+      }
+      if (current && models.some((m) => m.name === current)) wd14LocalModelSelect.value = current;
+    }
+    wd14LocalModelList.innerHTML = "";
+    for (const m of models) {
+      const row = document.createElement("div");
+      row.className = "wd14-local-model-row";
+      const label = document.createElement("span");
+      label.textContent = `${m.name} \u2014 ${m.tagCount || 0} tags, ${Math.round((m.sizeBytes || 0) / 1e6)}MB`;
+      row.appendChild(label);
+      const delBtn = document.createElement("button");
+      delBtn.className = "danger-ghost";
+      setIconLabel(delBtn, "\u2715");
+      delBtn.title = "Delete this downloaded model";
+      delBtn.addEventListener("click", async () => {
+        await window.Wd14Local.deleteModel(m.name);
+        if (settings.localModel === m.name) {
+          settings.localModel = "";
+          saveSettings();
+        }
+        refreshLocalModels();
+      });
+      row.appendChild(delBtn);
+      wd14LocalModelList.appendChild(row);
+    }
+  }
+  async function downloadRepo(resolved, triggerBtn) {
+    const { name, modelUrl, tagsUrl } = resolved;
+    const existing = await window.Wd14Local.listModels();
+    if (existing.some((m) => m.name === name)) {
+      const ok = await showConfirmModal(
+        `"${name}" is already downloaded. Download it again? This overwrites the existing copy.`,
+        { okLabel: "Redownload" }
+      );
+      if (!ok) return;
+    }
+    triggerBtn.disabled = true;
+    wd14LocalDownloadStatus.style.display = "block";
+    wd14LocalDownloadStatus.textContent = `Starting download of "${name}"\u2026`;
+    try {
+      await window.Wd14Local.downloadModel({ name, modelUrl, tagsUrl }, (ev) => {
+        wd14LocalDownloadStatus.textContent = `Downloading "${name}" \u2014 ${ev.part}\u2026 ${ev.percent}%`;
+      });
+      toast(`Downloaded "${name}".`);
+      settings.localModel = name;
+      saveSettings();
+      await refreshLocalModels();
+      wd14LocalModelSelect.value = name;
+    } catch (e) {
+      toast(`Download failed: ${e?.message || e}`, 4200);
+    } finally {
+      triggerBtn.disabled = false;
+      wd14LocalDownloadStatus.style.display = "none";
+    }
+  }
+  async function importFromDisk(triggerBtn) {
+    let picked;
+    try {
+      picked = await window.Wd14Local.pickImportFiles();
+    } catch (e) {
+      toast(`Could not import: ${e?.message || e}`, 4200);
+      return;
+    }
+    if ("canceled" in picked && picked.canceled) return;
+    const { name, modelPath, tagsPath } = picked;
+    const existing = await window.Wd14Local.listModels();
+    if (existing.some((m) => m.name === name)) {
+      const ok = await showConfirmModal(
+        `"${name}" is already downloaded. Import this copy over it? This overwrites the existing copy.`,
+        { okLabel: "Overwrite" }
+      );
+      if (!ok) return;
+    }
+    triggerBtn.disabled = true;
+    try {
+      await window.Wd14Local.importModel({ name, modelPath, tagsPath });
+      toast(`Imported "${name}".`);
+      settings.localModel = name;
+      saveSettings();
+      await refreshLocalModels();
+      wd14LocalModelSelect.value = name;
+    } catch (e) {
+      toast(`Import failed: ${e?.message || e}`, 4200);
+    } finally {
+      triggerBtn.disabled = false;
+    }
+  }
+  function renderLocalCatalog() {
+    wd14LocalCatalog.innerHTML = "";
+    for (const entry of KNOWN_MODELS) {
+      const row = document.createElement("div");
+      row.className = "wd14-local-model-row";
+      const label = document.createElement("span");
+      label.textContent = `${entry.label} \u2014 ${entry.desc}`;
+      row.appendChild(label);
+      const dlBtn = document.createElement("button");
+      dlBtn.className = "primary";
+      setIconLabel(dlBtn, "\u2B07");
+      dlBtn.title = `Download ${entry.repo}`;
+      dlBtn.addEventListener("click", () => downloadRepo(resolveHfRepo(entry.repo), dlBtn));
+      row.appendChild(dlBtn);
+      wd14LocalCatalog.appendChild(row);
+    }
+  }
+  function initWd14Tagger(deps3) {
+    getEntries5 = deps3.getEntries;
+    refreshAllUIRef5 = deps3.refreshAllUI;
+    loadSettings();
+    applySettingsToUI();
+    refreshModels(true);
+    [wd14Host, wd14Threshold, wd14CharThreshold, wd14TrailingComma, wd14ExcludeTags, wd14AutoApply, wd14ModelSelect].forEach((el) => el.addEventListener("change", readSettingsFromUI));
+    btnWd14RefreshModels.addEventListener("click", () => refreshModels(false));
+    if (hasLocalWd14) {
+      wd14ModeSelect.addEventListener("change", readSettingsFromUI);
+      wd14LocalModelSelect.addEventListener("change", readSettingsFromUI);
+      refreshLocalModels();
+      renderLocalCatalog();
+      btnWd14LocalDownload.addEventListener("click", async () => {
+        const resolved = resolveHfRepo(wd14LocalAddRepo.value);
+        if (!resolved) {
+          toast("Enter a HuggingFace repo, e.g. SmilingWolf/wd-swinv2-tagger-v3.");
+          return;
+        }
+        await downloadRepo(resolved, btnWd14LocalDownload);
+        wd14LocalAddRepo.value = "";
+      });
+      if (window.Wd14Local.pickImportFiles) {
+        btnWd14LocalImport.style.display = "";
+        btnWd14LocalImport.addEventListener("click", () => importFromDisk(btnWd14LocalImport));
+      }
+    }
+    btnWd14TagSelected.addEventListener("click", () => {
+      if (running) {
+        cancelRequested = true;
+        return;
+      }
+      const entries = getEntries5().filter((e) => masterSelectedImages.has(e) && !e.meta?.locked);
+      runBatch(entries);
+    });
+  }
+
+  // src/renderer/picker-modal.ts
+  function openPickerModal(title, options, current, onPick) {
+    const backdrop = document.createElement("div");
+    backdrop.className = "picker-backdrop";
+    const box = document.createElement("div");
+    box.className = "picker-box";
+    const head = document.createElement("div");
+    head.className = "picker-head";
+    const titleEl = document.createElement("span");
+    titleEl.textContent = title;
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "picker-close";
+    closeBtn.textContent = "\xD7";
+    closeBtn.title = "Close";
+    head.appendChild(titleEl);
+    head.appendChild(closeBtn);
+    const search = document.createElement("input");
+    search.type = "text";
+    search.placeholder = "Search\u2026";
+    search.className = "picker-search";
+    const list = document.createElement("div");
+    list.className = "picker-list";
+    box.appendChild(head);
+    box.appendChild(search);
+    box.appendChild(list);
+    backdrop.appendChild(box);
+    function close() {
+      backdrop.classList.remove("modal-visible");
+      setTimeout(() => backdrop.remove(), 160);
+      document.removeEventListener("keydown", onKey);
+    }
+    function onKey(ev) {
+      if (ev.key === "Escape") close();
+    }
+    function renderRows() {
+      const raw = search.value.trim().toLowerCase();
+      let matches;
+      if (!raw) {
+        matches = options.slice();
+      } else {
+        const starts = [];
+        const subs = [];
+        for (const o of options) {
+          const lower = o.toLowerCase();
+          if (lower.startsWith(raw)) starts.push(o);
+          else if (lower.includes(raw)) subs.push(o);
+        }
+        matches = starts.concat(subs);
+      }
+      list.innerHTML = "";
+      const clearRow = document.createElement("div");
+      clearRow.className = "picker-row picker-clear";
+      clearRow.textContent = "\u2014 Clear \u2014";
+      clearRow.addEventListener("click", () => {
+        onPick("");
+        close();
+      });
+      list.appendChild(clearRow);
+      if (!matches.length) {
+        const empty = document.createElement("div");
+        empty.className = "picker-empty";
+        empty.textContent = raw ? "No matches." : "No options yet \u2014 try refreshing model lists.";
+        list.appendChild(empty);
+      } else {
+        for (const val of matches) {
+          const row = document.createElement("div");
+          row.className = "picker-row" + (val === current ? " picked" : "");
+          row.textContent = val;
+          row.addEventListener("click", () => {
+            onPick(val);
+            close();
+          });
+          list.appendChild(row);
+        }
+      }
+    }
+    search.addEventListener("input", renderRows);
+    backdrop.addEventListener("click", (ev) => {
+      if (ev.target === backdrop) close();
+    });
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    renderRows();
+    document.body.appendChild(backdrop);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      backdrop.classList.add("modal-visible");
+      search.focus();
+    }));
+  }
+  function attachPickerModal(inputEl2, title, getOptions) {
+    inputEl2.readOnly = true;
+    inputEl2.addEventListener("click", () => {
+      openPickerModal(title, getOptions() || [], inputEl2.value, (v) => {
+        inputEl2.value = v;
+        inputEl2.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl2.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    });
+  }
+
+  // src/renderer/tag-details.ts
+  var wikiData = null;
+  var allTagsMap = null;
+  async function fetchGzipJson(url) {
+    const res = await fetch(url);
+    const decompressed = res.body.pipeThrough(new DecompressionStream("gzip"));
+    const text = await new Response(decompressed).text();
+    return JSON.parse(text);
+  }
+  async function ensureWikiDataLoaded() {
+    if (wikiData) return wikiData;
+    try {
+      wikiData = await fetchGzipJson("./data/wiki.json.gzdat");
+    } catch (err) {
+      console.error("wiki.json.gzdat load failed:", err);
+      wikiData = {};
+    }
+    return wikiData;
+  }
+  async function ensureAllTagsLoaded() {
+    if (allTagsMap) return allTagsMap;
+    try {
+      const list = await fetchGzipJson("./data/all_tags.json.gzdat");
+      allTagsMap = /* @__PURE__ */ new Map();
+      for (const row of list) {
+        if (Array.isArray(row)) allTagsMap.set(row[0], { category: row[1], count: row[2] });
+      }
+    } catch (err) {
+      console.error("all_tags.json.gzdat load failed:", err);
+      allTagsMap = /* @__PURE__ */ new Map();
+    }
+    return allTagsMap;
+  }
+  var CATEGORY_NAMES = { 0: "General", 1: "Artist", 3: "Copyright", 4: "Character", 5: "Meta" };
+  var CUSTOM_NOTES_KEY = "dts-custom-tag-notes";
+  function getCustomTagNote(tag) {
+    try {
+      const notes = getJSON(CUSTOM_NOTES_KEY, {});
+      return notes[tag] || "";
+    } catch (e) {
+      return "";
+    }
+  }
+  function setCustomTagNote(tag, text) {
+    try {
+      const notes = getJSON(CUSTOM_NOTES_KEY, {});
+      notes[tag] = text;
+      setJSON(CUSTOM_NOTES_KEY, notes);
+    } catch (e) {
+    }
+  }
+  async function openTagDetails(tag) {
+    tagDetailsTitle.textContent = tag;
+    tagDetailsBody.innerHTML = '<div class="stats-empty">Loading\u2026</div>';
+    hidePanel(favoritesPanel);
+    hidePanel(logPanel);
+    hidePanel(achievementsPanel);
+    hidePanel(shopPanel);
+    showPanel(tagDetailsPanel);
+    folderStats.tag_details_opened = (folderStats.tag_details_opened || 0) + 1;
+    saveFolderStats();
+    checkAchievements();
+    const wikiKey = tag.replace(/ /g, "_");
+    const [wiki, allTags] = await Promise.all([ensureWikiDataLoaded(), ensureAllTagsLoaded()]);
+    const def = wiki[wikiKey];
+    const meta = allTags.get(wikiKey);
+    tagDetailsBody.innerHTML = "";
+    if (meta) {
+      const metaRow = document.createElement("div");
+      metaRow.className = "tag-details-meta";
+      metaRow.innerHTML = `<span>${CATEGORY_NAMES[meta.category] || "Unknown"}</span><span>${meta.count.toLocaleString()} posts</span>`;
+      tagDetailsBody.appendChild(metaRow);
+    }
+    if (def) {
+      const defEl = document.createElement("div");
+      defEl.className = "tag-details-def";
+      defEl.textContent = def;
+      tagDetailsBody.appendChild(defEl);
+    } else {
+      const greyed = document.createElement("div");
+      greyed.className = "tag-details-def greyed";
+      greyed.textContent = "No official wiki entry for this tag.";
+      tagDetailsBody.appendChild(greyed);
+      const label = document.createElement("div");
+      label.className = "ctx-sep";
+      label.textContent = "Write your own description (saved on this computer):";
+      tagDetailsBody.appendChild(label);
+      const textarea = document.createElement("textarea");
+      textarea.value = getCustomTagNote(tag);
+      tagDetailsBody.appendChild(textarea);
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "primary";
+      saveBtn.textContent = "Save description";
+      saveBtn.addEventListener("click", () => {
+        setCustomTagNote(tag, textarea.value);
+        toast("Saved your description for this tag.");
+      });
+      tagDetailsBody.appendChild(saveBtn);
+    }
+  }
+  function initTagDetails() {
+    tagDetailsCloseBtn.addEventListener("click", () => hidePanel(tagDetailsPanel));
+  }
+
+  // src/renderer/synthdat-overseer.ts
+  var WD14_SETTINGS_KEY = "dts-wd14-settings";
+  function getWd14Settings() {
+    const defaults = { host: "http://127.0.0.1:8188", model: "", threshold: 0.35, characterThreshold: 0.85, trailingComma: false, excludeTags: "" };
+    const saved = getJSON(WD14_SETTINGS_KEY, null);
+    return saved && typeof saved === "object" ? { ...defaults, ...saved } : defaults;
+  }
+  function getHost() {
+    return backend === "local" ? LOCAL_COMFY_HOST : (synthDatHost.value || "").trim() || "http://127.0.0.1:8188";
+  }
+  var LOCAL_COMFY_HOST = "local";
+  var BACKEND_KEY = "dts-synthdat-backend";
+  var hasLocalComfy = typeof window.electronAPI?.comfyLocalStatus === "function";
+  var backend = hasLocalComfy && getString(BACKEND_KEY) === "local" ? "local" : "server";
+  function applyBackendUI() {
+    synthDatServerFields.style.display = backend === "server" ? "" : "none";
+    synthDatLocalFields.style.display = backend === "local" ? "" : "none";
+    synthDatConnStatus.style.display = "none";
+    if (backend === "local") void refreshLocalStatus();
+  }
+  function showLocalStatus(folder, error) {
+    synthDatLocalFolder.textContent = folder || "Not set";
+    synthDatLocalFolder.title = folder;
+    if (error && folder) {
+      synthDatConnStatus.style.display = "block";
+      synthDatConnStatus.style.color = "";
+      synthDatConnStatus.textContent = error;
+    }
+  }
+  async function refreshLocalStatus() {
+    const s = await window.electronAPI.comfyLocalStatus();
+    showLocalStatus(s.folder, s.error);
+  }
+  async function pickLocalFolder() {
+    const s = await window.electronAPI.comfyLocalPickFolder();
+    synthDatConnStatus.style.display = "none";
+    showLocalStatus(s.folder, s.error);
+  }
+  async function wd14TagBytes(filename, bytes) {
+    const settings2 = getWd14Settings();
+    const onDevice = !!window.Wd14Local && (settings2.mode ?? "local") === "local";
+    if (onDevice) {
+      if (!settings2.localModel) return { ok: false, error: "No on-device WD14 model chosen \u2014 pick one in Tag Overseer's WD14 Autotagger section first." };
+      return window.Wd14Local.tagImage({
+        name: settings2.localModel,
+        imageBytes: bytes,
+        threshold: settings2.threshold,
+        characterThreshold: settings2.characterThreshold,
+        preferGpu: settings2.gpu !== false
+      });
+    }
+    if (backend === "local") return { ok: false, error: "Osmium Comfy doesn't run WD14. Set Tag Overseer's WD14 Autotagger to On-device to interrogate without a server." };
+    if (!settings2.model) return { ok: false, error: "No WD14 model configured \u2014 set one up in Tag Overseer's WD14 Autotagger section first." };
+    return window.electronAPI.wd14TagImage({ host: getHost(), filename, imageBytes: bytes, settings: settings2 });
+  }
+  var SETTINGS_FILE_NAME = "_dts_synthdat_settings.json";
+  var saveTimer = null;
+  function scheduleSave() {
+    if (saveTimer !== null) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveSettings2, 400);
+  }
+  async function saveSettings2() {
+    const dirHandle = getDirHandle9();
+    if (!dirHandle) return;
+    try {
+      const handle = await dirHandle.getFileHandle(SETTINGS_FILE_NAME, { create: true });
+      await writeBytes(handle, JSON.stringify({
+        host: synthDatHost.value,
+        unifiedPromptMode: synthDatUnifiedPromptMode.checked,
+        unifiedPrompt: synthDatUnifiedPrompt.value,
+        global: synthDatGlobal.value,
+        character: synthDatCharacter.value,
+        characterTrigger: synthDatCharacterTrigger.value,
+        rating: synthDatRating.value,
+        hair: synthDatHair.value,
+        face: synthDatFace.value,
+        chest: synthDatChest.value,
+        body: synthDatBody.value,
+        clothes: synthDatClothes.value,
+        limbs: synthDatLimbs.value,
+        sexual: synthDatSexual.value,
+        pose: synthDatPose.value,
+        scene: synthDatScene.value,
+        effects: synthDatEffects.value,
+        extra: synthDatExtra.value,
+        negative: synthDatNegative.value,
+        diffModel: synthDatDiffModel.value,
+        clip: synthDatClip.value,
+        vae: synthDatVae.value,
+        mainLora: synthDatMainLora.value,
+        mainLoraStrength: synthDatMainLoraStrength.value,
+        loraRows: loraRows.map((r) => ({ lora: r.input.value, strength: r.strength.value })),
+        lliteStrength: synthDatLLLiteStrength.value,
+        lliteStartPercent: synthDatLLLiteStartPercent.value,
+        lliteEndPercent: synthDatLLLiteEndPercent.value,
+        llitePreserveWrapper: synthDatLLLitePreserveWrapper.checked,
+        resizeFit: synthDatResizeFit.value,
+        resizeMethod: synthDatResizeMethod.value,
+        sampler: synthDatSampler.value,
+        scheduler: synthDatScheduler.value,
+        steps1: synthDatSteps1.value,
+        cfg1: synthDatCfg1.value,
+        steps2: synthDatSteps2.value,
+        width: synthDatWidth.value,
+        height: synthDatHeight.value,
+        use2Pass: synthDatUse2Pass.checked,
+        seed1: synthDatSeed1.value,
+        seed2: synthDatSeed2.value,
+        denoise2: synthDatDenoise2.value,
+        stripHairFace: synthDatStripHairFace.checked,
+        skipRefImage: synthDatSkipRefImage.checked
+      }, null, 2));
+    } catch (e) {
+    }
+  }
+  function resetSettingsToDefault() {
+    synthDatHost.value = "";
+    synthDatUnifiedPromptMode.checked = false;
+    synthDatUnifiedPrompt.value = "";
+    synthDatGlobal.value = "";
+    synthDatCharacter.value = "";
+    synthDatCharacterTrigger.value = "";
+    synthDatRating.value = "";
+    synthDatHair.value = "";
+    synthDatFace.value = "";
+    synthDatChest.value = "";
+    synthDatBody.value = "";
+    synthDatClothes.value = "";
+    synthDatLimbs.value = "";
+    synthDatSexual.value = "";
+    synthDatPose.value = "";
+    synthDatScene.value = "";
+    synthDatEffects.value = "";
+    synthDatExtra.value = "";
+    synthDatNegative.value = "";
+    synthDatDiffModel.value = "";
+    synthDatClip.value = "";
+    synthDatVae.value = "";
+    synthDatMainLora.value = "";
+    synthDatMainLoraStrength.value = "1";
+    synthDatLoraStackRows.innerHTML = "";
+    loraRows = [];
+    synthDatLLLiteStrength.value = "1";
+    synthDatLLLiteStartPercent.value = "0";
+    synthDatLLLiteEndPercent.value = "0.3";
+    synthDatLLLitePreserveWrapper.checked = true;
+    synthDatResizeFit.value = "pad";
+    synthDatResizeMethod.value = "lanczos";
+    synthDatSampler.value = "res_multistep";
+    synthDatScheduler.value = "beta";
+    synthDatSteps1.value = "25";
+    synthDatCfg1.value = "4.04";
+    synthDatSteps2.value = "15";
+    synthDatWidth.value = "920";
+    synthDatHeight.value = "1244";
+    synthDatUse2Pass.checked = false;
+    synthDatSeed1.value = "15";
+    synthDatSeed2.value = "15";
+    synthDatDenoise2.value = "0.6";
+    synthDatStripHairFace.checked = true;
+    synthDatSkipRefImage.checked = false;
+    applySkipRefImageUI();
+    applyUnifiedPromptModeUI();
+  }
+  async function loadSettingsFromFile() {
+    const dirHandle = getDirHandle9();
+    if (!dirHandle) return null;
+    let saved = null;
+    try {
+      const handle = await dirHandle.getFileHandle(SETTINGS_FILE_NAME, { create: false });
+      const file = await handle.getFile();
+      saved = JSON.parse((await file.text()).trim() || "null");
+    } catch (e) {
+      return null;
+    }
+    if (!saved) return null;
+    synthDatHost.value = saved.host || "";
+    synthDatUnifiedPromptMode.checked = !!saved.unifiedPromptMode;
+    synthDatUnifiedPrompt.value = saved.unifiedPrompt || "";
+    synthDatGlobal.value = saved.global || "";
+    synthDatCharacter.value = saved.character || "";
+    synthDatCharacterTrigger.value = saved.characterTrigger || "";
+    synthDatRating.value = saved.rating || "";
+    synthDatHair.value = saved.hair || "";
+    synthDatFace.value = saved.face || "";
+    synthDatChest.value = saved.chest || "";
+    synthDatBody.value = saved.body || "";
+    synthDatClothes.value = saved.clothes || "";
+    synthDatLimbs.value = saved.limbs || "";
+    synthDatSexual.value = saved.sexual || "";
+    synthDatPose.value = saved.pose || "";
+    synthDatScene.value = saved.scene || "";
+    synthDatEffects.value = saved.effects || "";
+    synthDatExtra.value = saved.extra || "";
+    synthDatNegative.value = saved.negative || "";
+    synthDatDiffModel.value = saved.diffModel || "";
+    synthDatClip.value = saved.clip || "";
+    synthDatVae.value = saved.vae || "";
+    synthDatMainLora.value = saved.mainLora || "";
+    synthDatMainLoraStrength.value = saved.mainLoraStrength != null ? saved.mainLoraStrength : "1";
+    synthDatLLLiteStrength.value = saved.lliteStrength != null ? saved.lliteStrength : 1;
+    synthDatLLLiteStartPercent.value = saved.lliteStartPercent != null ? saved.lliteStartPercent : 0;
+    synthDatLLLiteEndPercent.value = saved.lliteEndPercent != null ? saved.lliteEndPercent : 0.3;
+    synthDatLLLitePreserveWrapper.checked = saved.llitePreserveWrapper !== false;
+    synthDatResizeFit.value = saved.resizeFit || "pad";
+    synthDatResizeMethod.value = saved.resizeMethod || "lanczos";
+    if (saved.sampler) synthDatSampler.value = saved.sampler;
+    if (saved.scheduler) synthDatScheduler.value = saved.scheduler;
+    synthDatSteps1.value = saved.steps1 || 25;
+    synthDatCfg1.value = saved.cfg1 != null ? saved.cfg1 : 4.04;
+    synthDatSteps2.value = saved.steps2 || 15;
+    synthDatWidth.value = saved.width || 920;
+    synthDatHeight.value = saved.height || 1244;
+    synthDatUse2Pass.checked = !!saved.use2Pass;
+    synthDatSeed1.value = saved.seed1 != null ? saved.seed1 : 15;
+    synthDatSeed2.value = saved.seed2 != null ? saved.seed2 : 15;
+    synthDatDenoise2.value = saved.denoise2 != null ? saved.denoise2 : 0.6;
+    synthDatStripHairFace.checked = saved.stripHairFace !== false;
+    synthDatSkipRefImage.checked = !!saved.skipRefImage;
+    applySkipRefImageUI();
+    applyUnifiedPromptModeUI();
+    return saved;
+  }
+  async function loadSynthDatSettingsForFolder() {
+    resetSettingsToDefault();
+    const dirHandle = getDirHandle9();
+    if (!dirHandle) {
+      document.querySelectorAll("#synthDatTab textarea").forEach((el) => growTextarea(el));
+      return;
+    }
+    const saved = await loadSettingsFromFile();
+    if (saved) {
+      const rows = Array.isArray(saved.loraRows) && saved.loraRows.length ? saved.loraRows : [{ lora: "", strength: 1 }, { lora: "", strength: 0.8 }];
+      for (const r of rows) addLoraRow(r.lora, r.strength);
+    } else {
+      synthDatHost.value = getWd14Settings().host || "http://127.0.0.1:8188";
+      addLoraRow("", 1);
+      addLoraRow("", 0.8);
+    }
+    document.querySelectorAll("#synthDatTab textarea").forEach((el) => growTextarea(el));
+  }
+  var POSE_TAGS = /* @__PURE__ */ new Set([
+    "standing",
+    "sitting",
+    "lying",
+    "kneeling",
+    "squatting",
+    "crouching",
+    "jumping",
+    "running",
+    "walking",
+    "bent over",
+    "on back",
+    "on stomach",
+    "on side",
+    "wariza",
+    "seiza",
+    "all fours",
+    "straddling",
+    "stretching",
+    "falling",
+    "flying",
+    "floating",
+    "dancing",
+    "fighting stance",
+    "looking back",
+    "looking up",
+    "looking down",
+    "looking at viewer",
+    "looking away",
+    "head tilt",
+    "reclining",
+    "curled up",
+    "yoga",
+    "split",
+    "plank",
+    "on one knee",
+    "fetal position",
+    "butterfly sitting",
+    "figure four sitting",
+    "indian style",
+    "lotus position",
+    "hugging own legs",
+    "hug own legs",
+    "sitting on lap",
+    "human chair",
+    "thigh straddling",
+    "upright straddle",
+    "yokozuwari",
+    "balancing",
+    "legs apart",
+    "standing on one leg",
+    "crawling",
+    "midair",
+    "hopping",
+    "pouncing",
+    "walking on wall",
+    "top-down bottom-up",
+    "prostration",
+    "bear position",
+    "bowlegged pose",
+    "chest stand",
+    "cowering",
+    "crucifixion",
+    "faceplant",
+    "full scorpion",
+    "battoujutsu stance",
+    "spread eagle position",
+    "superhero landing",
+    "upside-down",
+    "handstand",
+    "headstand",
+    "scorpion pose",
+    "head down",
+    "head back",
+    "arched back",
+    "bent back",
+    "slouching",
+    "sway back",
+    "twisted torso",
+    "crossed ankles",
+    "leg up",
+    "legs up",
+    "knees to chest",
+    "legs over head",
+    "leg lift",
+    "outstretched leg",
+    "pigeon pose",
+    "standing split",
+    "uneven footing",
+    "knees apart feet together",
+    "knees together feet apart",
+    "knee up",
+    "knees up",
+    "en pointe",
+    "foot dangle",
+    "bowing",
+    "curtsey",
+    "leaning forward",
+    "leaning back",
+    "hunched over",
+    "hanging",
+    "hanging upside down",
+    "climbing",
+    "swimming",
+    "diving",
+    "swinging",
+    "riding",
+    "galloping",
+    "leaning on object"
+  ]);
+  var LIMB_ACTION_TAGS = /* @__PURE__ */ new Set([
+    "arms up",
+    "arms behind back",
+    "arms behind head",
+    "arms crossed",
+    "crossed arms",
+    "hand up",
+    "hands up",
+    "hand on hip",
+    "hands on hips",
+    "hand on own chest",
+    "hand on own cheek",
+    "hand on own chin",
+    "hand on own head",
+    "hands on own face",
+    "reaching",
+    "reaching out",
+    "pointing",
+    "pointing at viewer",
+    "peace sign",
+    "thumbs up",
+    "clenched hand",
+    "clenched hands",
+    "open hand",
+    "open hands",
+    "own hands together",
+    "hands together",
+    "hands clasped",
+    "waving",
+    "arm support",
+    "arm up",
+    "spread legs",
+    "crossed legs",
+    "akimbo",
+    "fingers together",
+    "finger to mouth",
+    "hand on own knee",
+    "hands on own knees",
+    "v",
+    "arm behind back",
+    "victory pose",
+    "outstretched arm",
+    "outstretched arms",
+    "spread arms",
+    "arm at side",
+    "arms at sides",
+    "airplane arms",
+    "flexing",
+    "t-pose",
+    "a-pose",
+    "w arms",
+    "stroking own chin",
+    "outstretched hand",
+    "interlocked fingers",
+    "star hands",
+    "folded",
+    "pin legs",
+    "watson cross",
+    "dorsiflexion",
+    "plantar flexion",
+    "toe scrunch",
+    "tiptoes",
+    "pigeon-toed",
+    "hug",
+    "hugging object",
+    "hugging tail",
+    "arm hug",
+    "hug from behind",
+    "waist hug",
+    "piggyback",
+    "carrying",
+    "princess carry",
+    "shoulder carry",
+    "air quotes",
+    "circle hands",
+    "cupping hands",
+    "double thumbs up",
+    "double thumbs down",
+    "double v",
+    "fist bump",
+    "hand glasses",
+    "heart hands",
+    "high five",
+    "horns pose",
+    "index finger raised",
+    "index fingers together",
+    "palm-fist tap",
+    "pinky swear",
+    "shadow puppet",
+    "steepled fingers",
+    "triangle hands",
+    "x arms",
+    "beckoning",
+    "twirling hair",
+    "middle finger",
+    "pinky out",
+    "shushing",
+    "thumbs down",
+    "pointing at another",
+    "pointing at self",
+    "pointing down",
+    "pointing forward",
+    "pointing up",
+    "crossed fingers",
+    "finger gun",
+    "finger heart",
+    "shaka sign",
+    "v over eye",
+    "v over mouth",
+    "hand of benediction",
+    "ok sign",
+    "w",
+    "facepalm",
+    "salute",
+    "spread fingers",
+    "stop (gesture)",
+    "fist pump",
+    "power fist",
+    "raised fist",
+    "arm around neck",
+    "arm on another's shoulder",
+    "hand on another's shoulder",
+    "hand on own shoulder",
+    "hands on own shoulders",
+    "hand on own ear",
+    "hand on own face",
+    "hands on own face",
+    "hand on own forehead",
+    "hands on own cheeks",
+    "hands on own chin",
+    "hand on own neck",
+    "hands on own neck",
+    "hands on own chest",
+    "hand on own stomach",
+    "hands on own stomach",
+    "hand on own arm",
+    "hand on own elbow",
+    "hand on another's hip",
+    "hands on another's hips",
+    "hand in pocket",
+    "hands in pockets",
+    "headpat",
+    "hand on another's head",
+    "hands on another's head",
+    "arm around shoulder",
+    "hand on another's arm",
+    "hand on another's back",
+    "hand on another's chest",
+    "hand on another's shoulder",
+    "hands on another's shoulder",
+    // Gestures — hand/mouth/body-language expressions common in the reference
+    // poses SynthDat reads, over and above the hand-PLACEMENT tags above.
+    "covering mouth",
+    "covering face",
+    "covering eyes",
+    "covering one eye",
+    "covering nose",
+    "covering ears",
+    "adjusting glasses",
+    "adjusting eyewear",
+    "adjusting headwear",
+    "adjusting clothes",
+    "hair flip",
+    "blowing a kiss",
+    "blowing bubble",
+    "biting lip",
+    "clapping",
+    "snapping fingers",
+    "yawning",
+    "praying",
+    "holding hands",
+    "holding phone",
+    "texting",
+    "smoking",
+    "drinking",
+    "eating",
+    "rolling up sleeves",
+    "hand in own hair",
+    "hand in another's hair",
+    "grabbing another's arm",
+    "grabbing another's hand"
+  ]);
+  var SEXUAL_ACTION_TAGS = /* @__PURE__ */ new Set([
+    "groping motion",
+    "groping",
+    "hand in bra",
+    "nipple tweak",
+    "arm between breasts",
+    "grabbing own breast",
+    "grabbing another's breast",
+    "flat chest grab",
+    "guided breast grab",
+    "breast lift",
+    "breasts squeezed together",
+    "breast suppress",
+    "hand between own legs",
+    "hand on own crotch",
+    "hand on another's crotch",
+    "hands on own crotch",
+    "hand on own ass",
+    "hand on another's ass",
+    "cunnilingus gesture",
+    "fellatio gesture",
+    "handjob gesture",
+    "penetration gesture",
+    "tribadism gesture",
+    "strangling",
+    "foot worship",
+    "kissing foot",
+    "licking foot",
+    "toe sucking",
+    "footjob",
+    "double footjob",
+    "cooperative footjob",
+    "implied footjob",
+    "foot pussy",
+    // Hand/mouth-on-body actions and the physical-interaction tags WD14 returns
+    // most often on explicit reference material — same "what is the body
+    // actively doing" test as the other three sets (states/appearance like
+    // body fluids, arousal markers, or exposure belong in the pending-card
+    // prune instead, since they're content DESCRIPTIONS, not transferable
+    // reference-pose actions).
+    "breast grab",
+    "breast squeezing",
+    "breast sucking",
+    "nipple sucking",
+    "licking nipples",
+    "ass grab",
+    "grabbing own ass",
+    "grabbing another's ass",
+    "hand on another's breast",
+    "spanking",
+    "fingering",
+    "handjob",
+    "paizuri",
+    "thighjob",
+    "armpit job",
+    "deep throat",
+    "irrumatio",
+    "face fuck",
+    "mutual masturbation",
+    "girl on top",
+    "boy on top",
+    "doggystyle",
+    "sex from behind",
+    "standing sex"
+  ]);
+  var SCENE_TAGS = /* @__PURE__ */ new Set([
+    "from front",
+    "from side",
+    "from above",
+    "from below",
+    "from behind",
+    "pov",
+    "close-up",
+    "cowboy shot",
+    "dutch angle",
+    "wide shot",
+    "upper body",
+    "lower body",
+    "full body",
+    "head shot",
+    "selfie",
+    "mirror selfie"
+  ]);
+  function normalizeTag(t) {
+    return String(t).toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  }
+  var POSE_FAMILIES = [
+    [/standing on one leg|balancing|handstand|headstand|scorpion|chest stand|plank|superhero landing|full scorpion/, "Acrobatic"],
+    [/stand/, "Standing"],
+    [/wari|seiza|sitt|lap|thigh straddl|straddl|fetal|butterfly|figure four|indian style|lotus|hug own|hugging own|knees to chest|knees up|knees apart|yokozuwari|curled up/, "Sitting"],
+    [/kneel|on one knee|prostration|bowing|curtsey|cower/, "Kneeling & Bowing"],
+    [/lyi|on back|on stomach|on side|reclin|faceplant/, "Lying"],
+    [/squat|crouch|crawl|all fours|bear position/, "Crouching & Crawling"],
+    [/jump|hop|pounc|midair|falling|flying|floating|leap/, "Airborne"],
+    [/run|walk|pacing|en pointe|tiptoe|step|strut/, "Walking & Stepping"],
+    [/dance|yoga|stretch|split|balancing|pilates|flex/, "Stretch & Dance"],
+    [/leg|foot|feet|ankle|knee|toe/, "Legs & Feet"],
+    [/arched|bent|slouch|sway|twist|torso|chest stand/, "Back & Torso"],
+    [/head tilt|head down|head back|looking face-?plant/, "Head & Neck"],
+    [/climb|swim|dive|swing|ride|gallop|hanging|cat/, "Climbing & Sport"]
+  ];
+  var LIMB_FAMILIES = [
+    [/arm|akimbo|elbow|airplane|w arms|x arms|t-pose|a-pose|flex|salute/, "Arms"],
+    [/hand|finger|thumb|palm|fist|pinky|index|v sign|peace|ok sign|shaka|heart hands|high five|headpat|beckon|shush|clap|snap/, "Hands & Gestures"],
+    [/leg|feet|foot|toe|ankle|dorsiflexion|plantar|tiptoes/, "Legs & Feet"],
+    [/hold|carry|hug|piggyback|in pocket|cupping|roll/, "Holding & Carrying"],
+    [/adjust/, "Adjusting"],
+    [/coveri|touch|point|reach|twirl|hair flip/, "Touch & Point"]
+  ];
+  var SCENE_FAMILIES = [
+    [/from |pov|dutch angle|selfie/, "Camera angle"],
+    [/close-up|cowboy|wide shot|body|head shot/, "Framing"]
+  ];
+  var SEXUAL_FAMILIES = [
+    [/breast|nipple|tit|paizuri|chest/, "Breasts & Chest"],
+    [/penis|ball|cock|handjob|mutual masturbation|boy on top|paizuri/, "Penis"],
+    [/ass|butt|anus|doggystyle|from behind|spanking|anal/, "Butt & Anal"],
+    [/pussy|vagina|crot|cunni|tribadism|fingeri|girl on top/, "Vagina & Oral"],
+    [/blow|oral|deep throat|irrumatio|face fuck|suck|lick|toe suck|foot job|footjob|foot worship|kissing foot|foot pussy/, "Mouth & Oral"],
+    [/foot|feet|toe/, "Feet"],
+    [/hand|finger/, "Hands"],
+    [/sex|standing sex|straddling|thighjob|armpit/, "Positions & Grinding"]
+  ];
+  function groupTagsByFamily(tags, rules) {
+    const groups2 = /* @__PURE__ */ new Map();
+    for (const raw of tags) {
+      const t = normalizeTag(raw);
+      let family = "Other";
+      for (const [re, name] of rules) {
+        if (re.test(t)) {
+          family = name;
+          break;
+        }
+      }
+      if (!groups2.has(family)) groups2.set(family, []);
+      groups2.get(family).push(raw);
+    }
+    return Array.from(groups2.entries()).map(([family, list]) => ({ family, tags: list.sort((a, b) => a.localeCompare(b)) })).sort((a, b) => b.tags.length - a.tags.length);
+  }
+  function getWd14TransferSets() {
+    return [
+      { name: "Pose", desc: "Body posture/position tags \u2014 suggested destination: Pose. Suggested keyword families, not a strict taxonomy.", groups: [] },
+      { name: "Limbs & Hands", desc: "Arm/hand actions and gestures \u2014 suggested destination: Limbs.", groups: [] },
+      { name: "Scene (perspective/composition)", desc: "Camera-angle/composition tags \u2014 suggested destination: Scene.", groups: [] },
+      { name: "Sexual", desc: "Sexual-content actions \u2014 suggested destination: Sexual.", groups: [] }
+    ].map((s, i) => {
+      const groups2 = [
+        groupTagsByFamily([...POSE_TAGS], POSE_FAMILIES),
+        groupTagsByFamily([...LIMB_ACTION_TAGS], LIMB_FAMILIES),
+        groupTagsByFamily([...SCENE_TAGS], SCENE_FAMILIES),
+        groupTagsByFamily([...SEXUAL_ACTION_TAGS], SEXUAL_FAMILIES)
+      ][i];
+      return { name: s.name, desc: s.desc, groups: groups2, total: groups2.reduce((n, g) => n + g.tags.length, 0) };
+    });
+  }
+  var template = null;
+  var getDirHandle9 = () => null;
+  var addEntryFromNewFile = async () => null;
+  var refreshAllUIRef6 = () => {
+  };
+  var refFile = null;
+  var refFilename = "";
+  var refImageEl = null;
+  var lastWd14TagsCsv = "";
+  var previewBytes = null;
+  var loraCombo = null;
+  function growTextarea(el) {
+    const he = el;
+    he.style.height = "auto";
+    he.style.height = `${he.scrollHeight}px`;
+  }
+  async function loadTemplate() {
+    if (template) return template;
+    const res = await fetch("./data/synthdat-workflow.json");
+    template = await res.json();
+    return template;
+  }
+  function setWd14ResultText(text) {
+    if (!text) {
+      synthDatWd14Result.style.display = "none";
+      synthDatWd14Result.textContent = "";
+      return;
+    }
+    synthDatWd14Result.style.display = "block";
+    synthDatWd14Result.textContent = text;
+  }
+  function setGenStatus(text) {
+    if (!text) {
+      synthDatGenStatus.style.display = "none";
+      synthDatGenStatus.textContent = "";
+      return;
+    }
+    synthDatGenStatus.style.display = "block";
+    synthDatGenStatus.textContent = text;
+  }
+  async function pickReferenceImage() {
+    if (!hasOpenFilePicker()) {
+      toast("Your browser does not support file picking here.", 4e3);
+      return;
+    }
+    let handles;
+    try {
+      handles = await pickOpenFiles({
+        types: [{ description: "Images", accept: { "image/*": [".png", ".jpg", ".jpeg", ".webp"] } }],
+        multiple: false
+      });
+    } catch (e) {
+      return;
+    }
+    if (!handles || !handles[0]) return;
+    const file = await handles[0].getFile();
+    refFile = file;
+    refFilename = file.name;
+    const objectUrl = URL.createObjectURL(file);
+    setObjectUrlOn(synthDatRefPreview, file);
+    synthDatRefPreview.style.display = "block";
+    synthDatRefEmpty.style.display = "none";
+    btnSynthDatInterrogate.disabled = false;
+    refImageEl = new Image();
+    refImageEl.onload = () => {
+      updateResizedPreview();
+      updateResoWarning();
+    };
+    refImageEl.src = synthDatRefPreview.dataset.objectUrl;
+    setWd14ResultText("");
+    lastWd14TagsCsv = "";
+    tagAssignments = /* @__PURE__ */ new Map();
+    synthDatTagAssign.innerHTML = "";
+    btnSynthDatMigratePose.disabled = true;
+  }
+  function updateResizedPreview() {
+    if (!refImageEl || !refImageEl.naturalWidth) {
+      synthDatResizedPreviewWrap.style.display = "none";
+      synthDatResizedPreviewLabel.style.display = "none";
+      return;
+    }
+    const targetW = parseInt(synthDatWidth.value, 10) || 920;
+    const targetH = parseInt(synthDatHeight.value, 10) || 1244;
+    const fit = synthDatResizeFit.value || "pad";
+    const w = refImageEl.naturalWidth, h = refImageEl.naturalHeight;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    let label;
+    if (fit === "crop") {
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const scale = Math.max(targetW / w, targetH / h);
+      const drawW = w * scale, drawH = h * scale;
+      ctx.drawImage(refImageEl, (targetW - drawW) / 2, (targetH - drawH) / 2, drawW, drawH);
+      label = `Parent image is ${w}\xD7${h}, cropped here to fill ${targetW}\xD7${targetH} \u2014 this is what ControlNet actually sees. Updates live as you change Width/Height/Fit.`;
+    } else if (fit === "contain") {
+      const scale = Math.min(targetW / w, targetH / h);
+      canvas.width = Math.round(w * scale);
+      canvas.height = Math.round(h * scale);
+      ctx.drawImage(refImageEl, 0, 0, canvas.width, canvas.height);
+      label = `Parent image is ${w}\xD7${h}, contained here to ${canvas.width}\xD7${canvas.height} (fit inside ${targetW}\xD7${targetH} with no padding) \u2014 this is what ControlNet actually sees. Updates live as you change Width/Height/Fit.`;
+    } else {
+      canvas.width = targetW;
+      canvas.height = targetH;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, targetW, targetH);
+      const scale = Math.min(targetW / w, targetH / h);
+      const drawW = w * scale, drawH = h * scale;
+      ctx.drawImage(refImageEl, (targetW - drawW) / 2, (targetH - drawH) / 2, drawW, drawH);
+      label = `Parent image is ${w}\xD7${h}, padded here to ${targetW}\xD7${targetH} \u2014 this is what ControlNet actually sees. Updates live as you change Width/Height/Fit.`;
+    }
+    synthDatResizedPreview.src = canvas.toDataURL("image/png");
+    synthDatResizedPreviewWrap.style.display = "block";
+    synthDatResizedPreviewLabel.textContent = label;
+    synthDatResizedPreviewLabel.style.display = "block";
+  }
+  function updateResoWarning() {
+    if (!refImageEl || !refImageEl.naturalWidth) {
+      synthDatResoWarning.style.display = "none";
+      return;
+    }
+    const targetW = parseInt(synthDatWidth.value, 10) || 0;
+    const targetH = parseInt(synthDatHeight.value, 10) || 0;
+    const refPortrait = refImageEl.naturalHeight > refImageEl.naturalWidth;
+    const targetPortrait = targetH > targetW;
+    if (refPortrait !== targetPortrait) {
+      setIconLabel(synthDatResoWarning, `\u26A0 Reference image is ${refPortrait ? "portrait" : "landscape"} (${refImageEl.naturalWidth}\xD7${refImageEl.naturalHeight}) but your generation resolution is ${targetPortrait ? "portrait" : "landscape"} (${targetW}\xD7${targetH}) \u2014 consider swapping Width/Height.`);
+      synthDatResoWarning.style.display = "block";
+    } else {
+      synthDatResoWarning.style.display = "none";
+    }
+  }
+  function applySkipRefImageUI() {
+    synthDatRefImageSection.classList.toggle("synthdat-section-disabled", synthDatSkipRefImage.checked);
+  }
+  function applyUnifiedPromptModeUI() {
+    const unified = synthDatUnifiedPromptMode.checked;
+    synthDatUnifiedPromptRow.style.display = unified ? "" : "none";
+    synthDatSplitFieldsGroup.style.display = unified ? "none" : "";
+    synthDatStripHairFaceRow.style.display = unified ? "none" : "";
+  }
+  function onDocClickOutsidePromptPanel(ev) {
+    const target = ev.target;
+    if (synthDatPromptFieldsDock.contains(target) || btnSynthDatPromptPanelToggle.contains(target)) return;
+    closeSynthDatPromptPanel();
+  }
+  function openSynthDatPromptPanel() {
+    synthDatPromptFieldsDock.style.display = "block";
+    btnSynthDatPromptPanelToggle.style.display = "none";
+    synthDatPromptFieldsDock.querySelectorAll("textarea").forEach((el) => growTextarea(el));
+    setTimeout(() => document.addEventListener("mousedown", onDocClickOutsidePromptPanel), 0);
+  }
+  function closeSynthDatPromptPanel() {
+    synthDatPromptFieldsDock.style.display = "none";
+    btnSynthDatPromptPanelToggle.style.display = "";
+    document.removeEventListener("mousedown", onDocClickOutsidePromptPanel);
+  }
+  async function interrogateReference() {
+    if (!refFile) return;
+    setWd14ResultText("Interrogating\u2026");
+    const bytes = new Uint8Array(await refFile.arrayBuffer());
+    const res = await wd14TagBytes(refFilename, bytes);
+    if (!res.ok) {
+      setWd14ResultText(res.error || "WD14 interrogation failed.");
+      return;
+    }
+    const tagsCsv = res.tagsCsv || "";
+    lastWd14TagsCsv = tagsCsv;
+    setWd14ResultText(parseWd14Tags(tagsCsv).join(", ") || "(no tags returned)");
+    renderTagAssignPicker(parseWd14Tags(tagsCsv));
+  }
+  async function reinterrogateOutput() {
+    if (!previewBytes || !pendingTagSnapshot) return;
+    synthDatReinterrogateResult.style.display = "block";
+    synthDatReinterrogateResult.textContent = "Interrogating output\u2026";
+    const res = await wd14TagBytes(pendingImgName || "output.png", previewBytes);
+    if (!res.ok) {
+      synthDatReinterrogateResult.textContent = res.error || "WD14 interrogation failed.";
+      return;
+    }
+    const outputTags = parseWd14Tags(res.tagsCsv || "");
+    if (synthDatReinterrogateOverwrite.checked) {
+      pendingTagSnapshot = outputTags;
+      excludedTags = /* @__PURE__ */ new Set();
+      mergedTagOverrides = /* @__PURE__ */ new Map();
+      markedVoidTags = /* @__PURE__ */ new Set();
+      renderTagCard();
+      synthDatReinterrogateResult.textContent = `Replaced the list with ${outputTags.length} tag(s) from WD14: ${outputTags.join(", ")}`;
+      return;
+    }
+    const existingNormalized = new Set(pendingTagSnapshot.map(normalizeTag));
+    const newTags = [];
+    for (const tag of outputTags) {
+      const norm = normalizeTag(tag);
+      if (existingNormalized.has(norm)) continue;
+      existingNormalized.add(norm);
+      newTags.push(tag);
+    }
+    if (newTags.length === 0) {
+      synthDatReinterrogateResult.textContent = "No new tags \u2014 WD14 didn't catch anything the list below is missing.";
+      return;
+    }
+    pendingTagSnapshot = pendingTagSnapshot.concat(newTags);
+    renderTagCard();
+    synthDatReinterrogateResult.textContent = `Added ${newTags.length} tag(s) WD14 caught in the output: ${newTags.join(", ")}`;
+  }
+  var tagAssignments = /* @__PURE__ */ new Map();
+  function suggestDestination(tag) {
+    const norm = normalizeTag(tag);
+    if (POSE_TAGS.has(norm)) return "pose";
+    if (LIMB_ACTION_TAGS.has(norm)) return "limbs";
+    if (SEXUAL_ACTION_TAGS.has(norm)) return "sexual";
+    if (SCENE_TAGS.has(norm)) return "scene";
+    return null;
+  }
+  function renderTagAssignPicker(tags) {
+    tagAssignments = /* @__PURE__ */ new Map();
+    synthDatTagAssign.innerHTML = "";
+    const relevant = tags.filter((t) => suggestDestination(t) !== null);
+    if (relevant.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "stats-empty";
+      empty.textContent = "No pose/gesture/perspective tags found in this result.";
+      synthDatTagAssign.appendChild(empty);
+      btnSynthDatMigratePose.disabled = true;
+      return;
+    }
+    const DESTS = [["pose", "Pose"], ["limbs", "Limbs"], ["scene", "Scene"], ["sexual", "Sexual"], [null, "Skip"]];
+    for (const tag of relevant) {
+      tagAssignments.set(tag, suggestDestination(tag));
+      const row = document.createElement("div");
+      row.className = "synthdat-tag-assign-row";
+      const label = document.createElement("span");
+      label.className = "synthdat-tag-assign-label";
+      label.textContent = tag;
+      row.appendChild(label);
+      const btnGroup = document.createElement("div");
+      btnGroup.className = "synthdat-tag-assign-btns";
+      for (const [dest, label2] of DESTS) {
+        const btn = document.createElement("button");
+        btn.textContent = label2;
+        btn.className = "synthdat-tag-assign-btn" + (tagAssignments.get(tag) === dest ? " active" : "");
+        btn.addEventListener("click", () => {
+          tagAssignments.set(tag, dest);
+          btnGroup.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+        });
+        btnGroup.appendChild(btn);
+      }
+      row.appendChild(btnGroup);
+      synthDatTagAssign.appendChild(row);
+    }
+    btnSynthDatMigratePose.disabled = false;
+  }
+  function applyTagAssignment() {
+    if (tagAssignments.size === 0) {
+      toast("Interrogate a reference image first.");
+      return;
+    }
+    const byDest = { pose: [], limbs: [], scene: [], sexual: [] };
+    for (const [tag, dest] of tagAssignments) {
+      if (dest && byDest[dest]) byDest[dest].push(tag);
+    }
+    const fieldByDest = { pose: synthDatPose, limbs: synthDatLimbs, scene: synthDatScene, sexual: synthDatSexual };
+    const clearFirst = synthDatMigrateClearFirst.checked;
+    if (clearFirst) {
+      for (const field2 of Object.values(fieldByDest)) {
+        field2.value = "";
+        growTextarea(field2);
+      }
+    }
+    let total = 0;
+    for (const dest of Object.keys(byDest)) {
+      if (byDest[dest].length === 0) continue;
+      const field2 = fieldByDest[dest];
+      const existing = clearFirst ? [] : field2.value.split(",").map((t) => t.trim()).filter(Boolean);
+      field2.value = Array.from(/* @__PURE__ */ new Set([...existing, ...byDest[dest]])).join(", ");
+      growTextarea(field2);
+      total += byDest[dest].length;
+    }
+    if (total === 0) {
+      toast("Nothing assigned \u2014 every tag is set to Skip.");
+      return;
+    }
+    toast(`Applied ${total} tag(s): ${byDest.pose.length} to Pose, ${byDest.limbs.length} to Limbs, ${byDest.scene.length} to Scene, ${byDest.sexual.length} to Sexual.`);
+    scheduleSave();
+  }
+  async function fetchComboValues(classType, inputName) {
+    const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType, inputName });
+    if (!res.ok) {
+      toast(res.error || `Could not load ${classType}'s ${inputName} list from ComfyUI.`, 3600);
+      return null;
+    }
+    return res.values || [];
+  }
+  function fillDatalist(datalistEl, values) {
+    datalistEl.innerHTML = "";
+    for (const v of values) {
+      const opt = document.createElement("option");
+      opt.value = v;
+      datalistEl.appendChild(opt);
+    }
+  }
+  var loraRows = [];
+  function addLoraRow(defaultLora, defaultStrength) {
+    const row = document.createElement("div");
+    row.className = "synthdat-lora-row";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "Click to choose\u2026";
+    input.value = defaultLora || "";
+    attachPickerModal(input, "LoRA", () => loraCombo || []);
+    const strength = document.createElement("input");
+    strength.type = "number";
+    strength.step = "0.05";
+    strength.value = String(defaultStrength != null ? defaultStrength : 1);
+    const removeBtn = document.createElement("button");
+    removeBtn.textContent = "\xD7";
+    removeBtn.title = "Remove this LoRA slot";
+    removeBtn.addEventListener("click", () => {
+      loraRows = loraRows.filter((r) => r.row !== row);
+      row.remove();
+      scheduleSave();
+    });
+    input.addEventListener("change", scheduleSave);
+    strength.addEventListener("change", scheduleSave);
+    row.appendChild(input);
+    row.appendChild(strength);
+    row.appendChild(removeBtn);
+    synthDatLoraStackRows.appendChild(row);
+    loraRows.push({ row, input, strength });
+  }
+  async function testSynthdatConnection() {
+    synthDatConnStatus.style.display = "block";
+    synthDatConnStatus.style.color = "";
+    if (backend === "local") {
+      synthDatConnStatus.textContent = "Starting Osmium Comfy\u2026 its console window shows progress.";
+      const r = await window.electronAPI.comfyLocalConnect();
+      synthDatConnStatus.style.color = r.ok ? "var(--accent-ok, #3a9)" : "";
+      if (r.ok) setIconLabel(synthDatConnStatus, `\u2713 Osmium Comfy ${r.comfyVersion || ""} ready`);
+      else synthDatConnStatus.textContent = r.error || "Could not start Osmium Comfy.";
+      if (r.ok) void refreshModelLists();
+      return;
+    }
+    const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: "UNETLoader", inputName: "unet_name" });
+    if (res.ok) {
+      synthDatConnStatus.style.color = "var(--accent-ok, #3a9)";
+      setIconLabel(synthDatConnStatus, `\u2713 Connected to ${getHost()}`);
+    } else {
+      synthDatConnStatus.style.color = "";
+      synthDatConnStatus.textContent = res.error || "Could not connect.";
+    }
+  }
+  async function refreshModelLists() {
+    const [unetValues, clipValues, vaeValues, mainLoraValues, loraValues] = await Promise.all([
+      fetchComboValues("UNETLoader", "unet_name"),
+      fetchComboValues("CLIPLoader", "clip_name"),
+      fetchComboValues("VAELoader", "vae_name"),
+      fetchComboValues("DSM Lora Name", "lora_name"),
+      fetchComboValues("DSM Lora Loader Stack", "lora_01")
+    ]);
+    if (unetValues) fillDatalist(synthDatUnetDatalist, unetValues);
+    if (clipValues) fillDatalist(synthDatClipDatalist, clipValues);
+    if (vaeValues) fillDatalist(synthDatVaeDatalist, vaeValues);
+    if (mainLoraValues) fillDatalist(synthDatMainLoraDatalist, mainLoraValues);
+    if (loraValues) {
+      loraCombo = loraValues;
+      fillDatalist(synthDatLoraDatalist, loraValues);
+    }
+  }
+  function fieldValue(el) {
+    return (el.value || "").trim();
+  }
+  function buildPositiveTagList() {
+    const unified = synthDatUnifiedPromptMode.checked;
+    const character = [unified ? fieldValue(synthDatUnifiedPrompt) : fieldValue(synthDatCharacter), fieldValue(synthDatCharacterTrigger)].filter(Boolean).join(", ");
+    const stripHairFace = !unified && synthDatStripHairFace.checked;
+    const parts = unified ? [fieldValue(synthDatGlobal), character] : [
+      fieldValue(synthDatGlobal),
+      fieldValue(synthDatRating),
+      character,
+      stripHairFace ? "" : fieldValue(synthDatHair),
+      stripHairFace ? "" : fieldValue(synthDatFace),
+      fieldValue(synthDatChest),
+      fieldValue(synthDatBody),
+      fieldValue(synthDatClothes),
+      fieldValue(synthDatLimbs),
+      fieldValue(synthDatSexual),
+      fieldValue(synthDatPose),
+      fieldValue(synthDatExtra),
+      fieldValue(synthDatEffects),
+      fieldValue(synthDatScene)
+    ];
+    return parts.filter(Boolean);
+  }
+  function baseTagList() {
+    const tags = buildPositiveTagList().flatMap((part) => part.split(",").map((t) => t.trim())).filter(Boolean);
+    return Array.from(new Set(tags.map((t) => t.replace(/_/g, " ").replace(/\s+/g, " ").trim())));
+  }
+  function buildMergeHistoryMap() {
+    const map = /* @__PURE__ */ new Map();
+    for (const rule of canonicalRules) {
+      if (!rule.canonical) continue;
+      for (const child of rule.children || []) {
+        if (normalizeTag(child) !== normalizeTag(rule.canonical)) map.set(normalizeTag(child), rule.canonical);
+      }
+    }
+    return map;
+  }
+  var excludedTags = /* @__PURE__ */ new Set();
+  var mergedTagOverrides = /* @__PURE__ */ new Map();
+  var markedVoidTags = /* @__PURE__ */ new Set();
+  var pendingTagSnapshot = null;
+  var pendingTagMenuEl = null;
+  function closePendingTagMenu() {
+    if (pendingTagMenuEl) {
+      pendingTagMenuEl.remove();
+      pendingTagMenuEl = null;
+    }
+    document.removeEventListener("click", onDocClickClosePendingTagMenu);
+  }
+  function onDocClickClosePendingTagMenu(ev) {
+    if (!pendingTagMenuEl) return;
+    const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
+    if (path.includes(pendingTagMenuEl)) return;
+    closePendingTagMenu();
+  }
+  function openPendingTagMenu(tag, x, y) {
+    closePendingTagMenu();
+    const menu = document.createElement("div");
+    menu.className = "ctx-menu";
+    const header = document.createElement("div");
+    header.className = "ctx-header";
+    header.textContent = tag;
+    menu.appendChild(header);
+    addContextMenuItem(menu, "\u{1F4D6} Definition", () => {
+      closePendingTagMenu();
+      openTagDetails(tag);
+    });
+    const isVoid = markedVoidTags.has(tag);
+    addContextMenuItem(menu, isVoid ? "\u21A9\uFE0F Unmark void" : "\u{1F6AB} Mark as void", () => {
+      if (isVoid) markedVoidTags.delete(tag);
+      else markedVoidTags.add(tag);
+      closePendingTagMenu();
+      renderTagCard();
+    }, {
+      title: isVoid ? "Stop treating this tag as a void rule candidate." : "Drop this tag from what gets saved, and add a Retroactive Void rule for it on Accept \u2014 so it's auto-stripped from future images too, not just this one."
+    });
+    document.body.appendChild(menu);
+    pendingTagMenuEl = menu;
+    positionMenu(menu, x, y);
+    setTimeout(() => document.addEventListener("click", onDocClickClosePendingTagMenu), 0);
+  }
+  function renderTagCard() {
+    closePendingTagMenu();
+    synthDatTagPreview.innerHTML = "";
+    const tags = pendingTagSnapshot || [];
+    if (tags.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "stats-empty";
+      empty.textContent = "(nothing to save yet)";
+      synthDatTagPreview.appendChild(empty);
+      return;
+    }
+    const mergeHistory = buildMergeHistoryMap();
+    const voidSet = activeVoidTagSet();
+    const row = document.createElement("div");
+    row.className = "chiprow";
+    for (const tag of tags) {
+      const displayTag = mergedTagOverrides.get(tag) || tag;
+      const excluded = excludedTags.has(tag);
+      const willVoid = markedVoidTags.has(tag) || voidSet.has(displayTag);
+      const chip = document.createElement("span");
+      chip.className = "chip" + (excluded ? " synthdat-chip-excluded" : "") + (willVoid ? " synthdat-chip-void" : "");
+      const label = document.createElement("span");
+      label.textContent = displayTag;
+      label.title = willVoid ? markedVoidTags.has(tag) ? "Marked as void \u2014 will be dropped and added as a Void rule on Accept." : "Already covered by an existing Void rule \u2014 will be dropped automatically once added to the Gallery." : "Right-click for definition / mark as void";
+      label.style.cursor = "pointer";
+      label.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openPendingTagMenu(tag, ev.clientX, ev.clientY);
+      });
+      chip.appendChild(label);
+      if (!excluded && displayTag === tag) {
+        const suggestion = mergeHistory.get(normalizeTag(tag));
+        if (suggestion && normalizeTag(suggestion) !== normalizeTag(tag)) {
+          const mergeBtn = document.createElement("button");
+          mergeBtn.className = "synthdat-merge-suggest";
+          mergeBtn.textContent = `\u2192 ${suggestion}`;
+          mergeBtn.title = `This dataset previously merged "${tag}" into "${suggestion}" elsewhere \u2014 click to do the same here.`;
+          mergeBtn.addEventListener("click", () => {
+            mergedTagOverrides.set(tag, suggestion);
+            renderTagCard();
+          });
+          chip.appendChild(mergeBtn);
+        }
+      }
+      const toggleBtn = document.createElement("button");
+      toggleBtn.textContent = excluded ? "+" : "\xD7";
+      toggleBtn.title = excluded ? "Restore this tag" : "Drop this tag from what gets saved";
+      toggleBtn.addEventListener("click", () => {
+        if (excluded) excludedTags.delete(tag);
+        else excludedTags.add(tag);
+        renderTagCard();
+      });
+      chip.appendChild(toggleBtn);
+      row.appendChild(chip);
+    }
+    synthDatTagPreview.appendChild(row);
+  }
+  function finalTagList() {
+    const voidSet = activeVoidTagSet();
+    const tags = (pendingTagSnapshot || []).filter((t) => !excludedTags.has(t) && !markedVoidTags.has(t)).map((t) => mergedTagOverrides.get(t) || t).filter((t) => !voidSet.has(t));
+    return Array.from(new Set(tags));
+  }
+  function buildPromptFromFields() {
+    return buildSynthDatPrompt(template, {
+      unified: synthDatUnifiedPromptMode.checked,
+      global: fieldValue(synthDatGlobal),
+      rating: fieldValue(synthDatRating),
+      character: fieldValue(synthDatCharacter),
+      characterTrigger: fieldValue(synthDatCharacterTrigger),
+      unifiedPrompt: fieldValue(synthDatUnifiedPrompt),
+      hair: fieldValue(synthDatHair),
+      face: fieldValue(synthDatFace),
+      chest: fieldValue(synthDatChest),
+      body: fieldValue(synthDatBody),
+      clothes: fieldValue(synthDatClothes),
+      limbs: fieldValue(synthDatLimbs),
+      sexual: fieldValue(synthDatSexual),
+      pose: fieldValue(synthDatPose),
+      extra: fieldValue(synthDatExtra),
+      effects: fieldValue(synthDatEffects),
+      scene: fieldValue(synthDatScene),
+      negative: fieldValue(synthDatNegative),
+      diffModel: synthDatDiffModel.value,
+      mainLora: synthDatMainLora.value,
+      mainLoraStrength: synthDatMainLoraStrength.value,
+      clip: synthDatClip.value,
+      vae: synthDatVae.value,
+      loraRows: loraRows.map((r) => ({ input: r.input.value, strength: r.strength.value })),
+      noLoraStandIn: "None",
+      skipRefImage: synthDatSkipRefImage.checked,
+      lliteStrength: synthDatLLLiteStrength.value,
+      lliteStartPercent: synthDatLLLiteStartPercent.value,
+      lliteEndPercent: synthDatLLLiteEndPercent.value,
+      llitePreserveWrapper: synthDatLLLitePreserveWrapper.checked,
+      resizeFit: synthDatResizeFit.value,
+      resizeMethod: synthDatResizeMethod.value,
+      sampler: synthDatSampler.value,
+      scheduler: synthDatScheduler.value,
+      steps1: synthDatSteps1.value,
+      cfg1: synthDatCfg1.value,
+      width: synthDatWidth.value,
+      height: synthDatHeight.value,
+      seed1: synthDatSeed1.value,
+      use2Pass: synthDatUse2Pass.checked,
+      seed2: synthDatSeed2.value,
+      denoise2: synthDatDenoise2.value,
+      steps2: synthDatSteps2.value
+    });
+  }
+  var pendingBase = "";
+  var pendingImgName = "";
+  var pass1Bytes = null;
+  var pass2Bytes = null;
+  function selectPass(which) {
+    const bytes = which === 1 ? pass1Bytes : pass2Bytes;
+    if (!bytes) return;
+    previewBytes = bytes;
+    setObjectUrlOn(synthDatPreview, new Blob([bytes], { type: "image/png" }));
+    synthDatPickPass1.classList.toggle("active", which === 1);
+    synthDatPickPass2.classList.toggle("active", which === 2);
+  }
+  function setObjectUrlOn(el, blob) {
+    const prev = el.dataset.objectUrl;
+    if (prev) URL.revokeObjectURL(prev);
+    const url = URL.createObjectURL(blob);
+    el.dataset.objectUrl = url;
+    el.src = url;
+  }
+  function clearObjectUrlOn(el) {
+    const prev = el.dataset.objectUrl;
+    if (prev) {
+      URL.revokeObjectURL(prev);
+      el.removeAttribute("data-object-url");
+      el.removeAttribute("src");
+    }
+  }
+  var genQueue = [];
+  var genRunning = false;
+  var genStopped = false;
+  var commitChain = Promise.resolve();
+  function serialized(fn) {
+    const next = commitChain.then(fn, fn);
+    commitChain = next.catch(() => void 0);
+    return next;
+  }
+  var heldResults = [];
+  function queueNote() {
+    return (genQueue.length ? ` \xB7 ${genQueue.length} queued` : "") + (heldResults.length ? ` \xB7 ${heldResults.length} waiting for review` : "");
+  }
+  function refreshQueueNote() {
+    if (genRunning) {
+      const head = (synthDatGenStatus.textContent || "").split(" \xB7 ")[0] || "Generating\u2026";
+      setGenStatus(head + queueNote());
+    } else {
+      setGenStatus(heldResults.length ? `${heldResults.length} more result${heldResults.length === 1 ? "" : "s"} waiting for review` : "");
+    }
+  }
+  function deliverResult(res, tagSnapshot) {
+    if (previewBytes) {
+      heldResults.push({ res, tagSnapshot });
+      toast(`New result ready \u2014 Accept or Reject the current one to see it (${heldResults.length} waiting).`);
+    } else {
+      showGenResult(res, tagSnapshot);
+    }
+  }
+  function showNextHeld() {
+    if (previewBytes) return;
+    const next = heldResults.shift();
+    if (next) showGenResult(next.res, next.tagSnapshot);
+    refreshQueueNote();
+  }
+  function updateQueueUI() {
+    btnSynthDatStop.disabled = !genRunning;
+    btnSynthDatGenerate.title = genRunning ? "Queue another generation with the current settings" : "";
+  }
+  async function generate() {
+    const skipRefImage = synthDatSkipRefImage.checked;
+    if (!skipRefImage && !refFile) {
+      toast(`Pick a reference image first (or check "I don't want to use a reference image").`);
+      return;
+    }
+    const dirHandle = getDirHandle9();
+    if (!dirHandle) {
+      toast("Open a dataset folder first.");
+      return;
+    }
+    await loadTemplate();
+    genQueue.push({
+      host: getHost(),
+      prompt: buildPromptFromFields(),
+      imageFilename: skipRefImage ? null : refFilename,
+      imageBytes: skipRefImage ? null : new Uint8Array(await refFile.arrayBuffer()),
+      tagSnapshot: baseTagList()
+    });
+    if (genRunning) {
+      toast(`Queued (${genQueue.length} waiting).`);
+      refreshQueueNote();
+      return;
+    }
+    genRunning = true;
+    genStopped = false;
+    updateQueueUI();
+    let last = "ok";
+    try {
+      while (genQueue.length && !genStopped) last = await runGenJob(genQueue.shift());
+    } finally {
+      genRunning = false;
+      genQueue.length = 0;
+      updateQueueUI();
+      if (last !== "failed") refreshQueueNote();
+    }
+  }
+  function stopGeneration() {
+    genStopped = true;
+    const dropped = genQueue.length;
+    genQueue.length = 0;
+    if (dropped) toast(`Dropped ${dropped} queued generation${dropped === 1 ? "" : "s"}.`);
+    window.electronAPI.synthdatStopGeneration(getHost());
+  }
+  async function runGenJob(job) {
+    clearObjectUrlOn(synthDatLivePreview);
+    synthDatLivePreviewWrap.style.display = "none";
+    setGenStatus("Generating\u2026 this can take a while." + queueNote());
+    const res = await window.electronAPI.synthdatQueueAndFetch({
+      host: job.host,
+      imageFilename: job.imageFilename,
+      imageBytes: job.imageBytes,
+      prompt: job.prompt
+    });
+    synthDatLivePreviewWrap.style.display = "none";
+    if (!res.ok) {
+      if (res.interrupted) {
+        toast("Generation stopped.");
+        return "stopped";
+      }
+      setGenStatus((res.error || "Generation failed.") + queueNote());
+      return "failed";
+    }
+    await serialized(async () => deliverResult(res, job.tagSnapshot));
+    if (genQueue.length && !genStopped) setGenStatus("Done" + queueNote());
+    return "ok";
+  }
+  function showGenResult(res, tagSnapshot) {
+    previewBytes = res.imageBytes || null;
+    pendingBase = `synth_${Date.now().toString(36)}`;
+    pendingImgName = `${pendingBase}.png`;
+    pendingTagSnapshot = tagSnapshot;
+    renderTagCard();
+    pass2Bytes = res.imageBytes || null;
+    pass1Bytes = res.pass1ImageBytes || null;
+    if (pass1Bytes) {
+      setObjectUrlOn(synthDatPass1Thumb, new Blob([pass1Bytes], { type: "image/png" }));
+      setObjectUrlOn(synthDatPass2Thumb, new Blob([pass2Bytes], { type: "image/png" }));
+      synthDatPassPickerRow.style.display = "flex";
+      synthDatPickPass1.classList.remove("active");
+      synthDatPickPass2.classList.add("active");
+    } else {
+      synthDatPassPickerRow.style.display = "none";
+    }
+    setObjectUrlOn(synthDatPreview, new Blob([previewBytes], { type: "image/png" }));
+    synthDatPreview.style.display = "block";
+    synthDatPreviewEmpty.style.display = "none";
+    btnSynthDatAccept.disabled = false;
+    btnSynthDatReject.disabled = false;
+    btnSynthDatReinterrogateOutput.disabled = false;
+  }
+  async function computeNextSequentialBase(dirHandle) {
+    let maxNum = 0;
+    let width = 1;
+    for await (const h of dirHandle.values()) {
+      if (h.kind !== "file") continue;
+      const dot = h.name.lastIndexOf(".");
+      const base = dot === -1 ? h.name : h.name.slice(0, dot);
+      if (!/^\d+$/.test(base)) continue;
+      const n = parseInt(base, 10);
+      if (n >= maxNum) {
+        maxNum = n;
+        width = Math.max(width, base.length);
+      }
+    }
+    return { next: maxNum + 1, width: Math.max(width, String(maxNum + 1).length) };
+  }
+  async function writeImageEntry(bytes, base, imgName, tags, disable) {
+    const dirHandle = getDirHandle9();
+    if (!dirHandle) return null;
+    try {
+      if (disable) {
+        const imgHandle2 = await dirHandle.getFileHandle(imgName, { create: true });
+        await writeBytes(imgHandle2, bytes);
+        const txtHandle2 = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
+        await writeBytes(txtHandle2, tags.map((t) => t.replace(/ /g, "_")).join(", "));
+        const entry2 = await addEntryFromNewFile(base, imgHandle2, imgName, txtHandle2, true, tags, false);
+        if (entry2) await moveEntry(entry2, true);
+        return entry2;
+      }
+      const imgHandle = await dirHandle.getFileHandle(imgName, { create: true });
+      await writeBytes(imgHandle, bytes);
+      const txtHandle = await dirHandle.getFileHandle(`${base}.txt`, { create: true });
+      await writeBytes(txtHandle, tags.map((t) => t.replace(/ /g, "_")).join(", "));
+      const entry = await addEntryFromNewFile(base, imgHandle, imgName, txtHandle, true, tags, false);
+      if (entry) markDirty(entry);
+      return entry;
+    } catch (err) {
+      toastError("Could not save an image", err);
+      return null;
+    }
+  }
+  function otherPassBytes() {
+    if (!pass1Bytes) return null;
+    return previewBytes === pass1Bytes ? pass2Bytes : pass1Bytes;
+  }
+  async function acceptImage() {
+    const dirHandle = getDirHandle9();
+    if (!dirHandle) {
+      toast("Open a dataset folder first.");
+      return;
+    }
+    if (!previewBytes) {
+      toast("Nothing to accept or reject yet.");
+      return;
+    }
+    const tags = finalTagList();
+    if (markedVoidTags.size > 0) registerVoidRule(Array.from(markedVoidTags));
+    let base = pendingBase, imgName = pendingImgName;
+    if (synthDatRenameOnAccept.checked) {
+      const { next, width } = await computeNextSequentialBase(dirHandle);
+      base = String(next).padStart(width, "0");
+      imgName = `${base}.png`;
+    }
+    const entry = await writeImageEntry(previewBytes, base, imgName, tags, false);
+    if (!entry) return;
+    const alt = otherPassBytes();
+    if (alt) await writeImageEntry(alt, `${pendingBase}_altpass`, `${pendingBase}_altpass.png`, tags, true);
+    toast(alt ? "Added to the dataset \u2014 the other pass was rejected into Disabled/." : "Added to the dataset.");
+    refreshAllUIRef6();
+    clearPreview();
+  }
+  async function rejectImage() {
+    const dirHandle = getDirHandle9();
+    if (!dirHandle) {
+      toast("Open a dataset folder first.");
+      return;
+    }
+    if (!previewBytes) {
+      toast("Nothing to accept or reject yet.");
+      return;
+    }
+    const tags = finalTagList();
+    const entry = await writeImageEntry(previewBytes, pendingBase, pendingImgName, tags, true);
+    if (!entry) return;
+    const alt = otherPassBytes();
+    if (alt) await writeImageEntry(alt, `${pendingBase}_altpass`, `${pendingBase}_altpass.png`, tags, true);
+    toast("Rejected into Disabled/.");
+    refreshAllUIRef6();
+    clearPreview();
+  }
+  function clearPreview() {
+    previewBytes = null;
+    pendingBase = "";
+    pendingImgName = "";
+    clearObjectUrlOn(synthDatPreview);
+    clearObjectUrlOn(synthDatPass1Thumb);
+    clearObjectUrlOn(synthDatPass2Thumb);
+    synthDatPreview.style.display = "none";
+    synthDatPreviewEmpty.style.display = "block";
+    synthDatPassPickerRow.style.display = "none";
+    pass1Bytes = null;
+    pass2Bytes = null;
+    btnSynthDatAccept.disabled = true;
+    btnSynthDatReject.disabled = true;
+    btnSynthDatReinterrogateOutput.disabled = true;
+    synthDatReinterrogateResult.style.display = "none";
+    pendingTagSnapshot = null;
+    excludedTags = /* @__PURE__ */ new Set();
+    mergedTagOverrides = /* @__PURE__ */ new Map();
+    markedVoidTags = /* @__PURE__ */ new Set();
+    renderTagCard();
+  }
+  var SAMPLERS = [
+    "res_multistep",
+    "sa_solver_pece",
+    "euler",
+    "euler_ancestral",
+    "dpmpp_2m",
+    "dpmpp_2m_sde",
+    "dpmpp_3m_sde",
+    "dpmpp_sde",
+    "dpmpp_2s_ancestral",
+    "ddim",
+    "uni_pc",
+    "lcm",
+    "deis"
+  ];
+  var SCHEDULERS = ["beta", "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "linear_quadratic"];
+  function fillStaticOptions(selectEl, values, def) {
+    selectEl.innerHTML = "";
+    for (const v of values) {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      selectEl.appendChild(opt);
+    }
+    if (def) selectEl.value = def;
+  }
+  function clickToZoom(wrap, img) {
+    wrap.addEventListener("click", () => {
+      if (img.naturalWidth > 0) showImageLightbox(img.src);
+    });
+  }
+  function initSynthDatOverseer(deps3) {
+    getDirHandle9 = deps3.getDirHandle;
+    addEntryFromNewFile = deps3.addEntryFromNewFile;
+    refreshAllUIRef6 = deps3.refreshAllUI;
+    loadTemplate();
+    fillStaticOptions(synthDatSampler, SAMPLERS, "res_multistep");
+    fillStaticOptions(synthDatScheduler, SCHEDULERS, "beta");
+    const promptFields = [
+      synthDatUnifiedPrompt,
+      synthDatGlobal,
+      synthDatCharacter,
+      synthDatCharacterTrigger,
+      synthDatRating,
+      synthDatHair,
+      synthDatFace,
+      synthDatChest,
+      synthDatBody,
+      synthDatClothes,
+      synthDatLimbs,
+      synthDatSexual,
+      synthDatPose,
+      synthDatScene,
+      synthDatEffects,
+      synthDatExtra
+    ];
+    promptFields.forEach((el) => el.addEventListener("input", () => {
+      growTextarea(el);
+      scheduleSave();
+    }));
+    synthDatNegative.addEventListener("input", () => {
+      growTextarea(synthDatNegative);
+      scheduleSave();
+    });
+    const grownWidths = /* @__PURE__ */ new WeakMap();
+    const regrow = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const w = e.contentRect.width;
+        if (grownWidths.get(e.target) === w) continue;
+        grownWidths.set(e.target, w);
+        if (w > 0) growTextarea(e.target);
+      }
+    });
+    [...promptFields, synthDatNegative].forEach((el) => regrow.observe(el));
+    let themeRegrowFrame = 0;
+    const regrowAllSoon = () => {
+      cancelAnimationFrame(themeRegrowFrame);
+      themeRegrowFrame = requestAnimationFrame(() => [...promptFields, synthDatNegative].forEach((el) => growTextarea(el)));
+    };
+    new MutationObserver(regrowAllSoon).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "style"] });
+    document.fonts.addEventListener("loadingdone", regrowAllSoon);
+    synthDatStripHairFace.addEventListener("change", () => {
+      scheduleSave();
+    });
+    synthDatUnifiedPromptMode.addEventListener("change", () => {
+      applyUnifiedPromptModeUI();
+      scheduleSave();
+    });
+    applyUnifiedPromptModeUI();
+    btnSynthDatPromptPanelToggle.addEventListener("click", openSynthDatPromptPanel);
+    btnSynthDatPromptPanelClose.addEventListener("click", closeSynthDatPromptPanel);
+    [
+      synthDatHost,
+      synthDatDiffModel,
+      synthDatClip,
+      synthDatVae,
+      synthDatMainLora,
+      synthDatMainLoraStrength,
+      synthDatLLLiteStrength,
+      synthDatLLLiteStartPercent,
+      synthDatLLLiteEndPercent,
+      synthDatLLLitePreserveWrapper,
+      synthDatResizeMethod,
+      synthDatSampler,
+      synthDatScheduler,
+      synthDatSteps1,
+      synthDatCfg1,
+      synthDatSteps2,
+      synthDatUse2Pass,
+      synthDatSeed1,
+      synthDatSeed2,
+      synthDatDenoise2
+    ].forEach((el) => el.addEventListener("change", scheduleSave));
+    synthDatResizeFit.addEventListener("change", () => {
+      updateResizedPreview();
+      scheduleSave();
+    });
+    synthDatSkipRefImage.addEventListener("change", () => {
+      applySkipRefImageUI();
+      scheduleSave();
+    });
+    applySkipRefImageUI();
+    synthDatWidth.addEventListener("input", () => {
+      updateResizedPreview();
+      updateResoWarning();
+      scheduleSave();
+    });
+    synthDatHeight.addEventListener("input", () => {
+      updateResizedPreview();
+      updateResoWarning();
+      scheduleSave();
+    });
+    btnSynthDatSwapReso.addEventListener("click", () => {
+      const w = synthDatWidth.value;
+      synthDatWidth.value = synthDatHeight.value;
+      synthDatHeight.value = w;
+      updateResizedPreview();
+      updateResoWarning();
+      scheduleSave();
+    });
+    clickToZoom(synthDatRefPreviewWrap, synthDatRefPreview);
+    clickToZoom(synthDatResizedPreviewWrap, synthDatResizedPreview);
+    clickToZoom(synthDatLivePreviewWrap, synthDatLivePreview);
+    clickToZoom(synthDatPreviewWrap, synthDatPreview);
+    window.electronAPI.onSynthdatPreviewFrame((_event, { mime, bytes }) => {
+      setObjectUrlOn(synthDatLivePreview, new Blob([bytes], { type: mime }));
+      synthDatLivePreviewWrap.style.display = "flex";
+    });
+    window.electronAPI.onSynthdatProgress((_event, { value, max }) => {
+      setGenStatus(`Generating\u2026 step ${value}/${max}${queueNote()}`);
+    });
+    btnSynthDatPickImage.addEventListener("click", pickReferenceImage);
+    btnSynthDatInterrogate.addEventListener("click", interrogateReference);
+    btnSynthDatMigratePose.addEventListener("click", applyTagAssignment);
+    btnSynthDatAddLora.addEventListener("click", () => {
+      addLoraRow("", 1);
+      scheduleSave();
+    });
+    btnSynthDatRefreshModels.addEventListener("click", refreshModelLists);
+    btnSynthDatConnect.addEventListener("click", testSynthdatConnection);
+    if (hasLocalComfy) {
+      buildPersistentDropdown(synthDatBackendDropdown, [
+        { value: "server", label: "ComfyUI server" },
+        { value: "local", label: "Osmium Comfy" }
+      ], () => backend, (val) => {
+        backend = val === "local" ? "local" : "server";
+        setString(BACKEND_KEY, backend);
+        applyBackendUI();
+      });
+      btnSynthDatLocalFolder.addEventListener("click", () => void pickLocalFolder());
+      applyBackendUI();
+    } else {
+      synthDatBackendRow.style.display = "none";
+    }
+    const datalistOptions = (el) => Array.from(el.options).map((o) => o.value);
+    attachPickerModal(synthDatDiffModel, "Diffusion model", () => datalistOptions(synthDatUnetDatalist));
+    attachPickerModal(synthDatClip, "CLIP / text encoder", () => datalistOptions(synthDatClipDatalist));
+    attachPickerModal(synthDatVae, "VAE", () => datalistOptions(synthDatVaeDatalist));
+    attachPickerModal(synthDatMainLora, "Main LoRA", () => datalistOptions(synthDatMainLoraDatalist));
+    btnSynthDatGenerate.addEventListener("click", generate);
+    btnSynthDatStop.addEventListener("click", stopGeneration);
+    btnSynthDatAccept.addEventListener("click", () => serialized(async () => {
+      await acceptImage();
+      showNextHeld();
+    }));
+    btnSynthDatReject.addEventListener("click", () => serialized(async () => {
+      await rejectImage();
+      showNextHeld();
+    }));
+    synthDatPickPass1.addEventListener("click", () => selectPass(1));
+    synthDatPickPass2.addEventListener("click", () => selectPass(2));
+    btnSynthDatReinterrogateOutput.addEventListener("click", reinterrogateOutput);
+    renderTagCard();
+    if (backend !== "local") refreshModelLists();
+    initSynthDatSectionDocks(synthDatCol1);
+  }
+
+  // src/renderer/tag-wiki.ts
+  var POS_KEY = "dts-tag-wiki-pos";
+  var CATEGORY_NAMES2 = { 0: "General", 1: "Artist", 3: "Copyright", 4: "Character", 5: "Meta" };
+  var win = null;
+  var bodyEl;
+  var inputEl;
+  function clampIntoView() {
+    if (!win) return;
+    const r = win.getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8));
+    const top = Math.max(8, Math.min(r.top, window.innerHeight - 60));
+    win.style.left = left + "px";
+    win.style.top = top + "px";
+  }
+  function attachDrag(handle) {
+    handle.addEventListener("pointerdown", (ev) => {
+      if (ev.target.closest("button")) return;
+      const r = win.getBoundingClientRect();
+      const dx = ev.clientX - r.left, dy = ev.clientY - r.top;
+      handle.setPointerCapture(ev.pointerId);
+      const move = (e) => {
+        win.style.left = e.clientX - dx + "px";
+        win.style.top = e.clientY - dy + "px";
+      };
+      const up = () => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        clampIntoView();
+        const rr = win.getBoundingClientRect();
+        setJSON(POS_KEY, { left: rr.left, top: rr.top });
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+    });
+  }
+  var SECTION_AFTER_SEE_ALSO = /^(external links|trivia|notes?|examples?|history|usage|names?|sources?)$/i;
+  function splitSeeAlso(text) {
+    const blocks = text.split(/\n\s*\n/);
+    const at = blocks.findIndex((b) => /^see also:?$/i.test(b.trim()));
+    if (at === -1) return { main: text.trim(), seeAlso: [] };
+    let end = at + 1;
+    const items = [];
+    while (end < blocks.length && !SECTION_AFTER_SEE_ALSO.test(blocks[end].trim().split("\n")[0])) {
+      for (const line of blocks[end].split("\n")) if (line.trim()) items.push(line.trim());
+      end++;
+    }
+    const main = [...blocks.slice(0, at), ...blocks.slice(end)].join("\n\n").trim();
+    return { main, seeAlso: items };
+  }
+  async function showTag(raw) {
+    const tag = raw.trim().replace(/_/g, " ");
+    if (!tag) return;
+    closeAutocomplete();
+    bodyEl.innerHTML = "";
+    const title = document.createElement("div");
+    title.className = "tag-wiki-tag";
+    title.textContent = tag;
+    bodyEl.appendChild(title);
+    const loading = document.createElement("div");
+    loading.className = "stats-empty";
+    loading.textContent = "Loading\u2026";
+    bodyEl.appendChild(loading);
+    const key = tag.replace(/ /g, "_");
+    const [wiki, allTags] = await Promise.all([ensureWikiDataLoaded(), ensureAllTagsLoaded()]);
+    loading.remove();
+    const meta = allTags.get(key);
+    if (meta) {
+      const metaRow = document.createElement("div");
+      metaRow.className = "tag-details-meta";
+      const cat = document.createElement("span");
+      cat.textContent = CATEGORY_NAMES2[meta.category] || "Unknown";
+      const posts = document.createElement("span");
+      posts.textContent = `${meta.count.toLocaleString()} posts`;
+      metaRow.append(cat, posts);
+      bodyEl.appendChild(metaRow);
+    }
+    const def = wiki[key];
+    const custom = def ? "" : getCustomTagNote(tag);
+    const { main, seeAlso } = splitSeeAlso(def || custom || "");
+    const defEl = document.createElement("div");
+    defEl.className = "tag-details-def tag-wiki-def" + (def || custom ? "" : " greyed");
+    defEl.textContent = main || (meta ? "No official wiki entry for this tag." : "Not a known tag, and no wiki entry.");
+    bodyEl.appendChild(defEl);
+    if (seeAlso.length) {
+      const rel = document.createElement("div");
+      rel.className = "tag-wiki-seealso";
+      const head = document.createElement("div");
+      head.className = "tag-wiki-seealso-head";
+      head.textContent = "See also";
+      rel.appendChild(head);
+      const list = document.createElement("div");
+      list.className = "tag-wiki-seealso-list";
+      for (const item of seeAlso) {
+        const known = wiki[item.replace(/ /g, "_")] !== void 0 || allTags.has(item.replace(/ /g, "_"));
+        const el = document.createElement(known ? "button" : "span");
+        el.className = known ? "tag-wiki-link" : "tag-wiki-plain";
+        el.textContent = item;
+        if (known) {
+          el.type = "button";
+          el.addEventListener("click", () => {
+            inputEl.value = item;
+            void showTag(item);
+          });
+        }
+        list.appendChild(el);
+      }
+      rel.appendChild(list);
+      bodyEl.appendChild(rel);
+    }
+    if (!def) {
+      const ta = document.createElement("textarea");
+      ta.placeholder = "Write your own description (saved on this computer)\u2026";
+      ta.value = custom;
+      ta.rows = 3;
+      const save = document.createElement("button");
+      save.className = "primary";
+      save.textContent = "Save description";
+      save.addEventListener("click", () => {
+        setCustomTagNote(tag, ta.value);
+        toast(`Saved your description for "${tag}".`);
+        void showTag(tag);
+      });
+      bodyEl.append(ta, save);
+    }
+  }
+  function build() {
+    const el = document.createElement("div");
+    el.className = "tag-wiki-window";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-label", "Tag wiki");
+    const head = document.createElement("div");
+    head.className = "tag-wiki-head";
+    const title = document.createElement("span");
+    title.className = "theme-panel-head";
+    setIconLabel(title, "Tag wiki");
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "tag-wiki-close";
+    close.title = "Close";
+    close.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg>';
+    close.addEventListener("click", closeTagWiki);
+    head.append(title, close);
+    bodyEl = document.createElement("div");
+    bodyEl.className = "tag-wiki-body tag-details-body";
+    const hint = document.createElement("div");
+    hint.className = "tag-details-def greyed";
+    hint.textContent = "Type a tag below to read its definition.";
+    bodyEl.appendChild(hint);
+    inputEl = document.createElement("input");
+    inputEl.type = "text";
+    inputEl.className = "tag-wiki-input";
+    inputEl.placeholder = "Look up a tag\u2026";
+    inputEl.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && inputEl.value.trim()) {
+        void showTag(inputEl.value);
+      }
+    });
+    attachLookupAutocomplete(inputEl, (tag) => {
+      inputEl.value = tag;
+      void showTag(tag);
+    });
+    el.append(head, bodyEl, inputEl);
+    attachDrag(head);
+    return el;
+  }
+  function openTagWiki() {
+    if (win) {
+      inputEl.focus();
+      return;
+    }
+    win = build();
+    document.body.appendChild(win);
+    const pos = getJSON(POS_KEY, null);
+    if (pos) {
+      win.style.left = pos.left + "px";
+      win.style.top = pos.top + "px";
+    } else {
+      win.style.left = Math.max(8, window.innerWidth - win.offsetWidth - 24) + "px";
+      win.style.top = "96px";
+    }
+    clampIntoView();
+    requestAnimationFrame(() => requestAnimationFrame(() => win?.classList.add("panel-visible")));
+    inputEl.focus();
+  }
+  function closeTagWiki() {
+    if (!win) return;
+    const el = win;
+    win = null;
+    closeAutocomplete();
+    el.classList.remove("panel-visible");
+    setTimeout(() => el.remove(), 160);
+  }
+  function initTagWiki(button) {
+    button.addEventListener("click", () => win ? closeTagWiki() : openTagWiki());
+    window.addEventListener("resize", clampIntoView);
+  }
+
+  // src/renderer/tag-index.ts
+  var leftSortMode = "family";
+  var leftSortDir = "desc";
+  var familyOrder = [];
+  var getEntries6 = () => [];
+  var getGalleryFilter = () => ({ base: "all", terms: [], mode: "OR", excludes: "", disabledView: false, originalsView: false, exactMatch: false });
+  var getGallerySortMode = () => "filename";
+  var getGallerySortDir = () => "asc";
+  var resetSingleIndex2 = () => {
+  };
+  var renderCurrentViewRef3 = () => {
+  };
+  var refreshFilterModeUI = () => {
+  };
+  var isFilterModeLocked = () => false;
+  var markTagReviewedRef = () => 0;
+  var lastTagIndex = /* @__PURE__ */ new Map();
+  var reviewFlaggedActive = false;
+  var reviewedFlaggedTags = /* @__PURE__ */ new Set();
+  function resetReviewFlagged() {
+    reviewFlaggedActive = false;
+    reviewedFlaggedTags = /* @__PURE__ */ new Set();
+    btnReviewFlagged.classList.remove("active");
+    tagFamilyListArea.classList.remove("review-mode");
+  }
+  function buildTagIndex() {
+    const index = /* @__PURE__ */ new Map();
+    for (const e of getEntries6()) {
+      if (e.disabled) continue;
+      for (const t of e.tags) {
+        if (!index.has(t)) index.set(t, /* @__PURE__ */ new Set());
+        index.get(t).add(e.base);
+      }
+    }
+    return index;
+  }
+  function wordsOf(tag) {
+    return Array.from(new Set(tag.split(" ").filter(Boolean)));
+  }
+  function buildFilterSuggestions(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return { direct: [], family: [] };
+    const allTags = Array.from(lastTagIndex.keys());
+    const starts = allTags.filter((t) => t.toLowerCase().startsWith(q));
+    const contains = allTags.filter((t) => !starts.includes(t) && t.toLowerCase().includes(q));
+    const direct = starts.concat(contains).slice(0, 12);
+    const familyWords = /* @__PURE__ */ new Set();
+    for (const t of (starts.length ? starts : direct).slice(0, 5)) {
+      for (const w of wordsOf(t)) familyWords.add(w);
+    }
+    const directSet = new Set(direct);
+    const family = allTags.filter((t) => !directSet.has(t) && wordsOf(t).some((w) => familyWords.has(w))).slice(0, 8);
+    return { direct, family };
+  }
+  function currentFilterTermSpan(value) {
+    const lastComma = value.lastIndexOf(",");
+    const prefix = lastComma === -1 ? "" : value.slice(0, lastComma + 1) + " ";
+    const partial = lastComma === -1 ? value : value.slice(lastComma + 1);
+    return { prefix, partial: partial.trim() };
+  }
+  function pickFilterSuggestion(tag) {
+    const { prefix } = currentFilterTermSpan(filterInput.value);
+    filterInput.value = prefix + tag;
+    getGalleryFilter().terms = parseFilterTerms(filterInput.value);
+    hideFilterSuggestions();
+    folderStats.filter_suggestions_used = true;
+    saveFolderStats();
+    checkAchievements();
+    resetSingleIndex2();
+    renderCurrentViewRef3();
+    filterInput.focus();
+  }
+  function hideFilterSuggestions() {
+    filterSuggestions.style.display = "none";
+    filterSuggestions.innerHTML = "";
+  }
+  function buildSuggestionRow(tag) {
+    const row = document.createElement("div");
+    row.className = "ac-row";
+    row.innerHTML = `<span class="ac-row-name">${escapeHtml(tag)}</span>`;
+    row.addEventListener("mousedown", (ev) => {
+      ev.preventDefault();
+      pickFilterSuggestion(tag);
+    });
+    return row;
+  }
+  function updateFilterSuggestions() {
+    const { partial } = currentFilterTermSpan(filterInput.value);
+    if (partial.length < 2) {
+      hideFilterSuggestions();
+      return;
+    }
+    const { direct, family } = buildFilterSuggestions(partial);
+    if (direct.length === 0 && family.length === 0) {
+      hideFilterSuggestions();
+      return;
+    }
+    filterSuggestions.innerHTML = "";
+    const list = document.createElement("div");
+    list.className = "ac-list";
+    for (const tag of direct) list.appendChild(buildSuggestionRow(tag));
+    if (family.length) {
+      const header = document.createElement("div");
+      header.className = "filter-suggestion-family";
+      header.textContent = "Same keyword family";
+      list.appendChild(header);
+      for (const tag of family) list.appendChild(buildSuggestionRow(tag));
+    }
+    filterSuggestions.appendChild(list);
+    filterSuggestions.style.display = "";
+  }
+  function renderFlaggedReviewList() {
+    tagListTitle.textContent = "FLAGGED FOR REVIEW";
+    const counts = /* @__PURE__ */ new Map();
+    for (const e of getEntries6()) {
+      const flagged = e.meta && e.meta.flaggedTags;
+      if (!flagged) continue;
+      for (const t of flagged) counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    const tags = new Set(counts.keys());
+    for (const t of reviewedFlaggedTags) tags.add(t);
+    tagFrequencyList.innerHTML = "";
+    if (tags.size === 0) {
+      const empty = document.createElement("div");
+      empty.className = "freq-empty";
+      setIconLabel(empty, "No tags flagged for review. Use a tag chip's \u{1F6A9} menu to flag one.");
+      tagFrequencyList.appendChild(empty);
+      return;
+    }
+    const sorted = Array.from(tags).sort((a, b) => a.localeCompare(b));
+    for (const tag of sorted) {
+      const stillFlagged = counts.has(tag);
+      const row = document.createElement("div");
+      row.className = "freq-row review-flag-row" + (stillFlagged ? "" : " reviewed");
+      const label = document.createElement("span");
+      label.className = "review-flag-tag";
+      label.textContent = tag;
+      row.appendChild(label);
+      const btn = document.createElement("button");
+      btn.className = "review-done-btn";
+      btn.textContent = "Reviewed";
+      btn.title = stillFlagged ? "Unflag this tag from every image (undoable)" : "Already cleared \u2014 no image lists this tag anymore";
+      btn.disabled = !stillFlagged;
+      btn.addEventListener("click", () => {
+        reviewedFlaggedTags.add(tag);
+        const n = markTagReviewedRef(tag);
+        if (n === 0) toast(`No loaded image still lists "${tag}" as flagged for review.`);
+        refreshStats();
+      });
+      row.appendChild(btn);
+      tagFrequencyList.appendChild(row);
+    }
+  }
+  function renderTagFrequencyList(index) {
+    if (reviewFlaggedActive) {
+      renderFlaggedReviewList();
+      return;
+    }
+    tagListTitle.textContent = "TAGS";
+    const dir = leftSortDir === "asc" ? 1 : -1;
+    tagFrequencyList.innerHTML = "";
+    if (leftSortMode === "family") {
+      const families = /* @__PURE__ */ new Map();
+      for (const [tag] of index) {
+        const words = Array.from(new Set(tag.split(" ").filter(Boolean)));
+        for (const w of words) {
+          if (!families.has(w)) families.set(w, []);
+          if (!families.get(w).includes(tag)) families.get(w).push(tag);
+        }
+      }
+      let familyList = Array.from(families.entries()).filter(([, tags]) => tags.length >= 2);
+      familyList.sort((a, b) => (b[1].length - a[1].length) * dir);
+      familyList = applyFamilyOrder(familyList);
+      if (familyList.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "freq-empty";
+        empty.textContent = "No tags share a common word yet.";
+        tagFrequencyList.appendChild(empty);
+        return;
+      }
+      for (const [word, tags] of familyList) {
+        const header = document.createElement("div");
+        header.className = "freq-family-header";
+        header.draggable = true;
+        header.dataset.word = word;
+        const dragHandle = document.createElement("span");
+        dragHandle.className = "family-drag-handle";
+        setIconLabel(dragHandle, "\u2630");
+        dragHandle.title = "Drag to reorder this family";
+        header.appendChild(dragHandle);
+        const labelSpan = document.createElement("span");
+        labelSpan.textContent = ` \u2014 ${word} (${tags.length}) \u2014`;
+        header.appendChild(labelSpan);
+        header.addEventListener("dragstart", (ev) => {
+          ev.dataTransfer.setData("text/plain", word);
+          ev.dataTransfer.effectAllowed = "move";
+          header.classList.add("family-dragging");
+        });
+        header.addEventListener("dragend", () => header.classList.remove("family-dragging"));
+        header.addEventListener("dragover", (ev) => {
+          ev.preventDefault();
+          header.classList.add("family-drop-target");
+        });
+        header.addEventListener("dragleave", () => header.classList.remove("family-drop-target"));
+        header.addEventListener("drop", (ev) => {
+          ev.preventDefault();
+          header.classList.remove("family-drop-target");
+          const draggedWord = ev.dataTransfer.getData("text/plain");
+          if (draggedWord && draggedWord !== word) reorderFamilyBefore(draggedWord, word, familyList.map((f) => f[0]));
+        });
+        tagFrequencyList.appendChild(header);
+        tags.sort((a, b) => a.localeCompare(b));
+        for (const tag of tags) {
+          tagFrequencyList.appendChild(buildFreqRow(tag, index.get(tag).size));
+        }
+      }
+      return;
+    }
+    let list = Array.from(index.entries());
+    if (leftSortMode === "alphabetical") {
+      list.sort((a, b) => a[0].localeCompare(b[0]) * dir);
+    } else {
+      list.sort((a, b) => (b[1].size - a[1].size) * dir);
+    }
+    for (const [tag, set] of list) {
+      tagFrequencyList.appendChild(buildFreqRow(tag, set.size));
+    }
+  }
+  function buildFreqRow(tag, count) {
+    const row = document.createElement("div");
+    row.className = "freq-row";
+    row.innerHTML = `<span>${escapeHtml(tag)}</span><span class="n">${count}</span>`;
+    row.addEventListener("click", () => setContainsFilter(tag));
+    return row;
+  }
+  function applyFamilyOrder(familyList) {
+    const words = familyList.map(([w]) => w);
+    const known = familyOrder.filter((w) => words.includes(w));
+    const unknown = words.filter((w) => !known.includes(w));
+    const finalOrder = [...known, ...unknown];
+    return finalOrder.map((w) => familyList.find(([fw]) => fw === w));
+  }
+  function saveFamilyOrder() {
+    setJSON("dts-family-order", familyOrder);
+  }
+  (function loadFamilyOrder() {
+    const saved = getJSON("dts-family-order", null);
+    if (Array.isArray(saved)) familyOrder = saved;
+  })();
+  function reorderFamilyBefore(draggedWord, targetWord, currentOrder) {
+    const draggedIdx = currentOrder.indexOf(draggedWord);
+    const targetIdxOriginal = currentOrder.indexOf(targetWord);
+    const movingDown = draggedIdx !== -1 && targetIdxOriginal !== -1 && draggedIdx < targetIdxOriginal;
+    let order = currentOrder.slice();
+    order = order.filter((w) => w !== draggedWord);
+    let insertIdx = order.indexOf(targetWord);
+    if (movingDown) insertIdx += 1;
+    order.splice(insertIdx, 0, draggedWord);
+    familyOrder = order;
+    saveFamilyOrder();
+    refreshStats();
+  }
+  function refreshStats() {
+    const index = buildTagIndex();
+    lastTagIndex = index;
+    const entries = getEntries6();
+    const activeEntries = entries.filter((e) => !e.disabled);
+    $("cardImages").textContent = String(activeEntries.length);
+    $("cardTags").textContent = String(index.size);
+    renderTagFrequencyList(index);
+    return index;
+  }
+  function sortEntries(list) {
+    const gallerySortMode = getGallerySortMode();
+    const dir = getGallerySortDir() === "asc" ? 1 : -1;
+    const arr = list.slice();
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (gallerySortMode === "filename") {
+        cmp = (a.imgName || "").localeCompare(b.imgName || "", void 0, { numeric: true });
+      } else if (gallerySortMode === "resolution") {
+        const ra = (a.width || 0) * (a.height || 0);
+        const rb = (b.width || 0) * (b.height || 0);
+        cmp = ra - rb;
+      } else if (gallerySortMode === "tagcount") {
+        cmp = a.tags.length - b.tags.length;
+      } else if (gallerySortMode === "dirty") {
+        cmp = (a.dirty ? 1 : 0) - (b.dirty ? 1 : 0);
+      } else if (gallerySortMode === "dateadded") {
+        cmp = (a.meta && a.meta.dateAdded || 0) - (b.meta && b.meta.dateAdded || 0);
+      }
+      return cmp * dir;
+    });
+    return arr;
+  }
+  function filteredEntries() {
+    return sortEntries(getEntries6().filter((e) => passesFilter(e)));
+  }
+  function passesFilter(e) {
+    const galleryFilter = getGalleryFilter();
+    if (galleryFilter.originalsView) {
+      if (!e.original) return false;
+    } else if (galleryFilter.disabledView) {
+      if (!e.disabled || e.original) return false;
+    } else {
+      if (e.disabled) return false;
+      if (galleryFilter.base === "untagged" && e.tags.length !== 0) return false;
+      if (galleryFilter.base === "dirty" && !e.dirty) return false;
+    }
+    if (galleryFilter.terms && galleryFilter.terms.length) {
+      const tagMatches = galleryFilter.exactMatch ? (t, term) => t.toLowerCase() === term : (t, term) => t.toLowerCase().includes(term);
+      const matchCount = galleryFilter.terms.filter((term) => e.tags.some((t) => tagMatches(t, term))).length;
+      const mode = galleryFilter.mode || "OR";
+      if (mode === "AND" && matchCount !== galleryFilter.terms.length) return false;
+      if (mode === "OR" && matchCount === 0) return false;
+      if (mode === "XOR" && matchCount !== 1) return false;
+      if (mode === "NOT" && matchCount > 0) return false;
+    }
+    if (galleryFilter.excludes && e.tags.some((t) => t.toLowerCase().includes(galleryFilter.excludes))) return false;
+    return true;
+  }
+  function setBaseFilter(kind) {
+    getGalleryFilter().base = kind;
+    [filterAllBtn, filterUntaggedBtn, filterDirtyBtn].forEach((b) => b.classList.remove("active"));
+    ({ all: filterAllBtn, untagged: filterUntaggedBtn, dirty: filterDirtyBtn })[kind].classList.add("active");
+    resetSingleIndex2();
+    renderCurrentViewRef3();
+  }
+  function parseFilterTerms(raw) {
+    return raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  }
+  function setContainsFilter(value) {
+    const galleryFilter = getGalleryFilter();
+    galleryFilter.terms = [value.toLowerCase()];
+    if (!isFilterModeLocked()) galleryFilter.mode = "OR";
+    filterInput.value = value;
+    hideFilterSuggestions();
+    resetSingleIndex2();
+    refreshFilterModeUI();
+    renderCurrentViewRef3();
+  }
+  function setMirroredSelectionFilter(tags) {
+    const galleryFilter = getGalleryFilter();
+    const list = Array.from(tags);
+    galleryFilter.terms = list.map((t) => t.toLowerCase());
+    filterInput.value = list.join(", ");
+    hideFilterSuggestions();
+    resetSingleIndex2();
+    refreshFilterModeUI();
+    renderCurrentViewRef3();
+  }
+  function setExcludesFilter(value) {
+    getGalleryFilter().excludes = value.toLowerCase();
+    excludeBadgeText.textContent = value;
+    excludeBadge.style.display = "flex";
+    resetSingleIndex2();
+    renderCurrentViewRef3();
+  }
+  function initTagIndex(deps3) {
+    getEntries6 = deps3.getEntries;
+    getGalleryFilter = deps3.getGalleryFilter;
+    getGallerySortMode = deps3.getGallerySortMode;
+    getGallerySortDir = deps3.getGallerySortDir;
+    resetSingleIndex2 = deps3.resetSingleIndex;
+    renderCurrentViewRef3 = deps3.renderCurrentView;
+    refreshFilterModeUI = deps3.refreshFilterModeUI;
+    isFilterModeLocked = deps3.isFilterModeLocked;
+    markTagReviewedRef = deps3.markTagReviewed;
+    leftSortDirBtn.addEventListener("click", () => {
+      leftSortDir = leftSortDir === "asc" ? "desc" : "asc";
+      setIconLabel(leftSortDirBtn, leftSortDir === "asc" ? "\u25B2" : "\u25BC");
+      refreshStats();
+    });
+    btnResetFamilyOrder.addEventListener("click", () => {
+      familyOrder = [];
+      saveFamilyOrder();
+      refreshStats();
+      toast("Keyword family order reset.");
+    });
+    buildPersistentDropdown(
+      leftSortDropdown,
+      [
+        { value: "family", label: "Keyword family" },
+        { value: "frequency", label: "Frequency" },
+        { value: "alphabetical", label: "Alphabetical" }
+      ],
+      () => leftSortMode,
+      (val) => {
+        leftSortMode = val;
+        refreshStats();
+      }
+    );
+    let filterRenderTimer = null;
+    filterInput.addEventListener("input", () => {
+      getGalleryFilter().terms = parseFilterTerms(filterInput.value);
+      resetSingleIndex2();
+      if (filterRenderTimer) clearTimeout(filterRenderTimer);
+      filterRenderTimer = setTimeout(() => {
+        filterRenderTimer = null;
+        renderCurrentViewRef3();
+      }, 120);
+      updateFilterSuggestions();
+    });
+    filterInput.addEventListener("focus", updateFilterSuggestions);
+    filterInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") hideFilterSuggestions();
+    });
+    document.addEventListener("click", (ev) => {
+      if (ev.target !== filterInput && !filterSuggestions.contains(ev.target)) hideFilterSuggestions();
+    }, true);
+    filterExactToggle.addEventListener("change", () => {
+      getGalleryFilter().exactMatch = filterExactToggle.checked;
+      setBool("dts-filter-exact-match", filterExactToggle.checked);
+      if (filterExactToggle.checked) {
+        folderStats.exact_match_used = true;
+        saveFolderStats();
+        checkAchievements();
+      }
+      resetSingleIndex2();
+      renderCurrentViewRef3();
+    });
+    (function initExactMatchPref() {
+      let on = false;
+      on = getBool("dts-filter-exact-match");
+      filterExactToggle.checked = on;
+      getGalleryFilter().exactMatch = on;
+    })();
+    filterAllBtn.addEventListener("click", () => setBaseFilter("all"));
+    filterUntaggedBtn.addEventListener("click", () => setBaseFilter("untagged"));
+    filterDirtyBtn.addEventListener("click", () => setBaseFilter("dirty"));
+    excludeBadgeClear.addEventListener("click", () => {
+      getGalleryFilter().excludes = "";
+      excludeBadge.style.display = "none";
+      renderCurrentViewRef3();
+    });
+    btnClearFilter.addEventListener("click", () => {
+      filterInput.value = "";
+      const galleryFilter = getGalleryFilter();
+      galleryFilter.terms = [];
+      galleryFilter.excludes = "";
+      if (!isFilterModeLocked()) galleryFilter.mode = "OR";
+      excludeBadge.style.display = "none";
+      hideFilterSuggestions();
+      refreshFilterModeUI();
+      setBaseFilter("all");
+    });
+    btnReviewFlagged.addEventListener("click", () => {
+      reviewFlaggedActive = !reviewFlaggedActive;
+      btnReviewFlagged.classList.toggle("active", reviewFlaggedActive);
+      tagFamilyListArea.classList.toggle("review-mode", reviewFlaggedActive);
+      if (reviewFlaggedActive) reviewedFlaggedTags = /* @__PURE__ */ new Set();
+      refreshStats();
+    });
+  }
+
+  // src/renderer/quick-tag.ts
+  var STORE_KEY = "dts-quicktags";
+  var sized = (label, tag) => ({ label, tag, adds: ["breasts"] });
+  var BUILTIN_GROUPS = [
+    { id: "hair-length", label: "Hair length", items: [{ label: "Short", tag: "short hair" }, { label: "Medium", tag: "medium hair" }, { label: "Long", tag: "long hair" }] },
+    { id: "breast-size", label: "Breast size", items: [{ label: "Flat", tag: "flat chest" }, sized("Small", "small breasts"), sized("Medium", "medium breasts"), sized("Large", "large breasts"), sized("Gigantic", "gigantic breasts")] },
+    { id: "build", label: "Build", items: [{ label: "Slim", tag: "slim" }, { label: "Plump", tag: "plump" }] },
+    { id: "legs", label: "Legs", items: [{ label: "Thick thighs", tag: "thick thighs" }, { label: "Slim legs", tag: "slim legs" }] },
+    { id: "gaze", label: "Gaze", items: [{ label: "Looking at viewer", tag: "looking at viewer" }, { label: "Looking away", tag: "looking away" }, { label: "Looking to the side", tag: "looking to the side" }] }
+  ];
+  var BREAST_SIZES = ["small breasts", "medium breasts", "large breasts", "gigantic breasts"];
+  var deps2 = null;
+  var panel = null;
+  var currentEntry = null;
+  function normTag(t) {
+    return t.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+  }
+  function normList(s) {
+    return Array.from(new Set(s.split(",").map(normTag).filter(Boolean)));
+  }
+  function loadStore() {
+    const s = getJSON(STORE_KEY, null);
+    return { groups: Array.isArray(s?.groups) ? s.groups : [], extra: s?.extra && typeof s.extra === "object" ? s.extra : {} };
+  }
+  function saveStore(s) {
+    setJSON(STORE_KEY, s);
+  }
+  function allGroups() {
+    const store = loadStore();
+    return [
+      ...BUILTIN_GROUPS.map((g) => ({ ...g, items: [...g.items, ...store.extra[g.id] || []] })),
+      ...store.groups.map((g) => ({ ...g, custom: true }))
+    ];
+  }
+  function isCustomItem(groupId, def) {
+    return !BUILTIN_GROUPS.some((g) => g.id === groupId && g.items.includes(def));
+  }
+  function allItems() {
+    return allGroups().flatMap((g) => g.items);
+  }
+  function tick(entry, def) {
+    deps2.addTagToEntry(entry, [def.tag, ...def.adds || []].join(","));
+    for (const other of allItems()) {
+      if (other !== def && other.untickedBy?.includes(def.tag) && entry.tags.includes(other.tag)) untick(entry, other);
+    }
+  }
+  function untick(entry, def) {
+    deps2.removeTagFromEntry(entry, def.tag);
+    const stillTicked = allItems().filter((o) => o !== def && entry.tags.includes(o.tag));
+    for (const t of def.adds || []) {
+      if (def.keep?.includes(t)) continue;
+      if (stillTicked.some((o) => o.adds?.includes(t))) continue;
+      if (entry.tags.includes(t)) deps2.removeTagFromEntry(entry, t);
+    }
+    for (const t of def.untickRemoves || []) if (entry.tags.includes(t)) deps2.removeTagFromEntry(entry, t);
+  }
+  function applyBuiltinRules(entry) {
+    const sizes = BREAST_SIZES.some((t) => entry.tags.includes(t));
+    if (!sizes && entry.tags.includes("flat chest") && entry.tags.includes("breasts")) deps2.removeTagFromEntry(entry, "breasts");
+  }
+  function field(box, label, hint, value, placeholder, list) {
+    const wrap = document.createElement("label");
+    wrap.className = "quicktag-edit-field";
+    const l = document.createElement("span");
+    l.className = "quicktag-edit-label";
+    l.textContent = label;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = value;
+    input.placeholder = placeholder;
+    input.addEventListener("keydown", (e) => e.stopPropagation());
+    if (list) attachPickAutocomplete(input, (v) => {
+      input.value = v + ", ";
+      input.focus();
+    });
+    else attachFillAutocomplete(input);
+    wrap.append(l, input);
+    if (hint) {
+      const h = document.createElement("span");
+      h.className = "quicktag-edit-hint";
+      h.textContent = hint;
+      wrap.appendChild(h);
+    }
+    box.appendChild(wrap);
+    return input;
+  }
+  function openEditor(groupLabel, existing) {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (v) => {
+        if (!done) {
+          done = true;
+          resolve(v);
+        }
+        close();
+      };
+      const { box, close } = createModalShell({ boxClassName: "quicktag-edit-box", onDismiss: () => finish(null) });
+      const title = document.createElement("div");
+      title.className = "confirm-message";
+      title.textContent = `${existing ? "Edit" : "New"} quicktag in ${groupLabel}`;
+      box.appendChild(title);
+      const tag = field(box, "Quicktag", "The tag ticking this box writes.", existing?.tag || "", "e.g. very long hair", false);
+      const label = field(box, "Checkbox label (optional)", "What the box says; blank shows the tag.", existing?.label || "", "e.g. Very long", false);
+      const adds = field(box, "Ticking also adds", "Extra tags written with it (commas for several).", (existing?.adds || []).join(", "), "e.g. long hair", true);
+      const keep = field(box, "Keep after unticking", "Which of those extra tags stay when this is unticked (the rest are removed with it).", (existing?.keep || []).join(", "), "e.g. long hair", true);
+      const untickRemoves = field(box, "Unticking also removes", "Other tags taken off when this is unticked.", (existing?.untickRemoves || []).join(", "), "", true);
+      const untickedBy = field(box, "Unticked by", "Ticking any of these tags unticks this quicktag.", (existing?.untickedBy || []).join(", "), "e.g. short hair", true);
+      const row = document.createElement("div");
+      row.className = "confirm-btn-row";
+      const cancel = document.createElement("button");
+      cancel.textContent = "Cancel";
+      cancel.addEventListener("click", () => finish(null));
+      const save = document.createElement("button");
+      save.className = "primary";
+      save.textContent = existing ? "Save" : "Add quicktag";
+      save.addEventListener("click", () => {
+        const t = normTag(tag.value);
+        if (!t) {
+          toast("Enter the quicktag (the tag it writes).");
+          tag.focus();
+          return;
+        }
+        const addList = normList(adds.value).filter((x) => x !== t);
+        const keepList = normList(keep.value);
+        const notAdded = keepList.filter((x) => !addList.includes(x));
+        if (notAdded.length) {
+          toast(`"Keep after unticking" can only list tags from "Ticking also adds" (${notAdded.join(", ")} isn't there).`, 4200);
+          keep.focus();
+          return;
+        }
+        const def = { tag: t };
+        if (normTag(label.value)) def.label = label.value.trim();
+        if (addList.length) def.adds = addList;
+        if (keepList.length) def.keep = keepList;
+        const ur = normList(untickRemoves.value).filter((x) => x !== t);
+        if (ur.length) def.untickRemoves = ur;
+        const ub = normList(untickedBy.value).filter((x) => x !== t);
+        if (ub.length) def.untickedBy = ub;
+        finish(def);
+      });
+      row.append(cancel, save);
+      box.appendChild(row);
+      requestAnimationFrame(() => tag.focus());
+    });
+  }
+  async function addQuickTag(group) {
+    const def = await openEditor(group.label, null);
+    if (!def) return;
+    const store = loadStore();
+    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] ||= [];
+    if (group.items.some((d) => d.tag === def.tag)) {
+      toast(`"${def.tag}" is already a quicktag in ${group.label}.`);
+      return;
+    }
+    list.push(def);
+    saveStore(store);
+    refresh();
+  }
+  async function editQuickTag(group, def) {
+    const next = await openEditor(group.label, def);
+    if (!next) return;
+    const store = loadStore();
+    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] || [];
+    const i = list.findIndex((d) => d.tag === def.tag);
+    if (i === -1) return;
+    list[i] = next;
+    saveStore(store);
+    refresh();
+  }
+  async function deleteQuickTag(group, def) {
+    const ok = await showConfirmModal(`Delete the quicktag "${def.label || def.tag}"? Tags already on images stay.`, { okLabel: "Delete", danger: true });
+    if (!ok) return;
+    const store = loadStore();
+    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] || [];
+    const i = list.findIndex((d) => d.tag === def.tag);
+    if (i !== -1) list.splice(i, 1);
+    saveStore(store);
+    refresh();
+  }
+  async function addCategory() {
+    const name = (await showPromptModal("Name the new quicktag category:", { placeholder: "e.g. Eye colour", okLabel: "Add category" }))?.trim();
+    if (!name) return;
+    if (allGroups().some((g) => g.label.toLowerCase() === name.toLowerCase())) {
+      toast(`There's already a "${name}" category.`);
+      return;
+    }
+    const store = loadStore();
+    store.groups.push({ id: "custom-" + Date.now().toString(36), label: name, items: [] });
+    saveStore(store);
+    refresh();
+  }
+  async function deleteCategory(group) {
+    const ok = await showConfirmModal(
+      group.items.length ? `Delete the category "${group.label}" and its ${group.items.length} quicktag(s)? Tags already on images stay.` : `Delete the category "${group.label}"?`,
+      { okLabel: "Delete", danger: true }
+    );
+    if (!ok) return;
+    const store = loadStore();
+    store.groups = store.groups.filter((g) => g.id !== group.id);
+    saveStore(store);
+    refresh();
+  }
+  function refresh() {
+    if (currentEntry) showQuickTag(currentEntry);
+  }
+  function smallButton(text, title, onClick, cls = "") {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "quicktag-mini" + (cls ? " " + cls : "");
+    b.textContent = text;
+    b.title = title;
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick();
+    });
+    return b;
+  }
+  function initQuickTag(d) {
+    deps2 = d;
+    panel = document.createElement("div");
+    panel.id = "quickTagPanel";
+    panel.className = "quicktag-panel";
+    deps2.leftPanel.appendChild(panel);
+  }
+  function showQuickTag(entry) {
+    if (!deps2 || !panel) return;
+    currentEntry = entry;
+    deps2.leftPanel.classList.add("quicktag-on");
+    panel.innerHTML = "";
+    const title = document.createElement("h3");
+    title.className = "panel-title";
+    title.textContent = "IMAGE QUICKTAGGING";
+    panel.appendChild(title);
+    const note = document.createElement("div");
+    note.className = "quicktag-note";
+    note.textContent = "Tick to add the tag to this image, untick to remove it. + adds your own.";
+    panel.appendChild(note);
+    const has = new Set(entry.tags);
+    for (const group of allGroups()) {
+      const block = document.createElement("div");
+      block.className = "quicktag-group";
+      const head = document.createElement("div");
+      head.className = "quicktag-group-head";
+      const name = document.createElement("span");
+      name.textContent = group.label;
+      head.appendChild(name);
+      const actions = document.createElement("span");
+      actions.className = "quicktag-head-actions";
+      actions.appendChild(smallButton("+", `Add a quicktag to ${group.label}`, () => void addQuickTag(group)));
+      if (group.custom) actions.appendChild(smallButton("\xD7", `Delete the ${group.label} category`, () => void deleteCategory(group), "quicktag-del"));
+      head.appendChild(actions);
+      block.appendChild(head);
+      const row = document.createElement("div");
+      row.className = "quicktag-options";
+      if (!group.items.length) {
+        const empty = document.createElement("div");
+        empty.className = "quicktag-note";
+        empty.textContent = "No quicktags yet \u2014 use +.";
+        row.appendChild(empty);
+      }
+      for (const def of group.items) {
+        const line = document.createElement("div");
+        line.className = "quicktag-line";
+        const opt = document.createElement("label");
+        opt.className = "ach-toggle-row quicktag-option";
+        opt.title = describe(def);
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = has.has(def.tag);
+        cb.addEventListener("change", () => {
+          if (cb.checked) tick(entry, def);
+          else untick(entry, def);
+          applyBuiltinRules(entry);
+          deps2.onChange();
+        });
+        const span = document.createElement("span");
+        span.textContent = def.label || def.tag;
+        opt.append(cb, span);
+        line.appendChild(opt);
+        if (isCustomItem(group.id, def)) {
+          const tools = document.createElement("span");
+          tools.className = "quicktag-item-actions";
+          tools.appendChild(smallButton("\u270E", "Edit this quicktag", () => void editQuickTag(group, def)));
+          tools.appendChild(smallButton("\xD7", "Delete this quicktag", () => void deleteQuickTag(group, def), "quicktag-del"));
+          line.appendChild(tools);
+        }
+        row.appendChild(line);
+      }
+      block.appendChild(row);
+      panel.appendChild(block);
+    }
+    const addCat = document.createElement("button");
+    addCat.type = "button";
+    addCat.className = "quicktag-add-category";
+    addCat.textContent = "+ Add category";
+    addCat.addEventListener("click", () => void addCategory());
+    panel.appendChild(addCat);
+  }
+  function describe(def) {
+    const parts = [`Writes "${def.tag}"`];
+    if (def.adds?.length) parts.push(`also adds ${def.adds.join(", ")}`);
+    if (def.keep?.length) parts.push(`keeps ${def.keep.join(", ")} after unticking`);
+    if (def.untickRemoves?.length) parts.push(`unticking also removes ${def.untickRemoves.join(", ")}`);
+    if (def.untickedBy?.length) parts.push(`unticked by ${def.untickedBy.join(", ")}`);
+    return parts.join("; ");
+  }
+  function hideQuickTag() {
+    if (!deps2) return;
+    deps2.leftPanel.classList.remove("quicktag-on");
+  }
+
   // src/renderer/view.ts
   var viewMode2 = "grid";
   var stickyCompareImages = [];
@@ -23371,7 +23548,7 @@ Image: ${entry.imgName}`,
       thumbwrap.appendChild(lockBadge);
     }
     const mvBadges = buildMergeVoidBadgesEl(e);
-    if (mvBadges) thumbwrap.appendChild(mvBadges);
+    if (mvBadges) statusIconsEl.appendChild(mvBadges);
     if (getShowTagCountBadges()) {
       const countBadge = document.createElement("div");
       countBadge.className = "tagcount-badge";
@@ -24013,10 +24190,10 @@ Image: ${entry.imgName}`,
     img.src = e.objectUrl;
     img.draggable = false;
     box.appendChild(img);
+    const iconCol = document.createElement("div");
+    iconCol.className = "single-icon-col";
     const menuBtn = document.createElement("button");
     menuBtn.className = "img-menu-btn";
-    menuBtn.style.left = "10px";
-    menuBtn.style.top = "10px";
     menuBtn.textContent = "\u22EF";
     menuBtn.title = "More options";
     menuBtn.addEventListener("pointerdown", (ev) => ev.stopPropagation());
@@ -24024,18 +24201,18 @@ Image: ${entry.imgName}`,
       ev.stopPropagation();
       openImageOptionsMenu(e, ev.clientX, ev.clientY);
     });
-    box.appendChild(menuBtn);
-    const statusIconsEl = buildStatusIconsEl(e);
-    statusIconsEl.style.left = "10px";
-    statusIconsEl.style.top = "38px";
-    box.appendChild(statusIconsEl);
+    iconCol.appendChild(menuBtn);
+    iconCol.appendChild(buildStatusIconsEl(e));
     const mvBadges = buildMergeVoidBadgesEl(e);
-    if (mvBadges) {
-      mvBadges.style.position = "absolute";
-      mvBadges.style.left = "10px";
-      mvBadges.style.bottom = "10px";
-      box.appendChild(mvBadges);
+    if (mvBadges) iconCol.appendChild(mvBadges);
+    if (e.meta && e.meta.locked) {
+      const lockBadge = document.createElement("div");
+      lockBadge.className = "lock-badge";
+      setIconLabel(lockBadge, "\u{1F512}");
+      lockBadge.title = "Locked \u2014 mass tools (Quick Merge, Master Tags, bulk WD14, etc.) skip this image";
+      iconCol.appendChild(lockBadge);
     }
+    box.appendChild(iconCol);
     const hint = document.createElement("div");
     hint.className = "single-preview-hint";
     hint.textContent = "Click to view full size";
@@ -26110,6 +26287,8 @@ Image: ${entry.imgName}`,
       entry.meta.mergeImmune = !entry.meta.mergeImmune;
       getEntryMeta2()[entry.base] = entry.meta;
       saveEntryMetaRef2();
+      if (!entry.meta.mergeImmune) resweepAllEntries();
+      else restoreEntryFromRules(entry, { merge: true });
       setIconLabel(toggleMergeImmuneBtn, mergeImmuneLabel());
       setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
       renderCurrentView();
@@ -26118,6 +26297,8 @@ Image: ${entry.imgName}`,
       entry.meta.antivoid = !entry.meta.antivoid;
       getEntryMeta2()[entry.base] = entry.meta;
       saveEntryMetaRef2();
+      if (!entry.meta.antivoid) resweepAllEntries();
+      else restoreEntryFromRules(entry, { void: true });
       setIconLabel(toggleAntivoidBtn, antivoidLabel());
       setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());
       renderCurrentView();
@@ -26128,6 +26309,8 @@ Image: ${entry.imgName}`,
       entry.meta.antivoid = !bothOn;
       getEntryMeta2()[entry.base] = entry.meta;
       saveEntryMetaRef2();
+      if (bothOn) resweepAllEntries();
+      else restoreEntryFromRules(entry, { merge: true, void: true });
       setIconLabel(toggleMergeImmuneBtn, mergeImmuneLabel());
       setIconLabel(toggleAntivoidBtn, antivoidLabel());
       setIconLabel(toggleAntimmunizeBtn, antimmunizeLabel());

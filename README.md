@@ -174,9 +174,10 @@ cropped region as a *new* image instead, leaving the source untouched.
   to collapse spelling variants and junk tags across the whole dataset.
 - **Retroactive Merge/Void** (right sidebar) — standing "these tags → this tag (or nothing)"
   rules that auto-correct matching tags the moment they come in, from any source. Try to
-  hand-type a tag a rule covers, and it gets blocked with a pointer back to the rule. Pause a
-  rule, or a single tag within it, to restore originals. Per-image Immunize and Antivoid
-  exemptions cover the rest. **Past Tag Preview** shows, on every card, the tags a rule took off
+  hand-type a tag a rule covers, and it's corrected on the spot (merged, or dropped) with a
+  toast. Pause a rule, or a single tag within it, to restore originals. Per-image Immunize and
+  Antivoid exemptions cover the rest, and they hand an image its tags back the moment you turn
+  them on. Merge rules sit above one permanent Void box. **Past Tag Preview** shows, on every card, the tags a rule took off
   (struck through for voids, an inward-arrows mark for merges): exactly what that image gets back
   if you pause the rule. Use it so a cleanup never has to be repeated.
 - **Bucket Images** (right sidebar) — crops and resizes every image to its nearest LoRA training
@@ -445,3 +446,7 @@ intended replacement for a growing prose changelog.
   same names. `build/icon.ico`/`build/icon.png` must also stay listed in `build.files` — like any
   new runtime-needed file, electron-builder's packaged build won't include them otherwise (its
   `files` list is an explicit whitelist, not `**/*`).
+
+## License
+
+MIT. See [LICENSE](LICENSE).

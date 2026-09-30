@@ -147,7 +147,8 @@ export const HELP_SECTIONS: HelpSection[] = [
         <li><b>🚫 Merge Immunize / 🟢 Antivoid / ✋ Antimmunize</b> — permanently exempt this one
         image from the Retroactive Merge/Void dock's rules. This is stronger than Lock: Lock only
         skips mass tools, these specifically block the standing-rule system even when you
-        deliberately re-trigger it (e.g. by editing a rule).</li>
+        deliberately re-trigger it (e.g. by editing a rule). Turning one on gives the image back
+        the tags the rules took; turning it off applies the rules to it again right away.</li>
         <li><b>⏮ Reset edits</b> — revert this image back to its earliest known tag state.</li>
         <li><b>🗑️ Remove all tags</b> — clears every tag on this image at once (confirmed first)
         instead of ${isTouchDevice ? 'tapping' : 'clicking'} each chip's own ×. Undoable from the main Undo button.</li>
@@ -188,12 +189,12 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p><b>Retroactive Merge/Void</b> — standing rules: "these tags → this one canonical tag" (a
       merge) or "these tags → nothing" (a void). Whenever a rule's tags show up on a Gallery image
       afterward — by WD14, Master Tags, an accepted SynthDat image, or typing it in — they're
-      corrected automatically (typing a blocked tag by hand is refused with a toast, not silently
-      rewritten). This only affects Gallery images; Disabled ones are frozen until restored. A rule
+      corrected automatically (a ruled tag typed by hand is corrected on the spot, with a toast
+      naming the rule). This only affects Gallery images; Disabled ones are frozen until restored. A rule
       can be paused, or one of its tags turned off individually, without losing anything — both
-      actively restore whatever each affected image originally had. Void rules
-      show in their own collapsible group (they all share one rule, since there's no separate
-      canonical tag to key them by); merge rules list one row per canonical tag.</p>
+      actively restore whatever each affected image originally had. Merge rules list one row per
+      canonical tag (+ New rule only makes merge rules); below them, one permanent collapsible
+      Void box holds every voided tag.</p>
       <p><b>Past Tag Preview</b> — every image also shows the tags a rule took off it, after its
       real tags, as faded "ghost" tags: struck through for a void, with a four-arrows-inward mark
       for a merge (last in their category with Tag sorting on). They're exactly what the image gets
@@ -289,7 +290,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p><b>🐍 WD14 Autotagger</b> — sends selected images (or a single one, via its 3-dot menu)
       through WD14 and merges the tags it returns onto each card. Expand "⚙ WD14 settings" to pick
       the tagging source, model, confidence thresholds, and whether results apply automatically or
-      go through a review step first. "Tagging source" is either <b>on-device</b> — the model runs
+      go through a review step first (one card per image: new tags tinted, × to drop, type extra
+      tags, untick a card to skip it, optional category sort). "Tagging source" is either <b>on-device</b> — the model runs
       right here, ${isTouchDevice
         ? 'hardware-accelerated where your phone supports it, falling back to CPU otherwise'
         : 'with <b>Prefer GPU</b> using DirectML when available and falling back to CPU (the completion toast names which one ran)'},
