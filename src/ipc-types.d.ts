@@ -112,6 +112,8 @@ export interface ElectronAPI {
   comfyLocalConnect?(): Promise<{ ok: boolean; error?: string; comfyVersion?: string }>;
   comfyLocalShutdown?(): Promise<ComfyLocalStatus>;
   // Trainflow (desktop only; absent in the web demo and the Android shim).
+  // Real path of a File (the loaded dataset's folder is found through one of its images).
+  getPathForFile?(file: File): string;
   trainflowStatus?(): Promise<TrainflowStatus>;
   trainflowPickFolder?(): Promise<TrainflowStatus>;
   trainflowPickPath?(p: { kind: 'folder' | 'file'; title: string; defaultPath?: string }): Promise<string | null>;

@@ -8,6 +8,16 @@ import { $ } from './dom';
 import { getJSON, setJSON } from './storage';
 import { showImageLightbox } from './shared-ui';
 import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck } from '../shared-types';
+import type { Entry, DirHandle } from './types';
+
+interface TrainflowDeps {
+  getDirHandle: () => DirHandle | null;
+  getEntries: () => Entry[];
+  saveAllDirty: (silent?: boolean) => Promise<void>;
+  reload: () => Promise<void>;
+}
+
+const PATHS_KEY = 'dts-trainflow-dataset-paths';
 
 const STORAGE_KEY = 'dts-trainflow-settings';
 const POLL_MS = 2000;
@@ -22,7 +32,7 @@ const DEFAULTS: TrainflowSettings = {
 
 // Element id <-> setting, for the plain inputs.
 const TEXT_FIELDS: [keyof TrainflowSettings, string][] = [
-  ['trigger', 'tfTrigger'], ['datasetPath', 'tfDataset'], ['ditPath', 'tfDit'], ['qwenPath', 'tfQwen'], ['vaePath', 'tfVae'],
+  ['trigger', 'tfTrigger'], ['ditPath', 'tfDit'], ['qwenPath', 'tfQwen'], ['vaePath', 'tfVae'],
   ['lr', 'tfLr'], ['prompt', 'tfPrompt'], ['negPrompt', 'tfNeg']
 ];
 const NUM_FIELDS: [keyof TrainflowSettings, string][] = [
@@ -35,7 +45,7 @@ export function isTrainflowSupported(): boolean {
   return !!(window.electronAPI && window.electronAPI.trainflowStatus);
 }
 
-export function initTrainflow(): void {
+export function initTrainflow(deps: TrainflowDeps): void {
   const api = window.electronAPI;
   const tab = $('trainflowTab');
   const tabBtn = $('tabTrainflow');
@@ -68,7 +78,6 @@ export function initTrainflow(): void {
     inputEl(id).addEventListener('input', () => {
       (settings as unknown as Record<string, unknown>)[k] = inputEl(id).value;
       save();
-      if (k === 'datasetPath') scheduleDatasetCheck();
     });
   }
   for (const [k, id] of NUM_FIELDS) {
@@ -88,36 +97,58 @@ export function initTrainflow(): void {
     save();
   });
 
-  // ---- dataset check -------------------------------------------------------
-  let checkTimer: ReturnType<typeof setTimeout> | undefined;
-  function scheduleDatasetCheck(): void {
-    clearTimeout(checkTimer);
-    checkTimer = setTimeout(() => void runDatasetCheck(), 400);
+  // ---- the loaded dataset ---------------------------------------------------
+  // Trainflow trains whatever dataset Osmium has loaded. Osmium holds a folder handle, not a path, so the
+  // path comes from one of its images (Electron can name a File's real location); if that ever fails the
+  // user can point at the folder once, remembered per dataset name.
+  let datasetPath = '';
+  const dirOf = (p: string) => p.replace(/[\\/][^\\/]*$/, '');
+  async function resolveDataset(): Promise<string> {
+    const dir = deps.getDirHandle();
+    const nameEl = $('tfDatasetName'), locate = $('btnTfLocate');
+    datasetPath = '';
+    locate.style.display = 'none';
+    if (!dir) { nameEl.textContent = 'No dataset loaded'; nameEl.title = ''; return ''; }
+    const e = deps.getEntries().find((x) => !x.disabled && !x.original);
+    if (e && api.getPathForFile) {
+      try { const p = api.getPathForFile(await e.imgHandle.getFile()); if (p) datasetPath = dirOf(p); } catch { /* fall back below */ }
+    }
+    if (!datasetPath) datasetPath = getJSON<Record<string, string>>(PATHS_KEY, {})[dir.name] || '';
+    nameEl.textContent = datasetPath ? `${dir.name} (${datasetPath})` : `${dir.name} (location unknown)`;
+    nameEl.title = datasetPath;
+    locate.style.display = datasetPath ? 'none' : '';
+    return datasetPath;
   }
+  $('btnTfLocate').addEventListener('click', async () => {
+    const dir = deps.getDirHandle();
+    const p = await api.trainflowPickPath!({ kind: 'folder', title: 'Where is the loaded dataset?' });
+    if (!p || !dir) return;
+    const map = getJSON<Record<string, string>>(PATHS_KEY, {});
+    map[dir.name] = p;
+    setJSON(PATHS_KEY, map);
+    await refreshDataset();
+  });
   async function runDatasetCheck(): Promise<TrainflowDatasetCheck | null> {
     const box = $('tfDatasetCheck');
-    if (!settings.datasetPath.trim()) { box.textContent = 'Choose a folder of images with matching .txt captions.'; return null; }
-    const c = await api.trainflowCheckDataset!(settings.datasetPath.trim(), bucketCfg());
+    if (!datasetPath) { box.textContent = 'Load a dataset (images with matching .txt captions) to train it.'; return null; }
+    const c = await api.trainflowCheckDataset!(datasetPath, bucketCfg());
     box.textContent = c.images
       ? `${c.images} images` + (c.unbucketed ? ` · ${c.unbucketed} will be bucketed when you start (originals go to original_images/)` : ' · all already bucketed') + (c.errors.length ? '\n' + c.errors.join('\n') : '')
       : c.errors.join('\n');
     box.style.whiteSpace = 'pre-wrap';
     return c;
   }
+  async function refreshDataset(): Promise<void> { await resolveDataset(); await runDatasetCheck(); }
 
   async function pick(kind: 'folder' | 'file', title: string, current: string): Promise<string | null> {
     return api.trainflowPickPath!({ kind, title, defaultPath: current || undefined });
   }
-  $('btnTfDataset').addEventListener('click', async () => {
-    const p = await pick('folder', 'Choose the dataset folder', settings.datasetPath);
-    if (!p) return;
-    settings.datasetPath = p; inputEl('tfDataset').value = p; save(); void runDatasetCheck();
-  });
   $('btnTfVerifyBuckets').addEventListener('click', async () => {
     const box = $('tfBucketReport');
-    const dir = settings.datasetPath.trim();
+    await resolveDataset();
+    const dir = datasetPath;
     box.style.display = '';
-    if (!dir) { box.textContent = 'Choose a dataset folder first.'; return; }
+    if (!dir) { box.textContent = 'Load a dataset first.'; return; }
     box.textContent = 'Checking…';
     const cfg = bucketCfg();
     const r = await api.trainflowVerifyBuckets!(dir, cfg);
@@ -130,7 +161,7 @@ export function initTrainflow(): void {
     lines.push(r.toRebucket ? `Start Trainflow would bucket ${r.toRebucket} image${r.toRebucket === 1 ? '' : 's'}.` : 'Nothing to bucket: Start Trainflow would use the dataset as it is.');
     box.textContent = lines.join('\n');
   });
-  $('btnTfDatasetOpen').addEventListener('click', () => void api.trainflowOpen!('dataset', settings.datasetPath));
+  $('btnTfDatasetOpen').addEventListener('click', () => void api.trainflowOpen!('dataset', datasetPath));
   tab.querySelectorAll<HTMLElement>('.tf-pick-file').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.target!;
@@ -159,11 +190,17 @@ export function initTrainflow(): void {
     $('trainflowRunInfo').textContent = 'Checking your dataset, models and GPU…';
     const b = bucketCfg();
     try {
-      const r = await api.trainflowStart!({ ...settings, datasetPath: settings.datasetPath.trim(), bucketMin: b.min, bucketMax: b.max, bucketStep: b.step });
+      if (!(await resolveDataset())) { showErrors([deps.getDirHandle() ? 'Osmium couldn\'t find where the loaded dataset is on disk. Use Locate… next to it.' : 'Load a dataset first.']); return; }
+      // Training reads the .txt files, so unsaved tag edits go to disk first.
+      await deps.saveAllDirty(true);
+      const r = await api.trainflowStart!({ ...settings, datasetPath, bucketMin: b.min, bucketMax: b.max, bucketStep: b.step });
       if (!r.ok) showErrors(r.errors || ['Could not start.']);
     } finally {
       starting = false;
+      // Bucketing may have rewritten the dataset's files: show what's on disk now.
+      try { await deps.reload(); } catch { /* no dataset loaded */ }
       await refresh();
+      void refreshDataset();
     }
   });
   $('btnTrainflowStop').addEventListener('click', async () => {
@@ -272,7 +309,7 @@ export function initTrainflow(): void {
   setInterval(() => { if (tabVisible() && !document.hidden) void refresh(); }, POLL_MS);
 
   // index.ts calls this when the tab is switched to, so it never shows stale progress.
-  (window as unknown as { __dtsTrainflowShown?: () => void }).__dtsTrainflowShown = () => { void refresh(); void runDatasetCheck(); };
+  (window as unknown as { __dtsTrainflowShown?: () => void }).__dtsTrainflowShown = () => { void refresh(); void refreshDataset(); };
   void refresh();
   void last;
 }

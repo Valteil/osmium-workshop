@@ -1206,11 +1206,11 @@
           <div class="tool-section">
             <div class="sec-head"><span class="t">Dataset</span></div>
             <label class="field-block" title="Becomes the project name and is put in front of every caption."><span>Trigger word / project name</span><input type="text" id="tfTrigger" placeholder="e.g. unique_style"></label>
-            <div class="field-block">
-              <span>Dataset folder (images + .txt)</span>
+            <div class="field-block" title="Trainflow trains the dataset that's loaded in Osmium (load one from the Datasets tab or File menu).">
+              <span>Loaded dataset</span>
               <div class="synthdat-lora-row">
-                <input type="text" id="tfDataset" placeholder="C:/Images/MyDataset">
-                <button id="btnTfDataset" title="Choose the dataset folder"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-folder"></use></svg>Choose…</button>
+                <span id="tfDatasetName" class="synthdat-local-folder">No dataset loaded</span>
+                <button id="btnTfLocate" style="display:none;" title="Osmium couldn't work out where the loaded dataset lives on disk; point it at the same folder">Locate…</button>
                 <button id="btnTfDatasetOpen" title="Open it in Explorer">Open</button>
               </div>
             </div>

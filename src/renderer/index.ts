@@ -1459,7 +1459,12 @@ import { setIconLabel } from './icons';
   // (the same per-image entry constructor scanDirInto() uses on folder open)
   // so a freshly-accepted generated image is appended to `entries` the exact
   // same way a folder rescan would have built it.
-  initTrainflow();
+  initTrainflow({
+    getDirHandle: () => dirHandle,
+    getEntries: () => entries,
+    saveAllDirty: (silent) => saveAllDirty(silent),
+    reload: () => loadFolder()
+  });
   initSynthDatOverseer({
     getDirHandle: () => dirHandle,
     addEntryFromNewFile: (...args: unknown[]) =>

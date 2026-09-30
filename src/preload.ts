@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { ElectronAPI } from './ipc-types';
 
 // Minimal, explicit bridge — only these actions are exposed to the
@@ -29,6 +29,7 @@ const api: ElectronAPI = {
   comfyLocalPickFolder: () => ipcRenderer.invoke('comfy-local-pick-folder'),
   comfyLocalConnect: () => ipcRenderer.invoke('comfy-local-connect'),
   comfyLocalShutdown: () => ipcRenderer.invoke('comfy-local-shutdown'),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
   trainflowStatus: () => ipcRenderer.invoke('trainflow-status'),
   trainflowPickFolder: () => ipcRenderer.invoke('trainflow-pick-folder'),
   trainflowPickPath: (p) => ipcRenderer.invoke('trainflow-pick-path', p),
