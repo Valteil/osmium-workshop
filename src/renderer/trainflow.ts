@@ -165,15 +165,6 @@ export function initTrainflow(): void {
     const fs = $('trainflowFolderStatus');
     fs.style.display = s.ok ? 'none' : (s.folder ? '' : 'none');
     fs.textContent = s.error || '';
-    // First time the folder is known: point the model fields at where Anima-TrainFlow keeps them.
-    if (s.ok && !settings.ditPath && !settings.qwenPath && !settings.vaePath) {
-      const base = s.folder.replace(/\\/g, '/') + '/models/anima';
-      settings.ditPath = base + '/dit/anima-preview.safetensors';
-      settings.qwenPath = base + '/text_encoder/qwen_3_06b_base.safetensors';
-      settings.vaePath = base + '/vae/qwen_image_vae.safetensors';
-      save(); fillForm();
-    }
-
     const run = s.run;
     const running = run?.state === 'running';
     $<HTMLButtonElement>('btnTrainflowStart').disabled = running || starting || !s.ok;
