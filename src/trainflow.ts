@@ -501,7 +501,12 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
     ACCELERATE_MIXED_PRECISION: 'bf16', ACCELERATE_DYNAMO_BACKEND: 'no'
   };
   try {
-    const child = spawn(inst.python, args, { cwd: inst.scriptsDir, env, detached: true, stdio: ['ignore', logFd, logFd], windowsHide: true });
+    // pythonw.exe (Python with no console): the job is detached, so it has no console, and every data-loader
+    // worker it spawns would otherwise open its own visible console window. multiprocessing reuses
+    // sys.executable, so the workers are windowless too. Output still goes to the log file.
+    const pythonw = path.join(path.dirname(inst.python), 'pythonw.exe');
+    const trainerExe = fs.existsSync(pythonw) ? pythonw : inst.python;
+    const child = spawn(trainerExe, args, { cwd: inst.scriptsDir, env, detached: true, stdio: ['ignore', logFd, logFd], windowsHide: true });
     await new Promise<void>((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
     child.unref();
     writeRun({ pid: child.pid as number, project, outDir, logFile, samplesDir, totalSteps: Math.round(s.steps), startedAt: Date.now() });
