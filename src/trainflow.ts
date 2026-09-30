@@ -489,15 +489,16 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
   const logFile = path.join(outDir, 'osmium_train.log');
   const logFd = fs.openSync(logFile, 'w');
   fs.writeSync(logFd, `Preparing ${project}: ${check.images} images, base ${check.baseRes}px, max bucket ${check.maxBucket}px\n`);
-  const args = [
-    '-m', 'accelerate.commands.launch', '--num_processes=1', '--mixed_precision=bf16', '--dynamo_backend=no',
-    posix(inst.trainScript), '--config_file', posix(trainingToml), '--dataset_config', posix(datasetToml)
-  ];
+  // The trainer runs directly, not through `accelerate launch`: that starts it as a child process, and a
+  // detached job's grandchild doesn't inherit the log file, so its progress bar went nowhere. One process,
+  // one log. (Anima-TrainFlow used a single process via accelerate; mixed precision comes from the toml.)
+  const args = [posix(inst.trainScript), '--config_file', posix(trainingToml), '--dataset_config', posix(datasetToml)];
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     PYTHONPATH: inst.scriptsDir + path.delimiter + (process.env.PYTHONPATH || ''),
     PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1', PYTHONWARNINGS: 'ignore',
-    TORCH_CPP_LOG_LEVEL: 'ERROR', KMP_WARNINGS: '0', CUDA_VISIBLE_DEVICES: '0', ACCELERATE_USE_CPU: 'False'
+    TORCH_CPP_LOG_LEVEL: 'ERROR', KMP_WARNINGS: '0', CUDA_VISIBLE_DEVICES: '0', ACCELERATE_USE_CPU: 'False',
+    ACCELERATE_MIXED_PRECISION: 'bf16', ACCELERATE_DYNAMO_BACKEND: 'no'
   };
   try {
     const child = spawn(inst.python, args, { cwd: inst.scriptsDir, env, detached: true, stdio: ['ignore', logFd, logFd], windowsHide: true });
