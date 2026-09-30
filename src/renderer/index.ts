@@ -1944,6 +1944,11 @@ import { setIconLabel } from './icons';
   }
 
   async function loadFolder(){
+    await loadFolderCore();
+    // Trainflow learns where a newly opened dataset lives on disk (Osmium itself only has a handle).
+    (window as unknown as { __dtsDatasetOpened?: () => void }).__dtsDatasetOpened?.();
+  }
+  async function loadFolderCore(){
     if (!dirHandle) return;
     exitSequentialDetail();
     toast('Scanning folder…');

@@ -552,6 +552,10 @@ export function registerTrainflowHandlers(ipcMain: IpcMain): void {
     const picked = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
     return picked.canceled || !picked.filePaths[0] ? null : picked.filePaths[0];
   });
+  // Is this folder real and does it hold the given file? (used to validate a remembered dataset path)
+  ipcMain.handle('trainflow-path-ok', (_e, dir: string, file?: string) => {
+    try { return fs.statSync(dir).isDirectory() && (!file || fs.existsSync(path.join(dir, file))); } catch { return false; }
+  });
   ipcMain.handle('trainflow-check-dataset', (_e, dir: string, b: { min: number; max: number; step: number }) => checkDataset(dir, b));
   ipcMain.handle('trainflow-verify-buckets', (_e, dir: string, b: { min: number; max: number; step: number }) => verifyBuckets(dir, b));
   ipcMain.handle('trainflow-start', (_e, s: TrainflowSettings) => startTraining(s));

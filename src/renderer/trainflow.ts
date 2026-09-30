@@ -6,7 +6,7 @@
 
 import { $ } from './dom';
 import { getJSON, setJSON } from './storage';
-import { showImageLightbox } from './shared-ui';
+import { showImageLightbox, showConfirmModal, toast } from './shared-ui';
 import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck } from '../shared-types';
 import type { Entry, DirHandle } from './types';
 
@@ -99,35 +99,68 @@ export function initTrainflow(deps: TrainflowDeps): void {
 
   // ---- the loaded dataset ---------------------------------------------------
   // Trainflow trains whatever dataset Osmium has loaded. Osmium holds a folder handle, not a path, so the
-  // path comes from one of its images (Electron can name a File's real location); if that ever fails the
-  // user can point at the folder once, remembered per dataset name.
+  // real location is learned when the dataset is opened (onDatasetOpened: read from an image if Electron can
+  // name it, else the user picks the folder once) and remembered per dataset name. Every use re-checks that
+  // the remembered folder still exists and holds the dataset's first image.
   let datasetPath = '';
   const dirOf = (p: string) => p.replace(/[\\/][^\\/]*$/, '');
+  const firstImage = () => deps.getEntries().find((x) => !x.disabled && !x.original);
+  const savedPaths = () => getJSON<Record<string, string>>(PATHS_KEY, {});
+  const askedThisSession = new Set<string>();
+
+  async function savedPathFor(name: string): Promise<string> {
+    const p = savedPaths()[name];
+    if (!p) return '';
+    const img = firstImage();
+    return (await api.trainflowPathOk!(p, img?.imgName)) ? p : '';
+  }
+  async function detectPath(): Promise<string> {
+    const e = firstImage();
+    if (!e || !api.getPathForFile) return '';
+    try { const p = api.getPathForFile(await e.imgHandle.getFile()); return p ? dirOf(p) : ''; } catch { return ''; }
+  }
+  function remember(name: string, p: string): void {
+    const map = savedPaths(); map[name] = p; setJSON(PATHS_KEY, map);
+  }
   async function resolveDataset(): Promise<string> {
     const dir = deps.getDirHandle();
     const nameEl = $('tfDatasetName'), locate = $('btnTfLocate');
     datasetPath = '';
     locate.style.display = 'none';
     if (!dir) { nameEl.textContent = 'No dataset loaded'; nameEl.title = ''; return ''; }
-    const e = deps.getEntries().find((x) => !x.disabled && !x.original);
-    if (e && api.getPathForFile) {
-      try { const p = api.getPathForFile(await e.imgHandle.getFile()); if (p) datasetPath = dirOf(p); } catch { /* fall back below */ }
-    }
-    if (!datasetPath) datasetPath = getJSON<Record<string, string>>(PATHS_KEY, {})[dir.name] || '';
+    datasetPath = await savedPathFor(dir.name);
+    if (!datasetPath) { datasetPath = await detectPath(); if (datasetPath) remember(dir.name, datasetPath); }
     nameEl.textContent = datasetPath ? `${dir.name} (${datasetPath})` : `${dir.name} (location unknown)`;
     nameEl.title = datasetPath;
     locate.style.display = datasetPath ? 'none' : '';
     return datasetPath;
   }
-  $('btnTfLocate').addEventListener('click', async () => {
+  // Pick the folder and accept it only if it really is this dataset.
+  async function locateDataset(): Promise<boolean> {
     const dir = deps.getDirHandle();
-    const p = await api.trainflowPickPath!({ kind: 'folder', title: 'Where is the loaded dataset?' });
-    if (!p || !dir) return;
-    const map = getJSON<Record<string, string>>(PATHS_KEY, {});
-    map[dir.name] = p;
-    setJSON(PATHS_KEY, map);
-    await refreshDataset();
-  });
+    if (!dir) return false;
+    const p = await api.trainflowPickPath!({ kind: 'folder', title: `Where is "${dir.name}" on your computer?` });
+    if (!p) return false;
+    if (!(await api.trainflowPathOk!(p, firstImage()?.imgName))) { toast("That folder doesn't contain this dataset's images."); return false; }
+    remember(dir.name, p);
+    return true;
+  }
+  // Called after every dataset open (loadFolder), so Trainflow never has to ask later.
+  (window as unknown as { __dtsDatasetOpened?: () => void }).__dtsDatasetOpened = () => {
+    void (async () => {
+      const dir = deps.getDirHandle();
+      if (!dir || !firstImage()) return;
+      if (await savedPathFor(dir.name)) return;
+      const detected = await detectPath();
+      if (detected) { remember(dir.name, detected); return; }
+      if (askedThisSession.has(dir.name)) return;
+      askedThisSession.add(dir.name);
+      const ok = await showConfirmModal(`To train "${dir.name}" later, Trainflow needs to know where it is on your computer (Osmium can't see folder paths itself). Choose its folder now? You only do this once per dataset.`, { okLabel: 'Choose folder', cancelLabel: 'Later' });
+      if (ok) await locateDataset();
+      if (tab.style.display !== 'none') void refreshDataset();
+    })();
+  };
+  $('btnTfLocate').addEventListener('click', async () => { if (await locateDataset()) await refreshDataset(); });
   async function runDatasetCheck(): Promise<TrainflowDatasetCheck | null> {
     const box = $('tfDatasetCheck');
     if (!datasetPath) { box.textContent = 'Load a dataset (images with matching .txt captions) to train it.'; return null; }

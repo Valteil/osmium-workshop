@@ -117,6 +117,7 @@ export interface ElectronAPI {
   trainflowStatus?(): Promise<TrainflowStatus>;
   trainflowPickFolder?(): Promise<TrainflowStatus>;
   trainflowPickPath?(p: { kind: 'folder' | 'file'; title: string; defaultPath?: string }): Promise<string | null>;
+  trainflowPathOk?(dir: string, file?: string): Promise<boolean>;
   trainflowCheckDataset?(dir: string, bucket: { min: number; max: number; step: number }): Promise<TrainflowDatasetCheck>;
   trainflowVerifyBuckets?(dir: string, bucket: { min: number; max: number; step: number }): Promise<TrainflowBucketReport>;
   trainflowStart?(s: TrainflowSettings): Promise<TrainflowStartResult>;

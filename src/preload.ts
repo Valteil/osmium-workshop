@@ -33,6 +33,7 @@ const api: ElectronAPI = {
   trainflowStatus: () => ipcRenderer.invoke('trainflow-status'),
   trainflowPickFolder: () => ipcRenderer.invoke('trainflow-pick-folder'),
   trainflowPickPath: (p) => ipcRenderer.invoke('trainflow-pick-path', p),
+  trainflowPathOk: (dir, file) => ipcRenderer.invoke('trainflow-path-ok', dir, file),
   trainflowCheckDataset: (dir, bucket) => ipcRenderer.invoke('trainflow-check-dataset', dir, bucket),
   trainflowVerifyBuckets: (dir, bucket) => ipcRenderer.invoke('trainflow-verify-buckets', dir, bucket),
   trainflowStart: (s) => ipcRenderer.invoke('trainflow-start', s),
