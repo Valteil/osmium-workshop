@@ -263,6 +263,8 @@
     line-height:1.03;
     margin:0 0 22px;
     font-weight:600;
+    /* Two lines only (the <br>): the title may run past its grid column instead of re-wrapping in wide-lettered themes. */
+    width:max-content; max-width:calc(100vw - 48px); position:relative; z-index:3;
   }
   h1.hero-title em{
     font-style:normal; color:var(--ink);
