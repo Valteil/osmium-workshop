@@ -43,6 +43,7 @@ export interface SynthdatQueuePayload {
 // Bridge's synced copy has it too.
 import type { ComfyLocalStatus } from './shared-types';
 export type { ComfyLocalStatus };
+import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck, TrainflowStartResult } from './shared-types';
 
 export interface ExportAppStateResult {
   ok: boolean;
@@ -110,6 +111,18 @@ export interface ElectronAPI {
   comfyLocalPickFolder?(): Promise<ComfyLocalStatus>;
   comfyLocalConnect?(): Promise<{ ok: boolean; error?: string; comfyVersion?: string }>;
   comfyLocalShutdown?(): Promise<ComfyLocalStatus>;
+  // Trainflow (desktop only; absent in the web demo and the Android shim).
+  trainflowStatus?(): Promise<TrainflowStatus>;
+  trainflowPickFolder?(): Promise<TrainflowStatus>;
+  trainflowPickPath?(p: { kind: 'folder' | 'file'; title: string; defaultPath?: string }): Promise<string | null>;
+  trainflowCheckDataset?(dir: string, bucket: { min: number; max: number; step: number }): Promise<TrainflowDatasetCheck>;
+  trainflowStart?(s: TrainflowSettings): Promise<TrainflowStartResult>;
+  trainflowStop?(): Promise<{ ok: boolean; message: string }>;
+  trainflowClearRun?(): Promise<TrainflowStatus>;
+  trainflowGetSample?(name: string): Promise<Uint8Array | null>;
+  trainflowOpen?(what: 'output' | 'dataset' | 'log' | 'folder', datasetPath?: string): Promise<void>;
+  // Is a Trainflow job running (it outlives the app)? Asked by the quit guard.
+  trainflowRunning?(): Promise<boolean>;
 
   wd14LocalListModels(): Promise<Wd14LocalModel[]>;
   wd14LocalDeleteModel(name: string): Promise<void>;

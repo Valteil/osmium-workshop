@@ -38,8 +38,8 @@ export const HELP_SECTIONS: HelpSection[] = [
         <li><b>_dts_achievements.json</b> — achievements unlocked in this dataset.</li>
         <li><b>_dts_subject_presets.json</b> — characters saved from Tag sorting's character
         sections (only appears once you save one).</li>
-        ${isTouchDevice ? '' : `<li><b>initial_state/</b> — originals kept by Bucket Images, shown in the
-        🖼 Initial State view (only appears once you bucket).</li>`}
+        ${isTouchDevice ? '' : `<li><b>original_images/</b> — originals kept by Bucket Images, shown in the
+        🖼 Originals view (only appears once you bucket).</li>`}
       </ul>
       <p><b>File ▸ Add images…</b> copies more images into the open dataset, each arriving untagged
       with an empty <code>.txt</code>.${isTouchDevice ? ' You choose which app to pick them from — Photos, Files, or any file manager you have installed.' : ''}
@@ -76,7 +76,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         See also tags below (click one to open it). Drag it by its title; it stays open until you
         close it.</li>`}
         <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
-        ${isTouchDevice ? '' : `<li><b>🖼 Initial State</b> — the pre-bucketing originals kept by Bucket Images (see Power
+        ${isTouchDevice ? '' : `<li><b>🖼 Originals</b> — the pre-bucketing originals kept by Bucket Images (see Power
         tools). Their tags can be edited, but they can't be disabled or restored; Bucket Images'
         Revert is what moves them back.</li>`}
         <li><b>🔢 Rename all</b> — renames every loaded image (+ its .txt) to a simple zero-padded
@@ -204,8 +204,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       training bucket (Min side / Max side / Step, default 256 / 1024 / 64), so your trainer
       doesn't have to. The crop keeps the subject using a saliency model (a one-time ~176 MB
       download, ⬇ button in the dock). <b>Prefer GPU</b> runs it on your graphics card with an
-      automatic CPU fallback. Originals are never lost: they move to an <code>initial_state/</code>
-      folder (browse them via the 🖼 Initial State view), and images already at a bucket size are
+      automatic CPU fallback. Originals are never lost: they move to an <code>original_images/</code>
+      folder (browse them via the 🖼 Originals view), and images already at a bucket size are
       skipped, so re-running only handles the new ones. <b>↩ Revert bucketing</b> puts the
       originals back.</p>`}
       <p>Merge and Void tend to matter a lot more for a
@@ -269,7 +269,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       is tucked away, clicking this tab opens it, and clicking the tab again tucks it back.`}</p>
       <p><b>Master Tag Control</b> — select images by ${isTouchDevice ? 'tapping' : 'clicking'} thumbnails in the mini-grid here, or
       by selecting them in the main Gallery first (selection stays in sync either way). The
-      mini-grid always shows what the Gallery shows, so switch the Gallery to Disabled${isTouchDevice ? '' : ' or Initial State'}
+      mini-grid always shows what the Gallery shows, so switch the Gallery to Disabled${isTouchDevice ? '' : ' or Originals'}
       to pick those images; it updates as soon as the Gallery changes. The selection tools act on
       whatever you selected, while the dataset-wide ones only touch active images. From there
       you can apply or remove a tag across the whole selection, conditionally apply one tag based

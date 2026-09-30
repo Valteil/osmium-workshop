@@ -81,3 +81,33 @@ export interface BucketImageResult {
   bucket?: [number, number];
   provider?: string;
 }
+
+// Trainflow (src/trainflow.ts): Anima LoRA training from the Trainflow tab.
+export interface TrainflowSettings {
+  trigger: string; datasetPath: string;
+  ditPath: string; qwenPath: string; vaePath: string;
+  rank: number; lr: string; optimizer: 'Prodigy' | 'AdamW8bit' | 'AdamW';
+  steps: number; saveSteps: number; sampleSteps: number; batchSize: number; gradAcc: number; trainSeed: number;
+  // The Bucket Images dock's sizes; Start Trainflow buckets with the same ones.
+  bucketMin: number; bucketMax: number; bucketStep: number;
+  prompt: string; negPrompt: string; width: number; height: number; sampleGenSteps: number; cfg: number; sampleSeed: number;
+}
+export interface TrainflowRun {
+  state: 'running' | 'finished' | 'stopped' | 'failed';
+  project: string; outDir: string; startedAt: number;
+  step: number; total: number; speed: string; eta: string; elapsed: string; loss?: number;
+}
+export interface TrainflowStatus {
+  folder: string; ok: boolean; error?: string;
+  run: TrainflowRun | null;
+  // Set while Start Trainflow is bucketing the dataset (before training launches).
+  prep?: { message: string; done: number; total: number };
+  logTail: string[];
+  samples: { name: string; mtime: number }[];
+  checkpoints: { name: string; size: number }[];
+}
+export interface TrainflowDatasetCheck {
+  ok: boolean; images: number; unbucketed: number; missingCaptions: number; oversized: number;
+  baseRes: number; maxBucket: number; errors: string[];
+}
+export interface TrainflowStartResult { ok: boolean; errors?: string[]; }

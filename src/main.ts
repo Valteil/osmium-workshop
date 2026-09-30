@@ -7,6 +7,7 @@ import * as https from 'https';
 import WS from 'ws';
 import { registerWd14LocalHandlers } from './wd14-local';
 import { registerBucketLocalHandlers } from './bucket-local';
+import { registerTrainflowHandlers, trainflowRunning } from './trainflow';
 import { registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop } from './comfy-local';
 import { parseComboValues, buildWd14Prompt, extractWd14Tags, uploadImage, queuePrompt, pollHistory } from './comfy-core';
 import type { ComfyTransport } from './comfy-core';
@@ -425,6 +426,8 @@ const nodeComfyTransport: ComfyTransport = {
   registerWd14LocalHandlers(ipcMain);
   registerBucketLocalHandlers(ipcMain);
   registerComfyLocalHandlers(ipcMain);
+  registerTrainflowHandlers(ipcMain);
+  ipcMain.handle('trainflow-running', () => trainflowRunning());
 
 ipcMain.handle('wd14-get-models', async (_event, host: string) => {
   try {

@@ -1,0 +1,270 @@
+// Trainflow tab: trains an Anima LoRA from a dataset folder. All the work is
+// in the main process (src/trainflow.ts); this module is the form, the
+// start/stop buttons, and a 2s poll that shows the running job. The job is
+// detached from the app, so this also reconnects to one that was started by
+// an earlier session. Nothing is launched until Start Trainflow is pressed.
+
+import { $ } from './dom';
+import { getJSON, setJSON } from './storage';
+import { showImageLightbox } from './shared-ui';
+import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck } from '../shared-types';
+
+const STORAGE_KEY = 'dts-trainflow-settings';
+const POLL_MS = 2000;
+
+const DEFAULTS: TrainflowSettings = {
+  trigger: '', datasetPath: '', ditPath: '', qwenPath: '', vaePath: '',
+  rank: 32, lr: '1.0', optimizer: 'Prodigy', steps: 2400, saveSteps: 300, sampleSteps: 300,
+  batchSize: 1, gradAcc: 1, trainSeed: 42, bucketMin: 256, bucketMax: 1024, bucketStep: 64,
+  prompt: '', negPrompt: 'worst quality, low quality, score_1, score_2, score_3, artist name',
+  width: 1024, height: 1024, sampleGenSteps: 30, cfg: 4, sampleSeed: 42
+};
+
+// Element id <-> setting, for the plain inputs.
+const TEXT_FIELDS: [keyof TrainflowSettings, string][] = [
+  ['trigger', 'tfTrigger'], ['datasetPath', 'tfDataset'], ['ditPath', 'tfDit'], ['qwenPath', 'tfQwen'], ['vaePath', 'tfVae'],
+  ['lr', 'tfLr'], ['prompt', 'tfPrompt'], ['negPrompt', 'tfNeg']
+];
+const NUM_FIELDS: [keyof TrainflowSettings, string][] = [
+  ['rank', 'tfRank'], ['steps', 'tfSteps'], ['saveSteps', 'tfSaveSteps'], ['sampleSteps', 'tfSampleSteps'],
+  ['batchSize', 'tfBatch'], ['gradAcc', 'tfGradAcc'], ['width', 'tfWidth'], ['height', 'tfHeight'],
+  ['sampleGenSteps', 'tfGenSteps'], ['cfg', 'tfCfg'], ['sampleSeed', 'tfSeed']
+];
+
+export function isTrainflowSupported(): boolean {
+  return !!(window.electronAPI && window.electronAPI.trainflowStatus);
+}
+
+export function initTrainflow(): void {
+  const api = window.electronAPI;
+  const tab = $('trainflowTab');
+  const tabBtn = $('tabTrainflow');
+  if (!isTrainflowSupported()) { tabBtn.style.display = 'none'; return; }
+
+  let settings: TrainflowSettings = { ...DEFAULTS, ...getJSON<Partial<TrainflowSettings>>(STORAGE_KEY, {}) };
+  let last: TrainflowStatus | null = null;
+  let starting = false;
+  let sampleSig = '';
+  let ckptSig = '';
+  const blobUrls = new Map<string, string>();
+
+  const inputEl = (id: string) => $<HTMLInputElement>(id);
+  const save = () => setJSON(STORAGE_KEY, settings);
+  // One source for bucket sizes: the Bucket Images dock's own fields.
+  const dockNum = (id: string, fallback: number) => Math.max(1, parseInt((document.getElementById(id) as HTMLInputElement | null)?.value || '', 10) || fallback);
+  const bucketCfg = () => {
+    const min = Math.max(64, dockNum('bucketSideMin', 256));
+    return { min, max: Math.max(min, dockNum('bucketSideMax', 1024)), step: dockNum('bucketSideStep', 64) };
+  };
+
+  function fillForm(): void {
+    for (const [k, id] of TEXT_FIELDS) inputEl(id).value = String(settings[k]);
+    for (const [k, id] of NUM_FIELDS) inputEl(id).value = String(settings[k]);
+    $<HTMLSelectElement>('tfOptimizer').value = settings.optimizer;
+  }
+  fillForm();
+
+  for (const [k, id] of TEXT_FIELDS) {
+    inputEl(id).addEventListener('input', () => {
+      (settings as unknown as Record<string, unknown>)[k] = inputEl(id).value;
+      save();
+      if (k === 'datasetPath') scheduleDatasetCheck();
+    });
+  }
+  for (const [k, id] of NUM_FIELDS) {
+    inputEl(id).addEventListener('input', () => {
+      const v = Number(inputEl(id).value);
+      if (Number.isFinite(v)) { (settings as unknown as Record<string, unknown>)[k] = v; save(); }
+    });
+  }
+  // Prodigy sets its own rate; AdamW wants a small one. Each keeps its own.
+  let adamLr = '0.00005';
+  $<HTMLSelectElement>('tfOptimizer').addEventListener('change', (ev) => {
+    const opt = (ev.target as HTMLSelectElement).value as TrainflowSettings['optimizer'];
+    if (opt === 'Prodigy') { if (settings.lr !== '1.0') adamLr = settings.lr; settings.lr = '1.0'; }
+    else if (settings.lr === '1.0') settings.lr = adamLr;
+    settings.optimizer = opt;
+    inputEl('tfLr').value = settings.lr;
+    save();
+  });
+
+  // ---- dataset check -------------------------------------------------------
+  let checkTimer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleDatasetCheck(): void {
+    clearTimeout(checkTimer);
+    checkTimer = setTimeout(() => void runDatasetCheck(), 400);
+  }
+  async function runDatasetCheck(): Promise<TrainflowDatasetCheck | null> {
+    const box = $('tfDatasetCheck');
+    if (!settings.datasetPath.trim()) { box.textContent = 'Choose a folder of images with matching .txt captions.'; return null; }
+    const c = await api.trainflowCheckDataset!(settings.datasetPath.trim(), bucketCfg());
+    box.textContent = c.images
+      ? `${c.images} images` + (c.unbucketed ? ` · ${c.unbucketed} will be bucketed when you start (originals go to original_images/)` : ' · all already bucketed') + (c.errors.length ? '\n' + c.errors.join('\n') : '')
+      : c.errors.join('\n');
+    box.style.whiteSpace = 'pre-wrap';
+    return c;
+  }
+
+  async function pick(kind: 'folder' | 'file', title: string, current: string): Promise<string | null> {
+    return api.trainflowPickPath!({ kind, title, defaultPath: current || undefined });
+  }
+  $('btnTfDataset').addEventListener('click', async () => {
+    const p = await pick('folder', 'Choose the dataset folder', settings.datasetPath);
+    if (!p) return;
+    settings.datasetPath = p; inputEl('tfDataset').value = p; save(); void runDatasetCheck();
+  });
+  $('btnTfDatasetOpen').addEventListener('click', () => void api.trainflowOpen!('dataset', settings.datasetPath));
+  tab.querySelectorAll<HTMLElement>('.tf-pick-file').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.target!;
+      const p = await pick('file', btn.dataset.title || 'Choose a file', inputEl(id).value);
+      if (!p) return;
+      inputEl(id).value = p;
+      inputEl(id).dispatchEvent(new Event('input'));
+    });
+  });
+  $('btnTrainflowFolder').addEventListener('click', async () => { applyStatus(await api.trainflowPickFolder!()); });
+  $('btnTrainflowOutput').addEventListener('click', () => void api.trainflowOpen!('output'));
+  $('btnTrainflowLog').addEventListener('click', () => void api.trainflowOpen!('log'));
+
+  // ---- start / stop --------------------------------------------------------
+  function showErrors(errors: string[]): void {
+    const box = $('trainflowErrors');
+    box.style.display = errors.length ? '' : 'none';
+    box.textContent = errors.join('\n');
+  }
+  $('btnTrainflowStart').addEventListener('click', async () => {
+    if (starting) return;
+    starting = true; showErrors([]);
+    const btn = $<HTMLButtonElement>('btnTrainflowStart');
+    btn.disabled = true;
+    $('trainflowRunInfo').style.display = '';
+    $('trainflowRunInfo').textContent = 'Checking your dataset, models and GPU…';
+    const b = bucketCfg();
+    try {
+      const r = await api.trainflowStart!({ ...settings, datasetPath: settings.datasetPath.trim(), bucketMin: b.min, bucketMax: b.max, bucketStep: b.step });
+      if (!r.ok) showErrors(r.errors || ['Could not start.']);
+    } finally {
+      starting = false;
+      await refresh();
+    }
+  });
+  $('btnTrainflowStop').addEventListener('click', async () => {
+    $<HTMLButtonElement>('btnTrainflowStop').disabled = true;
+    await api.trainflowStop!();
+    await refresh();
+  });
+
+  // ---- status rendering ----------------------------------------------------
+  const fmtSize = (n: number) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
+
+  function applyStatus(s: TrainflowStatus): void {
+    last = s;
+    $('trainflowFolder').textContent = s.folder || 'Not set';
+    $('trainflowFolder').title = s.folder;
+    const fs = $('trainflowFolderStatus');
+    fs.style.display = s.ok ? 'none' : (s.folder ? '' : 'none');
+    fs.textContent = s.error || '';
+    // First time the folder is known: point the model fields at where Anima-TrainFlow keeps them.
+    if (s.ok && !settings.ditPath && !settings.qwenPath && !settings.vaePath) {
+      const base = s.folder.replace(/\\/g, '/') + '/models/anima';
+      settings.ditPath = base + '/dit/anima-preview.safetensors';
+      settings.qwenPath = base + '/text_encoder/qwen_3_06b_base.safetensors';
+      settings.vaePath = base + '/vae/qwen_image_vae.safetensors';
+      save(); fillForm();
+    }
+
+    const run = s.run;
+    const running = run?.state === 'running';
+    $<HTMLButtonElement>('btnTrainflowStart').disabled = running || starting || !s.ok;
+    $<HTMLButtonElement>('btnTrainflowStop').disabled = !running;
+    const info = $('trainflowRunInfo');
+    const track = $('trainflowProgressTrack');
+    const stats = $('trainflowStats');
+    if (s.prep) {
+      info.style.display = '';
+      info.textContent = s.prep.message;
+      track.style.display = s.prep.total ? '' : 'none';
+      $('trainflowProgressFill').style.width = (s.prep.total ? Math.round((s.prep.done / s.prep.total) * 100) : 0) + '%';
+    } else if (!run) {
+      if (!starting) info.style.display = 'none';
+      track.style.display = 'none'; stats.style.display = 'none';
+      $('trainflowLog').textContent = 'Not started.';
+    } else {
+      const pct = run.total ? Math.min(100, Math.round((run.step / run.total) * 100)) : 0;
+      const label = { running: run.step ? 'Training' : 'Preparing (caching latents and text encoder outputs)…', finished: 'Finished', stopped: 'Stopped', failed: 'Ended without finishing, see the log' }[run.state];
+      info.style.display = '';
+      info.textContent = `${run.project}: ${label}`;
+      track.style.display = run.step || run.state === 'finished' ? '' : 'none';
+      $('trainflowProgressFill').style.width = pct + '%';
+      const bits = [`<span>Step <b>${run.step}/${run.total}</b> (${pct}%)</span>`];
+      if (run.state === 'running') {
+        if (run.speed) bits.push(`<span><b>${run.speed}</b></span>`);
+        if (run.eta) bits.push(`<span>ETA <b>${run.eta}</b></span>`);
+      }
+      if (run.elapsed) bits.push(`<span>Elapsed <b>${run.elapsed}</b></span>`);
+      if (run.loss !== undefined) bits.push(`<span>Loss <b>${run.loss.toFixed(4)}</b></span>`);
+      stats.innerHTML = bits.join('');
+      stats.style.display = run.step || run.state === 'finished' ? '' : 'none';
+      const logEl = $('trainflowLog');
+      const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 24;
+      logEl.textContent = s.logTail.join('\n') || '…';
+      if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+    }
+    renderSamples(s);
+    renderCheckpoints(s);
+  }
+
+  async function renderSamples(s: TrainflowStatus): Promise<void> {
+    const sig = s.samples.map((x) => x.name + x.mtime).join('|');
+    if (sig === sampleSig) return;
+    sampleSig = sig;
+    const box = $('trainflowPreviews');
+    if (!s.samples.length) { box.innerHTML = '<div class="stats-empty">Previews appear here as training samples them.</div>'; return; }
+    const frag = document.createDocumentFragment();
+    for (const smp of s.samples) {
+      const key = smp.name + smp.mtime;
+      let url = blobUrls.get(key);
+      if (!url) {
+        const bytes = await api.trainflowGetSample!(smp.name);
+        if (!bytes) continue;
+        url = URL.createObjectURL(new Blob([bytes as BlobPart]));
+        blobUrls.set(key, url);
+      }
+      const img = document.createElement('img');
+      img.src = url; img.title = smp.name; img.loading = 'lazy';
+      const u = url;
+      img.addEventListener('click', () => showImageLightbox(u));
+      frag.appendChild(img);
+    }
+    if (sig !== sampleSig) return; // a newer listing arrived while images loaded
+    box.replaceChildren(frag);
+  }
+
+  function renderCheckpoints(s: TrainflowStatus): void {
+    const sig = s.checkpoints.map((x) => x.name + x.size).join('|');
+    if (sig === ckptSig) return;
+    ckptSig = sig;
+    const box = $('trainflowCheckpoints');
+    if (!s.checkpoints.length) { box.innerHTML = '<div class="stats-empty">None yet.</div>'; return; }
+    box.replaceChildren(...s.checkpoints.map((c) => {
+      const row = document.createElement('div');
+      row.className = 'wd14-local-model-row';
+      const name = document.createElement('span'); name.textContent = c.name;
+      const size = document.createElement('span'); size.textContent = fmtSize(c.size);
+      row.append(name, size);
+      return row;
+    }));
+  }
+
+  async function refresh(): Promise<void> {
+    try { applyStatus(await api.trainflowStatus!()); } catch { /* main busy or gone; next tick */ }
+  }
+  const tabVisible = () => tab.style.display !== 'none';
+  setInterval(() => { if (tabVisible() && !document.hidden) void refresh(); }, POLL_MS);
+
+  // index.ts calls this when the tab is switched to, so it never shows stale progress.
+  (window as unknown as { __dtsTrainflowShown?: () => void }).__dtsTrainflowShown = () => { void refresh(); void runDatasetCheck(); };
+  void refresh();
+  void last;
+}

@@ -20,7 +20,7 @@ import {
   panelsOutsideCloseToggle, btnSettings, favoritesPanel,
   btnAddFavorite, logPanel, appVersionEl, tabGallery, tabMasterTags,
   tabStats, galleryTab, statsTab, btnStatsBack, btnMasterBack, btnGoToTagOverseer, normalRightTools,
-  tabSynthDat, synthDatTab, btnSynthDatBack,
+  tabSynthDat, synthDatTab, btnSynthDatBack, tabTrainflow, trainflowTab, btnTrainflowBack,
   tabDatasetManager, datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown,
   layoutDropdown, shellEl, btnResetZoom, btnExportAppState, btnViewWd14TransferList, btnRightPanelCollapse, rightPanelResizeHandle,
   powerHighlightToggle,
@@ -70,7 +70,7 @@ import {
 } from './edit-log';
 import { initCanonicalTags, loadCanonicalRulesForFolder } from './canonical-tags';
 import { initSubjectPresets, loadSubjectPresetsForFolder } from './subject-presets';
-import { initBucketImages, ORIGINAL_DIR } from './bucket-images';
+import { initBucketImages, ORIGINAL_DIR, mergeLegacyOriginals } from './bucket-images';
 import {
   markDirty, updateDirtyUI, recordChange, applyTagDirection, applyRenameDirection, applyPixelDirection, getIsolateState, updateUndoRedoButtons,
   resetUndoRedo, moveEntry, initTagsEdit, undoStack, redoStack, addTagToEntry,
@@ -80,6 +80,7 @@ import {
   masterSelectedImages, renderMasterSelectionSummary, renderMasterMiniGridIfStale, initMasterTagControl
 } from './master-tag-control';
 import { initWd14Tagger } from './wd14-tagger';
+import { initTrainflow } from './trainflow';
 import { initSynthDatOverseer, loadSynthDatSettingsForFolder, getWd14TransferSets } from './synthdat-overseer';
 import { attachAcChipHover } from './tags-autocomplete';
 import {
@@ -352,7 +353,7 @@ import { setIconLabel } from './icons';
   // root it asks before leaving; confirming calls window.__dtsExitApp.
   const tabHistory: string[] = [];
   let navigatingBack = false;
-  const TAB_IDS = ['datasets', 'gallery', 'master', 'stats', 'synthdat'];
+  const TAB_IDS = ['datasets', 'gallery', 'master', 'stats', 'synthdat', 'trainflow'];
   const currentTabId = (): string => TAB_IDS.find(t => tabIsActive(t)) || 'gallery';
   let exitConfirmOpen = false;
   function handleBack(): boolean {
@@ -435,10 +436,10 @@ import { setIconLabel } from './icons';
   // shift the display swap itself causes. Respects the "Smooth transitions"
   // Settings toggle (`html.motion-off`) by skipping straight to the final
   // state with no delay when it's off.
-  const TAB_MAP_ORDER = ['datasets', 'gallery', 'master', 'stats', 'synthdat'];
+  const TAB_MAP_ORDER = ['datasets', 'gallery', 'master', 'stats', 'synthdat', 'trainflow'];
   const onShell = (t: string) => t === 'gallery' || t === 'master';
   const tabIsActive = (t: string): boolean => ({
-    datasets: tabDatasetManager, gallery: tabGallery, master: tabMasterTags, stats: tabStats, synthdat: tabSynthDat
+    datasets: tabDatasetManager, gallery: tabGallery, master: tabMasterTags, stats: tabStats, synthdat: tabSynthDat, trainflow: tabTrainflow
   } as Record<string, HTMLElement>)[t]?.classList.contains('active') ?? false;
 
   // Zone preload: the moment the pointer is heading for the tabs (anywhere
@@ -505,7 +506,7 @@ import { setIconLabel } from './icons';
       const from = currentTabId();
       if (from !== tab){ tabHistory.push(from); if (tabHistory.length > 30) tabHistory.shift(); }
     }
-    const fadePanes = [datasetManagerTab, statsTab, synthDatTab, normalRightTools, masterTagPanel];
+    const fadePanes = [datasetManagerTab, statsTab, synthDatTab, trainflowTab, normalRightTools, masterTagPanel];
     // Gallery rebuild (cards differ between Gallery and Tag Overseer mode —
     // the selection checkbox). Only a shell tab shows the gallery; Stats and
     // SynthDat used to rebuild it too, invisibly, on every switch.
@@ -517,10 +518,13 @@ import { setIconLabel } from './icons';
       tabMasterTags.classList.toggle('active', tab === 'master');
       tabStats.classList.toggle('active', tab === 'stats');
       tabSynthDat.classList.toggle('active', tab === 'synthdat');
+      tabTrainflow.classList.toggle('active', tab === 'trainflow');
       datasetManagerTab.style.display = (tab === 'datasets') ? 'block' : 'none';
-      galleryTab.style.display = (tab === 'stats' || tab === 'datasets' || tab === 'synthdat') ? 'none' : 'contents';
+      galleryTab.style.display = (tab === 'stats' || tab === 'datasets' || tab === 'synthdat' || tab === 'trainflow') ? 'none' : 'contents';
       statsTab.style.display = (tab === 'stats') ? 'block' : 'none';
       synthDatTab.style.display = (tab === 'synthdat') ? 'block' : 'none';
+      trainflowTab.style.display = (tab === 'trainflow') ? 'block' : 'none';
+      if (tab === 'trainflow') (window as unknown as { __dtsTrainflowShown?: () => void }).__dtsTrainflowShown?.();
       masterTagModeActive = (tab === 'master');
       if (masterTagModeActive) renderMasterMiniGridIfStale();
       // Keeps the mobile bottom-panel sheet (#left/#right) in sync with
@@ -585,13 +589,14 @@ import { setIconLabel } from './icons';
     const fromTab = tabDatasetManager.classList.contains('active') ? 'datasets'
       : tabMasterTags.classList.contains('active') ? 'master'
       : tabStats.classList.contains('active') ? 'stats'
-      : tabSynthDat.classList.contains('active') ? 'synthdat' : 'gallery';
+      : tabSynthDat.classList.contains('active') ? 'synthdat'
+      : tabTrainflow.classList.contains('active') ? 'trainflow' : 'gallery';
     // Already on this tab: nothing moves.
     if (fromTab === tab){ applyState(); return; }
     const regionOf = (t: string): HTMLElement | null => {
       if (onShell(fromTab) && onShell(tab)) return document.getElementById('rightPanelContent');
       if (onShell(t)) return document.getElementById('shell');
-      return t === 'datasets' ? datasetManagerTab : t === 'stats' ? statsTab : synthDatTab;
+      return t === 'datasets' ? datasetManagerTab : t === 'stats' ? statsTab : t === 'trainflow' ? trainflowTab : synthDatTab;
     };
     const dir = Math.sign(TAB_MAP_ORDER.indexOf(tab) - TAB_MAP_ORDER.indexOf(fromTab));
     // A View Transition freezes the screen while its update runs, so the
@@ -608,6 +613,7 @@ import { setIconLabel } from './icons';
       tabMasterTags.classList.toggle('active', tab === 'master');
       tabStats.classList.toggle('active', tab === 'stats');
       tabSynthDat.classList.toggle('active', tab === 'synthdat');
+      tabTrainflow.classList.toggle('active', tab === 'trainflow');
     }
     if (mapPan(dir, 'tab', regionOf(fromTab), () => regionOf(tab), applyState, () => {
       if (tabIsActive(tab)) renderShell();
@@ -653,6 +659,8 @@ import { setIconLabel } from './icons';
   btnMasterBack.addEventListener('click', () => switchTab('gallery'));
   btnGoToTagOverseer.addEventListener('click', () => switchTab('master'));
   btnSynthDatBack.addEventListener('click', () => switchTab('gallery'));
+  tabTrainflow.addEventListener('click', () => switchTab('trainflow'));
+  btnTrainflowBack.addEventListener('click', () => switchTab('gallery'));
 
   // stats pie/bar toggle wiring moved to ./edit-log.ts (initEditLog)
 
@@ -1451,6 +1459,7 @@ import { setIconLabel } from './icons';
   // (the same per-image entry constructor scanDirInto() uses on folder open)
   // so a freshly-accepted generated image is appended to `entries` the exact
   // same way a folder rescan would have built it.
+  initTrainflow();
   initSynthDatOverseer({
     getDirHandle: () => dirHandle,
     addEntryFromNewFile: (...args: unknown[]) =>
@@ -1960,11 +1969,11 @@ import { setIconLabel } from './icons';
     await finishInterruptedDisables();
 
     try {
-      // initial_state/ holds the pre-bucketing originals the "Bucket Images"
-      // dock moved out of the root. Scanned as `original: true` AND disabled,
-      // so the whole-folder tools skip them — the Initial State view shows
-      // them, and the Disabled view excludes them. (Formerly original_images/,
-      // which is no longer read: LoRA trainers use that name for their own.)
+      // original_images/ holds the pre-bucketing originals the "Bucket Images" dock (and
+      // Trainflow) moved out of the root. Scanned as `original: true` AND disabled,
+      // so the whole-folder tools skip them — the Originals view shows them, and
+      // the Disabled view excludes them. (Older datasets' initial_state/ is merged in first.)
+      await mergeLegacyOriginals(dirHandle);
       originalDirHandle = await dirHandle.getDirectoryHandle(ORIGINAL_DIR, { create: false });
       await scanDirInto(originalDirHandle, true, true);
     } catch(e){ originalDirHandle = null; }
@@ -2465,6 +2474,13 @@ import { setIconLabel } from './icons';
   // confirms losing their changes.
   if (window.electronAPI && window.electronAPI.onRequestClose){
     window.electronAPI.onRequestClose(async () => {
+      // Training is detached, so it outlives the app. Say so before closing.
+      let trainingLive = false;
+      try { trainingLive = !!(await window.electronAPI.trainflowRunning?.()); } catch {}
+      if (trainingLive){
+        const ok = await showConfirmModal('Trainflow is training a LoRA. It will keep running in the background after Osmium closes and finish on its own. Reopen Osmium and open the Trainflow tab to see its progress again, or press Stop there first if you want it to end. Close Osmium anyway?', { okLabel: 'Close Osmium', cancelLabel: 'Stay' });
+        if (!ok) return;
+      }
       const unsavedClose = unsavedChangesDescription();
       if (unsavedClose){
         const ok = await showConfirmModal(`You have ${unsavedClose}. Quit anyway without saving?`, { okLabel: 'Quit anyway', danger: true });

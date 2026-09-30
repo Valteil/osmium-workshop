@@ -7,9 +7,10 @@
 // Same split as WD14's on-device tagging.
 //
 // Flow: every Gallery image NOT already at a valid bucket size is moved into
-// initial_state/ (with a copy of its .txt) and a bucketed PNG is written
+// original_images/ (with a copy of its .txt) and a bucketed PNG is written
 // back to the dataset root under the same name stem, so the copy inherits the
-// caption. Revert undoes exactly that.
+// caption. Bucketing again re-makes the copies from those originals (so new
+// dimensions can replace old ones); Revert undoes it all.
 import {
   btnBucketRun, btnBucketRevert, btnBucketDownloadModel, bucketModelStatusText,
   bucketSideMin, bucketSideMax, bucketSideStep, bucketGpu, bucketLog
@@ -17,7 +18,7 @@ import {
 import { toast, showConfirmModal } from './shared-ui';
 import { writeBytes } from './fs-access';
 import { getJSON, setJSON } from './storage';
-import { getValidBuckets, isBucketSize } from '../bucket-core';
+import { getValidBuckets, getBestBucket, isBucketSize } from '../bucket-core';
 import type { Entry, DirHandle } from './types';
 
 interface BucketImagesDeps {
@@ -27,10 +28,30 @@ interface BucketImagesDeps {
   saveAllDirty: (silent?: boolean) => Promise<void>;
 }
 
-// Was 'original_images' until 2026-09-28: LoRA trainers (Anima-TrainFlow) use
-// that name for their own un-bucketed samples, and Revert deletes this folder.
-// An old original_images/ is deliberately never read (it may be the trainer's).
-export const ORIGINAL_DIR = 'initial_state';
+// Shared with Trainflow and Anima-TrainFlow's own app: un-bucketed originals live here, the bucketed
+// copies are <stem>.png in the dataset root. Versions before 2.0.0 used 'initial_state'; it is merged
+// into this folder when a dataset loads (mergeLegacyOriginals).
+export const ORIGINAL_DIR = 'original_images';
+const LEGACY_ORIGINAL_DIR = 'initial_state';
+
+export async function mergeLegacyOriginals(root: DirHandle): Promise<void> {
+  let legacy: DirHandle;
+  try { legacy = await root.getDirectoryHandle(LEGACY_ORIGINAL_DIR, { create: false }); }
+  catch { return; }
+  try {
+    const target = await root.getDirectoryHandle(ORIGINAL_DIR, { create: true });
+    const names: string[] = [];
+    for await (const h of legacy.values()) if (h.kind === 'file') names.push(h.name);
+    for (const name of names) {
+      let exists = true;
+      try { await target.getFileHandle(name, { create: false }); } catch { exists = false; }
+      if (exists) continue;
+      const src = await legacy.getFileHandle(name);
+      await writeBytes(await target.getFileHandle(name, { create: true }), await src.getFile());
+    }
+    await root.removeEntry(LEGACY_ORIGINAL_DIR, { recursive: true });
+  } catch { /* leave it; the next load tries again */ }
+}
 const SETTINGS_KEY = 'dts-bucket-settings';
 
 interface BucketSettings { gpu: boolean; }
@@ -117,18 +138,20 @@ async function run(): Promise<void> {
   if (busy) return;
   const dirHandle = getDirHandle();
   if (!dirHandle) { toast('Open a dataset folder first.'); return; }
-  const active = getEntries().filter((e) => !e.disabled && !e.original);
-  if (!active.length) { toast('No Gallery images to bucket.'); return; }
+  const entries = getEntries();
+  const originals = entries.filter((e) => e.original);
+  const rootEntries = entries.filter((e) => !e.disabled && !e.original);
+  if (!rootEntries.length && !originals.length) { toast('No Gallery images to bucket.'); return; }
 
   const { sideMin, sideMax, step } = params();
   const buckets = getValidBuckets(sideMin, sideMax, step);
   const preferGpu = bucketGpu.checked;
 
   const ok = await showConfirmModal(
-    `Bucket ${active.length} Gallery image(s) at ${sideMin}–${sideMax} (step ${step})?\n\n` +
-    `Each image is moved into ${ORIGINAL_DIR}/ (treated as disabled, shown in the Initial State view), ` +
-    `and a cropped + resized PNG is written back to the dataset root under the same name. ` +
-    `Images already at a valid bucket size are left alone.`,
+    `Bucket the Gallery at ${sideMin}–${sideMax} (step ${step})?\n\n` +
+    `Originals are kept in ${ORIGINAL_DIR}/ (shown in the Originals view) and the bucketed copies are PNGs in the dataset root. ` +
+    `Images that were bucketed before are re-made from their originals at these sizes, so you can bucket again with different dimensions. ` +
+    `Every image gets a copy in ${ORIGINAL_DIR}/ first, even one that's already a valid size.`,
     { okLabel: 'Bucket images' }
   );
   if (!ok) return;
@@ -138,7 +161,7 @@ async function run(): Promise<void> {
     return;
   }
 
-  // Bucketing moves files on disk and then reloads the folder, so any in-memory
+  // Bucketing writes files on disk and then reloads the folder, so any in-memory
   // tag edits have to hit disk first or the reload silently discards them.
   await saveAllDirty(true);
 
@@ -151,8 +174,15 @@ async function run(): Promise<void> {
   const counts: Record<string, number> = {};
   const bump = (w: number, h: number) => { const k = `${w}x${h}`; counts[k] = (counts[k] || 0) + 1; };
 
+  // One source per stem: the original when there is one (its root PNG is just the old bucketed
+  // copy and gets overwritten), else the root image itself, which is then moved into original_images/.
+  const originalByBase = new Map(originals.map((e) => [e.base, e] as const));
+  const rootByBase = new Map(rootEntries.map((e) => [e.base, e] as const));
+  const sources: { entry: Entry; fromOriginals: boolean }[] = originals.map((e) => ({ entry: e, fromOriginals: true }));
+  for (const e of rootEntries) if (!originalByBase.has(e.base)) sources.push({ entry: e, fromOriginals: false });
+
   try {
-    for (const entry of active) {
+    for (const { entry, fromOriginals } of sources) {
       const filename = entry.imgName || entry.base;
       let file: File;
       try { file = await entry.imgHandle.getFile(); }
@@ -162,13 +192,46 @@ async function run(): Promise<void> {
       try { dims = await imageDimensions(file); }
       catch { log(`${filename}: could not read its dimensions (unsupported format?).`, true); failed++; continue; }
 
-      if (isBucketSize(dims.width, dims.height, buckets)) {
-        skipped++; bump(dims.width, dims.height);
-        log(`${filename}: already ${dims.width}x${dims.height} — left as-is.`);
-        continue;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!fromOriginals) {
+        // First time: original image + a copy of its .txt into original_images/, whatever its size.
+        try {
+          const origImg = await origDir.getFileHandle(filename, { create: true });
+          await writeBytes(origImg, bytes);
+          if (entry.txtHandle && entry.txtName) {
+            try {
+              const txtBlob = await entry.txtHandle.getFile();
+              const origTxt = await origDir.getFileHandle(entry.txtName, { create: true });
+              await writeBytes(origTxt, txtBlob);
+            } catch { /* caption copy is best-effort */ }
+          }
+        } catch (err) {
+          log(`${filename}: ${err instanceof Error ? err.message : String(err)}`, true);
+          failed++;
+          continue;
+        }
+        if (isBucketSize(dims.width, dims.height, buckets)) {
+          skipped++; bump(dims.width, dims.height);
+          log(`${filename}: already ${dims.width}x${dims.height} — original saved, kept as its own bucket.`);
+          continue;
+        }
+      }
+      if (fromOriginals) {
+        // Keep the current bucketed copy if it is already what these sizes would produce.
+        const [tw, th] = getBestBucket(dims.width, dims.height, buckets);
+        const cur = rootByBase.get(entry.base);
+        if (cur) {
+          try {
+            const cd = await imageDimensions(await cur.imgHandle.getFile());
+            if (cd.width === tw && cd.height === th) {
+              skipped++; bump(tw, th);
+              log(`${filename}: already bucketed at ${tw}x${th}.`);
+              continue;
+            }
+          } catch { /* unreadable copy: rebuild it */ }
+        }
       }
 
-      const bytes = new Uint8Array(await file.arrayBuffer());
       const res = await window.electronAPI.bucketImage({ imageBytes: bytes, sideMin, sideMax, step, preferGpu });
       if (!res.ok || !res.pngBytes || !res.bucket) {
         log(`${filename}: ${res.error || 'bucketing failed'}`, true);
@@ -176,23 +239,14 @@ async function run(): Promise<void> {
         continue;
       }
       try {
-        // 1) original image + a copy of its .txt into initial_state/
-        const origImg = await origDir.getFileHandle(filename, { create: true });
-        await writeBytes(origImg, bytes);
-        if (entry.txtHandle && entry.txtName) {
-          try {
-            const txtBlob = await entry.txtHandle.getFile();
-            const origTxt = await origDir.getFileHandle(entry.txtName, { create: true });
-            await writeBytes(origTxt, txtBlob);
-          } catch { /* caption copy is best-effort */ }
-        }
-        // 2) bucketed PNG back to the root under the same stem (inherits the caption)
+        // The bucketed PNG goes to the root under the same stem (inherits the caption), replacing any earlier one.
         const stemPng = entry.base + '.png';
         const outHandle = await dirHandle.getFileHandle(stemPng, { create: true });
         await writeBytes(outHandle, res.pngBytes);
-        // 3) drop the original from the root when its name differs from the output
-        //    (a .png original is overwritten in place by step 2 instead)
-        if (filename !== stemPng) { try { await dirHandle.removeEntry(filename); } catch { /* already gone */ } }
+        // Drop the old root copy (the moved original, or an earlier bucket under another extension) when its
+        // name differs from the output; a .png is overwritten in place by the write above instead.
+        const oldRoot = fromOriginals ? rootByBase.get(entry.base)?.imgName : filename;
+        if (oldRoot && oldRoot !== stemPng) { try { await dirHandle.removeEntry(oldRoot); } catch { /* already gone */ } }
       } catch (err) {
         log(`${filename}: ${err instanceof Error ? err.message : String(err)}`, true);
         failed++;
@@ -207,7 +261,7 @@ async function run(): Promise<void> {
     log('');
     log(`Done. Bucketed ${processed}, already-bucketed ${skipped}, failed ${failed}.`);
     for (const k of Object.keys(counts).sort()) log(`  ${k}: ${counts[k]}`);
-    toast(`Bucketed ${processed} image(s) — originals are in the Initial State view.`, 3600);
+    toast(`Bucketed ${processed} image(s) — originals are in the Originals view.`, 3600);
   } catch (err) {
     log(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`, true);
     toast('Bucketing failed — see the dock log.', 4200);
@@ -291,7 +345,7 @@ async function revert(): Promise<void> {
       }
     }
 
-    // the folder has served its purpose — drop it so the Initial State view empties
+    // the folder has served its purpose — drop it so the Originals view empties
     try { await dirHandle.removeEntry(ORIGINAL_DIR, { recursive: true }); } catch { /* leave it */ }
 
     log('');
