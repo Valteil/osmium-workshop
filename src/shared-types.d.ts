@@ -111,3 +111,11 @@ export interface TrainflowDatasetCheck {
   baseRes: number; maxBucket: number; errors: string[];
 }
 export interface TrainflowStartResult { ok: boolean; errors?: string[]; }
+export interface TrainflowBucketReport {
+  // Every valid bucket for the current Min/Max/Step, and how many dataset images sit at each.
+  buckets: { w: number; h: number; count: number }[];
+  images: number;
+  offBucket: string[];      // dataset images whose size is not a valid bucket
+  withoutOriginal: number;  // images with no copy in original_images/ yet
+  toRebucket: number;       // what Start Trainflow would (re)make right now
+}

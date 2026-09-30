@@ -19,7 +19,7 @@ import * as path from 'path';
 import { bucketImage, modelStatus, downloadModel } from './bucket-local';
 import { getValidBuckets, getBestBucket, isBucketSize } from './bucket-core';
 import type {
-  TrainflowSettings, TrainflowStatus, TrainflowRun, TrainflowDatasetCheck, TrainflowStartResult
+  TrainflowSettings, TrainflowStatus, TrainflowRun, TrainflowDatasetCheck, TrainflowStartResult, TrainflowBucketReport
 } from './shared-types';
 
 const CONFIG_FILE = () => path.join(app.getPath('userData'), 'trainflow.json');
@@ -146,6 +146,28 @@ function planBucketing(dir: string, b: { min: number; max: number; step: number 
     todo.push(it);
   }
   return todo;
+}
+
+function verifyBuckets(dir: string, b: { min: number; max: number; step: number }): TrainflowBucketReport {
+  mergeLegacyOriginals(dir);
+  const buckets = getValidBuckets(b.min, b.max, b.step);
+  const counts = new Map(buckets.map(([w, h]) => [w + 'x' + h, 0]));
+  const offBucket: string[] = [];
+  const images = listImages(dir);
+  for (const f of images) {
+    const s = imageSize(f);
+    const key = s ? s.w + 'x' + s.h : '';
+    if (counts.has(key)) counts.set(key, (counts.get(key) || 0) + 1);
+    else offBucket.push(path.basename(f));
+  }
+  const originals = new Set(listImages(path.join(dir, ORIGINAL_DIR)).map(stemOf));
+  return {
+    buckets: buckets.map(([w, h]) => ({ w, h, count: counts.get(w + 'x' + h) || 0 })),
+    images: images.length,
+    offBucket,
+    withoutOriginal: images.filter((f) => !originals.has(stemOf(f))).length,
+    toRebucket: planBucketing(dir, b).length
+  };
 }
 
 function checkDataset(dir: string, bucket: { min: number; max: number; step: number }, afterBucketing = false): TrainflowDatasetCheck {
@@ -531,6 +553,7 @@ export function registerTrainflowHandlers(ipcMain: IpcMain): void {
     return picked.canceled || !picked.filePaths[0] ? null : picked.filePaths[0];
   });
   ipcMain.handle('trainflow-check-dataset', (_e, dir: string, b: { min: number; max: number; step: number }) => checkDataset(dir, b));
+  ipcMain.handle('trainflow-verify-buckets', (_e, dir: string, b: { min: number; max: number; step: number }) => verifyBuckets(dir, b));
   ipcMain.handle('trainflow-start', (_e, s: TrainflowSettings) => startTraining(s));
   ipcMain.handle('trainflow-stop', () => stopTraining());
   ipcMain.handle('trainflow-clear-run', () => {

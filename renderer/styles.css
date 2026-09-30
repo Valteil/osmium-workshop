@@ -2589,6 +2589,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .trainflow-progress{ height: 8px; border-radius: 4px; }
   .trainflow-stats{ display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
   .trainflow-stats b{ color: var(--text-primary); font-weight: 600; }
+  .trainflow-bucket-report{ white-space: pre-wrap; line-height: 1.5; }
   .trainflow-mini{ margin-left: auto; padding: 2px 8px; font-size: 11px; }
   .trainflow-log{
     margin: 0; height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;

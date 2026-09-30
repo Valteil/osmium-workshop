@@ -113,6 +113,23 @@ export function initTrainflow(): void {
     if (!p) return;
     settings.datasetPath = p; inputEl('tfDataset').value = p; save(); void runDatasetCheck();
   });
+  $('btnTfVerifyBuckets').addEventListener('click', async () => {
+    const box = $('tfBucketReport');
+    const dir = settings.datasetPath.trim();
+    box.style.display = '';
+    if (!dir) { box.textContent = 'Choose a dataset folder first.'; return; }
+    box.textContent = 'Checking…';
+    const cfg = bucketCfg();
+    const r = await api.trainflowVerifyBuckets!(dir, cfg);
+    const lines = [`Bucket sizes for ${cfg.min}–${cfg.max} (step ${cfg.step}), as set in the Bucket Images dock:`];
+    lines.push(r.buckets.map((b) => `${b.w}x${b.h}${b.count ? ' (' + b.count + ')' : ''}`).join('  ·  '));
+    lines.push('');
+    lines.push(`${r.images - r.offBucket.length}/${r.images} images are at a valid bucket size.`);
+    if (r.offBucket.length) lines.push(`Not at a bucket size: ${r.offBucket.slice(0, 8).join(', ')}${r.offBucket.length > 8 ? ` and ${r.offBucket.length - 8} more` : ''}`);
+    if (r.withoutOriginal) lines.push(`${r.withoutOriginal} image${r.withoutOriginal === 1 ? ' has' : 's have'} no copy in original_images/ yet.`);
+    lines.push(r.toRebucket ? `Start Trainflow would bucket ${r.toRebucket} image${r.toRebucket === 1 ? '' : 's'}.` : 'Nothing to bucket: Start Trainflow would use the dataset as it is.');
+    box.textContent = lines.join('\n');
+  });
   $('btnTfDatasetOpen').addEventListener('click', () => void api.trainflowOpen!('dataset', settings.datasetPath));
   tab.querySelectorAll<HTMLElement>('.tf-pick-file').forEach((btn) => {
     btn.addEventListener('click', async () => {
