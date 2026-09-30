@@ -14,7 +14,8 @@
 // entry point view.ts's 3-dot menu calls directly, and the optional
 // review-before-apply step.
 import type { Entry } from './types';
-import { getJSON, setJSON } from './storage';
+import { getJSON, setJSON, getBool } from './storage';
+import { groupTagsByCategory } from './tag-categories';
 import {
   btnWd14TagSelected, wd14Status, wd14AutoApply, wd14Host, wd14ModelSelect,
   btnWd14RefreshModels, wd14Threshold, wd14CharThreshold,
@@ -260,93 +261,62 @@ async function tagOneWithRetry(entry: Entry): Promise<string | null> {
   }
 }
 
-// Builds the review UI: one row per successfully-tagged image, thumbnail +
-// an editable comma-list of the merged (existing + new) tags, so "manually
-// approve" means "review and tweak the exact tag list", not just a yes/no
-// per image. Resolves with the accepted {entry, tags}[] list, or null if
-// the whole batch was cancelled.
+// Builds the review UI: a column of image cards, one per successfully-tagged image, laid out like
+// Single mode (picture on the left, that image's own tag chips on the right) but self-contained: it
+// never touches the left quicktagging panel or the real entries until the batch is applied. Each
+// card lists the merged (existing + WD14) tags as chips. New WD14 tags are tinted, an x drops a tag
+// (it moves to a "Removed" strip and can be restored), and an add field takes more. Tag sorting
+// groups the chips by category, following the same persisted setting as Single mode. Resolves with
+// the accepted {entry, tags}[] list, or null if the whole batch was cancelled.
+interface RvTag { tag: string; isNew: boolean }
+interface RvRow {
+  entry: Entry;
+  include: boolean;
+  tags: RvTag[];
+  removed: RvTag[];
+  cardEl: HTMLElement;
+  render: () => void;
+}
+
 function showWd14ReviewModal(rows: Wd14ReviewRow[]): Promise<Wd14AcceptedRow[] | null> {
   return new Promise<Wd14AcceptedRow[] | null>((resolve) => {
     const { box, close: teardown } = createModalShell({ boxClassName: 'wd14-review-box', onDismiss: () => close(null) });
+    let sorted = getBool('dts-tag-sorting');
 
+    const rowState: RvRow[] = rows.map(r => ({
+      entry: r.entry,
+      include: true,
+      tags: r.mergedTags.map(tag => ({ tag, isNew: !r.entry.tags.includes(tag) })),
+      removed: [],
+      cardEl: document.createElement('div'),
+      render: () => {}
+    }));
+
+    // ---- header: what this is + the controls that apply to every card ----
+    const head = document.createElement('div');
+    head.className = 'wd14-rv-head';
     const msg = document.createElement('div');
-    msg.className = 'confirm-message';
-    msg.textContent = `Review WD14 tags for ${rows.length} image(s) before applying. Edit any row, or uncheck to skip it.`;
-    box.appendChild(msg);
+    msg.className = 'confirm-message wd14-rv-msg';
+    head.appendChild(msg);
+    const tools = document.createElement('div');
+    tools.className = 'wd14-rv-tools';
+    const sortBtn = document.createElement('button');
+    sortBtn.type = 'button';
+    sortBtn.className = 'tagcat-toggle';
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.textContent = 'Apply all';
+    const noneBtn = document.createElement('button');
+    noneBtn.type = 'button';
+    noneBtn.textContent = 'Skip all';
+    tools.appendChild(sortBtn);
+    tools.appendChild(allBtn);
+    tools.appendChild(noneBtn);
+    head.appendChild(tools);
+    box.appendChild(head);
 
     const list = document.createElement('div');
-    list.className = 'wd14-review-list';
-    const rowState = rows.map(r => ({ ...r, include: true, textEl: null as HTMLTextAreaElement | null, tagChips: [] as { tag: string; checked: boolean }[] }));
-
-    const isTouchDevice = document.documentElement.classList.contains('touch-device');
-
-    for (const rs of rowState){
-      const rowEl = document.createElement('div');
-      rowEl.className = 'wd14-review-row';
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = true;
-      cb.addEventListener('change', () => { rs.include = cb.checked; rowEl.classList.toggle('excluded', !cb.checked); });
-      rowEl.appendChild(cb);
-      const img = document.createElement('img');
-      img.src = rs.entry.objectUrl;
-      img.loading = 'lazy';
-      rowEl.appendChild(img);
-      const colWrap = document.createElement('div');
-      colWrap.className = 'wd14-review-col';
-      const label = document.createElement('div');
-      label.className = 'wd14-review-name';
-      label.textContent = rs.entry.imgName || rs.entry.base;
-      colWrap.appendChild(label);
-      if (isTouchDevice){
-        // A raw comma-list textarea is fine to hand-edit with a mouse, but
-        // fiddly on a phone keyboard for what's usually a 20-40 tag list —
-        // per-tag chips instead: a checkbox toggles a tag in/out (reversible
-        // while still reviewing, same as before), × drops it from the row
-        // entirely (not just unchecked — gone, same distinction the SynthDat
-        // pending-tag card already uses). rs.tagChips backs getTags() below
-        // instead of reading a single textarea's value.
-        rs.tagChips = rs.mergedTags.map(tag => ({ tag, checked: true }));
-        const chipList = document.createElement('div');
-        chipList.className = 'wd14-review-chips';
-        function renderChips(){
-          chipList.innerHTML = '';
-          for (const chip of rs.tagChips){
-            const chipEl = document.createElement('label');
-            chipEl.className = 'wd14-review-chip' + (chip.checked ? '' : ' unchecked');
-            const chipCb = document.createElement('input');
-            chipCb.type = 'checkbox';
-            chipCb.checked = chip.checked;
-            chipCb.addEventListener('change', () => { chip.checked = chipCb.checked; chipEl.classList.toggle('unchecked', !chip.checked); });
-            chipEl.appendChild(chipCb);
-            const chipText = document.createElement('span');
-            chipText.textContent = chip.tag;
-            chipEl.appendChild(chipText);
-            const dropBtn = document.createElement('button');
-            dropBtn.type = 'button';
-            dropBtn.className = 'wd14-review-chip-drop';
-            dropBtn.textContent = '×';
-            dropBtn.title = `Drop "${chip.tag}" from this image's tags`;
-            dropBtn.addEventListener('click', (ev) => {
-              ev.preventDefault();
-              rs.tagChips = rs.tagChips.filter(c => c !== chip);
-              renderChips();
-            });
-            chipEl.appendChild(dropBtn);
-            chipList.appendChild(chipEl);
-          }
-        }
-        renderChips();
-        colWrap.appendChild(chipList);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = rs.mergedTags.join(', ');
-        colWrap.appendChild(textarea);
-        rs.textEl = textarea;
-      }
-      rowEl.appendChild(colWrap);
-      list.appendChild(rowEl);
-    }
+    list.className = 'wd14-rv-list';
     box.appendChild(list);
 
     const btnRow = document.createElement('div');
@@ -355,24 +325,196 @@ function showWd14ReviewModal(rows: Wd14ReviewRow[]): Promise<Wd14AcceptedRow[] |
     cancelBtn.textContent = 'Cancel';
     const okBtn = document.createElement('button');
     okBtn.className = 'primary';
-    okBtn.textContent = 'Apply checked rows';
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(okBtn);
+    box.appendChild(btnRow);
+
+    function refreshSummary(): void {
+      const inc = rowState.filter(r => r.include);
+      const newCount = inc.reduce((n, r) => n + r.tags.filter(t => t.isNew).length, 0);
+      msg.textContent = `Review WD14 tags for ${rows.length} image(s). New tags are tinted; drop or add tags on any card, and untick a card to skip it. (${newCount} new tag(s) across ${inc.length} image(s).)`;
+      okBtn.textContent = inc.length === rows.length ? 'Apply all' : `Apply ${inc.length} of ${rows.length}`;
+      okBtn.disabled = inc.length === 0;
+    }
+    function refreshSortBtn(): void {
+      sortBtn.classList.toggle('active', sorted);
+      setIconLabel(sortBtn, sorted ? '🏷 Tag sorting: on' : '🏷 Tag sorting');
+      sortBtn.title = sorted ? 'Stop grouping tags by category' : 'Group each image\'s tags by category (Character, Hair, Body, Face, Clothes, ...)';
+    }
+
+    function buildChip(rs: RvRow, t: RvTag): HTMLElement {
+      const chip = document.createElement('span');
+      chip.className = 'wd14-rv-chip' + (t.isNew ? ' is-new' : '');
+      chip.title = t.isNew ? 'New from WD14' : 'Already on this image';
+      const text = document.createElement('span');
+      text.textContent = t.tag;
+      chip.appendChild(text);
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'wd14-rv-chip-x';
+      x.textContent = '×';
+      x.title = `Drop "${t.tag}" from this image's tags`;
+      x.addEventListener('click', () => {
+        rs.tags = rs.tags.filter(c => c !== t);
+        rs.removed.push(t);
+        rs.render();
+        refreshSummary();
+      });
+      chip.appendChild(x);
+      return chip;
+    }
+
+    function buildCard(rs: RvRow): void {
+      const card = rs.cardEl;
+      card.className = 'wd14-rv-card';
+
+      const pic = document.createElement('div');
+      pic.className = 'wd14-rv-pic';
+      const img = document.createElement('img');
+      img.src = rs.entry.objectUrl;
+      img.loading = 'lazy';
+      pic.appendChild(img);
+      const name = document.createElement('div');
+      name.className = 'wd14-rv-name';
+      name.textContent = (rs.entry.imgName || rs.entry.base) + (rs.entry.width ? ` · ${rs.entry.width}×${rs.entry.height}` : '');
+      pic.appendChild(name);
+      card.appendChild(pic);
+
+      const body = document.createElement('div');
+      body.className = 'wd14-rv-body';
+      const bar = document.createElement('div');
+      bar.className = 'wd14-rv-cardbar';
+      const use = document.createElement('label');
+      use.className = 'wd14-rv-use';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.addEventListener('change', () => { rs.include = cb.checked; card.classList.toggle('excluded', !rs.include); refreshSummary(); });
+      use.appendChild(cb);
+      use.appendChild(document.createTextNode(' Apply to this image'));
+      bar.appendChild(use);
+      const count = document.createElement('span');
+      count.className = 'wd14-rv-count';
+      bar.appendChild(count);
+      body.appendChild(bar);
+
+      const chips = document.createElement('div');
+      chips.className = 'wd14-rv-chipfield';
+      body.appendChild(chips);
+      const removedEl = document.createElement('div');
+      removedEl.className = 'wd14-rv-removed';
+      body.appendChild(removedEl);
+
+      const addRow = document.createElement('div');
+      addRow.className = 'wd14-rv-add';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = '+ Add tag (commas for several), press Enter';
+      function commitAdd(): void {
+        const parts = input.value.split(',').map(t => t.replace(/_/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+        if (!parts.length) return;
+        for (const tag of parts){
+          if (rs.tags.some(c => c.tag === tag)) continue;
+          // Adding back something that was dropped just restores it.
+          const back = rs.removed.find(c => c.tag === tag);
+          if (back){ rs.removed = rs.removed.filter(c => c !== back); rs.tags.push(back); }
+          else rs.tags.push({ tag, isNew: true });
+        }
+        input.value = '';
+        rs.render();
+        refreshSummary();
+      }
+      input.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter'){ ev.preventDefault(); commitAdd(); } });
+      addRow.appendChild(input);
+      body.appendChild(addRow);
+      card.appendChild(body);
+
+      rs.render = () => {
+        const newN = rs.tags.filter(t => t.isNew).length;
+        count.textContent = `${rs.tags.length} tags · ${newN} new` + (rs.removed.length ? ` · ${rs.removed.length} dropped` : '');
+        chips.innerHTML = '';
+        if (sorted){
+          // Same categories and order as Single mode's Tag sorting.
+          for (const g of groupTagsByCategory(rs.tags.map(t => t.tag))){
+            const seg = document.createElement('div');
+            seg.className = 'wd14-rv-cat';
+            const h = document.createElement('div');
+            h.className = 'wd14-rv-cat-head';
+            h.textContent = `${g.label} (${g.tags.length})`;
+            seg.appendChild(h);
+            const row = document.createElement('div');
+            row.className = 'wd14-rv-chips';
+            for (const tag of g.tags){
+              const t = rs.tags.find(c => c.tag === tag);
+              if (t) row.appendChild(buildChip(rs, t));
+            }
+            seg.appendChild(row);
+            chips.appendChild(seg);
+          }
+        } else {
+          // Flat, in category order like the grid cards (no headers).
+          const row = document.createElement('div');
+          row.className = 'wd14-rv-chips';
+          for (const g of groupTagsByCategory(rs.tags.map(t => t.tag))){
+            for (const tag of g.tags){
+              const t = rs.tags.find(c => c.tag === tag);
+              if (t) row.appendChild(buildChip(rs, t));
+            }
+          }
+          chips.appendChild(row);
+        }
+        removedEl.innerHTML = '';
+        if (rs.removed.length){
+          const lab = document.createElement('span');
+          lab.className = 'wd14-rv-removed-label';
+          lab.textContent = 'Dropped (click to put back):';
+          removedEl.appendChild(lab);
+          for (const t of rs.removed){
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'wd14-rv-restore';
+            b.textContent = t.tag;
+            b.addEventListener('click', () => {
+              rs.removed = rs.removed.filter(c => c !== t);
+              rs.tags.push(t);
+              rs.render();
+              refreshSummary();
+            });
+            removedEl.appendChild(b);
+          }
+        }
+      };
+      rs.render();
+    }
+
+    for (const rs of rowState){
+      buildCard(rs);
+      list.appendChild(rs.cardEl);
+    }
+
+    sortBtn.addEventListener('click', () => { sorted = !sorted; refreshSortBtn(); rowState.forEach(r => r.render()); });
+    const setAll = (v: boolean): void => {
+      rowState.forEach(r => {
+        r.include = v;
+        r.cardEl.classList.toggle('excluded', !v);
+        const c = r.cardEl.querySelector('.wd14-rv-use input') as HTMLInputElement | null;
+        if (c) c.checked = v;
+      });
+      refreshSummary();
+    };
+    allBtn.addEventListener('click', () => setAll(true));
+    noneBtn.addEventListener('click', () => setAll(false));
+    refreshSortBtn();
+    refreshSummary();
+
     function close(result: Wd14AcceptedRow[] | null): void {
       teardown();
       resolve(result);
     }
     cancelBtn.addEventListener('click', () => close(null));
     okBtn.addEventListener('click', () => {
-      const accepted = rowState.filter(rs => rs.include).map(rs => ({
-        entry: rs.entry,
-        tags: isTouchDevice
-          ? rs.tagChips.filter(c => c.checked).map(c => c.tag)
-          : rs.textEl!.value.split(',').map(t => t.replace(/_/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean)
-      }));
-      close(accepted);
+      close(rowState.filter(r => r.include).map(r => ({ entry: r.entry, tags: r.tags.map(t => t.tag) })));
     });
-    btnRow.appendChild(cancelBtn);
-    btnRow.appendChild(okBtn);
-    box.appendChild(btnRow);
   });
 }
 

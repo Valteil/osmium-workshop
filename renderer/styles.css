@@ -4808,42 +4808,55 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .wd14-local-model-row button{ padding: 2px 7px; font-size: 11px; }
   .wd14-download-status{ font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
-  .wd14-review-box{ width: 560px; max-width: 90vw; }
-  .wd14-review-list{
-    display: flex; flex-direction: column; gap: 6px;
-    max-height: 50vh; overflow-y: scroll; margin-bottom: 12px;
+  /* WD14 review before apply (wd14-tagger.ts showWd14ReviewModal): one card per image, stacked, each
+     with its own picture and chip area, like Single mode's cards but independent of the left panel. */
+  .wd14-review-box{ width: min(1100px, 94vw); max-width: 94vw; display: flex; flex-direction: column; max-height: 92vh; }
+  .wd14-rv-head{ display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .wd14-rv-msg{ flex: 1 1 320px; margin: 0; }
+  .wd14-rv-tools{ display: flex; gap: 6px; flex-wrap: wrap; }
+  .wd14-rv-list{ display: flex; flex-direction: column; gap: 10px; overflow-y: auto; min-height: 0; flex: 1 1 auto; padding: 2px 4px 2px 0; margin-bottom: 12px; }
+  .wd14-rv-card{
+    display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 14px; padding: 10px;
+    border: 1px solid var(--border-soft); border-radius: 8px; background: var(--bg-panel);
   }
-  .wd14-review-row{
-    display: flex; align-items: flex-start; gap: 8px; padding: 6px;
-    border-radius: 6px; background: var(--bg-base);
+  .wd14-rv-card.excluded{ opacity: 0.45; }
+  .wd14-rv-pic{ display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .wd14-rv-pic img{ width: 100%; max-height: 260px; object-fit: contain; border-radius: 5px; background: var(--bg-base); }
+  .wd14-rv-name{ font-size: 11px; color: var(--text-faint); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wd14-rv-body{ display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .wd14-rv-cardbar{ display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .wd14-rv-use{ display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
+  .wd14-rv-count{ font-size: 11px; color: var(--text-faint); }
+  .wd14-rv-chipfield{ display: flex; flex-direction: column; gap: 8px; }
+  .wd14-rv-chips{ display: flex; flex-wrap: wrap; gap: 5px; }
+  .wd14-rv-cat-head{ font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); margin: 0 0 3px; }
+  .wd14-rv-chip{
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 8px; border-radius: 12px;
+    background: var(--bg-elevated); border: 1px solid var(--border-strong); color: var(--text-primary);
+    font-family: var(--mono); font-size: 11.5px;
   }
-  .wd14-review-row.excluded{ opacity: 0.4; }
-  .wd14-review-row img{ width: 56px; height: 56px; object-fit: cover; border-radius: 5px; flex-shrink: 0; }
-  .wd14-review-col{ display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
-  .wd14-review-name{ font-size: 11px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .wd14-review-col textarea{
-    width: 100%; min-height: 48px; background: var(--bg-elevated); border: 1px solid var(--border-strong);
-    border-radius: var(--radius); color: var(--text-primary); padding: 6px 8px; font-family: var(--sans);
-    font-size: 11.5px; resize: vertical;
+  .wd14-rv-chip.is-new{
+    background: color-mix(in srgb, var(--accent-auto) 18%, var(--bg-elevated));
+    border-color: color-mix(in srgb, var(--accent-auto) 55%, var(--border-strong));
   }
-  /* Touch-only alternative to the textarea above (see showWd14ReviewModal(),
-     wd14-tagger.ts) — a raw comma-list is fiddly to hand-edit on a phone
-     keyboard for what's usually 20-40 tags. Checkbox = keep/skip this tag
-     (reversible while still reviewing); × = drop it from the row entirely,
-     a harder edit than just unchecking, matching the same checkbox+×
-     distinction the SynthDat pending-tag card already uses. */
-  .wd14-review-chips{ display: flex; flex-wrap: wrap; gap: 5px; }
-  .wd14-review-chip{
-    display: flex; align-items: center; gap: 4px; background: var(--bg-elevated);
-    border: 1px solid var(--border-strong); border-radius: 12px; padding: 3px 6px 3px 8px;
-    font-size: 11px; color: var(--text-primary);
+  .wd14-rv-chip-x{ all: unset; cursor: pointer; color: var(--text-faint); font-size: 14px; line-height: 1; padding: 0 3px; }
+  .wd14-rv-chip-x:hover{ color: var(--accent-danger); }
+  .wd14-rv-removed{ display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .wd14-rv-removed:empty{ display: none; }
+  .wd14-rv-removed-label{ font-size: 11px; color: var(--text-faint); }
+  .wd14-rv-restore{
+    all: unset; cursor: pointer; font-family: var(--mono); font-size: 11px; padding: 2px 7px; border-radius: 10px;
+    border: 1px dashed var(--border-strong); color: var(--text-muted); text-decoration: line-through;
   }
-  .wd14-review-chip.unchecked{ opacity: 0.4; text-decoration: line-through; }
-  .wd14-review-chip-drop{
-    all: unset; cursor: pointer; color: var(--text-faint); font-size: 13px; line-height: 1;
-    padding: 0 2px;
+  .wd14-rv-restore:hover{ color: var(--text-primary); text-decoration: none; }
+  .wd14-rv-add input{
+    width: 100%; box-sizing: border-box; background: var(--bg-elevated); border: 1px solid var(--border-strong);
+    border-radius: var(--radius); color: var(--text-primary); padding: 6px 8px; font-family: var(--sans); font-size: 12px;
   }
-  .wd14-review-chip-drop:hover{ color: var(--accent-danger); }
+  @media (max-width: 700px){
+    .wd14-rv-card{ grid-template-columns: 1fr; }
+    .wd14-rv-pic img{ max-height: 200px; }
+  }
 
   #toast {
     position: fixed;
