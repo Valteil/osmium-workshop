@@ -262,7 +262,7 @@
   .kicker-chip .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent);}
   h1.hero-title{
     font-size:clamp(2.6rem, 4.6vw, 4.1rem);
-    line-height:1.03;
+    line-height:1.26; /* room for every face's ascenders and descenders; tighter and the two lines touch in some themes */
     margin:0 0 22px;
     font-weight:600;
     /* Exactly the two <br> lines. The script below shrinks the size only as far as a wide-lettered theme needs to keep both lines inside the column, so the art is never pushed or overlapped. */
@@ -451,15 +451,17 @@
     padding:38px 0; border-top:1px solid var(--line);
   }
   .conn-row:last-child{border-bottom:1px solid var(--line);}
-  .conn-row.rev{grid-template-columns:1fr 220px;}
+  /* The copy column is a fixed rem width (never ch, which changes with the theme's face) and a flipped
+     row's graphic sits one fixed gap after it, so no theme can stretch the text into the graphic. */
+  .conn-row.rev{grid-template-columns:minmax(0,34rem) 220px; justify-content:start; column-gap:64px;}
   .conn-row.rev .conn-diagram{order:2;}
   .conn-diagram{aspect-ratio:1/1;
-    /* --gt / --gy: the editor's per-tool graphic nudge (px toward the text, px down). A flipped row mirrors --gt. */
-    transform:translate(var(--gt, 0px), var(--gy, 0px));}
-  .conn-row.rev .conn-diagram{transform:translate(calc(var(--gt, 0px) * -1), var(--gy, 0px));}
+    /* --gy: the editor's per-tool graphic nudge (px down). --gt (px toward the text) is retired: the flipped row's graphic is placed by the grid. */
+    transform:translate(0, var(--gy, 0px));}
+  .conn-copy{min-width:0; max-width:34rem; justify-self:start;}
   .conn-diagram svg{width:100%; height:100%;}
   .conn-copy h3{font-family:var(--f-display); font-size:1.45rem; margin:0 0 10px; font-weight:600;}
-  .conn-copy p{color:var(--ink-soft); margin:0; max-width:56ch;}
+  .conn-copy p{color:var(--ink-soft); margin:0;}
   /* A real screenshot slotted under a feature row that has one to show —
      full width, capped so it doesn't stretch absurdly thin at very wide
      viewports, sitting in the gap between this row's bottom and the next
