@@ -242,8 +242,13 @@
   .hero{position:relative; padding:96px 0 80px; overflow:hidden;}
   .hero-grid{
     position:relative; z-index:2;
-    display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr); gap:40px; align-items:center; /* minmax(0): a wide-lettered theme's title must not stretch column 1 and squeeze the art */
+    display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr);
+    grid-template-areas:"kicker ." "copy art";
+    column-gap:40px; row-gap:22px; align-items:start; /* minmax(0): a wide-lettered theme's title must not stretch column 1 and squeeze the art */
   }
+  .hero-grid > .kicker-chip{grid-area:kicker; justify-self:start; margin-bottom:0;}
+  .hero-copy{grid-area:copy; min-width:0;}
+  .hero-grid > .hero-art{grid-area:art; align-self:start;}
   /* "Next version": on main, not in the current release download yet. */
   .next-tag{
     display:inline-block; font-family:var(--f-mono); font-size:0.72rem; letter-spacing:0.03em;
@@ -282,6 +287,8 @@
     transition:color .15s;
   }
   .hero-cta-secondary:hover{color:var(--ink);}
+  .hero-ctas{display:flex; align-items:center; gap:16px 20px; flex-wrap:wrap; margin-bottom:0;}
+  .hero-ctas .hero-meta{margin:0;}
   .hero-meta{display:flex; gap:22px; flex-wrap:wrap; font-family:var(--f-mono); font-size:0.78rem; color:var(--ink-soft);}
   .hero-meta strong{color:var(--ink); font-weight:600;}
   /* The tagger itself needs nothing beyond this app. Generation (SynthDat
@@ -362,9 +369,13 @@
 
   /* ---------- proof / screenshots ---------- */
   .proof-frame{
-    position:relative; border:1px solid var(--line-strong); background:var(--card);
+    position:relative; border:1px solid var(--line-strong); padding:12px;
+    /* letterbox mat behind every screenshot, like the app's image cards */
+    background:
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1.5px) 0 0/14px 14px,
+      var(--ground-dim);
   }
-  .proof-frame img{display:block; width:100%; height:auto;}
+  .proof-frame img{display:block; width:100%; height:auto; border:1px solid var(--line); background:var(--card);}
   .proof-frame .node-corner{position:absolute; width:9px; height:9px; background:var(--ink); transform:rotate(45deg); z-index:3;}
   .nc-tl{top:-5px; left:-5px;} .nc-tr{top:-5px; right:-5px;}
   .nc-bl{bottom:-5px; left:-5px;} .nc-br{bottom:-5px; right:-5px;}
@@ -583,10 +594,10 @@
   .rail-head{flex:none; padding:18px 14px 15px;}
   .rail-head .section-head{max-width:none; margin:0; padding:0; background:none; border:0; -webkit-backdrop-filter:none; backdrop-filter:none;}
   .rail-head h1, .rail-head h2{
-    font-family:var(--f-display); font-size:1.08rem; line-height:1.2; font-weight:600;
-    margin:0 0 9px; color:var(--ink);
+    font-family:var(--f-display); font-size:1.24rem; line-height:1.2; font-weight:600;
+    margin:0 0 10px; color:var(--ink);
   }
-  .rail-head p{font-size:0.78rem; line-height:1.45; color:var(--ink-soft); margin:0; padding:0; background:none; border:0;}
+  .rail-head p{font-size:0.86rem; line-height:1.5; color:var(--ink-soft); margin:0; padding:0; background:none; border:0;}
   .rail-tabs{
     flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden;
     display:flex; flex-direction:column; gap:0; padding:16px 10px 22px 0;
@@ -615,7 +626,7 @@
     /* Mirror of the left tab: the long tip is at the TOP and shaves down to the bottom. */
     clip-path:polygon(0 0, 100% 0, 100% 100%, 16px 100%);
   }
-  .rail-right .tool-tab{padding:12px 14px 12px 22px; flex-direction:row-reverse; text-align:right;}
+  .rail-right .tool-tab{padding:12px 14px 12px 22px; flex-direction:row-reverse; text-align:right; margin-left:var(--fan, 0px);}
   .tool-tab-icon, .tool-tab-label{position:relative; z-index:1;}
   .tool-tab-icon{width:31px; height:31px; flex:none; opacity:.62; transition:opacity .2s ease;}
   .tool-tab-icon svg{width:100%; height:100%; display:block;}
@@ -635,36 +646,34 @@
   .tool-panel{
     position:fixed; z-index:45;
     display:flex; flex-direction:column;
-    width:min(720px, 47vw); max-height:calc(100vh - 24px);
+    width:auto; min-width:320px; max-width:none; max-height:calc(100vh - 24px);
     background:var(--card); border:1px solid var(--line-strong);
     box-shadow:0 26px 64px -22px rgba(0,0,0,.5);
-    /* closed state: left-rail panel is clipped to nothing from the right... */
-    clip-path:inset(0 100% 0 0); opacity:0; pointer-events:none;
-    transition:clip-path .2s ease, opacity .14s ease;
+    /* closed: hidden above, slides down from the beam when it opens */
+    clip-path:inset(0 0 100% 0); opacity:0; transform:translateY(-16px); pointer-events:none;
+    transition:clip-path .2s ease, opacity .14s ease, transform .2s ease;
   }
   .tool-panel[hidden]{display:none;}
-  .rail-right .tool-panel{clip-path:inset(0 0 0 100%);}
-  .tool[data-below] .tool-panel{clip-path:inset(100% 0 0 0); transform:translateY(18px); transition:clip-path .24s ease, opacity .14s ease, transform .24s ease;}
-  .tool.open .tool-panel{clip-path:inset(0); opacity:1; pointer-events:auto; transform:none; transition:clip-path .3s cubic-bezier(0.23,1,0.32,1) .11s, opacity .16s ease .11s, transform .3s cubic-bezier(0.23,1,0.32,1) .11s;}
-  /* the beam: a hairline that runs out of the tab, then the panel grows behind it */
-  .tool-panel::before{
-    content:''; position:absolute; left:0; right:0; top:0; height:3px; z-index:3;
-    background:var(--ink); transform:scaleX(0); transform-origin:left;
-    transition:transform .12s ease-out .18s; pointer-events:none;
-  }
-  .rail-right .tool-panel::before{transform-origin:right;}
-  .tool[data-below] .tool-panel::before{top:auto; bottom:0;}
-  .tool.open .tool-panel::before{transform:scaleX(1); transition:transform .12s ease-out;}
+  .tool[data-below] .tool-panel{clip-path:inset(100% 0 0 0); transform:translateY(16px);}
+  .tool.open .tool-panel{clip-path:inset(0); opacity:1; pointer-events:auto; transform:none; transition:clip-path .32s cubic-bezier(0.23,1,0.32,1), opacity .16s ease, transform .32s cubic-bezier(0.23,1,0.32,1);}
+  /* The beam: an SVG overlay that runs out of the tab, turns up to just below the
+     topbar, then across to shy of the opposite rail — the panel only reveals once
+     it has fully drawn. */
+  .tool-beam{position:fixed; inset:0; z-index:44; pointer-events:none; overflow:visible; opacity:0; transition:opacity .18s ease;}
+  .tool-beam.on{opacity:1;}
+  .tool-beam path{fill:none; stroke:var(--ink); stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round;}
   .tool-panel-scroll{overflow-y:auto; min-height:0; padding:24px 26px 26px;}
   /* copy sits next to the rail; the tool's node graphic is large on the far edge */
   .tool-panel .conn-row{
-    display:flex; gap:26px; align-items:flex-start;
-    grid-template-columns:none; border:0; padding:0; margin:0;
+    display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"title title" "copy diagram";
+    column-gap:26px; align-items:start;
+    border:0; padding:0; margin:0;
   }
   .tool-panel .conn-row:last-child{border:0;}
-  .tool-panel .conn-copy{order:1; min-width:0; flex:1 1 auto;}
-  .tool-panel .conn-diagram{order:2; width:clamp(112px, 13vw, 168px); flex:none; aspect-ratio:1/1; transform:none; opacity:.9;}
-  .rail-right .tool-panel .conn-diagram{order:0;}
+  .tool-panel .conn-row > h3{grid-area:title; margin:0 0 16px; font-size:1.4rem; font-weight:600;}
+  .tool-panel .conn-copy{grid-area:copy; min-width:0;}
+  .tool-panel .conn-diagram{grid-area:diagram; align-self:start; width:clamp(112px, 13vw, 168px); aspect-ratio:1/1; transform:none; opacity:.9;}
+  .rail-right .tool-panel .conn-row{grid-template-columns:auto minmax(0,1fr); grid-template-areas:"title title" "diagram copy";}
   .tool-panel .conn-copy h3{font-size:1.4rem; margin:0 0 10px;}
   .tool-panel .conn-copy p{font-size:1rem; line-height:1.65;}
   /* the step walkthrough is a lightbox now: the panel keeps the data, the modal shows it */
@@ -688,10 +697,10 @@
   /* ---- stage ---- */
   .stage{position:relative; min-width:0; overflow-y:auto; overflow-x:hidden; background:transparent;}
   .stage-section{padding:46px 0 64px;}
-  .stage-section.hero{padding:34px 0 64px;}
+  .stage-section.hero{padding:26px 0 48px;}
   html.js .stage-section{display:none;}
   html.js .stage-section.active{display:block;}
-  .stage-section .shot-carousel-wrap{max-width:1180px; margin:64px auto 0;}
+  .stage-section .shot-carousel-wrap{max-width:1180px; margin:0 auto;}
 
   footer{border-top:1px solid var(--line); flex:none; padding:0; margin:0; background:color-mix(in srgb, var(--ground) 82%, transparent);}
   .footer-row{padding:11px 26px;}
@@ -715,8 +724,14 @@
   .step-modal-close:hover{border-color:var(--ink);}
   .step-modal-close:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
   .step-modal-body{position:relative; flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; padding:22px 68px;}
-  .step-modal-stage{display:flex; align-items:center; justify-content:center; max-width:100%; min-height:0;}
-  .step-modal-stage img{display:block; max-width:100%; max-height:min(62vh, 620px); width:auto; height:auto; box-shadow:0 18px 44px -18px rgba(0,0,0,.45); transition:opacity .18s ease;}
+  .step-modal-stage{
+    display:flex; align-items:center; justify-content:center; max-width:100%; min-height:0;
+    padding:14px; border:1px solid var(--line);
+    background:
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1.5px) 0 0/14px 14px,
+      var(--ground-dim);
+  }
+  .step-modal-stage img{display:block; max-width:100%; max-height:min(72vh, 780px); width:auto; height:auto; border:1px solid var(--line); box-shadow:0 18px 44px -18px rgba(0,0,0,.45); transition:opacity .18s ease;}
   .step-modal-stage img.swapping{opacity:0;}
   .step-modal-nav{
     position:absolute; top:50%; transform:translateY(-50%); width:42px; height:42px; padding:0;
@@ -752,7 +767,7 @@
 
   @media (max-width:1180px){
     .rail{width:176px;}
-    .tool-panel{width:min(600px, 56vw);}
+    .tool-panel{min-width:0;}
     .topbar-tabs a{padding:0 9px; font-size:0.84rem;}
     .tp-label, .tp-name{display:none;}
     .nav-ctas{gap:8px;}
@@ -803,7 +818,7 @@
   }
   @media (prefers-reduced-motion: reduce){
     .tool-panel{transition:opacity .16s linear;}
-    .tool-panel::before{transition:none;}
+    .tool-beam{transition:none;}
     .tool-tab{transition:none;}
     .step-modal-stage img{transition:none;}
   }
@@ -865,6 +880,7 @@
       <a href="#demo" data-tab="demo">Demo</a>
       <a href="#customization" data-tab="customization">Customization</a>
       <a href="#apps" data-tab="apps">Releases</a>
+      <a href="#screenshots" data-tab="screenshots">Screenshots</a>
     </nav>
     <div class="nav-ctas">
       <div class="theme-pick">
@@ -1267,20 +1283,18 @@
               </svg>
             </div>
             <div class="wrap hero-grid">
-              <div>
-                <div class="hero-top">
-                  <span class="kicker-chip"><span class="dot"></span><span data-latest-ver>v1.6.0</span> · Windows portable · Android</span>
-                  <div class="hero-meta">
-                    <span><strong>Portable.</strong> Unzip and use immediately.</span>
-                    <span><strong>Recommended: ComfyUI installation </strong></span>
-                  </div>
-                </div>
+              <span class="kicker-chip"><span class="dot"></span><span data-latest-ver>v1.6.0</span> · Windows portable · Android</span>
+              <div class="hero-copy">
                 <h1 class="hero-title display">Making datasets could<br><em>be a little more fun</em></h1>
                 <p class="hero-sub hero-sub-first" data-plate="on">A dataset manager made for curating training data for Booru-tag based models, with a focus around Anima by Circlestone labs.</p>
                 <p class="hero-sub" data-plate="on">Osmium is feature-dense, comes with plenty of QoL features, and contains a slew of comprehensive visual customization to make curating datasets a hobby that doesn't make you scratch your head like a monkey.</p>
                 <div class="hero-ctas">
                   <a class="btn btn-primary" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Get it Now</a>
                   <a class="hero-cta-secondary" href="https://github.com/Valteil/osmium-workshop" target="_blank" rel="noopener">View source →</a>
+                  <div class="hero-meta">
+                    <span><strong>Portable.</strong> Unzip and use immediately.</span>
+                    <span><strong>Recommended: ComfyUI installation </strong></span>
+                  </div>
                 </div>
               </div>
               <div class="hero-art" aria-hidden="true">
@@ -1334,6 +1348,19 @@
               </div>
             </div>
   
+      </section>
+      <section id="demo" class="stage-section">
+
+            <div class="wrap">
+              <div class="section-head">
+                <h2 class="demo-head"><a class="demo-open" href="demo/index.html" target="_blank" rel="noopener">Test it live, right here <span class="demo-open-arrow" aria-hidden="true">&#8599;</span></a></h2>
+                <p>Don't wanna download it yet? Don't fret; I put the damn thing on its own page right here on github. That way you can put your slimy little mitts all over my pristine buttons without any committment. Click the big fat linkie up above this text plate to get there. <br><br>Since I don't want you to think I'm putting viruses on your PC/Laptop/glorified potato wired to a GTX by asking you to test it on your own datasets, I threw in an example dataset: <strong>Chromatic Void. </strong>Every image is still untagged. <br><br>You can use this opportunity to try out a bunch of Osmium's functions. Note that while the WD14 and SynthDat functions "work" in this demo, they are <strong>faked, preset outputs</strong>.  But hey, cut me some slack okay? I decided against asking you to wire your Comfy to some shady site since it was in bad taste.</p>
+              </div>
+            </div>
+  
+      </section>
+      <section id="screenshots" class="stage-section">
+        <div class="wrap">
         <div class="shot-carousel-wrap">
                 <div class="shot-carousel" id="shotCarousel">
                   <figure class="shot-slide">
@@ -1403,16 +1430,7 @@
                 </div>
                 <div class="shot-dots" id="shotDots" aria-hidden="true"></div>
               </div>
-      </section>
-      <section id="demo" class="stage-section">
-
-            <div class="wrap">
-              <div class="section-head">
-                <h2 class="demo-head"><a class="demo-open" href="demo/index.html" target="_blank" rel="noopener">Test it live, right here <span class="demo-open-arrow" aria-hidden="true">&#8599;</span></a></h2>
-                <p>Don't wanna download it yet? Don't fret; I put the damn thing on its own page right here on github. That way you can put your slimy little mitts all over my pristine buttons without any committment. Click the big fat linkie up above this text plate to get there. <br><br>Since I don't want you to think I'm putting viruses on your PC/Laptop/glorified potato wired to a GTX by asking you to test it on your own datasets, I threw in an example dataset: <strong>Chromatic Void. </strong>Every image is still untagged. <br><br>You can use this opportunity to try out a bunch of Osmium's functions. Note that while the WD14 and SynthDat functions "work" in this demo, they are <strong>faked, preset outputs</strong>.  But hey, cut me some slack okay? I decided against asking you to wire your Comfy to some shady site since it was in bad taste.</p>
-              </div>
-            </div>
-  
+        </div>
       </section>
       <section id="customization" class="stage-section">
 
@@ -1523,6 +1541,7 @@
                         <h3>Osmium's Comfy Instance</h3>
                       <div class="conn-copy">
                         <p data-plate="on">Osmium comes bundled with a simple, but decent integrated workflow that requires installing its custom node pack. Once set up, you can point Osmium to your Comfy installation folder, and click connect on either Bridge or SynthDat's tab. It will launch an instance of comfy that uses only what Osmium needs to run, for a faster startup. <br><br>Bridge supports cross-device communication; your phone can steer your home machine's Comfy Instance (Osmium or otherwise) to generate images and save local copies on your device. If you don't want to use Osmium's Comfy, then launch your <strong>own Comfy instance and paste the URL</strong> and its <strong>Port </strong>to have Osmium run its generations there.<br><br><strong>This workflow is built around Anima by Circlestone labs. Do not expect compatibility with other models when using Controlnet.</strong></p>
+                        <p data-plate="on">Osmium is capable of running WD14 AND your Comfy installation with its integrated workflow. The latter works by driving your full Comfy server, or by Osmium its own minimalistic server that only loads what it needs on-demand.<br><br>WD14 tagging can run even without Comfy by using your CPU or GPU as configured. <strong>Osmium and ComfyBridge do not share a terminal; you will not be able to run Osmium's SynthDat tab generations on a Cbridge terminal and vice versa.</strong></p>
                         <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-bridge-local" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See it in 3 steps</span></button>
                       </div>
                     </div>
@@ -1623,21 +1642,7 @@
                         <h3>Built-in Booru Tag Wiki</h3>
                       <div class="conn-copy">
                         <p>You don't need internet to access Osmium's bundled Danbooru Wiki. In Osmium Desktop, you can pop its tab out in Single View, which will persist everywhere in Osmium until closed. Conversely, Bridge also comes with the wiki built-in, so you can quickly look up what a tag may mean before using it in generation.</p>
-                        <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-bridge-wiki" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See the screen</span></button>
                       </div>
-                    </div>
-              <div class="conn-steps" id="steps-bridge-wiki">
-                      <div class="cs-inner" inert><div class="cs-body">
-                        <div class="cs-view"><div class="proof-frame">
-                          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
-                          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
-                          <img alt="" decoding="async" />
-                        </div></div>
-                        <ol class="cs-rail" style="--n:1" hidden>
-                        <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-wiki.png" data-w="650" data-h="938" data-alt="The Tag wiki window showing the definition of twintails with its post count, and a list of suggested tags beside it for the query twin." data-cap="Definitions, post counts and suggestions, beside whatever you're writing."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
-                        </ol>
-                        <p class="cs-cap" aria-live="polite"></p>
-                      </div></div>
                     </div>
             </div>
           </div>
@@ -1828,7 +1833,7 @@
   // tab a touch narrower than the one above) to read as stacked rhomboids.
   [].slice.call(document.querySelectorAll('.rail')).forEach(function(rail){
     [].slice.call(rail.querySelectorAll('.tool')).forEach(function(tool, i){
-      var label = tool.querySelector('.conn-copy h3');
+      var label = tool.querySelector('h3');
       var icon = tool.querySelector('.conn-diagram svg');
       var labelEl = tool.querySelector('.tool-tab-label');
       var iconEl = tool.querySelector('.tool-tab-icon');
@@ -1871,7 +1876,7 @@
     var btns = [].slice.call(tool.querySelectorAll('.conn-steps .cs-step'));
     if (!btns.length) return;
     ensureModal();
-    var title = tool.querySelector('.conn-copy h3');
+    var title = tool.querySelector('h3');
     stepState = { tool: tool, i: 0, data: btns.map(function(b){
       var nm = b.querySelector('.st-name');
       return { src: b.getAttribute('data-src') || '', w: +b.getAttribute('data-w') || 0, h: +b.getAttribute('data-h') || 0,
@@ -1933,28 +1938,107 @@
 
   // ---- tool panels: open on hover/click/focus, slide back out on leave ----
   var openToolEl = null, closeTimer = null;
+  // The lead-in beam: an SVG line that runs out of the tab, turns up to just
+  // below the topbar, then across to shy of the opposite rail. The panel is
+  // only revealed once the beam has fully drawn.
+  var beamSvg = null, beamPath = null, beamTimer = 0;
+  function ensureBeam(){
+    if (beamSvg) return;
+    var NS = 'http://www.w3.org/2000/svg';
+    beamSvg = document.createElementNS(NS, 'svg');
+    beamSvg.setAttribute('class', 'tool-beam');
+    beamSvg.setAttribute('aria-hidden', 'true');
+    beamPath = document.createElementNS(NS, 'path');
+    beamSvg.appendChild(beamPath);
+    document.body.appendChild(beamSvg);
+  }
+  function beamPathD(tool){
+    var tab = tool.querySelector('.tool-tab');
+    var r = tab.getBoundingClientRect();
+    var side = tool.dataset.side;
+    var topbar = document.querySelector('.topbar') || document.querySelector('header');
+    var topB = topbar ? topbar.getBoundingClientRect().bottom : 64;
+    var foot = document.querySelector('footer');
+    var footT = foot ? foot.getBoundingClientRect().top : window.innerHeight;
+    var opposite = document.querySelector(side === 'right' ? '.rail-left' : '.rail-right');
+    var ob = opposite ? opposite.getBoundingClientRect() : null;
+    var pad = 22, lead = 30;
+    var below = tool.hasAttribute('data-below');
+    // Beam line sits just below the topbar, or just above the footer for low tabs.
+    var yLine = below ? footT - 14 : topB + 14;
+    var goalX = ob ? (side === 'right' ? ob.right + pad : ob.left - pad) : (side === 'right' ? pad : window.innerWidth - pad);
+    var x0 = side === 'right' ? r.left : r.right;
+    var x1 = side === 'right' ? r.left - lead : r.right + lead;
+    var y0 = r.top + r.height / 2;
+    return 'M' + x0 + ' ' + y0 + ' L' + x1 + ' ' + y0 + ' L' + x1 + ' ' + yLine + ' L' + goalX + ' ' + yLine;
+  }
+  function drawBeam(tool, done){
+    ensureBeam();
+    beamPath.setAttribute('d', beamPathD(tool));
+    beamSvg.classList.add('on');
+    var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce){
+      beamPath.style.transition = 'none';
+      beamPath.style.strokeDasharray = '';
+      beamPath.style.strokeDashoffset = '';
+      if (done) done();
+      return;
+    }
+    var len = beamPath.getTotalLength();
+    beamPath.style.transition = 'none';
+    beamPath.style.strokeDasharray = len + ' ' + len;
+    beamPath.style.strokeDashoffset = len;
+    beamPath.getBoundingClientRect();
+    var dur = 360;
+    beamPath.style.transition = 'stroke-dashoffset ' + dur + 'ms cubic-bezier(0.23,1,0.32,1)';
+    beamPath.style.strokeDashoffset = '0';
+    clearTimeout(beamTimer);
+    beamTimer = setTimeout(function(){ if (done) done(); }, dur + 20);
+  }
+  function hideBeam(){
+    clearTimeout(beamTimer);
+    if (!beamSvg) return;
+    beamSvg.classList.remove('on');
+    beamPath.style.transition = 'none';
+    beamPath.setAttribute('d', '');
+  }
   function place(tool){
     var tab = tool.querySelector('.tool-tab');
     var panel = tool.querySelector('.tool-panel');
     if (!tab || !panel) return;
     var r = tab.getBoundingClientRect();
+    var side = tool.dataset.side;
+    var topbar = document.querySelector('.topbar') || document.querySelector('header');
+    var topB = topbar ? topbar.getBoundingClientRect().bottom : 64;
+    var foot = document.querySelector('footer');
+    var footT = foot ? foot.getBoundingClientRect().top : window.innerHeight;
+    var opposite = document.querySelector(side === 'right' ? '.rail-left' : '.rail-right');
+    var ob = opposite ? opposite.getBoundingClientRect() : null;
+    var rail = tool.closest('.rail');
+    var rb = rail.getBoundingClientRect();
+    var pad = 22;
     // A tab low in its stack sends its beam to the bottom of the screen and the
     // panel rises from there instead of hanging off the tab.
     var below = r.top > window.innerHeight * 0.6;
     tool.toggleAttribute('data-below', below);
+    // The panel slides down from the beam line (just below the topbar), spanning
+    // from this rail to a padding shy of the opposite rail.
+    if (side === 'left'){
+      panel.style.left = Math.round(rb.right) + 'px';
+      panel.style.right = Math.round(window.innerWidth - (ob ? ob.left : window.innerWidth) + pad) + 'px';
+    } else {
+      panel.style.right = Math.round(window.innerWidth - rb.left) + 'px';
+      panel.style.left = Math.round((ob ? ob.right : 0) + pad) + 'px';
+    }
     if (below){
       panel.style.top = 'auto';
-      panel.style.bottom = '12px';
-      panel.style.maxHeight = Math.round(window.innerHeight - 24) + 'px';
+      panel.style.bottom = Math.round(window.innerHeight - (footT - 14)) + 'px';
+      panel.style.maxHeight = Math.round((footT - 14) - (topB + 10)) + 'px';
     } else {
-      var minH = Math.min(560, Math.max(260, window.innerHeight * 0.72));
-      var top = Math.max(12, Math.min(r.top, window.innerHeight - 12 - minH));
       panel.style.bottom = 'auto';
-      panel.style.top = Math.round(top) + 'px';
-      panel.style.maxHeight = Math.round(window.innerHeight - top - 12) + 'px';
+      panel.style.top = Math.round(topB + 14) + 'px';
+      panel.style.maxHeight = Math.round(footT - (topB + 14) - 12) + 'px';
     }
-    if (tool.dataset.side === 'right'){ panel.style.right = Math.round(window.innerWidth - r.left) + 'px'; panel.style.left = 'auto'; }
-    else { panel.style.left = Math.round(r.right) + 'px'; panel.style.right = 'auto'; }
   }
   function openTool(tool){
     if (closeTimer){ clearTimeout(closeTimer); closeTimer = null; }
@@ -1962,15 +2046,15 @@
     if (openToolEl) closeTool(openToolEl);
     openToolEl = tool;
     place(tool);                  // set clip direction + geometry before the reveal starts
-    tool.classList.add('open');
     var btn = tool.querySelector('.tool-tab');
     if (btn) btn.setAttribute('aria-expanded', 'true');
+    drawBeam(tool, function(){ if (openToolEl === tool) tool.classList.add('open'); });
   }
   function closeTool(tool){
     tool.classList.remove('open');
     var btn = tool.querySelector('.tool-tab');
     if (btn) btn.setAttribute('aria-expanded', 'false');
-    if (openToolEl === tool) openToolEl = null;
+    if (openToolEl === tool){ openToolEl = null; hideBeam(); }
   }
   function scheduleClose(tool){
     if (closeTimer) clearTimeout(closeTimer);
@@ -2000,7 +2084,16 @@
   document.addEventListener('keydown', function(e){
     if (e.key === 'Escape' && openToolEl && (!stepModal || stepModal.hidden)) closeTool(openToolEl);
   });
-  function reposition(){ if (openToolEl) place(openToolEl); }
+  function reposition(){
+    if (!openToolEl) return;
+    place(openToolEl);
+    if (beamSvg && beamSvg.classList.contains('on')){
+      beamPath.style.transition = 'none';
+      beamPath.style.strokeDasharray = '';
+      beamPath.style.strokeDashoffset = '';
+      beamPath.setAttribute('d', beamPathD(openToolEl));
+    }
+  }
   window.addEventListener('resize', reposition);
   var stageEl = document.querySelector('.stage');
   if (stageEl) stageEl.addEventListener('scroll', reposition, { passive: true });
