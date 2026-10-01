@@ -14,6 +14,7 @@ its Android port (`mobile/`), Comfy Bridge (`comfy-bridge/` + its own `mobile/`)
   `mem:core` onward first session.
 - Builds: `main.js`/`preload.js`/`renderer/app.js` are generated — never hand-edit.
   Dev loop is `npm run refresh-app` (same loop inside `comfy-bridge/`).
-- Bridge shares UI once via `comfy-bridge/src/renderer/shared/` — `npm run build:shared`
-  regenerates its copies; never hand-edit those either.
+- Bridge shares UI once via `comfy-bridge/src/renderer/shared/` — hand-authored source
+  (ports of root modules, not synced). `npm run build:shared` only bundles it into
+  `mobile/www/shared.js`; never hand-edit those outputs.
 - Fresh clone has no `notes/` (gitignored): say so and ask before recreating it.
