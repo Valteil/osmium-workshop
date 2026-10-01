@@ -39,7 +39,8 @@
       map['--' + t + '-l'] = day;
       map['--' + t + '-d'] = night[src] + alpha;
     }
-    for (var f in FACES) map[f] = v[FACES[f]];
+    // Put the width-normalised twin (assets/font-fit.css) first in each stack so no face changes the layout.
+    for (var f in FACES) map[f] = v[FACES[f]].replace(/^'([^']+)'/, function(m, fam){ return "'" + fam + ' Fit ' + f.slice(4) + "', " + m; });
     return { id: theme.id, name: theme.name, vars: map, ground: groundOf(theme, night) || {},
       swatch: [v['--bg-base'], v['--accent-manual'], v['--accent-flair']] };
   }

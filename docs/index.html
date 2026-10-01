@@ -11,6 +11,8 @@
      JetBrains Mono, plus every theme's faces for the theme picker. Nothing
      is fetched from Google; only faces actually in use download. -->
 <link rel="stylesheet" href="demo/fonts/fonts.css">
+<!-- Width-normalised twins of those faces (generated): a theme's text takes the same room whatever its font. -->
+<link rel="stylesheet" href="assets/font-fit.css">
 <!-- Theme picker support, loaded before first paint so a saved theme never
      flashes the default: the app's night-mode math (generated), then the
      saved-theme painter. -->
@@ -700,7 +702,7 @@
   .footer-links a:hover{color:var(--ink);}
 
   @media (max-width:860px){
-    .hero-grid{grid-template-columns:1fr;}
+    .hero-grid{grid-template-columns:minmax(0,1fr);}
     .hero-art{max-width:340px; margin:0 auto;}
     .conn-row, .conn-row.rev{grid-template-columns:1fr; gap:20px;}
     .conn-diagram, .conn-row.rev .conn-diagram{max-width:160px; transform:none;}
@@ -1686,7 +1688,14 @@
       root.style.setProperty('--reveal-x', x + 'px');
       root.style.setProperty('--reveal-y', y + 'px');
       root.style.setProperty('--reveal-r', Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y)) + 'px');
-      document.startViewTransition(change);
+      // Fetch the new theme's faces first: the reveal must show the final text, not a fallback that swaps in mid-circle.
+      var faces = [theme.vars['--display'], theme.vars['--sans'], theme.vars['--mono']].map(function(s){ return /^'([^']+)'/.exec(s)[1]; });
+      var roles = ['display', 'body', 'mono'];
+      var loads = [];
+      faces.forEach(function(fam, i){ [400, 500, 600].forEach(function(w){ loads.push(document.fonts.load(w + ' 16px "' + fam + ' Fit ' + roles[i] + '"')); }); });
+      Promise.race([Promise.all(loads), new Promise(function(res){ setTimeout(res, 1500); })]).catch(function(){}).then(function(){
+        document.startViewTransition(change);
+      });
     } else {
       change();
     }

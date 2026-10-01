@@ -123,4 +123,5 @@ for (const m of css.matchAll(/html\[data-theme="([a-z-]+)"\] #gallery\s*\{([\s\S
 const order = Object.keys(names);
 themes.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
 fs.writeFileSync(R('docs', 'assets', 'themes.json'), JSON.stringify(themes));
+require('./site-font-fit');
 console.log(`sync-site: demo synced, content synced, ${themes.length} themes -> docs/assets/themes.json`);
