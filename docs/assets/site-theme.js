@@ -128,6 +128,70 @@
       anim = root.animate({ backgroundPosition: [p.from, p.to] }, { duration: LOOP_S * 1000, iterations: Infinity, easing: 'linear', pseudoElement: '::before' });
     }, 30);
   }
+  // ---- Terminal's matrix rain: the app's ground-scroll.ts rain, ported to a fixed canvas behind the page.
+  // Falling katakana/digits in the theme's accent (--blue, so it follows night mode). Terminal only;
+  // skipped under reduced motion. Same cell size, speeds, trail and alphas as the app.
+  var GLYPHS = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789:.=*+-<>|', CELL = 16;
+  var rain = null;
+  function stopRain(){
+    if (!rain) return;
+    clearInterval(rain.timer); window.removeEventListener('resize', rain.resize); rain.canvas.remove(); rain = null;
+  }
+  function startRain(){
+    stopRain();
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var canvas = document.createElement('canvas');
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;display:block';
+    document.body.insertBefore(canvas, document.body.firstChild);
+    var cols = [], rows = 0, rgb = [0, 255, 102], last = performance.now(), frame = 0;
+    function rand(a, b){ return a + Math.random() * (b - a); }
+    function glyph(){ return GLYPHS[Math.floor(Math.random() * GLYPHS.length)]; }
+    function reset(c, first){ c.speed = rand(3, 6); c.len = Math.floor(rand(8, 18)); c.head = first ? rand(-rows, rows) : -1; c.wait = first ? rand(0, 5) : rand(1, 8); }
+    function resize(){
+      var dpr = window.devicePixelRatio || 1, w = innerWidth, h = innerHeight;
+      canvas.width = Math.max(1, Math.floor(w * dpr)); canvas.height = Math.max(1, Math.floor(h * dpr));
+      rows = Math.ceil(h / CELL);
+      var n = Math.floor(w / CELL);
+      while (cols.length < n){ var c = { head: 0, speed: 0, len: 0, wait: 0, glyphs: [] }; for (var i = 0; i < 96; i++) c.glyphs.push(glyph()); reset(c, true); cols.push(c); }
+      cols.length = n;
+    }
+    // The canvas's own computed `color` resolves var(--blue) (and its night mix) to plain rgb().
+    canvas.style.color = 'var(--blue)';
+    // Computed color can be rgb() or color(srgb …); a 1px canvas turns either into bytes.
+    var probe = document.createElement('canvas'); probe.width = probe.height = 1;
+    var pctx = probe.getContext('2d', { willReadFrequently: true });
+    function color(){ pctx.clearRect(0, 0, 1, 1); pctx.fillStyle = getComputedStyle(canvas).color; pctx.fillRect(0, 0, 1, 1); var d = pctx.getImageData(0, 0, 1, 1).data; rgb = [d[0], d[1], d[2]]; }
+    function draw(){
+      if (document.hidden) return;
+      var now = performance.now(), dt = Math.min(0.25, (now - last) / 1000); last = now;
+      if (frame++ % 16 === 0) color();
+      var ctx = canvas.getContext('2d'), dpr = window.devicePixelRatio || 1;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = (CELL - 3) + 'px "JetBrains Mono", "MS Gothic", monospace';
+      ctx.textBaseline = 'top';
+      cols.forEach(function(c, i){
+        if (c.wait > 0){ c.wait -= dt; return; }
+        c.head += c.speed * dt;
+        if (c.head - c.len > rows){ reset(c, false); return; }
+        var head = Math.floor(c.head);
+        for (var k = 0; k < c.len; k++){
+          var row = head - k;
+          if (row < 0 || row > rows) continue;
+          var idx = row % c.glyphs.length;
+          if (Math.random() < dt * 0.9) c.glyphs[idx] = glyph();
+          var a = k === 0 ? 0.3 : 0.17 * Math.pow(1 - k / c.len, 1.6);
+          ctx.fillStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + a.toFixed(3) + ')';
+          ctx.fillText(c.glyphs[idx], i * CELL + 1, row * CELL);
+        }
+      });
+    }
+    resize(); color();
+    window.addEventListener('resize', resize);
+    rain = { canvas: canvas, resize: resize, timer: setInterval(draw, 60) };
+  }
+
   function groundOf(theme, night){
     if (!theme.ground) return null;
     var vars = {}, v = theme.vars;
@@ -148,7 +212,7 @@
     return vars;
   }
   function clear(){
-    stopGround();
+    stopGround(); stopRain();
     root.removeAttribute('data-site-ground');
     for (var i = 0; i < applied.length; i++) root.style.removeProperty(applied[i]);
     applied = [];
@@ -162,6 +226,10 @@
     // the bare tokens, so derive those from the day endpoints here.
     if (staticPage) for (var t in TOKENS) if (rec.vars['--' + t + '-l']) set('--' + t, rec.vars['--' + t + '-l']);
     root.dataset.siteTheme = rec.id;
+    // <head> has no <body> yet on a saved theme's first paint, so wait for it.
+    if (rec.id === 'terminal' && !staticPage){
+      if (document.body) startRain(); else document.addEventListener('DOMContentLoaded', function(){ if (root.dataset.siteTheme === 'terminal') startRain(); });
+    }
     if (rec.ground){ for (var g in rec.ground) set(g, rec.ground[g]); if (rec.ground['--sg-image']){ root.setAttribute('data-site-ground', ''); startGround(); } }
   }
   // The app's Osmium theme, for the parts the site's own CSS doesn't already carry: its dot-field ground
