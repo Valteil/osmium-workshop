@@ -459,6 +459,8 @@
     /* --gy: the editor's per-tool graphic nudge (px down). --gt (px toward the text) is retired: the flipped row's graphic is placed by the grid. */
     transform:translate(0, var(--gy, 0px));}
   .conn-copy{min-width:0; max-width:34rem; justify-self:start;}
+  /* Graphic on the left: the copy may use the rest of the row (the 1fr track). */
+  .conn-row:not(.rev) .conn-copy{max-width:none; justify-self:stretch;}
   .conn-diagram svg{width:100%; height:100%;}
   .conn-copy h3{font-family:var(--f-display); font-size:1.45rem; margin:0 0 10px; font-weight:600;}
   .conn-copy p{color:var(--ink-soft); margin:0;}
