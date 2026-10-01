@@ -218,6 +218,8 @@ export function initGroundScroll(toggle: HTMLInputElement): void {
   const start = () => {
     stop();
     syncRain(true);
+    // CSS hook: grounds that animate inside their own image (Forest Moss) swap to a frozen copy without it.
+    root.classList.toggle('ground-scroll-on', toggle.checked);
     if (!toggle.checked || reduced.matches) return;
     const p = plan(getComputedStyle(gallery));
     if (!p.moving) return;

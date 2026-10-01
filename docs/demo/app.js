@@ -4882,6 +4882,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     const start = () => {
       stop();
       syncRain(true);
+      root.classList.toggle("ground-scroll-on", toggle.checked);
       if (!toggle.checked || reduced.matches) return;
       const p = plan(getComputedStyle(gallery));
       if (!p.moving) return;
