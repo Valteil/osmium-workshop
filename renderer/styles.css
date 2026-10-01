@@ -246,6 +246,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   @keyframes flairPulse{ 0%,100%{ opacity:0.5; } 50%{ opacity:1; } }
   @keyframes flairDrift{ 0%{ background-position: 0% 0%, 100% 100%; } 100%{ background-position: 100% 100%, 0% 0%; } }
+  @keyframes auroraDrift{ 0%{ background-position: 0% 0%, 100% 100%, 0 0, 0 0, 0 0; } 100%{ background-position: 100% 100%, 0% 0%, 0 0, 0 0, 0 0; } }
   @keyframes flairSweep{ 0%{ transform: translateX(-140%) skewX(-12deg); } 100%{ transform: translateX(140%) skewX(-12deg); } }
   @keyframes flairShimmer{ 0%{ background-position: -200% 0; } 100%{ background-position: 200% 0; } }
   @keyframes flairSlide{ 0%{ background-position: 0% 0%; } 100%{ background-position: 200% 0%; } }
@@ -620,7 +621,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --fx-card-t: translateY(-3px); --fx-card-s: 0 12px 28px color-mix(in srgb, var(--accent-manual) 22%, transparent);
   }
   html[data-theme="bioluminescent"] #gallery{
-    background-image: linear-gradient(to top, color-mix(in srgb, var(--accent-manual) 11%, transparent), transparent 45%);
+    /* The glow, then plankton: tiled px layers so the gallery scroll option has something to carry. */
+    background-image: linear-gradient(to top, color-mix(in srgb, var(--accent-manual) 11%, transparent), transparent 45%),
+      radial-gradient(circle at 20% 30%, color-mix(in srgb, var(--accent-manual) 40%, transparent) 0 1.5px, transparent 2.5px),
+      radial-gradient(circle at 70% 65%, color-mix(in srgb, var(--accent-manual) 28%, transparent) 0 1px, transparent 2px),
+      radial-gradient(circle at 45% 85%, color-mix(in srgb, var(--accent-manual) 15%, transparent) 0 2px, transparent 8px);
+    background-size: 100% 100%, 97px 113px, 61px 73px, 131px 149px;
   }
   html[data-theme="bioluminescent"] #topbar{ border-bottom: 1px solid var(--border-soft); }
   html[data-theme="bioluminescent"] .tool-section{
@@ -697,7 +703,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --icon-stroke: 2.1;
   }
   html[data-theme="solarflare"] #gallery{
-    background-image: radial-gradient(ellipse 80% 45% at 50% -8%, color-mix(in srgb, var(--accent-manual) 14%, transparent), transparent 70%);
+    /* The glow, then embers: tiled px layers so the gallery scroll option has something to carry. */
+    background-image: radial-gradient(ellipse 80% 45% at 50% -8%, color-mix(in srgb, var(--accent-manual) 14%, transparent), transparent 70%),
+      radial-gradient(circle at 30% 40%, color-mix(in srgb, var(--accent-manual) 34%, transparent) 0 1.4px, transparent 2.4px),
+      radial-gradient(circle at 65% 70%, color-mix(in srgb, var(--accent-auto) 24%, transparent) 0 1px, transparent 2px),
+      radial-gradient(circle at 55% 15%, color-mix(in srgb, var(--accent-manual) 14%, transparent) 0 2px, transparent 7px);
+    background-size: 100% 100%, 83px 101px, 67px 59px, 139px 127px;
   }
   html[data-theme="solarflare"] #topbar{
     border-bottom: none;
@@ -810,7 +821,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --fx-card-t: translateY(-3px) rotate(-0.5deg); --fx-card-s: 0 12px 24px rgba(0,0,0,0.45);
   }
   html[data-theme="forest-moss"] #gallery{
-    background-image: repeating-radial-gradient(ellipse 120% 80% at 70% 110%, transparent 0 22px, color-mix(in srgb, var(--accent-manual) 13%, transparent) 22px 23px);
+    /* The rings, then spores: tiled px layers so the gallery scroll option has something to carry. */
+    background-image: repeating-radial-gradient(ellipse 120% 80% at 70% 110%, transparent 0 22px, color-mix(in srgb, var(--accent-manual) 13%, transparent) 22px 23px),
+      radial-gradient(circle at 35% 45%, color-mix(in srgb, var(--accent-manual) 26%, transparent) 0 1.5px, transparent 2.5px),
+      radial-gradient(circle at 75% 20%, color-mix(in srgb, var(--accent-manual) 16%, transparent) 0 1px, transparent 2px),
+      radial-gradient(circle at 60% 80%, color-mix(in srgb, var(--accent-flair) 18%, transparent) 0 2px, transparent 6px);
+    background-size: 100% 100%, 73px 89px, 49px 57px, 127px 113px;
   }
   html[data-theme="forest-moss"] #topbar{ border-bottom: 1px solid var(--border-strong); }
   html[data-theme="forest-moss"] .tab-btn.active{ color: var(--accent-flair); border-bottom-color: var(--accent-manual); }
@@ -1209,7 +1225,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --icon-stroke: 1.6;
   }
   html[data-theme="blood-moon"] #gallery{
-    background-image: radial-gradient(ellipse at 50% 45%, transparent 38%, color-mix(in srgb, var(--accent-manual) 10%, color-mix(in srgb, var(--bg-base) 70%, transparent)) 100%);
+    /* The vignette, then fine crossing hatching: tiled layers so the gallery scroll option has something to carry. */
+    background-image: radial-gradient(ellipse at 50% 45%, transparent 38%, color-mix(in srgb, var(--accent-manual) 10%, color-mix(in srgb, var(--bg-base) 70%, transparent)) 100%),
+      repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent-manual) 8%, transparent) 0 1px, transparent 1px 34px),
+      repeating-linear-gradient(45deg, color-mix(in srgb, var(--text-primary) 4%, transparent) 0 1px, transparent 1px 58px);
   }
   html[data-theme="blood-moon"] .brand{ color: var(--accent-manual); }
   html[data-theme="blood-moon"] #topbar{ border-bottom: 1px solid var(--accent-manual); box-shadow: 0 1px 12px -4px color-mix(in srgb, var(--accent-manual) 60%, transparent); }
@@ -1278,9 +1297,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   html[data-theme="aurora-borealis"] #gallery{
     background-image: radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--accent-auto) 14%, transparent), transparent 55%),
-      radial-gradient(ellipse at 80% 10%, color-mix(in srgb, var(--accent-manual) 14%, transparent), transparent 55%);
-    background-size: 160% 160%, 160% 160%;
-    animation: flairDrift 18s ease-in-out infinite alternate;
+      radial-gradient(ellipse at 80% 10%, color-mix(in srgb, var(--accent-manual) 14%, transparent), transparent 55%),
+      radial-gradient(circle at 25% 35%, color-mix(in srgb, var(--text-primary) 38%, transparent) 0 1px, transparent 1.8px),
+      radial-gradient(circle at 70% 70%, color-mix(in srgb, var(--accent-auto) 30%, transparent) 0 1.2px, transparent 2.2px),
+      radial-gradient(circle at 50% 10%, color-mix(in srgb, var(--accent-manual) 24%, transparent) 0 1px, transparent 2px);
+    background-size: 160% 160%, 160% 160%, 141px 121px, 191px 167px, 109px 157px;
+    /* Twinkle tiles stay put under the drifting glows. */
+    animation: auroraDrift 18s ease-in-out infinite alternate;
     animation-play-state: var(--flair-play);
   }
   /* The curtain edge is its own 2px strip pinned to the header's bottom

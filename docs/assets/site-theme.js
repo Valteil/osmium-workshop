@@ -209,36 +209,7 @@
       else vars[k] = val;
     });
     for (var k in g) vars[k] = g[k];
-    addTiles(theme.id, vars);
     return vars;
-  }
-  // Themes whose app ground is only a glow/vignette (nothing tiled, so nothing for the diagonal drift to
-  // carry) get a few tiled layers underneath it here. Site-only: the app's own grounds are untouched.
-  // Each layer is [image, size]; sizes are px with both axes set so plan() moves it down-right, and the
-  // sizes are mutually odd so the layers don't line up into a visible grid.
-  function dot(c, pct, r, soft, at){ return 'radial-gradient(circle at ' + at + ', color-mix(in srgb, var(' + c + ') ' + pct + '%, transparent) 0 ' + r + 'px, transparent ' + soft + 'px)'; }
-  var EXTRA = {
-    // plankton: pinpricks and a few soft halos
-    bioluminescent: [[dot('--accent-manual', 40, 1.5, 2.5, '20% 30%'), '97px 113px'], [dot('--accent-manual', 28, 1, 2, '70% 65%'), '61px 73px'], [dot('--accent-manual', 15, 2, 8, '45% 85%'), '131px 149px']],
-    // embers: warm sparks of two sizes
-    solarflare: [[dot('--accent-manual', 34, 1.4, 2.4, '30% 40%'), '83px 101px'], [dot('--accent-auto', 24, 1, 2, '65% 70%'), '67px 59px'], [dot('--accent-manual', 14, 2, 7, '55% 15%'), '139px 127px']],
-    // fine diagonal hatching to carry the vignette
-    'blood-moon': [['repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent-manual) 8%, transparent) 0 1px, transparent 1px 34px)', 'auto'], ['repeating-linear-gradient(45deg, color-mix(in srgb, var(--text-primary) 4%, transparent) 0 1px, transparent 1px 58px)', 'auto']],
-    // twinkling points under the two glows
-    'aurora-borealis': [[dot('--text-primary', 38, 1, 1.8, '25% 35%'), '141px 121px'], [dot('--accent-auto', 30, 1.2, 2.2, '70% 70%'), '191px 167px'], [dot('--accent-manual', 24, 1, 2, '50% 10%'), '109px 157px']],
-    // spores drifting over the rings
-    'forest-moss': [[dot('--accent-manual', 26, 1.5, 2.5, '35% 45%'), '73px 89px'], [dot('--accent-manual', 16, 1, 2, '75% 20%'), '49px 57px'], [dot('--accent-flair', 18, 2, 6, '60% 80%'), '127px 113px']]
-  };
-  function addTiles(id, vars){
-    var more = EXTRA[id];
-    if (!more || !vars['--sg-image']) return;
-    var n = splitTop(vars['--sg-image']).length;
-    var sizes = vars['--sg-size'] ? splitTop(vars['--sg-size']) : [], poss = vars['--sg-pos'] ? splitTop(vars['--sg-pos']) : [];
-    while (sizes.length < n) sizes.push('100% 100%');
-    while (poss.length < n) poss.push('0 0');
-    more.forEach(function(m){ vars['--sg-image'] += ', ' + m[0]; sizes.push(m[1]); poss.push('0 0'); });
-    vars['--sg-size'] = sizes.join(', ');
-    vars['--sg-pos'] = poss.join(', ');
   }
   function clear(){
     stopGround(); stopRain();
