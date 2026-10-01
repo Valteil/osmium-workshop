@@ -15,6 +15,7 @@ import { app, dialog, shell, BrowserWindow } from 'electron';
 import type { IpcMain, OpenDialogOptions } from 'electron';
 import { spawn, execFile } from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { bucketImage, modelStatus, downloadModel } from './bucket-local';
 import { getValidBuckets, getBestBucket, isBucketSize } from './bucket-core';
@@ -310,9 +311,13 @@ function pidAlive(pid: number): boolean {
   catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; }
 }
 
+// A run recorded before the last boot can't still be running; its PID may now belong to any other
+// process (PIDs restart at boot), which made a fresh launch look like training in progress.
+const startedBeforeBoot = (r: RunRecord) => r.startedAt < Date.now() - os.uptime() * 1000;
+
 function runIsLive(): RunRecord | null {
   const r = readRun();
-  return r && pidAlive(r.pid) ? r : null;
+  return r && !startedBeforeBoot(r) && pidAlive(r.pid) ? r : null;
 }
 
 const PROGRESS_RE = /(\d+)\s*%\|[^|]*\|\s*(\d+)\/(\d+)\s*\[([^\]]*)\]/;
@@ -376,7 +381,7 @@ function status(): TrainflowStatus {
   };
   const rec = readRun();
   if (!rec) return out;
-  const live = pidAlive(rec.pid);
+  const live = !startedBeforeBoot(rec) && pidAlive(rec.pid);
   const parsed = parseLog(readTail(rec.logFile));
   const finalFile = path.join(rec.outDir, rec.project + '.safetensors');
   let finished = false;
@@ -450,7 +455,7 @@ function checkCuda(python: string, cwd: string): Promise<boolean> {
 async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult> {
   if (runIsLive()) return { ok: false, errors: ['Training is already running.'] };
   const resolved = resolveInstall(readFolder());
-  if (!resolved.ok) return { ok: false, errors: [resolved.error] };
+  if (!('install' in resolved)) return { ok: false, errors: [resolved.error] };
   const inst = resolved.install;
 
   const errors: string[] = [];
