@@ -1,9 +1,14 @@
 // Phase B module: in-app Help & Documentation panel content. Kept as plain
 // data (id/title/html per section) so help.ts's rendering logic stays tiny —
 // this file is the actual "documentation," help.ts is just the viewer.
-// Content is adapted from USER_GUIDE.md (the maintainer-facing full guide) —
-// when a feature changes, update BOTH; they cover the same ground but this
-// one is trimmed for reading inside a small panel rather than a full doc.
+//
+// The sections are ordered as the real workflow — gather, WD14, prune, rules,
+// single pass, sequential pass, bucket, train — so reading the Help top to
+// bottom walks you through training a LoRA. The reference sections at the end
+// cover the rest of the app. Content is adapted from USER_GUIDE.md (the
+// maintainer-facing full guide) — when a feature changes, update BOTH; they
+// cover the same ground but this one is trimmed for reading inside a small
+// panel rather than a full doc.
 export interface HelpSection {
   id: string;
   title: string;
@@ -16,200 +21,27 @@ const isTouchDevice: boolean = (() => {
 
 export const HELP_SECTIONS: HelpSection[] = [
   {
-    id: 'opening',
-    title: 'Opening a dataset',
+    id: 'training-flow',
+    title: 'Start here: training a LoRA',
     html: `
-      <p>Osmium is made for <b>Anima</b> and the booru-tag models around it. Other models work too,
-      though the tag conventions and the generation workflow follow that style.</p>
-      <p><b>File ▸ Open dataset folder</b> and pick the folder with your images and their matching
-      <code>.txt</code> caption files (same name, e.g. <code>image.png</code> + <code>image.txt</code>).
-      Tags are shown with spaces in the app and saved back to disk with underscores — you never
-      need to think about which one you're looking at.</p>
-      <p>The app writes a few of its own files into your dataset folder as you use it. None of
-      them touch your images or captions unless you tell them to:</p>
-      <ul>
-        <li><b>Disabled/</b> — images you've moved out of the active set. Still fully editable,
-        just hidden from the normal views.</li>
-        <li><b>_tag_edit_log.json</b> — the full undo-able history of every edit you've made.</li>
-        <li><b>_dts_canonical_tags.json</b> — your Retroactive Merge/Void rules.</li>
-        <li><b>_dts_meta.json</b> — per-image notes, review flags, locks, and similar metadata.</li>
-        <li><b>_dts_synthdat_settings.json</b> — SynthDat Overseer's prompt/generation settings for
-        this dataset (only appears once you've used that tab).</li>
-        <li><b>_dts_achievements.json</b> — achievements unlocked in this dataset.</li>
-        <li><b>_dts_subject_presets.json</b> — characters saved from Tag sorting's character
-        sections (only appears once you save one).</li>
-        ${isTouchDevice ? '' : `<li><b>original_images/</b> — originals kept by Bucket Images, shown in the
-        🖼 Originals view (only appears once you bucket).</li>`}
-      </ul>
-      <p><b>File ▸ Add images…</b> copies more images into the open dataset, each arriving untagged
-      with an empty <code>.txt</code>.${isTouchDevice ? ' You choose which app to pick them from — Photos, Files, or any file manager you have installed.' : ''}
-      With no dataset open it first offers to create one: name it, choose where its folder goes,
-      and the new dataset opens ready for the images.</p>`
-  },
-  {
-    id: 'gallery',
-    title: 'The Gallery tab',
-    html: `
-      <p>This is the tag editor itself — everything else in the app exists to support what happens
-      here. The toolbar at the top of the gallery switches views and holds a few dataset-wide
-      actions${isTouchDevice ? ' (swipe it sideways to reach them all)' : ''}:</p>
-      <ul>
-        <li><b>Grid</b> (the default) — each card shows the image, its tags as editable chips, and
-        a 3-dot menu for per-image actions.</li>
-        ${isTouchDevice ? '' : `<li><b>Compact</b> — smaller thumbnails, tags appear on hover. Shift-click two images to
-        pin them side by side in a comparison table.</li>
-        <li><b>Single</b> — one image at a time: a compact preview (click it for the full-size
-        view — scroll to zoom, drag to pan) beside a roomy tag panel, with the add-tag field under
-        the image. The toolbar folds away for room: Grid (and Wiki) sit above the image, and the
-        Prev / "N / total" / Next navigator sits above the tags. Type a number into the "N / total"
-        box and press Enter to jump straight to that image. <b>Image Quicktagging:</b> while it
-        shows one image, the left panel becomes checkboxes for common attributes (hair length,
-        breast size, slim/plump, thick thighs/slim legs, looking at viewer/away/to the side). Tick
-        to add, untick to remove; a breast size also adds <code>breasts</code> (Flat doesn't), and
-        unticking a size takes <code>breasts</code> off again unless another size is still ticked.
-        With only Flat left ticked, <code>breasts</code> is removed too. Each category's <b>+</b> adds
-        your own quicktag (kept for every dataset), with optional rules: tags it also adds, which
-        of those stay after unticking, tags unticking also removes, and tags that untick it.
-        <b>+ Add category</b> adds a category.</li>
-        <li><b>📖 Wiki</b> (next to Asc/Desc) — a small window for looking up any tag's definition.
-        Type a tag, pick a suggestion, and its definition shows boxed above the field, with its
-        See also tags below (click one to open it). Drag it by its title; it stays open until you
-        close it.</li>`}
-        <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
-        ${isTouchDevice ? '' : `<li><b>🖼 Originals</b> — the pre-bucketing originals kept by Bucket Images (see Power
-        tools). Their tags can be edited, but they can't be disabled or restored; Bucket Images'
-        Revert is what moves them back.</li>`}
-        <li><b>🔢 Rename all</b> — renames every loaded image (+ its .txt) to a simple zero-padded
-        1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
-        first; logged and undoable from the Log panel. WebP images are converted to PNG on the way,
-        since WD14 can't read WebP (lossless; undo restores the names but they stay PNG).</li>
-        <li><b>🔓 Unlock all</b> — clears the lock on every locked image at once.</li>
-        <li><b>Hide tags</b> — hides the chips and add-tag field on every card, so while you sort
-        against a filter what's there and what's missing stays obvious. Tags stay editable through
-        the image card.</li>
-      </ul>
-      ${isTouchDevice ? '<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>' : ''}
-      <p>To edit tags: ${isTouchDevice ? 'tap' : 'click'} a chip to open its menu (filter by it, look up its wiki definition,
-      flag it for review, explore its keyword family), type into a card's "+ add tag" box and
-      press Enter to add one (separate several with commas, e.g. "1girl, red eyes, plump", to add
-      them all at once), or ${isTouchDevice ? 'tap' : 'click'} a chip's × to remove it.</p>
-      <p><b>🏷 Tag sorting</b> — in ${isTouchDevice ? 'the image modal' : 'Single view and the image modal'}, this pill above
-      the tags groups them into labelled categories (Character, Hair, Body, Face, Clothes, Limbs and
-      Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. Each category's
-      <b>+</b> adds tags right there; a tag that belongs to another category goes there instead,
-      and you're told. With it off, tags still
-      follow that category order, just without headings (Settings ▸ "Sort tags within each card"
-      offers Order added, Alphabetical or By frequency instead). The grouping is a best
-      guess from Danbooru tag groups, so the odd tag lands in a neighbouring category. With it on,
-      <b>＋ Add character</b> (next to the pill) adds an empty section under Character, named
-      Character 1, 2… until you type a name, for multi-character images. Drag a whole category
-      heading or single tags into it${isTouchDevice ? '' : ' (or shift-click tags, then "Move tags to:")'};
-      drop them back on the main list to take them out. <b>Save</b> keeps that character in the
-      dataset, and <b>Load character</b> on another image pulls its tags into a section, with
-      the saved tags the image doesn't have shown as dashed <b>+ tag</b> chips to add.
-      Sections are saved per image; ✕ removes one and its tags go back to the main list.</p>
-      <p><b>Filtering</b> — the search box on the left supports multiple tags combined with AND /
-      OR / XOR / NOT. Type 2 or more characters and a suggestions list appears below the box:
-      direct matches first, then other tags that share a word with them (searching "dr" suggests
-      "dress" right away, and groups "black dress"/"dress shoes" under a "Same keyword family"
-      heading). If you only want an exact match — so searching "dress" doesn't also pull in "black
-      dress" — check "Exact tag match" just under the search box. The <b>Boolean</b> dropdown
-      under the box picks how your terms combine (default <b>OR</b>: any term matches); tick
-      <b>Lock</b> to keep your choice when <b>Clear filter</b> or opening a dataset would
-      otherwise reset it to OR.</p>
-      <p><b>🚩 Review flagged tags</b> (left panel) swaps the TAGS list for every tag you've
-      flagged for review from a chip's menu, across the whole dataset. <b>Reviewed</b> clears
-      that flag everywhere at once (undoable); the row stays struck through for the session.
-      <b>Flag isolated tags</b> highlights tags on 2 or fewer images — a fast way to spot typos.</p>
-      <p>If your gallery's columns keep changing count as you zoom or open a side panel, that's
-      expected — Settings ▸ Appearance has a "Gallery columns" option to lock it to a fixed
-      number instead.</p>
-      <p><b>Locking</b> an image (🔒, in its 3-dot menu) keeps it out of every mass or automatic
-      tool — Unify/Void, Master Tags, bulk WD14 — while leaving it fully editable by hand. Use it
-      to protect one image from an unattended batch operation without disabling it.</p>
-      ${isTouchDevice ? '' : '<p>Opening a card image also offers <b>⟲/⟳ Rotate</b> and <b>✂ Crop</b> — pixel edits that rewrite the image file in place (confirmed first, logged and undoable in the Log), with Crop\u2019s Isolate button saving the selected region as a NEW dataset image instead of touching the source.</p>'}`
-  },
-  {
-    id: 'image-menu',
-    title: 'The 3-dot image menu',
-    html: `
-      <p>Every card has a "⋯" button (${isTouchDevice ? 'or long-press the card' : 'or right-click the card'}) with actions for
-      that one image.${isTouchDevice ? '' : ` Labels are kept short on purpose — hover any of them for the full
-      explanation.`}</p>
-      <ul>
-        <li><b>❌ Disable / ↩ Restore</b> — move the image to/from Disabled.</li>
-        <li><b>❌ Delete permanently</b> — removes the image and its tags from
-        disk outright, with no way back. Confirmed first; no undo. Also available as a mass
-        action in Master Tag Control. Only removes the copy inside your DATASET folder — if the
-        image came from SynthDat Overseer, ComfyUI's own <code>output/</code> folder keeps its own
-        separate copy from when it was generated, untouched by this.</li>
-        <li><b>🔒 Lock / 🔓 Unlock</b> — see the Gallery section above.</li>
-        <li><b>🚫 Merge Immunize / 🟢 Antivoid / ✋ Antimmunize</b> — permanently exempt this one
-        image from the Retroactive Merge/Void dock's rules. This is stronger than Lock: Lock only
-        skips mass tools, these specifically block the standing-rule system even when you
-        deliberately re-trigger it (e.g. by editing a rule). Turning one on gives the image back
-        the tags the rules took; turning it off applies the rules to it again right away.</li>
-        <li><b>⏮ Reset edits</b> — revert this image back to its earliest known tag state.</li>
-        <li><b>🗑️ Remove all tags</b> — clears every tag on this image at once (confirmed first)
-        instead of ${isTouchDevice ? 'tapping' : 'clicking'} each chip's own ×. Undoable from the main Undo button.</li>
-        <li><b>🐍 WD14 Tag</b> — run the autotagger on just this one image.</li>
-        <li>Text/language, comic/koma, review flags, blur, and notes — all write immediately as
-        you change them, no separate "Apply" step needed.</li>
-      </ul>`
-  },
-  {
-    id: 'power-tools',
-    title: isTouchDevice ? 'Power tools (bottom panel)' : 'Power tools (right sidebar)',
-    html: (isTouchDevice ? `
-      <p>Docked panels in the bottom panel — swipe left/right to switch between them, tap a dock's
-      header to collapse/expand it. Drag-to-reorder and drag-to-resize are both mouse-only, so
-      those aren't available here.</p>
-      <p><b>✂️ Prune tags</b> opens a full-screen browse/select list. Check any tags you want,
-      then either Apply/Void them right there, or <b>💾 Save as task</b> to stash that selection
-      and start browsing the next unrelated group without losing it — each saved task keeps its
-      own selection and its own Apply/Void, so several unrelated groups stay separate.</p>` : `
-      <p>These are the docked panels in the Gallery's right sidebar. Drag a dock's header to
-      reorder it relative to the others, click the header to collapse/expand it, or drag its
-      bottom edge to resize (Retroactive Merge/Void sizes itself to its content and skips this).
-      The whole sidebar can also be dragged wider or narrower from its own left edge, or tucked
-      away entirely via the arrow at its top.</p>
-      <p><b>Tag Pruner</b> — search or browse every tag in the dataset and hand-pick any
-      combination to feed into Unify/Void below it. "+ Add another Tag Pruner" opens as many
-      independent boxes as you want — each has its OWN selection (a tag picked in one is hidden
-      from the others, so several unrelated keyword families can be browsed side by side without
-      colliding). Each box's own header also has <b>🔍 Mirror to gallery search</b> (only one box
-      can drive the left-hand gallery filter at a time — checking one unchecks any other; it follows the <b>Boolean</b> dropdown, so OR shows every
-      image carrying any selected tag) and its
-      own <b>Clear</b>, affecting just that box.</p>
-      <p><b>Unify/Void</b> — one row per Tag Pruner box that currently has a selection, each with
-      its own tag summary and its own Apply/Void. Apply merges that box's selected tags into the
-      name you type in; Void permanently deletes them (confirmed first, fully undoable). Both
-      actions automatically create or extend a standing rule in Retroactive Merge/Void below, so
-      the same correction keeps applying to future tags without you repeating it by hand.</p>`) + `
-      <p><b>Retroactive Merge/Void</b> — standing rules: "these tags → this one canonical tag" (a
-      merge) or "these tags → nothing" (a void). Whenever a rule's tags show up on a Gallery image
-      afterward — by WD14, Master Tags, an accepted SynthDat image, or typing it in — they're
-      corrected automatically (a ruled tag typed by hand is corrected on the spot, with a toast
-      naming the rule). This only affects Gallery images; Disabled ones are frozen until restored. A rule
-      can be paused, or one of its tags turned off individually, without losing anything — both
-      actively restore whatever each affected image originally had. Merge rules list one row per
-      canonical tag (+ New rule only makes merge rules); below them, one permanent collapsible
-      Void box holds every voided tag.</p>
-      <p><b>Past Tag Preview</b> — every image also shows the tags a rule took off it, after its
-      real tags, as faded "ghost" tags: struck through for a void, with a four-arrows-inward mark
-      for a merge (last in their category with Tag sorting on). They're exactly what the image gets
-      back if that rule is turned off. Delete one with its × like any tag (undoable), and it won't
-      come back. Turn the preview off in Settings ▸ Show Past Tag Preview.</p>
-      ${isTouchDevice ? '' : `<p><b>🧺 Bucket Images</b> — crops and resizes every Gallery image to its nearest LoRA
-      training bucket (Min side / Max side / Step, default 256 / 1024 / 64), so your trainer
-      doesn't have to. The crop keeps the subject using a saliency model (a one-time ~176 MB
-      download, ⬇ button in the dock). <b>Prefer GPU</b> runs it on your graphics card with an
-      automatic CPU fallback. Originals are never lost: they move to an <code>original_images/</code>
-      folder (browse them via the 🖼 Originals view), and every image gets one, even if it's
-      already a valid size. Bucketing again re-makes the copies from the originals (try other
-      Min/Max/Step as often as you like). <b>↩ Revert bucketing</b> puts the originals back.</p>`}
+      <p>This Help runs top to bottom in the order you actually work. Follow it and you finish with a
+      tagged, pruned, bucketed dataset that's ready to train.</p>
+      <ol>
+        <li><b>Gather your dataset</b> — open a folder, add images and captions.</li>
+        <li><b>WD14 tag</b> — autotag everything first, so you have something to clean up.</li>
+        <li><b>Prune</b> — merge or void tag variants in bulk.</li>
+        <li><b>Set Merge/Void rules</b> — standing rules that keep unwanted tags out for good.</li>
+        <li><b>Single mode pass</b> — one image at a time; quicktag the case-by-case stuff.</li>
+        <li><b>Sequential mode pass</b> — classify technicalities across a filtered batch.</li>
+        ${isTouchDevice ? '' : '<li><b>Bucket images</b> — crop and resize every image to a training bucket.</li>'}
+        ${isTouchDevice ? '' : '<li><b>Train</b> — run Trainflow on the finished dataset.</li>'}
+      </ol>
+      ${isTouchDevice ? `<p>On Android the tagging steps are the same; bucketing and training happen on
+      your PC.</p>` : ''}
+      <p>How hard you lean on steps 3 and 4 depends on whether you're making a
+      <span style="white-space:nowrap;"><b>character LoRA or a style LoRA</b> <button type="button" class="info-btn" id="infoGlossaryCharacterLora" title="Character LoRA vs. style LoRA">ⓘ</button></span>.</p>
       <p>Merge and Void tend to matter a lot more for a
-      <span style="white-space:nowrap;"><b>character LoRA</b> <button type="button" class="info-btn" id="infoGlossaryCharacterLora" title="Character LoRA vs. style LoRA">ⓘ</button></span>
+      <span style="white-space:nowrap;"><b>character LoRA</b></span>
       than a style one. A character LoRA needs its identity-defining tags kept tight and
       consistent, so a stray misspelling or an inconsistent variant of the same trait doesn't
       teach the model that trait is optional — that's exactly what these tools clean up. Style
@@ -261,13 +93,281 @@ export const HELP_SECTIONS: HelpSection[] = [
       </template>`
   },
   {
-    id: 'tag-overseer',
-    title: 'Tag Overseer tab',
+    id: 'step-gather',
+    title: '1 · Gather your dataset',
     html: `
-      <p>Two tools live here: Master Tag Control and the WD14 Autotagger. Clicking this tab again
-      while it's already open takes you back to the Gallery.${isTouchDevice ? '' : ` If the right sidebar
-      is tucked away, clicking this tab opens it, and clicking the tab again tucks it back.`}</p>
-      <p><b>Master Tag Control</b> — select images by ${isTouchDevice ? 'tapping' : 'clicking'} thumbnails in the mini-grid here, or
+      <p>Osmium is made for <b>Anima</b> and the booru-tag models around it. Other models work too,
+      though the tag conventions and the generation workflow follow that style.</p>
+      <p><b>File ▸ Open dataset folder</b> and pick the folder with your images and their matching
+      <code>.txt</code> caption files (same name, e.g. <code>image.png</code> + <code>image.txt</code>).
+      Tags are shown with spaces in the app and saved back to disk with underscores — you never
+      need to think about which one you're looking at.</p>
+      <p>The app writes a few of its own files into your dataset folder as you use it. None of
+      them touch your images or captions unless you tell them to:</p>
+      <ul>
+        <li><b>Disabled/</b> — images you've moved out of the active set. Still fully editable,
+        just hidden from the normal views.</li>
+        <li><b>_tag_edit_log.json</b> — the full undo-able history of every edit you've made.</li>
+        <li><b>_dts_canonical_tags.json</b> — your Retroactive Merge/Void rules.</li>
+        <li><b>_dts_meta.json</b> — per-image notes, review flags, locks, and similar metadata.</li>
+        <li><b>_dts_synthdat_settings.json</b> — SynthDat Overseer's prompt/generation settings for
+        this dataset (only appears once you've used that tab).</li>
+        <li><b>_dts_achievements.json</b> — achievements unlocked in this dataset.</li>
+        <li><b>_dts_subject_presets.json</b> — characters saved from Tag sorting's character
+        sections (only appears once you save one).</li>
+        ${isTouchDevice ? '' : `<li><b>original_images/</b> — originals kept by Bucket Images, shown in the
+        🖼 Originals view (only appears once you bucket).</li>`}
+      </ul>
+      <p><b>File ▸ Add images…</b> copies more images into the open dataset, each arriving untagged
+      with an empty <code>.txt</code>.${isTouchDevice ? ' You choose which app to pick them from — Photos, Files, or any file manager you have installed.' : ''}
+      With no dataset open it first offers to create one: name it, choose where its folder goes,
+      and the new dataset opens ready for the images.</p>
+      <p>The <b>Datasets tab</b> keeps every dataset folder you've opened as a themed folder icon you
+      can come back to. Sort by name/time,${isTouchDevice ? '' : ' or manually by dragging,'} and
+      ${isTouchDevice ? 'tap a folder\'s ⋯ button' : 'right-click a folder (or tap its ⋯ button)'} to remove it from the list, pin it as a
+      favorite, view its achievements, change its icon, or move it to another tab. A folder that
+      isn't tracked yet asks whether to add it, and <b>File ▸ Add current dataset as folder</b> adds
+      the open one anytime. Its <b>tabs</b> group folders, and a tab can be password-locked (⋯
+      button) — it re-locks every launch and renders nothing until you enter the password. That
+      guards against someone briefly opening the app, not a determined attacker with your files.</p>`
+  },
+  {
+    id: 'step-wd14',
+    title: '2 · Tag with WD14',
+    html: `
+      <p>Now give every image a starting set of tags. Open the <b>Tag Overseer</b> tab and use the
+      <b>🐍 WD14 Autotagger</b> — it sends your selected images (or a single one, via its 3-dot
+      menu) through WD14 and merges the tags it returns onto each card. Select what you want to
+      tag in the gallery first, or pick images in the mini-grid on the right.</p>
+      <p>Expand "⚙ WD14 settings" to pick the tagging source, model, confidence thresholds, and
+      whether results apply automatically or go through a review step first (one card per image:
+      new tags tinted, × to drop, type extra tags, untick a card to skip it, optional category
+      sort). "Tagging source" is either <b>on-device</b> — the model runs right here,
+      ${isTouchDevice
+        ? 'hardware-accelerated where your phone supports it, falling back to CPU otherwise'
+        : 'with <b>Prefer GPU</b> using DirectML when available and falling back to CPU (the completion toast names which one ran)'},
+      no ComfyUI needed; models aren't bundled, so pick one from the built-in catalog for a one-tap
+      download or paste a HuggingFace repo — or <b>ComfyUI</b>, which sends images to a WD14 Tagger
+      node on your own instance. Either way uses the same review step and settings. Tagging a fresh
+      batch into the Gallery is what the prune and rules steps next are for.</p>`
+  },
+  {
+    id: 'step-prune',
+    title: '3 · Prune tags',
+    html: (isTouchDevice ? `
+      <p>Tag Pruner lives in the docked panels along the bottom — swipe left/right to switch
+      panels, tap a dock's header to collapse/expand it. <b>✂️ Prune tags</b> opens a full-screen
+      browse/select list. Check any tags you want, then either Apply/Void them right there, or
+      <b>💾 Save as task</b> to stash that selection and start browsing the next unrelated group
+      without losing it — each saved task keeps its own selection and its own Apply/Void, so
+      several unrelated groups stay separate.</p>` : `
+      <p>Open the docked panels in the Gallery's right sidebar. Drag a dock's header to reorder it,
+      click the header to collapse/expand it, or drag its bottom edge to resize. The whole sidebar
+      can be dragged wider or tucked away via the arrow at its top.</p>
+      <p><b>Tag Pruner</b> — search or browse every tag in the dataset and hand-pick any
+      combination to feed into Unify/Void below it. "+ Add another Tag Pruner" opens as many
+      independent boxes as you want — each has its OWN selection (a tag picked in one is hidden
+      from the others, so several unrelated keyword families can be browsed side by side without
+      colliding). Each box's own header also has <b>🔍 Mirror to gallery search</b> (only one box
+      can drive the left-hand gallery filter at a time — checking one unchecks any other; it follows the <b>Boolean</b> dropdown, so OR shows every
+      image carrying any selected tag) and its
+      own <b>Clear</b>, affecting just that box.</p>
+      <p><b>Unify/Void</b> — one row per Tag Pruner box that currently has a selection, each with
+      its own tag summary and its own Apply/Void. Apply merges that box's selected tags into the
+      name you type in; Void permanently deletes them (confirmed first, fully undoable). Both
+      actions automatically create or extend a standing rule in Retroactive Merge/Void below, so
+      the same correction keeps applying to future tags without you repeating it by hand.</p>`)
+  },
+  {
+    id: 'step-rules',
+    title: '4 · Set Merge/Void rules',
+    html: `
+      <p><b>Retroactive Merge/Void</b> — standing rules: "these tags → this one canonical tag" (a
+      merge) or "these tags → nothing" (a void). Whenever a rule's tags show up on a Gallery image
+      afterward — by WD14, Master Tags, an accepted SynthDat image, or typing it in — they're
+      corrected automatically (a ruled tag typed by hand is corrected on the spot, with a toast
+      naming the rule). This only affects Gallery images; Disabled ones are frozen until restored. A rule
+      can be paused, or one of its tags turned off individually, without losing anything — both
+      actively restore whatever each affected image originally had. Merge rules list one row per
+      canonical tag (+ New rule only makes merge rules); below them, one permanent collapsible
+      Void box holds every voided tag.</p>
+      <p><b>Past Tag Preview</b> — every image also shows the tags a rule took off it, after its
+      real tags, as faded "ghost" tags: struck through for a void, with a four-arrows-inward mark
+      for a merge (last in their category with Tag sorting on). They're exactly what the image gets
+      back if that rule is turned off. Delete one with its × like any tag (undoable), and it won't
+      come back. Turn the preview off in Settings ▸ Show Past Tag Preview.</p>
+      <p>These are the rules that clean up the WD14 pass for good. For a character LoRA this is
+      where you strip identity tags out and merge spelling variants; for a style LoRA you'll touch
+      this far less.</p>`
+  },
+  {
+    id: 'step-single',
+    title: '5 · Single mode pass',
+    html: `
+      <p>Now go image by image. Switch the gallery toolbar to <b>Single</b>: one image at a time —
+      a compact preview (click it for the full-size view; scroll to zoom, drag to pan) beside a
+      roomy tag panel, with the add-tag field under the image. The toolbar folds away for room:
+      Grid (and Wiki) sit above the image, and the Prev / "N / total" / Next navigator sits above
+      the tags. Type a number into the "N / total" box and press Enter to jump straight to that
+      image. <b>Image Quicktagging:</b> while it shows one image, the left panel becomes checkboxes
+      for common attributes (hair length, breast size, slim/plump, thick thighs/slim legs, looking
+      at viewer/away/to the side). Tick to add, untick to remove; a breast size also adds
+      <code>breasts</code> (Flat doesn't), and unticking a size takes <code>breasts</code> off again
+      unless another size is still ticked. With only Flat left ticked, <code>breasts</code> is
+      removed too. Each category's <b>+</b> adds your own quicktag (kept for every dataset), with
+      optional rules: tags it also adds, which of those stay after unticking, tags unticking also
+      removes, and tags that untick it. <b>+ Add category</b> adds a category.</p>
+      <p>To edit tags: ${isTouchDevice ? 'tap' : 'click'} a chip to open its menu (filter by it, look up its wiki definition,
+      flag it for review, explore its keyword family), type into a card's "+ add tag" box and
+      press Enter to add one (separate several with commas, e.g. "1girl, red eyes, plump", to add
+      them all at once), or ${isTouchDevice ? 'tap' : 'click'} a chip's × to remove it.</p>
+      <p><b>🏷 Tag sorting</b> — in ${isTouchDevice ? 'the image modal' : 'Single view and the image modal'}, this pill above
+      the tags groups them into labelled categories (Character, Hair, Body, Face, Clothes, Limbs and
+      Hands, Sexual, Pose, Scene, Effects, Other) instead of one flat wall. Each category's
+      <b>+</b> adds tags right there; a tag that belongs to another category goes there instead,
+      and you're told. With it off, tags still
+      follow that category order, just without headings (Settings ▸ "Sort tags within each card"
+      offers Order added, Alphabetical or By frequency instead). The grouping is a best
+      guess from Danbooru tag groups, so the odd tag lands in a neighbouring category. With it on,
+      <b>＋ Add character</b> (next to the pill) adds an empty section under Character, named
+      Character 1, 2… until you type a name, for multi-character images. Drag a whole category
+      heading or single tags into it${isTouchDevice ? '' : ' (or shift-click tags, then "Move tags to:")'};
+      drop them back on the main list to take them out. <b>Save</b> keeps that character in the
+      dataset, and <b>Load character</b> on another image pulls its tags into a section, with
+      the saved tags the image doesn't have shown as dashed <b>+ tag</b> chips to add.
+      Sections are saved per image; ✕ removes one and its tags go back to the main list.</p>`
+  },
+  {
+    id: 'step-sequential',
+    title: '6 · Sequential mode pass',
+    html: `
+      <p>Single mode handles composition; Sequential mode is for the technicalities WD14 is
+      inconsistent about (perspective especially). In the <b>Tag Overseer</b> tab, use
+      <b>▶ Sequential from first / from selected</b> — walk your current filter image by
+      image ${isTouchDevice ? 'in a full-screen panel (Back or Exit sequential leaves it)' : 'in Single view'} with a quick-modify panel: text/language (custom languages welcome),
+      censorship state + type checkboxes, multi-select perspective checkboxes, monochrome, sound
+      effects, comic, multiple views, koma count. The image is the same compact preview as
+      Single view (click it for the full-size view). A live tag preview under the image shows
+      exactly which tags Confirm will apply before you commit; Confirm advances automatically
+      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>`
+  },
+  ...(isTouchDevice ? [] : [{
+    id: 'step-bucket',
+    title: '7 · Bucket images',
+    html: `
+      <p><b>🧺 Bucket Images</b> (in the Gallery's right sidebar) crops and resizes every Gallery
+      image to its nearest LoRA training bucket (Min side / Max side / Step, default 256 / 1024 /
+      64), so your trainer doesn't have to. The crop keeps the subject using a saliency model (a
+      one-time ~176 MB download, ⬇ button in the dock). <b>Prefer GPU</b> runs it on your graphics
+      card with an automatic CPU fallback. Originals are never lost: they move to an
+      <code>original_images/</code> folder (browse them via the 🖼 Originals view), and every image
+      gets one, even if it's already a valid size. Bucketing again re-makes the copies from the
+      originals (try other Min/Max/Step as often as you like). <b>↩ Revert bucketing</b> puts the
+      originals back.</p>`
+  }]),
+  ...(isTouchDevice ? [] : [{
+    id: 'step-trainflow',
+    title: '8 · Train with Trainflow',
+    html: `
+      <p>Trains a LoRA for <b>Anima</b> on the dataset you have loaded. It uses your own
+      Anima-TrainFlow folder (the one with <code>python_embeded</code> and <code>training</code>)
+      for Python and the trainer, and your own Anima DiT, Qwen3 and VAE files (choose them once;
+      the fields start empty). Osmium asks where a dataset is on your computer the first time you
+      open it, since it can't see folder paths itself.</p>
+      <p><b>Start Trainflow</b> is the only thing that begins work: it saves your tag edits, buckets
+      the dataset (originals go to <code>original_images/</code>; nothing is redone if the copies
+      are already right), checks for an NVIDIA GPU and starts training. <b>Verify buckets</b> lists
+      every valid bucket size for the Bucket Images dock's Min/Max/Step and where your images sit.</p>
+      <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
+      you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
+      and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
+      folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.</p>`
+  }]),
+  {
+    id: 'gallery',
+    title: 'Gallery: views, filtering & editing',
+    html: `
+      <p>This is the tag editor itself — everything else in the app exists to support what happens
+      here. The toolbar at the top of the gallery switches views and holds a few dataset-wide
+      actions${isTouchDevice ? ' (swipe it sideways to reach them all)' : ''}:</p>
+      <ul>
+        <li><b>Grid</b> (the default) — each card shows the image, its tags as editable chips, and
+        a 3-dot menu for per-image actions.</li>
+        ${isTouchDevice ? '' : `<li><b>Compact</b> — smaller thumbnails, tags appear on hover. Shift-click two images to
+        pin them side by side in a comparison table.</li>`}
+        <li><b>Single</b> — the pass-five step above, with Image Quicktagging and Tag sorting.</li>
+        <li><b>📖 Wiki</b> (next to Asc/Desc) — a small window for looking up any tag's definition.
+        Type a tag, pick a suggestion, and its definition shows boxed above the field, with its
+        See also tags below (click one to open it). Drag it by its title; it stays open until you
+        close it.</li>
+        <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
+        ${isTouchDevice ? '' : `<li><b>🖼 Originals</b> — the pre-bucketing originals kept by Bucket Images. Their tags can be
+        edited, but they can't be disabled or restored; Bucket Images' Revert is what moves them
+        back.</li>`}
+        <li><b>🔢 Rename all</b> — renames every loaded image (+ its .txt) to a simple zero-padded
+        1-N sequence (active dataset first, then Disabled, continuing the same count). Confirmed
+        first; logged and undoable from the Log panel. WebP images are converted to PNG on the way,
+        since WD14 can't read WebP (lossless; undo restores the names but they stay PNG).</li>
+        <li><b>🔓 Unlock all</b> — clears the lock on every locked image at once.</li>
+        <li><b>Hide tags</b> — hides the chips and add-tag field on every card, so while you sort
+        against a filter what's there and what's missing stays obvious. Tags stay editable through
+        the image card.</li>
+      </ul>
+      <p><b>Filtering</b> — the search box on the left supports multiple tags combined with AND /
+      OR / XOR / NOT. Type 2 or more characters and a suggestions list appears below the box:
+      direct matches first, then other tags that share a word with them (searching "dr" suggests
+      "dress" right away, and groups "black dress"/"dress shoes" under a "Same keyword family"
+      heading). If you only want an exact match — so searching "dress" doesn't also pull in "black
+      dress" — check "Exact tag match" just under the search box. The <b>Boolean</b> dropdown
+      under the box picks how your terms combine (default <b>OR</b>: any term matches); tick
+      <b>Lock</b> to keep your choice when <b>Clear filter</b> or opening a dataset would
+      otherwise reset it to OR.</p>
+      <p><b>🚩 Review flagged tags</b> (left panel) swaps the TAGS list for every tag you've
+      flagged for review from a chip's menu, across the whole dataset. <b>Reviewed</b> clears
+      that flag everywhere at once (undoable); the row stays struck through for the session.
+      <b>Flag isolated tags</b> highlights tags on 2 or fewer images — a fast way to spot typos.</p>
+      <p>If your gallery's columns keep changing count as you zoom or open a side panel, that's
+      expected — Settings ▸ Appearance has a "Gallery columns" option to lock it to a fixed
+      number instead.</p>
+      <p><b>Locking</b> an image (🔒, in its 3-dot menu) keeps it out of every mass or automatic
+      tool — Unify/Void, Master Tags, bulk WD14 — while leaving it fully editable by hand. Use it
+      to protect one image from an unattended batch operation without disabling it.</p>
+      ${isTouchDevice ? '<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>' : '<p>Opening a card image also offers <b>⟲/⟳ Rotate</b> and <b>✂ Crop</b> — pixel edits that rewrite the image file in place (confirmed first, logged and undoable in the Log), with Crop\u2019s Isolate button saving the selected region as a NEW dataset image instead of touching the source.</p>'}`
+  },
+  {
+    id: 'image-menu',
+    title: 'The 3-dot image menu',
+    html: `
+      <p>Every card has a "⋯" button (${isTouchDevice ? 'or long-press the card' : 'or right-click the card'}) with actions for
+      that one image.${isTouchDevice ? '' : ` Labels are kept short on purpose — hover any of them for the full
+      explanation.`}</p>
+      <ul>
+        <li><b>❌ Disable / ↩ Restore</b> — move the image to/from Disabled.</li>
+        <li><b>❌ Delete permanently</b> — removes the image and its tags from
+        disk outright, with no way back. Confirmed first; no undo. Also available as a mass
+        action in Master Tag Control. Only removes the copy inside your DATASET folder — if the
+        image came from SynthDat Overseer, ComfyUI's own <code>output/</code> folder keeps its own
+        separate copy from when it was generated, untouched by this.</li>
+        <li><b>🔒 Lock / 🔓 Unlock</b> — see the Gallery section above.</li>
+        <li><b>🚫 Merge Immunize / 🟢 Antivoid / ✋ Antimmunize</b> — permanently exempt this one
+        image from the Retroactive Merge/Void dock's rules. This is stronger than Lock: Lock only
+        skips mass tools, these specifically block the standing-rule system even when you
+        deliberately re-trigger it (e.g. by editing a rule). Turning one on gives the image back
+        the tags the rules took; turning it off applies the rules to it again right away.</li>
+        <li><b>⏮ Reset edits</b> — revert this image back to its earliest known tag state.</li>
+        <li><b>🗑️ Remove all tags</b> — clears every tag on this image at once (confirmed first)
+        instead of ${isTouchDevice ? 'tapping' : 'clicking'} each chip's own ×. Undoable from the main Undo button.</li>
+        <li><b>🐍 WD14 Tag</b> — run the autotagger on just this one image.</li>
+        <li>Text/language, comic/koma, review flags, blur, and notes — all write immediately as
+        you change them, no separate "Apply" step needed.</li>
+      </ul>`
+  },
+  {
+    id: 'master-tags',
+    title: 'Bulk edits (Master Tag Control)',
+    html: `
+      <p>Master Tag Control lives in the <b>Tag Overseer</b> tab, for dataset-wide actions once you
+      have tags in place. Select images by ${isTouchDevice ? 'tapping' : 'clicking'} thumbnails in the mini-grid there, or
       by selecting them in the main Gallery first (selection stays in sync either way). The
       mini-grid always shows what the Gallery shows, so switch the Gallery to Disabled${isTouchDevice ? '' : ' or Originals'}
       to pick those images; it updates as soon as the Gallery changes. The selection tools act on
@@ -279,53 +379,11 @@ export const HELP_SECTIONS: HelpSection[] = [
       Lock/Unlock and Merge Immunize/Antivoid/Antimmunize buttons here apply the same per-image
       flags described in the 3-dot menu section, but to your entire selection at once. <b>❌ Delete
       selected permanently</b> removes every selected image and its tags from disk outright
-      (confirmed, locked images skipped) — no undo.</p>
-      <p><b>▶ Sequential from first / from selected</b> — walk your current filter image by
-      image ${isTouchDevice ? 'in a full-screen panel (Back or Exit sequential leaves it)' : 'in Single view'} with a quick-modify panel: text/language (custom languages welcome),
-      censorship state + type checkboxes, multi-select perspective checkboxes, monochrome, sound
-      effects, comic, multiple views, koma count. The image is the same compact preview as
-      Single view (click it for the full-size view). A live tag preview under the image shows
-      exactly which tags Confirm will apply before you commit; Confirm advances automatically
-      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>
-      <p><b>🐍 WD14 Autotagger</b> — sends selected images (or a single one, via its 3-dot menu)
-      through WD14 and merges the tags it returns onto each card. Expand "⚙ WD14 settings" to pick
-      the tagging source, model, confidence thresholds, and whether results apply automatically or
-      go through a review step first (one card per image: new tags tinted, × to drop, type extra
-      tags, untick a card to skip it, optional category sort). "Tagging source" is either <b>on-device</b> — the model runs
-      right here, ${isTouchDevice
-        ? 'hardware-accelerated where your phone supports it, falling back to CPU otherwise'
-        : 'with <b>Prefer GPU</b> using DirectML when available and falling back to CPU (the completion toast names which one ran)'},
-      no ComfyUI needed; models aren't bundled, so pick one from the built-in catalog for a one-tap
-      download or paste a HuggingFace repo — or <b>ComfyUI</b>, which sends images to a WD14 Tagger
-      node on your own instance. Either way uses the same review step and settings.</p>`
-  },
-  {
-    id: 'datasets-tab',
-    title: 'Datasets tab',
-    html: `
-      <p>A folder manager separate from the Gallery — every dataset folder you've opened shows up
-      here as a themed folder icon. Sort by name/time,${isTouchDevice ? '' : ' or manually by dragging,'} and
-      ${isTouchDevice ? 'tap a folder\'s ⋯ button' : 'right-click a folder (or tap its ⋯ button)'} for more options: remove it from
-      this list, pin it as a favorite, view its achievements read-only, change its icon, or move it
-      to a different tab. Opening a folder that isn't tracked here yet asks whether to add it;
-      answering No turns that question off for good. You can add the open dataset anytime with
-      <b>File ▸ Add current dataset as folder</b>, or any folder with this tab's <b>+</b> tile.</p>
-      <p><b>Tabs</b> split folders into separate groups — the built-in <b>Default</b> tab always
-      shows, and any tab you add with the <b>+</b> button can be given a password (tap its ⋯
-      button). A password-protected tab re-locks every time the app starts; nothing about it
-      (not even folder names) renders until you enter the password. This protects against someone
-      else briefly opening the app on your machine, not a determined attacker with access to your
-      files.</p>`
-  },
-  {
-    id: 'stats-tab',
-    title: 'Editing Stats tab',
-    html: `<p>Animated charts (pick pie or bar) of every logged action by type, plus summary cards
-      for total edits, undo/redo stack depth, and achievements unlocked so far.</p>`
+      (confirmed, locked images skipped) — no undo.</p>`
   },
   {
     id: 'synthdat',
-    title: 'SynthDat Overseer tab',
+    title: 'Making more images (SynthDat Overseer)',
     html: `
       <p>Drives your own local ComfyUI instance to generate <b>more</b> training images of a
       character you've already started a
@@ -362,7 +420,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         signature look) tends to fuse with the character concept regardless — the model rarely
         sees it on anyone else, so the two become hard to separate later.</p>
 
-        <p>See the Power tools section for the fuller version of this, including how to avoid that
+        <p>See the "Start here" section for the fuller version of this, including how to avoid that
         fusion, and how it compares to style LoRA training.</p>
       </template>
       <template id="infoGlossaryControlnetContent">
@@ -413,24 +471,12 @@ export const HELP_SECTIONS: HelpSection[] = [
       </ol>
       <p>Every preview image in this tab opens in a zoomable, pannable lightbox on ${isTouchDevice ? 'tap' : 'click'}.</p>`
   },
-  ...(isTouchDevice ? [] : [{
-    id: 'trainflow',
-    title: 'Trainflow tab',
-    html: `
-      <p>Trains a LoRA for <b>Anima</b> on the dataset you have loaded. It uses your own
-      Anima-TrainFlow folder (the one with <code>python_embeded</code> and <code>training</code>)
-      for Python and the trainer, and your own Anima DiT, Qwen3 and VAE files (choose them once;
-      the fields start empty). Osmium asks where a dataset is on your computer the first time you
-      open it, since it can't see folder paths itself.</p>
-      <p><b>Start Trainflow</b> is the only thing that begins work: it saves your tag edits, buckets
-      the dataset (originals go to <code>original_images/</code>; nothing is redone if the copies
-      are already right), checks for an NVIDIA GPU and starts training. <b>Verify buckets</b> lists
-      every valid bucket size for the Bucket Images dock's Min/Max/Step and where your images sit.</p>
-      <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
-      you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
-      and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
-      folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.</p>`
-  }]),
+  {
+    id: 'stats-tab',
+    title: 'Editing Stats tab',
+    html: `<p>Animated charts (pick pie or bar) of every logged action by type, plus summary cards
+      for total edits, undo/redo stack depth, and achievements unlocked so far.</p>`
+  },
   {
     id: 'settings',
     title: 'Settings',

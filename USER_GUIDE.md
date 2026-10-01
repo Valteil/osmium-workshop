@@ -16,6 +16,7 @@ app to look something up.
 
 ## Contents
 
+- [How to train a LoRA (the workflow)](#how-to-train-a-lora-the-workflow)
 - [Opening a dataset](#opening-a-dataset)
 - [The Gallery tab](#the-gallery-tab)
 - [The 3-dot image menu](#the-3-dot-image-menu)
@@ -34,6 +35,34 @@ app to look something up.
 - [Saving your work](#saving-your-work)
 - [The mobile app & Comfy Bridge](#the-mobile-app--comfy-bridge)
 - [Tips & troubleshooting](#tips--troubleshooting)
+
+---
+
+## How to train a LoRA (the workflow)
+
+Most of this guide is organized by tab, but the work itself runs in one order. The in-app **Help**
+is laid out in exactly this sequence, top to bottom. If you're new, follow it and you end with a
+trained LoRA.
+
+1. **Gather your dataset** — open a folder and add images; each arrives untagged with an empty
+   `.txt`. See [Opening a dataset](#opening-a-dataset) and [Datasets tab](#datasets-tab).
+2. **Tag with WD14** — open Tag Overseer and autotag everything first, so you have something to
+   clean up. See [Tag Overseer tab](#tag-overseer-tab).
+3. **Prune** — merge or void tag variants in bulk with Tag Pruner and Unify/Void. See
+   [Power tools (right sidebar)](#power-tools-right-sidebar).
+4. **Set Merge/Void rules** — turn those corrections into standing rules so they keep applying on
+   their own. See [Retroactive Merge/Void](#retroactive-mergevoid).
+5. **Single mode pass** — go image by image and quicktag the case-by-case tags. See
+   [The Gallery tab](#the-gallery-tab).
+6. **Sequential mode pass** — classify technicalities (perspective, censors, text, koma) across a
+   batch. See [Sequential tagging](#sequential-tagging).
+7. **Bucket images** — crop and resize every image to a training bucket. See
+   [Bucket Images](#bucket-images).
+8. **Train** — run Trainflow on the finished dataset. See [Trainflow tab](#trainflow-tab).
+
+How hard you lean on steps 3 and 4 depends on the LoRA. A character LoRA wants identity tags
+stripped and spelling variants merged so the model doesn't treat a defining trait as optional. A
+style LoRA usually wants a wide, varied tag vocabulary kept instead.
 
 ---
 

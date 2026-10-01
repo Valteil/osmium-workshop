@@ -1,0 +1,2270 @@
+<!DOCTYPE html>
+<html lang="en" data-random-theme>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Osmium Workshop — dataset tag editor</title>
+<meta name="description" content="A portable dataset tag editor for AI training images, made for Anima and other booru-tag models. Undoable edit logging, retroactive rule-based tag correction, WD14 autotagging, and direct ComfyUI syncing, in one binary." />
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+<!-- The app's own bundled faces (OFL, Latin subsets, synced into demo/ by
+     scripts/sync-site.js): the site's Chakra Petch / IBM Plex Sans /
+     JetBrains Mono, plus every theme's faces for the theme picker. Nothing
+     is fetched from Google; only faces actually in use download. -->
+<link rel="stylesheet" href="demo/fonts/fonts.css">
+<!-- Width-normalised twins of those faces (generated): a theme's text takes the same room whatever its font. -->
+<link rel="stylesheet" href="assets/font-fit.css">
+<!-- Theme picker support, loaded before first paint so a saved theme never
+     flashes the default: the app's night-mode math (generated), then the
+     saved-theme painter. -->
+<script src="assets/night-palette.js"></script>
+<script src="assets/site-theme.js"></script>
+<script>
+  /* Night mode is the visitor's own switch (the moon button next to Theme). A saved "on" is applied
+     before first paint so it never flashes day; the body script clears night-instant after the first frame. */
+  try { if (localStorage.getItem('osmium-site-night') === '1') document.documentElement.classList.add('night', 'night-instant'); } catch (e) {}
+  /* The app-shell layout needs JS (rail tabs, panels, section switching); mark it before paint so the
+     stage shows only the active section from the first frame. */
+  document.documentElement.classList.add('js');
+</script>
+<style>
+  /* Registered so --night is an animatable <number>, not an opaque token —
+     required for the transition below to interpolate it frame by frame
+     instead of flipping once at 50%. */
+  @property --night{
+    syntax:'<number>';
+    inherits:true;
+    initial-value:0;
+  }
+  :root{
+    --night:0;
+    /* Time-based, not scroll-linked: html.night (toggled by the visitor's moon button,
+       see script below) flips this 0→1 and the page
+       recolors over a fixed --night-dur whatever the scroll speed.
+       One curve for EVERYTHING — ground, text, lines and accents all move
+       together, starting the instant the boundary is crossed. (It used to
+       run a linear 1s with background/text compressed into a ~165ms window
+       at the midpoint and accents smeared across the whole second, so the
+       page did nothing for ~420ms, then jolted, while the accents drifted on
+       their own schedule.) A strong ease-in-out keeps the unavoidable
+       low-contrast middle (text and ground passing each other) to a brief
+       instant, while the eased ends make the shift read as deliberate. */
+    --night-dur:.42s;
+    --night-ease:cubic-bezier(0.77, 0, 0.175, 1);
+    transition:--night var(--night-dur) var(--night-ease);
+    /* Type: overridable per theme by assets/site-theme.js. */
+    --f-display:'Chakra Petch',sans-serif;
+    --f-body:'IBM Plex Sans',system-ui,sans-serif;
+    --f-mono:'JetBrains Mono',monospace;
+    /* Light and dark endpoints per token. Dark values are each token's own
+       light value with HSL lightness inverted (100−L) — the same mechanism
+       Osmium Workshop's own night-mode uses on its themes, not an unrelated
+       palette — then nudged lighter on the three accents only, since a
+       literal invert put red/blue at 3.4–3.5:1 against the inverted ground
+       (fails 4.5:1 body-text contrast); ink/ink-soft/green already cleared
+       it un-nudged. */
+    /* Osmium, exactly as the app has it: day values are its bg-base / bg-elevated / bg-panel / text-* /
+       border-* / accents, night values are what the app's own night mode (night-palette.js) does to them.
+       Re-check against docs/assets/themes.json when the app's Osmium changes. */
+    --ground-l:#f4f4f1;      --ground-d:#0e0e0b;
+    --ground-dim-l:#ececea;  --ground-dim-d:#151513;
+    --card-l:#ffffff;        --card-d:#000000;
+    --ink-l:#141412;         --ink-d:#ededeb;
+    --ink-soft-l:#4a4a45;    --ink-soft-d:#babab5;
+    --line-l:#deded5;        --line-d:#2a2a21;
+    --line-strong-l:#b7b7ae; --line-strong-d:#515148;
+    --red-l:#e14b3a;         --red-d:#e14b3a;
+    --green-l:#3f9d4f;       --green-d:#62c072;
+    --blue-l:#3b76d6;        --blue-d:#477fd9;
+
+    /* The only things every rule in this file actually reads: each token
+       mixes its light/dark endpoint on the one --night curve. The endpoints
+       (-l/-d) are overridden inline by assets/site-theme.js when a visitor
+       picks an app theme. */
+    --ground:color-mix(in srgb, var(--ground-l), var(--ground-d) calc(var(--night) * 100%));
+    --ground-dim:color-mix(in srgb, var(--ground-dim-l), var(--ground-dim-d) calc(var(--night) * 100%));
+    --card:color-mix(in srgb, var(--card-l), var(--card-d) calc(var(--night) * 100%));
+    --ink:color-mix(in srgb, var(--ink-l), var(--ink-d) calc(var(--night) * 100%));
+    --ink-soft:color-mix(in srgb, var(--ink-soft-l), var(--ink-soft-d) calc(var(--night) * 100%));
+    --line:color-mix(in srgb, var(--line-l), var(--line-d) calc(var(--night) * 100%));
+    --line-strong:color-mix(in srgb, var(--line-strong-l), var(--line-strong-d) calc(var(--night) * 100%));
+    --red:color-mix(in srgb, var(--red-l), var(--red-d) calc(var(--night) * 100%));
+    --green:color-mix(in srgb, var(--green-l), var(--green-d) calc(var(--night) * 100%));
+    --blue:color-mix(in srgb, var(--blue-l), var(--blue-d) calc(var(--night) * 100%));
+    --radius:2px;
+    --measure:70ch;
+    --pop-dur:.5s;
+    --ease-out:cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  html.night{ --night:1; }
+  /* First paint and bfcache restores land in the right mode without playing
+     the shift (a reload halfway down the page shouldn't fade in). */
+  :root.night-instant{ transition:none; }
+  /* html.night is toggled by JS (see bottom of file) the instant scroll
+     reaches #features ("The tools you'll actually use") — a real DOM
+     position, not a percentage of page height or a guessed pixel, so it
+     stays correct however long the hero or demo section end up, and
+     reverts above that point on scroll-up for free (the toggle just checks
+     current position, it isn't a one-shot trigger). The actual color fade
+     is driven entirely by the --night transition above, not by this class
+     toggle or by scroll position directly — crossing the boundary just
+     flips a switch; CSS takes it from there over its own fixed 1s, so the
+     fade's pace never depends on how fast someone scrolls. Gated behind
+     reduced-motion: a full-page recolor is the kind of effect vestibular-
+     motion-sensitive users flag, so under that preference the class still
+     toggles (no dead functionality) but the transition above is skipped,
+     making it an instant, motion-free flip instead of a fade. */
+  @media (prefers-reduced-motion: reduce){
+    :root{ transition:none; }
+  }
+  *{box-sizing:border-box;}
+  /* Belt and braces: nothing may widen the page past the viewport (that is what makes a phone open it
+     zoomed in). `clip`, unlike `hidden`, leaves position:sticky alone. */
+  html{scroll-behavior:smooth;}
+  body{overflow-x:clip;}
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:var(--f-body);
+    font-size:16px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--ink); color:var(--ground);}
+  a{color:inherit;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 32px;}
+  .display{font-family:var(--f-display); letter-spacing:-0.01em;}
+  .mono{font-family:var(--f-mono);}
+
+  /* ---------- background rings, shared texture ---------- */
+  .rings{
+    position:absolute; inset:0; overflow:hidden; pointer-events:none;
+  }
+  .rings svg{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);}
+
+  /* ---------- nav ---------- */
+  header{
+    position:sticky; top:0; z-index:20;
+    /* Solid, not translucent+blurred: a frosted-glass header sampling
+       whatever's scrolled underneath it, while that same underlying color
+       is being rewritten every scroll frame by the night-mode timeline,
+       is exactly the kind of layered-compositing combination that produces
+       a hazy double-exposure look instead of a clean transition. Opaque
+       var(--ground) sidesteps the interaction entirely. */
+    background:var(--ground);
+    border-bottom:1px solid var(--line);
+  }
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    height:72px;
+  }
+  .brand{display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--ink);}
+  .brand svg{display:block;}
+  .brand-name{font-family:var(--f-display); font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
+  .nav-ctas{display:flex; align-items:center; gap:10px;}
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--f-display); font-weight:600; font-size:0.92rem;
+    padding:11px 20px; border-radius:var(--radius);
+    text-decoration:none; border:1px solid var(--ink); white-space:nowrap;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .btn-primary{background:var(--ink); color:var(--ground);}
+  .btn-primary:hover{transform:translateY(-1px); box-shadow:0 8px 20px -6px color-mix(in srgb, var(--ink) 40%, transparent);}
+  .btn-ghost{background:transparent; color:var(--ink); border-color:var(--line-strong);}
+  .btn-ghost:hover{border-color:var(--ink);}
+  .btn-sm{padding:8px 14px; font-size:0.82rem;}
+
+  /* ---------- theme picker (try the app's themes on this page) ---------- */
+  .theme-pick{position:relative;}
+  .theme-pick-btn{
+    display:inline-flex; align-items:center; gap:9px;
+    font-family:var(--f-display); font-weight:600; font-size:0.82rem; color:var(--ink);
+    padding:8px 12px; background:transparent; border:1px solid var(--line-strong); border-radius:var(--radius);
+    cursor:pointer; white-space:nowrap; transition:border-color .15s ease;
+  }
+  .theme-pick-btn:hover, .theme-pick-btn[aria-expanded="true"]{border-color:var(--ink);}
+  .theme-pick-btn:focus-visible, .tp-opt:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+  .night-toggle{
+    display:inline-flex; align-items:center; justify-content:center; width:36px; height:34px; padding:0;
+    color:var(--ink); background:transparent; border:1px solid var(--line-strong); border-radius:var(--radius);
+    /* No transition on the toggle itself: --ink/--ground already animate with the
+       night fade, and a second transition on top made the button flicker. */
+    cursor:pointer;
+  }
+  .night-toggle svg{width:16px; height:16px;}
+  .night-toggle:hover{border-color:var(--ink);}
+  .night-toggle[aria-pressed="true"]{background:var(--ink); color:var(--ground); border-color:var(--ink);}
+  .night-toggle:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+  .tp-sw{display:inline-flex;}
+  .tp-sw i{width:11px; height:11px; border-radius:50%; box-shadow:0 0 0 1.5px var(--card); background:var(--line);}
+  .tp-sw i + i{margin-left:-3px;}
+  .tp-label{color:var(--ink-soft); font-weight:500;}
+  .tp-caret{width:10px; height:10px; transition:transform .2s var(--ease-out);}
+  .theme-pick-btn[aria-expanded="true"] .tp-caret{transform:rotate(180deg);}
+  .theme-pick-menu{
+    position:absolute; right:0; top:calc(100% + 8px); z-index:30;
+    width:min(470px, calc(100vw - 32px));
+    background:var(--card); border:1px solid var(--line-strong); border-radius:var(--radius);
+    box-shadow:0 18px 44px -12px rgba(0,0,0,.35); padding:12px;
+    transform-origin:top right; opacity:0; transform:translateY(-4px) scale(.97); visibility:hidden;
+    transition:opacity .16s var(--ease-out), transform .16s var(--ease-out), visibility 0s linear .16s;
+  }
+  .theme-pick-menu.open{opacity:1; transform:none; visibility:visible; transition:opacity .16s var(--ease-out), transform .16s var(--ease-out);}
+  .tp-head{font-family:var(--f-mono); font-size:0.72rem; color:var(--ink-soft); margin:2px 6px 10px;}
+  .tp-list{display:grid; grid-template-columns:1fr 1fr; gap:2px; max-height:min(60vh, 440px); overflow-y:auto;}
+  .tp-opt{
+    display:flex; align-items:center; gap:10px; width:100%;
+    padding:8px 10px; background:none; border:0; border-radius:var(--radius);
+    color:var(--ink); font:inherit; font-size:0.86rem; text-align:left; cursor:pointer;
+  }
+  .tp-opt:hover{background:var(--ground-dim);}
+  .tp-opt[aria-selected="true"]{background:var(--ground-dim); font-weight:600;}
+  .tp-opt[aria-selected="true"]::after{content:''; margin-left:auto; width:6px; height:6px; border-radius:50%; background:var(--ink);}
+  .tp-opt .tp-sw i{box-shadow:0 0 0 1.5px var(--card);}
+  .tp-foot{font-size:0.76rem; color:var(--ink-soft); margin:10px 6px 2px;}
+  /* Picking a theme reveals it as a circle growing out of the picker —
+     the new look spreads from where the choice was made. Set by the picker
+     script only when View Transitions exist and motion is allowed; the
+     choice itself never depends on it. */
+  ::view-transition-old(root){animation:none;}
+  ::view-transition-new(root){animation:siteThemeReveal .62s cubic-bezier(0.23, 1, 0.32, 1) both;}
+  @keyframes siteThemeReveal{
+    from{clip-path:circle(0px at var(--reveal-x, 50%) var(--reveal-y, 0px));}
+    to{clip-path:circle(var(--reveal-r, 150vmax) at var(--reveal-x, 50%) var(--reveal-y, 0px));}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .theme-pick-menu, .theme-pick-menu.open{transition:opacity .16s linear, visibility 0s;}
+    .theme-pick-menu{transform:none;}
+  }
+
+  /* ---------- hero ---------- */
+  .hero{position:relative; padding:96px 0 80px; overflow:hidden;}
+  .hero-grid{
+    position:relative; z-index:2;
+    display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr);
+    grid-template-areas:"kicker ." "copy art";
+    column-gap:40px; row-gap:22px; align-items:start; /* minmax(0): a wide-lettered theme's title must not stretch column 1 and squeeze the art */
+  }
+  .hero-grid > .kicker-chip{grid-area:kicker; justify-self:start; margin-bottom:0;}
+  .hero-copy{grid-area:copy; min-width:0;}
+  .hero-grid > .hero-art{grid-area:art; align-self:start;}
+  /* "Next version": on main, not in the current release download yet. */
+  .next-tag{
+    display:inline-block; font-family:var(--f-mono); font-size:0.72rem; letter-spacing:0.03em;
+    color:var(--ink-soft); border:1px solid var(--line-strong); border-radius:999px;
+    padding:1px 8px; margin-right:4px; vertical-align:0.08em; white-space:nowrap;
+  }
+  .kicker-chip{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--f-mono); font-size:0.78rem; letter-spacing:0.03em;
+    color:var(--ink-soft); border:1px solid var(--line-strong); border-radius:999px;
+    padding:5px 12px 5px 8px; margin-bottom:26px;
+  }
+  .kicker-chip .dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent);}
+  h1.hero-title{
+    font-size:clamp(2.6rem, 4.6vw, 4.1rem);
+    line-height:1.26; /* room for every face's ascenders and descenders; tighter and the two lines touch in some themes */
+    margin:0 0 22px;
+    font-weight:600;
+    /* Exactly the two <br> lines. The script below shrinks the size only as far as a wide-lettered theme needs to keep both lines inside the column, so the art is never pushed or overlapped. */
+    white-space:nowrap;
+  }
+  h1.hero-title em{
+    font-style:normal; color:var(--ink);
+    background:linear-gradient(180deg, transparent 62%, color-mix(in srgb, var(--green) 28%, transparent) 62%);
+  }
+  .hero-sub{font-size:1.1rem; color:var(--ink-soft); max-width:46ch; margin:0 0 34px;}
+  .hero-sub-first{margin-bottom:14px;}
+  .hero-ctas{display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:30px;}
+  /* Deliberately not a .btn — equal visual weight with the primary Download
+     button was diluting which action the hero actually wants a first-time
+     visitor to take. A plain underlined link reads as the secondary path
+     it is. */
+  .hero-cta-secondary{
+    font-family:var(--f-display); font-weight:600; font-size:0.92rem;
+    color:var(--ink-soft); text-decoration:underline; text-underline-offset:3px;
+    transition:color .15s;
+  }
+  .hero-cta-secondary:hover{color:var(--ink);}
+  .hero-ctas{display:flex; align-items:center; gap:14px 18px; flex-wrap:nowrap; width:max-content; max-width:none; margin-bottom:0;}
+  .hero-ctas .hero-meta{margin:0;}
+  .hero-meta{display:flex; align-items:center; gap:0; flex-wrap:nowrap; font-family:var(--f-mono); font-size:0.74rem; color:var(--ink-soft); white-space:nowrap;}
+  .hero-meta span + span::before{content:'·'; margin:0 9px; opacity:.7;}
+  .hero-meta strong{color:var(--ink); font-weight:600;}
+  /* The tagger itself needs nothing beyond this app. Generation (SynthDat
+     Overseer, Comfy Bridge) is the one place that pulls in an external
+     dependency, so that caveat belongs right here at the top rather than
+     buried in a feature-section paragraph someone skims past. */
+  .hero-gen-note{font-size:0.82rem; color:var(--ink-soft); max-width:46ch; margin:16px 0 0;}
+  .hero-gen-note strong{color:var(--ink);}
+
+  .hero-art{position:relative; aspect-ratio:1/1; z-index:2;}
+  .hero-art svg{width:100%; height:100%; display:block;}
+
+  /* ---------- the Osmium polygon (exact decagon + twin-pentagon lattice) ---------- */
+  .lattice .l-circle{fill:none; stroke:var(--line-strong); stroke-width:1;}
+  .lattice .e-ring{stroke:var(--ink); stroke-width:1.8; opacity:.85; stroke-linecap:round;}
+  .lattice .e-thick{stroke:var(--ink); stroke-width:2.3; opacity:.92; stroke-linecap:round;}
+  .lattice .e-thin{stroke:var(--ink); stroke-width:1; opacity:.4; stroke-linecap:round;}
+  /* small on-screen instances (nav icon) need proportionally bolder strokes to stay legible */
+  .lattice-sm{width:38px; height:38px;}
+  .lattice-sm .e-ring{stroke-width:7.2;}
+  .lattice-sm .e-thick{stroke-width:9;}
+  .lattice-sm .e-thin{stroke-width:5.6;}
+  .lattice-sm .l-circle{display:none;}
+  .lattice .n-lg{fill:var(--ink);}
+  .lattice .n-sm{fill:var(--ink); opacity:.65;}
+  .lattice .n-center{fill:var(--ink);}
+  .lattice .e-live{stroke-dasharray:5 260; stroke-dashoffset:0; animation:travel 4.5s linear infinite; stroke-linecap:round;}
+  .lattice .e-live.r{stroke:var(--red);}
+  .lattice .e-live.g{stroke:var(--green);}
+  .lattice .e-live.b{stroke:var(--blue);}
+  @keyframes travel{ to{ stroke-dashoffset:-265; } }
+  @media (prefers-reduced-motion: reduce){ .lattice .e-live{animation:none;} }
+  .mark-sm .l-ring{fill:none; stroke:var(--ink); stroke-width:6; stroke-linecap:round;}
+  .mark-sm .l-spoke-a{fill:none; stroke:var(--ink); stroke-width:4.4; opacity:.45; stroke-linecap:round;}
+  .mark-sm .l-spoke-b{fill:none; stroke:var(--ink); stroke-width:6; opacity:.95; stroke-linecap:round;}
+  .mark-sm .l-node{fill:var(--ink);}
+  .mark-sm .l-node-sm{fill:var(--ink); opacity:.6;}
+
+  /* ---------- section scaffolding ---------- */
+  section{position:relative; padding:88px 0;}
+  .section-head{max-width:640px; margin-bottom:54px;}
+  h2{font-family:var(--f-display); font-size:clamp(1.7rem,2.6vw,2.3rem); font-weight:600; margin:0 0 14px; line-height:1.15;}
+  .section-head p{color:var(--ink-soft); font-size:1.02rem; max-width:60ch; margin:0;}
+  .rule{height:1px; background:var(--line); border:0; margin:0;}
+
+  /* ---------- text plates ----------
+     Every block of copy sits on its own lightly toned box, so a busy theme ground (Candy Pop's
+     candy, hatching, grids) drifting behind it never fights the text. The tone is the page ground
+     at partial opacity, so it follows the theme and scroll night mode. */
+  .hero-grid > div:first-child, .section-head, .conn-copy, .app-list, .footer-row{
+    background:color-mix(in srgb, var(--ground) 72%, transparent);
+    border:1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    border-radius:calc(var(--radius) + 4px);
+    padding:22px 26px;
+    /* Opaque-ish plate, no backdrop blur: the blur re-sampled the animated theme
+       ground every frame and made the night transition janky. */
+    background:color-mix(in srgb, var(--ground) 88%, transparent);
+  }
+  /* data-plate="off" on a section, tool row or the footer (set from the site editor) drops the box. */
+  [data-plate="off"] .hero-grid > div:first-child, [data-plate="off"] .section-head, [data-plate="off"] .conn-copy,
+  [data-plate="off"] .app-list, [data-plate="off"] .footer-row,
+  [data-plate="off"].footer-row, [data-plate="off"].section-head, [data-plate="off"].conn-copy{
+    background:none; border-color:transparent; padding:0;
+  }
+  /* One text field boxed on its own (the editor's per-field "Box"). */
+  [data-plate="on"]{
+    background:color-mix(in srgb, var(--ground) 88%, transparent);
+    border:1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    border-radius:calc(var(--radius) + 4px);
+    padding:10px 16px; width:fit-content; max-width:100%;
+  }
+  span[data-plate="on"], a[data-plate="on"]{display:inline-block;}
+  .section-head{max-width:692px;}
+  [data-plate="off"] .section-head, [data-plate="off"].section-head{max-width:640px;}
+  .app-list .app-item:first-child{border-top:0;}
+  .app-list .app-item:last-child{border-bottom:0;}
+  .footer-row{padding:16px 22px;}
+
+  /* ---------- proof / screenshots ---------- */
+  .proof-frame{
+    position:relative; border:1px solid var(--line-strong); padding:12px;
+    /* letterbox mat behind every screenshot, like the app's image cards */
+    background:
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1.5px) 0 0/14px 14px,
+      var(--ground-dim);
+  }
+  .proof-frame img{display:block; width:100%; height:auto; border:1px solid var(--line); background:var(--card);}
+  .proof-frame .node-corner{position:absolute; width:9px; height:9px; background:var(--ink); transform:rotate(45deg); z-index:3;}
+  .nc-tl{top:-5px; left:-5px;} .nc-tr{top:-5px; right:-5px;}
+  .nc-bl{bottom:-5px; left:-5px;} .nc-br{bottom:-5px; right:-5px;}
+  .proof-cap{display:flex; justify-content:space-between; align-items:baseline; margin-top:14px; font-family:var(--f-mono); font-size:0.76rem; color:var(--ink-soft);}
+  /* One screenshot on screen at a time, swiped between — the old grid dump
+     of all five at once (auto-fit minmax) read as visual clutter this far
+     down the page. Native scroll-snap does the swipe/momentum for free on
+     both touch and trackpad, same technique as Comfy Bridge's own result
+     carousel. */
+  /* The same dotted mat as the feature steps: slides span its width, and the
+     pips run down its right pad (next slide = one pip lower). */
+  .shot-carousel-wrap{
+    position:relative; margin-top:64px; padding:22px 76px 22px 22px;
+    background:
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 1.5px) 0 0/18px 18px,
+      var(--ground-dim);
+    border:1px solid var(--line);
+  }
+  .shot-carousel{
+    display:flex; overflow-x:auto; scroll-snap-type:x mandatory;
+    scrollbar-width:none; gap:0; align-items:center;
+  }
+  .shot-carousel::-webkit-scrollbar{ display:none; }
+  /* Inset so each frame's corner diamonds stay inside its own slide instead
+     of poking into the neighbours' edges. */
+  .shot-slide{ flex:0 0 100%; min-width:0; scroll-snap-align:center; margin:0; padding:6px 8px; text-align:center; }
+  /* A block-level flex row (not inline) so it forces its own line under
+     the image instead of sitting beside it — .proof-frame is inline-block
+     now (for the shrink-wrap fix above), and figcaption has no automatic
+     line-break of its own once its display is overridden, so an inline
+     caption here floated right next to the image instead of centering
+     under it. justify-content:center (not the base rule's flex-start)
+     centers the text within this full-width row regardless of how wide
+     the image itself rendered. */
+  .shot-slide .proof-cap{ display:flex; justify-content:center; gap:8px; }
+  /* Height-capped, not width-stretched, so the carousel — caption and dots
+     included — fits one screen without scrolling: an earlier version forced
+     the frame to full container width, which either stretched a 3:2 box to
+     ~740px tall (scrolling) or, once height-capped, left the portrait
+     "Inline tag editing" shot pillarboxed down to a sliver inside a mostly-
+     empty full-width frame (illegible). Letting the frame shrink-wrap the
+     image instead — width:auto, height capped, centered via the slide's own
+     text-align — means every slide is exactly as big as its own image
+     allows, landscape or portrait, no dead space either side. */
+  .shot-slide .proof-frame{
+    display:block; margin:0 auto;
+    /* full column width, but never past 1.5x real size or ~580px tall */
+    width:min(100%, calc(var(--nw, 99999) * 1.5px), calc(var(--nw, 16) / var(--nh, 9) * 580px));
+    box-shadow:0 14px 34px -12px rgba(0,0,0,.28);
+  }
+  .shot-slide .proof-frame img{ display:block; width:100%; height:auto; }
+  .shot-dots{
+    position:absolute; top:50%; right:0; width:76px; transform:translateY(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:12px;
+  }
+  @media (max-width:860px){
+    .shot-carousel-wrap{ padding:12px 44px 12px 12px; }
+    .shot-dots{ width:44px; gap:10px; }
+  }
+  .shot-dot{
+    width:8px; height:8px; border-radius:50%; padding:0; border:1px solid var(--line-strong);
+    background:var(--ground); cursor:pointer; transition:background .15s, border-color .15s;
+    box-shadow:0 0 0 2px color-mix(in srgb, var(--ground) 75%, transparent), 0 1px 5px color-mix(in srgb, var(--ink) 35%, transparent);
+  }
+  .shot-dot:hover{ border-color:var(--ink); }
+  .shot-dot.active{ background:var(--ink); border-color:var(--ink); }
+
+  /* ---------- feature rows (connections) ---------- */
+  .conn-row{
+    display:grid; grid-template-columns:220px 1fr; gap:44px; align-items:center;
+    padding:38px 0; border-top:1px solid var(--line);
+  }
+  .conn-row:last-child{border-bottom:1px solid var(--line);}
+  /* The copy column is a fixed rem width (never ch, which changes with the theme's face) and a flipped
+     row's graphic sits one fixed gap after it, so no theme can stretch the text into the graphic. */
+  .conn-row.rev{grid-template-columns:minmax(0,1fr) 220px; column-gap:64px;}
+  .conn-row.rev .conn-diagram{order:2;}
+  .conn-diagram{aspect-ratio:1/1;
+    /* --gy: the editor's per-tool graphic nudge (px down). --gt (px toward the text) is retired: the flipped row's graphic is placed by the grid. */
+    transform:translate(0, var(--gy, 0px));}
+  .conn-copy{min-width:0;}
+  .conn-diagram svg{width:100%; height:100%;}
+  .conn-copy h3{font-family:var(--f-display); font-size:1.45rem; margin:0 0 10px; font-weight:600;}
+  .conn-copy p{color:var(--ink-soft); margin:0;}
+  /* A real screenshot slotted under a feature row that has one to show —
+     full width, capped so it doesn't stretch absurdly thin at very wide
+     viewports, sitting in the gap between this row's bottom and the next
+     row's own border-top (no border of its own needed, the following
+     .conn-row supplies it). */
+  .conn-shot{ padding-bottom:38px; }
+  .conn-shot .proof-frame{ max-width:900px; margin:0 auto; }
+
+  /* ---------- Visual Customizability: overlapping theme staircase ---------- */
+  /* Fixed px offsets, not percentages of the wrap — three images cascading
+     top-left to bottom-right at a predictable, sanity-checked overlap
+     regardless of viewport width (up to the point mobile drops the
+     absolute positioning entirely below). Each shot keeps a small alternating
+     rotation so the stack reads as a fanned deck, not a slipped stack of
+     identical rectangles. */
+  .stair-wrap{ position:relative; height:640px; }
+  .stair-shot{ position:absolute; width:600px; max-width:70%; }
+  .stair-shot .proof-frame{
+    box-shadow:0 20px 44px rgba(0,0,0,.22);
+    transition:transform var(--pop-dur) var(--ease-out), box-shadow var(--pop-dur) var(--ease-out);
+  }
+  .stair-shot .proof-cap{ margin-top:12px; justify-content:flex-start; gap:8px; }
+  .stair-shot.s1{ top:0;     left:0;   z-index:1; transform:rotate(-2.2deg); }
+  .stair-shot.s2{ top:120px; left:180px; z-index:2; transform:rotate(1.6deg); }
+  .stair-shot.s3{ top:240px; left:360px; z-index:3; transform:rotate(-1.2deg); }
+  /* "Pop" on focus/hover — lifts and grows slightly toward the viewer, then
+     settles back to its resting angle on the same curve when it leaves
+     (the "recline"). Scale rides along with the existing per-card rotate()
+     rather than replacing it, so the card keeps its fanned-deck tilt. */
+  @media (hover:hover) and (pointer:fine){
+    .stair-shot:hover{ z-index:4; }
+    .stair-shot:hover .proof-frame{
+      transform:translateY(-14px) scale(1.045);
+      box-shadow:0 32px 60px rgba(0,0,0,.3);
+    }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .stair-shot .proof-frame{ transition:box-shadow var(--pop-dur) var(--ease-out); }
+    .stair-shot:hover .proof-frame{ transform:none; }
+  }
+  @media (max-width:860px){
+    .stair-wrap{ height:auto; display:flex; flex-direction:column; gap:28px; }
+    /* margin:0 — a <figure>'s default 16px 40px margin on top of width:100% pushed the page 14px wider than
+       a phone, so mobile browsers opened it zoomed in to make the overflow fit. */
+    .stair-shot{ position:static; width:100%; max-width:none; margin:0; transform:none !important; }
+  }
+
+  /* ---------- hub / apps ---------- */
+  .hub-wrap{display:grid; grid-template-columns:1fr 1fr; gap:50px; align-items:center;}
+  .hub-art{aspect-ratio:1/1;}
+  .hub-art svg{width:100%; height:100%;}
+  .app-list{display:flex; flex-direction:column; gap:0;}
+  .app-item{padding:22px 0; border-top:1px solid var(--line);}
+  .app-item:last-child{border-bottom:1px solid var(--line);}
+  .app-item .head{display:flex; align-items:baseline; gap:12px; margin-bottom:6px;}
+  .app-item .swatch{width:9px; height:9px; border-radius:50%; flex:none;}
+  .app-item h3{font-family:var(--f-display); font-size:1.15rem; margin:0; font-weight:600;}
+  .app-item p{margin:0; color:var(--ink-soft); font-size:0.95rem; padding-left:21px;}
+  .app-item .app-dl{margin:14px 0 0 21px;}
+  .app-item-ctas{display:flex; gap:10px; flex-wrap:wrap; margin:14px 0 0 21px;}
+  .app-item-ctas .app-dl{margin:0;}
+
+  /* ---------- live demo (opens in its own tab now) ---------- */
+  #demo{padding-top:48px; padding-bottom:64px;}
+  #demo .section-head{margin-bottom:26px;}
+  .demo-head{margin:0 0 14px;}
+  .demo-open{
+    color:inherit; text-decoration:none;
+    border-bottom:2px solid color-mix(in srgb, var(--ink) 22%, transparent);
+    transition:border-color .15s ease, color .15s ease;
+  }
+  .demo-open:hover{border-color:var(--ink);}
+  .demo-open:focus-visible{outline:2px solid var(--blue); outline-offset:4px;}
+  .demo-open-arrow{display:inline-block; font-size:0.72em; vertical-align:0.12em; margin-left:6px; color:var(--ink-soft); transition:color .15s ease, transform .15s ease;}
+  .demo-open:hover .demo-open-arrow{color:var(--blue); transform:translate(2px,-2px);}
+  @media (max-width:640px){
+    #demo{padding-top:32px; padding-bottom:48px;}
+  }
+
+  footer{border-top:1px solid var(--line); padding:44px 0; margin-top:20px;}
+  .footer-row{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;}
+  .footer-brand{display:flex; align-items:center; gap:10px; font-family:var(--f-mono); font-size:0.78rem; color:var(--ink-soft);}
+  .footer-links{display:flex; gap:22px; font-size:0.85rem;}
+  .footer-links a{text-decoration:none; color:var(--ink-soft);}
+  .footer-links a:hover{color:var(--ink);}
+
+  /* ===================== APP SHELL =====================
+     Landing page restructured to read like the desktop app: a topbar of
+     section tabs, a rail of rhomboid tool tabs down each side, and a centre
+     stage showing one section at a time. Desktop-first; mobile falls back to
+     a plain stacked page (see the media queries at the end). */
+  /* The base colour lives on <html>, not body/stage: the theme's animated ground
+     (html::before, z-index -1) then paints over it, and themes with no ground
+     pattern (Terminal) still get their real base colour instead of a white canvas. */
+  html{height:100%; background:var(--ground);}
+  body{height:100%; overflow:hidden; display:flex; flex-direction:column; background:transparent;}
+
+  /* ---- topbar (replaces the old sticky marketing nav) ---- */
+  header{
+    position:relative; z-index:30; flex:none;
+    background:var(--ground); border-bottom:1px solid var(--line);
+  }
+  .topbar-inner{display:flex; align-items:center; justify-content:space-between; gap:18px; height:64px;}
+  .topbar-tabs{display:flex; align-items:center; gap:2px; height:100%;}
+  .topbar-tabs a{
+    position:relative; display:inline-flex; align-items:center; height:100%;
+    padding:0 14px; margin:0;
+    font-family:var(--f-display); font-weight:600; font-size:0.9rem;
+    text-decoration:none; color:var(--ink-soft); white-space:nowrap;
+    transition:color .15s ease;
+  }
+  .topbar-tabs a::after{
+    content:''; position:absolute; left:12px; right:12px; bottom:-1px; height:2px;
+    background:var(--ink); transform:scaleX(0); transform-origin:center;
+    transition:transform .22s var(--ease-out);
+  }
+  .topbar-tabs a:hover{color:var(--ink);}
+  .topbar-tabs a.active{color:var(--ink);}
+  .topbar-tabs a.active::after{transform:scaleX(1);}
+  .topbar-tabs a:focus-visible{outline:2px solid var(--blue); outline-offset:-4px;}
+
+  /* ---- app grid: rail | stage | rail ---- */
+  .app{flex:1 1 auto; min-height:0; display:grid; grid-template-columns:auto minmax(0,1fr) auto;}
+
+  /* ---- rails: no column chrome, tabs sit straight on the screen edge ---- */
+  .rail{
+    position:relative; z-index:20; padding:0;
+    width:clamp(190px, 16.5vw, 256px); min-height:0;
+    display:flex; flex-direction:column;
+    background:none;
+  }
+  .rail-head{flex:none; padding:14px 14px 12px;}
+  .rail-head .section-head{max-width:none; margin:0; padding:0; background:none; border:0; -webkit-backdrop-filter:none; backdrop-filter:none;}
+  .rail-head h1, .rail-head h2{
+    font-family:var(--f-display); font-size:1.24rem; line-height:1.2; font-weight:600;
+    margin:0 0 10px; color:var(--ink);
+  }
+  .rail-head p{font-size:0.86rem; line-height:1.5; color:var(--ink-soft); margin:0; padding:0; background:none; border:0;}
+  .rail-tabs{
+    flex:1 1 auto; min-height:0; overflow:hidden;
+    display:flex; flex-direction:column; gap:0; padding:12px 10px 14px 0;
+  }
+  .rail-right .rail-tabs{padding:12px 0 14px 10px;}
+
+  /* ---- rhomboid tool tabs (overlapping stack, sized to fit the rail) ---- */
+  .tool{position:relative; flex:1 1 0; min-height:0; max-height:62px;}
+  .tool + .tool{margin-top:-10px;}
+  .tool-tab{
+    position:relative; display:flex; align-items:center; gap:12px;
+    width:calc(100% - var(--fan, 0px)); height:100%;
+    min-height:44px; padding:10px 22px 10px 14px;
+    border:0; background:transparent; cursor:pointer; text-align:left;
+    color:var(--ink-soft); font:inherit;
+    transition:transform .2s var(--ease-out), color .15s ease;
+  }
+  .tool-tab::before, .tool-tab::after{
+    content:''; position:absolute; inset:0; pointer-events:none;
+    clip-path:polygon(0 0, 100% 0, calc(100% - 16px) 100%, 0 100%);
+    transition:background .2s ease;
+  }
+  .tool-tab::before{background:var(--line-strong);}
+  .tool-tab::after{inset:1px; background:color-mix(in srgb, var(--card) 86%, var(--ground));}
+  .rail-right .tool-tab::before, .rail-right .tool-tab::after{
+    /* Mirror of the left tab: the long tip is at the TOP and shaves down to the bottom. */
+    clip-path:polygon(0 0, 100% 0, 100% 100%, 16px 100%);
+  }
+  .rail-right .tool-tab{padding:12px 14px 12px 22px; flex-direction:row-reverse; text-align:right; margin-left:var(--fan, 0px);}
+  .tool-tab-icon, .tool-tab-label{position:relative; z-index:1;}
+  .tool-tab-icon{width:31px; height:31px; flex:none; opacity:.62; transition:opacity .2s ease;}
+  .tool-tab-icon svg{width:100%; height:100%; display:block;}
+  .tool-tab-label{font-family:var(--f-display); font-weight:600; font-size:0.95rem; line-height:1.18;}
+  @media (hover:hover) and (pointer:fine){
+    .tool-tab:hover{transform:translateX(3px);}
+    .rail-right .tool-tab:hover{transform:translateX(-3px);}
+  }
+  .tool-tab:hover, .tool-tab:focus-visible{color:var(--ink);}
+  .tool-tab:hover .tool-tab-icon, .tool-tab:focus-visible .tool-tab-icon{opacity:.95;}
+  .tool-tab:focus-visible{outline:2px solid var(--blue); outline-offset:3px;}
+  .tool.open .tool-tab{color:var(--ink);}
+  .tool.open .tool-tab::before{background:var(--ink);}
+  .tool.open .tool-tab::after{background:var(--card);}
+
+  /* ---- sliding tool panel: a beam leads, then the panel unfurls along it ---- */
+  .tool-panel{
+    position:fixed; z-index:45;
+    display:flex; flex-direction:column;
+    width:auto; min-width:320px; max-width:none; max-height:calc(100vh - 24px);
+    background:var(--card); border:1px solid var(--line-strong);
+    box-shadow:0 26px 64px -22px rgba(0,0,0,.5);
+    /* closed: hidden above, slides down from the beam when it opens */
+    clip-path:inset(0 0 100% 0); opacity:0; transform:translateY(-16px); pointer-events:none;
+    transition:clip-path .16s ease, opacity .12s ease, transform .16s ease;
+  }
+  .tool-panel[hidden]{display:none;}
+  .tool[data-below] .tool-panel{clip-path:inset(100% 0 0 0); transform:translateY(16px);}
+  .tool.open .tool-panel{clip-path:inset(0); opacity:1; pointer-events:auto; transform:none; transition:clip-path .18s cubic-bezier(0.23,1,0.32,1), opacity .12s ease, transform .18s cubic-bezier(0.23,1,0.32,1);}
+  /* The beam: an SVG overlay that runs out of the tab, turns up to just below the
+     topbar, then across to shy of the opposite rail — the panel only reveals once
+     it has fully drawn. */
+  .tool-beam{position:fixed; inset:0; z-index:44; pointer-events:none; overflow:visible; opacity:0; transition:opacity .18s ease;}
+  .tool-beam.on{opacity:1;}
+  .tool-beam path{fill:none; stroke:var(--ink); stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round;}
+  .tool-panel-scroll{overflow-y:auto; min-height:0; padding:24px 26px 26px;}
+  /* copy sits next to the rail; the tool's node graphic is large on the far edge */
+  .tool-panel .conn-row{
+    display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"title title" "copy diagram";
+    column-gap:26px; row-gap:0; align-items:start;
+    border:0; padding:0; margin:0;
+  }
+  .tool-panel .conn-row:last-child{border:0;}
+  .tool-panel .conn-row > h3{grid-area:title; margin:0 0 12px; font-size:1.4rem; font-weight:600;}
+  .tool-panel .conn-copy{grid-area:copy; min-width:0;}
+  .tool-panel .conn-diagram{grid-area:diagram; align-self:start; width:clamp(112px, 13vw, 168px); aspect-ratio:1/1; transform:none; opacity:.9;}
+  .rail-right .tool-panel .conn-row{grid-template-columns:auto minmax(0,1fr); grid-template-areas:"title title" "diagram copy";}
+  .tool-panel .conn-copy h3{font-size:1.4rem; margin:0 0 10px;}
+  .tool-panel .conn-copy p{font-size:1rem; line-height:1.65;}
+  /* the step walkthrough is a lightbox now: the panel keeps the data, the modal shows it */
+  .tool-panel .conn-steps{display:none;}
+  .steps-toggle{
+    display:inline-flex; align-items:center; gap:9px; margin-top:18px; padding:9px 15px;
+    background:transparent; border:1px solid var(--line-strong); border-radius:var(--radius);
+    color:var(--ink); cursor:pointer; font-family:var(--f-display); font-weight:600; font-size:0.86rem;
+    transition:border-color .15s ease, background-color .15s ease;
+  }
+  .steps-toggle:hover{border-color:var(--ink); background:color-mix(in srgb, var(--ink) 7%, transparent);}
+  .steps-toggle:focus-visible{outline:2px solid var(--blue); outline-offset:3px;}
+  .steps-toggle .st-chev{display:none;}
+  .steps-toggle::before{
+    content:''; width:13px; height:13px;
+    background:currentColor;
+    -webkit-mask:linear-gradient(#000 0 0) 0 0/100% 6px no-repeat, linear-gradient(#000 0 0) 0 100%/100% 6px no-repeat;
+    mask:linear-gradient(#000 0 0) 0 0/100% 6px no-repeat, linear-gradient(#000 0 0) 0 100%/100% 6px no-repeat;
+  }
+
+  /* ---- stage ---- */
+  .stage{position:relative; min-width:0; overflow-y:auto; overflow-x:hidden; background:transparent;}
+  .stage-section{padding:46px 0 64px;}
+  .stage-section.hero{padding:26px 0 48px;}
+  html.js .stage-section{display:none;}
+  html.js .stage-section.active{display:block;}
+  .stage-section .shot-carousel-wrap{max-width:1180px; margin:0 auto;}
+
+  footer{border-top:1px solid var(--line); flex:none; padding:0; margin:0; background:color-mix(in srgb, var(--ground) 82%, transparent);}
+  .footer-row{padding:11px 26px;}
+  /* collapsed by default; the two arrowheads (centred) expand it */
+  .footer-toggle{
+    display:flex; align-items:center; justify-content:center;
+    width:100%; height:24px; padding:5px 0 0; border:0; background:none; cursor:pointer; color:var(--ink-soft);
+    transition:color .15s ease;
+  }
+  .footer-toggle:hover{color:var(--ink);}
+  .footer-toggle:focus-visible{outline:2px solid var(--blue); outline-offset:-3px;}
+  .footer-arrows{display:block; width:23px; height:9px; transition:transform .25s var(--ease-out);}
+  .footer-arrows path{fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round;}
+  footer.open .footer-arrows{transform:rotate(180deg);}
+  .footer-body{max-height:0; overflow:hidden; transition:max-height .3s var(--ease-out);}
+  footer.open .footer-body{max-height:180px;}
+
+  /* ---- step lightbox (the "See it in N steps" modal) ---- */
+  .step-modal{position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center; padding:24px; background:rgba(0,0,0,.62);}
+  .step-modal[hidden]{display:none;}
+  .step-modal-card{
+    position:relative; display:flex; flex-direction:column;
+    width:min(1040px, 92vw); max-height:90vh;
+    background:var(--card); border:1px solid var(--line-strong);
+    box-shadow:0 30px 80px -24px rgba(0,0,0,.6);
+  }
+  .step-modal-head{display:flex; align-items:center; justify-content:space-between; gap:18px; padding:14px 18px; border-bottom:1px solid var(--line);}
+  .step-modal-title{font-family:var(--f-display); font-weight:600; font-size:1.12rem; margin:0; color:var(--ink);}
+  .step-modal-title span{color:var(--ink-soft); font-weight:500; font-family:var(--f-mono); font-size:0.78rem; margin-left:10px;}
+  .step-modal-close{
+    display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; padding:0;
+    background:transparent; border:1px solid var(--line-strong); border-radius:var(--radius); color:var(--ink); cursor:pointer;
+  }
+  .step-modal-close:hover{border-color:var(--ink);}
+  .step-modal-close:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+  .step-modal-body{position:relative; flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; padding:22px 68px;}
+  .step-modal-stage{
+    display:flex; align-items:center; justify-content:center; max-width:100%; min-height:0;
+    padding:14px; border:1px solid var(--line);
+    background:
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1.5px) 0 0/14px 14px,
+      var(--ground-dim);
+  }
+  .step-modal-stage img{display:block; max-width:100%; max-height:min(72vh, 780px); width:auto; height:auto; border:1px solid var(--line); box-shadow:0 18px 44px -18px rgba(0,0,0,.45); transition:opacity .18s ease;}
+  .step-modal-stage img.swapping{opacity:0;}
+  .step-modal-nav{
+    position:absolute; top:50%; transform:translateY(-50%); width:42px; height:42px; padding:0;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:color-mix(in srgb, var(--card) 80%, transparent); border:1px solid var(--line-strong);
+    border-radius:50%; color:var(--ink); cursor:pointer; font-size:1.2rem; line-height:1;
+  }
+  .step-modal-nav:hover{border-color:var(--ink);}
+  .step-modal-nav:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+  .step-modal-prev{left:18px;} .step-modal-next{right:18px;}
+  .step-modal-nav[disabled]{opacity:.35; cursor:default;}
+  .step-modal-foot{padding:0 22px 20px; text-align:center;}
+  .step-modal-cap{color:var(--ink-soft); font-size:0.95rem; line-height:1.55; max-width:78ch; margin:0 auto 14px; min-height:2.9em;}
+  .step-modal-cap strong{color:var(--ink); font-family:var(--f-mono); font-weight:600; font-size:0.82rem; margin-right:8px;}
+  .step-modal-rail{display:flex; gap:9px; justify-content:center; flex-wrap:wrap;}
+  .step-modal-pip{
+    width:10px; height:10px; padding:0; border-radius:50%;
+    background:var(--ground); border:1px solid var(--line-strong); cursor:pointer;
+    box-shadow:0 0 0 2px color-mix(in srgb, var(--ground) 70%, transparent);
+  }
+  .step-modal-pip:hover{border-color:var(--ink);}
+  .step-modal-pip.active{background:var(--ink); border-color:var(--ink);}
+  .step-modal-pip:focus-visible{outline:2px solid var(--blue); outline-offset:3px;}
+
+  /* no-JS: hand everything back as a plain stacked page */
+  html:not(.js) body{height:auto; overflow:auto; display:block;}
+  html:not(.js) .app{display:block;}
+  html:not(.js) .rail{width:auto; display:block;}
+  html:not(.js) .rail-tabs{overflow:visible; flex-direction:row; flex-wrap:wrap;}
+  html:not(.js) .tool{display:block;}
+  html:not(.js) .tool-panel{position:static; clip-path:none; opacity:1; pointer-events:auto; width:auto; max-height:none; display:block;}
+  html:not(.js) .stage{overflow:visible;}
+
+  @media (max-width:1180px){
+    .rail{width:176px;}
+    .tool-panel{min-width:0;}
+    .topbar-tabs a{padding:0 9px; font-size:0.84rem;}
+    .tp-label, .tp-name{display:none;}
+    .nav-ctas{gap:8px;}
+  }
+  @media (max-width:1080px){
+    /* Mobile is a later pass; for now lay the shell out flat so every tool and
+       section stays readable: no rails, panels open inline, one long page. */
+    html.js body{height:auto; overflow:auto; display:block;}
+    html.js .app{display:block;}
+    html.js .stage{overflow:visible;}
+    .rail{width:auto; display:block; border:0;}
+    .rail-head{border-bottom:0;}
+    .rail-tabs{overflow:visible; flex-direction:column; gap:14px; padding:0 0 10px;}
+    .tool{display:block;}
+    .tool-tab{display:none;}
+    .tool-panel{position:static; clip-path:none; opacity:1; pointer-events:auto; width:auto; max-height:none; box-shadow:none;}
+    .tool-panel-scroll{overflow:visible; max-height:none;}
+    .stage-section{padding:40px 0 48px;}
+    .topbar-tabs{display:none;}
+    .footer-row{flex-direction:column; align-items:flex-start; gap:10px; padding:16px 20px;}
+  }
+  @media (max-width:860px){
+    .hero-grid{grid-template-columns:minmax(0,1fr);}
+    .hero-art{max-width:340px; margin:0 auto;}
+    .conn-row, .conn-row.rev{grid-template-columns:1fr; gap:20px;}
+    .conn-diagram, .conn-row.rev .conn-diagram{max-width:160px; transform:none;}
+    .conn-row.rev .conn-diagram{order:0;}
+    .hub-wrap{grid-template-columns:1fr;}
+    .proof-cap{flex-direction:column; gap:4px;}
+    .btn-sm{padding:9px 14px; font-size:0.78rem;}
+    .topbar-tabs a{padding:0 9px; font-size:0.82rem;}
+  }
+  @media (max-width:520px){
+    .tp-label, .tp-name{display:none;}
+    .tp-list{grid-template-columns:1fr;}
+  }
+  @media (max-width:420px){
+    .brand-name{font-size:1rem;}
+    .btn-sm{padding:8px 9px; font-size:0.72rem;}
+    .brand{gap:8px;}
+    .nav-ctas{gap:6px;}
+    .theme-pick-btn{padding:8px 9px;}
+    .night-toggle{width:32px; height:32px;}
+    .topbar-tabs a{padding:0 7px; font-size:0.76rem;}
+  }
+  @media (max-width:360px){
+    .brand-name{display:none;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .tool-panel{transition:opacity .16s linear;}
+    .tool-beam{transition:none;}
+    .tool-tab{transition:none;}
+    .step-modal-stage img{transition:none;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#hero">
+      <svg class="lattice lattice-sm" viewBox="0 0 250 250" aria-hidden="true">
+        <circle class="l-circle" cx="125" cy="125" r="117"/>
+        <line x1="125.0" y1="25.0" x2="183.78" y2="44.1" class="e-ring"/>
+        <line x1="183.78" y1="44.1" x2="220.11" y2="94.1" class="e-ring"/>
+        <line x1="220.11" y1="94.1" x2="220.11" y2="155.9" class="e-ring"/>
+        <line x1="220.11" y1="155.9" x2="183.78" y2="205.9" class="e-ring"/>
+        <line x1="183.78" y1="205.9" x2="125.0" y2="225.0" class="e-ring"/>
+        <line x1="125.0" y1="225.0" x2="66.22" y2="205.9" class="e-ring"/>
+        <line x1="66.22" y1="205.9" x2="29.89" y2="155.9" class="e-ring"/>
+        <line x1="29.89" y1="155.9" x2="29.89" y2="94.1" class="e-ring"/>
+        <line x1="29.89" y1="94.1" x2="66.22" y2="44.1" class="e-ring"/>
+        <line x1="66.22" y1="44.1" x2="125.0" y2="25.0" class="e-ring"/>
+        <line x1="125.0" y1="25.0" x2="220.11" y2="94.1" class="e-thin"/>
+        <line x1="220.11" y1="94.1" x2="183.78" y2="205.9" class="e-thin"/>
+        <line x1="183.78" y1="205.9" x2="66.22" y2="205.9" class="e-thin"/>
+        <line x1="66.22" y1="205.9" x2="29.89" y2="94.1" class="e-thin"/>
+        <line x1="29.89" y1="94.1" x2="125.0" y2="25.0" class="e-thin"/>
+        <line x1="183.78" y1="44.1" x2="220.11" y2="155.9" class="e-thick"/>
+        <line x1="220.11" y1="155.9" x2="125.0" y2="225.0" class="e-thick"/>
+        <line x1="125.0" y1="225.0" x2="29.89" y2="155.9" class="e-thick"/>
+        <line x1="29.89" y1="155.9" x2="66.22" y2="44.1" class="e-thick"/>
+        <line x1="66.22" y1="44.1" x2="183.78" y2="44.1" class="e-thick"/>
+        <line x1="125" y1="125" x2="125.0" y2="25.0" class="e-thin"/>
+        <line x1="125" y1="125" x2="183.78" y2="44.1" class="e-thick"/>
+        <line x1="125" y1="125" x2="220.11" y2="94.1" class="e-thin"/>
+        <line x1="125" y1="125" x2="220.11" y2="155.9" class="e-thick"/>
+        <line x1="125" y1="125" x2="183.78" y2="205.9" class="e-thin"/>
+        <line x1="125" y1="125" x2="125.0" y2="225.0" class="e-thick"/>
+        <line x1="125" y1="125" x2="66.22" y2="205.9" class="e-thin"/>
+        <line x1="125" y1="125" x2="29.89" y2="155.9" class="e-thick"/>
+        <line x1="125" y1="125" x2="29.89" y2="94.1" class="e-thin"/>
+        <line x1="125" y1="125" x2="66.22" y2="44.1" class="e-thick"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(125.0 25.0) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(183.78 44.1) rotate(45)"/>
+        <rect class="n-sm" x="-3.3" y="-3.3" width="6.6" height="6.6" transform="translate(220.11 94.1) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(220.11 155.9) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(183.78 205.9) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(125.0 225.0) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(66.22 205.9) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(29.89 155.9) rotate(45)"/>
+        <rect class="n-sm" x="-3.3" y="-3.3" width="6.6" height="6.6" transform="translate(29.89 94.1) rotate(45)"/>
+        <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(66.22 44.1) rotate(45)"/>
+        <rect class="n-center" x="-5.2" y="-5.2" width="10.4" height="10.4" transform="translate(125 125) rotate(45)"/>
+      </svg>
+      <span class="brand-name">Osmium Workshop</span>
+    </a>
+    <nav class="links topbar-tabs" aria-label="Sections">
+      <a href="#hero" data-tab="hero" class="active">Statement</a>
+      <a href="#demo" data-tab="demo">Demo</a>
+      <a href="#customization" data-tab="customization">Customization</a>
+      <a href="#apps" data-tab="apps">Releases</a>
+      <a href="#screenshots" data-tab="screenshots">Screenshots</a>
+    </nav>
+    <div class="nav-ctas">
+      <div class="theme-pick">
+              <button type="button" class="theme-pick-btn" id="themePickBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="themePickMenu" title="Try the app's themes on this page">
+                <span class="tp-sw" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="tp-label">Theme</span>
+                <span class="tp-name" id="themePickName">Osmium</span>
+                <svg class="tp-caret" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="theme-pick-menu" id="themePickMenu">
+                <p class="tp-head">The app's 26 themes, on this page</p>
+                <div class="tp-list" id="themePickList" role="listbox" aria-label="Site theme"></div>
+                <p class="tp-foot">Use the moon button next to this menu to see each theme's night mode, the same inversion the app uses.</p>
+              </div>
+            </div>
+      <button type="button" class="night-toggle" id="nightToggle" aria-pressed="false" aria-label="Night mode" title="Night mode">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 12.2A7 7 0 0 1 7.8 3.5a7 7 0 1 0 8.7 8.7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            </button>
+      <a class="btn btn-primary btn-sm" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">Download Latest</a>
+      <a class="btn btn-ghost btn-sm" href="index.html" title="Switch back to the classic long-page view">LITE MODE</a>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+    <section id="features" class="rail rail-left" data-plate="off">
+      <div class="rail-head">
+        <div class="section-head">
+                <h1>Cool Stuff You're Getting:</h1>
+                <p data-plate="on"><em>As a bonus, almost all of them create logged entries so you can undo them at any time.</em></p>
+              </div>
+      </div>
+      <div class="rail-tabs">
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-the-basics">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-the-basics" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row" data-plate="off">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="50" y="20" width="100" height="150" rx="3"></rect><rect x="60" y="30" width="80" height="40" rx="3"></rect><rect x="60" y="80" width="80" height="80" rx="3"></rect><line x1="70" y1="100" x2="90" y2="100"></line><line x1="100" y1="100" x2="130" y2="100"></line><line x1="70" y1="90" x2="130" y2="90"></line></g>
+                <circle cx="70" cy="50" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="90" cy="50" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="110" cy="50" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="130" cy="50" r="3.5" fill="var(--blue)"></circle><g><path d="M124 150 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path></g>
+              </svg>
+                      </div>
+                        <h3>The Basics</h3>
+                      <div class="conn-copy">
+                        <p data-plate="on">The default view for the Gallery is Grid View, where every image in your dataset is represented by a <strong>CARD</strong>. Cards consist of a preview of your image, with the tags assigned to it represented by <strong>CHIPS</strong>. When you double click a chip, it allows you to edit the tag directly inline. Right-clicking a chip brings up a context menu for additional options, such as flagging a tag for review or viewing its definition via the built-in wiki.</p>
+                      </div>
+                    </div>
+            </div>
+          </div>
+        </div>
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-pruner">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-pruner" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row rev" style="--gt:350px" data-plate="off">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><line x1="30" y1="40" x2="100" y2="100"></line><line x1="30" y1="100" x2="100" y2="100"></line><line x1="30" y1="160" x2="100" y2="100"></line><line x1="100" y1="100" x2="170" y2="100"></line><rect x="16" y="-14" width="2.2" height="10" rx="3"></rect><rect x="21" y="-14" width="2.2" height="10" rx="3"></rect><rect x="26" y="-14" width="2.2" height="10" rx="3"></rect></g>
+                <circle cx="30" cy="40" r="4" fill="var(--blue)"></circle>
+                <circle cx="30" cy="100" r="4" fill="var(--blue)"></circle>
+                <circle cx="30" cy="160" r="4" fill="var(--blue)"></circle>
+                <circle cx="95" cy="100" r="6" fill="var(--ink)"></circle>
+                <circle cx="170" cy="100" r="4" fill="var(--green)"></circle>
+              </svg>
+                      </div>
+                        <h3>Tag Pruner — Unify &amp; Void</h3>
+                      <div class="conn-copy">
+                        <p data-plate="on">Using WD14 can be messy, especially when prepping Character LoRA, when it can apply multiple variations of the same tag on multiple different images (example: one image has Blue Hair while the other has Black Hair, but you know for certain it's blue). <br><br><em>Fret not my little chudling;</em> with Tag Pruner, Osmium grants you greater control over how unwanted tags should be dealt with. This is referred to as adding a <strong>RULE</strong>. Rules are automated tag corrections that will affect all images retroactively once the rule is created. <br><br>Rules are split into 2 categories: <strong>MERGE </strong>and <strong>VOID</strong>. Merge works as mentioned above, while Void deletes a tag entirely from the entire dataset (useful for getting rid of things that never appear, or for tags that aren't helpful in image labeling).</p>
+                        <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-pruner" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See it in 3 steps</span></button>
+                      </div>
+                    </div>
+              <div class="conn-steps" id="steps-pruner">
+                      <div class="cs-inner" inert><div class="cs-body">
+                        <div class="cs-view multi"><div class="proof-frame">
+                          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                          <img alt="" decoding="async" />
+                        </div></div>
+                        <ol class="cs-rail" style="--n:3">
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-1-select-variants.png" data-w="380" data-h="750" data-alt="The Tag Pruner searched for &quot;hair&quot;, with blonde hair, blond hair and yellow hair ticked; below, 3 tags selected affecting 18 images." data-cap="Search the Tag Pruner and tick every spelling of the same thing."><span class="node" aria-hidden="true"></span><span class="st-name">Gather tags</span></button></li>
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-2-unify-name.png" data-w="380" data-h="300" data-alt="The Unify or Void box with &quot;blonde hair&quot; typed as the unified tag name next to Apply." data-cap="Type the one tag they should all become, then Apply."><span class="node" aria-hidden="true"></span><span class="st-name">Decide canonical</span></button></li>
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/tag-pruning-3-merged.png" data-w="1920" data-h="1000" data-alt="The gallery showing all 18 images now tagged &quot;blonde hair&quot;, with a new merge rule listed in the Retroactive Merge/Void dock." data-cap="All images now say blonde hair, and a standing merge rule catches the variants in anything you add later."><span class="node" aria-hidden="true"></span><span class="st-name">Tags are merged</span></button></li>
+                        </ol>
+                        <p class="cs-cap" aria-live="polite"></p>
+                      </div></div>
+                    </div>
+            </div>
+          </div>
+        </div>
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-rules">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-rules" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row" data-plate="off">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><line x1="100" y1="30" x2="150" y2="40"></line><line x1="100" y1="30" x2="50" y2="40"></line><line x1="50" y1="40" x2="50" y2="80"></line><line x1="150" y1="40" x2="150" y2="80"></line><line x1="50" y1="80" x2="70" y2="130"></line><line x1="150" y1="80" x2="130" y2="130"></line><line x1="70" y1="130" x2="100" y2="150"></line><line x1="130" y1="130" x2="100" y2="150"></line></g>
+                <circle cx="100" cy="30" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="130" cy="130" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="100" cy="150" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="50" cy="40" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="150" cy="40" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="50" cy="80" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="70" cy="130" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="150" cy="80" r="3.5" fill="var(--blue)"></circle>
+              </svg>
+                      </div>
+                        <h3>Immunize and Antivoid</h3>
+                      <div class="conn-copy">
+                        <p data-plate="on">But what if you don't want your rules to apply everywhere? Some images may genuinely have black hair, but you have way more blue haired ones than black. Right click an image to apply <strong>IMMUNIZE </strong>or <strong>ANTIVOID.<br><br></strong>Immunize prevents images from being affected by merges, while Antivoid?<br><br>You're not gonna believe this, but... Antivoid does <strong>exactly </strong>what it says it does. Shocker.</p>
+                        <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-rules" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See it in 3 steps</span></button>
+                      </div>
+                    </div>
+              <div class="conn-steps" id="steps-rules">
+                      <div class="cs-inner" inert><div class="cs-body">
+                        <div class="cs-view multi"><div class="proof-frame">
+                          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                          <img alt="" decoding="async" />
+                        </div></div>
+                        <ol class="cs-rail" style="--n:3">
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/merge-1-two-images-2.png" data-w="1548" data-h="820" data-alt="A general view of the gallery, with black and blue hair tags noticed" data-cap="You want black hair and blue hair to be merged into &quot;dark hair&quot; "><span class="node" aria-hidden="true"></span><span class="st-name">Know the offending tags</span></button></li>
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/merge-2-rules.png" data-w="349" data-h="462" data-alt="The result of a merge; black hair and blue hair are consolidated" data-cap="Once you've wrangled what you need, apply the rules"><span class="node" aria-hidden="true"></span><span class="st-name">Set the rule</span></button></li>
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/merge-3-immunize-merge-icon.png" data-w="508" data-h="636" data-alt="The gallery showing the effects of rules on tags. Immunize is stopping a merge." data-cap="If an image is Immunized or Antivoided, rules will not apply to it"><span class="node" aria-hidden="true"></span><span class="st-name">Immunize to set exceptions</span></button></li>
+                        </ol>
+                        <p class="cs-cap" aria-live="polite"></p>
+                      </div></div>
+                    </div>
+            </div>
+          </div>
+        </div>
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-wd14">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-wd14" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row rev" style="--gt:350px" data-plate="off">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="10" y="40" width="80" height="110" rx="3"></rect><rect x="120" y="130" width="70" height="20" rx="3"></rect><path d="M144 50 C117 50 117 95 90 95"></path><path d="M90 95 C105 95 105 140 120 140"></path><line x1="130" y1="140" x2="180" y2="140"></line><rect x="20" y="50" width="60" height="40" rx="3"></rect><line x1="20" y1="100" x2="50" y2="100"></line><line x1="60" y1="100" x2="70" y2="100"></line><line x1="20" y1="110" x2="80" y2="110"></line></g>
+                <circle cx="150" cy="50" r="6" fill="var(--green)"></circle>
+                <circle cx="30" cy="70" r="3.5" fill="var(--red)"></circle>
+                <circle cx="50" cy="70" r="3.5" fill="var(--red)"></circle>
+                <circle cx="70" cy="70" r="3.5" fill="var(--red)"></circle>
+              </svg>
+                      </div>
+                        <h3>WD14 Autotagging</h3>
+                      <div class="conn-copy">
+                        <p data-plate="on">Osmium can run WD14 both with and without ComfyUI. Set whatever server you want WD14 to run from (No ComfyUI still requires a model downloaded for actual inference) and you can configure tags to apply immediately or wait for review.<br><br>WD14 also works for images generated from SynthDat; Interrogate fresh outputs with WD14 to catch gaps in your initial tagging before you accept it into your dataset.</p>
+                        <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-wd14" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See it in 3 steps</span></button>
+                      </div>
+                    </div>
+              <div class="conn-steps" id="steps-wd14">
+                      <div class="cs-inner" inert><div class="cs-body">
+                        <div class="cs-view multi"><div class="proof-frame">
+                          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                          <img alt="" decoding="async" />
+                        </div></div>
+                        <ol class="cs-rail" style="--n:3">
+                          <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-1-select-untagged.png" data-w="1920" data-h="1000" data-alt="The Tag Overseer tab filtered to four untagged images, all selected, next to the WD14 Autotagger panel." data-cap="Filter to Untagged, select them, and hit Tag selected images with WD14."><span class="node" aria-hidden="true"></span><span class="st-name">Select untagged</span></button></li>
+                          <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-2-review.png" data-w="1920" data-h="1000" data-alt="The WD14 review dialog listing four images with editable tag lists and checkboxes." data-cap="Check or edit each image's tags before they're applied, or turn review off and let it apply straight away."><span class="node" aria-hidden="true"></span><span class="st-name">Review</span></button></li>
+                          <li><button type="button" class="cs-step" data-src="assets/screenshots/wd14-3-tagged.png" data-w="1920" data-h="1000" data-alt="The four images now carrying WD14 tags, outlined as unsaved." data-cap="The tags land on every card as one undoable edit."><span class="node" aria-hidden="true"></span><span class="st-name">Tagged</span></button></li>
+                        </ol>
+                        <p class="cs-cap" aria-live="polite"></p>
+                      </div></div>
+                    </div>
+            </div>
+          </div>
+        </div>
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-synthdat">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-synthdat" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row" data-plate="off">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="60" y="65" width="80" height="70" rx="3"></rect><rect x="70" y="75" width="60" height="50" rx="3"></rect><line x1="70" y1="135" x2="60" y2="155"></line><line x1="130" y1="135" x2="140" y2="155"></line><line x1="80" y1="135" x2="70" y2="155"></line><line x1="120" y1="135" x2="130" y2="155"></line><line x1="60" y1="155" x2="140" y2="155"></line><path d="M35 85 C49 85 46 100 60 100"></path><path d="M25 100 C42.5 100 42.5 100 60 100"></path><path d="M35 115 C49 115 46 100 60 100"></path><path d="M165 55 C151 55 154 100 140 100"></path><path d="M175 75 C157.5 75 157.5 100 140 100"></path><path d="M185 100 C162.5 100 162.5 100 140 100"></path><path d="M140 100 C157.5 100 157.5 125 175 125"></path><path d="M140 100 C154 100 151 145 165 145"></path></g>
+                <circle cx="30" cy="85" r="5" fill="var(--red)"></circle>
+                <circle cx="20" cy="100" r="5" fill="var(--red)"></circle>
+                <circle cx="30" cy="115" r="5" fill="var(--red)"></circle>
+                <circle cx="170" cy="55" r="5" fill="var(--blue)"></circle>
+                <circle cx="180" cy="75" r="5" fill="var(--blue)"></circle>
+                <circle cx="170" cy="145" r="5" fill="var(--blue)"></circle>
+                <circle cx="180" cy="125" r="5" fill="var(--blue)"></circle>
+                <circle cx="190" cy="100" r="5" fill="var(--blue)"></circle>
+                <circle cx="100" cy="110" r="5" fill="var(--green)"></circle>
+                <circle cx="85" cy="100" r="5" fill="var(--green)"></circle>
+                <circle cx="100" cy="90" r="5" fill="var(--green)"></circle>
+                <circle cx="115" cy="100" r="5" fill="var(--green)"></circle>
+              </svg>
+                      </div>
+                        <h3>SynthDat Overseer </h3>
+                      <div class="conn-copy">
+                        <p data-plate="on">If you're training Character LoRA, you may sometimes have less images than you'd like (probably cause you're training off some obscure artist's OC or whatever, lol). Or maybe that character is just genuinely unpopular.<br><br>SynthDat's generation function serves as a solution to thin character datasets. It is recommended to train an at-least somewhat functioning LoRA with your initial images, then come back to Osmium and use SynthDat to generate that character in different poses. <br><br>If you're struggling to get poses right, Osmium comes with <strong>CONTROLNET</strong> using reference images within its integrated workflow; add a reference image and use that as a way to strongarm your character into a certain pose. The Controlnet is built for Anima specifically so don't expect it to work with a different model loaded.<br><br>Osmium can be wired to a running ComfyUI instance (supports Tailscale connections) or to use your current Comfy installation to run Osmium's Comfy setup (which only loads the nodes it needs from its custom node pack - <strong>You need to install that</strong>. <br><br>The practical advantage is that it loads faster (about 20s compared to 2-3 minutes on weaker machines like 30-series Laptops). Simply point Osmium to your ComfyUI folder (it should include the Python env if you're using Portable) and hit connect.</p>
+                        <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-synthdat" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See it in 3 steps</span></button>
+                      </div>
+                    </div>
+              <div class="conn-steps" id="steps-synthdat">
+                      <div class="cs-inner" inert><div class="cs-body">
+                        <div class="cs-view multi"><div class="proof-frame">
+                          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                          <img alt="" decoding="async" />
+                        </div></div>
+                        <ol class="cs-rail" style="--n:3">
+                          <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-1-interrogate-reference.png" data-w="1920" data-h="1000" data-alt="The SynthDat reference image section: WD14 tags from a pose reference, each routed to Pose, Limbs or Scene." data-cap="WD14 reads the reference, and each tag gets routed to Pose, Limbs or Scene."><span class="node" aria-hidden="true"></span><span class="st-name">Read the pose</span></button></li>
+                          <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-2-prompt-fields.png" data-w="1920" data-h="1000" data-alt="The Prompt fields panel with the assigned tags filled into Limbs and Hands, Pose and Scene." data-cap="Apply the assignment and the tags drop into the matching prompt fields."><span class="node" aria-hidden="true"></span><span class="st-name">Fill the prompt</span></button></li>
+                          <li><button type="button" class="cs-step" data-src="assets/screenshots/synthdat-3-result.png" data-w="1920" data-h="1000" data-alt="A generated image with the tags it will save, and Accept into dataset and Reject buttons." data-cap="The result arrives with the tags it'll save. Accept adds it to the dataset. Reject parks it in Disabled."><span class="node" aria-hidden="true"></span><span class="st-name">Accept or reject</span></button></li>
+                        </ol>
+                        <p class="cs-cap" aria-live="polite"></p>
+                      </div></div>
+                    </div>
+            </div>
+          </div>
+        </div>
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-log">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-log" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row rev" style="--gt:350px" data-plate="off">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200"><g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".7">
+                          <line x1="30" y1="100" x2="70" y2="100"/><line x1="70" y1="100" x2="110" y2="100"/><line x1="110" y1="100" x2="150" y2="100"/><line x1="150" y1="100" x2="170" y2="100"/>
+                        </g>
+                        <g fill="var(--ink)"><circle cx="30" cy="100" r="3.5"/><circle cx="70" cy="100" r="3.5"/><circle cx="110" cy="100" r="3.5"/></g>
+                        <circle cx="150" cy="100" r="5" fill="var(--red)"/></svg>
+                      </div>
+                        <h3>External Undo/Redo logging</h3>
+                      <div class="conn-copy">
+                        <p data-plate="on">Osmium's undo and redo persist even when you exit the program or save your edits. Unlike standard undo/redo, your edits are all logged in a text file in the dataset root. That way, you can see every edit from the very moment you start curating all the way to the very last one you do.</p>
+                        <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-log" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See the screen</span></button>
+                      </div>
+                    </div>
+              <div class="conn-steps" id="steps-log">
+                      <div class="cs-inner" inert><div class="cs-body">
+                        <div class="cs-view"><div class="proof-frame">
+                          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                          <img alt="" decoding="async" />
+                        </div></div>
+                        <ol class="cs-rail" style="--n:1" hidden>
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/ui-edit-log.png" data-w="490" data-h="790" data-alt="The edit log panel: a list of edits with timestamps, each with its own Undo this and Redo this buttons." data-cap="Every edit is saved and listed with its own Undo and Redo, saved in the dataset folder."><span class="node" aria-hidden="true"></span><span class="st-name">Osmium's Edit Log</span></button></li>
+                        </ol>
+                        <p class="cs-cap" aria-live="polite"></p>
+                      </div></div>
+                    </div>
+            </div>
+          </div>
+        </div>
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-master">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-master" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row" data-plate="off">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><line x1="100" y1="50" x2="100" y2="50"></line><line x1="100" y1="60" x2="60" y2="70"></line><line x1="60" y1="130" x2="100" y2="140"></line><line x1="100" y1="60" x2="140" y2="70"></line><line x1="140" y1="70" x2="170" y2="100"></line><line x1="60" y1="70" x2="30" y2="100"></line><line x1="30" y1="100" x2="60" y2="130"></line><line x1="140" y1="130" x2="170" y2="100"></line><line x1="100" y1="140" x2="140" y2="130"></line><path d="M39.5 45 C65.25 45 65.25 100 91 100"></path><path d="M65 19.5 C65 55.25 100 55.25 100 91"></path><path d="M90 49.5 C90 70.25 100 70.25 100 91"></path><path d="M135 24.5 C135 57.75 100 57.75 100 91"></path><path d="M170.5 60 C139.75 60 139.75 100 109 100"></path><path d="M55 160.5 C55 134.75 100 134.75 100 109"></path><path d="M24.5 135 C57.75 135 57.75 100 91 100"></path><path d="M125 185.5 C125 147.25 100 147.25 100 109"></path><path d="M170.5 150 C139.75 150 139.75 100 109 100"></path><line x1="100" y1="90" x2="70" y2="100"></line><line x1="70" y1="100" x2="100" y2="110"></line><line x1="100" y1="90" x2="130" y2="100"></line><line x1="130" y1="100" x2="100" y2="110"></line></g>
+                <circle cx="100" cy="60" r="4" fill="var(--red)"></circle>
+                <circle cx="60" cy="70" r="4" fill="var(--red)"></circle>
+                <circle cx="140" cy="70" r="4" fill="var(--red)"></circle>
+                <circle cx="30" cy="100" r="4" fill="var(--red)"></circle>
+                <circle cx="60" cy="130" r="4" fill="var(--red)"></circle>
+                <circle cx="100" cy="140" r="4" fill="var(--red)"></circle>
+                <circle cx="140" cy="130" r="4" fill="var(--red)"></circle>
+                <circle cx="170" cy="100" r="4" fill="var(--red)"></circle>
+                <circle cx="100" cy="100" r="9" fill="var(--ink)"></circle>
+                <circle cx="55" cy="165" r="4.5" fill="var(--green)"></circle>
+                <circle cx="125" cy="190" r="4.5" fill="var(--green)"></circle>
+                <circle cx="175" cy="150" r="4.5" fill="var(--green)"></circle>
+                <circle cx="20" cy="135" r="4.5" fill="var(--green)"></circle>
+                <circle cx="35" cy="45" r="4.5" fill="var(--green)"></circle>
+                <circle cx="65" cy="15" r="4.5" fill="var(--green)"></circle>
+                <circle cx="90" cy="45" r="4.5" fill="var(--green)"></circle>
+                <circle cx="135" cy="20" r="4.5" fill="var(--green)"></circle>
+                <circle cx="175" cy="60" r="4.5" fill="var(--green)"></circle>
+              </svg>
+                      </div>
+                        <h3>Tag Overseer</h3>
+                      <div class="conn-copy">
+                        <p data-plate="on">Quickly select images, configure WD14, mass-apply tags, and segregate images into defined bucket dimensions (use <strong>512x1024</strong>, for people like me with dogshit laptops, you're welcome), all within the Tag Overseer. It lives as an alternate righthand panel, accessible either by clicking its <strong>TAB</strong> or the Tag Overseer button in the regular righthand panel.<br><br>This feature works directly (and is also lifted from) Anima Trainflow.</p>
+                        <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-master" data-n="1"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See the screen</span></button>
+                      </div>
+                    </div>
+              <div class="conn-steps" id="steps-master">
+                      <div class="cs-inner" inert><div class="cs-body">
+                        <div class="cs-view"><div class="proof-frame">
+                          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                          <img alt="" decoding="async" />
+                        </div></div>
+                        <ol class="cs-rail" style="--n:1" hidden>
+                          <li><button type="button" class="cs-step" data-src="assets/screenshots/extra-sequential-launch.png" data-w="380" data-h="660" data-alt="The Master Tag Control panel with three images ticked in its grid, above Disable, Delete, Lock and Unlock." data-cap="Tick images in the grid. Everything under it applies to that selection."><span class="node" aria-hidden="true"></span><span class="st-name">Screen</span></button></li>
+                        </ol>
+                        <p class="cs-cap" aria-live="polite"></p>
+                      </div></div>
+                    </div>
+            </div>
+          </div>
+        </div>
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-sequential">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-sequential" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row rev" style="--gt:350px" data-plate="off">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="20" y="70" width="40" height="60" rx="3"></rect><rect x="80" y="70" width="40" height="60" rx="3"></rect><rect x="140" y="70" width="40" height="60" rx="3"></rect><path d="M40 70 C40 56 70 67.5 70 53.5"></path><path d="M70 53.5 C70 67.5 100 56 100 70"></path><path d="M100 130 C100 144 130 132.5 130 146.5"></path><path d="M130 146.5 C130 132.5 160 144 160 130"></path></g>
+                <circle cx="70" cy="50" r="3.5" fill="var(--blue)"></circle>
+                <circle cx="130" cy="150" r="3.5" fill="var(--blue)"></circle><path d="M34 100 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path><path d="M94 100 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path><path d="M156 96 l8 8 M164 96 l-8 8" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round"></path>
+              </svg>
+                      </div>
+                        <h3>Sequential Edit</h3>
+                      <div class="conn-copy">
+                        <p data-plate="on">Sequential Mode is a subview of Single Mode, found in Tag Overseer or by the right-click context menu. Sequential mode can be started from the very first image in your dataset or from a specific one. While Single Mode manages image composition and content, Sequential mode is primarily used to classify image technicalities. Censors/Text/Perspective are included under its umbrella. Like Single mode, all these tags can be appended with a single checkbox toggle.<br><br>I added this because WD14 is inconsistent at determining perspective; a lot of images often have it skipped entirely.</p>
+                        <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-sequential" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See it in 3 steps</span></button>
+                      </div>
+                    </div>
+              <div class="conn-steps" id="steps-sequential">
+                      <div class="cs-inner" inert><div class="cs-body">
+                        <div class="cs-view multi"><div class="proof-frame">
+                          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                          <img alt="" decoding="async" />
+                        </div></div>
+                        <ol class="cs-rail" style="--n:3">
+                          <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-1-panel.png" data-w="1920" data-h="1000" data-alt="Sequential mode on image 1 of 22: checkboxes for text, censorship, perspective and indicators beside the image." data-cap="Start from the first image or from your selection."><span class="node" aria-hidden="true"></span><span class="st-name">Open the panel</span></button></li>
+                          <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-2-selections.png" data-w="1920" data-h="1000" data-alt="Sequential mode with Has text, English, Front, Close-up, Comic and 1koma ticked, and a preview of the five tags it will write." data-cap="Tick what applies. The chips under the image show exactly what Confirm will write."><span class="node" aria-hidden="true"></span><span class="st-name">Mark what's there</span></button></li>
+                          <li><button type="button" class="cs-step" data-src="assets/screenshots/sequential-3-confirm-next.png" data-w="1920" data-h="1000" data-alt="Sequential mode moved on to image 2 of 22 with a fresh panel." data-cap="Confirm writes them and moves straight to the next image."><span class="node" aria-hidden="true"></span><span class="st-name">Confirm, next</span></button></li>
+                        </ol>
+                        <p class="cs-cap" aria-live="polite"></p>
+                      </div></div>
+                    </div>
+            </div>
+          </div>
+        </div>
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-quicktagging-tag-sorting">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-quicktagging-tag-sorting" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row" data-plate="off">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="10" y="46" width="16" height="16" rx="3"></rect><rect x="10" y="88" width="16" height="16" rx="3"></rect><rect x="10" y="130" width="16" height="16" rx="3"></rect><line x1="38" y1="54" x2="92" y2="54"></line><line x1="38" y1="96" x2="80" y2="96"></line><line x1="38" y1="138" x2="100" y2="138"></line><rect x="110" y="50" width="80" height="100" rx="3"></rect><rect x="120" y="60" width="60" height="30" rx="3"></rect><line x1="120" y1="100" x2="150" y2="100"></line><line x1="160" y1="100" x2="180" y2="100"></line><line x1="120" y1="110" x2="180" y2="110"></line></g><path d="M13 54 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path><path d="M13 96 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path>
+                <circle cx="130" cy="75" r="3" fill="var(--blue)"></circle>
+                <circle cx="150" cy="75" r="3" fill="var(--blue)"></circle>
+                <circle cx="170" cy="75" r="3" fill="var(--blue)"></circle>
+              </svg>
+                      </div>
+                        <h3>Quicktagging, Tag Sorting and the Wiki</h3>
+                      <div class="conn-copy">
+                        <p data-plate="on">Single Mode replaces the standard lefthand panel with <strong>QUICKTAGS</strong>. Use this to quickly assign tags to an image that require a lot of case-by-case eyeballling, like breast size or hair length. Quicktags also supports toggle logic: you can set quicktags to automatically tick/untick other quicktags when toggled. <br><strong><br>Tag Sorting</strong> is a purely visual setting that groups an image's tags under Character, Hair, Body, Face, Clothes, Pose, Scene and the rest, to make assessing tags faster at a glance. Lastly, the <strong>WIKI</strong> button opens a small window that looks up what any tag means, and stays open while you work.</p>
+                      </div>
+                    </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <main class="stage">
+      <section id="hero" class="stage-section hero" data-plate="off">
+
+            <div class="rings" aria-hidden="true">
+              <svg width="1400" height="1400" viewBox="0 0 1400 1400">
+                <g fill="none" stroke="var(--line)" stroke-width="1">
+                  <circle cx="700" cy="700" r="260"/><circle cx="700" cy="700" r="380"/>
+                  <circle cx="700" cy="700" r="500"/><circle cx="700" cy="700" r="620"/>
+                </g>
+              </svg>
+            </div>
+            <div class="wrap hero-grid">
+              <span class="kicker-chip"><span class="dot"></span><span data-latest-ver>v1.6.0</span> · Windows portable · Android</span>
+              <div class="hero-copy">
+                <h1 class="hero-title display">Making datasets could<br><em>be a little more fun</em></h1>
+                <p class="hero-sub hero-sub-first" data-plate="on">A dataset manager made for curating training data for Booru-tag based models, with a focus around Anima by Circlestone labs.</p>
+                <p class="hero-sub" data-plate="on">Osmium is feature-dense, comes with plenty of QoL features, and contains a slew of comprehensive visual customization to make curating datasets a hobby that doesn't make you scratch your head like a monkey.</p>
+                <div class="hero-ctas">
+                  <a class="btn btn-primary" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Get it Now</a>
+                  <a class="hero-cta-secondary" href="https://github.com/Valteil/osmium-workshop" target="_blank" rel="noopener">View source →</a>
+                  <div class="hero-meta">
+                    <span><strong>Portable.</strong> Unzip and use immediately.</span>
+                    <span><strong>Recommended: ComfyUI installation </strong></span>
+                  </div>
+                </div>
+              </div>
+              <div class="hero-art" aria-hidden="true">
+                <svg class="lattice" viewBox="0 0 250 250">
+                  <circle class="l-circle" cx="125" cy="125" r="117"/>
+                  <line x1="125.0" y1="25.0" x2="183.78" y2="44.1" class="e-ring"/>
+                  <line x1="183.78" y1="44.1" x2="220.11" y2="94.1" class="e-ring"/>
+                  <line x1="220.11" y1="94.1" x2="220.11" y2="155.9" class="e-ring"/>
+                  <line x1="220.11" y1="155.9" x2="183.78" y2="205.9" class="e-ring"/>
+                  <line x1="183.78" y1="205.9" x2="125.0" y2="225.0" class="e-ring"/>
+                  <line x1="125.0" y1="225.0" x2="66.22" y2="205.9" class="e-ring"/>
+                  <line x1="66.22" y1="205.9" x2="29.89" y2="155.9" class="e-ring"/>
+                  <line x1="29.89" y1="155.9" x2="29.89" y2="94.1" class="e-ring"/>
+                  <line x1="29.89" y1="94.1" x2="66.22" y2="44.1" class="e-ring"/>
+                  <line x1="66.22" y1="44.1" x2="125.0" y2="25.0" class="e-ring"/>
+                  <line x1="125.0" y1="25.0" x2="220.11" y2="94.1" class="e-thin"/>
+                  <line x1="220.11" y1="94.1" x2="183.78" y2="205.9" class="e-thin"/>
+                  <line x1="183.78" y1="205.9" x2="66.22" y2="205.9" class="e-thin"/>
+                  <line x1="66.22" y1="205.9" x2="29.89" y2="94.1" class="e-thin"/>
+                  <line x1="29.89" y1="94.1" x2="125.0" y2="25.0" class="e-thin"/>
+                  <line x1="183.78" y1="44.1" x2="220.11" y2="155.9" class="e-thick"/>
+                  <line x1="220.11" y1="155.9" x2="125.0" y2="225.0" class="e-thick"/>
+                  <line x1="125.0" y1="225.0" x2="29.89" y2="155.9" class="e-thick"/>
+                  <line x1="29.89" y1="155.9" x2="66.22" y2="44.1" class="e-thick"/>
+                  <line x1="66.22" y1="44.1" x2="183.78" y2="44.1" class="e-thick"/>
+                  <line x1="125" y1="125" x2="125.0" y2="25.0" class="e-thin"/>
+                  <line x1="125" y1="125" x2="183.78" y2="44.1" class="e-thick"/>
+                  <line x1="125" y1="125" x2="220.11" y2="94.1" class="e-thin"/>
+                  <line x1="125" y1="125" x2="220.11" y2="155.9" class="e-thick"/>
+                  <line x1="125" y1="125" x2="183.78" y2="205.9" class="e-thin"/>
+                  <line x1="125" y1="125" x2="125.0" y2="225.0" class="e-thick"/>
+                  <line x1="125" y1="125" x2="66.22" y2="205.9" class="e-thin"/>
+                  <line x1="125" y1="125" x2="29.89" y2="155.9" class="e-thick"/>
+                  <line x1="125" y1="125" x2="29.89" y2="94.1" class="e-thin"/>
+                  <line x1="125" y1="125" x2="66.22" y2="44.1" class="e-thick"/>
+                  <path class="e-live r" d="M125.0 25.0 L125 125 L66.22 205.9" fill="none"/>
+                  <path class="e-live g" d="M29.89 94.1 L29.89 155.9 L66.22 205.9" fill="none" style="animation-delay:-1.5s"/>
+                  <path class="e-live b" d="M183.78 44.1 L220.11 155.9 L183.78 205.9" fill="none" style="animation-delay:-3s"/>
+                  <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(125.0 25.0) rotate(45)"/>
+                  <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(183.78 44.1) rotate(45)"/>
+                  <rect class="n-sm" x="-3.3" y="-3.3" width="6.6" height="6.6" transform="translate(220.11 94.1) rotate(45)"/>
+                  <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(220.11 155.9) rotate(45)"/>
+                  <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(183.78 205.9) rotate(45)"/>
+                  <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(125.0 225.0) rotate(45)"/>
+                  <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(66.22 205.9) rotate(45)"/>
+                  <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(29.89 155.9) rotate(45)"/>
+                  <rect class="n-sm" x="-3.3" y="-3.3" width="6.6" height="6.6" transform="translate(29.89 94.1) rotate(45)"/>
+                  <rect class="n-lg" x="-4.7" y="-4.7" width="9.4" height="9.4" transform="translate(66.22 44.1) rotate(45)"/>
+                  <rect class="n-center" x="-5.2" y="-5.2" width="10.4" height="10.4" transform="translate(125 125) rotate(45)"/>
+                </svg>
+              </div>
+            </div>
+  
+      </section>
+      <section id="demo" class="stage-section">
+
+            <div class="wrap">
+              <div class="section-head">
+                <h2 class="demo-head"><a class="demo-open" href="demo/index.html" target="_blank" rel="noopener">Test it live, right here <span class="demo-open-arrow" aria-hidden="true">&#8599;</span></a></h2>
+                <p>Don't wanna download it yet? Don't fret; I put the damn thing on its own page right here on github. That way you can put your slimy little mitts all over my pristine buttons without any committment. Click the big fat linkie up above this text plate to get there. <br><br>Since I don't want you to think I'm putting viruses on your PC/Laptop/glorified potato wired to a GTX by asking you to test it on your own datasets, I threw in an example dataset: <strong>Chromatic Void. </strong>Every image is still untagged. <br><br>You can use this opportunity to try out a bunch of Osmium's functions. Note that while the WD14 and SynthDat functions "work" in this demo, they are <strong>faked, preset outputs</strong>.  But hey, cut me some slack okay? I decided against asking you to wire your Comfy to some shady site since it was in bad taste.</p>
+              </div>
+            </div>
+  
+      </section>
+      <section id="screenshots" class="stage-section">
+        <div class="wrap">
+        <div class="shot-carousel-wrap">
+                <div class="shot-carousel" id="shotCarousel">
+                  <figure class="shot-slide">
+                    <div class="proof-frame">
+                      <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                      <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                      <img src="assets/screenshots/ui-gallery-grid.png" width="1920" height="1000" alt="The Gallery tab in grid view: image cards with tag chips, the tag filter on the left and the tool docks on the right." loading="lazy" decoding="async" />
+                    </div>
+                    <figcaption class="proof-cap"><span>Gallery — the everyday grid</span></figcaption>
+                  </figure>
+                  <figure class="shot-slide">
+                    <div class="proof-frame">
+                      <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                      <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                      <img src="assets/screenshots/ui-single.png" width="1920" height="1000" alt="Single view: one image beside its tags grouped into Character, Body, Face, Clothes, Pose and Scene." loading="lazy" decoding="async" />
+                    </div>
+                    <figcaption class="proof-cap"><span>Single view, tags sorted by prompt field</span></figcaption>
+                  </figure>
+                  <figure class="shot-slide">
+                    <div class="proof-frame">
+                      <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                      <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                      <img src="assets/screenshots/ui-compact.png" width="1920" height="1000" alt="Compact view: a dense grid of thumbnails, one showing its tags on hover." loading="lazy" decoding="async" />
+                    </div>
+                    <figcaption class="proof-cap"><span>Compact view — hover any tile for its tags</span></figcaption>
+                  </figure>
+                  <figure class="shot-slide">
+                    <div class="proof-frame">
+                      <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                      <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                      <img src="assets/screenshots/datasets-1-folders.png" width="1920" height="520" alt="The Datasets tab: dataset folders in a grid, with Default, Characters, Styles and a locked Private group." loading="lazy" decoding="async" />
+                    </div>
+                    <figcaption class="proof-cap"><span>Datasets tab — every project, grouped</span></figcaption>
+                  </figure>
+                  <figure class="shot-slide">
+                    <div class="proof-frame">
+                      <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                      <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                      <img src="assets/screenshots/datasets-2-locked-group.png" width="1920" height="640" alt="A password prompt for the locked Private group in the Datasets tab." loading="lazy" decoding="async" />
+                    </div>
+                    <figcaption class="proof-cap"><span>Groups can be password-locked</span></figcaption>
+                  </figure>
+                  <figure class="shot-slide">
+                    <div class="proof-frame">
+                      <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                      <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                      <img src="assets/screenshots/ui-night-mode.png" width="1920" height="1000" alt="The Gallery tab with night mode on." loading="lazy" decoding="async" />
+                    </div>
+                    <figcaption class="proof-cap"><span>Night mode, on any theme</span></figcaption>
+                  </figure>
+                  <figure class="shot-slide">
+                    <div class="proof-frame">
+                      <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                      <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                      <img src="assets/screenshots/ui-help.png" width="1920" height="1000" alt="The built-in help panel with a table of contents and the Opening a dataset page." loading="lazy" decoding="async" />
+                    </div>
+                    <figcaption class="proof-cap"><span>Built-in help — every tab explained</span></figcaption>
+                  </figure>
+                  <figure class="shot-slide">
+                    <div class="proof-frame">
+                      <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                      <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                      <img src="assets/screenshots/theme-shop-2-legendary.png" width="700" height="484" alt="The theme shop listing rare, epic and legendary themes with their Edibits prices." loading="lazy" decoding="async" />
+                    </div>
+                    <figcaption class="proof-cap"><span>Shop themes — common to legendary, unlocked with Edibits you earn just by using the app</span></figcaption>
+                  </figure>
+                </div>
+                <div class="shot-dots" id="shotDots" aria-hidden="true"></div>
+              </div>
+        </div>
+      </section>
+      <section id="customization" class="stage-section">
+
+            <div class="wrap">
+              <div class="section-head">
+                <h2>Visual Customizability </h2>
+                <p>If you're going to stare at a dataset for a few hours, why not make it less of an eyesore? Both Osmium and ComfyBridge feature a slew of themes, each with a toggleable animated background. Hopefully it makes staring at the same image a lot less grating (also I don't like ugly dataset managers).<br><br>You can even test out Osmium's themes right here with the site's theme dropdown, or from the demo itself.</p>
+              </div>
+              <div class="stair-wrap">
+                <figure class="stair-shot s1">
+                  <div class="proof-frame">
+                    <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                    <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                    <img src="assets/screenshot-theme-osmium.jpg" width="1920" height="1000" alt="The Gallery tab with the Chromatic Void sample set, in the default Osmium theme." loading="lazy" />
+                  </div>
+                  <figcaption class="proof-cap"><span>Osmium — default</span></figcaption>
+                </figure>
+                <figure class="stair-shot s2">
+                  <div class="proof-frame">
+                    <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                    <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                    <img src="assets/screenshot-theme-candy-pop.jpg" width="1920" height="1000" alt="The same Gallery view in the Candy Pop theme: pink pills and a rounded face." loading="lazy" />
+                  </div>
+                  <figcaption class="proof-cap"><span>Candy Pop</span></figcaption>
+                </figure>
+                <figure class="stair-shot s3">
+                  <div class="proof-frame">
+                    <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                    <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                    <img src="assets/screenshot-theme-celestial-gold.jpg" width="1920" height="1000" alt="The same Gallery view in the Celestial Gold theme: navy, gold and a starfield." loading="lazy" />
+                  </div>
+                  <figcaption class="proof-cap"><span>Celestial Gold</span></figcaption>
+                </figure>
+              </div>
+            </div>
+  
+      </section>
+      <section id="apps" class="stage-section">
+
+            <div class="wrap">
+              <div class="section-head">
+                <h2>Because it wasn't enough to have a gazillion vibecoded dataset managers out there</h2>
+                <p>You can shove 3 different flavors of Osmium down your computer's gullet. <br><em><br>How fun.</em></p>
+              </div>
+              <div class="hub-wrap">
+                <div class="hub-art" aria-hidden="true">
+                  <svg viewBox="0 0 300 300">
+                    <g fill="none" stroke="var(--ink)" stroke-width="1">
+                      <line x1="150" y1="150" x2="150" y2="40" opacity=".9"/>
+                      <line x1="150" y1="150" x2="250" y2="205" opacity=".45"/>
+                      <line x1="150" y1="150" x2="50" y2="205" opacity=".45"/>
+                    </g>
+                    <circle cx="150" cy="150" r="7" fill="var(--ink)"/>
+                    <circle cx="150" cy="40" r="10" fill="var(--ink)"/>
+                    <circle cx="250" cy="205" r="6" fill="var(--green)"/>
+                    <circle cx="50" cy="205" r="6" fill="var(--blue)"/>
+                  </svg>
+                </div>
+                <div class="app-list">
+                  <div class="app-item">
+                    <div class="head"><span class="swatch" style="background:var(--ink)"></span><h3>Osmium Workshop — Desktop</h3></div>
+                    <p>The Dataset manager. Used for tagging images and generating additional material for small datasets.</p>
+                    <a class="btn btn-ghost btn-sm app-dl" data-dl="osmium-desktop" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download (Windows)</a>
+                  </div>
+                  <div class="app-item">
+                    <div class="head"><span class="swatch" style="background:var(--green)"></span><h3>Osmium Workshop — Mobile</h3></div>
+                    <p>The same app on Android, for tagging on the go. Touch layout, on-device WD14, ComfyUI generation over LAN or Tailscale. Currently in testing.</p>
+                    <a class="btn btn-ghost btn-sm app-dl" data-dl="osmium-android" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
+                  </div>
+                  <div class="app-item">
+                    <div class="head"><span class="swatch" style="background:var(--blue)"></span><h3>Comfy Bridge</h3></div>
+                    <p>A simpler ComfyUI webUI with one built-in workflow, for when you just want the image without wrangling a node graph. </p>
+                    <div class="app-item-ctas">
+                      <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-desktop" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Windows</a>
+                      <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-android" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+  
+      </section>
+    </main>
+
+    <section id="bridge" class="rail rail-right" data-plate="off">
+      <div class="rail-head">
+        <div class="section-head">
+                <h2>Comfy Bridge: Alternative ComfyUI WebUI</h2>
+                <p data-plate="on">Honestly the name kind of explains it all. It's a bridge between Osmium's integrated workflow and your own ComfyUI installation. Useful for those who want a quick and easy Anima workflow without doing any workflow building themself.</p>
+              </div>
+      </div>
+      <div class="rail-tabs">
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-bridge-local">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-bridge-local" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row" data-plate="off">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="28" y="72" width="62" height="44" rx="3"></rect><line x1="44" y1="126" x2="74" y2="126"></line><rect x="138" y="66" width="30" height="56" rx="3"></rect></g><g><path d="M92 94 C110 80, 120 80, 136 94" fill="none" stroke="var(--blue)" stroke-width="1.6" stroke-dasharray="3 4"></path></g>
+                <circle cx="59" cy="94" r="4" fill="var(--blue)"></circle>
+                <circle cx="153" cy="94" r="4" fill="var(--green)"></circle>
+              </svg>
+                      </div>
+                        <h3>Osmium's Comfy Instance</h3>
+                      <div class="conn-copy">
+                        <p data-plate="on">Osmium ships its own stripped-down Comfy workflow. It needs one thing from you, the Osmium custom node pack. Point it at your ComfyUI folder, connect from the Bridge or SynthDat tab, and it boots a lean server that loads only what the workflow uses. Seconds to start, not minutes. Prefer your own Comfy? Point Osmium at its URL and port instead.</p>
+                        <p data-plate="on">WD14 runs through Comfy, or on your CPU or GPU with no Comfy at all. Bridge also lets your phone drive your home machine's Comfy and pull the finished images straight back onto the phone. Two catches. The workflow is built around Anima, so ControlNet will not cooperate with other models, and Osmium and ComfyBridge keep separate terminals, which means SynthDat generations cannot run on a Cbridge terminal, or the other way round.</p>
+                        <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-bridge-local" data-n="3"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See it in 3 steps</span></button>
+                      </div>
+                    </div>
+              <div class="conn-steps" id="steps-bridge-local">
+                      <div class="cs-inner" inert><div class="cs-body">
+                        <div class="cs-view multi"><div class="proof-frame">
+                          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                          <img alt="" decoding="async" />
+                        </div></div>
+                        <ol class="cs-rail" style="--n:3">
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/comfy-cross-connect-3.png" data-w="551" data-h="627" data-alt="Comfy Bridge with Run on set to Osmium Comfy, a ComfyUI folder chosen, Persist Comfy ticked and Osmium Comfy 0.37.0 running." data-cap="Select Osmium's Comfy"><span class="node" aria-hidden="true"></span><span class="st-name">Connect</span></button></li>
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-2-queue.png" data-w="376" data-h="470" data-alt="The Generate panel reading Generating, step 14 of 25, 2 queued, with a live preview." data-cap="Hit Generate a few times. They queue and run one after another, with a live preview."><span class="node" aria-hidden="true"></span><span class="st-name">Queue a few</span></button></li>
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/bridge-3-result.png" data-w="376" data-h="810" data-alt="A finished generation as three slides, Pass 1, Pass 2 and Upscaled, while the next queued one runs." data-cap="Each result comes back as Pass 1, Pass 2 and Upscaled, all saved, while the next one runs."><span class="node" aria-hidden="true"></span><span class="st-name">Results</span></button></li>
+                        </ol>
+                        <p class="cs-cap" aria-live="polite"></p>
+                      </div></div>
+                    </div>
+            </div>
+          </div>
+        </div>
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-bridge-phone">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-bridge-phone" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row rev" style="--gt:190px">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><line x1="100" y1="60" x2="100" y2="80"></line><line x1="90" y1="70" x2="100" y2="80"></line><line x1="110" y1="70" x2="100" y2="80"></line><line x1="30" y1="120" x2="30" y2="170"></line><line x1="30" y1="120" x2="80" y2="120"></line><line x1="30" y1="170" x2="80" y2="170"></line><line x1="30" y1="120" x2="10" y2="100"></line><line x1="10" y1="100" x2="60" y2="100"></line><line x1="70" y1="100" x2="90" y2="120"></line><line x1="60" y1="100" x2="70" y2="100"></line><line x1="100" y1="100" x2="100" y2="100"></line><line x1="90" y1="120" x2="110" y2="100"></line><line x1="110" y1="100" x2="180" y2="100"></line><line x1="90" y1="120" x2="90" y2="170"></line><line x1="160" y1="120" x2="160" y2="170"></line><line x1="80" y1="170" x2="160" y2="170"></line><line x1="80" y1="120" x2="160" y2="120"></line><line x1="180" y1="100" x2="160" y2="120"></line></g>
+                <circle cx="60" cy="45" r="12" fill="var(--green)"></circle>
+                <circle cx="80" cy="45" r="3" fill="var(--red)"></circle>
+                <circle cx="90" cy="45" r="3" fill="var(--red)"></circle>
+                <circle cx="100" cy="45" r="3" fill="#d99a1f"></circle>
+                <circle cx="110" cy="45" r="3" fill="#8b5cf6"></circle>
+                <circle cx="120" cy="45" r="3" fill="#8b5cf6"></circle>
+                <circle cx="130" cy="45" r="3" fill="#14b8a6"></circle>
+                <circle cx="60" cy="145" r="11" fill="var(--green)"></circle>
+                <circle cx="100" cy="140" r="3" fill="var(--red)"></circle>
+                <circle cx="110" cy="140" r="3" fill="var(--red)"></circle>
+                <circle cx="120" cy="140" r="3" fill="#d99a1f"></circle>
+                <circle cx="130" cy="140" r="3" fill="#8b5cf6"></circle>
+                <circle cx="140" cy="140" r="3" fill="#8b5cf6"></circle>
+                <circle cx="150" cy="140" r="3" fill="#14b8a6"></circle>
+              </svg>
+                      </div>
+                        <h3>Automatic Generation Filenames</h3>
+                      <div class="conn-copy">
+                        <p>Bridge has a handy file-naming system for your generations, being able to sort them by content rating, character names, main LoRA used, and generation parameters. These are all toggleable and so you can freely decide how your outputs will be named. You can save them directly to your own Comfy /output folder, or save a copy in a different folder <strong>while deciding if Comfy also concurrently saves its own copy in /output.<br></strong><br>You can set the output folder in the Prompts column in Bridge by scrolling to the very bottom.</p>
+                        <button type="button" class="steps-toggle" aria-haspopup="dialog" aria-controls="steps-bridge-phone" data-n="4"><span class="st-chev" aria-hidden="true"></span><span class="st-label">See it in 4 steps</span></button>
+                      </div>
+                    </div>
+              <div class="conn-steps" id="steps-bridge-phone">
+                      <div class="cs-inner" inert><div class="cs-body">
+                        <div class="cs-view multi"><div class="proof-frame">
+                          <div class="node-corner nc-tl"></div><div class="node-corner nc-tr"></div>
+                          <div class="node-corner nc-bl"></div><div class="node-corner nc-br"></div>
+                          <img alt="" decoding="async" />
+                        </div></div>
+                        <ol class="cs-rail" style="--n:4">
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/1-file-saving-drawer.png" data-w="400" data-h="740" data-alt="A panel showing the multiple filenaming options" data-cap="Cbridge gives you multiple ways to name a file"><span class="node" aria-hidden="true"></span><span class="st-name">Configure Filenaming Scheme</span></button></li>
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/2-minimal-filename.png" data-w="400" data-h="390" data-alt="A panel showing the filename options all unticked except for Main LoRA name" data-cap="You can make the name as simple or as complex as you want"><span class="node" aria-hidden="true"></span><span class="st-name">Prune unwanted name tokens</span></button></li>
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/3-comfyui-output-folder.png" data-w="400" data-h="330" data-alt="ComfyUI output folder setting = true" data-cap="This stops duplicate copies from appearing elsewhere"><span class="node" aria-hidden="true"></span><span class="st-name">Where to Save</span></button></li>
+                        <li><button type="button" class="cs-step" data-src="assets/screenshots/4-separate-folder-with-comfy-copy.png" data-w="400" data-h="330" data-alt="ComfyUI output folder setting = false" data-cap="This allows Comfy to either save a duplicate copy in its /output folder, or only save in your chosen folder"><span class="node" aria-hidden="true"></span><span class="st-name">Where to Save #2</span></button></li>
+                        </ol>
+                        <p class="cs-cap" aria-live="polite"></p>
+                      </div></div>
+                    </div>
+            </div>
+          </div>
+        </div>
+        <div class="tool">
+          <button type="button" class="tool-tab" aria-expanded="false" aria-controls="tp-bridge-wiki">
+            <span class="tool-tab-icon" aria-hidden="true"></span>
+            <span class="tool-tab-label"></span>
+          </button>
+          <div class="tool-panel" id="tp-bridge-wiki" role="region">
+            <div class="tool-panel-scroll">
+              <div class="conn-row">
+                      <div class="conn-diagram" aria-hidden="true">
+                        <svg viewBox="0 0 200 200">
+                <g fill="none" stroke="var(--ink)" stroke-width="1.3" opacity=".85"><rect x="20" y="40" width="70" height="20" rx="3"></rect><rect x="100" y="70" width="90" height="20" rx="3"></rect><rect x="20" y="70" width="70" height="30" rx="3"></rect><rect x="100" y="100" width="80" height="30" rx="3"></rect><line x1="110" y1="80" x2="140" y2="80"></line><line x1="150" y1="80" x2="180" y2="80"></line><line x1="30" y1="80" x2="60" y2="80"></line><line x1="50" y1="90" x2="80" y2="90"></line><line x1="70" y1="80" x2="80" y2="80"></line><line x1="30" y1="90" x2="40" y2="90"></line><line x1="110" y1="110" x2="170" y2="110"></line><line x1="110" y1="120" x2="170" y2="120"></line><line x1="30" y1="50" x2="80" y2="50"></line><line x1="50" y1="150" x2="100" y2="130"></line><line x1="50" y1="150" x2="40" y2="170"></line><line x1="50" y1="150" x2="60" y2="170"></line><line x1="50" y1="150" x2="30" y2="150"></line><line x1="50" y1="150" x2="40" y2="130"></line><rect x="80" y="150" width="40" height="40" rx="3"></rect><line x1="50" y1="150" x2="80" y2="160"></line><line x1="130" y1="160" x2="120" y2="160"></line><path d="M100 80 C86 80 104 50 90 50"></path><path d="M90 85 C104 85 86 115 100 115"></path><path d="M160 160 C146 160 169 160 155 160"></path><path d="M140 160 C154 160 131 160 145 160"></path><path d="M160 180 C146 180 169 180 155 180"></path><path d="M140 180 C154 180 131 180 145 180"></path><path d="M135 175 C135 161 135 179 135 165"></path><path d="M165 175 C165 161 165 179 165 165"></path></g>
+                <circle cx="50" cy="150" r="5" fill="#14b8a6"></circle>
+                <circle cx="40" cy="170" r="5" fill="#14b8a6"></circle>
+                <circle cx="60" cy="170" r="5" fill="#14b8a6"></circle>
+                <circle cx="25" cy="150" r="5" fill="#14b8a6"></circle>
+                <circle cx="40" cy="130" r="5" fill="#14b8a6"></circle>
+                <circle cx="135" cy="160" r="5" fill="var(--red)"></circle>
+                <circle cx="150" cy="160" r="5" fill="var(--red)"></circle>
+                <circle cx="165" cy="160" r="5" fill="var(--red)"></circle>
+                <circle cx="135" cy="180" r="5" fill="var(--red)"></circle>
+                <circle cx="150" cy="180" r="5" fill="var(--red)"></circle>
+                <circle cx="165" cy="180" r="5" fill="var(--red)"></circle><path d="M94 170 l4 4 l7 -8" fill="none" stroke="var(--green)" stroke-width="2"></path>
+              </svg>
+                      </div>
+                        <h3>Built-in Booru Tag Wiki</h3>
+                      <div class="conn-copy">
+                        <p>You don't need internet to access Osmium's bundled Danbooru Wiki. In Osmium Desktop, you can pop its tab out in Single View, which will persist everywhere in Osmium until closed. Conversely, Bridge also comes with the wiki built-in, so you can quickly look up what a tag may mean before using it in generation.</p>
+                      </div>
+                    </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+</div>
+
+<footer data-plate="off">
+  <button type="button" class="footer-toggle" aria-expanded="false" aria-controls="footerBody" aria-label="Show footer information">
+    <svg class="footer-arrows" viewBox="0 0 23 9" aria-hidden="true"><path d="M1 8 L5.5 3.5 L10 8 M13 8 L17.5 3.5 L22 8"/></svg>
+  </button>
+  <div class="footer-body" id="footerBody">
+    <div class="wrap footer-row">
+      <div class="footer-brand">
+        <svg class="mark-sm" width="18" height="18" viewBox="0 0 250 250" aria-hidden="true" style="opacity:.75">
+          <line x1="125.0" y1="25.0" x2="183.78" y2="44.1" class="l-ring"/>
+          <line x1="183.78" y1="44.1" x2="220.11" y2="94.1" class="l-ring"/>
+          <line x1="220.11" y1="94.1" x2="220.11" y2="155.9" class="l-ring"/>
+          <line x1="220.11" y1="155.9" x2="183.78" y2="205.9" class="l-ring"/>
+          <line x1="183.78" y1="205.9" x2="125.0" y2="225.0" class="l-ring"/>
+          <line x1="125.0" y1="225.0" x2="66.22" y2="205.9" class="l-ring"/>
+          <line x1="66.22" y1="205.9" x2="29.89" y2="155.9" class="l-ring"/>
+          <line x1="29.89" y1="155.9" x2="29.89" y2="94.1" class="l-ring"/>
+          <line x1="29.89" y1="94.1" x2="66.22" y2="44.1" class="l-ring"/>
+          <line x1="66.22" y1="44.1" x2="125.0" y2="25.0" class="l-ring"/>
+          <line x1="125" y1="125" x2="125.0" y2="25.0" class="l-spoke-a"/>
+          <line x1="125" y1="125" x2="183.78" y2="44.1" class="l-spoke-b"/>
+          <line x1="125" y1="125" x2="220.11" y2="94.1" class="l-spoke-a"/>
+          <line x1="125" y1="125" x2="220.11" y2="155.9" class="l-spoke-b"/>
+          <line x1="125" y1="125" x2="183.78" y2="205.9" class="l-spoke-a"/>
+          <line x1="125" y1="125" x2="125.0" y2="225.0" class="l-spoke-b"/>
+          <line x1="125" y1="125" x2="66.22" y2="205.9" class="l-spoke-a"/>
+          <line x1="125" y1="125" x2="29.89" y2="155.9" class="l-spoke-b"/>
+          <line x1="125" y1="125" x2="29.89" y2="94.1" class="l-spoke-a"/>
+          <line x1="125" y1="125" x2="66.22" y2="44.1" class="l-spoke-b"/>
+          <circle class="l-node" cx="125" cy="125" r="7"/>
+        </svg>
+        <span>osmium-workshop · built by Valteil · made with Sonnet 5 + 5.5, Deepseek 4.1 Flash, and Opus 5.5</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/Valteil/osmium-workshop" target="_blank" rel="noopener">GitHub</a>
+        <a href="readme.html">README</a>
+        <a href="guide.html">User guide</a>
+        <a href="https://github.com/Valteil/osmium-workshop/issues" target="_blank" rel="noopener">Issues</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script>
+(function(){
+  // Night mode: the visitor's own switch (the moon button beside the theme picker). Toggling plays the
+  // usual --night fade (see the CSS on html.night); the choice is remembered, and a saved "on" was
+  // already applied before first paint by the small script in <head>.
+  var root = document.documentElement;
+  var btn = document.getElementById('nightToggle');
+  if (!btn) return;
+  function sync(){ btn.setAttribute('aria-pressed', root.classList.contains('night') ? 'true' : 'false'); }
+  // setTimeout, not rAF: a background tab pauses rAF and would leave the page stuck without its fade.
+  setTimeout(function(){ root.classList.remove('night-instant'); }, 60);
+  sync();
+  btn.addEventListener('click', function(){
+    var on = !root.classList.contains('night');
+    root.classList.toggle('night', on);
+    try { localStorage.setItem('osmium-site-night', on ? '1' : '0'); } catch (e) {}
+    sync();
+  });
+})();
+
+(function(){
+  // Theme picker: lets a visitor wear any of the app's themes on this page
+  // (and in the embedded demo). Theme data is assets/themes.json, generated
+  // from the app's styles.css; painting/persistence is assets/site-theme.js.
+  var btn = document.getElementById('themePickBtn');
+  var menu = document.getElementById('themePickMenu');
+  var list = document.getElementById('themePickList');
+  var nameEl = document.getElementById('themePickName');
+  if (!btn || !window.OsmiumSiteTheme) return;
+  var OSMIUM_SWATCH = ['#f4f4f1', '#3b76d6', '#3f9d4f'];
+  var themes = null, loading = null;
+  function load(){
+    return loading || (loading = fetch('assets/themes.json').then(function(r){ return r.json(); })
+      .then(function(t){
+        // Osmium (the site's own look) leads; the rest keep the app's order.
+        themes = t.filter(function(x){ return x.id === 'osmium'; }).concat(t.filter(function(x){ return x.id !== 'osmium'; }));
+        return themes;
+      }));
+  }
+  function currentId(){ var c = OsmiumSiteTheme.current(); return c ? c.id : 'osmium'; }
+  function paintSwatches(host, colors){
+    var dots = host.querySelectorAll('i');
+    for (var i = 0; i < dots.length; i++) dots[i].style.background = colors[i];
+  }
+  function showCurrent(){
+    var c = OsmiumSiteTheme.current();
+    nameEl.textContent = c ? c.name.replace(/\s*\((dark|light)\)$/, '') : 'Osmium';
+    paintSwatches(btn, c ? c.swatch : OSMIUM_SWATCH);
+  }
+  function render(){
+    list.innerHTML = '';
+    var cur = currentId();
+    themes.forEach(function(t){
+      var opt = document.createElement('button');
+      opt.type = 'button';
+      opt.className = 'tp-opt';
+      opt.setAttribute('role', 'option');
+      opt.setAttribute('aria-selected', String(t.id === cur));
+      opt.dataset.id = t.id;
+      opt.innerHTML = '<span class="tp-sw" aria-hidden="true"><i></i><i></i><i></i></span><span></span>';
+      opt.lastChild.textContent = t.id === 'osmium' ? 'Osmium (this site)' : t.name.replace(/\s*\((dark|light)\)$/, '');
+      paintSwatches(opt, [t.vars['--bg-base'], t.vars['--accent-manual'], t.vars['--accent-flair']]);
+      opt.addEventListener('click', function(){ pick(t); });
+      list.appendChild(opt);
+    });
+  }
+  function isOpen(){ return menu.classList.contains('open'); }
+  function open(){
+    load().then(function(){
+      render();
+      menu.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      var sel = list.querySelector('[aria-selected="true"]') || list.firstChild;
+      if (sel) sel.focus();
+    });
+  }
+  function close(refocus){
+    menu.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
+    if (refocus) btn.focus();
+  }
+  // The site theme is the site's alone: the embedded demo keeps its own
+  // (demo-shim.js resets it every load), so picking here never touches it.
+  function pick(theme){
+    close(true);
+    if (theme.id === currentId()) return;
+    var change = function(){ OsmiumSiteTheme.use(theme); showCurrent(); };
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (document.startViewTransition && !reduce){
+      var r = btn.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+      var root = document.documentElement;
+      root.style.setProperty('--reveal-x', x + 'px');
+      root.style.setProperty('--reveal-y', y + 'px');
+      root.style.setProperty('--reveal-r', Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y)) + 'px');
+      // Fetch the new theme's faces first: the reveal must show the final text, not a fallback that swaps in mid-circle.
+      var faces = [theme.vars['--display'], theme.vars['--sans'], theme.vars['--mono']].map(function(s){ return /^'([^']+)'/.exec(s)[1]; });
+      var roles = ['display', 'body', 'mono'];
+      var loads = [];
+      faces.forEach(function(fam, i){ [400, 500, 600].forEach(function(w){ loads.push(document.fonts.load(w + ' 16px "' + fam + ' Fit ' + roles[i] + '"')); }); });
+      Promise.race([Promise.all(loads), new Promise(function(res){ setTimeout(res, 1500); })]).catch(function(){}).then(function(){
+        document.startViewTransition(change);
+      });
+    } else {
+      change();
+    }
+  }
+  // Warm the (small) theme list the moment the pointer heads for the picker,
+  // so the menu opens without waiting on the network.
+  btn.addEventListener('pointerenter', load, { once: true });
+  btn.addEventListener('focus', load, { once: true });
+  btn.addEventListener('click', function(){ if (isOpen()) close(false); else open(); });
+  document.addEventListener('pointerdown', function(e){
+    if (isOpen() && !menu.contains(e.target) && !btn.contains(e.target)) close(false);
+  });
+  menu.addEventListener('keydown', function(e){
+    var opts = Array.prototype.slice.call(list.querySelectorAll('.tp-opt'));
+    var i = opts.indexOf(document.activeElement);
+    var cols = getComputedStyle(list).gridTemplateColumns.split(' ').length;
+    var to = null;
+    if (e.key === 'Escape'){ e.preventDefault(); close(true); return; }
+    if (e.key === 'ArrowDown') to = i + cols;
+    else if (e.key === 'ArrowUp') to = i - cols;
+    else if (e.key === 'ArrowRight') to = i + 1;
+    else if (e.key === 'ArrowLeft') to = i - 1;
+    else if (e.key === 'Home') to = 0;
+    else if (e.key === 'End') to = opts.length - 1;
+    else if (e.key === 'Tab'){ close(false); return; }
+    if (to === null) return;
+    e.preventDefault();
+    opts[Math.max(0, Math.min(opts.length - 1, to))].focus();
+  });
+  showCurrent();
+})();
+
+(function(){
+  // ---- app shell: topbar section tabs, rhomboid tool rails, slide-out panels ----
+  var root = document.documentElement;
+  root.classList.add('js');
+
+  // Rail tabs get their label and glyph from their own tool's panel content, so
+  // the copy lives in one place. Each stack gets a slight stepped fan (every
+  // tab a touch narrower than the one above) to read as stacked rhomboids.
+  [].slice.call(document.querySelectorAll('.rail')).forEach(function(rail){
+    [].slice.call(rail.querySelectorAll('.tool')).forEach(function(tool, i){
+      var label = tool.querySelector('h3');
+      var icon = tool.querySelector('.conn-diagram svg');
+      var labelEl = tool.querySelector('.tool-tab-label');
+      var iconEl = tool.querySelector('.tool-tab-icon');
+      var panel = tool.querySelector('.tool-panel');
+      if (labelEl && label) labelEl.textContent = label.textContent.replace(/\s+/g, ' ').trim();
+      if (panel && label) panel.setAttribute('aria-label', label.textContent.replace(/\s+/g, ' ').trim());
+      if (iconEl && icon) iconEl.appendChild(icon.cloneNode(true));
+      // Some diagrams were authored lower on a 200x200 canvas with empty space up
+      // top, so their drawn top sits below the plate. Crop that empty headroom so
+      // the graphic's own top lines up with the copy plate.
+      if (icon){
+        try {
+          var bb = icon.getBBox();
+          if (bb && bb.y > 2 && bb.height > 0){
+            icon.setAttribute('viewBox', '0 ' + bb.y + ' 200 ' + (200 - bb.y));
+            icon.setAttribute('preserveAspectRatio', 'xMidYMin meet');
+          }
+        } catch (e) {}
+      }
+      tool.style.setProperty('--fan', (i * 4) + 'px');
+      tool.dataset.side = tool.closest('.rail-right') ? 'right' : 'left';
+    });
+  });
+
+  // ---- step lightbox: the tool's "See it in N steps" modal ----
+  var stepModal = null, stepState = null;
+  function ensureModal(){
+    if (stepModal) return;
+    stepModal = document.createElement('div');
+    stepModal.className = 'step-modal';
+    stepModal.hidden = true;
+    stepModal.setAttribute('role', 'dialog');
+    stepModal.setAttribute('aria-modal', 'true');
+    stepModal.innerHTML =
+      '<div class="step-modal-card">' +
+        '<div class="step-modal-head"><h3 class="step-modal-title"></h3>' +
+          '<button type="button" class="step-modal-close" aria-label="Close">&times;</button></div>' +
+        '<div class="step-modal-body">' +
+          '<button type="button" class="step-modal-nav step-modal-prev" aria-label="Previous step">&lsaquo;</button>' +
+          '<div class="step-modal-stage"><img alt="" decoding="async" /></div>' +
+          '<button type="button" class="step-modal-nav step-modal-next" aria-label="Next step">&rsaquo;</button></div>' +
+        '<div class="step-modal-foot"><p class="step-modal-cap" aria-live="polite"></p>' +
+          '<div class="step-modal-rail"></div></div>' +
+      '</div>';
+    document.body.appendChild(stepModal);
+    stepModal.querySelector('.step-modal-close').addEventListener('click', closeSteps);
+    stepModal.querySelector('.step-modal-prev').addEventListener('click', function(){ showStep(stepState.i - 1); });
+    stepModal.querySelector('.step-modal-next').addEventListener('click', function(){ showStep(stepState.i + 1); });
+    stepModal.addEventListener('pointerdown', function(e){ if (e.target === stepModal) closeSteps(); });
+  }
+  function openSteps(tool){
+    var btns = [].slice.call(tool.querySelectorAll('.conn-steps .cs-step'));
+    if (!btns.length) return;
+    ensureModal();
+    var title = tool.querySelector('h3');
+    stepState = { tool: tool, i: 0, data: btns.map(function(b){
+      var nm = b.querySelector('.st-name');
+      return { src: b.getAttribute('data-src') || '', w: +b.getAttribute('data-w') || 0, h: +b.getAttribute('data-h') || 0,
+        alt: b.getAttribute('data-alt') || '', cap: b.getAttribute('data-cap') || '', label: nm ? nm.textContent.trim() : '' };
+    }) };
+    stepModal.querySelector('.step-modal-title').textContent = title ? title.textContent.replace(/\s+/g, ' ').trim() : 'Steps';
+    var rail = stepModal.querySelector('.step-modal-rail'); rail.innerHTML = '';
+    stepState.data.forEach(function(s, i){
+      var pip = document.createElement('button');
+      pip.type = 'button'; pip.className = 'step-modal-pip';
+      pip.setAttribute('aria-label', 'Step ' + (i + 1) + (s.label ? ': ' + s.label : ''));
+      pip.addEventListener('click', function(){ showStep(i); });
+      rail.appendChild(pip);
+    });
+    stepModal.hidden = false;
+    root.classList.add('has-modal');
+    showStep(0);
+    stepModal.querySelector('.step-modal-close').focus();
+  }
+  function showStep(i){
+    if (!stepState) return;
+    var d = stepState.data, n = d.length;
+    i = ((i % n) + n) % n;
+    stepState.i = i;
+    var titleEl = stepModal.querySelector('.step-modal-title');
+    var sub = titleEl.querySelector('span');
+    if (!sub){ sub = document.createElement('span'); titleEl.appendChild(sub); }
+    sub.textContent = (i + 1) + ' / ' + n;
+    var img = stepModal.querySelector('.step-modal-stage img');
+    var cap = stepModal.querySelector('.step-modal-cap');
+    var apply = function(){ img.src = d[i].src; img.alt = d[i].alt; };
+    if (img.getAttribute('src')){
+      img.classList.add('swapping');
+      setTimeout(function(){ apply(); img.onload = function(){ img.classList.remove('swapping'); }; }, 130);
+    } else apply();
+    cap.innerHTML = '';
+    if (d[i].label){ var st = document.createElement('strong'); st.textContent = d[i].label; cap.appendChild(st); }
+    cap.appendChild(document.createTextNode(d[i].cap));
+    [].slice.call(stepModal.querySelectorAll('.step-modal-pip')).forEach(function(p, k){
+      p.classList.toggle('active', k === i);
+    });
+    stepModal.querySelector('.step-modal-prev').disabled = n < 2;
+    stepModal.querySelector('.step-modal-next').disabled = n < 2;
+  }
+  function closeSteps(){
+    if (!stepModal || stepModal.hidden) return;
+    stepModal.hidden = true;
+    root.classList.remove('has-modal');
+    var t = stepState && stepState.tool;
+    if (t){ var btn = t.querySelector('.steps-toggle'); if (btn) btn.focus(); }
+    stepState = null;
+  }
+  document.addEventListener('keydown', function(e){
+    if (!stepModal || stepModal.hidden) return;
+    if (e.key === 'Escape'){ e.stopPropagation(); closeSteps(); }
+    else if (e.key === 'ArrowLeft') showStep(stepState.i - 1);
+    else if (e.key === 'ArrowRight') showStep(stepState.i + 1);
+  }, true);
+
+  // ---- tool panels: open on hover/click/focus, slide back out on leave ----
+  var openToolEl = null, closeTimer = null;
+  // The lead-in beam: an SVG line that runs out of the tab, turns up to just
+  // below the topbar, then across to shy of the opposite rail. The panel is
+  // only revealed once the beam has fully drawn.
+  var beamSvg = null, beamPath = null, beamTimer = 0;
+  function ensureBeam(){
+    if (beamSvg) return;
+    var NS = 'http://www.w3.org/2000/svg';
+    beamSvg = document.createElementNS(NS, 'svg');
+    beamSvg.setAttribute('class', 'tool-beam');
+    beamSvg.setAttribute('aria-hidden', 'true');
+    beamPath = document.createElementNS(NS, 'path');
+    beamSvg.appendChild(beamPath);
+    document.body.appendChild(beamSvg);
+  }
+  function beamPathD(tool){
+    var tab = tool.querySelector('.tool-tab');
+    var r = tab.getBoundingClientRect();
+    var side = tool.dataset.side;
+    var topbar = document.querySelector('.topbar') || document.querySelector('header');
+    var topB = topbar ? topbar.getBoundingClientRect().bottom : 64;
+    var foot = document.querySelector('footer');
+    var footT = foot ? foot.getBoundingClientRect().top : window.innerHeight;
+    var opposite = document.querySelector(side === 'right' ? '.rail-left' : '.rail-right');
+    var ob = opposite ? opposite.getBoundingClientRect() : null;
+    var pad = 22, lead = 30;
+    var below = tool.hasAttribute('data-below');
+    // Beam line sits just below the topbar, or just above the footer for low tabs.
+    var yLine = below ? footT - 14 : topB + 14;
+    var goalX = ob ? (side === 'right' ? ob.right + pad : ob.left - pad) : (side === 'right' ? pad : window.innerWidth - pad);
+    var x0 = side === 'right' ? r.left : r.right;
+    var x1 = side === 'right' ? r.left - lead : r.right + lead;
+    var y0 = r.top + r.height / 2;
+    return 'M' + x0 + ' ' + y0 + ' L' + x1 + ' ' + y0 + ' L' + x1 + ' ' + yLine + ' L' + goalX + ' ' + yLine;
+  }
+  function drawBeam(tool, done){
+    ensureBeam();
+    beamPath.setAttribute('d', beamPathD(tool));
+    beamSvg.classList.add('on');
+    var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce){
+      beamPath.style.transition = 'none';
+      beamPath.style.strokeDasharray = '';
+      beamPath.style.strokeDashoffset = '';
+      if (done) done();
+      return;
+    }
+    var len = beamPath.getTotalLength();
+    beamPath.style.transition = 'none';
+    beamPath.style.strokeDasharray = len + ' ' + len;
+    beamPath.style.strokeDashoffset = len;
+    beamPath.getBoundingClientRect();
+    var dur = 140;
+    beamPath.style.transition = 'stroke-dashoffset ' + dur + 'ms cubic-bezier(0.23,1,0.32,1)';
+    beamPath.style.strokeDashoffset = '0';
+    clearTimeout(beamTimer);
+    beamTimer = setTimeout(function(){ if (done) done(); }, dur + 20);
+  }
+  function hideBeam(){
+    clearTimeout(beamTimer);
+    if (!beamSvg) return;
+    beamSvg.classList.remove('on');
+    beamPath.style.transition = 'none';
+    beamPath.setAttribute('d', '');
+  }
+  function place(tool){
+    var tab = tool.querySelector('.tool-tab');
+    var panel = tool.querySelector('.tool-panel');
+    if (!tab || !panel) return;
+    var r = tab.getBoundingClientRect();
+    var side = tool.dataset.side;
+    var topbar = document.querySelector('.topbar') || document.querySelector('header');
+    var topB = topbar ? topbar.getBoundingClientRect().bottom : 64;
+    var foot = document.querySelector('footer');
+    var footT = foot ? foot.getBoundingClientRect().top : window.innerHeight;
+    var opposite = document.querySelector(side === 'right' ? '.rail-left' : '.rail-right');
+    var ob = opposite ? opposite.getBoundingClientRect() : null;
+    var pad = 22, lead = 30;
+    // A tab low in its stack sends its beam to the bottom of the screen and the
+    // panel rises from there instead of hanging off the tab.
+    var below = r.top > window.innerHeight * 0.6;
+    tool.toggleAttribute('data-below', below);
+    // The panel slides down from the beam line, and its near edge sits exactly on
+    // the beam's vertical trail (tab outer edge + lead) so it doesn't clip past it.
+    if (side === 'left'){
+      panel.style.left = Math.round(r.right + lead) + 'px';
+      panel.style.right = Math.round(window.innerWidth - (ob ? ob.left : window.innerWidth) + pad) + 'px';
+    } else {
+      panel.style.right = Math.round(window.innerWidth - (r.left - lead)) + 'px';
+      panel.style.left = Math.round((ob ? ob.right : 0) + pad) + 'px';
+    }
+    if (below){
+      panel.style.top = 'auto';
+      panel.style.bottom = Math.round(window.innerHeight - (footT - 14)) + 'px';
+      panel.style.maxHeight = Math.round((footT - 14) - (topB + 10)) + 'px';
+    } else {
+      panel.style.bottom = 'auto';
+      panel.style.top = Math.round(topB + 14) + 'px';
+      panel.style.maxHeight = Math.round(footT - (topB + 14) - 12) + 'px';
+    }
+  }
+  function openTool(tool){
+    if (closeTimer){ clearTimeout(closeTimer); closeTimer = null; }
+    if (openToolEl === tool){ place(tool); return; }
+    if (openToolEl) closeTool(openToolEl);
+    openToolEl = tool;
+    place(tool);                  // set clip direction + geometry before the reveal starts
+    var btn = tool.querySelector('.tool-tab');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    drawBeam(tool, function(){ if (openToolEl === tool) tool.classList.add('open'); });
+  }
+  function closeTool(tool){
+    tool.classList.remove('open');
+    var btn = tool.querySelector('.tool-tab');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    if (openToolEl === tool){ openToolEl = null; hideBeam(); }
+  }
+  function scheduleClose(tool){
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(function(){ closeTool(tool); closeTimer = null; }, 140);
+  }
+  [].slice.call(document.querySelectorAll('.rail .tool')).forEach(function(tool){
+    var btn = tool.querySelector('.tool-tab');
+    tool.addEventListener('pointerenter', function(){ openTool(tool); });
+    tool.addEventListener('pointerleave', function(){ scheduleClose(tool); });
+    // "See it in N steps" now opens a lightbox rather than unfolding inline.
+    var tog = tool.querySelector('.steps-toggle');
+    if (tog){
+      var n = tool.querySelectorAll('.conn-steps .cs-step').length;
+      var lab = tog.querySelector('.st-label');
+      if (lab) lab.textContent = n > 1 ? 'See it in ' + n + ' steps' : 'See the screen';
+      tog.addEventListener('click', function(e){ e.preventDefault(); openSteps(tool); });
+    }
+    if (!btn) return;
+    btn.addEventListener('click', function(e){ e.preventDefault(); openTool(tool); });
+    btn.addEventListener('focus', function(){ openTool(tool); });
+    tool.addEventListener('focusout', function(e){ if (!tool.contains(e.relatedTarget) && (!stepModal || stepModal.hidden)) scheduleClose(tool); });
+  });
+  document.addEventListener('pointerdown', function(e){
+    if (stepModal && !stepModal.hidden) return;
+    if (openToolEl && !openToolEl.contains(e.target)) closeTool(openToolEl);
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && openToolEl && (!stepModal || stepModal.hidden)) closeTool(openToolEl);
+  });
+  function reposition(){
+    if (!openToolEl) return;
+    place(openToolEl);
+    if (beamSvg && beamSvg.classList.contains('on')){
+      beamPath.style.transition = 'none';
+      beamPath.style.strokeDasharray = '';
+      beamPath.style.strokeDashoffset = '';
+      beamPath.setAttribute('d', beamPathD(openToolEl));
+    }
+  }
+  window.addEventListener('resize', reposition);
+  var stageEl = document.querySelector('.stage');
+  if (stageEl) stageEl.addEventListener('scroll', reposition, { passive: true });
+  [].slice.call(document.querySelectorAll('.rail-tabs')).forEach(function(list){
+    list.addEventListener('scroll', reposition, { passive: true });
+  });
+
+  // ---- topbar section tabs ----
+  var tabs = [].slice.call(document.querySelectorAll('.topbar-tabs a[data-tab]'));
+  var sections = [].slice.call(document.querySelectorAll('.stage-section'));
+  function activate(id){
+    if (openToolEl) closeTool(openToolEl);
+    sections.forEach(function(s){ s.classList.toggle('active', s.id === id); });
+    tabs.forEach(function(a){
+      var on = a.dataset.tab === id;
+      a.classList.toggle('active', on);
+      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+    if (stageEl) stageEl.scrollTop = 0;
+  }
+  tabs.forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      var id = a.dataset.tab;
+      activate(id);
+      if (history.replaceState) history.replaceState(null, '', '#' + id);
+    });
+  });
+  var initial = (location.hash || '').replace(/^#/, '');
+  var initialEl = document.getElementById(initial);
+  if (!initialEl || !initialEl.classList.contains('stage-section')) initial = tabs.length ? tabs[0].dataset.tab : 'hero';
+  activate(initial);
+})();
+
+(function(){
+  // Footer starts collapsed; the centred arrowheads reveal it.
+  var foot = document.querySelector('footer');
+  var btn = document.querySelector('.footer-toggle');
+  if (!foot || !btn) return;
+  btn.addEventListener('click', function(){
+    var open = foot.classList.toggle('open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+})();
+
+(function(){
+  // Dot nav for the below-features screenshot carousel — click a dot to
+  // scroll to that slide, and a scroll listener keeps the active dot in
+  // sync whether the carousel was swiped, dragged, or clicked to.
+  var carousel = document.getElementById('shotCarousel');
+  var dotsWrap = document.getElementById('shotDots');
+  if (!carousel || !dotsWrap) return;
+  var slides = Array.from(carousel.children);
+  slides.forEach(function(sl){ var im = sl.querySelector('img'); if (im && im.getAttribute('width')) { im.parentElement.style.setProperty('--nw', im.getAttribute('width')); im.parentElement.style.setProperty('--nh', im.getAttribute('height')); } });
+  if (slides.length < 2) return; // nothing to swipe between
+  var dots = slides.map(function(_, i){
+    var dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'shot-dot' + (i === 0 ? ' active' : '');
+    dot.setAttribute('aria-label', 'Screenshot ' + (i + 1) + ' of ' + slides.length);
+    dot.addEventListener('click', function(){
+      carousel.scrollTo({ left: i * carousel.clientWidth, behavior: 'smooth' });
+    });
+    dotsWrap.appendChild(dot);
+    return dot;
+  });
+  // Clicking a screenshot moves to the next one (wrapping), the same as the
+  // feature step viewers.
+  slides.forEach(function(sl, i){
+    var im = sl.querySelector('img');
+    if (!im) return;
+    im.style.cursor = 'pointer';
+    im.addEventListener('click', function(){
+      var next = (i + 1) % slides.length;
+      carousel.scrollTo({ left: next * carousel.clientWidth, behavior: 'smooth' });
+    });
+  });
+  var scrollTimer = null;
+  carousel.addEventListener('scroll', function(){
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(function(){
+      var idx = Math.round(carousel.scrollLeft / (carousel.clientWidth || 1));
+      dots.forEach(function(d, i){ d.classList.toggle('active', i === idx); });
+    }, 80);
+  }, { passive: true });
+})();
+
+(function(){
+  // Download buttons point at the releases page by default (works with JS
+  // off or the API unreachable) — this upgrades them to a direct asset link
+  // for whatever the CURRENT latest release actually contains, so this page
+  // never needs a hand-edit when a new version ships. Matched by NAME
+  // PATTERN, not a hardcoded version, since every release embeds its own
+  // version number in the filename (see gh release create's asset names).
+  // Each button takes the NEWEST release that has its file: a release can
+  // skip an unchanged app (v1.9.0 ships no Comfy Bridge files), so the
+  // latest release alone isn't enough.
+  var targets = [
+    { attr: 'osmium-desktop', re: /^Osmium\.Workshop-.*-win\.zip$/ },
+    { attr: 'osmium-android', re: /^OsmiumWorkshop-.*-android\.apk$/ },
+    { attr: 'cbridge-desktop', re: /^Comfy\.Bridge-.*-win\.zip$/ },
+    { attr: 'cbridge-android', re: /^ComfyBridge-.*-android\.apk$/ }
+  ];
+  fetch('https://api.github.com/repos/Valteil/osmium-workshop/releases?per_page=10')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(rels){
+      if (!Array.isArray(rels)) return;
+      rels = rels.filter(function(rel){ return !rel.draft && !rel.prerelease; });
+      if (rels[0] && rels[0].tag_name){
+        var tag = rels[0].tag_name;
+        document.querySelectorAll('[data-latest-ver]').forEach(function(el){ el.textContent = tag; });
+      }
+      targets.forEach(function(t){
+        var el = document.querySelector('[data-dl="' + t.attr + '"]');
+        if (!el) return;
+        for (var i = 0; i < rels.length; i++){
+          var asset = (rels[i].assets || []).find(function(a){ return t.re.test(a.name); });
+          if (asset){ el.href = asset.browser_download_url; return; }
+        }
+      });
+    })
+    .catch(function(){ /* leave the releases/latest fallback + static "v1.6.0" text in place */ });
+})();
+</script>
+<script>
+// Hero title: keep both lines inside their column in any theme's face.
+(function(){
+  var h = document.querySelector('h1.hero-title'); if (!h) return;
+  var col = h.parentElement;
+  function fit(){
+    h.style.fontSize = '';
+    var avail = col.clientWidth, need = h.scrollWidth;
+    if (need > avail && avail > 0) h.style.fontSize = (parseFloat(getComputedStyle(h).fontSize) * avail / need) + 'px';
+  }
+  new ResizeObserver(fit).observe(col);
+  new MutationObserver(function(){ requestAnimationFrame(fit); })
+    .observe(document.documentElement, {attributes:true, attributeFilter:['style','class','data-theme']});
+  if (document.fonts) { document.fonts.addEventListener('loadingdone', fit); document.fonts.ready.then(fit); }
+  fit();
+})();
+</script>
+
+</body>
+</html>
