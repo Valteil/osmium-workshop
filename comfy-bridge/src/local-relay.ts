@@ -278,6 +278,7 @@ export function relayAddresses(): { ip: string; tailscale: boolean }[] {
     for (const a of list || []) {
       if (a.family !== 'IPv4' || a.internal) continue;
       const [o1, o2] = a.address.split('.').map(Number);
+      if (o1 === 169 && o2 === 254) continue; // link-local from idle/virtual adapters: never reachable
       out.push({ ip: a.address, tailscale: o1 === 100 && o2 >= 64 && o2 <= 127 });
     }
   }
