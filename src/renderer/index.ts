@@ -1312,16 +1312,15 @@ import { setIconLabel } from './icons';
     tooltipDelayVal.textContent = ms + 'ms';
   })();
 
-  btnDiscreteToggle.addEventListener('click', () => {
-    discreteModeOn = !discreteModeOn;
-    document.documentElement.classList.toggle('discrete-mode', discreteModeOn);
-    btnDiscreteToggle.classList.toggle('active', discreteModeOn);
-  });
-  btnDiscreteOff.addEventListener('click', () => {
-    discreteModeOn = false;
-    document.documentElement.classList.remove('discrete-mode');
-    btnDiscreteToggle.classList.remove('active');
-  });
+  const applyDiscrete = (on: boolean) => {
+    discreteModeOn = on;
+    document.documentElement.classList.toggle('discrete-mode', on);
+    btnDiscreteToggle.classList.toggle('active', on);
+    try { localStorage.setItem('discreteMode', on ? '1' : '0'); } catch { /* storage blocked */ }
+  };
+  try { if (localStorage.getItem('discreteMode') === '1') applyDiscrete(true); } catch { /* storage blocked */ }
+  btnDiscreteToggle.addEventListener('click', () => applyDiscrete(!discreteModeOn));
+  btnDiscreteOff.addEventListener('click', () => applyDiscrete(false));
 
   btnPurgeAllTags.addEventListener('click', () => {
     purgeConfirmCount++;

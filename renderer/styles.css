@@ -3200,7 +3200,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .info-modal-body ul:last-child{ margin-bottom: 0; }
   .info-modal-body b{ color: var(--text-primary); }
 
-  html.discrete-mode .card img, html.discrete-mode .compact-card img, html.discrete-mode .single-img-side img, html.discrete-mode .single-preview img{
+  html.discrete-mode .card img, html.discrete-mode .compact-card img, html.discrete-mode .single-img-side img, html.discrete-mode .single-preview img, html.discrete-mode .trainflow-previews img{
     filter: blur(24px);
   }
   html.discrete-mode .card.discrete-off img, html.discrete-mode .compact-card.discrete-off img{
