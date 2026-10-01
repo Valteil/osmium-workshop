@@ -243,7 +243,7 @@
   .hero{position:relative; padding:96px 0 80px; overflow:hidden;}
   .hero-grid{
     position:relative; z-index:2;
-    display:grid; grid-template-columns:1.1fr 0.9fr; gap:40px; align-items:center;
+    display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr); gap:40px; align-items:center; /* minmax(0): a wide-lettered theme's title must not stretch column 1 and squeeze the art */
   }
   /* "Next version": on main, not in the current release download yet. */
   .next-tag{
@@ -263,8 +263,8 @@
     line-height:1.03;
     margin:0 0 22px;
     font-weight:600;
-    /* Two lines only (the <br>): the title may run past its grid column instead of re-wrapping in wide-lettered themes. */
-    width:max-content; max-width:calc(100vw - 48px); position:relative; z-index:3;
+    /* Exactly the two <br> lines. The script below shrinks the size only as far as a wide-lettered theme needs to keep both lines inside the column, so the art is never pushed or overlapped. */
+    white-space:nowrap;
   }
   h1.hero-title em{
     font-style:normal; color:var(--ink);
@@ -1919,6 +1919,23 @@
       });
     })
     .catch(function(){ /* leave the releases/latest fallback + static "v1.6.0" text in place */ });
+})();
+</script>
+<script>
+// Hero title: keep both lines inside their column in any theme's face.
+(function(){
+  var h = document.querySelector('h1.hero-title'); if (!h) return;
+  var col = h.parentElement;
+  function fit(){
+    h.style.fontSize = '';
+    var avail = col.clientWidth, need = h.scrollWidth;
+    if (need > avail && avail > 0) h.style.fontSize = (parseFloat(getComputedStyle(h).fontSize) * avail / need) + 'px';
+  }
+  new ResizeObserver(fit).observe(col);
+  new MutationObserver(function(){ requestAnimationFrame(fit); })
+    .observe(document.documentElement, {attributes:true, attributeFilter:['style','class','data-theme']});
+  if (document.fonts) { document.fonts.addEventListener('loadingdone', fit); document.fonts.ready.then(fit); }
+  fit();
 })();
 </script>
 </body>
