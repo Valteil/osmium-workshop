@@ -504,7 +504,7 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
 - **Appearance** — font size (drag the slider; the gallery and panels reflow live), "Gallery
   columns" to lock the column count independent of zoom or panel width, the tag-count badge on
   cards, **Show Past Tag Preview**, "Sort tags within each card", "Dynamic card heights", **Discrete
-  mode** (Blur all images / Unblur, for privacy), and the motion controls described under Themes.
+  mode** (a Blur all images toggle, for privacy; it's remembered between launches), and the motion controls described under Themes.
   The theme itself is picked from the topbar's **Personalization** menu, and night mode is the 🌙
   button next to it.
 - **Power Tools** — highlight the power tools (Master Tags, Tag Pruner, Unify/Void, mass-apply,

@@ -362,6 +362,9 @@
   var tabSynthDat = $("tabSynthDat");
   var synthDatTab = $("synthDatTab");
   var synthDatPromptFieldsDock = $("synthDatPromptFieldsDock");
+  var tabTrainflow = $("tabTrainflow");
+  var trainflowTab = $("trainflowTab");
+  var btnTrainflowBack = $("btnTrainflowBack");
   var synthDatCol1 = $("synthDatCol1");
   var btnSynthDatBack = $("btnSynthDatBack");
   var synthDatSkipRefImage = $("synthDatSkipRefImage");
@@ -4046,8 +4049,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         <li><b>_dts_achievements.json</b> \u2014 achievements unlocked in this dataset.</li>
         <li><b>_dts_subject_presets.json</b> \u2014 characters saved from Tag sorting's character
         sections (only appears once you save one).</li>
-        ${isTouchDevice ? "" : `<li><b>initial_state/</b> \u2014 originals kept by Bucket Images, shown in the
-        \u{1F5BC} Initial State view (only appears once you bucket).</li>`}
+        ${isTouchDevice ? "" : `<li><b>original_images/</b> \u2014 originals kept by Bucket Images, shown in the
+        \u{1F5BC} Originals view (only appears once you bucket).</li>`}
       </ul>
       <p><b>File \u25B8 Add images\u2026</b> copies more images into the open dataset, each arriving untagged
       with an empty <code>.txt</code>.${isTouchDevice ? " You choose which app to pick them from \u2014 Photos, Files, or any file manager you have installed." : ""}
@@ -4084,7 +4087,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         See also tags below (click one to open it). Drag it by its title; it stays open until you
         close it.</li>`}
         <li><b>\u274C Disabled</b> \u2014 the images you've moved out of the active set.</li>
-        ${isTouchDevice ? "" : `<li><b>\u{1F5BC} Initial State</b> \u2014 the pre-bucketing originals kept by Bucket Images (see Power
+        ${isTouchDevice ? "" : `<li><b>\u{1F5BC} Originals</b> \u2014 the pre-bucketing originals kept by Bucket Images (see Power
         tools). Their tags can be edited, but they can't be disabled or restored; Bucket Images'
         Revert is what moves them back.</li>`}
         <li><b>\u{1F522} Rename all</b> \u2014 renames every loaded image (+ its .txt) to a simple zero-padded
@@ -4212,10 +4215,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       training bucket (Min side / Max side / Step, default 256 / 1024 / 64), so your trainer
       doesn't have to. The crop keeps the subject using a saliency model (a one-time ~176 MB
       download, \u2B07 button in the dock). <b>Prefer GPU</b> runs it on your graphics card with an
-      automatic CPU fallback. Originals are never lost: they move to an <code>initial_state/</code>
-      folder (browse them via the \u{1F5BC} Initial State view), and images already at a bucket size are
-      skipped, so re-running only handles the new ones. <b>\u21A9 Revert bucketing</b> puts the
-      originals back.</p>`}
+      automatic CPU fallback. Originals are never lost: they move to an <code>original_images/</code>
+      folder (browse them via the \u{1F5BC} Originals view), and every image gets one, even if it's
+      already a valid size. Bucketing again re-makes the copies from the originals (try other
+      Min/Max/Step as often as you like). <b>\u21A9 Revert bucketing</b> puts the originals back.</p>`}
       <p>Merge and Void tend to matter a lot more for a
       <span style="white-space:nowrap;"><b>character LoRA</b> <button type="button" class="info-btn" id="infoGlossaryCharacterLora" title="Character LoRA vs. style LoRA">\u24D8</button></span>
       than a style one. A character LoRA needs its identity-defining tags kept tight and
@@ -4277,7 +4280,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       is tucked away, clicking this tab opens it, and clicking the tab again tucks it back.`}</p>
       <p><b>Master Tag Control</b> \u2014 select images by ${isTouchDevice ? "tapping" : "clicking"} thumbnails in the mini-grid here, or
       by selecting them in the main Gallery first (selection stays in sync either way). The
-      mini-grid always shows what the Gallery shows, so switch the Gallery to Disabled${isTouchDevice ? "" : " or Initial State"}
+      mini-grid always shows what the Gallery shows, so switch the Gallery to Disabled${isTouchDevice ? "" : " or Originals"}
       to pick those images; it updates as soon as the Gallery changes. The selection tools act on
       whatever you selected, while the dataset-wide ones only touch active images. From there
       you can apply or remove a tag across the whole selection, conditionally apply one tag based
@@ -4415,6 +4418,24 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       </ol>
       <p>Every preview image in this tab opens in a zoomable, pannable lightbox on ${isTouchDevice ? "tap" : "click"}.</p>`
     },
+    ...isTouchDevice ? [] : [{
+      id: "trainflow",
+      title: "Trainflow tab",
+      html: `
+      <p>Trains a LoRA for <b>Anima</b> on the dataset you have loaded. It uses your own
+      Anima-TrainFlow folder (the one with <code>python_embeded</code> and <code>training</code>)
+      for Python and the trainer, and your own Anima DiT, Qwen3 and VAE files (choose them once;
+      the fields start empty). Osmium asks where a dataset is on your computer the first time you
+      open it, since it can't see folder paths itself.</p>
+      <p><b>Start Trainflow</b> is the only thing that begins work: it saves your tag edits, buckets
+      the dataset (originals go to <code>original_images/</code>; nothing is redone if the copies
+      are already right), checks for an NVIDIA GPU and starts training. <b>Verify buckets</b> lists
+      every valid bucket size for the Bucket Images dock's Min/Max/Step and where your images sit.</p>
+      <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
+      you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
+      and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
+      folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.</p>`
+    }],
     {
       id: "settings",
       title: "Settings",
@@ -6704,7 +6725,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     const dirHandle = getDirHandle4();
     if (!dirHandle) return;
     if (entry.original) {
-      toast("Initial State images are managed by the Bucket Images tool.");
+      toast("Originals images are managed by the Bucket Images tool.");
       return;
     }
     const silent = !!opts?.silent;
@@ -8950,12 +8971,52 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     }
     return Array.from(seen.values()).sort((a, b) => a[0] * a[1] - b[0] * b[1]);
   }
+  function getBestBucket(w, h, buckets) {
+    const logOrig = Math.log(w / h);
+    let best = buckets[0];
+    let minDiff = Infinity;
+    for (const b of buckets) {
+      const diff = Math.abs(Math.log(b[0] / b[1]) - logOrig);
+      if (diff < minDiff) {
+        minDiff = diff;
+        best = b;
+      }
+    }
+    return best;
+  }
   function isBucketSize(w, h, buckets) {
     return buckets.some((b) => b[0] === w && b[1] === h);
   }
 
   // src/renderer/bucket-images.ts
-  var ORIGINAL_DIR = "initial_state";
+  var ORIGINAL_DIR = "original_images";
+  var LEGACY_ORIGINAL_DIR = "initial_state";
+  async function mergeLegacyOriginals(root) {
+    let legacy;
+    try {
+      legacy = await root.getDirectoryHandle(LEGACY_ORIGINAL_DIR, { create: false });
+    } catch {
+      return;
+    }
+    try {
+      const target = await root.getDirectoryHandle(ORIGINAL_DIR, { create: true });
+      const names = [];
+      for await (const h of legacy.values()) if (h.kind === "file") names.push(h.name);
+      for (const name of names) {
+        let exists = true;
+        try {
+          await target.getFileHandle(name, { create: false });
+        } catch {
+          exists = false;
+        }
+        if (exists) continue;
+        const src = await legacy.getFileHandle(name);
+        await writeBytes(await target.getFileHandle(name, { create: true }), await src.getFile());
+      }
+      await root.removeEntry(LEGACY_ORIGINAL_DIR, { recursive: true });
+    } catch {
+    }
+  }
   var SETTINGS_KEY = "dts-bucket-settings";
   var getDirHandle8 = () => null;
   var getEntries3 = () => [];
@@ -9037,8 +9098,10 @@ If you choose No, this won't ask again for any folder. You can still add the ope
       toast("Open a dataset folder first.");
       return;
     }
-    const active = getEntries3().filter((e) => !e.disabled && !e.original);
-    if (!active.length) {
+    const entries = getEntries3();
+    const originals = entries.filter((e) => e.original);
+    const rootEntries = entries.filter((e) => !e.disabled && !e.original);
+    if (!rootEntries.length && !originals.length) {
       toast("No Gallery images to bucket.");
       return;
     }
@@ -9046,9 +9109,9 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     const buckets = getValidBuckets(sideMin, sideMax, step);
     const preferGpu = bucketGpu.checked;
     const ok = await showConfirmModal(
-      `Bucket ${active.length} Gallery image(s) at ${sideMin}\u2013${sideMax} (step ${step})?
+      `Bucket the Gallery at ${sideMin}\u2013${sideMax} (step ${step})?
 
-Each image is moved into ${ORIGINAL_DIR}/ (treated as disabled, shown in the Initial State view), and a cropped + resized PNG is written back to the dataset root under the same name. Images already at a valid bucket size are left alone.`,
+Originals are kept in ${ORIGINAL_DIR}/ (shown in the Originals view) and the bucketed copies are PNGs in the dataset root. Images that were bucketed before are re-made from their originals at these sizes, so you can bucket again with different dimensions. Every image gets a copy in ${ORIGINAL_DIR}/ first, even one that's already a valid size.`,
       { okLabel: "Bucket images" }
     );
     if (!ok) return;
@@ -9071,8 +9134,12 @@ Each image is moved into ${ORIGINAL_DIR}/ (treated as disabled, shown in the Ini
       const k = `${w}x${h}`;
       counts[k] = (counts[k] || 0) + 1;
     };
+    const originalByBase = new Map(originals.map((e) => [e.base, e]));
+    const rootByBase = new Map(rootEntries.map((e) => [e.base, e]));
+    const sources = originals.map((e) => ({ entry: e, fromOriginals: true }));
+    for (const e of rootEntries) if (!originalByBase.has(e.base)) sources.push({ entry: e, fromOriginals: false });
     try {
-      for (const entry of active) {
+      for (const { entry, fromOriginals } of sources) {
         const filename = entry.imgName || entry.base;
         let file;
         try {
@@ -9090,13 +9157,47 @@ Each image is moved into ${ORIGINAL_DIR}/ (treated as disabled, shown in the Ini
           failed++;
           continue;
         }
-        if (isBucketSize(dims.width, dims.height, buckets)) {
-          skipped++;
-          bump(dims.width, dims.height);
-          log(`${filename}: already ${dims.width}x${dims.height} \u2014 left as-is.`);
-          continue;
-        }
         const bytes = new Uint8Array(await file.arrayBuffer());
+        if (!fromOriginals) {
+          try {
+            const origImg = await origDir.getFileHandle(filename, { create: true });
+            await writeBytes(origImg, bytes);
+            if (entry.txtHandle && entry.txtName) {
+              try {
+                const txtBlob = await entry.txtHandle.getFile();
+                const origTxt = await origDir.getFileHandle(entry.txtName, { create: true });
+                await writeBytes(origTxt, txtBlob);
+              } catch {
+              }
+            }
+          } catch (err) {
+            log(`${filename}: ${err instanceof Error ? err.message : String(err)}`, true);
+            failed++;
+            continue;
+          }
+          if (isBucketSize(dims.width, dims.height, buckets)) {
+            skipped++;
+            bump(dims.width, dims.height);
+            log(`${filename}: already ${dims.width}x${dims.height} \u2014 original saved, kept as its own bucket.`);
+            continue;
+          }
+        }
+        if (fromOriginals) {
+          const [tw, th] = getBestBucket(dims.width, dims.height, buckets);
+          const cur = rootByBase.get(entry.base);
+          if (cur) {
+            try {
+              const cd = await imageDimensions(await cur.imgHandle.getFile());
+              if (cd.width === tw && cd.height === th) {
+                skipped++;
+                bump(tw, th);
+                log(`${filename}: already bucketed at ${tw}x${th}.`);
+                continue;
+              }
+            } catch {
+            }
+          }
+        }
         const res = await window.electronAPI.bucketImage({ imageBytes: bytes, sideMin, sideMax, step, preferGpu });
         if (!res.ok || !res.pngBytes || !res.bucket) {
           log(`${filename}: ${res.error || "bucketing failed"}`, true);
@@ -9104,22 +9205,13 @@ Each image is moved into ${ORIGINAL_DIR}/ (treated as disabled, shown in the Ini
           continue;
         }
         try {
-          const origImg = await origDir.getFileHandle(filename, { create: true });
-          await writeBytes(origImg, bytes);
-          if (entry.txtHandle && entry.txtName) {
-            try {
-              const txtBlob = await entry.txtHandle.getFile();
-              const origTxt = await origDir.getFileHandle(entry.txtName, { create: true });
-              await writeBytes(origTxt, txtBlob);
-            } catch {
-            }
-          }
           const stemPng = entry.base + ".png";
           const outHandle = await dirHandle.getFileHandle(stemPng, { create: true });
           await writeBytes(outHandle, res.pngBytes);
-          if (filename !== stemPng) {
+          const oldRoot = fromOriginals ? rootByBase.get(entry.base)?.imgName : filename;
+          if (oldRoot && oldRoot !== stemPng) {
             try {
-              await dirHandle.removeEntry(filename);
+              await dirHandle.removeEntry(oldRoot);
             } catch {
             }
           }
@@ -9136,7 +9228,7 @@ Each image is moved into ${ORIGINAL_DIR}/ (treated as disabled, shown in the Ini
       log("");
       log(`Done. Bucketed ${processed}, already-bucketed ${skipped}, failed ${failed}.`);
       for (const k of Object.keys(counts).sort()) log(`  ${k}: ${counts[k]}`);
-      toast(`Bucketed ${processed} image(s) \u2014 originals are in the Initial State view.`, 3600);
+      toast(`Bucketed ${processed} image(s) \u2014 originals are in the Originals view.`, 3600);
     } catch (err) {
       log(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`, true);
       toast("Bucketing failed \u2014 see the dock log.", 4200);
@@ -20238,6 +20330,399 @@ Image: ${entry.imgName}`,
     });
   }
 
+  // src/renderer/trainflow.ts
+  var PATHS_KEY = "dts-trainflow-dataset-paths";
+  var STORAGE_KEY = "dts-trainflow-settings";
+  var POLL_MS = 2e3;
+  var DEFAULTS = {
+    trigger: "",
+    datasetPath: "",
+    ditPath: "",
+    qwenPath: "",
+    vaePath: "",
+    rank: 32,
+    lr: "1.0",
+    optimizer: "Prodigy",
+    steps: 2400,
+    saveSteps: 300,
+    sampleSteps: 300,
+    batchSize: 1,
+    gradAcc: 1,
+    trainSeed: 42,
+    bucketMin: 256,
+    bucketMax: 1024,
+    bucketStep: 64,
+    prompt: "",
+    negPrompt: "worst quality, low quality, score_1, score_2, score_3, artist name",
+    width: 1024,
+    height: 1024,
+    sampleGenSteps: 30,
+    cfg: 4,
+    sampleSeed: 42
+  };
+  var TEXT_FIELDS = [
+    ["trigger", "tfTrigger"],
+    ["ditPath", "tfDit"],
+    ["qwenPath", "tfQwen"],
+    ["vaePath", "tfVae"],
+    ["lr", "tfLr"],
+    ["prompt", "tfPrompt"],
+    ["negPrompt", "tfNeg"]
+  ];
+  var NUM_FIELDS = [
+    ["rank", "tfRank"],
+    ["steps", "tfSteps"],
+    ["saveSteps", "tfSaveSteps"],
+    ["sampleSteps", "tfSampleSteps"],
+    ["batchSize", "tfBatch"],
+    ["gradAcc", "tfGradAcc"],
+    ["width", "tfWidth"],
+    ["height", "tfHeight"],
+    ["sampleGenSteps", "tfGenSteps"],
+    ["cfg", "tfCfg"],
+    ["sampleSeed", "tfSeed"]
+  ];
+  function isTrainflowSupported() {
+    return !!(window.electronAPI && window.electronAPI.trainflowStatus);
+  }
+  function initTrainflow(deps3) {
+    const api = window.electronAPI;
+    const tab = $("trainflowTab");
+    const tabBtn = $("tabTrainflow");
+    if (!isTrainflowSupported()) {
+      tabBtn.style.display = "none";
+      return;
+    }
+    let settings2 = { ...DEFAULTS, ...getJSON(STORAGE_KEY, {}) };
+    let last = null;
+    let starting = false;
+    let sampleSig = "";
+    let ckptSig = "";
+    const blobUrls = /* @__PURE__ */ new Map();
+    const inputEl2 = (id) => $(id);
+    const save = () => setJSON(STORAGE_KEY, settings2);
+    const dockNum = (id, fallback) => Math.max(1, parseInt(document.getElementById(id)?.value || "", 10) || fallback);
+    const bucketCfg = () => {
+      const min = Math.max(64, dockNum("bucketSideMin", 256));
+      return { min, max: Math.max(min, dockNum("bucketSideMax", 1024)), step: dockNum("bucketSideStep", 64) };
+    };
+    function fillForm() {
+      for (const [k, id] of TEXT_FIELDS) inputEl2(id).value = String(settings2[k]);
+      for (const [k, id] of NUM_FIELDS) inputEl2(id).value = String(settings2[k]);
+      $("tfOptimizer").value = settings2.optimizer;
+    }
+    fillForm();
+    for (const [k, id] of TEXT_FIELDS) {
+      inputEl2(id).addEventListener("input", () => {
+        settings2[k] = inputEl2(id).value;
+        save();
+      });
+    }
+    for (const [k, id] of NUM_FIELDS) {
+      inputEl2(id).addEventListener("input", () => {
+        const v = Number(inputEl2(id).value);
+        if (Number.isFinite(v)) {
+          settings2[k] = v;
+          save();
+        }
+      });
+    }
+    let adamLr = "0.00005";
+    $("tfOptimizer").addEventListener("change", (ev) => {
+      const opt = ev.target.value;
+      if (opt === "Prodigy") {
+        if (settings2.lr !== "1.0") adamLr = settings2.lr;
+        settings2.lr = "1.0";
+      } else if (settings2.lr === "1.0") settings2.lr = adamLr;
+      settings2.optimizer = opt;
+      inputEl2("tfLr").value = settings2.lr;
+      save();
+    });
+    let datasetPath = "";
+    const dirOf = (p) => p.replace(/[\\/][^\\/]*$/, "");
+    const firstImage = () => deps3.getEntries().find((x) => !x.disabled && !x.original);
+    const savedPaths = () => getJSON(PATHS_KEY, {});
+    const askedThisSession = /* @__PURE__ */ new Set();
+    async function savedPathFor(name) {
+      const p = savedPaths()[name];
+      if (!p) return "";
+      const img = firstImage();
+      return await api.trainflowPathOk(p, img?.imgName) ? p : "";
+    }
+    async function detectPath() {
+      const e = firstImage();
+      if (!e || !api.getPathForFile) return "";
+      try {
+        const p = api.getPathForFile(await e.imgHandle.getFile());
+        return p ? dirOf(p) : "";
+      } catch {
+        return "";
+      }
+    }
+    function remember(name, p) {
+      const map = savedPaths();
+      map[name] = p;
+      setJSON(PATHS_KEY, map);
+    }
+    async function resolveDataset() {
+      const dir = deps3.getDirHandle();
+      const nameEl = $("tfDatasetName"), locate = $("btnTfLocate");
+      datasetPath = "";
+      locate.style.display = "none";
+      if (!dir) {
+        nameEl.textContent = "No dataset loaded";
+        nameEl.title = "";
+        return "";
+      }
+      datasetPath = await savedPathFor(dir.name);
+      if (!datasetPath) {
+        datasetPath = await detectPath();
+        if (datasetPath) remember(dir.name, datasetPath);
+      }
+      nameEl.textContent = datasetPath ? `${dir.name} (${datasetPath})` : `${dir.name} (location unknown)`;
+      nameEl.title = datasetPath;
+      locate.style.display = datasetPath ? "none" : "";
+      return datasetPath;
+    }
+    async function locateDataset() {
+      const dir = deps3.getDirHandle();
+      if (!dir) return false;
+      const p = await api.trainflowPickPath({ kind: "folder", title: `Where is "${dir.name}" on your computer?` });
+      if (!p) return false;
+      if (!await api.trainflowPathOk(p, firstImage()?.imgName)) {
+        toast("That folder doesn't contain this dataset's images.");
+        return false;
+      }
+      remember(dir.name, p);
+      return true;
+    }
+    window.__dtsDatasetOpened = () => {
+      void (async () => {
+        const dir = deps3.getDirHandle();
+        if (!dir || !firstImage()) return;
+        if (await savedPathFor(dir.name)) return;
+        const detected = await detectPath();
+        if (detected) {
+          remember(dir.name, detected);
+          return;
+        }
+        if (askedThisSession.has(dir.name)) return;
+        askedThisSession.add(dir.name);
+        const ok = await showConfirmModal(`To train "${dir.name}" later, Trainflow needs to know where it is on your computer (Osmium can't see folder paths itself). Choose its folder now? You only do this once per dataset.`, { okLabel: "Choose folder", cancelLabel: "Later" });
+        if (ok) await locateDataset();
+        if (tab.style.display !== "none") void refreshDataset();
+      })();
+    };
+    $("btnTfLocate").addEventListener("click", async () => {
+      if (await locateDataset()) await refreshDataset();
+    });
+    async function runDatasetCheck() {
+      const box = $("tfDatasetCheck");
+      if (!datasetPath) {
+        box.textContent = "Load a dataset (images with matching .txt captions) to train it.";
+        return null;
+      }
+      const c = await api.trainflowCheckDataset(datasetPath, bucketCfg());
+      box.textContent = c.images ? `${c.images} images` + (c.unbucketed ? ` \xB7 ${c.unbucketed} will be bucketed when you start (originals go to original_images/)` : " \xB7 all already bucketed") + (c.errors.length ? "\n" + c.errors.join("\n") : "") : c.errors.join("\n");
+      box.style.whiteSpace = "pre-wrap";
+      return c;
+    }
+    async function refreshDataset() {
+      await resolveDataset();
+      await runDatasetCheck();
+    }
+    async function pick2(kind, title, current) {
+      return api.trainflowPickPath({ kind, title, defaultPath: current || void 0 });
+    }
+    $("btnTfVerifyBuckets").addEventListener("click", async () => {
+      const box = $("tfBucketReport");
+      await resolveDataset();
+      const dir = datasetPath;
+      box.style.display = "";
+      if (!dir) {
+        box.textContent = "Load a dataset first.";
+        return;
+      }
+      box.textContent = "Checking\u2026";
+      const cfg = bucketCfg();
+      const r = await api.trainflowVerifyBuckets(dir, cfg);
+      const lines = [`Bucket sizes for ${cfg.min}\u2013${cfg.max} (step ${cfg.step}), as set in the Bucket Images dock:`];
+      lines.push(r.buckets.map((b) => `${b.w}x${b.h}${b.count ? " (" + b.count + ")" : ""}`).join("  \xB7  "));
+      lines.push("");
+      lines.push(`${r.images - r.offBucket.length}/${r.images} images are at a valid bucket size.`);
+      if (r.offBucket.length) lines.push(`Not at a bucket size: ${r.offBucket.slice(0, 8).join(", ")}${r.offBucket.length > 8 ? ` and ${r.offBucket.length - 8} more` : ""}`);
+      if (r.withoutOriginal) lines.push(`${r.withoutOriginal} image${r.withoutOriginal === 1 ? " has" : "s have"} no copy in original_images/ yet.`);
+      lines.push(r.toRebucket ? `Start Trainflow would bucket ${r.toRebucket} image${r.toRebucket === 1 ? "" : "s"}.` : "Nothing to bucket: Start Trainflow would use the dataset as it is.");
+      box.textContent = lines.join("\n");
+    });
+    $("btnTfDatasetOpen").addEventListener("click", () => void api.trainflowOpen("dataset", datasetPath));
+    tab.querySelectorAll(".tf-pick-file").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.target;
+        const p = await pick2("file", btn.dataset.title || "Choose a file", inputEl2(id).value);
+        if (!p) return;
+        inputEl2(id).value = p;
+        inputEl2(id).dispatchEvent(new Event("input"));
+      });
+    });
+    $("btnTrainflowFolder").addEventListener("click", async () => {
+      applyStatus(await api.trainflowPickFolder());
+    });
+    $("btnTrainflowOutput").addEventListener("click", () => void api.trainflowOpen("output"));
+    $("btnTrainflowLog").addEventListener("click", () => void api.trainflowOpen("log"));
+    function showErrors(errors) {
+      const box = $("trainflowErrors");
+      box.style.display = errors.length ? "" : "none";
+      box.textContent = errors.join("\n");
+    }
+    $("btnTrainflowStart").addEventListener("click", async () => {
+      if (starting) return;
+      starting = true;
+      showErrors([]);
+      const btn = $("btnTrainflowStart");
+      btn.disabled = true;
+      $("trainflowRunInfo").style.display = "";
+      $("trainflowRunInfo").textContent = "Checking your dataset, models and GPU\u2026";
+      const b = bucketCfg();
+      try {
+        if (!await resolveDataset()) {
+          showErrors([deps3.getDirHandle() ? "Osmium couldn't find where the loaded dataset is on disk. Use Locate\u2026 next to it." : "Load a dataset first."]);
+          return;
+        }
+        await deps3.saveAllDirty(true);
+        const r = await api.trainflowStart({ ...settings2, datasetPath, bucketMin: b.min, bucketMax: b.max, bucketStep: b.step });
+        if (!r.ok) showErrors(r.errors || ["Could not start."]);
+      } finally {
+        starting = false;
+        try {
+          await deps3.reload();
+        } catch {
+        }
+        await refresh2();
+        void refreshDataset();
+      }
+    });
+    $("btnTrainflowStop").addEventListener("click", async () => {
+      $("btnTrainflowStop").disabled = true;
+      await api.trainflowStop();
+      await refresh2();
+    });
+    const fmtSize = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " KB";
+    function applyStatus(s) {
+      last = s;
+      $("trainflowFolder").textContent = s.folder || "Not set";
+      $("trainflowFolder").title = s.folder;
+      const fs = $("trainflowFolderStatus");
+      fs.style.display = s.ok ? "none" : s.folder ? "" : "none";
+      fs.textContent = s.error || "";
+      const run2 = s.run;
+      const running2 = run2?.state === "running";
+      $("btnTrainflowStart").disabled = running2 || starting || !s.ok;
+      $("btnTrainflowStop").disabled = !running2;
+      const info = $("trainflowRunInfo");
+      const track = $("trainflowProgressTrack");
+      const stats = $("trainflowStats");
+      if (s.prep) {
+        info.style.display = "";
+        info.textContent = s.prep.message;
+        track.style.display = s.prep.total ? "" : "none";
+        $("trainflowProgressFill").style.width = (s.prep.total ? Math.round(s.prep.done / s.prep.total * 100) : 0) + "%";
+      } else if (!run2) {
+        if (!starting) info.style.display = "none";
+        track.style.display = "none";
+        stats.style.display = "none";
+        $("trainflowLog").textContent = "Not started.";
+      } else {
+        const pct = run2.total ? Math.min(100, Math.round(run2.step / run2.total * 100)) : 0;
+        const label = { running: run2.step ? "Training" : "Preparing (caching latents and text encoder outputs)\u2026", finished: "Finished", stopped: "Stopped", failed: "Ended without finishing, see the log" }[run2.state];
+        info.style.display = "";
+        info.textContent = `${run2.project}: ${label}`;
+        track.style.display = run2.step || run2.state === "finished" ? "" : "none";
+        $("trainflowProgressFill").style.width = pct + "%";
+        const bits = [`<span>Step <b>${run2.step}/${run2.total}</b> (${pct}%)</span>`];
+        if (run2.state === "running") {
+          if (run2.speed) bits.push(`<span><b>${run2.speed}</b></span>`);
+          if (run2.eta) bits.push(`<span>ETA <b>${run2.eta}</b></span>`);
+        }
+        if (run2.elapsed) bits.push(`<span>Elapsed <b>${run2.elapsed}</b></span>`);
+        if (run2.loss !== void 0) bits.push(`<span>Loss <b>${run2.loss.toFixed(4)}</b></span>`);
+        stats.innerHTML = bits.join("");
+        stats.style.display = run2.step || run2.state === "finished" ? "" : "none";
+        const logEl = $("trainflowLog");
+        const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 24;
+        logEl.textContent = s.logTail.join("\n") || "\u2026";
+        if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+      }
+      renderSamples(s);
+      renderCheckpoints(s);
+    }
+    async function renderSamples(s) {
+      const sig = s.samples.map((x) => x.name + x.mtime).join("|");
+      if (sig === sampleSig) return;
+      sampleSig = sig;
+      const box = $("trainflowPreviews");
+      if (!s.samples.length) {
+        box.innerHTML = '<div class="stats-empty">Previews appear here as training samples them.</div>';
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      for (const smp of s.samples) {
+        const key = smp.name + smp.mtime;
+        let url = blobUrls.get(key);
+        if (!url) {
+          const bytes = await api.trainflowGetSample(smp.name);
+          if (!bytes) continue;
+          url = URL.createObjectURL(new Blob([bytes]));
+          blobUrls.set(key, url);
+        }
+        const img = document.createElement("img");
+        img.src = url;
+        img.title = smp.name;
+        img.loading = "lazy";
+        const u = url;
+        img.addEventListener("click", () => showImageLightbox(u));
+        frag.appendChild(img);
+      }
+      if (sig !== sampleSig) return;
+      box.replaceChildren(frag);
+    }
+    function renderCheckpoints(s) {
+      const sig = s.checkpoints.map((x) => x.name + x.size).join("|");
+      if (sig === ckptSig) return;
+      ckptSig = sig;
+      const box = $("trainflowCheckpoints");
+      if (!s.checkpoints.length) {
+        box.innerHTML = '<div class="stats-empty">None yet.</div>';
+        return;
+      }
+      box.replaceChildren(...s.checkpoints.map((c) => {
+        const row = document.createElement("div");
+        row.className = "wd14-local-model-row";
+        const name = document.createElement("span");
+        name.textContent = c.name;
+        const size = document.createElement("span");
+        size.textContent = fmtSize(c.size);
+        row.append(name, size);
+        return row;
+      }));
+    }
+    async function refresh2() {
+      try {
+        applyStatus(await api.trainflowStatus());
+      } catch {
+      }
+    }
+    const tabVisible = () => tab.style.display !== "none";
+    setInterval(() => {
+      if (tabVisible() && !document.hidden) void refresh2();
+    }, POLL_MS);
+    window.__dtsTrainflowShown = () => {
+      void refresh2();
+      void refreshDataset();
+    };
+    void refresh2();
+  }
+
   // src/renderer/picker-modal.ts
   function openPickerModal(title, options, current, onPick) {
     const backdrop = document.createElement("div");
@@ -27025,7 +27510,7 @@ Image: ${entry.imgName}`,
     });
     const tabHistory = [];
     let navigatingBack = false;
-    const TAB_IDS = ["datasets", "gallery", "master", "stats", "synthdat"];
+    const TAB_IDS = ["datasets", "gallery", "master", "stats", "synthdat", "trainflow"];
     const currentTabId = () => TAB_IDS.find((t) => tabIsActive(t)) || "gallery";
     let exitConfirmOpen = false;
     function handleBack() {
@@ -27102,14 +27587,15 @@ Image: ${entry.imgName}`,
       }
       appVersionEl.textContent = APP_VERSION ? "v" + APP_VERSION : "";
     })();
-    const TAB_MAP_ORDER = ["datasets", "gallery", "master", "stats", "synthdat"];
+    const TAB_MAP_ORDER = ["datasets", "gallery", "master", "stats", "synthdat", "trainflow"];
     const onShell = (t) => t === "gallery" || t === "master";
     const tabIsActive = (t) => ({
       datasets: tabDatasetManager,
       gallery: tabGallery,
       master: tabMasterTags,
       stats: tabStats,
-      synthdat: tabSynthDat
+      synthdat: tabSynthDat,
+      trainflow: tabTrainflow
     })[t]?.classList.contains("active") ?? false;
     const PRELOAD_BAND_PX = 90;
     const tabBarEl = document.getElementById("tabBar");
@@ -27167,7 +27653,7 @@ Image: ${entry.imgName}`,
           if (tabHistory.length > 30) tabHistory.shift();
         }
       }
-      const fadePanes = [datasetManagerTab, statsTab, synthDatTab, normalRightTools, masterTagPanel];
+      const fadePanes = [datasetManagerTab, statsTab, synthDatTab, trainflowTab, normalRightTools, masterTagPanel];
       const renderShell = () => {
         if (onShell(tab)) {
           renderCurrentView();
@@ -27181,10 +27667,13 @@ Image: ${entry.imgName}`,
         tabMasterTags.classList.toggle("active", tab === "master");
         tabStats.classList.toggle("active", tab === "stats");
         tabSynthDat.classList.toggle("active", tab === "synthdat");
+        tabTrainflow.classList.toggle("active", tab === "trainflow");
         datasetManagerTab.style.display = tab === "datasets" ? "block" : "none";
-        galleryTab.style.display = tab === "stats" || tab === "datasets" || tab === "synthdat" ? "none" : "contents";
+        galleryTab.style.display = tab === "stats" || tab === "datasets" || tab === "synthdat" || tab === "trainflow" ? "none" : "contents";
         statsTab.style.display = tab === "stats" ? "block" : "none";
         synthDatTab.style.display = tab === "synthdat" ? "block" : "none";
+        trainflowTab.style.display = tab === "trainflow" ? "block" : "none";
+        if (tab === "trainflow") window.__dtsTrainflowShown?.();
         masterTagModeActive = tab === "master";
         if (masterTagModeActive) renderMasterMiniGridIfStale();
         if (!skipDrawerSync) {
@@ -27205,7 +27694,7 @@ Image: ${entry.imgName}`,
         applyState();
         return;
       }
-      const fromTab = tabDatasetManager.classList.contains("active") ? "datasets" : tabMasterTags.classList.contains("active") ? "master" : tabStats.classList.contains("active") ? "stats" : tabSynthDat.classList.contains("active") ? "synthdat" : "gallery";
+      const fromTab = tabDatasetManager.classList.contains("active") ? "datasets" : tabMasterTags.classList.contains("active") ? "master" : tabStats.classList.contains("active") ? "stats" : tabSynthDat.classList.contains("active") ? "synthdat" : tabTrainflow.classList.contains("active") ? "trainflow" : "gallery";
       if (fromTab === tab) {
         applyState();
         return;
@@ -27213,7 +27702,7 @@ Image: ${entry.imgName}`,
       const regionOf = (t) => {
         if (onShell(fromTab) && onShell(tab)) return document.getElementById("rightPanelContent");
         if (onShell(t)) return document.getElementById("shell");
-        return t === "datasets" ? datasetManagerTab : t === "stats" ? statsTab : synthDatTab;
+        return t === "datasets" ? datasetManagerTab : t === "stats" ? statsTab : t === "trainflow" ? trainflowTab : synthDatTab;
       };
       const dir = Math.sign(TAB_MAP_ORDER.indexOf(tab) - TAB_MAP_ORDER.indexOf(fromTab));
       deferShellRender = true;
@@ -27223,6 +27712,7 @@ Image: ${entry.imgName}`,
         tabMasterTags.classList.toggle("active", tab === "master");
         tabStats.classList.toggle("active", tab === "stats");
         tabSynthDat.classList.toggle("active", tab === "synthdat");
+        tabTrainflow.classList.toggle("active", tab === "trainflow");
       }
       if (mapPan(dir, "tab", regionOf(fromTab), () => regionOf(tab), applyState, () => {
         if (tabIsActive(tab)) renderShell();
@@ -27262,6 +27752,8 @@ Image: ${entry.imgName}`,
     btnMasterBack.addEventListener("click", () => switchTab2("gallery"));
     btnGoToTagOverseer.addEventListener("click", () => switchTab2("master"));
     btnSynthDatBack.addEventListener("click", () => switchTab2("gallery"));
+    tabTrainflow.addEventListener("click", () => switchTab2("trainflow"));
+    btnTrainflowBack.addEventListener("click", () => switchTab2("gallery"));
     function toggleDayNightModeAndTrack() {
       if (toggleDayNightMode()) {
         folderStats.night_mode_used = true;
@@ -27417,7 +27909,6 @@ Image: ${entry.imgName}`,
     const galleryColumnsDropdown = $("galleryColumnsDropdown");
     const dynamicCardsToggle = $("dynamicCardsToggle");
     const btnDiscreteToggle = $("btnDiscreteToggle");
-    const btnDiscreteOff = $("btnDiscreteOff");
     const btnPurgeAllTags = $("btnPurgeAllTags");
     const settingsCloseBtn = $("settingsCloseBtn");
     const tooltipBubble = $("tooltipBubble");
@@ -27698,16 +28189,20 @@ Image: ${entry.imgName}`,
       tooltipDelaySlider.value = String(ms);
       tooltipDelayVal.textContent = ms + "ms";
     })();
-    btnDiscreteToggle.addEventListener("click", () => {
-      discreteModeOn = !discreteModeOn;
-      document.documentElement.classList.toggle("discrete-mode", discreteModeOn);
-      btnDiscreteToggle.classList.toggle("active", discreteModeOn);
-    });
-    btnDiscreteOff.addEventListener("click", () => {
-      discreteModeOn = false;
-      document.documentElement.classList.remove("discrete-mode");
-      btnDiscreteToggle.classList.remove("active");
-    });
+    const applyDiscrete = (on) => {
+      discreteModeOn = on;
+      document.documentElement.classList.toggle("discrete-mode", on);
+      btnDiscreteToggle.classList.toggle("active", on);
+      try {
+        localStorage.setItem("discreteMode", on ? "1" : "0");
+      } catch {
+      }
+    };
+    try {
+      if (localStorage.getItem("discreteMode") === "1") applyDiscrete(true);
+    } catch {
+    }
+    btnDiscreteToggle.addEventListener("click", () => applyDiscrete(!discreteModeOn));
     btnPurgeAllTags.addEventListener("click", () => {
       purgeConfirmCount++;
       if (purgeConfirmCount === 1) {
@@ -27824,6 +28319,12 @@ Image: ${entry.imgName}`,
     initWd14Tagger({
       getEntries: () => entries,
       refreshAllUI: () => refreshAllUI()
+    });
+    initTrainflow({
+      getDirHandle: () => dirHandle,
+      getEntries: () => entries,
+      saveAllDirty: (silent) => saveAllDirty(silent),
+      reload: () => loadFolder()
     });
     initSynthDatOverseer({
       getDirHandle: () => dirHandle,
@@ -28214,6 +28715,10 @@ Image: ${entry.imgName}`,
       toast(`Finished disabling ${leftovers.length} image(s) whose root copy was left behind last time.`, 3600);
     }
     async function loadFolder() {
+      await loadFolderCore();
+      window.__dtsDatasetOpened?.();
+    }
+    async function loadFolderCore() {
       if (!dirHandle) return;
       exitSequentialDetail();
       toast("Scanning folder\u2026");
@@ -28241,6 +28746,7 @@ Image: ${entry.imgName}`,
       }
       await finishInterruptedDisables();
       try {
+        await mergeLegacyOriginals(dirHandle);
         originalDirHandle = await dirHandle.getDirectoryHandle(ORIGINAL_DIR, { create: false });
         await scanDirInto(originalDirHandle, true, true);
       } catch (e) {
@@ -28586,6 +29092,15 @@ Image: ${entry.imgName}`,
     }
     if (window.electronAPI && window.electronAPI.onRequestClose) {
       window.electronAPI.onRequestClose(async () => {
+        let trainingLive = false;
+        try {
+          trainingLive = !!await window.electronAPI.trainflowRunning?.();
+        } catch {
+        }
+        if (trainingLive) {
+          const ok = await showConfirmModal("Trainflow is training a LoRA. It will keep running in the background after Osmium closes and finish on its own. Reopen Osmium and open the Trainflow tab to see its progress again, or press Stop there first if you want it to end. Close Osmium anyway?", { okLabel: "Close Osmium", cancelLabel: "Stay" });
+          if (!ok) return;
+        }
         const unsavedClose = unsavedChangesDescription();
         if (unsavedClose) {
           const ok = await showConfirmModal(`You have ${unsavedClose}. Quit anyway without saving?`, { okLabel: "Quit anyway", danger: true });

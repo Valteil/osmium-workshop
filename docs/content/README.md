@@ -72,7 +72,7 @@ Three related apps share this repository (and much of their renderer code):
    bottom-sheet panels, tag editing straight from the image modal, a real Back button, and storage
    through Android's Storage Access Framework (a folder you pick stays accessible across
    restarts). It also does on-device WD14 tagging, downloading the model on first use, plus
-   tagging and generation against your own ComfyUI instance over the network. Bucket Images,
+   tagging and generation against your own ComfyUI instance over the network. Bucket Images, Trainflow,
    Compact/Single view stay desktop-only; Sequential tagging runs in a full-screen panel. Released
    since v1.8.0: sideload `OsmiumWorkshop-<version>-android.apk` from the
    [releases page](https://github.com/Valteil/osmium-workshop/releases), or build it from source
@@ -137,7 +137,7 @@ Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
 - **Disabled** — a quarantine tab for images pulled out of the active set (drag a card onto it).
   Tags stay editable the whole time, and you can restore anytime. Good for maybes you're not
   ready to delete.
-- **Initial State** — the pre-bucketing originals kept by Bucket Images (below).
+- **Originals** — the pre-bucketing originals kept in `original_images/` by Bucket Images (below).
 - **Unlock all** and **Hide tags** — clear every image lock at once, or hide the chips on every card
   while you sort against a filter.
 - **Rename all** — renumber every image (and its `.txt`) into a clean `1`–`N` sequence, undoable.
@@ -182,7 +182,9 @@ cropped region as a *new* image instead, leaving the source untouched.
   if you pause the rule. Use it so a cleanup never has to be repeated.
 - **Bucket Images** (right sidebar) — crops and resizes every image to its nearest LoRA training
   bucket, subject-first via a u2net saliency model (GPU with CPU fallback; ~176 MB, downloaded on
-  first use). Originals move to `initial_state/` and can be restored with one click.
+  first use). Originals move to `original_images/`, the same folder Anima-TrainFlow uses, and every image
+  gets one (even if it's already a valid size). Bucketing again re-makes the copies from those originals,
+  so you can try other dimensions; one click restores everything.
 - **Master Tag Control** (tab) — check off a batch of images, then run one tool across all of
   them: add or remove tags, add a tag only where another tag is (or isn't) already present,
   remove a tag from every image that has another, rename a tag dataset-wide, find-and-replace,
@@ -227,6 +229,16 @@ Accept). **Accept** writes the image and its tags into the dataset immediately, 
 **Reject** parks it in `Disabled/` instead. Nothing generated gets silently thrown away. Use it
 when five good images need to become fifty. (Also needs the ComfyUI node pack — see
 `ComfyUI-dependencies/`.)
+
+### Trainflow (tab)
+Trains a LoRA for Anima on the dataset you have loaded (desktop only). Point it once at your
+[Anima-TrainFlow](https://github.com/ThetaCursed/Anima-TrainFlow) folder and at your own Anima DiT,
+Qwen3 text encoder and VAE, then press **Start Trainflow**. Nothing runs before that. Start saves your
+tag edits, buckets the dataset with the Bucket Images settings (originals kept in `original_images/`),
+checks for an NVIDIA GPU and launches training. **Verify buckets** lists every valid bucket size and where
+your images sit. Training runs in the background and keeps going if you close Osmium, which warns you
+first; reopen the tab to see step, speed, ETA, loss, the log, preview images and checkpoints again.
+**Stop** ends it for good.
 
 ### Wiki lookup, stats, favorites
 - **Tag Details** (chip menu) — Danbooru wiki definition, category, post count per tag (bundled,

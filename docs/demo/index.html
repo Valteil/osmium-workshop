@@ -712,6 +712,7 @@
     <button id="tabMasterTags" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-telescope"></use></svg>Tag Overseer</button>
     <button id="tabStats" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-chart"></use></svg>Editing Stats</button>
     <button id="tabSynthDat" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-flask"></use></svg>SynthDat Overseer</button>
+    <button id="tabTrainflow" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-pulse"></use></svg>Trainflow</button>
   </nav>
 
   <div id="datasetManagerTab" style="display:none;">
@@ -824,7 +825,7 @@
           <button id="btnHideTags" title="Hide the tag chips and add-field on every card — useful when sorting against a filter (e.g. everything without 1girl) so what IS and ISN'T missing stays visually obvious; tags stay editable via the card modal"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-eye-off"></use></svg>Hide tags</button>
           <button id="btnRenameAllImages" title="Rename every loaded image (+ its .txt) to a simple zero-padded 1-N sequence — active dataset first, then Disabled/, continuing the same count"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-hash"></use></svg>Rename all</button>
           <button id="viewDisabledBtn" title="Disabled images"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-x-circle"></use></svg>Disabled</button>
-          <button id="viewOriginalsBtn" title="Original (pre-bucketing) images — moved here by the Bucket Images tool"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-image"></use></svg>Initial State</button>
+          <button id="viewOriginalsBtn" title="Original (pre-bucketing) images — moved here by the Bucket Images tool"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-image"></use></svg>Originals</button>
         </div>
         <span id="filterMatchCount" style="display:none;"></span>
         <div class="gallery-sort">
@@ -929,7 +930,7 @@
         <template id="infoBucketImagesContent">
           <p>Crops and resizes every Gallery image to the nearest training bucket — the same aspect-ratio bucketing Anima-TrainFlow uses — so a LoRA trainer doesn't have to. The crop is head-first: a u2net saliency model decides what to keep.</p>
           <ul>
-            <li><b>Originals are kept.</b> Each image is moved into an <code>initial_state/</code> folder (treated as disabled, shown under the <b>Initial State</b> view next to Disabled) and its bucketed copy is written back to the dataset root as PNG.</li>
+            <li><b>Originals are kept.</b> Each image is moved into an <code>original_images/</code> folder (treated as disabled, shown under the <b>Originals</b> view next to Disabled) and its bucketed copy is written back to the dataset root as PNG.</li>
             <li><b>Captions follow the copy.</b> The bucketed image keeps the same name stem, so it inherits the caption; the original keeps a duplicate <code>.txt</code>.</li>
             <li><b>Already-bucketed images are left alone</b> — anything already at a valid bucket size is kept as-is and never moved.</li>
             <li><b>Revert</b> deletes the bucketed copies and moves the originals back to the Gallery.</li>
@@ -1155,6 +1156,109 @@
       <div id="statsLegend" class="stats-legend"></div>
     </div>
     <div class="stats-totals" id="statsTotals"></div>
+  </div>
+
+  <div id="trainflowTab" style="display:none;">
+    <div class="trainflow-scroll">
+    <div class="stats-header">
+      <button id="btnTrainflowBack" class="ghost-close" title="Back to Gallery">← Back</button>
+      <h2>Trainflow</h2>
+    </div>
+    <div class="trainflow-body">
+      <div class="synthdat-cols">
+        <div class="synthdat-col trainflow-col-run">
+          <div class="tool-section">
+            <div class="sec-head"><span class="t">Train a LoRA for Anima</span></div>
+            <div class="sec-head"><span class="d">Nothing starts until you press Start Trainflow. Training runs in the background and keeps going if you close Osmium; reopen it and this tab reconnects to the progress.</span></div>
+            <div class="synthdat-lora-row">
+              <button id="btnTrainflowStart" class="primary" title="Check everything, then start training this dataset"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-play"></use></svg>Start Trainflow</button>
+              <button id="btnTrainflowStop" class="danger-ghost" disabled title="Stop the running training for good"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-stop"></use></svg>Stop</button>
+              <button id="btnTrainflowOutput" title="Open the folder the checkpoints are saved to"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-folder"></use></svg>Checkpoints</button>
+            </div>
+            <div id="trainflowErrors" class="synthdat-warning trainflow-errors" style="display:none;"></div>
+            <div id="trainflowRunInfo" class="synthdat-wd14-result" style="display:none;"></div>
+            <div class="wd14-progress-track trainflow-progress" id="trainflowProgressTrack" style="display:none;"><div class="wd14-progress-fill" id="trainflowProgressFill"></div></div>
+            <div id="trainflowStats" class="trainflow-stats" style="display:none;"></div>
+          </div>
+          <div class="tool-section">
+            <div class="sec-head"><span class="t">Log</span><button id="btnTrainflowLog" class="trainflow-mini" title="Open the full log file">Open log</button></div>
+            <pre id="trainflowLog" class="trainflow-log">Not started.</pre>
+          </div>
+          <div class="tool-section">
+            <div class="sec-head"><span class="t">Previews</span></div>
+            <div id="trainflowPreviews" class="trainflow-previews"><div class="stats-empty">Previews appear here as training samples them.</div></div>
+          </div>
+          <div class="tool-section">
+            <div class="sec-head"><span class="t">Checkpoints</span></div>
+            <div id="trainflowCheckpoints" class="wd14-local-model-list"><div class="stats-empty">None yet.</div></div>
+          </div>
+        </div>
+
+        <div class="synthdat-col trainflow-col-setup">
+          <div class="tool-section">
+            <div class="sec-head"><span class="t">Anima-TrainFlow folder</span></div>
+            <div class="sec-head"><span class="d">Your Anima-TrainFlow folder (the one with python_embeded and training). Osmium uses its Python and trainer; its own app doesn't need to be open. Tagging and bucketing your dataset use Osmium's own WD14 and Bucket Images.</span></div>
+            <div class="synthdat-lora-row">
+              <span id="trainflowFolder" class="synthdat-local-folder">Not set</span>
+              <button id="btnTrainflowFolder" title="Choose your Anima-TrainFlow folder"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-folder"></use></svg>Choose…</button>
+            </div>
+            <div id="trainflowFolderStatus" class="synthdat-warning" style="display:none;"></div>
+          </div>
+
+          <div class="tool-section">
+            <div class="sec-head"><span class="t">Dataset</span></div>
+            <label class="field-block" title="Becomes the project name and is put in front of every caption."><span>Trigger word / project name</span><input type="text" id="tfTrigger" placeholder="e.g. unique_style"></label>
+            <div class="field-block" title="Trainflow trains the dataset that's loaded in Osmium (load one from the Datasets tab or File menu).">
+              <span>Loaded dataset</span>
+              <div class="synthdat-lora-row">
+                <span id="tfDatasetName" class="synthdat-local-folder">No dataset loaded</span>
+                <button id="btnTfLocate" style="display:none;" title="Osmium couldn't work out where the loaded dataset lives on disk; point it at the same folder">Locate…</button>
+                <button id="btnTfDatasetOpen" title="Open it in Explorer">Open</button>
+              </div>
+            </div>
+            <div id="tfDatasetCheck" class="synthdat-wd14-result"></div>
+            <div class="synthdat-lora-row"><button id="btnTfVerifyBuckets" title="Check the dataset against the Bucket Images dock's Min/Max/Step and list every valid bucket size"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-check-circle"></use></svg>Verify buckets</button></div>
+            <div id="tfBucketReport" class="synthdat-wd14-result trainflow-bucket-report" style="display:none;"></div>
+          </div>
+
+          <div class="tool-section">
+            <div class="sec-head"><span class="t">Models (set once)</span></div>
+            <div class="sec-head"><span class="d">Pick your own copy of Anima and its text encoder and VAE.</span></div>
+            <div class="field-block"><span>DiT</span><div class="synthdat-lora-row"><input type="text" id="tfDit" placeholder="Select your Anima DiT (.safetensors)…"><button class="tf-pick-file" data-target="tfDit" data-title="Choose the Anima DiT">Choose…</button></div></div>
+            <div class="field-block"><span>Qwen3 text encoder</span><div class="synthdat-lora-row"><input type="text" id="tfQwen" placeholder="Select your Qwen3 text encoder…"><button class="tf-pick-file" data-target="tfQwen" data-title="Choose the Qwen3 text encoder">Choose…</button></div></div>
+            <div class="field-block"><span>VAE</span><div class="synthdat-lora-row"><input type="text" id="tfVae" placeholder="Select your Anima VAE…"><button class="tf-pick-file" data-target="tfVae" data-title="Choose the VAE">Choose…</button></div></div>
+          </div>
+
+          <div class="tool-section">
+            <div class="sec-head"><span class="t">Training</span></div>
+            <div class="trainflow-grid">
+              <label class="field-block" title="LoRA size. 16–32 is plenty for a character."><span>Network rank</span><input type="number" id="tfRank" min="1" step="1"></label>
+              <label class="field-block"><span>Optimizer</span><select id="tfOptimizer"><option>Prodigy</option><option>AdamW8bit</option><option>AdamW</option></select></label>
+              <label class="field-block" title="Prodigy sets its own rate, so leave it at 1.0 there."><span>Learning rate</span><input type="text" id="tfLr"></label>
+              <label class="field-block"><span>Batch size</span><input type="number" id="tfBatch" min="1" step="1"></label>
+              <label class="field-block"><span>Training steps</span><input type="number" id="tfSteps" min="1" step="1"></label>
+              <label class="field-block"><span>Gradient accumulation</span><input type="number" id="tfGradAcc" min="1" step="1"></label>
+              <label class="field-block"><span>Save every n steps</span><input type="number" id="tfSaveSteps" min="1" step="1"></label>
+              <label class="field-block"><span>Preview every n steps</span><input type="number" id="tfSampleSteps" min="1" step="1"></label>
+            </div>
+          </div>
+
+          <div class="tool-section">
+            <div class="sec-head"><span class="t">Preview prompt</span></div>
+            <label class="field-block" title="The trigger word is added in front for you."><span>Prompt</span><textarea id="tfPrompt" rows="2"></textarea></label>
+            <label class="field-block"><span>Negative prompt</span><textarea id="tfNeg" rows="2"></textarea></label>
+            <div class="trainflow-grid">
+              <label class="field-block"><span>Width</span><input type="number" id="tfWidth" step="64"></label>
+              <label class="field-block"><span>Height</span><input type="number" id="tfHeight" step="64"></label>
+              <label class="field-block"><span>Steps</span><input type="number" id="tfGenSteps"></label>
+              <label class="field-block"><span>CFG</span><input type="number" id="tfCfg" step="0.1"></label>
+              <label class="field-block"><span>Seed</span><input type="number" id="tfSeed"></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
   </div>
 
   <div id="synthDatTab" style="display:none;">
@@ -1435,9 +1539,7 @@
         <div class="theme-panel-note" id="dynamicCardsNote">Arranges cards top-down, then left-to-right (fills each column before moving to the next) — sort order still applies, but it won't read top-to-bottom like the uniform grid.</div>
         <div class="theme-panel-note">Discrete mode</div>
         <div class="settings-row">
-          <button id="btnDiscreteToggle" title="Blur every image thumbnail (privacy mode)">Blur all images</button>
-          <button id="btnDiscreteOff" title="Remove the blur">Unblur</button>
-        </div>
+          <button id="btnDiscreteToggle" title="Blur every image thumbnail (privacy mode)">Blur all images</button>        </div>
         <label class="ach-toggle-row">
           <input type="checkbox" id="disableOpenFlourishToggle">
           <span>Disable opening flourish (the themed sweep with the Osmium mark when the app opens)</span>

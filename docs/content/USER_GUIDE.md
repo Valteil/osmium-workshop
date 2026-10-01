@@ -26,6 +26,7 @@ app to look something up.
 - [Datasets tab](#datasets-tab)
 - [Editing Stats tab](#editing-stats-tab)
 - [SynthDat Overseer tab](#synthdat-overseer-tab)
+- [Trainflow tab](#trainflow-tab)
 - [Settings](#settings)
 - [Themes, Shop & Achievements](#themes-shop--achievements)
 - [Favorites](#favorites)
@@ -60,7 +61,7 @@ none of them touch your images or captions unless you tell them to:
 | `_dts_synthdat_settings.json` | SynthDat Overseer's prompt/generation settings for this dataset (only appears once you've used that tab) |
 | `_dts_achievements.json` | Achievements unlocked in this dataset |
 | `_dts_subject_presets.json` | Characters saved from Tag sorting's character sections (only appears once you save one) |
-| `initial_state/` | Originals kept by Bucket Images, shown in the 🖼 Initial State view (only appears once you bucket) |
+| `original_images/` | Originals kept by Bucket Images, shown in the 🖼 Originals view (only appears once you bucket; older `initial_state/` folders are merged into it) |
 
 ---
 
@@ -107,7 +108,7 @@ which you chose (desktop).
   close it with ×.
 - **❌ Disabled** — images you've moved out of the active set. Use it for maybes you don't want
   to delete.
-- **🖼 Initial State** — the pre-bucketing originals kept by [Bucket Images](#bucket-images).
+- **🖼 Originals** — the pre-bucketing originals kept by [Bucket Images](#bucket-images).
   Their tags can be edited, but they can't be disabled or restored; the dock's Revert is what moves
   them back.
 - **🔢 Rename all** — renames every loaded image (+ its `.txt`) to a simple zero-padded `1`-`N`
@@ -296,10 +297,13 @@ subject-first: a u2net saliency model decides what to keep. It's a one-time ~176
 the dock's **⬇ Download model** button. **Prefer GPU** (on by default) runs it on your graphics
 card with an automatic CPU fallback; the log names which one handled each image.
 
-Originals are never lost: before an image is replaced, it (plus a copy of its `.txt`) moves to an
-`initial_state/` folder, browsable from the Gallery's **🖼 Initial State** view. Images already at a
-valid bucket size are left alone, so re-running on a mixed folder only processes the rest.
-**↩ Revert bucketing** restores the originals and removes the bucketed copies. Any unsaved tag
+Originals are never lost: every image (plus a copy of its `.txt`) is saved to an `original_images/`
+folder first, even if it's already a valid bucket size, and is browsable from the Gallery's
+**🖼 Originals** view. The bucketed copies are PNGs in the dataset root. Bucket again at any time, for
+example with different Min/Max/Step: the copies are re-made from the originals (one that's already the
+right size is kept), so you can experiment freely. **↩ Revert bucketing** restores the originals and
+removes the bucketed copies. Datasets bucketed by older versions (`initial_state/`) are merged into
+`original_images/` when opened. Any unsaved tag
 edits are saved first, since bucketing reloads the folder.
 
 ---
@@ -313,7 +317,7 @@ opens it, and toggling back via the tab tucks it away again.
 ### Master Tag Control
 1. Select images — click thumbnails in the mini-grid here, or select in the main Gallery first
    (selection stays in sync both ways). The mini-grid always shows what the Gallery shows, so
-   switch the Gallery to ❌ Disabled or 🖼 Initial State to pick those images. It updates as soon
+   switch the Gallery to ❌ Disabled or 🖼 Originals to pick those images. It updates as soon
    as the Gallery changes. The selection tools below (apply/remove, Lock, the flags, WD14 on
    selected) act on whatever you selected; the dataset-wide ones only touch active images.
 2. Apply or remove a tag across the whole selection, conditionally apply one tag based on another
@@ -464,6 +468,35 @@ zoomed in.
 
 ---
 
+## Trainflow tab
+
+Trains a LoRA for **Anima** on the dataset you have loaded (desktop only). It uses your own
+[Anima-TrainFlow](https://github.com/ThetaCursed/Anima-TrainFlow) folder (the one with `python_embeded`
+and `training`) for Python and the trainer; its own app never needs to run, and Osmium's WD14 and
+Bucket Images do the dataset prep.
+
+**Set up once:** choose the Anima-TrainFlow folder, then pick your own Anima DiT, Qwen3 text encoder
+and VAE (the fields stay empty until you do). When you open a dataset, Osmium asks once where it is on
+your computer (it can't see folder paths itself) and remembers the answer; **Locate…** on the tab does
+the same later.
+
+**Dataset and settings:** trigger word / project name (used as typed, and put in front of every
+caption), rank, optimizer (Prodigy by default, which sets its own learning rate), batch size, steps,
+save and preview intervals, and the preview prompt. **Verify buckets** lists every valid bucket size
+for the Bucket Images dock's Min/Max/Step and how many of your images sit at each.
+
+**Start Trainflow** is the only thing that begins work. It saves your tag edits, buckets the dataset
+(originals in `original_images/`; nothing happens if the copies are already right, and new dimensions
+re-make them from the originals), checks that PyTorch can see an NVIDIA GPU, and starts training.
+Progress, speed, ETA, loss, the log, preview images and checkpoints update live.
+
+**It keeps going without Osmium.** Closing Osmium while training warns you and, if you close anyway,
+training carries on and finishes by itself. Reopen Osmium and open the tab to reconnect. **Stop** ends
+the run for good. Checkpoints and the final LoRA are in the Anima-TrainFlow folder under
+`training/output/<project>/`; **Checkpoints** opens it.
+
+---
+
 ## Settings
 
 Click the ⚙ button to open Settings. Sections (click each to expand):
@@ -471,7 +504,7 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
 - **Appearance** — font size (drag the slider; the gallery and panels reflow live), "Gallery
   columns" to lock the column count independent of zoom or panel width, the tag-count badge on
   cards, **Show Past Tag Preview**, "Sort tags within each card", "Dynamic card heights", **Discrete
-  mode** (Blur all images / Unblur, for privacy), and the motion controls described under Themes.
+  mode** (a Blur all images toggle, for privacy; it's remembered between launches), and the motion controls described under Themes.
   The theme itself is picked from the topbar's **Personalization** menu, and night mode is the 🌙
   button next to it.
 - **Power Tools** — highlight the power tools (Master Tags, Tag Pruner, Unify/Void, mass-apply,
@@ -614,7 +647,7 @@ This guide covers the desktop app. Two siblings share this repo:
 - **Osmium Workshop for Android** (`mobile/`) — the same app as desktop (same themes, Theme
   Studio, Past Tag Preview, rules and tools), in a touch layout:
   - Panels become bottom sheets, and tag editing happens in the image modal (tap a card).
-  - Compact view, Single view and Bucket Images are left out. Sequential tagging runs in a
+  - Compact view, Single view, Bucket Images and Trainflow are left out. Sequential tagging runs in a
     full-screen panel instead of Single view.
   - The folder picker uses Android's own storage access with a persisted grant, and **File ▸ Add
     images…** can pull from any installed gallery or file-manager app.

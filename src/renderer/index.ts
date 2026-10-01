@@ -931,7 +931,6 @@ import { setIconLabel } from './icons';
   const galleryColumnsDropdown = $('galleryColumnsDropdown');
   const dynamicCardsToggle = $<HTMLInputElement>('dynamicCardsToggle');
   const btnDiscreteToggle = $('btnDiscreteToggle');
-  const btnDiscreteOff = $('btnDiscreteOff');
   const btnPurgeAllTags = $('btnPurgeAllTags');
   const settingsCloseBtn = $('settingsCloseBtn');
   const tooltipBubble = $('tooltipBubble');
@@ -1320,7 +1319,6 @@ import { setIconLabel } from './icons';
   };
   try { if (localStorage.getItem('discreteMode') === '1') applyDiscrete(true); } catch { /* storage blocked */ }
   btnDiscreteToggle.addEventListener('click', () => applyDiscrete(!discreteModeOn));
-  btnDiscreteOff.addEventListener('click', () => applyDiscrete(false));
 
   btnPurgeAllTags.addEventListener('click', () => {
     purgeConfirmCount++;

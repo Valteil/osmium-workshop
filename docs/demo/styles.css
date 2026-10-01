@@ -2574,6 +2574,49 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   #synthDatTab .synthdat-lora-row input[type="number"]{ width: 80px; flex-shrink: 0; }
   #synthDatTab .synthdat-lora-row button{ flex-shrink: 0; padding: 6px 10px; }
 
+  /* ---------- Trainflow tab ----------
+     Built from the same parts as SynthDat (tool-section docks, field-block,
+     synthdat-lora-row, the WD14 progress bar), so every theme restyles it with
+     no rules of its own beyond layout. Same scroll structure as #synthDatTab:
+     the tab doesn't scroll, .trainflow-scroll does. */
+  #trainflowTab{ flex: 1 1 0; min-height: 0; position: relative; transform: translateZ(0); }
+  .trainflow-scroll{ height: 100%; overflow-y: scroll; padding: 24px; }
+  .trainflow-body{ display: flex; flex-direction: column; gap: 24px; }
+  .trainflow-col-run{ flex: 3 1 480px; }
+  .trainflow-col-setup{ flex: 2 1 340px; max-width: 520px; }
+  .trainflow-grid{ display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  .trainflow-errors{ display: flex; flex-direction: column; gap: 3px; font-size: 12px; white-space: pre-wrap; }
+  .trainflow-progress{ height: 8px; border-radius: 4px; }
+  .trainflow-stats{ display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
+  .trainflow-stats b{ color: var(--text-primary); font-weight: 600; }
+  .trainflow-bucket-report{ white-space: pre-wrap; line-height: 1.5; }
+  .trainflow-mini{ margin-left: auto; padding: 2px 8px; font-size: 11px; }
+  .trainflow-log{
+    margin: 0; height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+    background: var(--bg-elevated); border: 1px solid var(--border-soft); border-radius: var(--radius);
+    padding: 8px 10px; font-family: var(--mono); font-size: 11.5px; line-height: 1.35; color: var(--text-muted);
+  }
+  .trainflow-previews{ display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .trainflow-previews .stats-empty{ grid-column: 1 / -1; padding: 24px; }
+  .trainflow-previews img{
+    display: block; width: 100%; height: auto; border-radius: var(--radius); cursor: zoom-in;
+    background: var(--mat), var(--bg-base);
+  }
+  #trainflowTab select, #trainflowTab input[type="number"], #trainflowTab input[type="text"], #trainflowTab textarea{
+    font-family: var(--sans); font-size: 12.5px; color: var(--text-primary); background: var(--bg-elevated);
+    border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 6px 9px; box-sizing: border-box;
+  }
+  #trainflowTab select{ cursor: pointer; }
+  #trainflowTab textarea{ font-family: var(--sans); line-height: 1.4; resize: vertical; min-height: 52px; }
+  #trainflowTab select:focus, #trainflowTab input[type="number"]:focus, #trainflowTab input[type="text"]:focus, #trainflowTab textarea:focus{
+    border-color: var(--accent-manual); outline: none;
+  }
+  #trainflowTab .field-block > select, #trainflowTab .field-block > textarea,
+  #trainflowTab .field-block > input[type="number"], #trainflowTab .field-block > input[type="text"]{ width: 100%; }
+  #trainflowTab .synthdat-lora-row input[type="text"]{ flex: 1; min-width: 0; }
+  #trainflowTab .synthdat-lora-row button{ flex-shrink: 0; padding: 6px 10px; }
+  #trainflowTab .sec-head .trainflow-mini{ padding: 2px 8px; }
+
   @keyframes barGrow{ from{ transform: scaleX(0); } to{ transform: scaleX(1); } }
   .stat-bar-row{ display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .stat-bar-label{ width: 130px; font-size: 11.5px; color: var(--text-muted); flex-shrink: 0; }
@@ -3157,7 +3200,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .info-modal-body ul:last-child{ margin-bottom: 0; }
   .info-modal-body b{ color: var(--text-primary); }
 
-  html.discrete-mode .card img, html.discrete-mode .compact-card img, html.discrete-mode .single-img-side img, html.discrete-mode .single-preview img{
+  html.discrete-mode .card img, html.discrete-mode .compact-card img, html.discrete-mode .single-img-side img, html.discrete-mode .single-preview img, html.discrete-mode .trainflow-previews img{
     filter: blur(24px);
   }
   html.discrete-mode .card.discrete-off img, html.discrete-mode .compact-card.discrete-off img{
