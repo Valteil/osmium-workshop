@@ -205,9 +205,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       doesn't have to. The crop keeps the subject using a saliency model (a one-time ~176 MB
       download, ⬇ button in the dock). <b>Prefer GPU</b> runs it on your graphics card with an
       automatic CPU fallback. Originals are never lost: they move to an <code>original_images/</code>
-      folder (browse them via the 🖼 Originals view), and images already at a bucket size are
-      skipped, so re-running only handles the new ones. <b>↩ Revert bucketing</b> puts the
-      originals back.</p>`}
+      folder (browse them via the 🖼 Originals view), and every image gets one, even if it's
+      already a valid size. Bucketing again re-makes the copies from the originals (try other
+      Min/Max/Step as often as you like). <b>↩ Revert bucketing</b> puts the originals back.</p>`}
       <p>Merge and Void tend to matter a lot more for a
       <span style="white-space:nowrap;"><b>character LoRA</b> <button type="button" class="info-btn" id="infoGlossaryCharacterLora" title="Character LoRA vs. style LoRA">ⓘ</button></span>
       than a style one. A character LoRA needs its identity-defining tags kept tight and
@@ -413,6 +413,24 @@ export const HELP_SECTIONS: HelpSection[] = [
       </ol>
       <p>Every preview image in this tab opens in a zoomable, pannable lightbox on ${isTouchDevice ? 'tap' : 'click'}.</p>`
   },
+  ...(isTouchDevice ? [] : [{
+    id: 'trainflow',
+    title: 'Trainflow tab',
+    html: `
+      <p>Trains a LoRA for <b>Anima</b> on the dataset you have loaded. It uses your own
+      Anima-TrainFlow folder (the one with <code>python_embeded</code> and <code>training</code>)
+      for Python and the trainer, and your own Anima DiT, Qwen3 and VAE files (choose them once;
+      the fields start empty). Osmium asks where a dataset is on your computer the first time you
+      open it, since it can't see folder paths itself.</p>
+      <p><b>Start Trainflow</b> is the only thing that begins work: it saves your tag edits, buckets
+      the dataset (originals go to <code>original_images/</code>; nothing is redone if the copies
+      are already right), checks for an NVIDIA GPU and starts training. <b>Verify buckets</b> lists
+      every valid bucket size for the Bucket Images dock's Min/Max/Step and where your images sit.</p>
+      <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
+      you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
+      and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
+      folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.</p>`
+  }]),
   {
     id: 'settings',
     title: 'Settings',

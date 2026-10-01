@@ -4,9 +4,23 @@ Every release of Osmium Workshop (called Dataset Tag Studio up to v1.5.0), newes
 Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 [releases page](https://github.com/Valteil/osmium-workshop/releases).
 
-- [v1.9.5](#v195) · [v1.9.0](#v190) · [v1.8.0](#v180) · [v1.7.0](#v170) · [v1.6.5](#v165) · [v1.6.0](#v160) · [v1.5.5](#v155) ·
+- [v2.0.0 (unreleased)](#v200-unreleased) · [v1.9.5](#v195) · [v1.9.0](#v190) · [v1.8.0](#v180) · [v1.7.0](#v170) · [v1.6.5](#v165) · [v1.6.0](#v160) · [v1.5.5](#v155) ·
   [v1.5.0](#v150) · [v1.4.0](#v140) · [v1.3.0](#v130) · [v1.2.0](#v120) ·
   [v1.1.5](#v115-tauri--discontinued) · [v1.1.0](#v110) · [v1.0.0](#v100)
+
+---
+
+## v2.0.0 (unreleased)
+
+### Osmium Workshop
+
+- **Trainflow tab** (Windows): trains a LoRA for Anima on the dataset you have loaded, using your
+  own Anima-TrainFlow folder and your own Anima files. **Start Trainflow** buckets the dataset and
+  starts training in the background. It keeps going if you close Osmium (which warns you first), and
+  the tab reconnects to its progress, log, previews and checkpoints when you come back.
+- **Bucket Images keeps an original of every image** in `original_images/` (Initial State is Originals
+  again, and `initial_state/` folders are merged into it), and bucketing again re-makes the copies from
+  the originals, so you can try different dimensions as often as you like.
 
 ---
 

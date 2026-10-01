@@ -64,7 +64,8 @@ tagging, and direct ComfyUI output syncing — all offline, portable, in one bin
   per-dataset edit log with full undo/redo and file-level revert.
 - Power tools: Tag Pruner (Unify/Void), Retroactive Merge/Void rules with immune/
   exempt images, Master Tag Control (bulk apply/rename/delete), Tag Overseer
-  (sequential tagging, WD14 settings), SynthDat Overseer (ComfyUI generation).
+  (sequential tagging, WD14 settings), SynthDat Overseer (ComfyUI generation),
+  Trainflow (Anima LoRA training on the loaded dataset, desktop only).
 - Destructive actions (delete permanently, rename all, bulk ops) are confirm-modal
   gated, logged, and undoable where possible; "delete permanently" is undoable never.
 - Naming and tags use Danbooru-style conventions; tags surface as wiki-linked terms.
