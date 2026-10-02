@@ -153,14 +153,15 @@
   }
   .nav{
     display:flex; align-items:center; justify-content:space-between;
+    gap:28px;
     height:72px;
   }
   .brand{display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--ink);}
   .brand svg{display:block;}
   .brand-name{font-family:var(--f-display); font-weight:600; font-size:1.15rem; letter-spacing:0.01em;}
-  nav.links{display:flex; align-items:center; gap:28px;}
-  .nav-ctas{display:flex; align-items:center; gap:10px;}
-  nav.links a{font-size:0.9rem; text-decoration:none; color:var(--ink-soft); transition:color .15s;}
+  nav.links{display:flex; align-items:center; gap:28px; flex:0 0 auto;}
+  .nav-ctas{display:flex; align-items:center; gap:10px; flex:0 0 auto;}
+  nav.links a{font-size:0.9rem; text-decoration:none; color:var(--ink-soft); transition:color .15s; white-space:nowrap;}
   nav.links a:hover{color:var(--ink);}
   /* Set by JS (IntersectionObserver, see bottom of file) as the matching
      section scrolls through the viewport — the only landmark a visitor on
