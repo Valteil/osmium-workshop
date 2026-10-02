@@ -264,7 +264,7 @@
   }
 
   /* ---------- hero ---------- */
-  .hero{position:relative; padding:96px 0 80px; overflow:hidden;}
+  .hero{position:relative; padding:96px 0 48px; overflow:hidden;}
   .hero-grid{
     position:relative; z-index:2;
     display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr); gap:40px; align-items:center; /* minmax(0): a wide-lettered theme's title must not stretch column 1 and squeeze the art */
@@ -346,7 +346,7 @@
   .mark-sm .l-node-sm{fill:var(--ink); opacity:.6;}
 
   /* ---------- section scaffolding ---------- */
-  section{position:relative; padding:88px 0;}
+  section{position:relative; padding:48px 0;}
   .section-head{max-width:640px; margin-bottom:54px;}
   h2{font-family:var(--f-display); font-size:clamp(1.7rem,2.6vw,2.3rem); font-weight:600; margin:0 0 14px; line-height:1.15;}
   .section-head p{color:var(--ink-soft); font-size:1.02rem; max-width:60ch; margin:0;}
@@ -455,17 +455,6 @@
   }
   .shot-dot:hover{ border-color:var(--ink); }
   .shot-dot.active{ background:var(--ink); border-color:var(--ink); }
-
-  /* ---------- inter-section teaser line ---------- */
-  .transition-line{ padding-top:56px; }
-  /* With no teaser text left in it the band is just padding: drop it, and tighten the gap into Features
-     (demo bottom 64px + this 24px) so the demo runs straight into the heading. */
-  .transition-line:not(:has(p)){ display:none; }
-  .transition-line:not(:has(p)) + #features{ padding-top:24px; }
-  .transition-line p{
-    max-width:640px; margin:0; font-family:var(--f-display); letter-spacing:-0.01em;
-    font-size:1.3rem; font-weight:600; color:var(--ink);
-  }
 
   /* ---------- feature rows (connections) ---------- */
   .conn-row{
@@ -707,7 +696,7 @@
   .demo-bar-dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent); flex:none;}
   .demo-bar a{margin-left:auto; text-decoration:none; color:var(--ink-soft); border-bottom:1px solid var(--line-strong);}
   .demo-bar a:hover{color:var(--ink); border-color:var(--ink);}
-  #demo{padding-top:48px; padding-bottom:64px; scroll-margin-top:84px;}
+  #demo{padding-top:48px; padding-bottom:48px; scroll-margin-top:84px;}
   #demo .section-head{margin-bottom:26px;}
   /* Real height is set in JS (measures actual rendered chrome, not a guessed
      vh formula) so the whole section, heading through the iframe's bottom
@@ -929,32 +918,6 @@
       </div>
     </div>
   </section>
-
-  <!-- ============ LIVE DEMO ============ -->
-  <section id="demo">
-    <div class="wrap">
-      <div class="section-head">
-        <h2>Test it live, right here</h2>
-        <p>Don't wanna download it yet? Don't fret; I put the damn thing right on this page.  That way you can put your slimy little mitts all over my pristine buttons without any committment. <br><br>Since I don't want you to think I'm putting viruses on your PC/Laptop/glorified potato wired to a GTX by asking you to test it on your own datasets, I threw in an example dataset: <strong>Chromatic Void. </strong>Every image is still untagged. <br><br>You can use this opportunity to try out a bunch of Osmium's functions. Note that while the WD14 and SynthDat functions "work" in this demo, they are <strong>faked, preset outputs</strong>.  But hey, cut me some slack okay? I decided against asking you to wire your Comfy to some shady site since it was in bad taste.</p>
-      </div>
-
-      <div id="demoWrap" class="demo-frame">
-        <div class="demo-bar">
-          <span class="demo-bar-dot"></span>
-          <span>live demo</span>
-          <a id="demoOpenTab" href="demo/index.html" target="_blank" rel="noopener">Open in a full tab ↗</a>
-        </div>
-        <button id="demoPoster" class="demo-poster" type="button">
-          <span class="demo-poster-title">Load the live demo</span>
-          <span class="demo-poster-sub">Runs the real app right here — about 20&nbsp;MB, so it only loads when you ask</span>
-        </button>
-        <iframe id="demoFrame" title="Osmium Workshop live demo" loading="lazy"></iframe>
-      </div>
-    </div>
-  </section>
-
-  <div class="wrap transition-line">
-  </div>
 
   <!-- ============ FEATURES / CONNECTIONS ============ -->
   <section id="features" data-plate="off">
@@ -1323,6 +1286,29 @@
           </figure>
         </div>
         <div class="shot-dots" id="shotDots" aria-hidden="true"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LIVE DEMO ============ -->
+  <section id="demo">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Test it live, right here</h2>
+        <p>Don't wanna download it yet? Don't fret; I put the damn thing right on this page.  That way you can put your slimy little mitts all over my pristine buttons without any committment. <br><br>Since I don't want you to think I'm putting viruses on your PC/Laptop/glorified potato wired to a GTX by asking you to test it on your own datasets, I threw in an example dataset: <strong>Chromatic Void. </strong>Every image is still untagged. <br><br>You can use this opportunity to try out a bunch of Osmium's functions. Note that while the WD14 and SynthDat functions "work" in this demo, they are <strong>faked, preset outputs</strong>.  But hey, cut me some slack okay? I decided against asking you to wire your Comfy to some shady site since it was in bad taste.</p>
+      </div>
+
+      <div id="demoWrap" class="demo-frame">
+        <div class="demo-bar">
+          <span class="demo-bar-dot"></span>
+          <span>live demo</span>
+          <a id="demoOpenTab" href="demo/index.html" target="_blank" rel="noopener">Open in a full tab ↗</a>
+        </div>
+        <button id="demoPoster" class="demo-poster" type="button">
+          <span class="demo-poster-title">Load the live demo</span>
+          <span class="demo-poster-sub">Runs the real app right here — about 20&nbsp;MB, so it only loads when you ask</span>
+        </button>
+        <iframe id="demoFrame" title="Osmium Workshop live demo" loading="lazy"></iframe>
       </div>
     </div>
   </section>
