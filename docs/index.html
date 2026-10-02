@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Osmium Workshop — dataset tag editor</title>
 <meta name="description" content="A portable dataset tag editor for AI training images, made for Anima and other booru-tag models. Undoable edit logging, retroactive rule-based tag correction, WD14 autotagging, and direct ComfyUI syncing, in one binary." />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Osmium Workshop — dataset tag editor" />
+<meta property="og:description" content="A portable dataset tag editor for AI training images, made for Anima and other booru-tag models." />
+<meta property="og:url" content="https://valteil.github.io/osmium-workshop/" />
+<meta property="og:image" content="https://valteil.github.io/osmium-workshop/assets/screenshot-theme-osmium.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Osmium Workshop — dataset tag editor" />
+<meta name="twitter:description" content="A portable dataset tag editor for AI training images, made for Anima and other booru-tag models." />
+<meta name="twitter:image" content="https://valteil.github.io/osmium-workshop/assets/screenshot-theme-osmium.jpg" />
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
 <!-- The app's own bundled faces (OFL, Latin subsets, synced into demo/ by
      scripts/sync-site.js): the site's Chakra Petch / IBM Plex Sans /
@@ -114,6 +123,15 @@
     :root{ transition:none; }
   }
   *{box-sizing:border-box;}
+  /* Keyboard bypass: hidden until focused, then it sits over the sticky header. */
+  .skip-link{
+    position:fixed; left:12px; top:-60px; z-index:100;
+    background:var(--ink); color:var(--ground);
+    padding:10px 16px; border-radius:var(--radius);
+    font-family:var(--f-display); font-weight:600; font-size:0.85rem; text-decoration:none;
+    transition:top .15s ease;
+  }
+  .skip-link:focus{ top:12px; outline:2px solid var(--blue); outline-offset:2px; }
   /* Belt and braces: nothing may widen the page past the viewport (that is what makes a phone open it
      zoomed in). `clip`, unlike `hidden`, leaves position:sticky alone. */
   html{scroll-behavior:smooth;}
@@ -738,6 +756,8 @@
 </head>
 <body>
 
+<a class="skip-link" href="#top">Skip to content</a>
+
 <header>
   <div class="wrap nav">
     <a class="brand" href="#top">
@@ -922,7 +942,7 @@
   <section id="features" data-plate="off">
     <div class="wrap">
       <div class="section-head">
-        <h1>Cool Stuff You're Getting:</h1>
+        <h2>Cool Stuff You're Getting:</h2>
         <p data-plate="on"><em>As a bonus, almost all of them create logged entries so you can undo them at any time.</em></p>
       </div>
 

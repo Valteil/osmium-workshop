@@ -24,6 +24,15 @@
   --f-display:'Chakra Petch',sans-serif; --f-body:'IBM Plex Sans',system-ui,sans-serif; --f-mono:'JetBrains Mono',monospace;
 }
 *{box-sizing:border-box;}
+/* Keyboard bypass: hidden until focused, then it sits over the sticky header. */
+.skip-link{
+  position:fixed; left:12px; top:-60px; z-index:100;
+  background:var(--ink); color:var(--ground);
+  padding:10px 16px; border-radius:var(--radius);
+  font-family:var(--f-display); font-weight:600; font-size:0.85rem; text-decoration:none;
+  transition:top .15s ease;
+}
+.skip-link:focus{ top:12px; outline:2px solid var(--blue); outline-offset:2px; }
 html{scroll-behavior:smooth;}
 body{
   margin:0;

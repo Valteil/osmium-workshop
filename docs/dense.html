@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Osmium Workshop — dataset tag editor</title>
 <meta name="description" content="A portable dataset tag editor for AI training images, made for Anima and other booru-tag models. Undoable edit logging, retroactive rule-based tag correction, WD14 autotagging, and direct ComfyUI syncing, in one binary." />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Osmium Workshop — dataset tag editor (dense mode)" />
+<meta property="og:description" content="A portable dataset tag editor for AI training images, made for Anima and other booru-tag models." />
+<meta property="og:url" content="https://valteil.github.io/osmium-workshop/dense.html" />
+<meta property="og:image" content="https://valteil.github.io/osmium-workshop/assets/screenshot-theme-osmium.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Osmium Workshop — dataset tag editor (dense mode)" />
+<meta name="twitter:description" content="A portable dataset tag editor for AI training images, made for Anima and other booru-tag models." />
+<meta name="twitter:image" content="https://valteil.github.io/osmium-workshop/assets/screenshot-theme-osmium.jpg" />
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
 <!-- The app's own bundled faces (OFL, Latin subsets, synced into demo/ by
      scripts/sync-site.js): the site's Chakra Petch / IBM Plex Sans /
@@ -117,6 +126,15 @@
     :root{ transition:none; }
   }
   *{box-sizing:border-box;}
+  /* Keyboard bypass: hidden until focused, then it sits over the topbar. */
+  .skip-link{
+    position:fixed; left:12px; top:-60px; z-index:100;
+    background:var(--ink); color:var(--ground);
+    padding:10px 16px; border-radius:var(--radius);
+    font-family:var(--f-display); font-weight:600; font-size:0.85rem; text-decoration:none;
+    transition:top .15s ease;
+  }
+  .skip-link:focus{ top:12px; outline:2px solid var(--blue); outline-offset:2px; }
   /* Belt and braces: nothing may widen the page past the viewport (that is what makes a phone open it
      zoomed in). `clip`, unlike `hidden`, leaves position:sticky alone. */
   html{scroll-behavior:smooth;}
@@ -595,7 +613,7 @@
   .rail-head{flex:none; padding:14px 14px 12px;}
   .rail-head .section-head{max-width:none; margin:0; padding:0; background:none; border:0; -webkit-backdrop-filter:none; backdrop-filter:none;}
   .rail-head h1, .rail-head h2{
-    font-family:var(--f-display); font-size:1.24rem; line-height:1.2; font-weight:600;
+    font-family:var(--f-display); font-size:1.34rem; line-height:1.2; font-weight:600;
     margin:0 0 10px; color:var(--ink);
   }
   .rail-head p{font-size:0.86rem; line-height:1.5; color:var(--ink-soft); margin:0; padding:0; background:none; border:0;}
@@ -671,7 +689,7 @@
     border:0; padding:0; margin:0;
   }
   .tool-panel .conn-row:last-child{border:0;}
-  .tool-panel .conn-row > h3{grid-area:title; margin:0 0 12px; font-size:1.4rem; font-weight:600;}
+  .tool-panel .conn-row > h3{grid-area:title; margin:0 0 12px; font-size:1.3rem; font-weight:600;}
   .tool-panel .conn-copy{grid-area:copy; min-width:0;}
   .tool-panel .conn-diagram{grid-area:diagram; align-self:start; width:clamp(112px, 13vw, 168px); aspect-ratio:1/1; transform:none; opacity:.9;}
   .rail-right .tool-panel .conn-row{grid-template-columns:auto minmax(0,1fr); grid-template-areas:"title title" "diagram copy";}
@@ -840,6 +858,8 @@
 </head>
 <body>
 
+<a class="skip-link" href="#top">Skip to content</a>
+
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a class="brand" href="#hero">
@@ -923,7 +943,7 @@
     <section id="features" class="rail rail-left" data-plate="off">
       <div class="rail-head">
         <div class="section-head">
-                <h1>Cool Stuff You're Getting:</h1>
+                <h2>Cool Stuff You're Getting:</h2>
                 <p data-plate="on"><em>As a bonus, almost all of them create logged entries so you can undo them at any time.</em></p>
               </div>
       </div>
@@ -1286,7 +1306,7 @@
       </div>
     </section>
 
-    <main class="stage">
+      <main class="stage" id="top">
       <section id="hero" class="stage-section hero" data-plate="off">
 
             <div class="rings" aria-hidden="true">
