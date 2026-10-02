@@ -429,16 +429,10 @@ type-annotated now (`strict: true`, shared types in `src/renderer/types.ts`) —
 `// @ts-nocheck` anywhere. The main process and preload are strict too, against a shared IPC
 contract in `src/ipc-types.ts`.
 
-This repo is set up for **Serena** (MCP) — semantic code navigation plus a persistent
-project-memory graph (`mem:core` and onward, project name `osmium-workshop-electron`, rooted
-at this directory) — rather than a written architecture doc that goes stale, capturing the
-non-obvious conventions, gotchas, and doc-maintenance expectations that used to live in a
-hand-maintained changelog. (jCodeMunch was used earlier in this project's history but is
-deprecated here — Serena is the sole code-navigation tool now.)
-
-If you're picking this project up in a fresh session, activate the Serena project (this
-directory) and read its memories first — they're kept terse and current on purpose, and are the
-intended replacement for a growing prose changelog.
+Agent setup lives in `AGENTS.md`, with `CLAUDE.md` as its twin: where to find the local `notes/`
+documentation vault (the source of truth for architecture, features and gotchas), the housekeeping
+rules, and the maintenance policy for keeping the docs current. Start there before touching the
+code.
 
 ---
 

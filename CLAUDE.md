@@ -10,8 +10,6 @@ its Android port (`mobile/`), Comfy Bridge (`comfy-bridge/` + its own `mobile/`)
   `notes/Meta/Maintenance-Policy.md`.
 - Cross-agent twin: `AGENTS.md` carries the same pointers for non-Claude agents — keep the two in
   sync.
-- Code nav: Serena MCP, project `osmium-workshop-electron` — activate it and read
-  `mem:core` onward first session.
 - Builds: `main.js`/`preload.js`/`renderer/app.js` are generated — never hand-edit.
   Dev loop is `npm run refresh-app` (same loop inside `comfy-bridge/`).
 - Bridge shares UI once via `comfy-bridge/src/renderer/shared/` — hand-authored source
