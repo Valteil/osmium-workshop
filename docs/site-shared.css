@@ -112,7 +112,7 @@ footer{border-top:1px solid var(--line); padding:44px 0; margin-top:20px;}
 @media (max-width:860px){
   nav.links{display:none;}
   .nav{height:auto; padding:14px 0;}
-  .btn-sm{padding:9px 14px; font-size:0.78rem;}
+  .btn-sm{padding:9px 14px; font-size:0.78rem; min-height:44px;}
 }
 @media (max-width:520px){
   .nav-ctas .btn-ghost{display:none;}

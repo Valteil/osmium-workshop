@@ -204,12 +204,15 @@
   .theme-pick-btn:hover, .theme-pick-btn[aria-expanded="true"]{border-color:var(--ink);}
   .theme-pick-btn:focus-visible, .tp-opt:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
   .night-toggle{
+    position:relative;
     display:inline-flex; align-items:center; justify-content:center; width:36px; height:34px; padding:0;
     color:var(--ink); background:transparent; border:1px solid var(--line-strong); border-radius:var(--radius);
     /* No transition on the toggle itself: --ink/--ground already animate with the
        night fade, and a second transition on top made the button flicker. */
     cursor:pointer;
   }
+  /* Invisible 44px hit area: keeps the small visual toggle but a finger-friendly tap target. */
+  .night-toggle::after{content:""; position:absolute; left:50%; top:50%; width:44px; height:44px; transform:translate(-50%,-50%);}
   .night-toggle svg{width:16px; height:16px;}
   .night-toggle:hover{border-color:var(--ink);}
   .night-toggle[aria-pressed="true"]{background:var(--ink); color:var(--ground); border-color:var(--ink);}
@@ -829,7 +832,7 @@
     .conn-row.rev .conn-diagram{order:0;}
     .hub-wrap{grid-template-columns:1fr;}
     .proof-cap{flex-direction:column; gap:4px;}
-    .btn-sm{padding:9px 14px; font-size:0.78rem;}
+    .btn-sm{padding:9px 14px; font-size:0.78rem; min-height:44px;}
     .topbar-tabs a{padding:0 9px; font-size:0.82rem;}
   }
   @media (max-width:520px){
