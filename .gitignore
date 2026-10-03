@@ -29,6 +29,7 @@ comfy-bridge/preload.js
 comfy-bridge/comfy-core.js
 comfy-bridge/comfy-local.js
 comfy-bridge/local-relay.js
+comfy-bridge/ipc-guard.js
 comfy-bridge/renderer/app.js
 comfy-bridge/renderer/shared.css
 comfy-bridge/renderer/fonts/
@@ -78,6 +79,7 @@ comfy-bridge/mobile/android/local.properties
 /trainflow.js
 /local-comfy/__pycache__/
 /http-download.js
+/ipc-guard.js
 
 # Root build (electron-builder --dir output, copied here by refresh-app —
 # see scripts/refresh-portable-dev.js). Tied to Electron's currently-bundled
@@ -116,3 +118,7 @@ comfy-bridge/mobile/android/local.properties
 /Site Editor.cmd
 /site-drafts/
 /Screenshots/
+
+# Red Team harness: the tool itself is tracked (Red Team.cmd + tools/redteam/),
+# but its run output — timestamps, temp evidence, payload captures — is local.
+/tools/redteam/results/

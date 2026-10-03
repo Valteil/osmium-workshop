@@ -330,6 +330,37 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
   fs.writeFileSync(file, lines.join('\n'));
 }
 
+// ---- test seam (red-team harness) --------------------------------------------
+// Runs the REAL writer path (writeSamplePrompts + writeDatasetToml +
+// writeTrainingToml) against the given settings and returns each file's text.
+// Exists so the harness can feed newline/control characters through the actual
+// writers and read the output, instead of grepping for stripControl. Not used
+// by the app itself.
+export function renderTomlsForTest(
+  s: TrainflowSettings,
+  check: TrainflowDatasetCheck,
+  outDir: string,
+  promptFile: string,
+  project: string
+): { samplePrompts: string; datasetToml: string; trainingToml: string } {
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'osmium-toml-'));
+  try {
+    const samplesFile = path.join(dir, 'prompts.txt');
+    const datasetFile = path.join(dir, 'dataset.toml');
+    const trainingFile = path.join(dir, 'training.toml');
+    writeSamplePrompts(s, samplesFile);
+    writeDatasetToml(s, datasetFile, check);
+    writeTrainingToml(s, trainingFile, project, outDir, promptFile);
+    return {
+      samplePrompts: fs.readFileSync(samplesFile, 'utf8'),
+      datasetToml: fs.readFileSync(datasetFile, 'utf8'),
+      trainingToml: fs.readFileSync(trainingFile, 'utf8'),
+    };
+  } finally {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+  }
+}
+
 // ---- the run -------------------------------------------------------------------
 
 interface RunRecord {
@@ -756,14 +787,17 @@ export function registerTrainflowHandlers(ipcMain: IpcMain): void {
   });
   ipcMain.handle('trainflow-open', async (_e, what: 'output' | 'dataset' | 'log' | 'folder', datasetPath?: string) => {
     // A record whose dirs don't sit inside the install's output dir is ignored
-    // (tampered or from a different install) rather than opened.
+    // (tampered or from a different install) rather than opened. The refusal is
+    // returned (not just swallowed) so a caller/test can see why nothing opened.
     const rec = readRun();
     const safeRec = rec && runDirsValid(rec) ? rec : null;
+    if (rec && !safeRec) return { ok: false, refused: 'run-record-dirs-outside-output' };
     let target: string | undefined;
     if (what === 'dataset') target = safeAbsPath(datasetPath) ?? undefined;
     else if (what === 'log') target = safeRec?.logFile;
     else if (what === 'folder') { const f = safeAbsPath(readFolder()); target = f ?? undefined; }
     else target = safeRec?.outDir || (resolveInstall(readFolder()) as { install?: Install }).install?.outputBase;
     if (target && fs.existsSync(target)) await shell.openPath(target);
+    return { ok: true };
   });
 }

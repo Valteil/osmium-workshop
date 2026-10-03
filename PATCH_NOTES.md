@@ -28,6 +28,16 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   button groups each card's tags by category, and you can apply one image, apply all of them, or
   skip all.
 
+### Comfy Bridge
+
+- **Phone access can require a shared token** (Windows): the "Let the phone app use it" row now has
+  an optional token field next to the port. Leave it empty for the old no-password LAN/Tailscale
+  behaviour; set one and the phone must enter the same token (a new field above its Test connection
+  button) before it can use this PC. The status line now says plainly when no token is set, so it's
+  clear that anything on the network could otherwise use it. Saved output folder is now remembered
+  by the app itself rather than the page, so it survives a restart and no longer has to be supplied
+  per save.
+
 ---
 
 ## v1.9.5

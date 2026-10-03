@@ -17,8 +17,9 @@
 //
 // Opt-in (Local ComfyUI ▸ "Let other devices use it"), off by default. Binds
 // 0.0.0.0 so a Tailscale (or LAN) address reaches it; like ComfyUI's own
-// --listen, there is no authentication. Every response carries CORS headers
-// because the phone app is a WebView page on another origin.
+// --listen, there is no authentication unless the user sets a shared token
+// (below). Every response carries CORS headers because the phone app is a
+// WebView page on another origin.
 
 import * as http from 'http';
 import * as os from 'os';
@@ -28,6 +29,12 @@ import type { ComfyLocalEventSink } from './comfy-local';
 const WS = require('ws');
 
 const KEEP = 12; // finished prompts (and their images) kept for /history + /view
+const MAX_UPLOAD_BYTES = 16 * 1024 * 1024; // one reference image; the phone sends ~1-2 MB
+const MAX_CLIENT_ID = 128;
+// Optional shared secret. Off unless the user sets one: empty means "no auth",
+// so the default LAN/Tailscale flow is unchanged. When set, every request must
+// carry it (X-Osmium-Token header or ?token= for the WebSocket handshake).
+let sharedToken = '';
 
 let server: http.Server | null = null;
 let wss: any = null;
@@ -46,10 +53,38 @@ function trim<K, V>(map: Map<K, V>, max: number): void {
   while (map.size > max) map.delete(map.keys().next().value as K);
 }
 
+// A clientId comes straight off the wire; bound its length and shape so a
+// hostile client can't blow up the maps or sneak a path-ish value in. Returns
+// null when empty/invalid, and callers fall back to a fresh UUID.
+function cleanClientId(raw: unknown): string | null {
+  const id = String(raw == null ? '' : raw);
+  return id && id.length <= MAX_CLIENT_ID && /^[A-Za-z0-9_.:-]+$/.test(id) ? id : null;
+}
+
+function extractToken(req: http.IncomingMessage, url: URL): string {
+  const header = String(req.headers['x-osmium-token'] || '');
+  if (header) return header;
+  // EventSource/WebSocket handshakes can't set custom headers, so the phone
+  // may pass the token as a query param instead.
+  return url.searchParams.get('token') || '';
+}
+
+function tokenOk(req: http.IncomingMessage, url: URL): boolean {
+  return !sharedToken || extractToken(req, url) === sharedToken;
+}
+
+// One app-relative image path, split into ComfyUI's subfolder/filename pair.
+// The same `..` / drive-letter / empty-segment filtering as the desktop's
+// saveImageRelPath, since this string becomes a /view lookup key.
+function cleanImageRel(raw: string): string {
+  const parts = raw.replace(/\\/g, '/').split('/').filter((p) => p && p !== '.' && p !== '..' && !/^[A-Za-z]:$/.test(p));
+  return parts.join('/');
+}
+
 function cors(res: http.ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Osmium-Token');
 }
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
   cors(res);
@@ -115,7 +150,7 @@ function sinkFor(clientId: string): ComfyLocalEventSink {
 }
 
 function imageEntry(promptId: string, nodeId: string, bytes: Uint8Array, rel: string | null | undefined) {
-  const clean = (rel || `${promptId}_${nodeId}.png`).replace(/\\/g, '/');
+  const clean = cleanImageRel(rel || `${promptId}_${nodeId}.png`);
   const cut = clean.lastIndexOf('/');
   const subfolder = cut === -1 ? '' : clean.slice(0, cut);
   const filename = cut === -1 ? clean : clean.slice(cut + 1);
@@ -145,7 +180,7 @@ async function handlePrompt(req: http.IncomingMessage, res: http.ServerResponse)
 
   const started = await starting;
   const r = started.ok
-    ? await localGenerate(sinkFor(String(payload.client_id || '')), prompt, imageBytes ? new Uint8Array(imageBytes) : null)
+    ? await localGenerate(sinkFor(cleanClientId(payload.client_id) || ''), prompt, imageBytes ? new Uint8Array(imageBytes) : null)
     : { ok: false, error: started.error };
   if (!r.ok) {
     history.set(promptId, {
@@ -165,6 +200,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   const url = new URL(req.url || '/', 'http://relay');
   const p = url.pathname;
   if (req.method === 'OPTIONS') { cors(res); res.writeHead(204); res.end(); return; }
+  if (!tokenOk(req, url)) { sendJson(res, 401, { error: { message: 'Missing or wrong Comfy Bridge token.' } }); return; }
 
   if (req.method === 'GET' && p.startsWith('/object_info/')) {
     const cls = decodeURIComponent(p.slice('/object_info/'.length));
@@ -176,7 +212,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return;
   }
   if (req.method === 'POST' && p === '/upload/image') {
-    const file = multipartFile(await readBody(req), String(req.headers['content-type'] || ''), 'image');
+    const file = multipartFile(await readBody(req, MAX_UPLOAD_BYTES), String(req.headers['content-type'] || ''), 'image');
     if (!file) { sendJson(res, 400, { error: { message: 'No image in the upload.' } }); return; }
     const name = file.filename.replace(/[\\/]/g, '_') || 'upload.png';
     uploads.set(name, file.bytes);
@@ -192,7 +228,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return;
   }
   if (req.method === 'GET' && p === '/view') {
-    const key = `${url.searchParams.get('subfolder') || ''}/${url.searchParams.get('filename') || ''}`;
+    const sub = cleanImageRel(url.searchParams.get('subfolder') || '');
+    const file = cleanImageRel(url.searchParams.get('filename') || '');
+    const key = `${sub}/${file}`;
     const bytes = views.get(key);
     if (!bytes) { sendJson(res, 404, { error: { message: 'No such image.' } }); return; }
     cors(res);
@@ -210,7 +248,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (p === '/internal/logs/subscribe') {
     let body: any = {};
     try { body = JSON.parse((await readBody(req)).toString('utf8') || '{}'); } catch { /* treat as empty */ }
-    const id = String(body.clientId || '');
+    const id = cleanClientId(body.clientId);
     if (id) { if (body.enabled === false) logSubscribers.delete(id); else logSubscribers.add(id); }
     sendJson(res, 200, {});
     return;
@@ -222,8 +260,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   sendJson(res, 404, { error: { message: `Not available on the Osmium Comfy relay: ${req.method} ${p}` } });
 }
 
-export function startRelay(port: number): Promise<{ ok: boolean; error?: string }> {
+// `host` defaults to 0.0.0.0 (the opt-in LAN/Tailscale bind). The red-team
+// harness passes 127.0.0.1 so it can exercise the relay on loopback only.
+export function startRelay(port: number, token = '', host = '0.0.0.0'): Promise<{ ok: boolean; error?: string }> {
+  sharedToken = token;
   stopRelay();
+  sharedToken = token;
   return new Promise((resolve) => {
     const srv = http.createServer((req, res) => {
       handle(req, res).catch((err) => { if (!res.headersSent) sendJson(res, 500, { error: { message: String(err && err.message || err) } }); });
@@ -231,9 +273,9 @@ export function startRelay(port: number): Promise<{ ok: boolean; error?: string 
     wss = new WS.Server({ noServer: true });
     srv.on('upgrade', (req, socket, head) => {
       const url = new URL(req.url || '/', 'http://relay');
-      if (url.pathname !== '/ws') { socket.destroy(); return; }
+      if (url.pathname !== '/ws' || !tokenOk(req, url)) { socket.destroy(); return; }
       wss.handleUpgrade(req, socket, head, (ws: any) => {
-        const clientId = url.searchParams.get('clientId') || randomUUID();
+        const clientId = cleanClientId(url.searchParams.get('clientId')) || randomUUID();
         sockets.set(clientId, ws);
         ws.on('close', () => { if (sockets.get(clientId) === ws) { sockets.delete(clientId); logSubscribers.delete(clientId); } });
         ws.on('error', () => { /* the phone went away */ });
@@ -245,7 +287,7 @@ export function startRelay(port: number): Promise<{ ok: boolean; error?: string 
       server = null;
       resolve({ ok: false, error: lastError });
     });
-    srv.listen(port, '0.0.0.0', () => {
+    srv.listen(port, host, () => {
       server = srv;
       unsubscribeLogs = onLocalLogs((entries) => {
         const msg = JSON.stringify({ type: 'logs', data: { entries, size: {} } });
@@ -268,6 +310,7 @@ export function stopRelay(): void {
   logSubscribers.clear();
   if (unsubscribeLogs) { unsubscribeLogs(); unsubscribeLogs = null; }
   listeningPort = 0;
+  sharedToken = '';
 }
 
 // This PC's IPv4 addresses a phone could use; Tailscale's (100.64.0.0/10)
@@ -285,6 +328,6 @@ export function relayAddresses(): { ip: string; tailscale: boolean }[] {
   return out.sort((a, b) => Number(b.tailscale) - Number(a.tailscale));
 }
 
-export function relayState(): { running: boolean; port: number; error: string } {
-  return { running: !!server, port: listeningPort, error: lastError };
+export function relayState(): { running: boolean; port: number; error: string; token: boolean } {
+  return { running: !!server, port: listeningPort, error: lastError, token: !!sharedToken };
 }

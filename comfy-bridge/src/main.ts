@@ -8,7 +8,8 @@
 // `notes/SynthDat-Overseer.md` for the workflow's own background — this is
 // a copy of its ComfyUI-facing bridge, not a shared module, since the two
 // apps otherwise have nothing in common (no dataset, no dirHandle writes).
-const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, session } = require('electron');
+const { pathToFileURL } = require('url');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -21,6 +22,25 @@ import {
   localPersistEnabled, localIsPersistentConnection, localSetShare
 } from './comfy-local';
 import { startRelay, stopRelay, relayState, relayAddresses } from './local-relay';
+
+// ---- IPC sender guard --------------------------------------------------------
+// Ported from the desktop root app. The guard itself now lives in
+// ./ipc-guard (dependency-free, requireable by the red-team harness without
+// electron). main.ts only wires it: every ipcMain.handle is wrapped once, at
+// module load and before registerComfyLocalHandlers() runs below, so no handler
+// (this file's or comfy-local.ts's) can run for a frame that isn't the app's
+// own renderer page. Defence in depth, not a substitute for per-handler input
+// validation.
+import { assertTrustedFrame, setTrustedRenderer, normalizePageUrl } from './ipc-guard';
+{
+  const rawHandle = ipcMain.handle.bind(ipcMain);
+  ipcMain.handle = ((channel: string, listener: (event: any, ...args: any[]) => unknown) => {
+    return rawHandle(channel, (event: any, ...args: any[]) => {
+      assertTrustedFrame(event);
+      return listener(event, ...args);
+    });
+  });
+}
 
 // Local ComfyUI (comfy-local.ts, shared with Osmium): the Bridge launches the
 // user's own ComfyUI install headless instead of talking to a server. The
@@ -38,11 +58,11 @@ onLocalLogs((entries) => {
 // userData/comfy-relay.json, started at launch when on.
 const RELAY_FILE = () => path.join(app.getPath('userData'), 'comfy-relay.json');
 const DEFAULT_RELAY_PORT = 8189;
-function readRelayConfig(): { enabled: boolean; port: number } {
+function readRelayConfig(): { enabled: boolean; port: number; token: string } {
   try {
     const c = JSON.parse(fs.readFileSync(RELAY_FILE(), 'utf8'));
-    return { enabled: !!c.enabled, port: Number(c.port) || DEFAULT_RELAY_PORT };
-  } catch { return { enabled: false, port: DEFAULT_RELAY_PORT }; }
+    return { enabled: !!c.enabled, port: Number(c.port) || DEFAULT_RELAY_PORT, token: typeof c.token === 'string' ? c.token : '' };
+  } catch { return { enabled: false, port: DEFAULT_RELAY_PORT, token: '' }; }
 }
 // Who serves the phone depends on Persist Comfy:
 // - off: this app's relay (local-relay.ts). It dies with the app.
@@ -65,7 +85,7 @@ async function applyRelay(): Promise<void> {
     }
   } else {
     shareState = { running: false, error: '' };
-    if (cfg.enabled) await startRelay(cfg.port); else stopRelay();
+    if (cfg.enabled) await startRelay(cfg.port, cfg.token); else stopRelay();
   }
 }
 function portAnswers(port: number): Promise<boolean> {
@@ -85,8 +105,12 @@ async function relayStatus() {
   return { ...cfg, ...state, servedBy: byComfy ? 'comfy' : 'bridge', addresses: relayAddresses() };
 }
 ipcMain.handle('comfy-relay-status', () => relayStatus());
-ipcMain.handle('comfy-relay-set', async (_event, { enabled, port }) => {
-  const cfg = { enabled: !!enabled, port: Math.min(65535, Math.max(1024, Number(port) || DEFAULT_RELAY_PORT)) };
+ipcMain.handle('comfy-relay-set', async (_event, { enabled, port, token }) => {
+  const cfg = {
+    enabled: !!enabled,
+    port: Math.min(65535, Math.max(1024, Number(port) || DEFAULT_RELAY_PORT)),
+    token: typeof token === 'string' ? token.trim() : ''
+  };
   fs.writeFileSync(RELAY_FILE(), JSON.stringify(cfg));
   await applyRelay();
   return relayStatus();
@@ -94,6 +118,34 @@ ipcMain.handle('comfy-relay-set', async (_event, { enabled, port }) => {
 configureComfyLocal({ onStarted: () => { applyRelay(); }, onPersistChange: () => { applyRelay(); } });
 app.whenReady().then(() => { applyRelay(); });
 app.on('will-quit', stopRelay);
+
+// Content-Security-Policy for the app window, applied to the session's
+// response headers (covers the document and every subresource). The Bridge
+// renderer has no inline <script> (only <script src="app.js">), so script-src
+// needs no hashes. style-src needs 'unsafe-inline' (inline style="" attrs);
+// img-src needs data: (base64 gallery images) and blob: (object URLs).
+function applyRendererCsp(): void {
+  const policy = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'"
+  ].join('; ');
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [policy]
+      }
+    });
+  });
+}
 
 function createWindow() {
   const windowIcon = path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
@@ -115,11 +167,22 @@ function createWindow() {
   });
   // Opens maximized (the user's call); un-maximizing falls back to 1280x860.
   win.once('ready-to-show', () => { win.maximize(); win.show(); });
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  const rendererHtml = path.join(__dirname, 'renderer', 'index.html');
+  // Fix the trusted page URL the IPC sender guard compares against.
+  setTrustedRenderer(rendererHtml);
+  win.loadFile(rendererHtml);
+
+  // Electron shell hardening: this window only ever shows the app's own page,
+  // so block navigating away from it and deny every window.open/new-window.
+  win.webContents.on('will-navigate', (event, url) => {
+    if (normalizePageUrl(url) !== normalizePageUrl(pathToFileURL(rendererHtml).href)) event.preventDefault();
+  });
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 }
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+  applyRendererCsp();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -136,10 +199,50 @@ ipcMain.handle('get-app-version', () => app.getVersion());
 // No dataset/dirHandle here — a plain native folder picker plus direct
 // fs writes in the main process, same "small explicit bridge" shape as
 // everything else in this file.
+//
+// The picked folder is stored in main (userData file) and is the ONLY folder
+// the save/gallery handlers will ever touch. The renderer no longer supplies
+// a folder over IPC, so a renderer-side bug or injection can't redirect a
+// write outside the user's chosen directory. Persisted so gallery/save still
+// work across a restart, when the renderer restores its saved label.
+const OUTPUT_FOLDER_FILE = () => path.join(app.getPath('userData'), 'comfy-bridge-output-folder.txt');
+let pickedOutputFolder: string | null = null;
+function getPickedOutputFolder(): string {
+  if (pickedOutputFolder === null) {
+    try { pickedOutputFolder = fs.readFileSync(OUTPUT_FOLDER_FILE(), 'utf8').trim(); }
+    catch { pickedOutputFolder = ''; }
+  }
+  return pickedOutputFolder;
+}
+function setPickedOutputFolder(folder: string): void {
+  pickedOutputFolder = folder;
+  try {
+    fs.mkdirSync(path.dirname(OUTPUT_FOLDER_FILE()), { recursive: true });
+    fs.writeFileSync(OUTPUT_FOLDER_FILE(), folder);
+  } catch (err) { console.error('[output-folder] could not persist:', err && err.message); }
+}
+// Reject a resolved path whose real location (following symlinks/junctions,
+// via the nearest existing ancestor when the leaf doesn't exist yet) falls
+// outside `base`. String containment alone misses a symlink inside the folder.
+function assertWithinBase(base: string, abs: string): void {
+  const realBase = fs.realpathSync(base);
+  let probe = abs;
+  while (!fs.existsSync(probe)) {
+    const parent = path.dirname(probe);
+    if (parent === probe) break;
+    probe = parent;
+  }
+  let realProbe = probe;
+  try { realProbe = fs.realpathSync(probe); } catch { /* keep the literal path */ }
+  const rel = path.relative(realBase, realProbe);
+  if (rel === '') return;
+  if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('Invalid path.');
+}
 ipcMain.handle('pick-output-folder', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const res = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] });
   if (res.canceled || !res.filePaths[0]) return { ok: false };
+  setPickedOutputFolder(res.filePaths[0]);
   return { ok: true, path: res.filePaths[0] };
 });
 
@@ -192,11 +295,19 @@ function saveImageRelPath(image: { filename?: string; subfolder?: string }): str
   return parts.length ? parts.join('/') : null;
 }
 
-ipcMain.handle('save-image', async (event, { folder, filename, bytes }) => {
+ipcMain.handle('save-image', async (_event, { filename, bytes }) => {
   try {
-    // filename may now carry the namer's subfolder (e.g. "safe/char/x_01.png")
-    // — create intermediate dirs so the scheme survives as a folder tree too.
-    const dest = path.join(folder, filename);
+    const folder = getPickedOutputFolder();
+    if (!folder) return { ok: false, error: 'No output folder chosen.' };
+    // filename may carry the namer's subfolder (e.g. "safe/char/x_01.png");
+    // run it through the same traversal sanitizer the server paths use, then
+    // resolve under the stored folder and reject anything outside it.
+    const rel = saveImageRelPath({ filename });
+    if (!rel) return { ok: false, error: 'Invalid file name.' };
+    const base = path.resolve(folder);
+    const dest = path.resolve(base, rel);
+    if (dest !== base && !dest.startsWith(base + path.sep)) return { ok: false, error: 'Invalid file path.' };
+    assertWithinBase(base, dest);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.writeFileSync(dest, Buffer.from(bytes));
     return { ok: true };
@@ -207,20 +318,23 @@ ipcMain.handle('save-image', async (event, { folder, filename, bytes }) => {
 
 // Gallery backing — single-level listing + file reads inside the picked
 // output folder, so the shared gallery sidebar (src/renderer/shared/) can
-// scan it the same way mobile scans SAF/Documents. relDir/relPath are always
-// resolved under folder and rejected on traversal outside it.
+// scan it the same way mobile scans SAF/Documents. The folder is main's
+// stored pick (never renderer-supplied); relDir/relPath are resolved under it,
+// rejected on traversal, and re-checked after following symlinks.
 const GALLERY_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const GALLERY_MIME_BY_EXT = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
 
-function galleryAbsPath(folder, rel) {
-  const base = path.normalize(folder);
-  const abs = path.normalize(path.join(base, rel || ''));
-  if (abs !== base && !abs.startsWith(base + path.sep)) throw new Error('Invalid path.');
+function galleryAbsPath(base: string, rel: string): string {
+  const root = path.resolve(base);
+  const abs = path.resolve(root, rel || '');
+  if (abs !== root && !abs.startsWith(root + path.sep)) throw new Error('Invalid path.');
+  assertWithinBase(root, abs);
   return abs;
 }
 
-ipcMain.handle('gallery-list-dir', async (event, { folder, relDir }) => {
+ipcMain.handle('gallery-list-dir', async (_event, { relDir }) => {
   try {
+    const folder = getPickedOutputFolder();
     if (!folder) return { ok: false, error: 'No output folder chosen.' };
     const abs = galleryAbsPath(folder, relDir);
     const dirents = fs.readdirSync(abs, { withFileTypes: true });
@@ -245,12 +359,14 @@ ipcMain.handle('gallery-list-dir', async (event, { folder, relDir }) => {
   }
 });
 
-ipcMain.handle('gallery-read', async (event, { folder, relPath }) => {
+ipcMain.handle('gallery-read', async (_event, { relPath }) => {
   try {
+    const folder = getPickedOutputFolder();
     if (!folder) return { ok: false, error: 'No output folder chosen.' };
     const abs = galleryAbsPath(folder, relPath);
-    const data = fs.readFileSync(abs);
     const ext = path.extname(abs).toLowerCase();
+    if (!GALLERY_IMAGE_EXTENSIONS.has(ext)) return { ok: false, error: 'Not an image file.' };
+    const data = fs.readFileSync(abs);
     return { ok: true, base64: data.toString('base64'), mime: GALLERY_MIME_BY_EXT[ext] || 'image/png' };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -266,8 +382,18 @@ ipcMain.handle('gallery-read', async (event, { folder, relPath }) => {
 // client in this process does the round trip and relays results over IPC.
 function comfyRequest(host, urlPath, { method = 'GET', headers = {}, body = null, timeoutMs = 8000 }: any = {}): Promise<{ status: number; body: Buffer }> {
   return new Promise((resolve, reject) => {
+    // `new URL(urlPath, host)` silently ignores `host` if urlPath is absolute
+    // (e.g. "http://evil/…") or protocol-relative ("//evil/…"). Callers use
+    // fixed relative paths, so reject those shapes outright and only allow
+    // http/https hosts.
+    if (typeof urlPath !== 'string' || !urlPath.startsWith('/') || urlPath.startsWith('//')) {
+      reject(new Error('Invalid ComfyUI request path.')); return;
+    }
+    let base;
+    try { base = new URL(host); } catch (err) { reject(new Error('Invalid ComfyUI host URL.')); return; }
+    if (base.protocol !== 'http:' && base.protocol !== 'https:') { reject(new Error('ComfyUI host must be http or https.')); return; }
     let target;
-    try { target = new URL(urlPath, host); } catch (err) { reject(new Error('Invalid ComfyUI host URL.')); return; }
+    try { target = new URL(urlPath, base); } catch (err) { reject(new Error('Invalid ComfyUI host URL.')); return; }
     const lib = target.protocol === 'https:' ? https : http;
     const req = lib.request(target, { method, headers }, (res) => {
       const chunks = [];
@@ -501,6 +627,14 @@ function writePresetsFile(data: PresetsFile): void {
   fs.writeFileSync(PRESETS_FILE(), JSON.stringify(data, null, 2));
 }
 
+// Preset names are keys in one JSON object, so guard the two names that walk
+// the prototype chain rather than becoming own properties.
+const UNSAFE_PRESET_NAMES = new Set(['__proto__', 'constructor', 'prototype']);
+function safePresetName(name: unknown): string | null {
+  const n = String(name == null ? '' : name).trim();
+  return n && !UNSAFE_PRESET_NAMES.has(n) ? n : null;
+}
+
 ipcMain.handle('list-presets', () => {
   const data = readPresetsFile();
   return {
@@ -510,8 +644,9 @@ ipcMain.handle('list-presets', () => {
   };
 });
 
-ipcMain.handle('save-preset', (event, { kind, name, value }) => {
-  if (!name || !String(name).trim()) return { ok: false, error: 'Preset name cannot be blank.' };
+ipcMain.handle('save-preset', (event, { kind, name: rawName, value }) => {
+  const name = safePresetName(rawName);
+  if (!name) return { ok: false, error: 'Preset name cannot be blank.' };
   const data = readPresetsFile();
   if (kind === 'prompt') data.promptPresets[name] = value;
   else if (kind === 'negative') data.negativePresets[name] = value;
@@ -524,14 +659,18 @@ ipcMain.handle('save-preset', (event, { kind, name, value }) => {
   }
 });
 
-ipcMain.handle('load-preset', (event, { kind, name }) => {
+ipcMain.handle('load-preset', (event, { kind, name: rawName }) => {
+  const name = safePresetName(rawName);
+  if (!name) return { ok: false, error: 'Preset name cannot be blank.' };
   const data = readPresetsFile();
   const value = kind === 'prompt' ? data.promptPresets[name] : kind === 'negative' ? data.negativePresets[name] : undefined;
   if (value === undefined) return { ok: false, error: `Preset "${name}" not found.` };
   return { ok: true, value };
 });
 
-ipcMain.handle('delete-preset', (event, { kind, name }) => {
+ipcMain.handle('delete-preset', (event, { kind, name: rawName }) => {
+  const name = safePresetName(rawName);
+  if (!name) return { ok: false, error: 'Preset name cannot be blank.' };
   const data = readPresetsFile();
   if (kind === 'prompt') delete data.promptPresets[name];
   else if (kind === 'negative') delete data.negativePresets[name];

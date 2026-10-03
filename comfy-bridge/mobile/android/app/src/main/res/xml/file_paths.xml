@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider paths for sharing/exporting (Capacitor scaffold). Narrowed
+     from the whole external-storage root + whole cache to app-owned cache
+     only: nothing in the app serves files from shared external storage via
+     this provider, so exposing it there was needless surface (the provider is
+     still exported=false + grantUriPermissions=true). -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
 </paths>

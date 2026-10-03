@@ -23,7 +23,7 @@ interface ElectronAPI {
   getAppVersion(): Promise<string>;
   pickOutputFolder(): Promise<{ ok: boolean; path?: string }>;
   importWorkflow(): Promise<{ ok: boolean; cancelled?: boolean; error?: string; prompt?: Record<string, any> }>;
-  saveImage(payload: { folder: string; filename: string; bytes: Uint8Array }): Promise<{ ok: boolean; error?: string }>;
+  saveImage(payload: { filename: string; bytes: Uint8Array }): Promise<{ ok: boolean; error?: string }>;
   listPresets(): Promise<{ ok: boolean; promptPresetNames?: string[]; negativePresetNames?: string[]; error?: string }>;
   savePreset(payload: { kind: 'prompt' | 'negative'; name: string; value: unknown }): Promise<{ ok: boolean; error?: string }>;
   loadPreset(payload: { kind: 'prompt' | 'negative'; name: string }): Promise<{ ok: boolean; value?: unknown; error?: string }>;
@@ -31,8 +31,8 @@ interface ElectronAPI {
   synthdatGetObjectInfo(payload: { host: string; classType: string; inputName: string }): Promise<{ ok: boolean; values?: string[]; error?: string }>;
   synthdatQueueAndFetch(payload: { host: string; imageFilename: string | null; imageBytes: Uint8Array | null; prompt: any }): Promise<{ ok: boolean; imageBytes?: Uint8Array; pass1ImageBytes?: Uint8Array; upscaledImageBytes?: Uint8Array; error?: string; interrupted?: boolean; saveRel?: string; pass1SaveRel?: string; upscaledSaveRel?: string }>;
   synthdatStopGeneration(host: string): Promise<{ ok: boolean }>;
-  galleryListDir(payload: { folder: string; relDir: string }): Promise<{ ok: boolean; entries?: { name: string; kind: 'file' | 'directory'; mtime?: number }[]; error?: string }>;
-  galleryRead(payload: { folder: string; relPath: string }): Promise<{ ok: boolean; base64?: string; mime?: string; error?: string }>;
+  galleryListDir(payload: { relDir: string }): Promise<{ ok: boolean; entries?: { name: string; kind: 'file' | 'directory'; mtime?: number }[]; error?: string }>;
+  galleryRead(payload: { relPath: string }): Promise<{ ok: boolean; base64?: string; mime?: string; error?: string }>;
   comfyFetchLogs(payload: { host: string }): Promise<{ ok: boolean; entries?: { t: string; m: string }[]; error?: string }>;
   onPreviewFrame(callback: (event: unknown, data: { mime: string; bytes: Uint8Array }) => void): void;
   onGenProgress(callback: (event: unknown, data: { value: number; max: number }) => void): void;
@@ -43,10 +43,11 @@ interface ElectronAPI {
   comfyLocalConnect?(): Promise<{ ok: boolean; comfyVersion?: string; error?: string }>;
   comfyLocalSetPersist?(on: boolean): Promise<ComfyLocalStatus>;
   comfyRelayStatus?(): Promise<RelayStatus>;
-  comfyRelaySet?(payload: { enabled: boolean; port: number }): Promise<RelayStatus>;
+  comfyRelaySet?(payload: { enabled: boolean; port: number; token?: string }): Promise<RelayStatus>;
 }
 interface RelayStatus {
   enabled: boolean; port: number; running: boolean; error: string;
+  token?: string; tokenSet?: boolean;
   servedBy?: 'bridge' | 'comfy';
   addresses: { ip: string; tailscale: boolean }[];
 }
@@ -246,33 +247,37 @@ function showLocalStatus(s: ComfyLocalStatus): void {
 const relayRow = $<HTMLDivElement>('relayRow');
 const relayEnabled = $<HTMLInputElement>('relayEnabled');
 const relayPort = $<HTMLInputElement>('relayPort');
+const relayToken = $<HTMLInputElement>('relayToken');
 const relayInfo = $<HTMLDivElement>('relayInfo');
 const hasRelay = typeof window.electronAPI.comfyRelayStatus === 'function';
 function showRelayStatus(s: RelayStatus): void {
   relayEnabled.checked = s.enabled;
   relayPort.value = String(s.port);
+  relayToken.value = s.token || '';
   relayInfo.style.display = s.enabled ? 'block' : 'none';
   relayInfo.style.color = s.error ? 'var(--accent-danger)' : '';
   if (s.error) { relayInfo.textContent = s.error; return; }
   const ts = s.addresses.filter((a) => a.tailscale).map((a) => `http://${a.ip}:${s.port}`);
   const lan = s.addresses.filter((a) => !a.tailscale).map((a) => `http://${a.ip}:${s.port}`);
   const byComfy = s.servedBy === 'comfy';
+  const tokenNote = s.token ? ' A shared token is required — enter it on the phone. Anything on this network can otherwise use it.' : ' No token set: anything on this network can use it.';
   relayInfo.textContent = s.running
     ? `Phone: set its host to ${ts.length ? ts.join(' or ') + ' (Tailscale)' : lan[0] || `port ${s.port}`}` +
       (ts.length && lan.length ? `, or ${lan.join(' / ')} on the same Wi-Fi` : '') + '. ' +
       (byComfy
         ? 'Served by Osmium Comfy itself (Persist Comfy), so it keeps working after Comfy Bridge closes, until you close its window. Windows may ask to allow its Python through the firewall.'
-        : 'Windows may ask to allow Comfy Bridge through the firewall.')
+        : 'Windows may ask to allow Comfy Bridge through the firewall.') + tokenNote
     : byComfy
       ? 'With Persist Comfy on, Osmium Comfy serves the phone itself, even after Comfy Bridge closes. Click Connect to start it.'
       : 'Not running.';
 }
 async function applyRelay(): Promise<void> {
-  showRelayStatus(await window.electronAPI.comfyRelaySet!({ enabled: relayEnabled.checked, port: Number(relayPort.value) }));
+  showRelayStatus(await window.electronAPI.comfyRelaySet!({ enabled: relayEnabled.checked, port: Number(relayPort.value), token: relayToken.value }));
 }
 if (hasRelay) {
   relayEnabled.addEventListener('change', applyRelay);
   relayPort.addEventListener('change', () => { if (relayEnabled.checked) applyRelay(); });
+  relayToken.addEventListener('change', () => { if (relayEnabled.checked) applyRelay(); });
 }
 
 function applyBackendUI(): void {
@@ -655,7 +660,7 @@ addLoraRow('', 0.8);
 // always win over defaults.
 const UI_STATE_KEY = 'comfybridge-ui-state';
 // The relay's settings are the main process's (comfy-relay.json).
-const UI_EXCLUDED = new Set<string>(['relayEnabled', 'relayPort', 'persistComfy']);
+const UI_EXCLUDED = new Set<string>(['relayEnabled', 'relayPort', 'relayToken', 'persistComfy']);
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 function captureUiState(): void {
   const state: Record<string, unknown> = {};
@@ -1011,7 +1016,7 @@ function desktopBackend(): StorageBackend {
   return {
     async listDir(relDir: string): Promise<DirEntry[]> {
       if (!outputFolder) throw new Error('No output folder chosen.');
-      const res = await window.electronAPI.galleryListDir({ folder: outputFolder, relDir });
+      const res = await window.electronAPI.galleryListDir({ relDir });
       if (!res.ok) throw new Error(res.error || 'Could not list folder.');
       return (res.entries || []).map((e) => ({
         name: e.name,
@@ -1021,14 +1026,13 @@ function desktopBackend(): StorageBackend {
     },
     async readImage(relPath: string): Promise<string | null> {
       if (!outputFolder) return null;
-      const res = await window.electronAPI.galleryRead({ folder: outputFolder, relPath });
+      const res = await window.electronAPI.galleryRead({ relPath });
       if (!res.ok || !res.base64) return null;
       return `data:${res.mime || 'image/png'};base64,${res.base64}`;
     },
     async writeImage(relPath: string, base64: string): Promise<void> {
       if (!outputFolder) throw new Error('No output folder chosen.');
       const res = await window.electronAPI.saveImage({
-        folder: outputFolder,
         filename: relPath,
         bytes: base64ToBytes(base64)
       });

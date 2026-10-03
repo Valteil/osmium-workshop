@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Osmium Red Team</title>
+<style>
+  :root { --bg:#14131a; --panel:#1c1b24; --panel2:#232230; --line:#33323f; --ink:#e8e7ee; --muted:#9c9aab; --accent:#7c9cff;
+    --green:#3fbf7f; --red:#e5534b; --amber:#e0a83c; --grey:#6b6a78; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui,Segoe UI,sans-serif; }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  header .sub { color:var(--muted); font-size:12px; }
+  .wrap { display:grid; grid-template-columns:230px 1fr; min-height:calc(100vh - 56px); }
+  nav { border-right:1px solid var(--line); padding:12px; }
+  nav button.tab { display:block; width:100%; text-align:left; background:var(--panel); color:var(--ink); border:1px solid var(--line);
+    border-radius:8px; padding:10px 12px; margin-bottom:8px; cursor:pointer; font-size:13px; }
+  nav button.tab.active { border-color:var(--accent); background:var(--panel2); }
+  nav button.tab .lock { color:var(--amber); font-size:11px; float:right; }
+  main { padding:18px 22px; }
+  .toolbar { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .toolbar h2 { font-size:16px; margin:0 12px 0 0; }
+  button.action { background:var(--accent); color:#0b0b10; border:0; border-radius:8px; padding:9px 14px; font-weight:600; cursor:pointer; }
+  button.action:disabled { background:var(--grey); cursor:not-allowed; opacity:.6; }
+  button.ghost { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 12px; cursor:pointer; }
+  button.ghost:disabled { opacity:.45; cursor:not-allowed; }
+  .banner { font-size:12px; color:var(--muted); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:14px; }
+  .banner b { color:var(--ink); }
+  table { width:100%; border-collapse:collapse; }
+  tr.vector { border-bottom:1px solid var(--line); vertical-align:top; }
+  tr.vector td { padding:10px 8px; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; vertical-align:middle; }
+  .s-untested .dot { background:var(--grey); }
+  .s-resisted .dot { background:var(--green); }
+  .s-vulnerable .dot { background:var(--red); }
+  .s-error .dot { background:var(--amber); }
+  .s-untestable .dot { background:var(--grey); }
+  .vname { font-weight:600; }
+  .vdesc { color:var(--muted); font-size:12.5px; }
+  .vmeta { color:var(--muted); font-size:12px; margin-top:3px; }
+  .vmeta b { color:#c9c8d4; font-weight:600; }
+  .statictag { display:inline-block; margin-left:8px; font-size:10.5px; font-weight:600; letter-spacing:.03em;
+    text-transform:uppercase; color:#1a1a24; background:var(--grey); border-radius:4px; padding:1px 6px; vertical-align:middle; }
+  .statichint { color:var(--muted); font-weight:400; font-size:11.5px; }
+  .status { white-space:nowrap; font-size:12.5px; font-weight:600; }
+  .s-resisted .status { color:var(--green); }
+  .s-vulnerable .status { color:var(--red); }
+  .s-error .status { color:var(--amber); }
+  .s-untestable .status, .s-untested .status { color:var(--grey); }
+  tr.s-vulnerable { background:rgba(229,83,75,.09); }
+  .proof { margin-top:8px; font-size:12px; background:#0f0e14; border:1px solid var(--line); border-radius:6px; padding:8px 10px; white-space:pre-wrap; word-break:break-word; }
+  .proof .k { color:var(--muted); }
+  .proof .payload { color:#ffb4ae; }
+  .rerun { background:none; border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:3px 8px; cursor:pointer; font-size:11px; }
+  .rerun:hover { color:var(--ink); border-color:var(--accent); }
+  .empty { color:var(--muted); }
+  footer { padding:10px 22px; color:var(--grey); font-size:11.5px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Osmium Red Team</h1>
+  <span class="sub">Defensive testing of your own apps. One app at a time. Throwaway instances only.</span>
+</header>
+<div class="wrap">
+  <nav id="tabs"></nav>
+  <main>
+    <div class="toolbar">
+      <h2 id="appLabel">—</h2>
+      <button class="action" id="runBtn" disabled>Run attack</button>
+      <button class="ghost" id="stopBtn" disabled>Stop</button>
+      <button class="ghost" id="copyBtn" disabled>Copy Markdown</button>
+      <button class="ghost" id="exportBtn" disabled>Export .md</button>
+      <button class="ghost" id="exportJsonBtn" disabled>Export .json</button>
+    </div>
+    <div class="banner">
+      <b>Resisted</b> means this specific attack failed — it is never a claim that the app is secure overall.
+      <span id="lockNote"></span>
+    </div>
+    <table><tbody id="rows"></tbody></table>
+  </main>
+</div>
+<footer>Results are written to <code>tools/redteam/results/</code> (gitignored). Only processes this tool started are ever stopped, by PID.</footer>
+<script>
+const state = { apps: [], app: null, vectors: [], results: {}, running: false, locked: false };
+
+const el = (id) => document.getElementById(id);
+const STATUS = {
+  untested: { cls: 's-untested', label: 'untested' },
+  resisted: { cls: 's-resisted', label: 'resisted — secure against this attack' },
+  vulnerable: { cls: 's-vulnerable', label: 'VULNERABLE' },
+  error: { cls: 's-error', label: 'harness error' },
+  untestable: { cls: 's-untestable', label: 'not testable here' },
+};
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+async function loadApps() {
+  state.apps = await api('/api/apps');
+  const nav = el('tabs'); nav.innerHTML = '';
+  for (const a of state.apps) {
+    const b = document.createElement('button');
+    b.className = 'tab'; b.dataset.app = a.id;
+    b.innerHTML = `${a.label}<span class="lock" id="lock-${a.id}"></span>`;
+    b.onclick = () => selectApp(a.id);
+    nav.appendChild(b);
+  }
+  selectApp(state.apps[0].id);
+}
+
+async function selectApp(id) {
+  state.app = id;
+  for (const b of document.querySelectorAll('nav .tab')) b.classList.toggle('active', b.dataset.app === id);
+  const app = state.apps.find((a) => a.id === id);
+  el('appLabel').textContent = app.label;
+  state.vectors = await api('/api/vectors?app=' + id);
+  state.results = {};
+  renderRows();
+  updateButtons();
+}
+
+function renderRows() {
+  const tb = el('rows'); tb.innerHTML = '';
+  for (const v of state.vectors) {
+    const r = state.results[v.id];
+    const st = STATUS[r ? r.status : 'untested'];
+    const tr = document.createElement('tr');
+    tr.className = 'vector ' + st.cls;
+    tr.id = 'row-' + v.id;
+    const proof = r ? proofHtml(r) : '';
+    const isStatic = v.static || (r && r.static);
+    const staticTag = isStatic ? '<span class="statictag" title="This is a static source check — it reads the code, it does not attack the running app.">static check</span>' : '';
+    tr.innerHTML = `
+      <td style="width:34%">
+        <div class="vname"><span class="dot"></span>${esc(v.name)}${staticTag}</div>
+        <div class="vdesc">${esc(v.description)}</div>
+        <div class="vmeta"><b>Does:</b> ${esc(v.does)}</div>
+        <div class="vmeta"><b>Resisting:</b> ${esc(v.resists)}</div>
+      </td>
+      <td>
+        <div class="status">${st.label}${isStatic ? ' <span class="statichint">(source check, not a live attack)</span>' : ''}</div>
+        ${proof}
+      </td>
+      <td style="width:90px;text-align:right"><button class="rerun" data-id="${v.id}">re-run</button></td>`;
+    tb.appendChild(tr);
+    tr.querySelector('.rerun').onclick = () => rerunSingle(v.id);
+  }
+  updateButtons();
+}
+
+function proofHtml(r) {
+  const line = (k, val) => val ? `<span class="k">${k}:</span> <span class="${k === 'Payload' ? 'payload' : ''}">${esc(String(val))}</span>\n` : '';
+  let s = '<div class="proof">';
+  if (r.status === 'vulnerable') {
+    s += line('Payload', r.payload) + line('Expected', r.expected) + line('Actual', r.actual) + line('Evidence', r.evidence) + line('Fix', r.fix);
+  } else if (r.status === 'untestable') {
+    s += line('Reason', r.reason);
+  } else if (r.evidence) {
+    s += line('Evidence', r.evidence);
+  }
+  return s + '</div>';
+}
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function updateButtons() {
+  const running = state.running;
+  el('runBtn').disabled = running || state.locked || !state.vectors.length;
+  el('runBtn').textContent = running ? 'Running…' : 'Run attack';
+  el('stopBtn').disabled = !running;
+  const have = Object.keys(state.results).length > 0;
+  el('copyBtn').disabled = !have;
+  el('exportBtn').disabled = !have;
+  el('exportJsonBtn').disabled = !have;
+}
+
+// ---- run -------------------------------------------------------------------
+el('runBtn').onclick = async () => {
+  if (!confirm(`Run every attack for "${el('appLabel').textContent}"?\n\nThis launches a throwaway copy of the app in a temp folder. Your running app and real data are never touched.`)) return;
+  const app = state.app;
+  state.results = {};
+  state.running = true; renderRows();
+  const r = await api('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ app }) });
+  if (r.error) { alert(r.error); state.running = false; updateButtons(); return; }
+};
+
+el('stopBtn').onclick = () => api('/api/stop', { method: 'POST' });
+
+// Re-run one vector = run the whole set but only keep that vector; simplest
+// faithful approach is a full run (the lock still applies). For a single
+// vector we call the server with a filter list.
+async function rerunSingle(id) {
+  if (state.locked || state.running) return;
+  if (!confirm(`Re-run just "${id}"?`)) return;
+  state.running = true; updateButtons();
+  const r = await api('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ app: state.app, only: [id] }) });
+  if (r.error) { alert(r.error); state.running = false; updateButtons(); }
+}
+
+// ---- SSE -------------------------------------------------------------------
+const es = new EventSource('/api/events');
+es.onmessage = (m) => {
+  const ev = JSON.parse(m.data);
+  if (ev.type === 'start') { state.running = true; state.results = {}; renderRows(); }
+  if (ev.type === 'note') { /* arena path shown only in server console */ }
+  if (ev.type === 'vector-done') {
+    if (ev.result) state.results[ev.result.id] = ev.result;
+    renderRows();
+  }
+  if (ev.type === 'end') { state.running = false; refreshLock(); updateButtons(); }
+  if (ev.type === 'stopped') { state.running = false; updateButtons(); }
+  if (ev.type === 'error') { state.running = false; alert('Harness error: ' + ev.text); updateButtons(); }
+};
+async function refreshLock() {
+  const l = await api('/api/lock');
+  state.locked = l.held;
+  for (const a of state.apps) {
+    const s = el('lock-' + a.id);
+    if (s) s.textContent = (l.held && l.app && l.app !== a.id) ? '●' : '';
+  }
+  updateButtons();
+}
+
+// ---- copy / export ---------------------------------------------------------
+function toMarkdown() {
+  const app = state.apps.find((a) => a.id === state.app);
+  const ordered = state.vectors.map((v) => state.results[v.id]).filter(Boolean);
+  const lines = [`# Red Team results — ${app.label}`, '', `Ran: ${new Date().toISOString()}`, '',
+    '> "Resisted" means this specific attack failed. It is not a claim that the app is secure overall.', ''];
+  const badge = { resisted: '✅ resisted', vulnerable: '❌ VULNERABLE', error: '⚠️ harness error', untestable: '⏭️ not testable here' };
+  for (const r of ordered) {
+    lines.push(`## ${r.name} — ${badge[r.status] || r.status}${r.static ? ' _(static source check, not a live attack)_' : ''}`, '', r.description || '', '');
+    lines.push(`- Attack: ${r.does || ''}`);
+    lines.push(`- Resisting looks like: ${r.resists || ''}`);
+    if (r.status === 'vulnerable') { lines.push(`- Payload: \`${r.payload || ''}\``); lines.push(`- Expected: ${r.expected || ''}`); lines.push(`- Actual: ${r.actual || ''}`); lines.push(`- Evidence: ${r.evidence || ''}`); lines.push(`- Fix: ${r.fix || ''}`); }
+    else if (r.status === 'untestable') lines.push(`- Reason: ${r.reason || ''}`);
+    else if (r.evidence) lines.push(`- Evidence: ${r.evidence}`);
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+el('copyBtn').onclick = async () => { try { await navigator.clipboard.writeText(toMarkdown()); el('copyBtn').textContent = 'Copied'; setTimeout(() => (el('copyBtn').textContent = 'Copy Markdown'), 1200); } catch (e) { alert('Clipboard blocked: ' + e.message); } };
+async function exportAs(format) {
+  const r = await api('/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ app: state.app, results: state.vectors.map((v) => state.results[v.id]).filter(Boolean), format }) });
+  if (r.ok) alert('Written to ' + r.file); else alert(r.error || 'export failed');
+}
+el('exportBtn').onclick = () => exportAs('md');
+el('exportJsonBtn').onclick = () => exportAs('json');
+
+// ---- boot ------------------------------------------------------------------
+loadApps().then(refreshLock);
+setInterval(refreshLock, 2500);
+</script>
+</body>
+</html>

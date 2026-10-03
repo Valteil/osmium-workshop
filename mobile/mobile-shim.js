@@ -15,6 +15,30 @@
 // See notes/Mobile-Port.md for the full rationale — this replaces the
 // originally-planned DatasetStorage interface refactor across ~10 renderer
 // files with a zero-desktop-changes polyfill instead.
+//
+// Security contract for the globals this file exposes (page content is the
+// only caller — the WebView loads only the app's own assets, but these are
+// globals any script in the page can reach):
+//   window.__dtsCreateDatasetFolder(name)
+//     -> DtsStorage.createDatasetFolder({name}); SAF-only, so a name with
+//        `..` cannot escape (DocumentFile navigation, not a filesystem path).
+//        No charset check, but SAF createDirectory() treats the name as one
+//        opaque segment, so it can't traverse. A new folder under the picked
+//        tree becomes the active root only after takePersistableUriPermission.
+//   window.__dtsReviveDirHandle(json)
+//     -> builds a handle from json.uri/json.name with NO persisted-grant check
+//        here; harmless on its own because the handle is inert until
+//        requestPermission() -> setActiveRoot(), which verifies the grant.
+//   window.__dtsPickImages()
+//     -> no args; sanitises \ / : * ? " < > | in names and restores an
+//        extension from the MIME type. No size/count cap (native reads whole
+//        files into memory); the dataset path is user-driven, so this matches
+//        desktop's own "pick images" flow.
+//   window.Wd14Local.{listModels,deleteModel,downloadModel,tagImage}
+//     -> deleteModel/downloadModel/tagImage pass `name` to the native plugin,
+//        which now validates it as a single plain segment (see
+//        DtsWd14Plugin.safeModelName).
+//   window.__dtsHandleBack / window.__dtsExitApp — Android Back handling only.
 (function () {
   'use strict';
 

@@ -108,6 +108,7 @@ declare const BridgeShared: {
   document.fonts.addEventListener('loadingdone', regrowSoon);
 
   const host = $<HTMLInputElement>('host');
+  const token = $<HTMLInputElement>('relayToken');
   const btnConnect = $<HTMLButtonElement>('btnConnect');
   const connStatus = $('connStatus');
   const saveLocationLabel = $('saveLocationLabel');
@@ -226,9 +227,14 @@ declare const BridgeShared: {
   try {
     var savedHost = localStorage.getItem(HOST_KEY);
     if (savedHost) host.value = savedHost;
+    var savedToken = localStorage.getItem('comfybridge-token');
+    if (savedToken) token.value = savedToken;
   } catch (e) { /* best effort */ }
   host.addEventListener('change', function () {
     try { localStorage.setItem(HOST_KEY, (host.value || '').trim()); } catch (e) { /* best effort */ }
+  });
+  token.addEventListener('change', function () {
+    try { localStorage.setItem('comfybridge-token', (token.value || '').trim()); } catch (e) { /* best effort */ }
   });
 
   function getHost(): string {
@@ -581,6 +587,7 @@ declare const BridgeShared: {
         for (const [k, v] of Object.entries(init.headers || {})) {
           if (k.toLowerCase() !== 'content-length') xhr.setRequestHeader(k, String(v));
         }
+        try { const tok = (token.value || '').trim(); if (tok) xhr.setRequestHeader('X-Osmium-Token', tok); } catch (e) { /* best effort */ }
         let stallTimer: ReturnType<typeof setTimeout> | undefined;
         const armStall = () => {
           if (!init.timeoutMs) return;
@@ -650,7 +657,8 @@ declare const BridgeShared: {
       const clientId = 'comfy-bridge-mobile-' + Date.now().toString(16) + '-' + Math.random().toString(16).slice(2);
 
       try {
-        const wsUrl = getHost().replace(/^http/i, 'ws') + '/ws?clientId=' + encodeURIComponent(clientId);
+        let wsUrl = getHost().replace(/^http/i, 'ws') + '/ws?clientId=' + encodeURIComponent(clientId);
+        { const tok = (token.value || '').trim(); if (tok) wsUrl += '&token=' + encodeURIComponent(tok); }
         const sock = new WebSocket(wsUrl);
         ws = sock;
         sock.binaryType = 'arraybuffer';

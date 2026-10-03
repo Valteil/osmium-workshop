@@ -24,34 +24,15 @@ import type { ComfyResult } from './shared-types';
 type AppWindow = BrowserWindow & { __closeConfirmed?: boolean };
 
 // ---- IPC sender guard --------------------------------------------------------
-// Every ipcMain.handle is wrapped (below) so no handler can run for a frame
-// that isn't the app's own renderer page. The trusted page URL is the exact
-// file:// URL of the HTML the window loads (`ensureRendererFiles()`), computed
-// once at startup and compared with query/hash stripped. A loose prefix match
-// is deliberately avoided (`.../index.html.evil` must not pass).
-//
-// This is a defence-in-depth guard, not a substitute for per-handler input
-// validation: it stops a foreign frame or an injected sub-frame, but a
-// compromised top frame still reaches every handler, so path-taking handlers
-// validate their inputs separately (see the path helpers in trainflow.ts).
-let trustedRendererUrl = '';
-function normalizePageUrl(u: string): string {
-  try { const parsed = new URL(u); return parsed.origin + parsed.pathname; }
-  catch { return u; }
-}
-function setTrustedRenderer(pagePath: string): void {
-  trustedRendererUrl = normalizePageUrl(pathToFileURL(pagePath).href);
-}
-function assertTrustedFrame(event: Electron.IpcMainInvokeEvent): void {
-  const frameUrl = event.senderFrame ? normalizePageUrl(event.senderFrame.url) : '';
-  if (!trustedRendererUrl || frameUrl !== trustedRendererUrl) {
-    throw new Error('IPC rejected: untrusted sender frame.');
-  }
-}
-// Wrap ipcMain.handle once, at module load, so ALL handlers (this file's and
-// every register*Handlers module's) are guarded without editing each one. The
-// original is captured first; register* modules import the same patched
-// ipcMain object, so they get the guard too.
+// The guard itself now lives in ./ipc-guard (dependency-free, requireable by
+// the red-team harness without electron). main.ts only wires it: every
+// ipcMain.handle is wrapped once, at module load, so ALL handlers (this file's
+// and every register*Handlers module's) are guarded without editing each one.
+// This is defence-in-depth, not a substitute for per-handler input validation:
+// it stops a foreign frame or an injected sub-frame, but a compromised top
+// frame still reaches every handler, so path-taking handlers validate their
+// inputs separately (see the path helpers in trainflow.ts).
+import { assertTrustedFrame, setTrustedRenderer, normalizePageUrl } from './ipc-guard';
 {
   const rawHandle = ipcMain.handle.bind(ipcMain) as typeof ipcMain.handle;
   (ipcMain as { handle: typeof ipcMain.handle }).handle = ((channel: string, listener: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown) => {

@@ -58,6 +58,17 @@ class DtsWd14Plugin : Plugin() {
         return dir
     }
 
+    // A model name becomes a single directory segment under modelsDir(), so a
+    // raw name like "../../shared_prefs" would let deleteModel /
+    // downloadModel's deleteRecursively() walk out of the models folder. Require
+    // exactly one plain segment (no separators, no "."/"..", no NUL).
+    private fun safeModelName(raw: String): String? {
+        val name = raw.trim()
+        if (name.isEmpty() || name == "." || name == "..") return null
+        if (name.contains('/') || name.contains('\\') || name.contains('\u0000')) return null
+        return name
+    }
+
     private fun modelDir(name: String): File = File(modelsDir(), name)
 
     @PluginMethod
@@ -88,8 +99,8 @@ class DtsWd14Plugin : Plugin() {
 
     @PluginMethod
     fun deleteModel(call: PluginCall) {
-        val name = call.getString("name", "") ?: ""
-        if (name.isEmpty()) { call.reject("No model name given"); return }
+        val name = safeModelName(call.getString("name", "") ?: "")
+        if (name == null) { call.reject("Invalid model name"); return }
         sessionCache.remove(name)?.close()
         tagsCache.remove(name)
         val dir = modelDir(name)
@@ -102,10 +113,10 @@ class DtsWd14Plugin : Plugin() {
     // here is fine, doesn't freeze the WebView.
     @PluginMethod
     fun downloadModel(call: PluginCall) {
-        val name = call.getString("name", "") ?: ""
+        val name = safeModelName(call.getString("name", "") ?: "")
         val modelUrl = call.getString("modelUrl", "") ?: ""
         val tagsUrl = call.getString("tagsUrl", "") ?: ""
-        if (name.isEmpty() || modelUrl.isEmpty() || tagsUrl.isEmpty()) {
+        if (name == null || modelUrl.isEmpty() || tagsUrl.isEmpty()) {
             call.reject("name, modelUrl and tagsUrl are all required")
             return
         }
@@ -239,11 +250,11 @@ class DtsWd14Plugin : Plugin() {
 
     @PluginMethod
     fun tagImage(call: PluginCall) {
-        val name = call.getString("name", "") ?: ""
+        val name = safeModelName(call.getString("name", "") ?: "")
         val imageBase64 = call.getString("imageBase64", "") ?: ""
         val threshold = call.getFloat("threshold") ?: 0.35f
         val characterThreshold = call.getFloat("characterThreshold") ?: 0.85f
-        if (name.isEmpty() || imageBase64.isEmpty()) { call.reject("name and imageBase64 are required"); return }
+        if (name == null || imageBase64.isEmpty()) { call.reject("name and imageBase64 are required"); return }
         try {
             val bytes = Base64.decode(imageBase64, Base64.DEFAULT)
             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)

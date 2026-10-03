@@ -27,7 +27,19 @@ function modelsDir() {
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
-function modelDir(name: string): string { return path.join(modelsDir(), name); }
+// A model name becomes a single directory segment under modelsDir(), so an
+// unvalidated name like "../../..." would let deleteModel/importModel/
+// downloadModel's rmSync(..., {recursive}) walk outside the models folder.
+// Require exactly one plain segment (no separators, drive anchor or "."/"..").
+function safeModelName(raw: unknown): string {
+  const name = String(raw ?? '').trim();
+  if (!name || name === '.' || name === '..') throw new Error('Invalid model name.');
+  if (name.includes('/') || name.includes('\\') || name.includes('\u0000') || /^[A-Za-z]:/.test(name)) {
+    throw new Error('Invalid model name.');
+  }
+  return name;
+}
+function modelDir(name: string): string { return path.join(modelsDir(), safeModelName(name)); }
 
 async function listModels(): Promise<Wd14LocalModel[]> {
   const dir = modelsDir();
