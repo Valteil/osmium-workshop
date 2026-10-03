@@ -3709,12 +3709,22 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      still clickable. */
   .field-block input[readonly] { cursor: pointer; }
 
-  .quickfilters { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* All/Untagged/Unsaved: a fixed three-button row that must stay one line.
+     It used to wrap per theme because the wider theme faces (Terminal's mono,
+     Barlow Condensed, the tracked-caps themes) pushed the natural width past
+     the panel. Same treatment as .toolbar-row: never wrap — shrink the row's
+     buttons in place instead. 11px matches .filter-help-row's buttons, and
+     the reduced padding keeps the widest face under the panel width so the
+     labels never actually clip (inset outline when shrink does kick in). */
+  .quickfilters { display: flex; flex-wrap: nowrap; gap: 5px; }
   .quickfilters button {
-    padding: 4px 9px;
-    font-size: 12px;
+    padding: 4px 7px;
+    font-size: 11px;
     background: var(--bg-elevated);
+    min-width: 0;
+    overflow: hidden;
   }
+  .quickfilters button:focus-visible { outline-offset: -2px; }
   .quickfilters button.active {
     background: var(--accent-manual-dim);
     border-color: var(--accent-manual);
