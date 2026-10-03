@@ -8,24 +8,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const RATIOS = {
-  display: { 'Albert Sans': 1.0072, 'Alegreya': 1.1561, 'Anybody': 0.9101, 'Audiowide': 0.8358, 'Barlow Semi Condensed': 1.1949,
-    'Big Shoulders Display': 1.4579, 'Chakra Petch': 1, 'Cinzel': 0.8623, 'Epilogue': 0.9337, 'Fredoka': 1.0446, 'Gilda Display': 1.0487,
-    'Gloock': 1.0333, 'IM Fell English SC': 1.0998, 'Marcellus SC': 1.0135, 'Michroma': 0.7358, 'Nunito': 1.0194, 'Overpass': 1.0235,
-    'Oxanium': 0.9954, 'Pirata One': 1.3495, 'Poiret One': 1.0992, 'Saira Stencil One': 0.9836, 'Schibsted Grotesk': 0.9848,
-    'Shippori Mincho': 0.9504, 'Sora': 0.9209, 'VT323': 1.2018, 'Zen Maru Gothic': 1.0685 },
-  body: { 'Albert Sans': 0.9744, 'Alegreya Sans': 1.1807, 'Anybody': 0.9344, 'Archivo': 1.0287, 'Barlow': 1.0604, 'Barlow Condensed': 1.3336,
-    'Barlow Semi Condensed': 1.1812, 'Epilogue': 0.9244, 'Exo 2': 0.9943, 'Figtree': 1.0029, 'Fredoka': 1.0051, 'IBM Plex Sans': 1,
-    'JetBrains Mono': 0.7693, 'Jost': 1.0567, 'Karla': 0.9927, 'Libre Caslon Text': 0.9501, 'Nunito': 0.995, 'Overpass': 1.0131,
-    'Oxanium': 0.974, 'Schibsted Grotesk': 0.972, 'Sora': 0.8968, 'Zen Kaku Gothic New': 1.0356, 'Zen Maru Gothic': 1.0354 },
-  mono: { 'Courier Prime': 1.0007, 'JetBrains Mono': 1 }
-};
+const { RATIOS, METRICS } = require('./font-fit-data');
 
 // Ascent / descent (% of the font size) of the reference faces; every twin is forced to them so a
 // `line-height: normal` line is the same height in every theme. Divided by the ratio because the
 // overrides are scaled by size-adjust.
 const BIAS = Number(process.env.FIT_BIAS || 1); // < 1 sizes every non-reference face a hair small so paragraphs rarely gain a line
-const METRICS ={ display: [99, 31], body: [103, 28], mono: [102, 30] };
 
 const fontsCss =fs.readFileSync(path.join(__dirname, '..', 'docs', 'demo', 'fonts', 'fonts.css'), 'utf8');
 const faces = [...fontsCss.matchAll(/@font-face\{[^}]*\}/g)].map((m) => m[0]);

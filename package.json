@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "build:main": "tsc -p tsconfig.main.json",
-    "build:renderer": "tsc -p tsconfig.renderer.json --noEmit && esbuild src/renderer/index.ts --bundle --outfile=renderer/app.js",
+    "build:renderer": "node scripts/app-font-fit.js && tsc -p tsconfig.renderer.json --noEmit && esbuild src/renderer/index.ts --bundle --outfile=renderer/app.js",
     "build:tag-categories": "node scripts/build-tag-categories.js",
     "build:wiki-data": "node scripts/build-wiki-data.js",
     "build": "npm run build:main && npm run build:renderer",

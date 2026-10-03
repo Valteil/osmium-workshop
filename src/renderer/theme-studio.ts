@@ -298,7 +298,7 @@ export async function openThemeStudio(): Promise<void> {
     const base = document.baseURI.replace(/"/g, '%22');
     doc.open();
     doc.write(`<!DOCTYPE html><html data-theme="custom" class="${keep.join(' ')}"><head><meta charset="utf-8"><base href="${base}">
-      <link rel="stylesheet" href="fonts/fonts.css"><link rel="stylesheet" href="styles.css">
+      <link rel="stylesheet" href="fonts/fonts.css"><link rel="stylesheet" href="fonts/font-fit.css"><link rel="stylesheet" href="styles.css">
       <style>html,body{overflow:hidden} *{cursor:default !important} ::-webkit-scrollbar{width:8px;height:8px}</style>
       </head><body class="${esc(document.body.className)}">${sprite ? sprite.outerHTML : ''}${app.outerHTML}</body></html>`);
     doc.close();

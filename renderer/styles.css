@@ -300,9 +300,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Oxanium', 'Segoe UI', system-ui, sans-serif;
     --radius: 0px;
-    --brand-size: 18px; --brand-weight: 700; --brand-track: 0.14em; --brand-case: uppercase;
-    --tab-case: uppercase; --tab-track: 0.12em; --tab-size: 11.5px;
-    --head-case: uppercase; --head-track: 0.14em; --head-size: 11.5px; --head-color: var(--accent-manual);
+    --brand-weight: 700; --brand-track: 0.14em; --brand-case: uppercase;
+    --tab-case: uppercase; --tab-track: 0.12em;
+    --head-case: uppercase; --head-track: 0.14em; --head-color: var(--accent-manual);
     --btn-weight: 600; --btn-track: 0.04em;
     --r-chip: 0px; --r-card: 0px; --r-panel: 0px; --r-check: 0px; --r-scroll: 0px;
     --card-shadow: none;
@@ -370,9 +370,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-font: 'Shippori Mincho', Georgia, serif;
     --tab-font: 'Shippori Mincho', Georgia, serif;
     --radius: 2px;
-    --brand-size: 20px; --brand-weight: 700; --brand-track: 0.04em;
-    --tab-size: 13.5px; --tab-track: 0.04em;
-    --head-size: 14px; --head-track: 0.04em; --head-color: var(--accent-auto);
+    --brand-weight: 700; --brand-track: 0.04em;
+    --tab-track: 0.04em;
+    --head-track: 0.04em; --head-color: var(--accent-auto);
     --r-chip: 1px; --r-card: 2px; --r-panel: 2px; --r-check: 1px; --r-scroll: 0px;
     --card-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-auto) 22%, transparent);
     --fx-fill: var(--accent-manual); --fx-o: 0.3;
@@ -430,9 +430,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Overpass', 'Trebuchet MS', 'Segoe UI', sans-serif;
     --radius: 14px; --r-ctl: 999px;
-    --brand-size: 19px; --brand-weight: 900; --brand-track: -0.02em;
-    --tab-size: 12.5px; --tab-track: 0.01em;
-    --head-size: 12px; --head-weight: 800; --head-case: uppercase; --head-track: 0.08em;
+    --brand-weight: 900; --brand-track: -0.02em;
+    --tab-track: 0.01em;
+    --head-weight: 800; --head-case: uppercase; --head-track: 0.08em;
     --btn-weight: 600;
     --r-chip: 999px; --r-card: 14px; --r-panel: 14px; --r-check: 5px; --r-scroll: 999px;
     --card-shadow: 0 4px 14px color-mix(in srgb, var(--text-primary) 8%, transparent);
@@ -446,10 +446,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     border-bottom: none;
     background-image: linear-gradient(90deg, var(--accent-auto) 0 25%, var(--accent-danger) 25% 50%, var(--accent-manual) 50% 75%, var(--accent-success) 75%);
     background-size: 100% 6px; background-position: bottom; background-repeat: no-repeat;
-    padding-bottom: 14px;
   }
   html[data-theme="subway"] .brand span.tag{ background: var(--text-primary); color: var(--bg-panel); border-radius: 999px; padding: 2px 8px; }
-  html[data-theme="subway"] .tab-btn{ border-radius: 999px; margin: 6px 0; padding: 5px 14px; border-bottom: none; }
+  html[data-theme="subway"] .tab-btn{ border-radius: 999px; border-bottom: none; }
   /* White stays literal: it sits on a saturated accent fill, which night
      mode only darkens, so it keeps its contrast in both modes. */
   html[data-theme="subway"] .tab-btn.active{ background: var(--accent-flair); color: #ffffff; }
@@ -491,9 +490,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-font: 'Chakra Petch', 'Segoe UI', sans-serif;
     --tab-font: 'Chakra Petch', 'Segoe UI', sans-serif;
     --radius: 3px;
-    --brand-size: 19px; --brand-weight: 700; --brand-track: 0.01em;
-    --tab-size: 12.5px; --tab-case: uppercase; --tab-track: 0.08em;
-    --head-size: 12px; --head-weight: 700; --head-case: uppercase; --head-track: 0.08em;
+    --brand-weight: 700; --brand-track: 0.01em;
+    --tab-case: uppercase; --tab-track: 0.08em;
+    --head-weight: 700; --head-case: uppercase; --head-track: 0.08em;
     --r-chip: 3px; --r-card: 4px; --r-panel: 4px; --r-check: 2px; --r-scroll: 2px;
     --card-shadow: none;
     --fx-fill: linear-gradient(90deg, var(--accent-auto) 0 33.33%, var(--accent-success) 33.33% 66.66%, var(--accent-manual) 66.66%);
@@ -535,9 +534,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-font: 'VT323', 'JetBrains Mono', monospace;
     --tab-font: 'VT323', 'JetBrains Mono', monospace;
     --radius: 0px;
-    --brand-size: 26px; --brand-weight: 400; --brand-track: 0.02em;
-    --tab-size: 18px; --tab-case: uppercase; --tab-track: 0.04em;
-    --head-size: 18px; --head-weight: 400; --head-case: uppercase; --head-track: 0.04em; --head-color: var(--accent-manual);
+    --brand-weight: 400; --brand-track: 0.02em;
+    --tab-case: uppercase; --tab-track: 0.04em;
+    --head-weight: 400; --head-case: uppercase; --head-track: 0.04em; --head-color: var(--accent-manual);
     --btn-weight: 500;
     --r-chip: 0px; --r-card: 0px; --r-panel: 0px; --r-check: 0px; --r-scroll: 0px;
     --card-shadow: none;
@@ -555,7 +554,6 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="terminal"] .sec-head .t::before{ content: '> '; color: var(--accent-auto); }
   html[data-theme="terminal"] #topbar{ border-bottom: 1px dashed var(--border-strong); }
   html[data-theme="terminal"] #tabBar{ border-bottom: 1px dashed var(--border-strong); }
-  html[data-theme="terminal"] .tab-btn{ padding-top: 7px; padding-bottom: 7px; }
   html[data-theme="terminal"] .tab-btn.active{ background: var(--accent-manual); color: var(--bg-base); border-bottom-color: var(--accent-manual); }
   html[data-theme="terminal"] .tool-section{ border-style: dashed; border-color: var(--border-strong); }
   html[data-theme="terminal"] button.primary{ background: var(--accent-manual); color: var(--bg-base); }
@@ -575,9 +573,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Zen Maru Gothic', 'Segoe UI', system-ui, sans-serif;
     --radius: 16px; --r-ctl: 999px;
-    --brand-size: 19px; --brand-weight: 700; --brand-track: 0.02em;
-    --tab-size: 13px;
-    --head-size: 13.5px; --head-color: var(--accent-auto);
+    --brand-weight: 700; --brand-track: 0.02em;
+    --head-color: var(--accent-auto);
     --r-chip: 999px; --r-card: 18px; --r-panel: 18px; --r-check: 6px; --r-scroll: 999px;
     --card-shadow: 0 6px 16px rgba(0,0,0,0.2);
     --fx-fill: var(--accent-auto); --fx-o: 0.22;
@@ -590,8 +587,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       repeating-linear-gradient(-58deg, color-mix(in srgb, var(--text-primary) 4%, transparent) 0 1px, transparent 1px 11px);
   }
   html[data-theme="sakura"] #topbar{ border-bottom: 1px solid var(--border-strong); }
-  html[data-theme="sakura"] #tabBar{ padding-top: 5px; padding-bottom: 5px; gap: 6px; border-bottom-color: var(--border-strong); }
-  html[data-theme="sakura"] .tab-btn{ border-radius: 999px; border-bottom: none; padding: 6px 15px; }
+  html[data-theme="sakura"] #tabBar{ gap: 6px; border-bottom-color: var(--border-strong); }
+  html[data-theme="sakura"] .tab-btn{ border-radius: 999px; border-bottom: none; }
   html[data-theme="sakura"] .tab-btn.active{ background: var(--accent-auto-dim); color: var(--accent-auto); }
   /* Petal cut: the selected tag drops its pill for a petal (two round
      lobes, two pointed tips). */
@@ -611,9 +608,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Sora', 'Segoe UI', system-ui, sans-serif;
     --radius: 11px;
-    --brand-size: 17px; --brand-weight: 600; --brand-track: -0.01em;
-    --tab-size: 12px;
-    --head-size: 12.5px; --head-weight: 600; --head-color: var(--accent-flair);
+    --brand-weight: 600; --brand-track: -0.01em;
+    --head-weight: 600; --head-color: var(--accent-flair);
     --btn-weight: 400;
     --r-chip: 999px; --r-card: 14px; --r-panel: 14px; --r-check: 5px; --r-scroll: 999px;
     --card-shadow: 0 8px 20px rgba(0,0,0,0.45);
@@ -655,9 +651,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-font: 'Cinzel', Georgia, serif;
     --tab-font: 'Cinzel', Georgia, serif;
     --radius: 3px;
-    --brand-size: 19px; --brand-weight: 700; --brand-track: 0.06em;
-    --tab-size: 12.5px; --tab-track: 0.06em;
-    --head-size: 13px; --head-track: 0.06em; --head-color: var(--accent-flair);
+    --brand-weight: 700; --brand-track: 0.06em;
+    --tab-track: 0.06em;
+    --head-track: 0.06em; --head-color: var(--accent-flair);
     --r-chip: 3px; --r-card: 4px; --r-panel: 4px; --r-check: 2px; --r-scroll: 2px;
     --card-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 20%, transparent);
     --fx-fill: linear-gradient(90deg, color-mix(in srgb, var(--accent-flair) 40%, transparent), var(--accent-flair));
@@ -691,9 +687,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Anybody', 'Segoe UI', system-ui, sans-serif;
     --radius: 4px;
-    --brand-size: 19px; --brand-weight: 900; --brand-track: 0.02em; --brand-case: uppercase;
-    --tab-size: 12px; --tab-case: uppercase; --tab-track: 0.08em;
-    --head-size: 12.5px; --head-weight: 800; --head-case: uppercase; --head-track: 0.06em; --head-color: var(--accent-flair);
+    --brand-weight: 900; --brand-track: 0.02em; --brand-case: uppercase;
+    --tab-case: uppercase; --tab-track: 0.08em;
+    --head-weight: 800; --head-case: uppercase; --head-track: 0.06em; --head-color: var(--accent-flair);
     --btn-weight: 600;
     --r-chip: 3px; --r-card: 6px; --r-panel: 6px; --r-check: 3px; --r-scroll: 3px;
     --card-shadow: 0 2px 6px rgba(0,0,0,0.35);
@@ -736,9 +732,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Barlow Semi Condensed', 'Segoe UI', system-ui, sans-serif;
     --radius: 2px;
-    --brand-size: 19px; --brand-weight: 600; --brand-track: 0.03em;
-    --tab-size: 13.5px; --tab-case: uppercase; --tab-track: 0.1em;
-    --head-size: 13px; --head-weight: 600; --head-case: uppercase; --head-track: 0.12em; --head-color: var(--accent-manual);
+    --brand-weight: 600; --brand-track: 0.03em;
+    --tab-case: uppercase; --tab-track: 0.1em;
+    --head-weight: 600; --head-case: uppercase; --head-track: 0.12em; --head-color: var(--accent-manual);
     --r-chip: 2px; --r-card: 2px; --r-panel: 2px; --r-check: 1px; --r-scroll: 0px;
     --card-shadow: none;
     --fx-fill: var(--accent-flair); --fx-o: 0.22;
@@ -774,9 +770,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Albert Sans', 'Segoe UI', system-ui, sans-serif;
     --radius: 6px;
-    --brand-size: 18px; --brand-weight: 800; --brand-track: -0.01em;
-    --tab-size: 12.5px;
-    --head-size: 11.5px; --head-weight: 700; --head-case: uppercase; --head-track: 0.14em; --head-color: var(--accent-manual);
+    --brand-weight: 800; --brand-track: -0.01em;
+    --head-weight: 700; --head-case: uppercase; --head-track: 0.14em; --head-color: var(--accent-manual);
     --r-chip: 4px; --r-card: 8px; --r-panel: 8px; --r-check: 3px; --r-scroll: 4px;
     --card-shadow: 0 1px 0 var(--border-soft), 0 4px 12px color-mix(in srgb, var(--accent-manual) 7%, transparent);
     --fx-fill: linear-gradient(90deg, var(--accent-flair), color-mix(in srgb, var(--accent-flair) 20%, transparent)); --fx-o: 0.5;
@@ -809,9 +804,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-font: 'Alegreya', Georgia, serif;
     --tab-font: 'Alegreya', Georgia, serif;
     --radius: 9px;
-    --brand-size: 21px; --brand-weight: 700; --brand-track: 0;
-    --tab-size: 14px;
-    --head-size: 14.5px; --head-weight: 700; --head-color: var(--accent-flair);
+    --brand-weight: 700; --brand-track: 0;
+    --head-weight: 700; --head-color: var(--accent-flair);
     --r-ctl: 10px 2px 10px 2px; --r-chip: 9px 1px 9px 1px; --r-card: 18px 3px 18px 3px; --r-panel: 18px 3px 18px 3px;
     --r-check: 5px 1px 5px 1px; --r-scroll: 6px 2px;
     --card-shadow: 0 4px 12px rgba(0,0,0,0.3);
@@ -850,9 +844,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-font: 'IM Fell English SC', Georgia, serif;
     --tab-font: 'IM Fell English SC', Georgia, serif;
     --radius: 2px;
-    --brand-size: 23px; --brand-weight: 400; --brand-track: 0.02em;
-    --tab-size: 15px;
-    --head-size: 16px; --head-weight: 400; --head-track: 0.02em;
+    --brand-weight: 400; --brand-track: 0.02em;
+    --head-weight: 400; --head-track: 0.02em;
     --btn-weight: 400;
     --r-chip: 1px; --r-card: 2px; --r-panel: 2px; --r-check: 1px; --r-scroll: 0px;
     --card-shadow: 0 1px 2px color-mix(in srgb, var(--text-primary) 14%, transparent);
@@ -869,15 +862,15 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: transparent; color: var(--accent-flair); border: 1px solid var(--accent-flair);
     transform: rotate(-2deg); font-family: var(--mono); font-weight: 700;
   }
-  html[data-theme="vintage-paper"] #tabBar{ padding-top: 8px; gap: 3px; border-bottom-color: var(--border-strong); background: var(--bg-base); }
+  html[data-theme="vintage-paper"] #tabBar{ gap: 3px; border-bottom-color: var(--border-strong); background: var(--bg-base); }
   html[data-theme="vintage-paper"] .tab-btn{
     border: 1px solid transparent; border-bottom: none; border-radius: 4px 4px 0 0;
-    padding: 7px 14px 6px; margin-bottom: -1px;
+    margin-bottom: -1px;
   }
   html[data-theme="vintage-paper"] .tab-btn.active{
     background: var(--bg-panel); border-color: var(--border-strong); color: var(--accent-flair); font-weight: 400;
   }
-  html[data-theme="vintage-paper"] .tool-section .sec-head{ padding-bottom: 6px; border-bottom: 3px double var(--border-soft); }
+  html[data-theme="vintage-paper"] .tool-section .sec-head{ border-bottom: 3px double var(--border-soft); }
   html[data-theme="vintage-paper"] button{ box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-panel) 70%, transparent); }
   html[data-theme="vintage-paper"] .chip{ border-style: dashed; }
   html[data-theme="vintage-paper"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){ border-style: solid; }
@@ -898,9 +891,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-font: 'Michroma', 'Segoe UI', sans-serif;
     --tab-font: 'Michroma', 'Segoe UI', sans-serif;
     --radius: 0px;
-    --brand-size: 15px; --brand-weight: 400; --brand-track: 0.06em; --brand-case: uppercase;
-    --tab-size: 10.5px; --tab-case: uppercase; --tab-track: 0.1em;
-    --head-size: 10px; --head-weight: 400; --head-case: uppercase; --head-track: 0.05em;
+    --brand-weight: 400; --brand-track: 0.06em; --brand-case: uppercase;
+    --tab-case: uppercase; --tab-track: 0.1em;
+    --head-weight: 400; --head-case: uppercase; --head-track: 0.05em;
     --r-chip: 0px; --r-card: 0px; --r-panel: 0px; --r-check: 0px; --r-scroll: 0px;
     --card-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent);
     --fx-fill: linear-gradient(115deg, transparent 25%, var(--accent-flair) 50%, transparent 75%); --fx-o: 0.3; --fx-w: 1;
@@ -940,9 +933,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --display: 'Audiowide', 'Segoe UI', sans-serif;
     --head-font: 'Audiowide', 'Segoe UI', sans-serif;
     --radius: 1px;
-    --brand-size: 18px; --brand-weight: 400; --brand-track: 0.04em; --brand-case: uppercase;
-    --tab-size: 12.5px; --tab-case: uppercase; --tab-track: 0.08em;
-    --head-size: 12px; --head-weight: 400; --head-case: uppercase; --head-track: 0.08em; --head-color: var(--accent-flair);
+    --brand-weight: 400; --brand-track: 0.04em; --brand-case: uppercase;
+    --tab-case: uppercase; --tab-track: 0.08em;
+    --head-weight: 400; --head-case: uppercase; --head-track: 0.08em; --head-color: var(--accent-flair);
     --btn-weight: 600;
     --r-chip: 1px; --r-card: 2px; --r-panel: 2px; --r-check: 1px; --r-scroll: 0px;
     --card-shadow: none;
@@ -989,9 +982,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --sans: 'Jost', 'Segoe UI', system-ui, sans-serif;
     --display: 'Poiret One', 'Jost', sans-serif;
     --radius: 18px; --r-ctl: 999px;
-    --brand-size: 24px; --brand-weight: 400; --brand-track: 0.04em;
-    --tab-size: 12px; --tab-case: uppercase; --tab-track: 0.16em;
-    --head-size: 11.5px; --head-weight: 600; --head-case: uppercase; --head-track: 0.2em; --head-color: color-mix(in srgb, var(--accent-manual) 50%, var(--text-primary));
+    --brand-weight: 400; --brand-track: 0.04em;
+    --tab-case: uppercase; --tab-track: 0.16em;
+    --head-weight: 600; --head-case: uppercase; --head-track: 0.2em; --head-color: color-mix(in srgb, var(--accent-manual) 50%, var(--text-primary));
     --r-chip: 999px; --r-card: 3px; --r-panel: 3px; --r-check: 4px; --r-scroll: 999px;
     --card-shadow: 0 2px 10px color-mix(in srgb, var(--accent-manual) 10%, transparent);
     --fx-fill: linear-gradient(110deg, var(--accent-manual), var(--accent-flair) 55%, var(--accent-manual)); --fx-o: 0.3; --fx-w: 1;
@@ -1027,9 +1020,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Nunito', 'Segoe UI', system-ui, sans-serif;
     --radius: 12px; --r-ctl: 999px;
-    --brand-size: 19px; --brand-weight: 900; --brand-track: -0.01em;
-    --tab-size: 13px;
-    --head-size: 13.5px; --head-weight: 800; --head-color: var(--accent-auto);
+    --brand-weight: 900; --brand-track: -0.01em;
+    --head-weight: 800; --head-color: var(--accent-auto);
     --btn-weight: 700;
     --r-chip: 999px; --r-card: 24px 4px 24px 4px; --r-panel: 24px 4px 24px 4px; --r-check: 6px; --r-scroll: 999px;
     --card-shadow: 0 6px 16px rgba(0,0,0,0.25);
@@ -1048,8 +1040,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background-size: 373px 541px, 457px 389px, 211px 307px, 613px 701px;
   }
   html[data-theme="coral-reef"] #topbar{ border-bottom: 1px solid var(--border-strong); }
-  html[data-theme="coral-reef"] #tabBar{ padding-top: 5px; padding-bottom: 5px; gap: 6px; }
-  html[data-theme="coral-reef"] .tab-btn{ border-radius: 999px; border-bottom: none; padding: 6px 15px; }
+  html[data-theme="coral-reef"] #tabBar{ gap: 6px; }
+  html[data-theme="coral-reef"] .tab-btn{ border-radius: 999px; border-bottom: none; }
   html[data-theme="coral-reef"] .tab-btn.active{ background: var(--accent-manual-dim); color: var(--accent-manual); }
   html[data-theme="coral-reef"] .card .thumbwrap{ border-radius: 23px 3px 0 0; }
 
@@ -1066,9 +1058,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --display: 'Saira Stencil One', 'Barlow Condensed', sans-serif;
     --head-font: 'Saira Stencil One', 'Barlow Condensed', sans-serif;
     --radius: 2px;
-    --brand-size: 20px; --brand-weight: 400; --brand-track: 0.04em; --brand-case: uppercase;
-    --tab-size: 14px; --tab-case: uppercase; --tab-track: 0.06em;
-    --head-size: 14px; --head-weight: 400; --head-case: uppercase; --head-track: 0.06em; --head-color: var(--accent-flair);
+    --brand-weight: 400; --brand-track: 0.04em; --brand-case: uppercase;
+    --tab-case: uppercase; --tab-track: 0.06em;
+    --head-weight: 400; --head-case: uppercase; --head-track: 0.06em; --head-color: var(--accent-flair);
     --btn-weight: 600; --btn-track: 0.03em;
     --r-chip: 2px; --r-card: 2px; --r-panel: 2px; --r-check: 1px; --r-scroll: 0px;
     --card-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-manual) 20%, transparent);
@@ -1080,7 +1072,6 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     border-bottom: none;
     background-image: repeating-linear-gradient(-45deg, var(--accent-flair) 0 8px, var(--bg-base) 8px 16px);
     background-size: 100% 5px; background-position: bottom; background-repeat: no-repeat;
-    padding-bottom: 13px;
   }
   html[data-theme="toxic-waste"] .tool-section{
     background:
@@ -1104,9 +1095,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --display: 'Gilda Display', Georgia, serif;
     --head-font: 'Gilda Display', Georgia, serif;
     --radius: 8px;
-    --brand-size: 22px; --brand-weight: 400; --brand-track: 0.01em;
-    --tab-size: 12.5px;
-    --head-size: 15px; --head-weight: 400; --head-color: var(--accent-manual);
+    --brand-weight: 400; --brand-track: 0.01em;
+    --head-weight: 400; --head-color: var(--accent-manual);
     --r-chip: 999px; --r-card: 10px; --r-panel: 10px; --r-check: 4px; --r-scroll: 999px;
     --card-shadow: 0 2px 8px color-mix(in srgb, var(--accent-manual) 9%, transparent);
     --fx-fill: var(--accent-flair); --fx-o: 0.28;
@@ -1118,7 +1108,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   html[data-theme="lavender-fields"] #topbar{ border-bottom: 1px solid var(--border-strong); }
   html[data-theme="lavender-fields"] .tool-section{ background: var(--bg-panel); }
-  html[data-theme="lavender-fields"] .tool-section .sec-head{ padding-bottom: 7px; border-bottom: 1px solid var(--border-soft); }
+  html[data-theme="lavender-fields"] .tool-section .sec-head{ border-bottom: 1px solid var(--border-soft); }
   html[data-theme="lavender-fields"] .tab-btn.active{
     color: var(--accent-manual); border-bottom-color: transparent;
     background: linear-gradient(var(--accent-flair), var(--accent-flair)) bottom center / 36% 2px no-repeat;
@@ -1134,9 +1124,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Fredoka', 'Segoe UI', system-ui, sans-serif;
     --radius: 20px; --r-ctl: 999px;
-    --brand-size: 22px; --brand-weight: 700; --brand-track: -0.01em;
-    --tab-size: 13.5px;
-    --head-size: 14.5px; --head-weight: 600; --head-color: var(--accent-manual);
+    --brand-weight: 700; --brand-track: -0.01em;
+    --head-weight: 600; --head-color: var(--accent-manual);
     --r-chip: 999px; --r-card: 22px; --r-panel: 22px; --r-check: 7px; --r-scroll: 999px;
     --card-shadow: 0 4px 14px color-mix(in srgb, var(--accent-manual) 12%, transparent);
     --fx-fill: var(--accent-flair); --fx-o: 0.5;
@@ -1144,8 +1133,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --icon-stroke: 2.25;
   }
   html[data-theme="candy-pop"] #topbar{ border-bottom: 3px solid var(--accent-manual); }
-  html[data-theme="candy-pop"] #tabBar{ padding-top: 6px; padding-bottom: 6px; gap: 6px; }
-  html[data-theme="candy-pop"] .tab-btn{ border-radius: 999px; border-bottom: none; padding: 6px 16px; }
+  html[data-theme="candy-pop"] #tabBar{ gap: 6px; }
+  html[data-theme="candy-pop"] .tab-btn{ border-radius: 999px; border-bottom: none; }
   html[data-theme="candy-pop"] .tab-btn.active{ background: var(--accent-manual); color: #ffffff; }
   /* Candy stripe on the wrapper, solid under the text. */
   html[data-theme="candy-pop"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
@@ -1171,9 +1160,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-font: 'Big Shoulders Display', 'Barlow', sans-serif;
     --tab-font: 'Big Shoulders Display', 'Barlow', sans-serif;
     --radius: 1px;
-    --brand-size: 22px; --brand-weight: 800; --brand-track: 0.04em; --brand-case: uppercase;
-    --tab-size: 15px; --tab-case: uppercase; --tab-track: 0.06em;
-    --head-size: 15px; --head-weight: 800; --head-case: uppercase; --head-track: 0.06em; --head-color: var(--accent-flair);
+    --brand-weight: 800; --brand-track: 0.04em; --brand-case: uppercase;
+    --tab-case: uppercase; --tab-track: 0.06em;
+    --head-weight: 800; --head-case: uppercase; --head-track: 0.06em; --head-color: var(--accent-flair);
     --r-chip: 1px; --r-card: 1px; --r-panel: 1px; --r-check: 1px; --r-scroll: 0px;
     --card-shadow: 0 2px 4px rgba(0,0,0,0.4);
     --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-auto), color-mix(in srgb, var(--accent-auto) 60%, var(--text-primary))); --fx-o: 0.32; --fx-w: 1;
@@ -1220,9 +1209,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-font: 'Eczar', Georgia, serif;
     --tab-font: 'Eczar', Georgia, serif;
     --radius: 3px;
-    --brand-size: 25px; --brand-weight: 400; --brand-track: 0.01em;
-    --tab-size: 13.5px;
-    --head-size: 14px; --head-weight: 600; --head-color: var(--text-primary);
+    --brand-weight: 400; --brand-track: 0.01em;
+    --head-weight: 600; --head-color: var(--text-primary);
     --r-chip: 2px; --r-card: 3px; --r-panel: 3px; --r-check: 2px; --r-scroll: 2px;
     --card-shadow: 0 3px 10px rgba(0,0,0,0.5);
     --fx-fill: var(--accent-manual); --fx-o: 0.3;
@@ -1255,9 +1243,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --display: 'Gloock', Georgia, serif;
     --head-font: 'Gloock', Georgia, serif;
     --radius: 10px;
-    --brand-size: 21px; --brand-weight: 400; --brand-track: 0;
-    --tab-size: 12.5px;
-    --head-size: 15px; --head-weight: 400; --head-color: var(--accent-flair);
+    --brand-weight: 400; --brand-track: 0;
+    --head-weight: 400; --head-color: var(--accent-flair);
     --r-chip: 999px; --r-card: 30px 30px 6px 6px; --r-panel: 30px 30px 6px 6px; --r-check: 5px; --r-scroll: 999px;
     --card-shadow: 0 4px 14px rgba(0,0,0,0.35);
     --fx-fill: linear-gradient(90deg, var(--accent-manual), var(--accent-flair)); --fx-o: 0.28; --fx-w: 1;
@@ -1273,7 +1260,6 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background-size: 419px 367px, 353px 461px, 509px 313px;
   }
   html[data-theme="twilight-garden"] #topbar{ border-bottom: 1px solid var(--border-strong); }
-  html[data-theme="twilight-garden"] .tool-section{ padding-top: 18px; padding-left: 18px; padding-right: 18px; }
   html[data-theme="twilight-garden"] .card .thumbwrap{ border-radius: 29px 29px 0 0; }
   html[data-theme="twilight-garden"] .tab-btn.active{
     color: var(--accent-flair); border-bottom-color: transparent;
@@ -1291,9 +1277,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Epilogue', 'Segoe UI', system-ui, sans-serif;
     --radius: 7px;
-    --brand-size: 17px; --brand-weight: 800; --brand-track: 0.01em;
-    --tab-size: 12px; --tab-case: uppercase; --tab-track: 0.12em;
-    --head-size: 11.5px; --head-weight: 700; --head-case: uppercase; --head-track: 0.16em; --head-color: var(--accent-flair);
+    --brand-weight: 800; --brand-track: 0.01em;
+    --tab-case: uppercase; --tab-track: 0.12em;
+    --head-weight: 700; --head-case: uppercase; --head-track: 0.16em; --head-color: var(--accent-flair);
     --r-chip: 5px; --r-card: 9px; --r-panel: 9px; --r-check: 4px; --r-scroll: 5px;
     --card-shadow: 0 4px 14px rgba(0,0,0,0.4);
     --fx-fill: linear-gradient(90deg, var(--accent-auto), var(--accent-flair), var(--accent-manual)); --fx-o: 0.3; --fx-w: 1;
@@ -1347,9 +1333,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     --head-font: 'Marcellus SC', Georgia, serif;
     --tab-font: 'Marcellus SC', Georgia, serif;
     --radius: 12px; --r-ctl: 999px;
-    --brand-size: 18px; --brand-weight: 400; --brand-track: 0.2em;
-    --tab-size: 13.5px; --tab-track: 0.06em;
-    --head-size: 14px; --head-weight: 400; --head-track: 0.08em; --head-color: var(--accent-flair);
+    --brand-weight: 400; --brand-track: 0.2em;
+    --tab-track: 0.06em;
+    --head-weight: 400; --head-track: 0.08em; --head-color: var(--accent-flair);
     --r-chip: 999px; --r-card: 12px; --r-panel: 12px; --r-check: 4px; --r-scroll: 999px;
     --card-shadow: 0 4px 14px rgba(0,0,0,0.4);
     --fx-fill: radial-gradient(ellipse at 0% 50%, var(--accent-flair), transparent 75%); --fx-o: 0.35; --fx-w: 1;

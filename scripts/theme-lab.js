@@ -141,6 +141,7 @@ function buildPage(){
 <meta charset="utf-8">
 <title>Osmium Theme Lab</title>
 <link rel="stylesheet" href="/renderer/fonts/fonts.css">
+<link rel="stylesheet" href="/renderer/fonts/font-fit.css">
 <link rel="stylesheet" href="/renderer/styles.css">
 <script>(function(){ ${nightFn} })();</script>
 <script>${markScript}</script>
