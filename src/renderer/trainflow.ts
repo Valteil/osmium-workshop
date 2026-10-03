@@ -7,6 +7,7 @@
 import { $ } from './dom';
 import { getJSON, setJSON } from './storage';
 import { showImageLightbox, showConfirmModal, toast } from './shared-ui';
+import { writeBytes } from './fs-access';
 import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck } from '../shared-types';
 import type { Entry, DirHandle } from './types';
 
@@ -98,29 +99,61 @@ export function initTrainflow(deps: TrainflowDeps): void {
   });
 
   // ---- the loaded dataset ---------------------------------------------------
-  // Trainflow trains whatever dataset Osmium has loaded. Osmium holds a folder handle, not a path, so the
-  // real location is learned when the dataset is opened (onDatasetOpened: read from an image if Electron can
-  // name it, else the user picks the folder once) and remembered per dataset name. Every use re-checks that
-  // the remembered folder still exists and holds the dataset's first image.
+  // Trainflow trains whatever dataset Osmium has loaded. Osmium holds a folder
+  // handle, not a path, so the real location is resolved once per open, in
+  // this order (resolver, called after loadFolder() via __dtsDatasetOpened):
+  //   1. Cache: the remembered path, accepted only if it still holds the
+  //      dataset's first image (trainflow-path-ok). Keyed by name AND marker,
+  //      so a renamed/replaced dataset never reuses a stale path.
+  //   2. Marker probe: write a uniquely named file through the handle, ask the
+  //      main process to find a same-named folder under likely roots that
+  //      contains it. No prompt; the uuid makes a false match impossible.
+  //   3. One confirm: only if 1 and 2 both fail. Uses a real-path folder
+  //      dialog (trainflow-pick-path, i.e. dialog.showOpenDialog), NOT
+  //      showDirectoryPicker, so Chromium's restricted-folder rule doesn't
+  //      apply; the pick is re-checked against the marker.
+  // getPathForFile is NOT used: verified on a picker handle it returns '' (T0).
   let datasetPath = '';
-  const dirOf = (p: string) => p.replace(/[\\/][^\\/]*$/, '');
   const firstImage = () => deps.getEntries().find((x) => !x.disabled && !x.original);
-  const savedPaths = () => getJSON<Record<string, string>>(PATHS_KEY, {});
+  // Cache entries are keyed by name; each stores its marker so a different
+  // dataset that happens to share the name can't inherit the old path.
+  interface PathRec { path: string; marker: string; }
+  const savedPaths = () => getJSON<Record<string, PathRec>>(PATHS_KEY, {});
   const askedThisSession = new Set<string>();
+  const newMarker = () => `.osmium-probe-${(crypto as Crypto).randomUUID()}`;
 
-  async function savedPathFor(name: string): Promise<string> {
-    const p = savedPaths()[name];
-    if (!p) return '';
+  async function savedPathFor(name: string, marker: string): Promise<string> {
+    const rec = savedPaths()[name];
+    if (!rec || rec.marker !== marker) return '';
     const img = firstImage();
-    return (await api.trainflowPathOk!(p, img?.imgName)) ? p : '';
+    return (await api.trainflowPathOk!(rec.path, img?.imgName)) ? rec.path : '';
   }
-  async function detectPath(): Promise<string> {
-    const e = firstImage();
-    if (!e || !api.getPathForFile) return '';
-    try { const p = api.getPathForFile(await e.imgHandle.getFile()); return p ? dirOf(p) : ''; } catch { return ''; }
+  function remember(name: string, marker: string, p: string): void {
+    const map = savedPaths(); map[name] = { path: p, marker }; setJSON(PATHS_KEY, map);
   }
-  function remember(name: string, p: string): void {
-    const map = savedPaths(); map[name] = p; setJSON(PATHS_KEY, map);
+  // Stable per-dataset marker: the cache is keyed by name, and a dataset that
+  // reopens keeps the same handle *name*, so the marker must persist too, or a
+  // cached path would be rejected on every reopen. Stored alongside the path;
+  // minted only the first time this dataset name is seen.
+  function persistMarkerFor(name: string): string {
+    const rec = savedPaths()[name];
+    if (rec && rec.marker) return rec.marker;
+    const m = newMarker();
+    const map = savedPaths(); map[name] = { path: rec?.path || '', marker: m }; setJSON(PATHS_KEY, map);
+    return m;
+  }
+  // Drop the marker file into the dataset folder and have main find it.
+  async function probePath(dir: DirHandle, marker: string): Promise<string> {
+    if (!api.trainflowFindByMarker) return '';
+    try {
+      const fh = await dir.getFileHandle(marker, { create: true });
+      await writeBytes(fh as unknown as Parameters<typeof writeBytes>[0], 'osmium trainflow probe');
+    } catch { return ''; }
+    try {
+      return (await api.trainflowFindByMarker(dir.name, marker)) || '';
+    } finally {
+      try { await (dir as unknown as { removeEntry(n: string): Promise<void> }).removeEntry(marker); } catch { /* gone or not permitted */ }
+    }
   }
   async function resolveDataset(): Promise<string> {
     const dir = deps.getDirHandle();
@@ -128,21 +161,27 @@ export function initTrainflow(deps: TrainflowDeps): void {
     datasetPath = '';
     locate.style.display = 'none';
     if (!dir) { nameEl.textContent = 'No dataset loaded'; nameEl.title = ''; return ''; }
-    datasetPath = await savedPathFor(dir.name);
-    if (!datasetPath) { datasetPath = await detectPath(); if (datasetPath) remember(dir.name, datasetPath); }
+    marker = persistMarkerFor(dir.name);
+    datasetPath = await savedPathFor(dir.name, marker);
+    if (!datasetPath) { datasetPath = await probePath(dir, marker); if (datasetPath) remember(dir.name, marker, datasetPath); }
     nameEl.textContent = datasetPath ? `${dir.name} (${datasetPath})` : `${dir.name} (location unknown)`;
     nameEl.title = datasetPath;
     locate.style.display = datasetPath ? 'none' : '';
     return datasetPath;
   }
-  // Pick the folder and accept it only if it really is this dataset.
+  // Current dataset's probe marker, so a manual locate() caches under the same
+  // key the resolver used.
+  let marker = '';
+  // Pick the folder (real path) and accept it only if it really is this
+  // dataset — proven by the same marker test the probe uses.
   async function locateDataset(): Promise<boolean> {
     const dir = deps.getDirHandle();
     if (!dir) return false;
+    if (!marker) marker = persistMarkerFor(dir.name);
     const p = await api.trainflowPickPath!({ kind: 'folder', title: `Where is "${dir.name}" on your computer?` });
     if (!p) return false;
     if (!(await api.trainflowPathOk!(p, firstImage()?.imgName))) { toast("That folder doesn't contain this dataset's images."); return false; }
-    remember(dir.name, p);
+    remember(dir.name, marker, p);
     return true;
   }
   // Called after every dataset open (loadFolder), so Trainflow never has to ask later.
@@ -150,9 +189,7 @@ export function initTrainflow(deps: TrainflowDeps): void {
     void (async () => {
       const dir = deps.getDirHandle();
       if (!dir || !firstImage()) return;
-      if (await savedPathFor(dir.name)) return;
-      const detected = await detectPath();
-      if (detected) { remember(dir.name, detected); return; }
+      if (await resolveDataset()) { if (tab.style.display !== 'none') void refreshDataset(); return; }
       if (askedThisSession.has(dir.name)) return;
       askedThisSession.add(dir.name);
       const ok = await showConfirmModal(`To train "${dir.name}" later, Trainflow needs to know where it is on your computer (Osmium can't see folder paths itself). Choose its folder now? You only do this once per dataset.`, { okLabel: 'Choose folder', cancelLabel: 'Later' });

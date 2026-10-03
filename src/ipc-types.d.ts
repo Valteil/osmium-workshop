@@ -93,6 +93,10 @@ export interface ElectronAPI {
   exportAppState(text: string): Promise<ExportAppStateResult>;
   onRequestClose(callback: () => void): void;
   confirmClose(): Promise<void>;
+  // Chromium's File System Access blocklist hit the last directory pick:
+  // the path it refused (Desktop/Documents/Downloads/profile root), or null
+  // if the last pick wasn't restricted. Desktop only; optional elsewhere.
+  fsaLastRestricted?(): Promise<string | null>;
 
   wd14GetModels(host: string): Promise<ComfyResult>;
   wd14TagImage(payload: Wd14TagImagePayload): Promise<ComfyResult>;
@@ -118,6 +122,9 @@ export interface ElectronAPI {
   trainflowPickFolder?(): Promise<TrainflowStatus>;
   trainflowPickPath?(p: { kind: 'folder' | 'file'; title: string; defaultPath?: string }): Promise<string | null>;
   trainflowPathOk?(dir: string, file?: string): Promise<boolean>;
+  // Locate a dataset folder by a unique marker file the renderer wrote into
+  // it, searching likely roots for a folder named `name`. Main process only.
+  trainflowFindByMarker?(name: string, marker: string): Promise<string | null>;
   trainflowCheckDataset?(dir: string, bucket: { min: number; max: number; step: number }): Promise<TrainflowDatasetCheck>;
   trainflowVerifyBuckets?(dir: string, bucket: { min: number; max: number; step: number }): Promise<TrainflowBucketReport>;
   trainflowStart?(s: TrainflowSettings): Promise<TrainflowStartResult>;

@@ -21,6 +21,12 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Bucket Images keeps an original of every image** in `original_images/` (Initial State is Originals
   again, and `initial_state/` folders are merged into it), and bucketing again re-makes the copies from
   the originals, so you can try different dimensions as often as you like.
+- **WD14 review window, rebuilt**: tagging a batch in Tag Overseer with "Apply automatically" off now
+  shows one card per image. Each card keeps its picture on the left and its own tag area on the
+  right, with the tags WD14 added tinted so they stand out from the ones already on the image. Drop
+  any tag to the "Dropped" row and click it to put it back, or type in more. A **Tag sorting**
+  button groups each card's tags by category, and you can apply one image, apply all of them, or
+  skip all.
 
 ---
 

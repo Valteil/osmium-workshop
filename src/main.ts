@@ -1,9 +1,11 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell, session } from 'electron';
+import { pathToFileURL } from 'url';
 import { execFileSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as https from 'https';
+import * as crypto from 'crypto';
 import WS from 'ws';
 import { registerWd14LocalHandlers } from './wd14-local';
 import { registerBucketLocalHandlers } from './bucket-local';
@@ -20,6 +22,45 @@ import type { ComfyResult } from './shared-types';
 // `__closeConfirmed` is a flag this file sets on the window itself (see the
 // close/confirm-close pair below) — not part of Electron's own BrowserWindow.
 type AppWindow = BrowserWindow & { __closeConfirmed?: boolean };
+
+// ---- IPC sender guard --------------------------------------------------------
+// Every ipcMain.handle is wrapped (below) so no handler can run for a frame
+// that isn't the app's own renderer page. The trusted page URL is the exact
+// file:// URL of the HTML the window loads (`ensureRendererFiles()`), computed
+// once at startup and compared with query/hash stripped. A loose prefix match
+// is deliberately avoided (`.../index.html.evil` must not pass).
+//
+// This is a defence-in-depth guard, not a substitute for per-handler input
+// validation: it stops a foreign frame or an injected sub-frame, but a
+// compromised top frame still reaches every handler, so path-taking handlers
+// validate their inputs separately (see the path helpers in trainflow.ts).
+let trustedRendererUrl = '';
+function normalizePageUrl(u: string): string {
+  try { const parsed = new URL(u); return parsed.origin + parsed.pathname; }
+  catch { return u; }
+}
+function setTrustedRenderer(pagePath: string): void {
+  trustedRendererUrl = normalizePageUrl(pathToFileURL(pagePath).href);
+}
+function assertTrustedFrame(event: Electron.IpcMainInvokeEvent): void {
+  const frameUrl = event.senderFrame ? normalizePageUrl(event.senderFrame.url) : '';
+  if (!trustedRendererUrl || frameUrl !== trustedRendererUrl) {
+    throw new Error('IPC rejected: untrusted sender frame.');
+  }
+}
+// Wrap ipcMain.handle once, at module load, so ALL handlers (this file's and
+// every register*Handlers module's) are guarded without editing each one. The
+// original is captured first; register* modules import the same patched
+// ipcMain object, so they get the guard too.
+{
+  const rawHandle = ipcMain.handle.bind(ipcMain) as typeof ipcMain.handle;
+  (ipcMain as { handle: typeof ipcMain.handle }).handle = ((channel: string, listener: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown) => {
+    return rawHandle(channel, (event, ...args) => {
+      assertTrustedFrame(event);
+      return listener(event, ...args);
+    });
+  }) as typeof ipcMain.handle;
+}
 
 interface ComfyRequestOptions {
   method?: string;
@@ -190,6 +231,51 @@ function ensureRendererFiles(): string {
   return toolIndex;
 }
 
+// Content-Security-Policy for the app window, applied to the session's
+// response headers (covers the document and every subresource). The renderer
+// has four inline <script> blocks (the pre-paint theme pass and the opening
+// flourish) which are allowed by SHA-256 hash, computed from the page at
+// startup rather than 'unsafe-inline' — so an injected inline script is blocked
+// and the policy is never hand-synced when those blocks change. style-src needs
+// 'unsafe-inline': styles.css is fine as 'self', but the app also sets inline
+// style="" attributes (theme vars, geometry). Images come from file:// (self),
+// blob: (object URLs) and data: (inline SVGs). connect-src stays localhost-only;
+// desktop ComfyUI HTTP is done in the main process, not a renderer fetch.
+function applyRendererCsp(): void {
+  let scriptHashes: string[] = [];
+  try {
+    const html = fs.readFileSync(ensureRendererFiles(), 'utf8');
+    // Only inline scripts (<script> with no src=); src'd scripts are covered by 'self'.
+    const inline = html.matchAll(/<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi);
+    scriptHashes = [...inline]
+      .map((m) => m[1])
+      .filter((body) => body.trim().length > 0)
+      .map((body) => `'sha256-${crypto.createHash('sha256').update(body, 'utf8').digest('base64')}'`);
+  } catch (err) {
+    console.error('[csp] could not hash inline scripts:', err);
+  }
+  const policy = [
+    "default-src 'self'",
+    `script-src 'self' ${scriptHashes.join(' ')}`.trim(),
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'"
+  ].join('; ');
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [policy]
+      }
+    });
+  });
+}
+
 function createWindow(): void {
   // electron-builder's own `build.win/mac/linux.icon` (package.json) bakes the icon into a
   // PACKAGED exe automatically — this is what makes it show up in dev (`npm start`, unpackaged)
@@ -225,7 +311,18 @@ function createWindow(): void {
     win.show();
   });
 
-  win.loadFile(ensureRendererFiles());
+  const rendererHtml = ensureRendererFiles();
+  // Fix the trusted page URL the IPC sender guard compares against. Must be
+  // the same target loadFile produces, normalised the same way.
+  setTrustedRenderer(rendererHtml);
+  win.loadFile(rendererHtml);
+
+  // Electron shell hardening: this window only ever shows the app's own page,
+  // so block navigating away from it and deny every window.open/new-window.
+  win.webContents.on('will-navigate', (event, url) => {
+    if (normalizePageUrl(url) !== normalizePageUrl(pathToFileURL(rendererHtml).href)) event.preventDefault();
+  });
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   // Ask the renderer before actually closing, so it can warn about unsaved
   // caption changes. A renderer-side `beforeunload` handler alone does NOT
@@ -256,6 +353,22 @@ function createWindow(): void {
 // renderer-side constant did (it sat at '2.0.0' while package.json had long
 // since moved to '1.1.0', with nothing keeping the two in sync).
 ipcMain.handle('get-app-version', () => app.getVersion());
+
+// Chromium's File System Access blocklist refuses write access to Desktop,
+// Documents, Downloads and the user-profile root (see
+// notes/Pitfalls/Chromium-Restricted-Folder-Picker.md). In a browser that's a
+// "Can't open this folder" dialog; in Electron the picker emits
+// 'file-system-access-restricted' and, with no handler, the
+// showDirectoryPicker() promise never settles — the renderer's picker guard
+// stays stuck and the folder is silently never created. Deny it so the promise
+// rejects; lastRestrictedPath lets the renderer name the folder. ('tryAgain'
+// would just re-open the picker.)
+let lastRestrictedPath: string | null = null;
+ipcMain.handle('fsa-last-restricted', () => {
+  const p = lastRestrictedPath;
+  lastRestrictedPath = null;
+  return p;
+});
 
 ipcMain.handle('confirm-close', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender) as AppWindow | null;
@@ -686,6 +799,19 @@ app.whenReady().then(() => {
   // Hide the default File/Edit/View/Window/Help menu bar for a cleaner, app-like feel.
   // Press Alt on Windows/Linux to reveal it temporarily if you ever need DevTools etc.
   Menu.setApplicationMenu(null);
+
+  // INVARIANT: this handler must stay `callback('deny')`. Desktop/Documents/
+  // Downloads/profile-root are on Chromium's File System Access blocklist; the
+  // only correct responses are deny (reject the pick) or, if ever changed, a
+  // full origin + path validation before `allow`. Never allow unconditionally.
+  // See notes/Pitfalls/Chromium-Restricted-Folder-Picker.md.
+  session.defaultSession.on('file-system-access-restricted', (_event, details, callback) => {
+    lastRestrictedPath = details.path;
+    console.warn('[fsa] restricted folder denied:', details.path);
+    callback('deny');
+  });
+
+  applyRendererCsp();
 
   createWindow();
 

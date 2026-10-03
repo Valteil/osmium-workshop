@@ -7,7 +7,8 @@ import {
 import { toast, showPanel, hidePanel } from './shared-ui';
 import { trackStat, checkAchievements } from './achievements';
 import { serializeHandle, isMobileHandle, reviveHandle, requestPermission } from './fs-access';
-import { openDB, idbGetAll, idbAdd, idbDelete } from './idb';
+import { openDB, idbGetAll, idbAdd, idbDelete, idbUpdate } from './idb';
+import { promptRelinkFolder } from './folder-picker';
 import { setIconLabel } from './icons';
 
 const FAV_DB_NAME = 'dts-favorites-db';
@@ -77,6 +78,13 @@ async function removeFavorite(id: number): Promise<void> {
   await idbDelete(db, FAV_STORE, id);
 }
 
+// A favorite's stored handle stops resolving once the folder moves/renames/
+// deletes. Point it at the folder the user re-picks.
+async function relinkFavorite(fav: FavoriteRecord, handle: DirHandle): Promise<void> {
+  const db = await openFavDB();
+  await idbUpdate(db, FAV_STORE, fav.id, { handle: serializeHandle(handle), name: handle.name });
+}
+
 async function renderFavorites(): Promise<void> {
   let favs: FavoriteRecord[] = [];
   try { favs = await listFavorites(); } catch { favs = []; }
@@ -122,7 +130,17 @@ async function openFavorite(fav: FavoriteRecord): Promise<void> {
     hidePanel(favoritesPanel);
     await openFolderHandle(fav.handle);
   } catch {
-    toast('Could not reopen that folder — it may have been moved or deleted.', 3600);
+    // The stored handle no longer resolves (folder moved/renamed/deleted):
+    // offer to locate it again rather than a dead-end error. One retry only.
+    const replacement = await promptRelinkFolder(fav.name);
+    if (!replacement) return;
+    try {
+      await relinkFavorite(fav, replacement);
+      hidePanel(favoritesPanel);
+      await openFolderHandle(replacement);
+    } catch {
+      toast('Could not open that folder either.', 3600);
+    }
   }
 }
 

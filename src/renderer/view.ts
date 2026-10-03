@@ -3877,11 +3877,21 @@ export function initView(deps: ViewDeps): void {
   // at a glance. Tags stay editable through the card modal either way.
   let hideTags = false;
   hideTags = getBool('dts-hide-tags');
-  setIconLabel(btnHideTags, hideTags ? '\ud83d\udc41 Show tags' : '\ud83d\ude48 Hide tags');
+  // Icon-only toolbar button (a text label ate too much gallery width): the
+  // icon flips between eye-off (tags hidden) and eye (shown again), while the
+  // tooltip and aria-label carry the wording the old label had.
+  function renderHideTagsButton(): void {
+    setIconLabel(btnHideTags, hideTags ? '\ud83d\udc41' : '\ud83d\ude48');
+    btnHideTags.title = hideTags
+      ? 'Show the tag chips and add-field on every card again'
+      : "Hide the tag chips and add-field on every card — useful when sorting against a filter (e.g. everything without 1girl) so what IS and ISN'T missing stays visually obvious; tags stay editable via the card modal";
+    btnHideTags.setAttribute('aria-label', hideTags ? 'Show tags' : 'Hide tags');
+  }
+  renderHideTagsButton();
   btnHideTags.addEventListener('click', () => {
     hideTags = !hideTags;
     setBool('dts-hide-tags', hideTags);
-    setIconLabel(btnHideTags, hideTags ? '\ud83d\udc41 Show tags' : '\ud83d\ude48 Hide tags');
+    renderHideTagsButton();
     renderCurrentView();
   });
 

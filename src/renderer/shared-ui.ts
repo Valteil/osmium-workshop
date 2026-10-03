@@ -533,10 +533,15 @@ export function positionMenu(menu: HTMLElement, x: number, y: number): void {
 // ---------------- Themed confirm modal ----------------
 
 interface ConfirmModalOpts {
-  cancelLabel?: string;
-  okLabel?: string;
-  danger?: boolean;
-}
+    cancelLabel?: string;
+    okLabel?: string;
+    danger?: boolean;
+    // Optional warning block(s) under the message, for caveats that must be
+    // seen in the dialog itself (not a toast). Each renders as its own box;
+    // `tone` is 'danger' (default, red) or 'info' (blue).
+    warning?: string;
+    warnings?: { text: string; tone?: 'danger' | 'info' }[];
+  }
 
 // The shared backdrop/box shell every modal in the renderer is built on:
 // creates the `.confirm-backdrop` + `.confirm-box`, wires outside-click and
@@ -636,6 +641,26 @@ export function showConfirmModal(message: string, opts: ConfirmModalOpts = {}): 
     msg.className = 'confirm-message';
     msg.textContent = message;
     box.appendChild(msg);
+    // Optional in-dialog warning block(s), each its own tinted box. Used where
+    // a toast would be hidden or missed — e.g. the File System Access
+    // "Windows blocks Desktop/Documents" notice, which would appear behind the
+    // native folder picker. `tone` picks the accent: 'danger' (default) for a
+    // real gotcha, 'info' for a harmless heads-up.
+    const warnings = opts.warnings || (opts.warning ? [{ text: opts.warning }] : []);
+    for (const w of warnings){
+      if (!w || !w.text) continue;
+      const tone = w.tone === 'info' ? 'info' : 'danger';
+      const warn = document.createElement('div');
+      warn.className = `confirm-warning confirm-warning-${tone}`;
+      const icon = document.createElement('span');
+      icon.className = 'confirm-warning-icon';
+      icon.textContent = tone === 'info' ? 'ℹ' : '⚠';
+      const text = document.createElement('span');
+      text.textContent = w.text;
+      warn.appendChild(icon);
+      warn.appendChild(text);
+      box.appendChild(warn);
+    }
     const btnRow = document.createElement('div');
     btnRow.className = 'confirm-btn-row';
     const cancelBtn = document.createElement('button');

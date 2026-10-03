@@ -16,7 +16,7 @@ import {
   achievementsPanel, favoritesPanel, logPanel, tagDetailsPanel, shopPanel
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, positionMenu, buildPersistentDropdown, addContextMenuItem, createModalShell, showPromptModal } from './shared-ui';
-import { pickDatasetFolder } from './folder-picker';
+import { pickDatasetFolder, promptRelinkFolder } from './folder-picker';
 import { renderAchievementsPanel, trackStat, checkAchievements } from './achievements';
 import { addFavoriteHandle, removeFavoriteByHandle, isFavorited } from './favorites';
 import { setIconLabel } from './icons';
@@ -816,7 +816,18 @@ async function openTrackedFolder(record: DMRecord): Promise<void> {
     await openFolderHandle(record.handle);
     switchTab('gallery');
   } catch(err){
-    toast('Could not reopen that folder — it may have been moved or deleted.', 3600);
+    // Stored handle no longer resolves (folder moved/renamed/deleted): offer
+    // to locate it again and re-point the tracked record. One retry only.
+    const replacement = await promptRelinkFolder(record.name);
+    if (!replacement) return;
+    try {
+      await updateDatasetFolder(record.id, { handle: serializeHandle(replacement) as DMRecord['handle'], name: replacement.name });
+      renderDatasetManagerTab();
+      await openFolderHandle(replacement);
+      switchTab('gallery');
+    } catch {
+      toast('Could not open that folder either.', 3600);
+    }
   }
 }
 

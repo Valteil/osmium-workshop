@@ -25,7 +25,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     title: 'Start here: training a LoRA',
     html: `
       <p>This Help runs top to bottom in the order you actually work. Follow it and you finish with a
-      tagged, pruned, bucketed dataset that's ready to train.</p>
+      tagged, pruned, bucketed dataset that's ready to train, even with no prior experience.</p>
       <ol>
         <li><b>Gather your dataset</b> — open a folder, add images and captions.</li>
         <li><b>WD14 tag</b> — autotag everything first, so you have something to clean up.</li>
@@ -38,58 +38,48 @@ export const HELP_SECTIONS: HelpSection[] = [
       </ol>
       ${isTouchDevice ? `<p>On Android the tagging steps are the same; bucketing and training happen on
       your PC.</p>` : ''}
-      <p>How hard you lean on steps 3 and 4 depends on whether you're making a
-      <span style="white-space:nowrap;"><b>character LoRA or a style LoRA</b> <button type="button" class="info-btn" id="infoGlossaryCharacterLora" title="Character LoRA vs. style LoRA">ⓘ</button></span>.</p>
-      <p>Merge and Void tend to matter a lot more for a
-      <span style="white-space:nowrap;"><b>character LoRA</b></span>
-      than a style one. A character LoRA needs its identity-defining tags kept tight and
-      consistent, so a stray misspelling or an inconsistent variant of the same trait doesn't
-      teach the model that trait is optional — that's exactly what these tools clean up. Style
-      LoRA training usually wants the opposite (more tag variety, not less), so you'll likely use
-      these tools far less there.</p>
+      <p>Before you start, decide which kind of LoRA you're making — it changes what images you
+      collect and how much time you spend on steps 3 and 4:</p>
+      <ul>
+        <li><b>Character</b> — teaches one specific, recognizable character.</li>
+        <li><b>Style</b> — teaches a visual art style, not a subject.</li>
+        <li><b>Concept</b> — teaches one subject or idea (an outfit, an object, a pose).</li>
+      </ul>
+      <p><span style="white-space:nowrap;"><b>The three kinds, and why they differ</b> <button type="button" class="info-btn" id="infoGlossaryCharacterLora" title="Character, style and concept LoRAs">ⓘ</button></span></p>
       <template id="infoGlossaryCharacterLoraContent">
         <p>A <b>LoRA</b> (Low-Rank Adaptation) is a small add-on file trained on top of a base
-        image-generation model to teach it something new, without retraining the whole model from
-        scratch.</p>
+        image-generation model to teach it something new, without retraining the whole model.</p>
 
-        <p>A <b>character LoRA</b> teaches the model one specific, recognizable character. Every
-        training image shows that same character, so their defining traits are visible in every
-        image whether or not a caption mentions them. A common technique splits tags into two
-        groups:</p>
-
+        <p>A <b>character LoRA</b> teaches one specific character. Every image shows that same
+        character, so their defining traits are visible whether or not a caption mentions them. A
+        common technique splits their tags in two:</p>
         <ul>
-          <li><b>Void these</b> — traits that should ALWAYS be true of the character: eye color,
-          hair color/style, a mole, whatever makes them recognizable. With no tag ever describing
-          the trait, the model can't learn "this is something the prompt controls" — it only ever
-          sees the trait already there, so it bakes it in as simply part of the character,
-          permanently.</li>
-          <li><b>Keep these</b> — traits that genuinely SHOULD change from image to image: pose,
-          expression, background. These stay tagged, so they remain normal, promptable choices
-          once the LoRA is done.</li>
+          <li><b>Void these</b> — traits that should always be true of the character: eye color,
+          hair color/style, a mole. With no tag describing the trait, the model only ever sees it
+          already there, so it bakes the trait in as part of the character instead of a prompt
+          choice.</li>
+          <li><b>Keep these</b> — traits that should change from image to image: pose, expression,
+          background. These stay tagged, so they remain normal promptable choices.</li>
         </ul>
+        <p><b>Watch for a signature outfit.</b> If the character wears the same distinctive outfit
+        in most images, that outfit fuses with the character: prompting the character alone may
+        pull the outfit in, and prompting the outfit may look like the character. To keep them
+        separate, show that outfit on other subjects somewhere in training, or treat the fusion as
+        intended for a genuine signature look.</p>
 
-        <p><b>Watch out for a signature outfit.</b> If the character wears the same distinctive
-        outfit in most or all of your training images — say, a unique white frilly bikini — that
-        outfit's own concept tends to fuse with the character's, even if you keep tagging it
-        consistently. The model has rarely (or never) seen that outfit on anyone else, so the two
-        ideas start becoming the same thing to it: prompting the character alone may start pulling
-        that outfit in unasked, and prompting "white frilly bikini" on its own may start looking
-        like this character even on an unrelated subject. If you want the outfit and the character
-        to stay independently promptable, that outfit needs to show up on OTHER subjects somewhere
-        in training too — otherwise, treat the fusion as expected for a genuine signature look, not
-        a bug.</p>
+        <p>A <b>style LoRA</b> teaches a visual style instead of a character. The images are
+        deliberately varied (many subjects, poses, outfits), so the only constant is the style
+        itself. You usually want a wide, varied tag vocabulary kept in here, not pruned out —
+        otherwise an incidental subject or pose gets baked in as "just how the style looks".</p>
 
-        <p>This is the concrete reason Merge/Void see so much more use on a character LoRA's
-        dataset than elsewhere: cleaning up misspelled variants of a tag AND deliberately
-        stripping identity tags out entirely are both about controlling exactly what's locked in
-        versus what's still a choice.</p>
+        <p>A <b>concept LoRA</b> teaches one subject or idea — an outfit, a prop, a pose, a
+        lighting look. Every image shows that concept, but the character, scene and pose vary, so
+        the concept stays separate from any one subject. Tag the concept consistently and let
+        everything else vary.</p>
 
-        <p>A <b>style LoRA</b>, by contrast, teaches a visual STYLE rather than one character —
-        training images are deliberately varied (many different subjects, poses, outfits), so the
-        only thing consistent across the whole set is the art style itself. There, you usually
-        WANT a wide, varied tag vocabulary kept in, not pruned out, so the model doesn't
-        accidentally bake some incidental subject/pose choice into "this is just how the style
-        looks" the way it correctly should for a character's actual identity traits.</p>
+        <p>This is why Merge/Void see the most use on a character LoRA: cleaning up spelling
+        variants and deliberately stripping identity tags are both about controlling exactly what
+        gets locked in versus what stays a choice.</p>
       </template>`
   },
   {
@@ -98,38 +88,53 @@ export const HELP_SECTIONS: HelpSection[] = [
     html: `
       <p>Osmium is made for <b>Anima</b> and the booru-tag models around it. Other models work too,
       though the tag conventions and the generation workflow follow that style.</p>
-      <p><b>File ▸ Open dataset folder</b> and pick the folder with your images and their matching
-      <code>.txt</code> caption files (same name, e.g. <code>image.png</code> + <code>image.txt</code>).
-      Tags are shown with spaces in the app and saved back to disk with underscores — you never
-      need to think about which one you're looking at.</p>
-      <p>The app writes a few of its own files into your dataset folder as you use it. None of
-      them touch your images or captions unless you tell them to:</p>
+      <h3>What to collect</h3>
+      <p>What makes a good dataset depends on the kind of LoRA you're making. These are starting
+      targets, not hard rules — quality and variety beat sheer count:</p>
+      <table>
+        <thead><tr><th>LoRA kind</th><th>How many</th><th>What should vary</th><th>What must stay the same</th></tr></thead>
+        <tbody>
+          <tr><td><b>Character</b></td><td>20–60</td><td>Pose, expression, outfit, angle, lighting, background</td><td>The same character in every image</td></tr>
+          <tr><td><b>Style</b></td><td>30–100+</td><td>Subjects, scenes, poses — everything</td><td>The art style</td></tr>
+          <tr><td><b>Concept</b></td><td>20–60</td><td>Character, background, pose, context</td><td>The concept is visible in every image</td></tr>
+        </tbody>
+      </table>
       <ul>
-        <li><b>Disabled/</b> — images you've moved out of the active set. Still fully editable,
-        just hidden from the normal views.</li>
-        <li><b>_tag_edit_log.json</b> — the full undo-able history of every edit you've made.</li>
+        <li><b>Resolution:</b> collect images at least as large as the size you'll train at. A
+        trainer can't add detail that isn't there — bucketing a small image later just enlarges it
+        into blur.</li>
+        <li><b>Variety:</b> the more a trait appears in different situations, the less the model
+        ties it to one pose or background. This matters most for character and concept LoRAs.</li>
+        <li><b>Captions:</b> each image needs a matching <code>.txt</code> beside it with the same
+        name (<code>image.png</code> + <code>image.txt</code>). Imports arrive with an empty one,
+        and WD14 fills them in step 2.</li>
+      </ul>
+      <h3>Open or add images</h3>
+      <p><b>File ▸ Open dataset folder</b> picks the folder holding your images and captions. Tags
+      show with spaces in the app and are saved back with underscores, so you never think about it.
+      <b>File ▸ Add images…</b> copies more in, each arriving untagged with an empty
+      <code>.txt</code>${isTouchDevice ? ' (you choose which app to pick them from)' : ''}. With no
+      dataset open it first offers to create one: name it, choose where its folder goes, and it
+      opens ready for the images.</p>
+      <h3>What the app writes into your folder</h3>
+      <p>None of these touch your images or captions unless you tell them to:</p>
+      <ul>
+        <li><b>Disabled/</b> — images moved out of the active set. Still editable, just hidden.</li>
+        <li><b>_tag_edit_log.json</b> — the undo-able history of every edit you've made.</li>
         <li><b>_dts_canonical_tags.json</b> — your Retroactive Merge/Void rules.</li>
         <li><b>_dts_meta.json</b> — per-image notes, review flags, locks, and similar metadata.</li>
-        <li><b>_dts_synthdat_settings.json</b> — SynthDat Overseer's prompt/generation settings for
-        this dataset (only appears once you've used that tab).</li>
+        <li><b>_dts_synthdat_settings.json</b> — SynthDat Overseer's settings (once used).</li>
         <li><b>_dts_achievements.json</b> — achievements unlocked in this dataset.</li>
-        <li><b>_dts_subject_presets.json</b> — characters saved from Tag sorting's character
-        sections (only appears once you save one).</li>
+        <li><b>_dts_subject_presets.json</b> — saved characters (once you save one).</li>
         ${isTouchDevice ? '' : `<li><b>original_images/</b> — originals kept by Bucket Images, shown in the
-        🖼 Originals view (only appears once you bucket).</li>`}
+        🖼 Originals view (once you bucket).</li>`}
       </ul>
-      <p><b>File ▸ Add images…</b> copies more images into the open dataset, each arriving untagged
-      with an empty <code>.txt</code>.${isTouchDevice ? ' You choose which app to pick them from — Photos, Files, or any file manager you have installed.' : ''}
-      With no dataset open it first offers to create one: name it, choose where its folder goes,
-      and the new dataset opens ready for the images.</p>
-      <p>The <b>Datasets tab</b> keeps every dataset folder you've opened as a themed folder icon you
-      can come back to. Sort by name/time,${isTouchDevice ? '' : ' or manually by dragging,'} and
-      ${isTouchDevice ? 'tap a folder\'s ⋯ button' : 'right-click a folder (or tap its ⋯ button)'} to remove it from the list, pin it as a
-      favorite, view its achievements, change its icon, or move it to another tab. A folder that
-      isn't tracked yet asks whether to add it, and <b>File ▸ Add current dataset as folder</b> adds
-      the open one anytime. Its <b>tabs</b> group folders, and a tab can be password-locked (⋯
-      button) — it re-locks every launch and renders nothing until you enter the password. That
-      guards against someone briefly opening the app, not a determined attacker with your files.</p>`
+      <h3>The Datasets tab</h3>
+      <p>Every folder you open is kept there as a clickable icon. Sort by name or time,${isTouchDevice ? '' : ' drag to reorder,'} and
+      ${isTouchDevice ? 'tap a folder\'s ⋯ button' : 'right-click a folder (or its ⋯ button)'} to remove it, pin it, view its
+      achievements, change its icon, or move it to another tab. Tabs can be password-locked (⋯
+      button) — a locked tab re-locks every launch and shows nothing until unlocked, which guards
+      against someone briefly opening the app, not a determined attacker with your files.</p>`
   },
   {
     id: 'step-wd14',
@@ -263,7 +268,16 @@ export const HELP_SECTIONS: HelpSection[] = [
       <code>original_images/</code> folder (browse them via the 🖼 Originals view), and every image
       gets one, even if it's already a valid size. Bucketing again re-makes the copies from the
       originals (try other Min/Max/Step as often as you like). <b>↩ Revert bucketing</b> puts the
-      originals back.</p>`
+      originals back.</p>
+      <p><b>Why bucket?</b> Trainers work in fixed-size batches, so every image has to land on a
+      size they share. Without bucketing your options are cropping everything square (losing the
+      composition) or padding (wasting pixels). Bucketing groups images by aspect ratio and resizes
+      each to the nearest standard size, so more of your original framing survives and the model
+      spends its pixels on the picture instead of empty borders.</p>
+      <p><b>Caveat at low resolution:</b> the bucket is the size the model actually learns at, and
+      detail that isn't there can't be trained. Set Min side low and bucketing shrinks images below
+      what they contain; a source smaller than its bucket only gets enlarged into blur. Keep the
+      buckets at or below your source resolution — around 512–1024 covers most art.</p>`
   }]),
   ...(isTouchDevice ? [] : [{
     id: 'step-trainflow',
@@ -272,8 +286,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>Trains a LoRA for <b>Anima</b> on the dataset you have loaded. It uses your own
       Anima-TrainFlow folder (the one with <code>python_embeded</code> and <code>training</code>)
       for Python and the trainer, and your own Anima DiT, Qwen3 and VAE files (choose them once;
-      the fields start empty). Osmium asks where a dataset is on your computer the first time you
-      open it, since it can't see folder paths itself.</p>
+      the fields start empty). The first time you open a folder, Osmium caches it so Trainflow can
+      resolve its real path on its own — it only asks you to point at the folder if that fails.</p>
       <p><b>Start Trainflow</b> is the only thing that begins work: it saves your tag edits, buckets
       the dataset (originals go to <code>original_images/</code>; nothing is redone if the copies
       are already right), checks for an NVIDIA GPU and starts training. <b>Verify buckets</b> lists
@@ -609,7 +623,6 @@ export const HELP_SECTIONS: HelpSection[] = [
         Panels ▸ "Reset panel layout."</li>
         <li>If Tag Details says "no definition found" for everything, the bundled Danbooru wiki
         data files are missing from your install — redownload the release zip.</li>
-        ${isTouchDevice ? '' : `<li>The window hides Electron's default menu bar — tap Alt to reveal it temporarily.</li>`}
       </ul>`
   }
 ];

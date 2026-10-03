@@ -233,7 +233,8 @@ when five good images need to become fifty. (Also needs the ComfyUI node pack �
 ### Trainflow (tab)
 Trains a LoRA for Anima on the dataset you have loaded (desktop only). Point it once at your
 [Anima-TrainFlow](https://github.com/ThetaCursed/Anima-TrainFlow) folder and at your own Anima DiT,
-Qwen3 text encoder and VAE, then press **Start Trainflow**. Nothing runs before that. Start saves your
+Qwen3 text encoder and VAE, then press **Start Trainflow**. Nothing runs before that. On first loading
+a folder, Osmium caches it so Trainflow can resolve its real path on its own. Start saves your
 tag edits, buckets the dataset with the Bucket Images settings (originals kept in `original_images/`),
 checks for an NVIDIA GPU and launches training. **Verify buckets** lists every valid bucket size and where
 your images sit. Training runs in the background and keeps going if you close Osmium, which warns you
@@ -442,8 +443,8 @@ code.
   Electron binary download. Check your network/proxy and retry.
 - **Tag Details shows "no definition found" for everything** — `renderer/data/wiki.json` and
   `all_tags.json` are missing. They're required for that feature, not optional.
-- **The app hides Electron's default menu bar.** Tap `Alt` (Windows/Linux) to reveal it
-  temporarily — e.g. to open DevTools after uncommenting `openDevTools()` in `src/main.ts`.
+- **The app has no menu bar** (Electron's default menu is removed in `src/main.ts`). To open
+  DevTools while developing, uncomment `openDevTools()` in `createWindow()` (`src/main.ts`).
 - **Changing the app icon** — the app icon lives at `build/icon.ico`/`.png`/`.icns` (referenced via
   `build.win.icon`/`build.linux.icon`/`build.mac.icon` in `package.json`, and separately via
   `BrowserWindow`'s own `icon` option in `main.ts` for the dev/unpackaged window). To swap it,

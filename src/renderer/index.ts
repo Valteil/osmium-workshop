@@ -35,7 +35,7 @@ import {
   achievementsPanel, shopPanel, tagDetailsPanel,
   tagDetailsTitle, tagDetailsBody, tagDetailsCloseBtn, langMenuPanel,
   btnNightMode, viewGridBtn, viewCompactBtn, viewSingleBtn,
-  viewDisabledBtn, gallerySortDropdown, gallerySortDirBtn, singleNav, singlePrevBtn,
+  viewDisabledBtn, gallerySortDropdown, gallerySortDirBtn, galleryToolbarRow, singleNav, singlePrevBtn,
   singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle,
   settingsPanel, fontSizeSlider, fontSizeVal
 } from './dom';
@@ -100,7 +100,7 @@ import {
 } from './view';
 import { initRandomFacts } from './random-facts';
 import { initAppIcon } from './app-icon';
-import { pickDatasetFolder } from './folder-picker';
+import { pickDatasetFolder, pickParentFolder } from './folder-picker';
 import { setIconLabel } from './icons';
 (function(){
 
@@ -735,6 +735,34 @@ import { setIconLabel } from './icons';
   new MutationObserver(updateTopbarScale).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   document.fonts.addEventListener('loadingdone', updateTopbarScale);
   updateTopbarScale();
+
+  // ---------------- Gallery toolbar auto-scale ----------------
+  // Same trick as updateTopbarScale, for #galleryToolbar's control row: at
+  // higher zoom (or a narrower gallery) the buttons would wrap onto a second
+  // line, so shrink the whole row in place to keep it one row. scrollWidth/
+  // clientWidth ignore the row's own transform, so resetting to scale(1),
+  // measuring, and re-applying stays self-correcting. Desktop only — the
+  // ≤900px layout scrolls/shrinks the toolbar its own way.
+  const GALLERY_TOOLBAR_MIN_SCALE = 0.6;
+  const galleryToolbarWideQuery = matchMedia('(min-width: 901px)');
+  function updateGalleryToolbarScale(): void {
+    galleryToolbarRow.style.transform = '';
+    if (!galleryToolbarWideQuery.matches) return;
+    const natural = galleryToolbarRow.scrollWidth;
+    const available = galleryToolbarRow.clientWidth;
+    if (natural <= 0 || available <= 0) return;
+    const scale = Math.min(1, Math.max(GALLERY_TOOLBAR_MIN_SCALE, available / natural));
+    galleryToolbarRow.style.transform = scale < 1 ? `scale(${scale})` : '';
+  }
+  new ResizeObserver(updateGalleryToolbarScale).observe(galleryToolbarRow);
+  // Content changes that don't resize the row's box (a view switch moving
+  // #singleNav in/out, the filter match count appearing) still change its
+  // natural width — re-measure then. childList/subtree only, so our own
+  // transform write (an attribute) can't re-trigger this.
+  new MutationObserver(updateGalleryToolbarScale).observe(galleryToolbarRow, { childList: true, subtree: true });
+  new MutationObserver(updateGalleryToolbarScale).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  document.fonts.addEventListener('loadingdone', updateGalleryToolbarScale);
+  updateGalleryToolbarScale();
 
   // ---------------- Header category flyouts (File / Personalization) ----------------
 
@@ -2585,27 +2613,50 @@ import { setIconLabel } from './icons';
     }
   }
 
+  // Picks images FIRST, then deals with the dataset. The folder picker that
+  // createDatasetForImport() opens can leave the OS picker session in a bad
+  // state, so the image picker must run before it — never the other way
+  // around. Once files are chosen: use the open dataset, or create one to hold
+  // them (only then touching the folder picker).
+  async function addImagesFlow(files: FileList | File[] | null): Promise<void> {
+    const list = files ? Array.from(files) : [];
+    if (!list.length) return;
+    if (!dirHandle && !(await createDatasetForImport())) return;
+    await importImagesToDataset(list);
+  }
+
   // "Add images…" with nothing open: create a new dataset folder where the
-  // user chooses, open it, then import into it. Android builds the folder
+  // user chooses, open it, then import into it. Called AFTER the images are
+  // picked (addImagesFlow). Android builds the folder
   // natively (mobile-shim.js __dtsCreateDatasetFolder: SAF grants only the
   // picked location, so the plugin makes the subfolder and addresses it
   // through that grant); elsewhere it's the folder picker + getDirectoryHandle.
   async function createDatasetForImport(): Promise<boolean> {
     const go = await showConfirmModal('No dataset is open. Create a new dataset for these images?\n\nYou\'ll name it, then choose where its folder goes.',
-      { okLabel: 'Create dataset', cancelLabel: 'Cancel' });
+      {
+        okLabel: 'Create dataset', cancelLabel: 'Cancel',
+        warnings: [
+          { text: 'When you pick the location, don\'t choose Desktop, Documents or Downloads themselves — Windows blocks write access to those folders. Choose a normal folder, or make a new subfolder with the dialog\'s "New folder" button and pick that.', tone: 'danger' },
+          { text: 'If the file picker seems to freeze on first load, that\'s normal — just wait a bit.', tone: 'info' }
+        ]
+      });
     if (!go) return false;
     const raw = await showPromptModal('Name the new dataset (this becomes its folder name):',
       { okLabel: 'Choose location…', placeholder: 'e.g. my_character', value: 'New dataset' });
     const name = (raw || '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
     if (!name) return false;
-    toast(`Choose where to create "${name}".`, 3200);
     let handle: DirHandle | null = null;
     try {
       const native = (window as unknown as { __dtsCreateDatasetFolder?: (n: string) => Promise<DirHandle> }).__dtsCreateDatasetFolder;
       if (native){
         handle = await native(name);
       } else {
-        const parent = await pickDatasetFolder();
+        // pickParentFolder, not pickDatasetFolder: this is the container for
+        // the new dataset. Not a shell-location carve-out — Chromium's FSA
+        // blocklist still refuses Desktop/Documents/etc. here too (the create
+        // dialog warns first); pickParentFolder just skips pickDatasetFolder's
+        // post-pick name check, which would fire too late to help.
+        const parent = await pickParentFolder();
         if (!parent) return false;
         let finalName = name;
         for (let n = 2; n < 1000; n++){
@@ -2624,7 +2675,7 @@ import { setIconLabel } from './icons';
     dirHandle = handle;
     try { await loadFolder(); }
     catch { toast('The folder was created but couldn\'t be opened. Try File ▸ Open dataset folder.', 4200); dirHandle = null; return false; }
-    toast(`Created "${handle.name}". Now pick the images to add.`, 3000);
+    toast(`Created "${handle.name}".`, 2400);
     newDatasetPendingTrack = handle;
     return true;
   }
@@ -2639,21 +2690,24 @@ import { setIconLabel } from './icons';
     btnAddImages.addEventListener('click', async () => {
       fileCatFlyout.style.display = 'none';
       fileCatFlyout.classList.remove('menu-in');
-      // No dataset open: offer to make one first, then carry on to the picker.
-      if (!dirHandle && !(await createDatasetForImport())) return;
       // Android app: the native chooser lists every installed app that can
       // supply images (Photos, Files, file managers…) — mobile-shim.js.
+      // Images are picked FIRST; addImagesFlow() then uses the open dataset or
+      // creates one (see its comment: the folder picker must come after the
+      // image picker, never before it).
       const nativePick = (window as unknown as { __dtsPickImages?: () => Promise<File[]> }).__dtsPickImages;
       if (nativePick){
-        try { await importImagesToDataset(await nativePick()); }
-        catch { toast('Couldn’t read the picked images.', 3000); }
+        let picked: File[] = [];
+        try { picked = await nativePick(); }
+        catch { toast('Couldn’t read the picked images.', 3000); return; }
+        await addImagesFlow(picked);
         return;
       }
       const picker = document.createElement('input');
       picker.type = 'file';
       picker.accept = 'image/*';
       picker.multiple = true;
-      picker.addEventListener('change', () => { void importImagesToDataset(picker.files); });
+      picker.addEventListener('change', () => { void addImagesFlow(picker.files); });
       picker.click();
     });
     // Right under "Open dataset folder", where adding to a dataset belongs.

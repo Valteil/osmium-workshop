@@ -3066,6 +3066,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     display: block; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 2px;
     border-radius: var(--radius); font-size: 12.5px; color: var(--text-muted);
     background: transparent; border: 1px solid transparent; cursor: pointer;
+    /* Base button{} is white-space:nowrap, which clipped longer section
+       titles in the 230px TOC ("Start here: training a LoRA"). Let them wrap. */
+    white-space: normal; overflow-wrap: anywhere; line-height: 1.35;
   }
   .help-toc-item:hover{ background: var(--bg-elevated-2); color: var(--text-primary); }
   .help-toc-item.active{
@@ -3091,6 +3094,20 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     font-family: var(--mono); font-size: 12px; background: var(--bg-elevated);
     padding: 1px 5px; border-radius: 4px; color: var(--text-secondary, var(--accent-manual));
   }
+  /* Learning-oriented tables (e.g. "what to collect, by LoRA type") so a long
+     set of recommendations reads as a grid instead of a wall of prose. */
+  .help-content h3{
+    margin: 20px 0 7px; font-size: 14px; color: var(--text-primary); font-weight: 600;
+  }
+  .help-content table{
+    width: 100%; border-collapse: collapse; margin: 0 0 13px; font-size: 12.5px;
+  }
+  .help-content th, .help-content td{
+    border: 1px solid var(--border-soft); padding: 6px 8px; text-align: left; vertical-align: top;
+    color: var(--text-muted); line-height: 1.5;
+  }
+  .help-content th{ color: var(--text-primary); background: var(--bg-elevated); font-weight: 600; }
+  .help-content td b{ color: var(--text-primary); }
 
   /* ---------- Generic image lightbox (shared-ui.ts showImageLightbox()) ---------- */
 
@@ -3127,6 +3144,27 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .confirm-backdrop.modal-visible .confirm-box{ transform: scale(1); }
   .confirm-message{ font-size: 13px; color: var(--text-primary); line-height: 1.5; margin-bottom: 16px; white-space: pre-wrap; }
+  /* In-dialog caveat(s) (showConfirmModal's `warning`/`warnings` opts): one
+     tinted box each, so they can't be missed, for things a toast would hide
+     (e.g. the File System Access "Desktop/Documents are blocked" notice while
+     the native picker is open). Two tones: red = danger, blue = info. */
+  .confirm-warning{
+    display: flex; gap: 8px; align-items: flex-start;
+    margin: 0 0 12px; padding: 9px 11px;
+    border-radius: 8px; font-size: 12.5px; line-height: 1.5; color: var(--text-primary);
+  }
+  .confirm-warning:last-of-type{ margin-bottom: 16px; }
+  .confirm-warning-icon{ flex-shrink: 0; font-size: 14px; line-height: 1.35; }
+  .confirm-warning-danger{
+    background: color-mix(in srgb, var(--accent-danger) 14%, var(--bg-elevated));
+    border: 1px solid color-mix(in srgb, var(--accent-danger) 45%, var(--border-strong));
+  }
+  .confirm-warning-danger .confirm-warning-icon{ color: var(--accent-danger); }
+  .confirm-warning-info{
+    background: color-mix(in srgb, var(--accent-manual) 14%, var(--bg-elevated));
+    border: 1px solid color-mix(in srgb, var(--accent-manual) 45%, var(--border-strong));
+  }
+  .confirm-warning-info .confirm-warning-icon{ color: var(--accent-manual); }
   .confirm-btn-row{ display: flex; gap: 8px; justify-content: flex-end; }
 
   /* ---------- Model/option picker modal (attachPickerModal) ---------- */
@@ -3852,21 +3890,37 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   #galleryToolbar{
     display: none;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin: 0 0 14px 0;
-    padding: 14px 18px;
+    gap: 10px;
+    flex-wrap: nowrap;
+    /* Kept tight so the toolbar is a single row of controls on a normal
+       window and its background doesn't eat gallery height. Icon-only
+       buttons (Unlock all / Hide tags / Disabled / Originals) keep it narrow
+       enough to stay one row at most widths. */
+    margin: 0 0 8px 0;
+    padding: 6px 14px;
     position: sticky;
     top: 0;
     z-index: 15;
     background: var(--bg-base);
     border-bottom: 1px solid var(--border-soft);
   }
-  /* Wraps onto a second line when the gallery is too narrow for every button
-     (docks open, small window) instead of running off the right edge. The
-     phone layout below turns it into a one-row swipe strip instead. */
-  .viewToggle{ display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+  /* The toolbar's single control row. JS (updateGalleryToolbarScale) scales
+     it down in place at higher zoom / a narrower gallery so the buttons stay
+     on one row, like #topbar .actions. Wraps on narrow screens; the phone
+     layout below also turns .viewToggle into a horizontal swipe strip. */
+  .toolbar-row{
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    flex: 1 1 auto; min-width: 0; flex-wrap: wrap; transform-origin: left center;
+  }
+  .viewToggle{ display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+  @media (min-width: 901px){
+    /* Desktop: never wrap — updateGalleryToolbarScale shrinks the row to fit
+       instead. The row's own overflow:clip + padding give hover-fill outlines
+       room, same as #topbar .actions. */
+    .toolbar-row{ flex-wrap: nowrap; overflow: hidden; padding: 3px 0; }
+    .toolbar-row > *{ flex-shrink: 0; }
+    .viewToggle{ flex-wrap: nowrap; }
+  }
   .viewToggle button.active{
     background: var(--accent-manual-dim); border-color: var(--accent-manual); color: var(--accent-manual);
   }

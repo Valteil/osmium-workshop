@@ -23,24 +23,50 @@ import { pickDirectory } from './fs-access';
 //    and a dataset living bare inside Documents itself is its own hazard.
 
 let pickerBusy = false;
+// Set when the last pick was refused by Chromium's FSA blocklist (main.ts's
+// fs_last_restricted read). Only used by pickDatasetFolder's post-pick guard.
+let lastPickRestrictedPath: string | null = null;
 
 const SHELL_FOLDER_NAMES = new Set([
   'Documents', 'Desktop', 'Downloads', 'Pictures', 'Music', 'Videos',
   '3D Objects', 'Saved Games', 'Links', 'Searches', 'Contacts'
 ]);
 
-export async function pickDatasetFolder(): Promise<DirHandle | null> {
+// The raw picker call, with the shared reentry guard and stuck-picker
+// recovery. Callers decide whether the picked folder gets the shell-location
+// check (see pickDatasetFolder / pickParentFolder).
+async function runDirectoryPicker(): Promise<DirHandle | null> {
   if (pickerBusy){
     toast('A folder picker is already open — finish or cancel it first.', 3600);
     return null;
   }
   pickerBusy = true;
-  let picked: DirHandle | null = null;
   try {
-    picked = await pickDirectory({ mode: 'readwrite' });
+    const picked = await pickDirectory({ mode: 'readwrite' });
+    lastPickRestrictedPath = null; // clear any stale restricted path on success
+    return picked;
   } catch(e){
     const msg = (e as Error)?.message || '';
-    const cancelled = (e as DOMException)?.name === 'AbortError' || /cancel/i.test(msg);
+    const name = (e as DOMException)?.name || '';
+    // Chromium's File System Access blocklist refuses Desktop/Documents/
+    // Downloads/profile root for write access. main.ts's
+    // 'file-system-access-restricted' handler denies it, so the promise
+    // rejects here (as AbortError) instead of hanging forever. Surface the
+    // real reason; the folder is simply not writable by design. See
+    // notes/Pitfalls/Chromium-Restricted-Folder-Picker.md.
+    // try/catch: if the sender guard ever rejects this IPC (untrusted frame),
+    // fall back to null so the picker's own error handling below still runs and
+    // the "pick a subfolder" toast isn't lost.
+    let restrictedPath: string | null = null;
+    try { restrictedPath = await (window.electronAPI?.fsaLastRestricted?.() ?? Promise.resolve(null)); }
+    catch { restrictedPath = null; }
+    if (restrictedPath){
+      lastPickRestrictedPath = restrictedPath;
+      const leaf = restrictedPath.replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean).pop() || restrictedPath;
+      toast(`Windows blocks apps from using "${leaf}" directly for write access. Pick (or create) a subfolder inside it instead, e.g. "${leaf}\\Datasets".`, 7000);
+      return null;
+    }
+    const cancelled = name === 'AbortError' || /cancel/i.test(msg);
     if (cancelled){ toast('No folder was chosen.', 2400); return null; }
     if (/already active/i.test(msg)){
       console.error('[pick] picker session stuck:', e);
@@ -53,8 +79,15 @@ export async function pickDatasetFolder(): Promise<DirHandle | null> {
   } finally {
     pickerBusy = false;
   }
+}
+
+export async function pickDatasetFolder(): Promise<DirHandle | null> {
+  const picked = await runDirectoryPicker();
   if (!picked) return null;
-  if (SHELL_FOLDER_NAMES.has(picked.name)){
+  // Belt-and-suspenders: normally Chromium refuses these before the promise
+  // resolves (handled in runDirectoryPicker), but if a handle ever does come
+  // through for one, reject it here too.
+  if (lastPickRestrictedPath || SHELL_FOLDER_NAMES.has(picked.name)){
     await showConfirmModal(
       `"${picked.name}" is a special system location (like This PC ▸ Documents), not a real dataset folder.\n\nPicking it as a dataset triggers a known bug: the file picker stops working until the app restarts — nothing gets loaded.\n\nPick your actual dataset folder (the one containing your images and .txt files) instead.`,
       { okLabel: 'OK, pick another folder', cancelLabel: '', danger: true }
@@ -62,4 +95,32 @@ export async function pickDatasetFolder(): Promise<DirHandle | null> {
     return null;
   }
   return picked;
+}
+
+// Parent pick for "create a new dataset here" (File ▸ Add images with nothing
+// open). The picked folder is only a CONTAINER for the new dataset folder,
+// never loaded as a dataset itself — so a shell-location name (Desktop,
+// Documents, …) is a normal, legit choice here and must NOT be refused the way
+// pickDatasetFolder() refuses those names. The new child folder is created
+// inside it, and that child is what gets loaded.
+export async function pickParentFolder(): Promise<DirHandle | null> {
+  return runDirectoryPicker();
+}
+
+// A tracked folder (Favorites ★ or the Datasets tab) resolves to a stored
+// handle that stops working when the folder is moved, renamed or deleted.
+// favorites.ts / dataset-manager.ts catch that open failure and call this:
+// instead of a dead-end error, offer to pick the folder again so a moved
+// dataset is one prompt away. Returns the newly-picked folder, or null if
+// the user declined / nothing was picked.
+export async function promptRelinkFolder(name: string): Promise<DirHandle | null> {
+  const go = await showConfirmModal(
+    `Couldn't open "${name}" — it may have been moved, renamed or deleted.\n\nLocate the folder again to re-link it?`,
+    {
+      okLabel: 'Locate folder…', cancelLabel: 'Not now',
+      warnings: [{ text: 'If the folder picker seems to freeze on first load, that\'s normal — just wait a bit.', tone: 'info' }]
+    }
+  );
+  if (!go) return null;
+  return pickDatasetFolder();
 }

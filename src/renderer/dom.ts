@@ -18,6 +18,7 @@ export const btnReloadDataset = $<HTMLButtonElement>('btnReloadDataset');
 export const btnAddCurrentDataset = $<HTMLButtonElement>('btnAddCurrentDataset');
 export const dirtyCountEl = $('dirtyCount');
 export const galleryToolbar = $('galleryToolbar');
+export const galleryToolbarRow = $('galleryToolbarRow');
 export const galleryGrid = $('galleryGrid');
 export const compactGrid = $('compactGrid');
 export const compactCompareArea = $('compactCompareArea');

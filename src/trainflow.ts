@@ -13,7 +13,7 @@
 
 import { app, dialog, shell, BrowserWindow } from 'electron';
 import type { IpcMain, OpenDialogOptions } from 'electron';
-import { spawn, execFile } from 'child_process';
+import { spawn, execFile, execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -52,6 +52,38 @@ function resolveInstall(folder: string): { ok: true; install: Install } | { ok: 
   ].find((p) => fs.existsSync(p));
   if (!python) return { ok: false, error: `Found Anima-TrainFlow but not its Python (looked for python_embeded and .venv in ${folder}).` };
   return { ok: true, install: { root: folder, python, scriptsDir, trainScript, outputBase: path.join(folder, 'training', 'output') } };
+}
+
+// ---- renderer-input validation ----------------------------------------------
+// Paths/names coming from the renderer are untrusted. These mirror the sender
+// guard's spirit at the value level: reject NUL, UNC (\\host\share) and
+// drive-relative (C:foo) forms, require an absolute path that normalises to
+// itself, and reduce a filename to a plain basename. NOTE: these are NOT
+// applied to the path dialog.showOpenDialog returns (a user pick is trusted,
+// including network/removable drives).
+const MARKER_RE = /^\.osmium-probe-[0-9a-f-]{36}$/;
+
+function safeAbsPath(p: unknown): string | null {
+  if (typeof p !== 'string' || !p || p.includes('\0')) return null;
+  if (/^[\\/]{2}/.test(p)) return null;        // UNC \\host\share or //host/share
+  if (/^[a-zA-Z]:[^\\/]/.test(p)) return null; // drive-relative C:foo
+  if (!path.isAbsolute(p)) return null;
+  const resolved = path.resolve(p);
+  const norm = (s: string) => (process.platform === 'win32' ? s.replace(/^[a-z]:/, (m) => m.toUpperCase()) : s);
+  if (norm(resolved) !== norm(p)) return null; // contained .. or redundant segments
+  return resolved;
+}
+
+function plainFileName(name: unknown): string | null {
+  if (typeof name !== 'string' || !name) return null;
+  if (name.includes('\0') || /[\\/]/.test(name)) return null;
+  if (path.basename(name) !== name || name === '.' || name === '..') return null;
+  return name;
+}
+
+function plainFolderName(name: unknown): string | null {
+  const n = plainFileName(name);
+  return n ? n.trim() || null : null;
 }
 
 // ---- dataset checks ----------------------------------------------------------
@@ -199,18 +231,25 @@ function checkDataset(dir: string, bucket: { min: number; max: number; step: num
 
 // ---- config files --------------------------------------------------------------
 
-const tomlStr = (s: string) => JSON.stringify(s);
-const posix = (p: string) => path.resolve(p).replace(/\\/g, '/');
+// Strip C0/C1 control characters (including \n, \r, \t, NUL). Every value
+// written to a config file goes through this first, so a path or prompt
+// carrying an embedded newline can't inject extra lines.
+const stripControl = (s: string) => s.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ');
+const tomlStr = (s: string) => JSON.stringify(stripControl(s));
+const posix = (p: string) => stripControl(path.resolve(p)).replace(/\\/g, '/');
 
 function sanitizeProject(trigger: string): string {
   return trigger.trim().replace(/[^a-zA-Z0-9]/g, '_').replace(/^_+|_+$/g, '') || 'untitled';
 }
 
 function writeSamplePrompts(s: TrainflowSettings, file: string): void {
-  const trigger = s.trigger.trim();
-  const user = s.prompt.trim().replace(/\n/g, ' ');
+  // The prompt line is written raw (sd-scripts' own sample-prompt format, not
+  // TOML), so its values are stripped of control chars explicitly — a newline
+  // here would split it into extra --flag lines.
+  const trigger = stripControl(s.trigger.trim());
+  const user = stripControl(s.prompt.trim());
   const pos = trigger && !user.startsWith(trigger) ? (user ? `${trigger}, ${user}` : trigger) : (user || trigger);
-  const neg = s.negPrompt.trim().replace(/\n/g, ' ');
+  const neg = stripControl(s.negPrompt.trim());
   fs.writeFileSync(file, `${pos} --n ${neg} --w ${Math.round(s.width)} --h ${Math.round(s.height)} --l ${Number(s.cfg)} --s ${Math.round(s.sampleGenSteps)} --d ${Math.round(s.sampleSeed)}`);
 }
 
@@ -296,6 +335,8 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
 interface RunRecord {
   pid: number; project: string; outDir: string; logFile: string; samplesDir: string;
   totalSteps: number; startedAt: number; stopRequested?: boolean;
+  // Trainer executable we spawned, kept so a reused PID can be sanity-checked.
+  exe?: string;
 }
 
 function readRun(): RunRecord | null {
@@ -318,6 +359,20 @@ const startedBeforeBoot = (r: RunRecord) => r.startedAt < Date.now() - os.uptime
 function runIsLive(): RunRecord | null {
   const r = readRun();
   return r && !startedBeforeBoot(r) && pidAlive(r.pid) ? r : null;
+}
+
+// trainflow-run.json is reads/writes we trust only if its output paths stay
+// inside the chosen install's output dir. A tampered record must not be able to
+// redirect reads (log/samples) or an open into an arbitrary location.
+function runDirsValid(rec: RunRecord): boolean {
+  const resolved = resolveInstall(readFolder());
+  if (!('install' in resolved)) return false;
+  const base = resolved.install.outputBase;
+  const within = (p: string): boolean => {
+    const rel = path.relative(path.resolve(base), path.resolve(p));
+    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  };
+  return within(rec.outDir) && within(rec.logFile) && within(rec.samplesDir);
 }
 
 const PROGRESS_RE = /(\d+)\s*%\|[^|]*\|\s*(\d+)\/(\d+)\s*\[([^\]]*)\]/;
@@ -459,20 +514,25 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
   const inst = resolved.install;
 
   const errors: string[] = [];
+  // The dataset path is renderer-supplied (the resolver's answer passed back):
+  // reject NUL/UNC/drive-relative/traversal before it reaches any file op.
+  const datasetDir = safeAbsPath(s.datasetPath);
+  if (!datasetDir) errors.push('Dataset folder is not a valid local path.');
   for (const [label, p] of [['DiT', s.ditPath], ['Qwen3', s.qwenPath], ['VAE', s.vaePath]] as const) {
-    if (!p || !fs.existsSync(p) || !fs.statSync(p).isFile()) errors.push(`${label} file not found: ${p || '(not set)'}`);
+    if (typeof p !== 'string' || p.includes('\0') || !p || !fs.existsSync(p) || !fs.statSync(p).isFile()) errors.push(`${label} file not found: ${p || '(not set)'}`);
   }
+  if (errors.length) return { ok: false, errors };
   const bucketCfg = { min: s.bucketMin, max: s.bucketMax, step: s.bucketStep };
-  const pre = checkDataset(s.datasetPath, bucketCfg);
+  const pre = checkDataset(datasetDir!, bucketCfg);
   errors.push(...pre.errors);
   if (errors.length) return { ok: false, errors };
 
   // Bucketing is part of Start: one button, idempotent (see bucketDataset).
   prep = { message: 'Checking buckets…', done: 0, total: pre.unbucketed };
-  const bucketError = await bucketDataset(s.datasetPath, bucketCfg);
+  const bucketError = await bucketDataset(datasetDir!, bucketCfg);
   prep = undefined;
   if (bucketError) return { ok: false, errors: [bucketError] };
-  const check = checkDataset(s.datasetPath, bucketCfg, true);
+  const check = checkDataset(datasetDir!, bucketCfg, true);
   if (!check.ok) return { ok: false, errors: check.errors };
 
   if (!(await checkCuda(inst.python, inst.scriptsDir))) {
@@ -514,7 +574,7 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
     const child = spawn(trainerExe, args, { cwd: inst.scriptsDir, env, detached: true, stdio: ['ignore', logFd, logFd], windowsHide: true });
     await new Promise<void>((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
     child.unref();
-    writeRun({ pid: child.pid as number, project, outDir, logFile, samplesDir, totalSteps: Math.round(s.steps), startedAt: Date.now() });
+    writeRun({ pid: child.pid as number, project, outDir, logFile, samplesDir, totalSteps: Math.round(s.steps), startedAt: Date.now(), exe: trainerExe });
     return { ok: true };
   } catch (e) {
     return { ok: false, errors: ['Could not start training: ' + (e as Error).message] };
@@ -523,9 +583,31 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
   }
 }
 
+// Best-effort check that `pid` is the trainer we spawned, using its executable
+// path from the run record. On Windows the only dependency-free way to read a
+// foreign process's image path is `wmic`; it's absent on newer Windows builds,
+// so a missing/failed lookup returns true (proceed) rather than blocking a
+// legitimate Stop. A definite mismatch (the PID is alive but running something
+// else — a reused PID) returns false.
+function pidMatchesRecord(pid: number, exe?: string): boolean {
+  if (!exe) return true;
+  if (process.platform !== 'win32') {
+    try { return fs.realpathSync(`/proc/${pid}/exe`) === fs.realpathSync(exe); } catch { return true; }
+  }
+  try {
+    const out = execFileSync('wmic', ['process', 'where', `ProcessId=${pid}`, 'get', 'ExecutablePath', '/value'], { windowsHide: true, timeout: 5000 }).toString();
+    const m = /ExecutablePath=([^\r\n]+)/i.exec(out);
+    if (!m) return true; // wmic unavailable/empty: don't block the stop
+    return m[1].trim().toLowerCase() === exe.toLowerCase();
+  } catch { return true; }
+}
+
 function stopTraining(): { ok: boolean; message: string } {
   const rec = runIsLive();
   if (!rec) return { ok: false, message: 'Nothing is running.' };
+  // Refuse to kill a live PID that isn't running our recorded trainer (a
+  // reused PID after a crash). runIsLive() already ruled out a pre-boot PID.
+  if (!pidMatchesRecord(rec.pid, rec.exe)) return { ok: false, message: 'The recorded training process no longer matches; not killing it.' };
   writeRun({ ...rec, stopRequested: true });
   // The captured PID and its tree (accelerate launches the trainer as a child).
   if (process.platform === 'win32') execFile('taskkill', ['/PID', String(rec.pid), '/T', '/F'], { windowsHide: true }, () => { /* status() sees it exit */ });
@@ -565,10 +647,101 @@ export function registerTrainflowHandlers(ipcMain: IpcMain): void {
   });
   // Is this folder real and does it hold the given file? (used to validate a remembered dataset path)
   ipcMain.handle('trainflow-path-ok', (_e, dir: string, file?: string) => {
-    try { return fs.statSync(dir).isDirectory() && (!file || fs.existsSync(path.join(dir, file))); } catch { return false; }
+    const d = safeAbsPath(dir);
+    if (!d) return false;
+    const f = file === undefined ? undefined : plainFileName(file);
+    if (file !== undefined && !f) return false;
+    try { return fs.statSync(d).isDirectory() && (!f || fs.existsSync(path.join(d, f))); } catch { return false; }
   });
-  ipcMain.handle('trainflow-check-dataset', (_e, dir: string, b: { min: number; max: number; step: number }) => checkDataset(dir, b));
-  ipcMain.handle('trainflow-verify-buckets', (_e, dir: string, b: { min: number; max: number; step: number }) => verifyBuckets(dir, b));
+  // Locate a dataset folder by the unique marker the renderer wrote into it,
+  // searching likely roots for a folder named `name` that contains the marker.
+  // No prompt: the marker is a random uuid, so only the true folder matches.
+  // Returns its absolute path, or null (caller then asks the user once).
+  ipcMain.handle('trainflow-find-by-marker', async (_e, payload: { name: string; marker: string }) => {
+    // The marker must be exactly `.osmium-probe-<uuid>` and the name a plain
+    // single folder name — both are renderer-supplied and land in a walk.
+    const name = plainFolderName(payload?.name);
+    const marker = typeof payload?.marker === 'string' && MARKER_RE.test(payload.marker) ? payload.marker : null;
+    if (!name || !marker) return null;
+    const target = name.toLowerCase();
+
+    // Skip a directory that is a symlink or Windows junction/reparse point: the
+    // walk must not follow a link out of the tree it was given. lstat is used
+    // because Dirent alone doesn't flag every reparse point; a stat failure is
+    // treated as "skip" (fail closed).
+    const isLinkOrReparse = (p: string): boolean => {
+      try { return fs.lstatSync(p).isSymbolicLink(); }
+      catch { return true; }
+    };
+
+    // Candidate roots, cheap-first: the common case is a same-named folder
+    // directly under the home folder, Desktop or a drive root, so those are
+    // probed before any deep descent. Only local fixed drives are added —
+    // remote (mapped network) and removable volumes are skipped on Windows so
+    // the probe never triggers SMB access or media spin-up; a dataset on one
+    // is expected to miss the probe and fall through to the (cached) single
+    // confirm. Detecting the volume type portably needs Windows API access
+    // Node doesn't expose, so this skips only drives that are absent/busy and
+    // otherwise relies on the walk not following links; see the note in
+    // features/Trainflow.md.
+    const home = os.homedir();
+    const roots: string[] = [];
+    for (const sub of ['', 'Desktop', 'Documents', 'Downloads', 'Pictures']) roots.push(path.join(home, sub));
+    for (const letter of 'DEFGHIJKLMNOPQRSTUVWXYZ') {
+      const drive = `${letter}:\\`;
+      try { if (fs.existsSync(drive)) roots.push(drive); } catch { /* no such drive */ }
+    }
+
+    // Async + capped so a deep drive can't block the main thread. Read-only;
+    // stops at the first match. MAX_VISITED bounds worst-case latency.
+    const MAX_DEPTH = 3;
+    const MAX_VISITED = 4000;
+    const seen = new Set<string>();
+    let visited = 0;
+
+    const checkDir = async (dir: string): Promise<boolean> => {
+      try { await fs.promises.access(path.join(dir, marker)); return true; } catch { return false; }
+    };
+    const walk = async (dir: string, depth: number): Promise<string | null> => {
+      if (visited >= MAX_VISITED) return null;
+      if (isLinkOrReparse(dir)) return null;
+      const key = dir.toLowerCase();
+      if (seen.has(key)) return null;
+      seen.add(key); visited++;
+      let entries: fs.Dirent[];
+      try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return null; }
+      const dirs = entries.filter((e) => e.isDirectory() && !e.isSymbolicLink());
+      // Pass 1: same-named subfolders (the match) before descending anywhere.
+      for (const ent of dirs) {
+        if (ent.name.toLowerCase() !== target) continue;
+        const full = path.join(dir, ent.name);
+        if (await checkDir(full)) return full;
+      }
+      // Pass 2: descend, depth-first.
+      if (depth < MAX_DEPTH) {
+        for (const ent of dirs) {
+          const hit = await walk(path.join(dir, ent.name), depth + 1);
+          if (hit) return hit;
+        }
+      }
+      return null;
+    };
+
+    for (const root of roots) {
+      try { if (path.basename(root).toLowerCase() === target && !isLinkOrReparse(root) && await checkDir(root)) return root; } catch { /* noop */ }
+      const hit = await walk(root, 0);
+      if (hit) return hit;
+    }
+    return null;
+  });
+  ipcMain.handle('trainflow-check-dataset', (_e, dir: string, b: { min: number; max: number; step: number }) => {
+    const d = safeAbsPath(dir);
+    return d ? checkDataset(d, b) : { ok: false, images: 0, unbucketed: 0, missingCaptions: 0, oversized: 0, baseRes: 512, maxBucket: 768, errors: ['Invalid dataset folder.'] };
+  });
+  ipcMain.handle('trainflow-verify-buckets', (_e, dir: string, b: { min: number; max: number; step: number }) => {
+    const d = safeAbsPath(dir);
+    return d ? verifyBuckets(d, b) : { buckets: [], images: 0, offBucket: [], withoutOriginal: 0, toRebucket: 0 };
+  });
   ipcMain.handle('trainflow-start', (_e, s: TrainflowSettings) => startTraining(s));
   ipcMain.handle('trainflow-stop', () => stopTraining());
   ipcMain.handle('trainflow-clear-run', () => {
@@ -577,15 +750,20 @@ export function registerTrainflowHandlers(ipcMain: IpcMain): void {
   });
   ipcMain.handle('trainflow-get-sample', (_e, name: string) => {
     const rec = readRun();
-    if (!rec || path.basename(name) !== name) return null;
-    try { return new Uint8Array(fs.readFileSync(path.join(rec.samplesDir, name))); } catch { return null; }
+    const f = plainFileName(name);
+    if (!rec || !f || !runDirsValid(rec)) return null;
+    try { return new Uint8Array(fs.readFileSync(path.join(rec.samplesDir, f))); } catch { return null; }
   });
   ipcMain.handle('trainflow-open', async (_e, what: 'output' | 'dataset' | 'log' | 'folder', datasetPath?: string) => {
+    // A record whose dirs don't sit inside the install's output dir is ignored
+    // (tampered or from a different install) rather than opened.
     const rec = readRun();
-    const target = what === 'dataset' ? datasetPath
-      : what === 'log' ? rec?.logFile
-      : what === 'folder' ? readFolder()
-      : rec?.outDir || (resolveInstall(readFolder()) as { install?: Install }).install?.outputBase;
+    const safeRec = rec && runDirsValid(rec) ? rec : null;
+    let target: string | undefined;
+    if (what === 'dataset') target = safeAbsPath(datasetPath) ?? undefined;
+    else if (what === 'log') target = safeRec?.logFile;
+    else if (what === 'folder') { const f = safeAbsPath(readFolder()); target = f ?? undefined; }
+    else target = safeRec?.outDir || (resolveInstall(readFolder()) as { install?: Install }).install?.outputBase;
     if (target && fs.existsSync(target)) await shell.openPath(target);
   });
 }
