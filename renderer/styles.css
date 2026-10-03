@@ -3138,7 +3138,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .confirm-backdrop.modal-visible{ opacity: 1; }
   .confirm-box{
-    width: 360px; background: var(--bg-elevated-2); border: 1px solid var(--border-strong);
+    width: min(460px, 92vw); background: var(--bg-elevated-2); border: 1px solid var(--border-strong);
     border-radius: 10px; padding: 18px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
     transform: scale(0.94); transition: transform var(--panel-dur) ease;
   }
@@ -3165,7 +3165,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     border: 1px solid color-mix(in srgb, var(--accent-manual) 45%, var(--border-strong));
   }
   .confirm-warning-info .confirm-warning-icon{ color: var(--accent-manual); }
-  .confirm-btn-row{ display: flex; gap: 8px; justify-content: flex-end; }
+  .confirm-btn-row{ display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  /* showChoiceModal layout 'stack': Save choices stacked full-width (equal
+     shape), Cancel on its own row along the bottom-left. */
+  .confirm-btn-stack{ display: flex; flex-direction: column; gap: 8px; }
+  .confirm-btn-stack button{ width: 100%; }
+  .confirm-btn-row-cancel{ justify-content: flex-start; margin-top: 8px; }
 
   /* ---------- Model/option picker modal (attachPickerModal) ---------- */
   /* Same tap-to-pick UI as Comfy Bridge's model fields, restyled onto this

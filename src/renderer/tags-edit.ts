@@ -437,8 +437,11 @@ export async function renameAllEntriesSequentially(): Promise<void> {
   if (!dirHandle){ toast('Open a dataset folder first.'); return; }
   const disabledDirHandle = getDisabledDirHandle();
   const byFilename = (a: Entry, b: Entry) => a.base.localeCompare(b.base, undefined, { numeric: true });
-  // Originals are excluded: they're a paired copy of a bucketed image in the
-  // root, so renumbering them independently would break that pairing.
+  // Originals are not renumbered on their own, but they ARE renamed to follow
+  // their Gallery copy's new stem below — a pair is linked by stem, so leaving
+  // the original under the old stem would orphan it (Trainflow then re-buckets
+  // the Gallery image into a fresh, tagless copy).
+  const originalByBase = new Map(getEntries().filter(e => e.original).map(e => [e.base, e] as const));
   const active = getEntries().filter(e => !e.disabled && !e.original).sort(byFilename);
   const disabled = getEntries().filter(e => e.disabled && !e.original).sort(byFilename);
   const ordered = [...active, ...disabled];
@@ -493,10 +496,29 @@ export async function renameAllEntriesSequentially(): Promise<void> {
     }
     // Phase 2: every temp name to its real final name.
     const affected: EditLogAffected[] = [];
+    // Original images are renamed to follow their Gallery copy's new stem (they
+    // live in original_images/, a separate folder, so no temp name is needed).
+    const origDir = getOriginalDirHandle();
     for (const p of plan){
       p.entry.imgHandle = await renameFileInPlace(p.dir, p.entry.imgHandle.name, p.newImgName);
       if (p.entry.txtHandle){
         p.entry.txtHandle = await renameFileInPlace(p.dir, p.entry.txtHandle.name, p.newTxtName!);
+      }
+      const pairedOriginal = originalByBase.get(p.oldBase);
+      if (origDir && pairedOriginal){
+        const oldOrigName = pairedOriginal.imgName || pairedOriginal.base;
+        const newOrigName = p.newBase + extOf(oldOrigName);
+        try {
+          pairedOriginal.imgHandle = await renameFileInPlace(origDir, oldOrigName, newOrigName);
+          if (pairedOriginal.txtHandle && pairedOriginal.txtName){
+            pairedOriginal.txtHandle = await renameFileInPlace(origDir, pairedOriginal.txtName, `${p.newBase}.txt`);
+          }
+          pairedOriginal.base = p.newBase;
+          pairedOriginal.imgName = newOrigName;
+          pairedOriginal.txtName = `${p.newBase}.txt`;
+          originalByBase.delete(p.oldBase);
+          originalByBase.set(p.newBase, pairedOriginal);
+        } catch { /* leave the original; the next load heals by stem */ }
       }
       reindexEntry(p.oldBase, p.newBase);
       p.entry.base = p.newBase;
@@ -538,6 +560,10 @@ export async function applyRenameDirection(affected: EditLogAffected[], directio
   const dirHandle = getDirHandle();
   if (!dirHandle) return 0;
   const disabledDirHandle = getDisabledDirHandle();
+  const extOf = (name: string): string => {
+    const i = name.lastIndexOf('.');
+    return i === -1 ? '' : name.slice(i);
+  };
   let count = 0;
   for (const a of affected){
     if (!a.prevBase || !a.prevImgName || !a.newImgName) continue;
@@ -556,6 +582,23 @@ export async function applyRenameDirection(affected: EditLogAffected[], directio
         const toTxtName = direction === 'undo' ? a.prevTxtName : a.newTxtName;
         entry.txtHandle = await renameFileInPlace(dir, fromTxtName, toTxtName);
         entry.txtName = toTxtName;
+      }
+      // The paired original followed the Gallery copy's rename; move it back
+      // (or forward on redo) so the stem stays in sync.
+      const origDir = getOriginalDirHandle();
+      const pairedOriginal = getEntries().find(e => e.original && e.base === fromBase);
+      if (origDir && pairedOriginal){
+        const oldOrigName = pairedOriginal.imgName || pairedOriginal.base;
+        const newOrigName = toBase + extOf(oldOrigName);
+        try {
+          pairedOriginal.imgHandle = await renameFileInPlace(origDir, oldOrigName, newOrigName);
+          if (pairedOriginal.txtHandle && pairedOriginal.txtName){
+            pairedOriginal.txtHandle = await renameFileInPlace(origDir, pairedOriginal.txtName, `${toBase}.txt`);
+          }
+          pairedOriginal.base = toBase;
+          pairedOriginal.imgName = newOrigName;
+          pairedOriginal.txtName = `${toBase}.txt`;
+        } catch { /* leave the original; the next load heals by stem */ }
       }
       reindexEntry(fromBase, toBase);
       entry.base = toBase;
@@ -769,3 +812,4 @@ export async function saveAllDirty(silent = false){
     toast(savedParts.length ? `Saved ${savedParts.join(' and ')}.` : 'Saved Retroactive Merge/Void rule changes.', 3400);
   }
 }
+

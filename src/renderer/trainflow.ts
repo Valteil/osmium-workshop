@@ -8,6 +8,7 @@ import { $ } from './dom';
 import { getJSON, setJSON } from './storage';
 import { showImageLightbox, showConfirmModal, toast } from './shared-ui';
 import { writeBytes } from './fs-access';
+import { convertAllWebpToPng } from './bucket-images';
 import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck } from '../shared-types';
 import type { Entry, DirHandle } from './types';
 
@@ -15,6 +16,9 @@ interface TrainflowDeps {
   getDirHandle: () => DirHandle | null;
   getEntries: () => Entry[];
   saveAllDirty: (silent?: boolean) => Promise<void>;
+  // Save-or-cancel guard run before Start (Start reloads the dataset, which
+  // would otherwise discard in-memory edits). index.ts owns the wording.
+  guardUnsavedForReload: (actionLabel: string) => Promise<'proceed' | 'stop' | 'cancel'>;
   reload: () => Promise<void>;
 }
 
@@ -259,16 +263,24 @@ export function initTrainflow(deps: TrainflowDeps): void {
     $('trainflowRunInfo').style.display = '';
     $('trainflowRunInfo').textContent = 'Checking your dataset, models and GPU…';
     const b = bucketCfg();
+    // Start rewrites the dataset on disk (bucketing) and reloads it, so any
+    // in-memory tag edits must be saved first — or the user is warned and can
+    // cancel / save-and-stop. Only 'proceed' runs the reload afterwards.
+    let reloadAfter = false;
     try {
       if (!(await resolveDataset())) { showErrors([deps.getDirHandle() ? 'Osmium couldn\'t find where the loaded dataset is on disk. Use Locate… next to it.' : 'Load a dataset first.']); return; }
-      // Training reads the .txt files, so unsaved tag edits go to disk first.
-      await deps.saveAllDirty(true);
+      const guard = await deps.guardUnsavedForReload('starting Trainflow');
+      if (guard !== 'proceed') return; // cancelled, or saved-but-stopped
+      reloadAfter = true;
+      // Any WebP is renamed to PNG before main touches the dataset: the trainer
+      // (and the main-process bucketing decoder) can't read WebP.
+      await convertAllWebpToPng();
       const r = await api.trainflowStart!({ ...settings, datasetPath, bucketMin: b.min, bucketMax: b.max, bucketStep: b.step });
       if (!r.ok) showErrors(r.errors || ['Could not start.']);
     } finally {
       starting = false;
       // Bucketing may have rewritten the dataset's files: show what's on disk now.
-      try { await deps.reload(); } catch { /* no dataset loaded */ }
+      if (reloadAfter) { try { await deps.reload(); } catch { /* no dataset loaded */ } }
       await refresh();
       void refreshDataset();
     }

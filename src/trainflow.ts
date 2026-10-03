@@ -170,11 +170,21 @@ function planBucketing(dir: string, b: { min: number; max: number; step: number 
   const items = new Map<string, BucketItem>();
   for (const f of listImages(path.join(dir, ORIGINAL_DIR))) items.set(stemOf(f), { stem: stemOf(f), src: f, inOriginals: true, root: rootByStem.get(stemOf(f)) });
   for (const [stem, f] of rootByStem) if (!items.has(stem)) items.set(stem, { stem, src: f, inOriginals: false, root: f });
+  const isWebp = (f: string) => path.extname(f).toLowerCase() === '.webp';
   const todo: BucketItem[] = [];
   for (const it of items.values()) {
+    // A WebP bucketed copy is never "done": WD14 and the trainer reject WebP, so
+    // it is re-made as a PNG even when its dimensions already match the bucket.
     if (it.inOriginals) {
       const o = imageSize(it.src), cur = it.root ? imageSize(it.root) : null;
-      if (o && cur) { const [tw, th] = getBestBucket(o.w, o.h, buckets); if (cur.w === tw && cur.h === th) continue; }
+      if (o && cur && !isWebp(it.root!)) { const [tw, th] = getBestBucket(o.w, o.h, buckets); if (cur.w === tw && cur.h === th) continue; }
+    } else if (isWebp(it.src)) {
+      const sz = imageSize(it.src);
+      // Already a valid bucket size and WebP: still convert (no crop needed).
+      if (sz && isBucketSize(sz.w, sz.h, buckets)) {
+        const rootPng = path.join(dir, it.stem + '.png');
+        if (fs.existsSync(rootPng)) { const c = imageSize(rootPng); if (c && c.w === sz.w && c.h === sz.h) continue; }
+      }
     }
     todo.push(it);
   }
@@ -510,9 +520,11 @@ async function bucketDataset(dir: string, b: { min: number; max: number; step: n
         fs.copyFileSync(src, path.join(origDir, path.basename(src)));
         const txt = path.join(dir, stem + '.txt');
         if (fs.existsSync(txt)) fs.copyFileSync(txt, path.join(origDir, stem + '.txt'));
-        // Already a valid bucket size: it stays as its own bucketed copy.
+        // Already a valid bucket size: it stays as its own bucketed copy — unless
+        // it's WebP, which the trainer can't read, so it still goes through
+        // bucketImage as a format conversion (a plain resize, same dimensions).
         const sz = imageSize(src);
-        if (sz && isBucketSize(sz.w, sz.h, buckets)) { done++; continue; }
+        if (sz && isBucketSize(sz.w, sz.h, buckets) && path.extname(src).toLowerCase() !== '.webp') { done++; continue; }
       }
       const bytes = fs.readFileSync(src);
       prep = { message: `Bucketing images (${done}/${todo.length})…`, done, total: todo.length };

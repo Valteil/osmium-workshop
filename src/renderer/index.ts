@@ -39,7 +39,7 @@ import {
   singleNextBtn, singlePos, uiAnimationsDropdown, hwAccelToggle,
   settingsPanel, fontSizeSlider, fontSizeVal
 } from './dom';
-import { attachScrollHint, closeOpenDropdown, showPromptModal, toast, toastError, showPanel, hidePanel, showConfirmModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, mapPan, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
+import { attachScrollHint, closeOpenDropdown, showPromptModal, toast, toastError, showPanel, hidePanel, showConfirmModal, showChoiceModal, showInfoModal, positionMenu, buildPersistentDropdown, initClickFlash, initFontRefit, mapPan, initMenuKeyboardNav, shouldSwallowOutsideClick, markSwallowNextClick, isClickInsideOwnedPdrop, initInfoButtons, openDockListModal, transitionMsOf } from './shared-ui';
 import {
   PREMIUM_THEMES, applyTheme, toggleDayNightMode, syncNightModeFromPrePaint,
   initThemeDropdown, refinedThemes, themeWantsRefinedClass
@@ -1401,6 +1401,35 @@ import { setIconLabel } from './icons';
     return showConfirmModal(`You have ${unsaved}. ${message}`, { okLabel: 'Switch anyway', danger: true });
   }
 
+  // Three-way unsaved-changes guard for a reload the app triggers on the
+  // user's behalf (Trainflow Start, Bucket Images run) — these reload the
+  // dataset from disk afterwards, which would silently overwrite in-memory tag
+  // edits. Unlike the switch/unload guards this offers to SAVE rather than only
+  // warn, because the reload is a side effect of an action the user meant to
+  // take, not a deliberate "discard" choice. Returns:
+  //   'proceed' — not dirty, or user chose Save-and-continue (already saved)
+  //   'stop'    — user chose Save but don't continue (already saved)
+  //   'cancel'  — user cancelled; the caller must abort WITHOUT saving
+  type ReloadGuard = 'proceed' | 'stop' | 'cancel';
+  async function guardUnsavedForReload(actionLabel: string): Promise<ReloadGuard> {
+    const unsaved = unsavedChangesDescription();
+    if (!unsaved) return 'proceed';
+    const choice = await showChoiceModal(
+      `You have ${unsaved}, and ${actionLabel} will reload the dataset from disk, replacing them.\n\n` +
+      `Save your edits first?`,
+      [
+        { key: 'cancel', label: 'Cancel' },
+        { key: 'stop', label: 'Save my edits, don\'t proceed', title: 'Save your tag edits to disk, then stop without reloading.' },
+        { key: 'proceed', label: 'Save my edits and proceed', variant: 'primary' }
+      ],
+      'stack'
+    );
+    if (choice === 'proceed' || choice === 'stop'){
+      await saveAllDirty(true);
+    }
+    return choice === 'proceed' || choice === 'stop' || choice === 'cancel' ? choice : 'cancel';
+  }
+
   // Shared by favorites.ts and dataset-manager.ts — both reopen a saved
   // FileSystemDirectoryHandle the same way the initial folder-open flow does.
   async function openFolderHandle(handle: DirHandle): Promise<void> {
@@ -1488,6 +1517,7 @@ import { setIconLabel } from './icons';
     getDirHandle: () => dirHandle,
     getEntries: () => entries,
     saveAllDirty: (silent) => saveAllDirty(silent),
+    guardUnsavedForReload,
     reload: () => loadFolder()
   });
   initSynthDatOverseer({
@@ -1529,8 +1559,10 @@ import { setIconLabel } from './icons';
   initBucketImages({
     getDirHandle: () => dirHandle,
     getEntries: () => entries,
+    getDisabledDirHandle: () => disabledDirHandle,
+    getOriginalDirHandle: () => originalDirHandle,
     reload: () => loadFolder(),
-    saveAllDirty: (silent) => saveAllDirty(silent)
+    guardUnsavedForReload
   });
 
   // Gallery/compact/single view rendering, chips, modal, image options menu moved to ./view.ts

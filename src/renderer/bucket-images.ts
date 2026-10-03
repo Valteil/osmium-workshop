@@ -19,13 +19,52 @@ import { toast, showConfirmModal } from './shared-ui';
 import { writeBytes } from './fs-access';
 import { getJSON, setJSON } from './storage';
 import { getValidBuckets, getBestBucket, isBucketSize } from '../bucket-core';
-import type { Entry, DirHandle } from './types';
+import { isWebpName } from './tags-edit';
+import type { Entry, DirHandle, FileHandle } from './types';
 
 interface BucketImagesDeps {
   getDirHandle: () => DirHandle | null;
   getEntries: () => Entry[];
+  getDisabledDirHandle: () => DirHandle | null;
+  getOriginalDirHandle: () => DirHandle | null;
   reload: () => Promise<void>;
-  saveAllDirty: (silent?: boolean) => Promise<void>;
+  guardUnsavedForReload: (actionLabel: string) => Promise<'proceed' | 'stop' | 'cancel'>;
+}
+
+// Transcodes every loaded WebP (Gallery, Disabled, Originals) to PNG in place,
+// leaving only PNGs on disk. WD14 and the trainer reject WebP, and the main
+// process's decoder (nativeImage/Skia) can't read it at all, so both the
+// Bucket Images dock and Trainflow run this before handing bytes to main.
+// Uses createImageBitmap, which does decode WebP. Returns how many converted.
+export async function convertAllWebpToPng(): Promise<number> {
+  const dirHandle = getDirHandle();
+  if (!dirHandle) return 0;
+  const disabledDirHandle = getDisabledDirHandle();
+  const originalDirHandle = getOriginalDirHandle();
+  let converted = 0;
+  for (const entry of [...getEntries()]) {
+    const name = entry.imgName || entry.base;
+    if (!isWebpName(name)) continue;
+    const dir = entry.original ? originalDirHandle : (entry.disabled ? disabledDirHandle : dirHandle);
+    if (!dir) continue;
+    try {
+      const file = await entry.imgHandle.getFile();
+      entry.imgHandle = await convertWebpToPngInDir(dir, name, file);
+      entry.imgName = (name.replace(/\.[^.]+$/, '')) + '.png';
+      entry.txtName = entry.base + '.txt';
+      converted++;
+    } catch { /* unreadable/unwritable: leave it, the dock will report it */ }
+  }
+  return converted;
+}
+
+async function convertWebpToPngInDir(dir: DirHandle, oldName: string, file: File): Promise<FileHandle> {
+  const { bytes } = await webpToPngBytes(file);
+  const newName = oldName.replace(/\.[^.]+$/, '') + '.png';
+  const handle = await dir.getFileHandle(newName, { create: true });
+  await writeBytes(handle, bytes);
+  await dir.removeEntry(oldName);
+  return handle;
 }
 
 // Shared with Trainflow and Anima-TrainFlow's own app: un-bucketed originals live here, the bucketed
@@ -58,8 +97,10 @@ interface BucketSettings { gpu: boolean; }
 
 let getDirHandle: () => DirHandle | null = () => null;
 let getEntries: () => Entry[] = () => [];
+let getDisabledDirHandle: () => DirHandle | null = () => null;
+let getOriginalDirHandle: () => DirHandle | null = () => null;
 let reload: () => Promise<void> = async () => {};
-let saveAllDirty: (silent?: boolean) => Promise<void> = async () => {};
+let guardUnsavedForReload: (actionLabel: string) => Promise<'proceed' | 'stop' | 'cancel'> = async () => 'proceed';
 let busy = false;
 
 function log(line: string, isErr = false): void {
@@ -83,6 +124,23 @@ async function imageDimensions(file: File): Promise<{ width: number; height: num
   const dims = { width: bmp.width, height: bmp.height };
   bmp.close();
   return dims;
+}
+
+// The main-process decoder (nativeImage + u2net) can't read WebP, so a WebP
+// source is transcoded to PNG here first — same conversion "Rename all" uses.
+// It's lossless for the pixels the trainer will see; the bucketed output is a
+// PNG either way, and the stored original becomes a PNG too.
+async function webpToPngBytes(file: File): Promise<{ bytes: Uint8Array; width: number; height: number }> {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+  const width = bitmap.width, height = bitmap.height;
+  bitmap.close();
+  const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!png) throw new Error('WebP could not be converted to PNG.');
+  return { bytes: new Uint8Array(await png.arrayBuffer()), width, height };
 }
 
 async function originalDir(create: boolean): Promise<DirHandle | null> {
@@ -138,10 +196,7 @@ async function run(): Promise<void> {
   if (busy) return;
   const dirHandle = getDirHandle();
   if (!dirHandle) { toast('Open a dataset folder first.'); return; }
-  const entries = getEntries();
-  const originals = entries.filter((e) => e.original);
-  const rootEntries = entries.filter((e) => !e.disabled && !e.original);
-  if (!rootEntries.length && !originals.length) { toast('No Gallery images to bucket.'); return; }
+  if (!getEntries().some((e) => !e.disabled || e.original)) { toast('No Gallery images to bucket.'); return; }
 
   const { sideMin, sideMax, step } = params();
   const buckets = getValidBuckets(sideMin, sideMax, step);
@@ -162,13 +217,27 @@ async function run(): Promise<void> {
   }
 
   // Bucketing writes files on disk and then reloads the folder, so any in-memory
-  // tag edits have to hit disk first or the reload silently discards them.
-  await saveAllDirty(true);
+  // tag edits have to hit disk first or the reload silently discards them. Offer
+  // save-and-continue / save-and-stop / cancel rather than saving silently.
+  const guard = await guardUnsavedForReload('bucketing images');
+  if (guard !== 'proceed') return; // cancelled, or saved-but-stopped
 
   setBusy(true);
   clearLog();
   const origDir = await originalDir(true);
   if (!origDir) { log(`Could not create ${ORIGINAL_DIR}/.`, true); setBusy(false); return; }
+
+  // Every WebP is renamed to PNG BEFORE the loop: the main-process decoder
+  // (nativeImage/Skia) cannot read WebP at all, so a WebP source would fail with
+  // "Could not decode this image." Converting up front (header, disabled and
+  // originals) means the loop below only ever sees PNGs, and a failed bucket
+  // can't leave a half-written original behind.
+  const webpConverted = await convertAllWebpToPng();
+  if (webpConverted) log(`Converted ${webpConverted} WebP image(s) to PNG.`);
+
+  const entries = getEntries();
+  const originals = entries.filter((e) => e.original);
+  const rootEntries = entries.filter((e) => !e.disabled && !e.original);
 
   let processed = 0, skipped = 0, failed = 0;
   const counts: Record<string, number> = {};
@@ -188,15 +257,18 @@ async function run(): Promise<void> {
       try { file = await entry.imgHandle.getFile(); }
       catch { log(`${filename}: could not read the file.`, true); failed++; continue; }
 
+      let bytes: Uint8Array;
       let dims: { width: number; height: number };
-      try { dims = await imageDimensions(file); }
-      catch { log(`${filename}: could not read its dimensions (unsupported format?).`, true); failed++; continue; }
+      try {
+        bytes = new Uint8Array(await file.arrayBuffer());
+        dims = await imageDimensions(file);
+      } catch { log(`${filename}: could not read its dimensions (unsupported format?).`, true); failed++; continue; }
 
-      const bytes = new Uint8Array(await file.arrayBuffer());
       if (!fromOriginals) {
         // First time: original image + a copy of its .txt into original_images/, whatever its size.
+        // It's already a PNG here (WebP was converted above), so the original is too.
         try {
-          const origImg = await origDir.getFileHandle(filename, { create: true });
+          const origImg = await origDir.getFileHandle(entry.base + '.png', { create: true });
           await writeBytes(origImg, bytes);
           if (entry.txtHandle && entry.txtName) {
             try {
@@ -210,6 +282,7 @@ async function run(): Promise<void> {
           failed++;
           continue;
         }
+        // Already a valid bucket size: kept as its own bucketed copy.
         if (isBucketSize(dims.width, dims.height, buckets)) {
           skipped++; bump(dims.width, dims.height);
           log(`${filename}: already ${dims.width}x${dims.height} — original saved, kept as its own bucket.`);
@@ -244,7 +317,8 @@ async function run(): Promise<void> {
         const outHandle = await dirHandle.getFileHandle(stemPng, { create: true });
         await writeBytes(outHandle, res.pngBytes);
         // Drop the old root copy (the moved original, or an earlier bucket under another extension) when its
-        // name differs from the output; a .png is overwritten in place by the write above instead.
+        // name differs from the output; a .png is overwritten in place by the write above instead. For a WebP
+        // source the original was already stored as <base>.png above, so there is nothing extra to remove.
         const oldRoot = fromOriginals ? rootByBase.get(entry.base)?.imgName : filename;
         if (oldRoot && oldRoot !== stemPng) { try { await dirHandle.removeEntry(oldRoot); } catch { /* already gone */ } }
       } catch (err) {
@@ -363,8 +437,10 @@ async function revert(): Promise<void> {
 export function initBucketImages(deps: BucketImagesDeps): void {
   getDirHandle = deps.getDirHandle;
   getEntries = deps.getEntries;
+  getDisabledDirHandle = deps.getDisabledDirHandle;
+  getOriginalDirHandle = deps.getOriginalDirHandle;
   reload = deps.reload;
-  saveAllDirty = deps.saveAllDirty;
+  guardUnsavedForReload = deps.guardUnsavedForReload;
 
   // Prefer GPU is a persisted preference (default on, matching WD14's own
   // checkbox); markup ships it checked and this only overrides from storage.

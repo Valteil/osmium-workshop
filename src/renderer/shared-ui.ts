@@ -676,6 +676,59 @@ export function showConfirmModal(message: string, opts: ConfirmModalOpts = {}): 
   });
 }
 
+// A modal with N labelled buttons, resolving the chosen key (or null when
+// dismissed via Escape/backdrop). Used where a boolean confirm can't express
+// the answer — e.g. the unsaved-changes guard before a training/bucketing
+// reload, which needs Cancel / Save-and-continue / Save-and-stop.
+export interface ChoiceOption {
+  key: string;
+  label: string;
+  // 'primary' = filled accent, 'danger' = tinted outline, undefined = plain.
+  variant?: 'primary' | 'danger';
+  title?: string;
+}
+// layout 'row' (default): all buttons on one wrapped row, right-aligned.
+// layout 'stack': the non-Cancel options stack full-width (equal shape), with
+// Cancel on its own row along the bottom-left — used by the unsaved-changes
+// guard so the two Save choices read as a clear pair.
+export function showChoiceModal(message: string, options: ChoiceOption[], layout: 'row' | 'stack' = 'row'): Promise<string | null> {
+  return new Promise((resolve) => {
+    const { box, close } = createModalShell({ onDismiss: () => { resolve(null); close(); } });
+    const msg = document.createElement('div');
+    msg.className = 'confirm-message';
+    msg.textContent = message;
+    box.appendChild(msg);
+    const makeBtn = (opt: ChoiceOption): HTMLButtonElement => {
+      const btn = document.createElement('button');
+      btn.textContent = opt.label;
+      if (opt.variant === 'primary') btn.className = 'primary';
+      else if (opt.variant === 'danger') btn.className = 'danger-ghost';
+      if (opt.title) btn.title = opt.title;
+      btn.addEventListener('click', () => { resolve(opt.key); close(); });
+      return btn;
+    };
+    if (layout === 'stack'){
+      const cancel = options.find((o) => o.key === 'cancel');
+      const saves = options.filter((o) => o.key !== 'cancel');
+      const stack = document.createElement('div');
+      stack.className = 'confirm-btn-stack';
+      for (const opt of saves) stack.appendChild(makeBtn(opt));
+      box.appendChild(stack);
+      if (cancel){
+        const cancelRow = document.createElement('div');
+        cancelRow.className = 'confirm-btn-row confirm-btn-row-cancel';
+        cancelRow.appendChild(makeBtn(cancel));
+        box.appendChild(cancelRow);
+      }
+      return;
+    }
+    const btnRow = document.createElement('div');
+    btnRow.className = 'confirm-btn-row';
+    for (const opt of options) btnRow.appendChild(makeBtn(opt));
+    box.appendChild(btnRow);
+  });
+}
+
 export function showInfoModal(html: string, title?: string, onBody?: (body: HTMLElement) => void): void {
   const { box, close } = createModalShell({ boxClassName: 'info-modal-box' });
   if (title) {
