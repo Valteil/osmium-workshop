@@ -1106,7 +1106,6 @@ declare const BridgeShared: {
       clip: clip.value,
       vae: vae.value,
       loraRows: loraRows.map(function (r) { return { input: r.input.value, strength: r.strength.value }; }),
-      noLoraStandIn: 'Anima-n',
       skipRefImage: skipRefImage.checked,
       lliteStrength: lliteStrength.value,
       lliteStartPercent: lliteStartPercent.value,

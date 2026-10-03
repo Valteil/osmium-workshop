@@ -13,6 +13,9 @@
   <header id="topbar">
     <h1>Comfy Bridge</h1>
     <span id="appVersion"></span>
+    <!-- Help panel (src/renderer/help.ts); the button is left of the Wiki
+         button. -->
+    <button id="btnHelp" type="button" title="Help: what every setting does">? Help</button>
     <!-- Tag wiki window (src/renderer/tag-wiki.ts); the button toggles it. -->
     <button id="btnTagWiki" type="button" title="Tag wiki: look up any tag's definition in a window that stays open until you close it"><svg class="tag-wiki-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-1.8-1.4-4.3-2-7.5-2v14c3.2 0 5.7.6 7.5 2 1.8-1.4 4.3-2 7.5-2v-14c-3.2 0-5.7.6-7.5 2z"/><path d="M12 6.5v14"/></svg>Wiki</button>
     <div id="themeWrap">
@@ -238,21 +241,21 @@
       <div class="row reso-row settings-span2">
         <div>
           <label>Width</label>
-          <input id="width" type="number" value="920">
+          <input id="width" type="number" value="1024">
         </div>
         <button id="btnSwapReso" title="Swap width/height">⇄</button>
         <div>
           <label>Height</label>
-          <input id="height" type="number" value="1244">
+          <input id="height" type="number" value="1024">
         </div>
       </div>
       <div>
         <label>Sampler</label>
-        <input id="sampler" type="text" value="res_multistep" readonly>
+        <input id="sampler" type="text" value="euler_ancestral" readonly>
       </div>
       <div>
         <label>Scheduler</label>
-        <input id="scheduler" type="text" value="beta" readonly>
+        <input id="scheduler" type="text" value="simple" readonly>
       </div>
       <div>
         <label>Steps (pass 1)</label>
@@ -260,17 +263,23 @@
       </div>
       <div>
         <label>CFG (pass 1)</label>
-        <input id="cfg1" type="number" step="0.01" value="4.04">
+        <input id="cfg1" type="number" step="0.01" value="4">
       </div>
       <div class="settings-span2">
         <label>Seed (pass 1)</label>
-        <input id="seed1" type="number" value="15">
+        <div class="seed-row">
+          <input id="seed1" type="number" value="0">
+          <button type="button" class="seed-btn" id="seed1Dec" title="Decrease seed by 1">−</button>
+          <button type="button" class="seed-btn" id="seed1Inc" title="Increase seed by 1">+</button>
+          <button type="button" class="seed-btn" id="seed1Random" title="Roll a random seed">🎲</button>
+          <label class="chk-row seed-fixed" title="Fixed: reuse this seed every generation. Unticked: roll a new random seed each generation."><input id="seed1Fixed" type="checkbox" checked> Fixed</label>
+        </div>
       </div>
       <label class="chk-row settings-span2"><input id="use2Pass" type="checkbox"> 2-Pass</label>
       <div id="pass2Fields" class="settings-span2 settings-grid">
         <div>
           <label>Steps (pass 2)</label>
-          <input id="steps2" type="number" value="15">
+          <input id="steps2" type="number" value="20">
         </div>
         <div>
           <label>Denoise (pass 2)</label>
@@ -278,7 +287,13 @@
         </div>
         <div class="settings-span2">
           <label>Seed (pass 2)</label>
-          <input id="seed2" type="number" value="15">
+          <div class="seed-row">
+            <input id="seed2" type="number" value="1">
+            <button type="button" class="seed-btn" id="seed2Dec" title="Decrease seed by 1">−</button>
+            <button type="button" class="seed-btn" id="seed2Inc" title="Increase seed by 1">+</button>
+            <button type="button" class="seed-btn" id="seed2Random" title="Roll a random seed">🎲</button>
+            <label class="chk-row seed-fixed" title="Fixed: reuse this seed every generation. Unticked: roll a new random seed each generation."><input id="seed2Fixed" type="checkbox" checked> Fixed</label>
+          </div>
         </div>
       </div>
     </div>
@@ -350,6 +365,16 @@
       <div class="muted small">ComfyUI's copy keeps its old names. With the first box ticked, or the second unticked, ComfyUI only makes a temporary preview and the file above is the only one saved.</div>
     </div>
   </aside>
+
+<!-- Help modal (src/renderer/help.ts): one section at a time, contents on the
+     left, same shape as Osmium Workshop's help panel. -->
+<div id="helpBackdrop" class="help-backdrop" hidden>
+  <div class="help-modal-card">
+    <button id="helpCloseBtn" class="help-close-btn" type="button" title="Close">✕</button>
+    <div id="helpToc" class="help-toc"></div>
+    <div id="helpContent" class="help-content"></div>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>

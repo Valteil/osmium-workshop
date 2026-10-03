@@ -1203,7 +1203,6 @@ function buildPromptFromFields(): SynthDatPrompt {
     clip: synthDatClip.value,
     vae: synthDatVae.value,
     loraRows: loraRows.map(r => ({ input: r.input.value, strength: r.strength.value })),
-    noLoraStandIn: 'None',
     skipRefImage: synthDatSkipRefImage.checked,
     lliteStrength: synthDatLLLiteStrength.value,
     lliteStartPercent: synthDatLLLiteStartPercent.value,

@@ -61,9 +61,9 @@ export function buildMultipart(
 // Clones the fixed workflow template and fills it in from a normalized config.
 // Pure: the caller reads its own UI into SynthDatPromptConfig (string fields
 // pre-trimmed via its own fieldValue(); numeric/LoRA fields raw — this parses
-// them exactly as the original per-app builders did). Root passes
-// noLoraStandIn 'None', Comfy Bridge 'Anima-n' (a real no-op entry in that
-// combo list); root omits `upscale` (SynthDat has no upscale step).
+// them exactly as the original per-app builders did). Root omits `upscale`
+// (SynthDat has no upscale step). A blank Main LoRA drops the loader chain
+// entirely — see the main-LoRA block below.
 
 import type { SynthDatPrompt } from './shared-types';
 
@@ -89,7 +89,6 @@ export interface SynthDatPromptConfig {
   // unparseable keeps the template's 1.
   mainLoraStrength?: string;
   loraRows: SynthDatLoraRow[];
-  noLoraStandIn: string;
   skipRefImage: boolean;
   lliteStrength: string; lliteStartPercent: string; lliteEndPercent: string; llitePreserveWrapper: boolean;
   resizeFit: string; resizeMethod: string;
@@ -121,12 +120,27 @@ export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromp
   prompt['16'].inputs.text = cfg.negative;
 
   prompt['41'].inputs.unet_name = cfg.diffModel;
-  // An empty string isn't a valid value for this combo input, so leaving Main
-  // LoRA blank to mean "skip it" sent ComfyUI something it rejected outright.
-  prompt['51'].inputs.lora_name = cfg.mainLora.trim() || cfg.noLoraStandIn;
-  // #51 only names the LoRA; #248 (LoraLoaderModelOnly) applies it.
-  const mainStrength = parseFloat(cfg.mainLoraStrength ?? '');
-  if (Number.isFinite(mainStrength)) prompt['248'].inputs.strength_model = mainStrength;
+  // Main LoRA. A blank Main LoRA means "no LoRA": drop the loader chain
+  // outright rather than name a stand-in. Node 51's lora_name combo is
+  // validated against the host's real lora folder, so on a machine with no
+  // (matching) loras there is no valid stand-in — the old fallback name got
+  // the whole prompt rejected, or a filename-chain loader tried to load a
+  // missing file and crashed the run. The model path goes straight from the
+  // diffusion loader (41) into the LoRA stack (237), and the filename chain's
+  // LoRA segment (node 38's NAME_STRING) is blanked.
+  if (cfg.mainLora.trim()) {
+    prompt['51'].inputs.lora_name = cfg.mainLora.trim();
+    // #51 only names the LoRA; #248 (LoraLoaderModelOnly) applies it.
+    const mainStrength = parseFloat(cfg.mainLoraStrength ?? '');
+    if (Number.isFinite(mainStrength)) prompt['248'].inputs.strength_model = mainStrength;
+  } else {
+    delete prompt['51'];
+    delete prompt['248'];
+    delete prompt['38'];
+    prompt['237'].inputs.model = ['41', 0];
+    prompt['37'].inputs.text_c = '';
+    if (prompt['222']) prompt['222'].inputs.text_d = '';
+  }
   // The template has two CLIPLoader nodes (249, 47:45) both loading the same
   // file — kept in sync here rather than exposed as two separate fields.
   if (cfg.clip) { prompt['249'].inputs.clip_name = cfg.clip; prompt['47:45'].inputs.clip_name = cfg.clip; }
@@ -196,8 +210,8 @@ export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromp
   prompt['158:53'].inputs.steps = parseInt(cfg.steps1, 10) || 1;
   prompt['158:54'].inputs.cfg = parseFloat(cfg.cfg1) || 1;
 
-  prompt['174:171'].inputs.value = parseInt(cfg.width, 10) || 920;
-  prompt['174:172'].inputs.value = parseInt(cfg.height, 10) || 1244;
+  prompt['174:171'].inputs.value = parseInt(cfg.width, 10) || 1024;
+  prompt['174:172'].inputs.value = parseInt(cfg.height, 10) || 1024;
 
   prompt['165'].inputs.noise_seed = parseInt(cfg.seed1, 10) || 0;
 
