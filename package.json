@@ -37,6 +37,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "ipc-guard.js",
       "wd14-local.js",
       "comfy-local.js",
       "trainflow.js",

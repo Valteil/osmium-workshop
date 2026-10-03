@@ -34,6 +34,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "ipc-guard.js",
       "comfy-core.js",
       "comfy-local.js",
       "local-relay.js",
