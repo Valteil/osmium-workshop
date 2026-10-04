@@ -2189,10 +2189,17 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 .log-stack-name{ font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .log-stack-actions{ display: flex; gap: 6px; flex: none; }
 .log-stack-actions button{ font-size: 11px; padding: 4px 9px; }
-/* Log panel toolbar (sort) + pagination. */
+/* In the per-image history modal (openImageEditsModal) the action row sits in
+   a stacked .log-row, not the flex stack item — left-align it there. */
+.log-row .log-stack-actions{ align-self: flex-start; }
+/* Log panel toolbar (edit-type filter + recency toggle) + pagination. */
 .log-toolbar{ display: flex; align-items: center; gap: 8px; }
-.log-toolbar label{ font-size: 11px; color: var(--text-muted); }
-.log-toolbar select{ flex: 1; }
+.log-toolbar label{ font-size: 11px; color: var(--text-muted); flex: none; }
+/* Themed persistent dropdown (buildPersistentDropdown → .pdrop/.pdrop-btn). Its
+   .pdrop-btn already carries the control grammar; just let it fill the row. */
+.log-type-dropdown{ flex: 1; min-width: 0; }
+.log-type-dropdown .pdrop-btn{ width: 100%; font-size: 11.5px; padding: 4px 8px; }
+.log-order-btn{ flex: none; font-size: 11.5px; padding: 4px 9px; }
 .log-pager{ display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .log-pager .log-page{ min-width: 26px; padding: 3px 7px; font-size: 11px; font-family: var(--mono); background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border-soft); border-radius: var(--r-ctl, 5px); cursor: pointer; }
 .log-pager .log-page:hover{ color: var(--text-primary); border-color: var(--border-strong); }
@@ -3129,8 +3136,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   /* ---------- Generic image lightbox (shared-ui.ts showImageLightbox()) ---------- */
 
+  /* z-index 650: above .confirm-backdrop/.picker-backdrop (600) and .ctx-menu
+     (650). The lightbox can be opened FROM a modal (a log stack / per-image
+     edits modal), and it must sit in the foreground so the modal is still
+     there, usable, once the image is dismissed. */
   .lightbox-backdrop{
-    position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 500;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 650;
     display: flex; align-items: center; justify-content: center; cursor: zoom-out;
     opacity: 0; transition: opacity var(--panel-dur) ease;
   }

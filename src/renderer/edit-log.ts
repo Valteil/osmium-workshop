@@ -2,11 +2,11 @@ import type { EditLogEntry, EditLogAffected, Entry, DirHandle, ChangeRecord } fr
 import { hasSaveFilePicker, pickSaveFile, writeBytes } from './fs-access';
 import {
   btnLog, logPanel, logPanelTitle, logList, btnExportLog, btnClearLog, logCloseBtn,
-  logSortSelect, logPager,
+  logTypeDropdown, logOrderBtn, logPager,
   favoritesPanel, achievementsPanel, shopPanel, tagDetailsPanel,
   statsChartWrap, statsLegend, statsTotals, statsViewPie, statsViewBar
 } from './dom';
-import { toast, showPanel, hidePanel, showConfirmModal, showPromptModal, createModalShell, showImageLightbox } from './shared-ui';
+import { toast, showPanel, hidePanel, showConfirmModal, showPromptModal, createModalShell, showImageLightbox, buildPersistentDropdown } from './shared-ui';
 import { folderUnlocked } from './achievements';
 import { setIconLabel, iconSvg } from './icons';
 
@@ -15,9 +15,11 @@ export let logIdCounter = 1;
 let statsChartMode: 'pie' | 'bar' = 'pie';
 
 // Log-panel view state. `editLog` itself stays append-order (oldest first);
-// ordering is applied per render and never mutates the log.
-type LogSort = 'newest' | 'oldest' | 'type-asc' | 'type-desc';
-let logSort: LogSort = 'newest';
+// ordering/filtering is applied per render and never mutates the log.
+// - `logTypeFilter`: '' = All edit types, else one raw log type to show.
+// - `logOrder`: only recency — newest or oldest first (the separate toggle).
+let logTypeFilter = '';
+let logOrder: 'newest' | 'oldest' = 'newest';
 let logPage = 1;
 const LOG_PAGE_SIZE = 25;
 
@@ -333,6 +335,10 @@ export function renderLogPanel(): void {
     return;
   }
   const ordered = orderedLog();
+  if (ordered.length === 0) {
+    logList.innerHTML = `<div class="log-empty">No ${STAT_TYPE_LABEL[logTypeFilter] || logTypeFilter} edits logged yet.</div>`;
+    return;
+  }
   const totalPages = Math.max(1, Math.ceil(ordered.length / LOG_PAGE_SIZE));
   if (logPage > totalPages) logPage = totalPages;
   if (logPage < 1) logPage = 1;
@@ -418,24 +424,11 @@ export function renderLogPanel(): void {
   renderPager(totalPages);
 }
 
-// A view of the log, ordered by the current sort. Never mutates editLog
-// (append-order = oldest first). Type sorts use the human STAT_TYPE_LABEL so
-// entries group by what the edit actually was (tagging, pruning, voiding, …);
-// within a type, newest-first (`b.id - a.id`) is always the tie-break.
+// A view of the log: filtered to the selected edit type (if any), then ordered
+// by recency. Never mutates editLog (append-order = oldest first).
 function orderedLog(): EditLogEntry[] {
-  const arr = editLog.slice();
-  const label = (t: string): string => STAT_TYPE_LABEL[t] || t;
-  switch (logSort){
-    case 'oldest':
-      return arr;
-    case 'type-asc':
-      return arr.sort((a, b) => label(a.type).localeCompare(label(b.type)) || b.id - a.id);
-    case 'type-desc':
-      return arr.sort((a, b) => label(b.type).localeCompare(label(a.type)) || b.id - a.id);
-    case 'newest':
-    default:
-      return arr.reverse();
-  }
+  const arr = editLog.filter(e => !logTypeFilter || e.type === logTypeFilter);
+  return logOrder === 'oldest' ? arr : arr.reverse();
 }
 
 // Page buttons: 1..5, then "…", then the last page — the window slides so the
@@ -520,6 +513,42 @@ async function toggleAffectedMove(logEntry: EditLogEntry, e: Entry): Promise<voi
   await moveEntryRef(e, shouldBeDisabled);
 }
 
+// The per-affected-row action buttons (a Move/Restore toggle, or the ↩/↪
+// pair), shared by the per-image stack modal and the per-image history modal.
+// `entry` is the resolved image (undefined = gone, so the buttons are disabled).
+// `after` runs post-action so each caller can re-render itself.
+function buildAffectedActionButtons(logEntry: EditLogEntry, a: EditLogAffected, entry: Entry | undefined, after: () => void): HTMLElement {
+  const btns = document.createElement('div');
+  btns.className = 'log-stack-actions';
+  if (MOVE_TYPES.has(logEntry.type)){
+    const toggleBtn = document.createElement('button');
+    toggleBtn.textContent = logEntry.type === 'disable' ? 'Restore image' : 'Disable image again';
+    toggleBtn.className = 'primary';
+    toggleBtn.disabled = !entry;
+    toggleBtn.addEventListener('click', async () => {
+      if (!entry) return;
+      toggleBtn.disabled = true;
+      await toggleAffectedMove(logEntry, entry);
+      renderLogPanel();
+      after();
+    });
+    btns.appendChild(toggleBtn);
+  } else {
+    const undoBtn = document.createElement('button');
+    setIconLabel(undoBtn, '↩ Undo');
+    undoBtn.disabled = !entry;
+    undoBtn.addEventListener('click', () => { void runAffected(logEntry, a, 'undo', after); });
+    const redoBtn = document.createElement('button');
+    setIconLabel(redoBtn, '↪ Redo');
+    redoBtn.className = 'primary';
+    redoBtn.disabled = !entry;
+    redoBtn.addEventListener('click', () => { void runAffected(logEntry, a, 'redo', after); });
+    btns.appendChild(undoBtn);
+    btns.appendChild(redoBtn);
+  }
+  return btns;
+}
+
 // Run one per-image action, log/stat it, then refresh the panel and the open
 // modal.
 async function runAffected(logEntry: EditLogEntry, a: EditLogAffected, direction: LogDirection, after: () => void): Promise<void> {
@@ -601,35 +630,7 @@ function openLogStackModal(logEntry: EditLogEntry): void {
       }
       item.appendChild(info);
 
-      const btns = document.createElement('div');
-      btns.className = 'log-stack-actions';
-      if (MOVE_TYPES.has(logEntry.type)){
-        const toggleBtn = document.createElement('button');
-        toggleBtn.textContent = logEntry.type === 'disable' ? 'Restore image' : 'Disable image again';
-        toggleBtn.className = 'primary';
-        toggleBtn.disabled = !entry;
-        toggleBtn.addEventListener('click', async () => {
-          if (!entry) return;
-          toggleBtn.disabled = true;
-          await toggleAffectedMove(logEntry, entry);
-          renderLogPanel();
-          renderItems();
-        });
-        btns.appendChild(toggleBtn);
-      } else {
-        const undoBtn = document.createElement('button');
-        setIconLabel(undoBtn, '↩ Undo');
-        undoBtn.disabled = !entry;
-        undoBtn.addEventListener('click', () => { void runAffected(logEntry, a, 'undo', renderItems); });
-        const redoBtn = document.createElement('button');
-        setIconLabel(redoBtn, '↪ Redo');
-        redoBtn.className = 'primary';
-        redoBtn.disabled = !entry;
-        redoBtn.addEventListener('click', () => { void runAffected(logEntry, a, 'redo', renderItems); });
-        btns.appendChild(undoBtn);
-        btns.appendChild(redoBtn);
-      }
-      item.appendChild(btns);
+      item.appendChild(buildAffectedActionButtons(logEntry, a, entry, renderItems));
       list.appendChild(item);
     });
   }
@@ -663,33 +664,45 @@ export function openImageEditsModal(entry: Entry): void {
   const sub = document.createElement('div');
   sub.className = 'log-stack-sub';
   sub.textContent = relevant.length
-    ? `${relevant.length} logged edit${relevant.length === 1 ? '' : 's'} — newest first`
+    ? `${relevant.length} logged edit${relevant.length === 1 ? '' : 's'} — newest first. Undo/Redo reverses that edit for this image.`
     : 'No edits have been logged for this image yet.';
   box.appendChild(sub);
 
   const list = document.createElement('div');
   list.className = 'log-stack-list';
   box.appendChild(list);
-  for (const logEntry of relevant) {
-    const row = document.createElement('div');
-    row.className = 'log-row';
-    const meta = document.createElement('div');
-    meta.className = 'log-meta';
-    const time = document.createElement('span');
-    time.className = 'log-time';
-    time.textContent = formatLogTime(logEntry.ts);
-    const type = document.createElement('span');
-    type.className = 'log-type';
-    type.textContent = STAT_TYPE_LABEL[logEntry.type] || logEntry.type;
-    meta.appendChild(time);
-    meta.appendChild(type);
-    const rowSummary = document.createElement('div');
-    rowSummary.className = 'log-summary';
-    rowSummary.textContent = logEntry.summary;
-    row.appendChild(meta);
-    row.appendChild(rowSummary);
-    list.appendChild(row);
+
+  function renderItems(): void {
+    list.innerHTML = '';
+    for (const logEntry of relevant) {
+      const row = document.createElement('div');
+      row.className = 'log-row';
+      const meta = document.createElement('div');
+      meta.className = 'log-meta';
+      const time = document.createElement('span');
+      time.className = 'log-time';
+      time.textContent = formatLogTime(logEntry.ts);
+      const type = document.createElement('span');
+      type.className = 'log-type';
+      type.textContent = STAT_TYPE_LABEL[logEntry.type] || logEntry.type;
+      meta.appendChild(time);
+      meta.appendChild(type);
+      const rowSummary = document.createElement('div');
+      rowSummary.className = 'log-summary';
+      rowSummary.textContent = logEntry.summary;
+      row.appendChild(meta);
+      row.appendChild(rowSummary);
+
+      // This image's own affected row inside that log entry — what its
+      // Undo/Redo applies to. Present for every entry here by construction.
+      const a = logEntry.affected.find(x => x.base === entry.base && !!x.original === !!entry.original);
+      if (a && logEntryHasActions(logEntry)) {
+        row.appendChild(buildAffectedActionButtons(logEntry, a, entry, renderItems));
+      }
+      list.appendChild(row);
+    }
   }
+  renderItems();
 
   const btnRow = document.createElement('div');
   btnRow.className = 'confirm-btn-row';
@@ -718,9 +731,39 @@ export function initEditLog(deps: EditLogDeps): void {
   statsViewPie.addEventListener('click', () => { statsChartMode = 'pie'; statsViewPie.classList.add('active'); statsViewBar.classList.remove('active'); renderStatsTab(); });
   statsViewBar.addEventListener('click', () => { statsChartMode = 'bar'; statsViewBar.classList.add('active'); statsViewPie.classList.remove('active'); renderStatsTab(); });
 
-  logSortSelect.value = logSort;
-  logSortSelect.addEventListener('change', () => {
-    logSort = logSortSelect.value as LogSort;
+  // Type filter: one human-labelled option per edit type present in this log,
+  // plus "All edit types". A themed persistent dropdown (buildPersistentDropdown
+  // — the app's own .pdrop pattern), NOT a native <select>, whose OS popup can't
+  // carry any theme's material. Rebuilt each time the panel opens, since the
+  // set of types present changes as the log grows/shrinks.
+  let typeDropdown: { refreshLabel: () => void } | null = null;
+  function buildLogTypeDropdown(): void {
+    const present = new Set(editLog.map(e => e.type));
+    const options = [
+      { value: '', label: 'All edit types' },
+      ...Array.from(present)
+        .sort((a, b) => (STAT_TYPE_LABEL[a] || a).localeCompare(STAT_TYPE_LABEL[b] || b))
+        .map(t => ({ value: t, label: STAT_TYPE_LABEL[t] || t }))
+    ];
+    // A filter for a type no longer present falls back to All before it's built.
+    if (logTypeFilter && !present.has(logTypeFilter)) logTypeFilter = '';
+    typeDropdown = buildPersistentDropdown(
+      logTypeDropdown,
+      options,
+      () => logTypeFilter,
+      (v) => { logTypeFilter = v; logPage = 1; renderLogPanel(); }
+    );
+  }
+
+  // Recency toggle: one button flipping newest <-> oldest.
+  function refreshOrderBtn(): void {
+    setIconLabel(logOrderBtn, logOrder === 'newest' ? 'Newest ▾' : 'Oldest ▴');
+    logOrderBtn.title = logOrder === 'newest' ? 'Switch to oldest first' : 'Switch to newest first';
+  }
+  refreshOrderBtn();
+  logOrderBtn.addEventListener('click', () => {
+    logOrder = logOrder === 'newest' ? 'oldest' : 'newest';
+    refreshOrderBtn();
     logPage = 1;
     renderLogPanel();
   });
@@ -730,6 +773,7 @@ export function initEditLog(deps: EditLogDeps): void {
     if (logPanel.style.display === 'flex') { hidePanel(logPanel); return; }
     hidePanel(favoritesPanel); hidePanel(achievementsPanel); hidePanel(shopPanel); hidePanel(tagDetailsPanel);
     logPage = 1;
+    buildLogTypeDropdown();
     renderLogPanel();
     showPanel(logPanel);
   });
