@@ -31,6 +31,7 @@ comfy-bridge/comfy-local.js
 comfy-bridge/local-relay.js
 comfy-bridge/ipc-guard.js
 comfy-bridge/renderer/app.js
+comfy-bridge/renderer/theme-data.js
 comfy-bridge/renderer/shared.css
 comfy-bridge/renderer/fonts/
 # Tag wiki data, copied from renderer/data by comfy-bridge/scripts/copy-wiki-data.js

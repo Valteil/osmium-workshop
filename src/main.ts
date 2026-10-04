@@ -214,14 +214,20 @@ function ensureRendererFiles(): string {
 
 // Content-Security-Policy for the app window, applied to the session's
 // response headers (covers the document and every subresource). The renderer
-// has four inline <script> blocks (the pre-paint theme pass and the opening
-// flourish) which are allowed by SHA-256 hash, computed from the page at
+// has three inline <script> blocks (the pre-paint theme pass, the theme mark
+// and the opening flourish) which are allowed by SHA-256 hash, computed from the page at
 // startup rather than 'unsafe-inline' — so an injected inline script is blocked
 // and the policy is never hand-synced when those blocks change. style-src needs
 // 'unsafe-inline': styles.css is fine as 'self', but the app also sets inline
 // style="" attributes (theme vars, geometry). Images come from file:// (self),
 // blob: (object URLs) and data: (inline SVGs). connect-src stays localhost-only;
 // desktop ComfyUI HTTP is done in the main process, not a renderer fetch.
+//
+// Hash the LF-normalised body: the HTML parser normalises CRLF/CR to LF before
+// the engine sees (and hashes) an inline script, but the file on Windows is
+// checked out CRLF. Hashing the raw bytes produced hashes the browser never
+// matched, so the CSP blocked the pre-paint theme pass AND the opening flourish
+// (the app flashed Studio on every launch, and the flourish never played).
 function applyRendererCsp(): void {
   let scriptHashes: string[] = [];
   try {
@@ -229,7 +235,7 @@ function applyRendererCsp(): void {
     // Only inline scripts (<script> with no src=); src'd scripts are covered by 'self'.
     const inline = html.matchAll(/<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi);
     scriptHashes = [...inline]
-      .map((m) => m[1])
+      .map((m) => m[1].replace(/\r\n?/g, '\n'))
       .filter((body) => body.trim().length > 0)
       .map((body) => `'sha256-${crypto.createHash('sha256').update(body, 'utf8').digest('base64')}'`);
   } catch (err) {
