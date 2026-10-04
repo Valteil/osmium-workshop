@@ -76,7 +76,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p><b>Sampler</b> is the method that turns noise into an image. Euler A is a good general default. <b>Scheduler</b> shapes the noise schedule, and Simple pairs well with Euler A.</p>
       <p><b>Steps (pass 1)</b> is how many denoise passes the first pass runs. More steps cost more time and can add detail, but past roughly 30 they rarely help. 25 is the default.</p>
       <p><b>CFG (pass 1)</b> is how strictly the model follows your prompt. Around 4 is normal here. Raise it and the image clings to the prompt and can look harsh. Lower it and the model improvises more.</p>
-      <p><b>Seed</b> is the random starting point. The same seed, prompt and settings give the same image, which is how you reproduce a result or make small variations of it. With <b>Fixed</b> ticked, the number you typed is reused. Untick it to get a fresh random seed each generation. The minus and plus buttons step the seed by one, and the dice rolls a new one.</p>
+      <p><b>Seed</b> is the random starting point. The same seed, prompt and settings give the same image, which is how you reproduce a result or make small variations of it. The dropdown beside it sets what happens to the seed each time you generate. <b>Fixed</b>, the default, reuses the number you typed. <b>Randomize</b> rolls a new random seed every generation. <b>Increment</b> and <b>Decrement</b> step the seed by one, which walks through near-identical variations.</p>
       <p><b>2-Pass</b> runs a second, gentler denoise pass over pass 1 to clean it up. Steps (pass 2) is how many steps that pass runs, 20 by default. Denoise is how much it is allowed to change, and 0.6 keeps most of pass 1 while polishing the rest. Pass 2 has a seed of its own.</p>`
   },
   {

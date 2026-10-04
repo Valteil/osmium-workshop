@@ -60,9 +60,19 @@ trained LoRA.
    [Bucket Images](#bucket-images).
 8. **Train** — run Trainflow on the finished dataset. See [Trainflow tab](#trainflow-tab).
 
-How hard you lean on steps 3 and 4 depends on the LoRA. A character LoRA wants identity tags
-stripped and spelling variants merged so the model doesn't treat a defining trait as optional. A
-style LoRA usually wants a wide, varied tag vocabulary kept instead.
+The kind of LoRA you're making decides what images you collect and how hard you lean on steps 3
+and 4:
+
+| LoRA kind | How many | What should vary | What must stay the same | Tagging effort |
+|---|---|---|---|---|
+| **Character** | 20–60 | Pose, expression, outfit, angle, lighting, background | The same character in every image | Heavy: merge variants, void identity tags |
+| **Style** | 30–100+ | Subjects, scenes, poses — everything | The art style | Light: keep a wide tag vocabulary |
+| **Concept** | 20–60 | Character, background, pose, context | The concept is visible in every image | Medium: tag the concept, vary the rest |
+
+Quality and variety beat sheer count. Collect images at least as large as the size you'll train at
+— a trainer can't add detail that isn't there, and bucketing a small image later only enlarges it
+into blur. Each image needs a matching `.txt` caption beside it (same base filename); imports
+arrive with an empty one and WD14 fills it in step 2.
 
 ---
 
@@ -335,6 +345,17 @@ removes the bucketed copies. Datasets bucketed by older versions (`initial_state
 `original_images/` when opened. Any unsaved tag
 edits are saved first, since bucketing reloads the folder.
 
+**Why bucket?** Trainers work in fixed-size batches, so every image has to land on a size they
+share. Without bucketing you either crop everything square (losing the composition) or pad
+(wasting pixels). Bucketing groups images by aspect ratio and resizes each to the nearest standard
+size, so more of your original framing survives and the model trains on the picture instead of
+empty borders.
+
+**Caveat at low resolution:** the bucket is the size the model actually learns at, and detail that
+isn't there can't be trained. Set Min side low and bucketing shrinks images below what they
+contain; a source smaller than its bucket only gets enlarged into blur. Keep the buckets at or
+below your source resolution — around 512–1024 covers most art.
+
 ---
 
 ## Tag Overseer tab
@@ -505,9 +526,9 @@ and `training`) for Python and the trainer; its own app never needs to run, and 
 Bucket Images do the dataset prep.
 
 **Set up once:** choose the Anima-TrainFlow folder, then pick your own Anima DiT, Qwen3 text encoder
-and VAE (the fields stay empty until you do). When you open a dataset, Osmium asks once where it is on
-your computer (it can't see folder paths itself) and remembers the answer; **Locate…** on the tab does
-the same later.
+and VAE (the fields stay empty until you do). On first loading a folder, Osmium caches it so Trainflow
+can resolve its real path on its own (the folder picker doesn't expose paths); it only asks you to
+point at the folder if that automatic lookup fails, and **Locate…** on the tab does the same later.
 
 **Dataset and settings:** trigger word / project name (used as typed, and put in front of every
 caption), rank, optimizer (Prodigy by default, which sets its own learning rate), batch size, steps,
@@ -701,6 +722,13 @@ This guide covers the desktop app. Two siblings share this repo:
     slide-out panel and the file-saving toggles in a second one, both opening from the left; click
     their button again (or outside them) to close. The header **Zoom** slider scales the whole
     interface, prompt boxes re-fit as you zoom or change theme, and themes bring their fonts.
+  - **Settings & Help:** out of the box the Bridge generates at 1024×1024 with Euler A + Simple, 25
+    steps, CFG 4 and seed 0, and pass 2 at seed 1 / 20 steps. Each seed has a behaviour dropdown:
+    **Fixed** (the default) reuses the number, **Randomize** rolls a new one each generation, and
+    **Increment** / **Decrement** step it by one. **Main LoRA is optional** — leave it empty to
+    generate with no LoRA at all, even if you have none installed; the weight only applies when a
+    LoRA is chosen. The ❓ **Help** button in the header (left of Wiki) explains every setting in
+    plain language, one section at a time.
   - **File naming (desktop):** each save lands in `[explicit|safe/][Character/][Upscaled/]` inside
     your output folder. The rating folder follows the Rating field; the character folder is a
     Danbooru character recognized in the Character field (whole-tag match), `OC`, or a custom name.
@@ -732,4 +760,3 @@ This guide covers the desktop app. Two siblings share this repo:
   Panels ▸ "Reset panel layout."
 - **If Tag Details says "no definition found" for everything**, the bundled Danbooru wiki data
   files are missing from your install — redownload the release zip.
-- **The window hides Electron's default menu bar** — tap `Alt` to reveal it temporarily.

@@ -51,13 +51,16 @@
         </div>
         <!-- Network relay (local-relay.ts): the phone app generates on this
              PC's Local ComfyUI over Tailscale/LAN. -->
-        <div id="relayRow" class="row" style="display:none">
-          <label class="chk-row" title="Serves Osmium Comfy to the Comfy Bridge phone app (and any ComfyUI client) on this port, on every network this PC is on, including Tailscale. With no token below, anything on those networks can use it."><input id="relayEnabled" type="checkbox"> Let the phone app use it, on port</label>
-          <input id="relayPort" type="number" min="1024" max="65535" value="8189" style="width:84px">
-          <input id="relayToken" type="text" placeholder="shared token (optional)" title="Optional password the phone must send. Leave empty for the old no-auth LAN/Tailscale behaviour." style="width:176px">
+        <div id="relayRow" style="display:none">
+          <label class="chk-row" title="Serves Osmium Comfy to the Comfy Bridge phone app (and any ComfyUI client) on this port, on every network this PC is on, including Tailscale. With no token below, anything on those networks can use it."><input id="relayEnabled" type="checkbox"> Let the phone app use it</label>
+          <div class="relay-inputs">
+            <label class="relay-port-label" for="relayPort">on port</label>
+            <input id="relayPort" type="number" min="1024" max="65535" value="8189">
+            <input id="relayToken" type="text" placeholder="shared token (optional)" title="Optional password the phone must send. Leave empty for the old no-auth LAN/Tailscale behaviour.">
+          </div>
         </div>
         <div id="relayInfo" class="status-line muted" style="display:none"></div>
-        <div class="row">
+        <div id="hostRow" class="row">
           <input id="host" type="text" placeholder="http://127.0.0.1:8188" value="http://127.0.0.1:8188">
           <button id="btnConnect">Test</button>
           <button id="btnRefreshModels">Refresh model lists</button>
@@ -269,10 +272,12 @@
         <label>Seed (pass 1)</label>
         <div class="seed-row">
           <input id="seed1" type="number" value="0">
-          <button type="button" class="seed-btn" id="seed1Dec" title="Decrease seed by 1">−</button>
-          <button type="button" class="seed-btn" id="seed1Inc" title="Increase seed by 1">+</button>
-          <button type="button" class="seed-btn" id="seed1Random" title="Roll a random seed">🎲</button>
-          <label class="chk-row seed-fixed" title="Fixed: reuse this seed every generation. Unticked: roll a new random seed each generation."><input id="seed1Fixed" type="checkbox" checked> Fixed</label>
+          <select id="seed1Mode" class="seed-mode" title="What happens to this seed each generation: Fixed keeps it, Randomize rolls a new one, Increment and Decrement step it by one.">
+            <option value="fixed" selected>Fixed</option>
+            <option value="randomize">Randomize</option>
+            <option value="increment">Increment</option>
+            <option value="decrement">Decrement</option>
+          </select>
         </div>
       </div>
       <label class="chk-row settings-span2"><input id="use2Pass" type="checkbox"> 2-Pass</label>
@@ -289,10 +294,12 @@
           <label>Seed (pass 2)</label>
           <div class="seed-row">
             <input id="seed2" type="number" value="1">
-            <button type="button" class="seed-btn" id="seed2Dec" title="Decrease seed by 1">−</button>
-            <button type="button" class="seed-btn" id="seed2Inc" title="Increase seed by 1">+</button>
-            <button type="button" class="seed-btn" id="seed2Random" title="Roll a random seed">🎲</button>
-            <label class="chk-row seed-fixed" title="Fixed: reuse this seed every generation. Unticked: roll a new random seed each generation."><input id="seed2Fixed" type="checkbox" checked> Fixed</label>
+            <select id="seed2Mode" class="seed-mode" title="What happens to this seed each generation: Fixed keeps it, Randomize rolls a new one, Increment and Decrement step it by one.">
+              <option value="fixed" selected>Fixed</option>
+              <option value="randomize">Randomize</option>
+              <option value="increment">Increment</option>
+              <option value="decrement">Decrement</option>
+            </select>
           </div>
         </div>
       </div>

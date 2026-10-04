@@ -37,6 +37,18 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   clear that anything on the network could otherwise use it. Saved output folder is now remembered
   by the app itself rather than the page, so it survives a restart and no longer has to be supplied
   per save.
+- **Main LoRA is now optional.** Leave it empty and generation runs normally with no LoRA, even on a
+  machine that has none installed. It used to send a placeholder name ComfyUI rejected. The Main
+  LoRA weight only applies when a LoRA is chosen.
+- **Friendlier default settings:** CFG 4, 25 steps, 1024×1024, sampler Euler A, scheduler Simple,
+  seed 0; pass 2 starts at seed 1 with 20 steps.
+- **Seed behaviour dropdown** next to each seed: **Fixed** (the default) reuses the number you
+  typed, **Randomize** rolls a new one each generation, and **Increment** / **Decrement** step it by
+  one. The mode applies per queued generation, so a queued batch walks the seed.
+- **In-app Help:** the ❓ Help button left of the Wiki button opens plain-language guidance for every
+  setting, one section at a time, in the same layout as Osmium's Help panel.
+- The window focuses itself on launch, and startup no longer blocks on loading the tag vocabulary, so
+  the first click and scroll register right away.
 
 ---
 

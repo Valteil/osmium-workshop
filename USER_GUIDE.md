@@ -722,6 +722,13 @@ This guide covers the desktop app. Two siblings share this repo:
     slide-out panel and the file-saving toggles in a second one, both opening from the left; click
     their button again (or outside them) to close. The header **Zoom** slider scales the whole
     interface, prompt boxes re-fit as you zoom or change theme, and themes bring their fonts.
+  - **Settings & Help:** out of the box the Bridge generates at 1024×1024 with Euler A + Simple, 25
+    steps, CFG 4 and seed 0, and pass 2 at seed 1 / 20 steps. Each seed has a behaviour dropdown:
+    **Fixed** (the default) reuses the number, **Randomize** rolls a new one each generation, and
+    **Increment** / **Decrement** step it by one. **Main LoRA is optional** — leave it empty to
+    generate with no LoRA at all, even if you have none installed; the weight only applies when a
+    LoRA is chosen. The ❓ **Help** button in the header (left of Wiki) explains every setting in
+    plain language, one section at a time.
   - **File naming (desktop):** each save lands in `[explicit|safe/][Character/][Upscaled/]` inside
     your output folder. The rating folder follows the Rating field; the character folder is a
     Danbooru character recognized in the Character field (whole-tag match), `OC`, or a custom name.

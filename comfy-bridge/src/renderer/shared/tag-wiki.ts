@@ -31,15 +31,24 @@ function wikiData(): Promise<Record<string, string>> {
     .catch((err) => { console.error('wiki.json.gzdat load failed:', err); return {}; });
 }
 
+// Yield to the event loop so the UI stays responsive while the big vocabulary
+// loads. all_tags.json.gzdat is ~25 MB / 1.08M rows: building its map in one
+// go blocked the main thread for around 700 ms (plus the parse), which read as
+// the app ignoring clicks and scrolls for a second or two.
+export const yieldToUI = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
 export type TagMeta = { category: number; count: number };
 let tagsP: Promise<Map<string, TagMeta>> | null = null;
 // Also used by the desktop's file naming (../file-naming.ts) for its
 // character-tag index, so the one bundled list is loaded once.
 export function allTags(): Promise<Map<string, TagMeta>> {
-  return tagsP ??= fetchGzipJson('./data/all_tags.json.gzdat').then((list) => {
+  return tagsP ??= fetchGzipJson('./data/all_tags.json.gzdat').then(async (list) => {
     const map = new Map<string, TagMeta>();
-    for (const row of list as unknown[]) {
+    const rows = list as unknown[];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       if (Array.isArray(row)) map.set(row[0] as string, { category: row[1] as number, count: row[2] as number });
+      if ((i & 0xffff) === 0xffff) await yieldToUI();
     }
     return map;
   }).catch((err) => { console.error('all_tags.json.gzdat load failed:', err); return new Map<string, TagMeta>(); });

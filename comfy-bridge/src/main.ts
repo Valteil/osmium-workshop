@@ -166,7 +166,16 @@ function createWindow() {
     }
   });
   // Opens maximized (the user's call); un-maximizing falls back to 1280x860.
-  win.once('ready-to-show', () => { win.maximize(); win.show(); });
+  // show() alone doesn't reliably focus on Windows when the app is launched
+  // from a terminal (foreground lock): the window appeared unfocused, so the
+  // first click was swallowed by the focus change and wheel events did nothing
+  // until then. Focus the window and its web contents explicitly.
+  win.once('ready-to-show', () => {
+    win.maximize();
+    win.show();
+    win.focus();
+    win.webContents.focus();
+  });
   const rendererHtml = path.join(__dirname, 'renderer', 'index.html');
   // Fix the trusted page URL the IPC sender guard compares against.
   setTrustedRenderer(rendererHtml);

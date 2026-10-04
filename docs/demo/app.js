@@ -132,6 +132,7 @@
   var btnAddCurrentDataset = $("btnAddCurrentDataset");
   var dirtyCountEl = $("dirtyCount");
   var galleryToolbar = $("galleryToolbar");
+  var galleryToolbarRow = $("galleryToolbarRow");
   var galleryGrid = $("galleryGrid");
   var compactGrid = $("compactGrid");
   var compactCompareArea = $("compactCompareArea");
@@ -1200,6 +1201,21 @@
       msg.className = "confirm-message";
       msg.textContent = message;
       box.appendChild(msg);
+      const warnings = opts.warnings || (opts.warning ? [{ text: opts.warning }] : []);
+      for (const w of warnings) {
+        if (!w || !w.text) continue;
+        const tone = w.tone === "info" ? "info" : "danger";
+        const warn = document.createElement("div");
+        warn.className = `confirm-warning confirm-warning-${tone}`;
+        const icon = document.createElement("span");
+        icon.className = "confirm-warning-icon";
+        icon.textContent = tone === "info" ? "\u2139" : "\u26A0";
+        const text = document.createElement("span");
+        text.textContent = w.text;
+        warn.appendChild(icon);
+        warn.appendChild(text);
+        box.appendChild(warn);
+      }
       const btnRow = document.createElement("div");
       btnRow.className = "confirm-btn-row";
       const cancelBtn = document.createElement("button");
@@ -1217,6 +1233,49 @@
       });
       btnRow.appendChild(cancelBtn);
       btnRow.appendChild(okBtn);
+      box.appendChild(btnRow);
+    });
+  }
+  function showChoiceModal(message, options, layout = "row") {
+    return new Promise((resolve) => {
+      const { box, close } = createModalShell({ onDismiss: () => {
+        resolve(null);
+        close();
+      } });
+      const msg = document.createElement("div");
+      msg.className = "confirm-message";
+      msg.textContent = message;
+      box.appendChild(msg);
+      const makeBtn = (opt) => {
+        const btn = document.createElement("button");
+        btn.textContent = opt.label;
+        if (opt.variant === "primary") btn.className = "primary";
+        else if (opt.variant === "danger") btn.className = "danger-ghost";
+        if (opt.title) btn.title = opt.title;
+        btn.addEventListener("click", () => {
+          resolve(opt.key);
+          close();
+        });
+        return btn;
+      };
+      if (layout === "stack") {
+        const cancel = options.find((o) => o.key === "cancel");
+        const saves = options.filter((o) => o.key !== "cancel");
+        const stack = document.createElement("div");
+        stack.className = "confirm-btn-stack";
+        for (const opt of saves) stack.appendChild(makeBtn(opt));
+        box.appendChild(stack);
+        if (cancel) {
+          const cancelRow = document.createElement("div");
+          cancelRow.className = "confirm-btn-row confirm-btn-row-cancel";
+          cancelRow.appendChild(makeBtn(cancel));
+          box.appendChild(cancelRow);
+        }
+        return;
+      }
+      const btnRow = document.createElement("div");
+      btnRow.className = "confirm-btn-row";
+      for (const opt of options) btnRow.appendChild(makeBtn(opt));
       box.appendChild(btnRow);
     });
   }
@@ -2254,7 +2313,7 @@
       const base = document.baseURI.replace(/"/g, "%22");
       doc.open();
       doc.write(`<!DOCTYPE html><html data-theme="custom" class="${keep.join(" ")}"><head><meta charset="utf-8"><base href="${base}">
-      <link rel="stylesheet" href="fonts/fonts.css"><link rel="stylesheet" href="styles.css">
+      <link rel="stylesheet" href="fonts/fonts.css"><link rel="stylesheet" href="fonts/font-fit.css"><link rel="stylesheet" href="styles.css">
       <style>html,body{overflow:hidden} *{cursor:default !important} ::-webkit-scrollbar{width:8px;height:8px}</style>
       </head><body class="${esc(document.body.className)}">${sprite ? sprite.outerHTML : ""}${app.outerHTML}</body></html>`);
       doc.close();
@@ -4031,7 +4090,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       title: "Start here: training a LoRA",
       html: `
       <p>This Help runs top to bottom in the order you actually work. Follow it and you finish with a
-      tagged, pruned, bucketed dataset that's ready to train.</p>
+      tagged, pruned, bucketed dataset that's ready to train, even with no prior experience.</p>
       <ol>
         <li><b>Gather your dataset</b> \u2014 open a folder, add images and captions.</li>
         <li><b>WD14 tag</b> \u2014 autotag everything first, so you have something to clean up.</li>
@@ -4044,58 +4103,48 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       </ol>
       ${isTouchDevice ? `<p>On Android the tagging steps are the same; bucketing and training happen on
       your PC.</p>` : ""}
-      <p>How hard you lean on steps 3 and 4 depends on whether you're making a
-      <span style="white-space:nowrap;"><b>character LoRA or a style LoRA</b> <button type="button" class="info-btn" id="infoGlossaryCharacterLora" title="Character LoRA vs. style LoRA">\u24D8</button></span>.</p>
-      <p>Merge and Void tend to matter a lot more for a
-      <span style="white-space:nowrap;"><b>character LoRA</b></span>
-      than a style one. A character LoRA needs its identity-defining tags kept tight and
-      consistent, so a stray misspelling or an inconsistent variant of the same trait doesn't
-      teach the model that trait is optional \u2014 that's exactly what these tools clean up. Style
-      LoRA training usually wants the opposite (more tag variety, not less), so you'll likely use
-      these tools far less there.</p>
+      <p>Before you start, decide which kind of LoRA you're making \u2014 it changes what images you
+      collect and how much time you spend on steps 3 and 4:</p>
+      <ul>
+        <li><b>Character</b> \u2014 teaches one specific, recognizable character.</li>
+        <li><b>Style</b> \u2014 teaches a visual art style, not a subject.</li>
+        <li><b>Concept</b> \u2014 teaches one subject or idea (an outfit, an object, a pose).</li>
+      </ul>
+      <p><span style="white-space:nowrap;"><b>The three kinds, and why they differ</b> <button type="button" class="info-btn" id="infoGlossaryCharacterLora" title="Character, style and concept LoRAs">\u24D8</button></span></p>
       <template id="infoGlossaryCharacterLoraContent">
         <p>A <b>LoRA</b> (Low-Rank Adaptation) is a small add-on file trained on top of a base
-        image-generation model to teach it something new, without retraining the whole model from
-        scratch.</p>
+        image-generation model to teach it something new, without retraining the whole model.</p>
 
-        <p>A <b>character LoRA</b> teaches the model one specific, recognizable character. Every
-        training image shows that same character, so their defining traits are visible in every
-        image whether or not a caption mentions them. A common technique splits tags into two
-        groups:</p>
-
+        <p>A <b>character LoRA</b> teaches one specific character. Every image shows that same
+        character, so their defining traits are visible whether or not a caption mentions them. A
+        common technique splits their tags in two:</p>
         <ul>
-          <li><b>Void these</b> \u2014 traits that should ALWAYS be true of the character: eye color,
-          hair color/style, a mole, whatever makes them recognizable. With no tag ever describing
-          the trait, the model can't learn "this is something the prompt controls" \u2014 it only ever
-          sees the trait already there, so it bakes it in as simply part of the character,
-          permanently.</li>
-          <li><b>Keep these</b> \u2014 traits that genuinely SHOULD change from image to image: pose,
-          expression, background. These stay tagged, so they remain normal, promptable choices
-          once the LoRA is done.</li>
+          <li><b>Void these</b> \u2014 traits that should always be true of the character: eye color,
+          hair color/style, a mole. With no tag describing the trait, the model only ever sees it
+          already there, so it bakes the trait in as part of the character instead of a prompt
+          choice.</li>
+          <li><b>Keep these</b> \u2014 traits that should change from image to image: pose, expression,
+          background. These stay tagged, so they remain normal promptable choices.</li>
         </ul>
+        <p><b>Watch for a signature outfit.</b> If the character wears the same distinctive outfit
+        in most images, that outfit fuses with the character: prompting the character alone may
+        pull the outfit in, and prompting the outfit may look like the character. To keep them
+        separate, show that outfit on other subjects somewhere in training, or treat the fusion as
+        intended for a genuine signature look.</p>
 
-        <p><b>Watch out for a signature outfit.</b> If the character wears the same distinctive
-        outfit in most or all of your training images \u2014 say, a unique white frilly bikini \u2014 that
-        outfit's own concept tends to fuse with the character's, even if you keep tagging it
-        consistently. The model has rarely (or never) seen that outfit on anyone else, so the two
-        ideas start becoming the same thing to it: prompting the character alone may start pulling
-        that outfit in unasked, and prompting "white frilly bikini" on its own may start looking
-        like this character even on an unrelated subject. If you want the outfit and the character
-        to stay independently promptable, that outfit needs to show up on OTHER subjects somewhere
-        in training too \u2014 otherwise, treat the fusion as expected for a genuine signature look, not
-        a bug.</p>
+        <p>A <b>style LoRA</b> teaches a visual style instead of a character. The images are
+        deliberately varied (many subjects, poses, outfits), so the only constant is the style
+        itself. You usually want a wide, varied tag vocabulary kept in here, not pruned out \u2014
+        otherwise an incidental subject or pose gets baked in as "just how the style looks".</p>
 
-        <p>This is the concrete reason Merge/Void see so much more use on a character LoRA's
-        dataset than elsewhere: cleaning up misspelled variants of a tag AND deliberately
-        stripping identity tags out entirely are both about controlling exactly what's locked in
-        versus what's still a choice.</p>
+        <p>A <b>concept LoRA</b> teaches one subject or idea \u2014 an outfit, a prop, a pose, a
+        lighting look. Every image shows that concept, but the character, scene and pose vary, so
+        the concept stays separate from any one subject. Tag the concept consistently and let
+        everything else vary.</p>
 
-        <p>A <b>style LoRA</b>, by contrast, teaches a visual STYLE rather than one character \u2014
-        training images are deliberately varied (many different subjects, poses, outfits), so the
-        only thing consistent across the whole set is the art style itself. There, you usually
-        WANT a wide, varied tag vocabulary kept in, not pruned out, so the model doesn't
-        accidentally bake some incidental subject/pose choice into "this is just how the style
-        looks" the way it correctly should for a character's actual identity traits.</p>
+        <p>This is why Merge/Void see the most use on a character LoRA: cleaning up spelling
+        variants and deliberately stripping identity tags are both about controlling exactly what
+        gets locked in versus what stays a choice.</p>
       </template>`
     },
     {
@@ -4104,38 +4153,53 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       html: `
       <p>Osmium is made for <b>Anima</b> and the booru-tag models around it. Other models work too,
       though the tag conventions and the generation workflow follow that style.</p>
-      <p><b>File \u25B8 Open dataset folder</b> and pick the folder with your images and their matching
-      <code>.txt</code> caption files (same name, e.g. <code>image.png</code> + <code>image.txt</code>).
-      Tags are shown with spaces in the app and saved back to disk with underscores \u2014 you never
-      need to think about which one you're looking at.</p>
-      <p>The app writes a few of its own files into your dataset folder as you use it. None of
-      them touch your images or captions unless you tell them to:</p>
+      <h3>What to collect</h3>
+      <p>What makes a good dataset depends on the kind of LoRA you're making. These are starting
+      targets, not hard rules \u2014 quality and variety beat sheer count:</p>
+      <table>
+        <thead><tr><th>LoRA kind</th><th>How many</th><th>What should vary</th><th>What must stay the same</th></tr></thead>
+        <tbody>
+          <tr><td><b>Character</b></td><td>20\u201360</td><td>Pose, expression, outfit, angle, lighting, background</td><td>The same character in every image</td></tr>
+          <tr><td><b>Style</b></td><td>30\u2013100+</td><td>Subjects, scenes, poses \u2014 everything</td><td>The art style</td></tr>
+          <tr><td><b>Concept</b></td><td>20\u201360</td><td>Character, background, pose, context</td><td>The concept is visible in every image</td></tr>
+        </tbody>
+      </table>
       <ul>
-        <li><b>Disabled/</b> \u2014 images you've moved out of the active set. Still fully editable,
-        just hidden from the normal views.</li>
-        <li><b>_tag_edit_log.json</b> \u2014 the full undo-able history of every edit you've made.</li>
+        <li><b>Resolution:</b> collect images at least as large as the size you'll train at. A
+        trainer can't add detail that isn't there \u2014 bucketing a small image later just enlarges it
+        into blur.</li>
+        <li><b>Variety:</b> the more a trait appears in different situations, the less the model
+        ties it to one pose or background. This matters most for character and concept LoRAs.</li>
+        <li><b>Captions:</b> each image needs a matching <code>.txt</code> beside it with the same
+        name (<code>image.png</code> + <code>image.txt</code>). Imports arrive with an empty one,
+        and WD14 fills them in step 2.</li>
+      </ul>
+      <h3>Open or add images</h3>
+      <p><b>File \u25B8 Open dataset folder</b> picks the folder holding your images and captions. Tags
+      show with spaces in the app and are saved back with underscores, so you never think about it.
+      <b>File \u25B8 Add images\u2026</b> copies more in, each arriving untagged with an empty
+      <code>.txt</code>${isTouchDevice ? " (you choose which app to pick them from)" : ""}. With no
+      dataset open it first offers to create one: name it, choose where its folder goes, and it
+      opens ready for the images.</p>
+      <h3>What the app writes into your folder</h3>
+      <p>None of these touch your images or captions unless you tell them to:</p>
+      <ul>
+        <li><b>Disabled/</b> \u2014 images moved out of the active set. Still editable, just hidden.</li>
+        <li><b>_tag_edit_log.json</b> \u2014 the undo-able history of every edit you've made.</li>
         <li><b>_dts_canonical_tags.json</b> \u2014 your Retroactive Merge/Void rules.</li>
         <li><b>_dts_meta.json</b> \u2014 per-image notes, review flags, locks, and similar metadata.</li>
-        <li><b>_dts_synthdat_settings.json</b> \u2014 SynthDat Overseer's prompt/generation settings for
-        this dataset (only appears once you've used that tab).</li>
+        <li><b>_dts_synthdat_settings.json</b> \u2014 SynthDat Overseer's settings (once used).</li>
         <li><b>_dts_achievements.json</b> \u2014 achievements unlocked in this dataset.</li>
-        <li><b>_dts_subject_presets.json</b> \u2014 characters saved from Tag sorting's character
-        sections (only appears once you save one).</li>
+        <li><b>_dts_subject_presets.json</b> \u2014 saved characters (once you save one).</li>
         ${isTouchDevice ? "" : `<li><b>original_images/</b> \u2014 originals kept by Bucket Images, shown in the
-        \u{1F5BC} Originals view (only appears once you bucket).</li>`}
+        \u{1F5BC} Originals view (once you bucket).</li>`}
       </ul>
-      <p><b>File \u25B8 Add images\u2026</b> copies more images into the open dataset, each arriving untagged
-      with an empty <code>.txt</code>.${isTouchDevice ? " You choose which app to pick them from \u2014 Photos, Files, or any file manager you have installed." : ""}
-      With no dataset open it first offers to create one: name it, choose where its folder goes,
-      and the new dataset opens ready for the images.</p>
-      <p>The <b>Datasets tab</b> keeps every dataset folder you've opened as a themed folder icon you
-      can come back to. Sort by name/time,${isTouchDevice ? "" : " or manually by dragging,"} and
-      ${isTouchDevice ? "tap a folder's \u22EF button" : "right-click a folder (or tap its \u22EF button)"} to remove it from the list, pin it as a
-      favorite, view its achievements, change its icon, or move it to another tab. A folder that
-      isn't tracked yet asks whether to add it, and <b>File \u25B8 Add current dataset as folder</b> adds
-      the open one anytime. Its <b>tabs</b> group folders, and a tab can be password-locked (\u22EF
-      button) \u2014 it re-locks every launch and renders nothing until you enter the password. That
-      guards against someone briefly opening the app, not a determined attacker with your files.</p>`
+      <h3>The Datasets tab</h3>
+      <p>Every folder you open is kept there as a clickable icon. Sort by name or time,${isTouchDevice ? "" : " drag to reorder,"} and
+      ${isTouchDevice ? "tap a folder's \u22EF button" : "right-click a folder (or its \u22EF button)"} to remove it, pin it, view its
+      achievements, change its icon, or move it to another tab. Tabs can be password-locked (\u22EF
+      button) \u2014 a locked tab re-locks every launch and shows nothing until unlocked, which guards
+      against someone briefly opening the app, not a determined attacker with your files.</p>`
     },
     {
       id: "step-wd14",
@@ -4267,7 +4331,16 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       <code>original_images/</code> folder (browse them via the \u{1F5BC} Originals view), and every image
       gets one, even if it's already a valid size. Bucketing again re-makes the copies from the
       originals (try other Min/Max/Step as often as you like). <b>\u21A9 Revert bucketing</b> puts the
-      originals back.</p>`
+      originals back.</p>
+      <p><b>Why bucket?</b> Trainers work in fixed-size batches, so every image has to land on a
+      size they share. Without bucketing your options are cropping everything square (losing the
+      composition) or padding (wasting pixels). Bucketing groups images by aspect ratio and resizes
+      each to the nearest standard size, so more of your original framing survives and the model
+      spends its pixels on the picture instead of empty borders.</p>
+      <p><b>Caveat at low resolution:</b> the bucket is the size the model actually learns at, and
+      detail that isn't there can't be trained. Set Min side low and bucketing shrinks images below
+      what they contain; a source smaller than its bucket only gets enlarged into blur. Keep the
+      buckets at or below your source resolution \u2014 around 512\u20131024 covers most art.</p>`
     }],
     ...isTouchDevice ? [] : [{
       id: "step-trainflow",
@@ -4276,8 +4349,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       <p>Trains a LoRA for <b>Anima</b> on the dataset you have loaded. It uses your own
       Anima-TrainFlow folder (the one with <code>python_embeded</code> and <code>training</code>)
       for Python and the trainer, and your own Anima DiT, Qwen3 and VAE files (choose them once;
-      the fields start empty). Osmium asks where a dataset is on your computer the first time you
-      open it, since it can't see folder paths itself.</p>
+      the fields start empty). The first time you open a folder, Osmium caches it so Trainflow can
+      resolve its real path on its own \u2014 it only asks you to point at the folder if that fails.</p>
       <p><b>Start Trainflow</b> is the only thing that begins work: it saves your tag edits, buckets
       the dataset (originals go to <code>original_images/</code>; nothing is redone if the copies
       are already right), checks for an NVIDIA GPU and starts training. <b>Verify buckets</b> lists
@@ -4607,7 +4680,6 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         Panels \u25B8 "Reset panel layout."</li>
         <li>If Tag Details says "no definition found" for everything, the bundled Danbooru wiki
         data files are missing from your install \u2014 redownload the release zip.</li>
-        ${isTouchDevice ? "" : `<li>The window hides Electron's default menu bar \u2014 tap Alt to reveal it temporarily.</li>`}
       </ul>`
     }
   ];
@@ -6865,6 +6937,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     }
     const disabledDirHandle = getDisabledDirHandle();
     const byFilename = (a, b) => a.base.localeCompare(b.base, void 0, { numeric: true });
+    const originalByBase = new Map(getEntries2().filter((e) => e.original).map((e) => [e.base, e]));
     const active = getEntries2().filter((e) => !e.disabled && !e.original).sort(byFilename);
     const disabled = getEntries2().filter((e) => e.disabled && !e.original).sort(byFilename);
     const ordered = [...active, ...disabled];
@@ -6903,10 +6976,28 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         }
       }
       const affected = [];
+      const origDir = getOriginalDirHandle();
       for (const p of plan2) {
         p.entry.imgHandle = await renameFileInPlace(p.dir, p.entry.imgHandle.name, p.newImgName);
         if (p.entry.txtHandle) {
           p.entry.txtHandle = await renameFileInPlace(p.dir, p.entry.txtHandle.name, p.newTxtName);
+        }
+        const pairedOriginal = originalByBase.get(p.oldBase);
+        if (origDir && pairedOriginal) {
+          const oldOrigName = pairedOriginal.imgName || pairedOriginal.base;
+          const newOrigName = p.newBase + extOf(oldOrigName);
+          try {
+            pairedOriginal.imgHandle = await renameFileInPlace(origDir, oldOrigName, newOrigName);
+            if (pairedOriginal.txtHandle && pairedOriginal.txtName) {
+              pairedOriginal.txtHandle = await renameFileInPlace(origDir, pairedOriginal.txtName, `${p.newBase}.txt`);
+            }
+            pairedOriginal.base = p.newBase;
+            pairedOriginal.imgName = newOrigName;
+            pairedOriginal.txtName = `${p.newBase}.txt`;
+            originalByBase.delete(p.oldBase);
+            originalByBase.set(p.newBase, pairedOriginal);
+          } catch {
+          }
         }
         reindexEntry(p.oldBase, p.newBase);
         p.entry.base = p.newBase;
@@ -6941,6 +7032,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     const dirHandle = getDirHandle4();
     if (!dirHandle) return 0;
     const disabledDirHandle = getDisabledDirHandle();
+    const extOf = (name) => {
+      const i = name.lastIndexOf(".");
+      return i === -1 ? "" : name.slice(i);
+    };
     let count = 0;
     for (const a of affected) {
       if (!a.prevBase || !a.prevImgName || !a.newImgName) continue;
@@ -6959,6 +7054,22 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
           const toTxtName = direction === "undo" ? a.prevTxtName : a.newTxtName;
           entry.txtHandle = await renameFileInPlace(dir, fromTxtName, toTxtName);
           entry.txtName = toTxtName;
+        }
+        const origDir = getOriginalDirHandle();
+        const pairedOriginal = getEntries2().find((e) => e.original && e.base === fromBase);
+        if (origDir && pairedOriginal) {
+          const oldOrigName = pairedOriginal.imgName || pairedOriginal.base;
+          const newOrigName = toBase + extOf(oldOrigName);
+          try {
+            pairedOriginal.imgHandle = await renameFileInPlace(origDir, oldOrigName, newOrigName);
+            if (pairedOriginal.txtHandle && pairedOriginal.txtName) {
+              pairedOriginal.txtHandle = await renameFileInPlace(origDir, pairedOriginal.txtName, `${toBase}.txt`);
+            }
+            pairedOriginal.base = toBase;
+            pairedOriginal.imgName = newOrigName;
+            pairedOriginal.txtName = `${toBase}.txt`;
+          } catch {
+          }
         }
         reindexEntry(fromBase, toBase);
         entry.base = toBase;
@@ -7865,6 +7976,98 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     });
   }
 
+  // src/renderer/folder-picker.ts
+  var pickerBusy = false;
+  var lastPickRestrictedPath = null;
+  var SHELL_FOLDER_NAMES = /* @__PURE__ */ new Set([
+    "Documents",
+    "Desktop",
+    "Downloads",
+    "Pictures",
+    "Music",
+    "Videos",
+    "3D Objects",
+    "Saved Games",
+    "Links",
+    "Searches",
+    "Contacts"
+  ]);
+  async function runDirectoryPicker() {
+    if (pickerBusy) {
+      toast("A folder picker is already open \u2014 finish or cancel it first.", 3600);
+      return null;
+    }
+    pickerBusy = true;
+    try {
+      const picked = await pickDirectory({ mode: "readwrite" });
+      lastPickRestrictedPath = null;
+      return picked;
+    } catch (e) {
+      const msg = e?.message || "";
+      const name = e?.name || "";
+      let restrictedPath = null;
+      try {
+        restrictedPath = await (window.electronAPI?.fsaLastRestricted?.() ?? Promise.resolve(null));
+      } catch {
+        restrictedPath = null;
+      }
+      if (restrictedPath) {
+        lastPickRestrictedPath = restrictedPath;
+        const leaf = restrictedPath.replace(/[\\/]+$/, "").split(/[\\/]/).filter(Boolean).pop() || restrictedPath;
+        toast(`Windows blocks apps from using "${leaf}" directly for write access. Pick (or create) a subfolder inside it instead, e.g. "${leaf}\\Datasets".`, 7e3);
+        return null;
+      }
+      const cancelled = name === "AbortError" || /cancel/i.test(msg);
+      if (cancelled) {
+        toast("No folder was chosen.", 2400);
+        return null;
+      }
+      if (/already active/i.test(msg)) {
+        console.error("[pick] picker session stuck:", e);
+        toast("The folder picker is stuck in a busy state and cannot open. Use Settings \u25B8 Updates & Sharing \u25B8 Restart app to clear it, then try again.", 7200);
+        return null;
+      }
+      console.error("[pick] folder picker failed:", e);
+      toast(`Could not open the folder picker: ${msg || "unknown error"}. Try again.`, 5e3);
+      return null;
+    } finally {
+      pickerBusy = false;
+    }
+  }
+  async function pickDatasetFolder() {
+    const picked = await runDirectoryPicker();
+    if (!picked) return null;
+    if (lastPickRestrictedPath || SHELL_FOLDER_NAMES.has(picked.name)) {
+      await showConfirmModal(
+        `"${picked.name}" is a special system location (like This PC \u25B8 Documents), not a real dataset folder.
+
+Picking it as a dataset triggers a known bug: the file picker stops working until the app restarts \u2014 nothing gets loaded.
+
+Pick your actual dataset folder (the one containing your images and .txt files) instead.`,
+        { okLabel: "OK, pick another folder", cancelLabel: "", danger: true }
+      );
+      return null;
+    }
+    return picked;
+  }
+  async function pickParentFolder() {
+    return runDirectoryPicker();
+  }
+  async function promptRelinkFolder(name) {
+    const go = await showConfirmModal(
+      `Couldn't open "${name}" \u2014 it may have been moved, renamed or deleted.
+
+Locate the folder again to re-link it?`,
+      {
+        okLabel: "Locate folder\u2026",
+        cancelLabel: "Not now",
+        warnings: [{ text: "If the folder picker seems to freeze on first load, that's normal \u2014 just wait a bit.", tone: "info" }]
+      }
+    );
+    if (!go) return null;
+    return pickDatasetFolder();
+  }
+
   // src/renderer/favorites.ts
   var FAV_DB_NAME = "dts-favorites-db";
   var FAV_STORE = "folders";
@@ -7924,6 +8127,10 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     const db = await openFavDB();
     await idbDelete(db, FAV_STORE, id);
   }
+  async function relinkFavorite(fav, handle) {
+    const db = await openFavDB();
+    await idbUpdate(db, FAV_STORE, fav.id, { handle: serializeHandle(handle), name: handle.name });
+  }
   async function renderFavorites() {
     let favs = [];
     try {
@@ -7972,7 +8179,15 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       hidePanel(favoritesPanel);
       await openFolderHandle(fav.handle);
     } catch {
-      toast("Could not reopen that folder \u2014 it may have been moved or deleted.", 3600);
+      const replacement = await promptRelinkFolder(fav.name);
+      if (!replacement) return;
+      try {
+        await relinkFavorite(fav, replacement);
+        hidePanel(favoritesPanel);
+        await openFolderHandle(replacement);
+      } catch {
+        toast("Could not open that folder either.", 3600);
+      }
     }
   }
   function initFavorites(deps3) {
@@ -8012,63 +8227,6 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
         toast("Could not save that favorite.", 3e3);
       }
     });
-  }
-
-  // src/renderer/folder-picker.ts
-  var pickerBusy = false;
-  var SHELL_FOLDER_NAMES = /* @__PURE__ */ new Set([
-    "Documents",
-    "Desktop",
-    "Downloads",
-    "Pictures",
-    "Music",
-    "Videos",
-    "3D Objects",
-    "Saved Games",
-    "Links",
-    "Searches",
-    "Contacts"
-  ]);
-  async function pickDatasetFolder() {
-    if (pickerBusy) {
-      toast("A folder picker is already open \u2014 finish or cancel it first.", 3600);
-      return null;
-    }
-    pickerBusy = true;
-    let picked = null;
-    try {
-      picked = await pickDirectory({ mode: "readwrite" });
-    } catch (e) {
-      const msg = e?.message || "";
-      const cancelled = e?.name === "AbortError" || /cancel/i.test(msg);
-      if (cancelled) {
-        toast("No folder was chosen.", 2400);
-        return null;
-      }
-      if (/already active/i.test(msg)) {
-        console.error("[pick] picker session stuck:", e);
-        toast("The folder picker is stuck in a busy state and cannot open. Use Settings \u25B8 Updates & Sharing \u25B8 Restart app to clear it, then try again.", 7200);
-        return null;
-      }
-      console.error("[pick] folder picker failed:", e);
-      toast(`Could not open the folder picker: ${msg || "unknown error"}. Try again.`, 5e3);
-      return null;
-    } finally {
-      pickerBusy = false;
-    }
-    if (!picked) return null;
-    if (SHELL_FOLDER_NAMES.has(picked.name)) {
-      await showConfirmModal(
-        `"${picked.name}" is a special system location (like This PC \u25B8 Documents), not a real dataset folder.
-
-Picking it as a dataset triggers a known bug: the file picker stops working until the app restarts \u2014 nothing gets loaded.
-
-Pick your actual dataset folder (the one containing your images and .txt files) instead.`,
-        { okLabel: "OK, pick another folder", cancelLabel: "", danger: true }
-      );
-      return null;
-    }
-    return picked;
   }
 
   // src/renderer/dataset-manager.ts
@@ -8787,7 +8945,16 @@ This only stops tracking it here \u2014 the folder and its files are untouched.`
       await openFolderHandle2(record.handle);
       switchTab("gallery");
     } catch (err) {
-      toast("Could not reopen that folder \u2014 it may have been moved or deleted.", 3600);
+      const replacement = await promptRelinkFolder(record.name);
+      if (!replacement) return;
+      try {
+        await updateDatasetFolder(record.id, { handle: serializeHandle(replacement), name: replacement.name });
+        renderDatasetManagerTab();
+        await openFolderHandle2(replacement);
+        switchTab("gallery");
+      } catch {
+        toast("Could not open that folder either.", 3600);
+      }
     }
   }
   async function maybePromptAddDataset(handle) {
@@ -9031,6 +9198,36 @@ If you choose No, this won't ask again for any folder. You can still add the ope
   }
 
   // src/renderer/bucket-images.ts
+  async function convertAllWebpToPng() {
+    const dirHandle = getDirHandle8();
+    if (!dirHandle) return 0;
+    const disabledDirHandle = getDisabledDirHandle2();
+    const originalDirHandle = getOriginalDirHandle2();
+    let converted = 0;
+    for (const entry of [...getEntries3()]) {
+      const name = entry.imgName || entry.base;
+      if (!isWebpName(name)) continue;
+      const dir = entry.original ? originalDirHandle : entry.disabled ? disabledDirHandle : dirHandle;
+      if (!dir) continue;
+      try {
+        const file = await entry.imgHandle.getFile();
+        entry.imgHandle = await convertWebpToPngInDir(dir, name, file);
+        entry.imgName = name.replace(/\.[^.]+$/, "") + ".png";
+        entry.txtName = entry.base + ".txt";
+        converted++;
+      } catch {
+      }
+    }
+    return converted;
+  }
+  async function convertWebpToPngInDir(dir, oldName, file) {
+    const { bytes } = await webpToPngBytes(file);
+    const newName = oldName.replace(/\.[^.]+$/, "") + ".png";
+    const handle = await dir.getFileHandle(newName, { create: true });
+    await writeBytes(handle, bytes);
+    await dir.removeEntry(oldName);
+    return handle;
+  }
   var ORIGINAL_DIR = "original_images";
   var LEGACY_ORIGINAL_DIR = "initial_state";
   async function mergeLegacyOriginals(root) {
@@ -9062,10 +9259,11 @@ If you choose No, this won't ask again for any folder. You can still add the ope
   var SETTINGS_KEY = "dts-bucket-settings";
   var getDirHandle8 = () => null;
   var getEntries3 = () => [];
+  var getDisabledDirHandle2 = () => null;
+  var getOriginalDirHandle2 = () => null;
   var reload = async () => {
   };
-  var saveAllDirty2 = async () => {
-  };
+  var guardUnsavedForReload = async () => "proceed";
   var busy = false;
   function log(line, isErr = false) {
     const el = document.createElement("div");
@@ -9088,6 +9286,18 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     const dims = { width: bmp.width, height: bmp.height };
     bmp.close();
     return dims;
+  }
+  async function webpToPngBytes(file) {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0);
+    const width = bitmap.width, height = bitmap.height;
+    bitmap.close();
+    const png = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!png) throw new Error("WebP could not be converted to PNG.");
+    return { bytes: new Uint8Array(await png.arrayBuffer()), width, height };
   }
   async function originalDir(create) {
     const dirHandle = getDirHandle8();
@@ -9140,10 +9350,7 @@ If you choose No, this won't ask again for any folder. You can still add the ope
       toast("Open a dataset folder first.");
       return;
     }
-    const entries = getEntries3();
-    const originals = entries.filter((e) => e.original);
-    const rootEntries = entries.filter((e) => !e.disabled && !e.original);
-    if (!rootEntries.length && !originals.length) {
+    if (!getEntries3().some((e) => !e.disabled || e.original)) {
       toast("No Gallery images to bucket.");
       return;
     }
@@ -9161,7 +9368,8 @@ Originals are kept in ${ORIGINAL_DIR}/ (shown in the Originals view) and the buc
       toast("Download the u2net model first (the button above).");
       return;
     }
-    await saveAllDirty2(true);
+    const guard = await guardUnsavedForReload("bucketing images");
+    if (guard !== "proceed") return;
     setBusy(true);
     clearLog();
     const origDir = await originalDir(true);
@@ -9170,6 +9378,11 @@ Originals are kept in ${ORIGINAL_DIR}/ (shown in the Originals view) and the buc
       setBusy(false);
       return;
     }
+    const webpConverted = await convertAllWebpToPng();
+    if (webpConverted) log(`Converted ${webpConverted} WebP image(s) to PNG.`);
+    const entries = getEntries3();
+    const originals = entries.filter((e) => e.original);
+    const rootEntries = entries.filter((e) => !e.disabled && !e.original);
     let processed = 0, skipped = 0, failed = 0;
     const counts = {};
     const bump = (w, h) => {
@@ -9191,18 +9404,19 @@ Originals are kept in ${ORIGINAL_DIR}/ (shown in the Originals view) and the buc
           failed++;
           continue;
         }
+        let bytes;
         let dims;
         try {
+          bytes = new Uint8Array(await file.arrayBuffer());
           dims = await imageDimensions(file);
         } catch {
           log(`${filename}: could not read its dimensions (unsupported format?).`, true);
           failed++;
           continue;
         }
-        const bytes = new Uint8Array(await file.arrayBuffer());
         if (!fromOriginals) {
           try {
-            const origImg = await origDir.getFileHandle(filename, { create: true });
+            const origImg = await origDir.getFileHandle(entry.base + ".png", { create: true });
             await writeBytes(origImg, bytes);
             if (entry.txtHandle && entry.txtName) {
               try {
@@ -9386,8 +9600,10 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
   function initBucketImages(deps3) {
     getDirHandle8 = deps3.getDirHandle;
     getEntries3 = deps3.getEntries;
+    getDisabledDirHandle2 = deps3.getDisabledDirHandle;
+    getOriginalDirHandle2 = deps3.getOriginalDirHandle;
     reload = deps3.reload;
-    saveAllDirty2 = deps3.saveAllDirty;
+    guardUnsavedForReload = deps3.guardUnsavedForReload;
     const saved = getJSON(SETTINGS_KEY, null);
     if (saved && typeof saved.gpu === "boolean") bucketGpu.checked = saved.gpu;
     bucketGpu.addEventListener("change", () => setJSON(SETTINGS_KEY, { gpu: bucketGpu.checked }));
@@ -19276,9 +19492,18 @@ Content-Type: application/octet-stream\r
     prompt["17"].inputs.value = cfg.unified ? "" : cfg.scene;
     prompt["16"].inputs.text = cfg.negative;
     prompt["41"].inputs.unet_name = cfg.diffModel;
-    prompt["51"].inputs.lora_name = cfg.mainLora.trim() || cfg.noLoraStandIn;
-    const mainStrength = parseFloat(cfg.mainLoraStrength ?? "");
-    if (Number.isFinite(mainStrength)) prompt["248"].inputs.strength_model = mainStrength;
+    if (cfg.mainLora.trim()) {
+      prompt["51"].inputs.lora_name = cfg.mainLora.trim();
+      const mainStrength = parseFloat(cfg.mainLoraStrength ?? "");
+      if (Number.isFinite(mainStrength)) prompt["248"].inputs.strength_model = mainStrength;
+    } else {
+      delete prompt["51"];
+      delete prompt["248"];
+      delete prompt["38"];
+      prompt["237"].inputs.model = ["41", 0];
+      prompt["37"].inputs.text_c = "";
+      if (prompt["222"]) prompt["222"].inputs.text_d = "";
+    }
     if (cfg.clip) {
       prompt["249"].inputs.clip_name = cfg.clip;
       prompt["47:45"].inputs.clip_name = cfg.clip;
@@ -19330,8 +19555,8 @@ Content-Type: application/octet-stream\r
     prompt["158:53"].inputs.scheduler = cfg.scheduler;
     prompt["158:53"].inputs.steps = parseInt(cfg.steps1, 10) || 1;
     prompt["158:54"].inputs.cfg = parseFloat(cfg.cfg1) || 1;
-    prompt["174:171"].inputs.value = parseInt(cfg.width, 10) || 920;
-    prompt["174:172"].inputs.value = parseInt(cfg.height, 10) || 1244;
+    prompt["174:171"].inputs.value = parseInt(cfg.width, 10) || 1024;
+    prompt["174:172"].inputs.value = parseInt(cfg.height, 10) || 1024;
     prompt["165"].inputs.noise_seed = parseInt(cfg.seed1, 10) || 0;
     if (cfg.use2Pass) {
       prompt["227"].inputs.noise_seed = parseInt(cfg.seed2, 10) || 0;
@@ -20481,30 +20706,46 @@ Image: ${entry.imgName}`,
       save();
     });
     let datasetPath = "";
-    const dirOf = (p) => p.replace(/[\\/][^\\/]*$/, "");
     const firstImage = () => deps3.getEntries().find((x) => !x.disabled && !x.original);
     const savedPaths = () => getJSON(PATHS_KEY, {});
     const askedThisSession = /* @__PURE__ */ new Set();
-    async function savedPathFor(name) {
-      const p = savedPaths()[name];
-      if (!p) return "";
+    const newMarker = () => `.osmium-probe-${crypto.randomUUID()}`;
+    async function savedPathFor(name, marker2) {
+      const rec = savedPaths()[name];
+      if (!rec || rec.marker !== marker2) return "";
       const img = firstImage();
-      return await api.trainflowPathOk(p, img?.imgName) ? p : "";
+      return await api.trainflowPathOk(rec.path, img?.imgName) ? rec.path : "";
     }
-    async function detectPath() {
-      const e = firstImage();
-      if (!e || !api.getPathForFile) return "";
+    function remember(name, marker2, p) {
+      const map = savedPaths();
+      map[name] = { path: p, marker: marker2 };
+      setJSON(PATHS_KEY, map);
+    }
+    function persistMarkerFor(name) {
+      const rec = savedPaths()[name];
+      if (rec && rec.marker) return rec.marker;
+      const m = newMarker();
+      const map = savedPaths();
+      map[name] = { path: rec?.path || "", marker: m };
+      setJSON(PATHS_KEY, map);
+      return m;
+    }
+    async function probePath(dir, marker2) {
+      if (!api.trainflowFindByMarker) return "";
       try {
-        const p = api.getPathForFile(await e.imgHandle.getFile());
-        return p ? dirOf(p) : "";
+        const fh = await dir.getFileHandle(marker2, { create: true });
+        await writeBytes(fh, "osmium trainflow probe");
       } catch {
         return "";
       }
-    }
-    function remember(name, p) {
-      const map = savedPaths();
-      map[name] = p;
-      setJSON(PATHS_KEY, map);
+      try {
+        return await api.trainflowFindByMarker(dir.name, marker2) || "";
+      } finally {
+        try {
+          await dir.removeEntry(marker2);
+        } catch {
+        }
+      }
     }
     async function resolveDataset() {
       const dir = deps3.getDirHandle();
@@ -20516,36 +20757,37 @@ Image: ${entry.imgName}`,
         nameEl.title = "";
         return "";
       }
-      datasetPath = await savedPathFor(dir.name);
+      marker = persistMarkerFor(dir.name);
+      datasetPath = await savedPathFor(dir.name, marker);
       if (!datasetPath) {
-        datasetPath = await detectPath();
-        if (datasetPath) remember(dir.name, datasetPath);
+        datasetPath = await probePath(dir, marker);
+        if (datasetPath) remember(dir.name, marker, datasetPath);
       }
       nameEl.textContent = datasetPath ? `${dir.name} (${datasetPath})` : `${dir.name} (location unknown)`;
       nameEl.title = datasetPath;
       locate.style.display = datasetPath ? "none" : "";
       return datasetPath;
     }
+    let marker = "";
     async function locateDataset() {
       const dir = deps3.getDirHandle();
       if (!dir) return false;
+      if (!marker) marker = persistMarkerFor(dir.name);
       const p = await api.trainflowPickPath({ kind: "folder", title: `Where is "${dir.name}" on your computer?` });
       if (!p) return false;
       if (!await api.trainflowPathOk(p, firstImage()?.imgName)) {
         toast("That folder doesn't contain this dataset's images.");
         return false;
       }
-      remember(dir.name, p);
+      remember(dir.name, marker, p);
       return true;
     }
     window.__dtsDatasetOpened = () => {
       void (async () => {
         const dir = deps3.getDirHandle();
         if (!dir || !firstImage()) return;
-        if (await savedPathFor(dir.name)) return;
-        const detected = await detectPath();
-        if (detected) {
-          remember(dir.name, detected);
+        if (await resolveDataset()) {
+          if (tab.style.display !== "none") void refreshDataset();
           return;
         }
         if (askedThisSession.has(dir.name)) return;
@@ -20626,19 +20868,25 @@ Image: ${entry.imgName}`,
       $("trainflowRunInfo").style.display = "";
       $("trainflowRunInfo").textContent = "Checking your dataset, models and GPU\u2026";
       const b = bucketCfg();
+      let reloadAfter = false;
       try {
         if (!await resolveDataset()) {
           showErrors([deps3.getDirHandle() ? "Osmium couldn't find where the loaded dataset is on disk. Use Locate\u2026 next to it." : "Load a dataset first."]);
           return;
         }
-        await deps3.saveAllDirty(true);
+        const guard = await deps3.guardUnsavedForReload("starting Trainflow");
+        if (guard !== "proceed") return;
+        reloadAfter = true;
+        await convertAllWebpToPng();
         const r = await api.trainflowStart({ ...settings2, datasetPath, bucketMin: b.min, bucketMax: b.max, bucketStep: b.step });
         if (!r.ok) showErrors(r.errors || ["Could not start."]);
       } finally {
         starting = false;
-        try {
-          await deps3.reload();
-        } catch {
+        if (reloadAfter) {
+          try {
+            await deps3.reload();
+          } catch {
+          }
         }
         await refresh2();
         void refreshDataset();
@@ -22199,7 +22447,6 @@ Image: ${entry.imgName}`,
       clip: synthDatClip.value,
       vae: synthDatVae.value,
       loraRows: loraRows.map((r) => ({ input: r.input.value, strength: r.strength.value })),
-      noLoraStandIn: "None",
       skipRefImage: synthDatSkipRefImage.checked,
       lliteStrength: synthDatLLLiteStrength.value,
       lliteStartPercent: synthDatLLLiteStartPercent.value,
@@ -27040,11 +27287,16 @@ Image: ${entry.imgName}`,
     })();
     let hideTags = false;
     hideTags = getBool("dts-hide-tags");
-    setIconLabel(btnHideTags, hideTags ? "\u{1F441} Show tags" : "\u{1F648} Hide tags");
+    function renderHideTagsButton() {
+      setIconLabel(btnHideTags, hideTags ? "\u{1F441}" : "\u{1F648}");
+      btnHideTags.title = hideTags ? "Show the tag chips and add-field on every card again" : "Hide the tag chips and add-field on every card \u2014 useful when sorting against a filter (e.g. everything without 1girl) so what IS and ISN'T missing stays visually obvious; tags stay editable via the card modal";
+      btnHideTags.setAttribute("aria-label", hideTags ? "Show tags" : "Hide tags");
+    }
+    renderHideTagsButton();
     btnHideTags.addEventListener("click", () => {
       hideTags = !hideTags;
       setBool("dts-hide-tags", hideTags);
-      setIconLabel(btnHideTags, hideTags ? "\u{1F441} Show tags" : "\u{1F648} Hide tags");
+      renderHideTagsButton();
       renderCurrentView();
     });
     viewGridBtn.addEventListener("click", () => switchView("grid"));
@@ -27833,6 +28085,22 @@ Image: ${entry.imgName}`,
     new MutationObserver(updateTopbarScale).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     document.fonts.addEventListener("loadingdone", updateTopbarScale);
     updateTopbarScale();
+    const GALLERY_TOOLBAR_MIN_SCALE = 0.6;
+    const galleryToolbarWideQuery = matchMedia("(min-width: 901px)");
+    function updateGalleryToolbarScale() {
+      galleryToolbarRow.style.transform = "";
+      if (!galleryToolbarWideQuery.matches) return;
+      const natural = galleryToolbarRow.scrollWidth;
+      const available = galleryToolbarRow.clientWidth;
+      if (natural <= 0 || available <= 0) return;
+      const scale = Math.min(1, Math.max(GALLERY_TOOLBAR_MIN_SCALE, available / natural));
+      galleryToolbarRow.style.transform = scale < 1 ? `scale(${scale})` : "";
+    }
+    new ResizeObserver(updateGalleryToolbarScale).observe(galleryToolbarRow);
+    new MutationObserver(updateGalleryToolbarScale).observe(galleryToolbarRow, { childList: true, subtree: true });
+    new MutationObserver(updateGalleryToolbarScale).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    document.fonts.addEventListener("loadingdone", updateGalleryToolbarScale);
+    updateGalleryToolbarScale();
     let flyoutClosesOnOutsideClick = true;
     flyoutOutsideCloseToggle.addEventListener("change", () => {
       flyoutClosesOnOutsideClick = flyoutOutsideCloseToggle.checked;
@@ -28293,6 +28561,25 @@ Image: ${entry.imgName}`,
       if (!unsaved) return true;
       return showConfirmModal(`You have ${unsaved}. ${message}`, { okLabel: "Switch anyway", danger: true });
     }
+    async function guardUnsavedForReload2(actionLabel) {
+      const unsaved = unsavedChangesDescription();
+      if (!unsaved) return "proceed";
+      const choice = await showChoiceModal(
+        `You have ${unsaved}, and ${actionLabel} will reload the dataset from disk, replacing them.
+
+Save your edits first?`,
+        [
+          { key: "cancel", label: "Cancel" },
+          { key: "stop", label: "Save my edits, don't proceed", title: "Save your tag edits to disk, then stop without reloading." },
+          { key: "proceed", label: "Save my edits and proceed", variant: "primary" }
+        ],
+        "stack"
+      );
+      if (choice === "proceed" || choice === "stop") {
+        await saveAllDirty(true);
+      }
+      return choice === "proceed" || choice === "stop" || choice === "cancel" ? choice : "cancel";
+    }
     async function openFolderHandle3(handle) {
       if (!await confirmDatasetSwitch("Switch datasets anyway without saving?")) return;
       dirHandle = handle;
@@ -28366,6 +28653,7 @@ Image: ${entry.imgName}`,
       getDirHandle: () => dirHandle,
       getEntries: () => entries,
       saveAllDirty: (silent) => saveAllDirty(silent),
+      guardUnsavedForReload: guardUnsavedForReload2,
       reload: () => loadFolder()
     });
     initSynthDatOverseer({
@@ -28400,8 +28688,10 @@ Image: ${entry.imgName}`,
     initBucketImages({
       getDirHandle: () => dirHandle,
       getEntries: () => entries,
+      getDisabledDirHandle: () => disabledDirHandle,
+      getOriginalDirHandle: () => originalDirHandle,
       reload: () => loadFolder(),
-      saveAllDirty: (silent) => saveAllDirty(silent)
+      guardUnsavedForReload: guardUnsavedForReload2
     });
     initView({
       getEntries: () => entries,
@@ -29213,10 +29503,23 @@ Image: ${entry.imgName}`,
         void maybePromptAddDataset(activeHandle);
       }
     }
+    async function addImagesFlow(files) {
+      const list = files ? Array.from(files) : [];
+      if (!list.length) return;
+      if (!dirHandle && !await createDatasetForImport()) return;
+      await importImagesToDataset(list);
+    }
     async function createDatasetForImport() {
       const go = await showConfirmModal(
         "No dataset is open. Create a new dataset for these images?\n\nYou'll name it, then choose where its folder goes.",
-        { okLabel: "Create dataset", cancelLabel: "Cancel" }
+        {
+          okLabel: "Create dataset",
+          cancelLabel: "Cancel",
+          warnings: [
+            { text: `When you pick the location, don't choose Desktop, Documents or Downloads themselves \u2014 Windows blocks write access to those folders. Choose a normal folder, or make a new subfolder with the dialog's "New folder" button and pick that.`, tone: "danger" },
+            { text: "If the file picker seems to freeze on first load, that's normal \u2014 just wait a bit.", tone: "info" }
+          ]
+        }
       );
       if (!go) return false;
       const raw = await showPromptModal(
@@ -29225,14 +29528,13 @@ Image: ${entry.imgName}`,
       );
       const name = (raw || "").replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
       if (!name) return false;
-      toast(`Choose where to create "${name}".`, 3200);
       let handle = null;
       try {
         const native = window.__dtsCreateDatasetFolder;
         if (native) {
           handle = await native(name);
         } else {
-          const parent = await pickDatasetFolder();
+          const parent = await pickParentFolder();
           if (!parent) return false;
           let finalName = name;
           for (let n = 2; n < 1e3; n++) {
@@ -29259,7 +29561,7 @@ Image: ${entry.imgName}`,
         dirHandle = null;
         return false;
       }
-      toast(`Created "${handle.name}". Now pick the images to add.`, 3e3);
+      toast(`Created "${handle.name}".`, 2400);
       newDatasetPendingTrack = handle;
       return true;
     }
@@ -29272,14 +29574,16 @@ Image: ${entry.imgName}`,
       btnAddImages.addEventListener("click", async () => {
         fileCatFlyout.style.display = "none";
         fileCatFlyout.classList.remove("menu-in");
-        if (!dirHandle && !await createDatasetForImport()) return;
         const nativePick = window.__dtsPickImages;
         if (nativePick) {
+          let picked = [];
           try {
-            await importImagesToDataset(await nativePick());
+            picked = await nativePick();
           } catch {
             toast("Couldn\u2019t read the picked images.", 3e3);
+            return;
           }
+          await addImagesFlow(picked);
           return;
         }
         const picker = document.createElement("input");
@@ -29287,7 +29591,7 @@ Image: ${entry.imgName}`,
         picker.accept = "image/*";
         picker.multiple = true;
         picker.addEventListener("change", () => {
-          void importImagesToDataset(picker.files);
+          void addImagesFlow(picker.files);
         });
         picker.click();
       });

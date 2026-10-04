@@ -81,9 +81,10 @@ Three related apps share this repository (and much of their renderer code):
    featuring a built-in workflow: no node graph to navigate, every generation saves straight to
    disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
    Documents/). Both builds share the gallery sidebar (browse subfolders, sort by name/date, pin
-   favorites), model picker modals, the zoomable image lightbox, a **Wiki** window, a
-   **Main LoRA weight** field, and a **Generate queue** (press Generate again while one runs to
-   queue it). Mobile details live in `comfy-bridge/mobile/README.md`.
+   favorites), model picker modals, the zoomable image lightbox, a **Wiki** window and a **Help**
+   panel, an optional **Main LoRA** (leave it empty to generate with none), and a **Generate
+   queue** (press Generate again while one runs to queue it). Mobile details live in
+   `comfy-bridge/mobile/README.md`.
    - **Osmium Comfy (Windows):** like SynthDat, the desktop Bridge can launch your ComfyUI
      install itself (Run on ▸ Osmium Comfy), loading only what its workflow needs. With **Persist
      Comfy** on, it stays open with its models loaded after you close the Bridge, until you close

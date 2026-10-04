@@ -90,6 +90,19 @@ textarea{resize:none;min-height:28px;overflow-y:hidden;}
 #localFields{flex-wrap:wrap;}
 #btnPickComfyFolder{white-space:nowrap;}
 #comfyFolderLabel{flex-basis:100%;overflow-wrap:anywhere;font-size:12px;}
+/* The left column is 320px, and page zoom shrinks its CSS width further, so
+   every Connection row wraps and every field can shrink. The relay controls
+   used to be fixed-width in a nowrap row: the label dropped to one word per
+   line and the port and token spilled out of the panel at 125%+ zoom. */
+#left .row input, #left .row select{min-width:0;}
+#relayRow{display:flex;flex-direction:column;gap:6px;margin:8px 0;}
+#relayRow .chk-row{margin:0;}
+.relay-inputs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;}
+.relay-port-label{flex:0 0 auto;margin:0;white-space:nowrap;font-size:11px;color:var(--muted);}
+#relayPort{flex:0 0 76px;width:76px;}
+#relayToken{flex:1 1 150px;width:auto;min-width:0;}
+#hostRow{flex-wrap:wrap;}
+#host{flex:1 1 180px;width:auto;min-width:0;}
 .reso-row{align-items:flex-end;}
 .reso-row > div{flex:1;}
 button{
@@ -152,14 +165,14 @@ button:disabled{opacity:0.5;cursor:default;}
 .settings-panel[open] summary{margin-bottom:4px;}
 .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;}
 .settings-span2{grid-column:1 / -1;}
-/* Seed row: the number field plus its − / + / 🎲 / Fixed controls
-   (#seed1*/#seed2* in app.ts). The field keeps the flex remainder so the
-   row stays one line at the drawer's width. */
-.seed-row{display:flex;align-items:center;gap:4px;}
+/* Seed row: the number field plus its behaviour dropdown (Fixed, Randomize,
+   Increment, Decrement). The field keeps the flex remainder so the row stays
+   one line at the drawer's width. Never write a slash-star pair inside a
+   comment: one closed an earlier version of this comment early and silently
+   dropped the display:flex below. */
+.seed-row{display:flex;align-items:center;gap:8px;}
 .seed-row input[type=number]{flex:1;min-width:0;}
-.seed-btn{flex:0 0 auto;padding:5px 9px;}
-.seed-row .seed-fixed{margin:0;white-space:nowrap;color:var(--muted);}
-.seed-row .seed-fixed input{width:auto;}
+.seed-mode{flex:0 0 auto;width:auto;min-width:112px;}
 /* Themed scrollbars — default OS scrollbars clashed hard against the dark
    panel backgrounds. Mirrors the main Osmium Workshop app's rule. */
 ::-webkit-scrollbar{width:10px;height:10px;}
@@ -294,9 +307,13 @@ html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(
 .help-backdrop{
   position:fixed; inset:0; z-index:1100; background:rgb(0 0 0 / 55%);
   display:flex; align-items:center; justify-content:center;
-  opacity:0; transition:opacity .16s ease;
+  opacity:0; pointer-events:none; transition:opacity .16s ease;
 }
-.help-backdrop.modal-visible{ opacity:1; }
+/* The [hidden] attribute's UA display:none loses to the class rule above, so
+   without this the invisible backdrop stayed laid out over the whole window
+   and blocked every click and scroll. */
+.help-backdrop[hidden]{ display:none; }
+.help-backdrop.modal-visible{ opacity:1; pointer-events:auto; }
 .help-modal-card{
   position:relative; width:min(980px, 92vw); height:min(720px, 88vh);
   background:var(--panel); border:1px solid var(--border-strong); border-radius:12px;

@@ -177,30 +177,25 @@ const steps2 = $<HTMLInputElement>('steps2');
 const denoise2 = $<HTMLInputElement>('denoise2');
 const seed2 = $<HTMLInputElement>('seed2');
 
-// Seed controls (index.html's .seed-row): − / + / randomize / Fixed. Fixed
-// (the default) reuses the typed seed; unticked rolls a fresh random seed each
-// time a generation is queued. ComfyUI seeds are 64-bit, but 32 bits of
-// randomness is plenty and stays a safe integer.
-const seed1Fixed = $<HTMLInputElement>('seed1Fixed');
-const seed2Fixed = $<HTMLInputElement>('seed2Fixed');
+// Seed behaviour (index.html's .seed-row dropdown): Fixed (the default) reuses
+// the typed seed, Randomize rolls a fresh one, and Increment / Decrement step
+// it by one. The mode is applied when a generation is queued, so a batch of
+// queued jobs walks the seed instead of all sharing one. ComfyUI seeds are
+// 64-bit, but 32 bits of randomness is plenty and stays a safe integer.
+const seed1Mode = $<HTMLSelectElement>('seed1Mode');
+const seed2Mode = $<HTMLSelectElement>('seed2Mode');
 function randomSeed(): number { return Math.floor(Math.random() * 0x100000000); }
-function bumpSeed(el: HTMLInputElement, delta: number): void {
+function applySeedMode(el: HTMLInputElement, mode: string): void {
+  if (mode === 'fixed') return;
   const cur = parseInt(el.value, 10);
-  el.value = String(Math.max(0, (Number.isFinite(cur) ? cur : 0) + delta));
+  let next: number;
+  if (mode === 'randomize') next = randomSeed();
+  else if (mode === 'increment') next = Math.max(0, (Number.isFinite(cur) ? cur : 0) + 1);
+  else if (mode === 'decrement') next = Math.max(0, (Number.isFinite(cur) ? cur : 0) - 1);
+  else return;
+  el.value = String(next);
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
-function wireSeedControls(
-  input: HTMLInputElement, dec: HTMLButtonElement, inc: HTMLButtonElement, rand: HTMLButtonElement
-): void {
-  dec.addEventListener('click', () => bumpSeed(input, -1));
-  inc.addEventListener('click', () => bumpSeed(input, 1));
-  rand.addEventListener('click', () => {
-    input.value = String(randomSeed());
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-}
-wireSeedControls(seed1, $<HTMLButtonElement>('seed1Dec'), $<HTMLButtonElement>('seed1Inc'), $<HTMLButtonElement>('seed1Random'));
-wireSeedControls(seed2, $<HTMLButtonElement>('seed2Dec'), $<HTMLButtonElement>('seed2Inc'), $<HTMLButtonElement>('seed2Random'));
 
 const upscaleEnabled = $<HTMLInputElement>('upscaleEnabled');
 const upscaleModelRow = $<HTMLDivElement>('upscaleModelRow');
@@ -865,8 +860,14 @@ function joinRel(...parts: string[]): string { return parts.filter(Boolean).join
 function ratingText(): string { return unifiedPromptMode.checked ? unifiedPrompt.value : rating.value; }
 
 async function currentNaming(): Promise<SaveNaming> {
+  // Only pull the tag vocabulary when there is actually a Character field to
+  // match against. On a fresh open that field is empty, so skipping the lookup
+  // here is what keeps startup clear of all_tags' ~1.2s parse-and-map.
+  const characterField = fieldValue(character);
   let recognized = '';
-  try { recognized = safeSegment(recognizeCharacter(fieldValue(character), await characterIndex())); } catch { /* tag list unavailable */ }
+  if (characterField) {
+    try { recognized = safeSegment(recognizeCharacter(characterField, await characterIndex())); } catch { /* tag list unavailable */ }
+  }
   const mode = charMode();
   const characterName = mode === 'oc' ? 'OC'
     : mode === 'custom' ? safeSegment(charCustomName.value)
@@ -1002,7 +1003,9 @@ charTagName.addEventListener('blur', hideCharSuggest);
 
 // restoreUiState() already ran (above) without firing 'change'.
 applyNamingUI();
-void refreshSavePreview();
+// Defer the first preview past the initial frame so startup never blocks on
+// it (the preview needs no tag data when the Character field is empty anyway).
+setTimeout(() => { void refreshSavePreview(); }, 0);
 
 // ---------------- Slideouts (open from the left) ----------------
 // Generation settings (resolution, sampling, 2-Pass, upscale) and file
@@ -1251,11 +1254,11 @@ previewCarousel.addEventListener('scroll', () => {
 
 async function generate(): Promise<void> {
   if (!skipRefImage.checked && !refFile) { log('Pick a reference image first (or check "No reference image").'); return; }
-  // Randomized seeds roll fresh per queued generation; Fixed seeds keep the
-  // value the user typed. The rolled value is written back so the field and
-  // the naming preview show what this job actually used.
-  if (!seed1Fixed.checked) { seed1.value = String(randomSeed()); seed1.dispatchEvent(new Event('input', { bubbles: true })); }
-  if (!seed2Fixed.checked) { seed2.value = String(randomSeed()); seed2.dispatchEvent(new Event('input', { bubbles: true })); }
+  // Apply each seed's chosen behaviour to the copy this job queues. The new
+  // value is written back so the field and the naming preview show what the
+  // job actually used.
+  applySeedMode(seed1, seed1Mode.value);
+  applySeedMode(seed2, seed2Mode.value);
   await loadTemplate();
   genQueue.push({
     host: getHost(),

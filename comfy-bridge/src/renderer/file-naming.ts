@@ -19,7 +19,7 @@
 //      that's off (or empty) just drops out.
 //
 // Final path: [rating/][character/][Upscaled/]<name>_00001_.png
-import { allTags } from './shared/tag-wiki';
+import { allTags, yieldToUI } from './shared/tag-wiki';
 import type { StorageBackend } from './shared/storage';
 
 // ---- Character index ----
@@ -41,14 +41,18 @@ export function characterDisplay(tag: string): string {
 export interface CharacterIndex { byTag: Map<string, string>; names: string[]; }
 let indexP: Promise<CharacterIndex> | null = null;
 export function characterIndex(): Promise<CharacterIndex> {
-  return indexP ??= allTags().then((tags) => {
+  return indexP ??= allTags().then(async (tags) => {
     const byTag = new Map<string, string>();
     const ranked: [string, number][] = [];
+    let i = 0;
     for (const [tag, meta] of tags) {
-      if (meta.category !== 4) continue;
-      const display = characterDisplay(tag);
-      byTag.set(normTag(tag), display);
-      ranked.push([display, meta.count]);
+      i++;
+      if (meta.category === 4) {
+        const display = characterDisplay(tag);
+        byTag.set(normTag(tag), display);
+        ranked.push([display, meta.count]);
+      }
+      if ((i & 0xffff) === 0xffff) await yieldToUI();
     }
     ranked.sort((a, b) => b[1] - a[1]);
     return { byTag, names: ranked.map((r) => r[0]) };
