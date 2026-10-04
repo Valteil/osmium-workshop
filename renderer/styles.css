@@ -2638,6 +2638,33 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .trainflow-col-run{ flex: 3 1 480px; }
   .trainflow-col-setup{ flex: 2 1 340px; max-width: 520px; }
   .trainflow-grid{ display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+
+  /* Trainflow ▸ Advanced: a native <details> disclosure, collapsed by default so
+     the one-button path stays obvious. Everything reads theme tokens (bg/border/
+     accent/radii), so each of the 26 worlds restyles it like any other control. */
+  .tf-advanced{
+    margin-top: 12px; border: 1px solid var(--border-soft); border-radius: var(--r-panel);
+    background: var(--bg-base); padding: 0;
+  }
+  .tf-advanced > summary{
+    cursor: pointer; list-style: none; padding: 8px 12px; font-size: 12px;
+    font-family: var(--head-font, var(--sans)); color: var(--text-muted);
+    border-radius: var(--r-panel); display: flex; align-items: center; gap: 6px;
+  }
+  .tf-advanced > summary::before{ content: '▸'; color: var(--text-faint); font-size: 11px; transition: transform 0.12s ease; }
+  .tf-advanced[open] > summary::before{ transform: rotate(90deg); }
+  .tf-advanced > summary::-webkit-details-marker{ display: none; }
+  .tf-advanced > summary:hover{ color: var(--text-primary); }
+  .tf-advanced[open] > summary{ border-bottom: 1px solid var(--border-soft); border-radius: var(--r-panel) var(--r-panel) 0 0; }
+  .tf-advanced > .trainflow-grid{ padding: 10px 12px 12px; }
+  /* Sub-headings inside the disclosure ("LoRA shape", "Precision", …). */
+  .tf-adv-head{
+    padding: 10px 12px 0; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.4px;
+    text-transform: uppercase; color: var(--accent-manual);
+  }
+  .tf-adv-head + .trainflow-grid{ padding-top: 6px; }
+  /* The checkbox rows inside Advanced reuse .ach-toggle-row; align the box+label. */
+  .tf-advanced .field-block .ach-toggle-row{ gap: 6px; font-size: 12px; }
   .trainflow-errors{ display: flex; flex-direction: column; gap: 3px; font-size: 12px; white-space: pre-wrap; }
   .trainflow-progress{ height: 8px; border-radius: 4px; }
   .trainflow-stats{ display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }

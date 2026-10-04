@@ -12,6 +12,13 @@ Shippable/
 # into this vault). Local-only by design, not shared via git.
 /notes/
 
+# Anima-TrainFlow dev/redistribution copy (~5.4 GB: embedded Python + models).
+# Lives in-tree so Osmium can point at a known trainer, but it is far too large
+# to track in git — it ships inside the packaged app instead. Personal run
+# state (training/settings.json, training/output/) is stripped from the copy;
+# the app recreates output/ on demand.
+/Anima-TrainFlow/
+
 # Tauri port exploration (tauri-port/) — Rust build output and the
 # Tauri CLI's own npm install, both regenerable via `npx tauri dev`/`build`.
 tauri-port/src-tauri/target/

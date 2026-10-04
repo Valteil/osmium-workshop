@@ -32,7 +32,19 @@ const DEFAULTS: TrainflowSettings = {
   rank: 32, lr: '1.0', optimizer: 'Prodigy', steps: 2400, saveSteps: 300, sampleSteps: 300,
   batchSize: 1, gradAcc: 1, trainSeed: 42, bucketMin: 256, bucketMax: 1024, bucketStep: 64,
   prompt: '', negPrompt: 'worst quality, low quality, score_1, score_2, score_3, artist name',
-  width: 1024, height: 1024, sampleGenSteps: 30, cfg: 4, sampleSeed: 42
+  width: 1024, height: 1024, sampleGenSteps: 30, cfg: 4, sampleSeed: 42,
+  // Advanced — these match the trainer's / app's previous fixed defaults, so the
+  // untouched form writes the same TOML as before.
+  advAlpha: 0, advNetworkDropout: 0, advTrainTextEncoder: false,
+  advLrScheduler: 'constant', advLrWarmup: 0,
+  advMixedPrecision: 'bf16', advSavePrecision: 'bf16',
+  advNoiseOffset: 0, advMinSnrGamma: 0, advClipSkip: 0,
+  advTimestepSampling: 'sigmoid', advWeighting: 'logit_normal',
+  advFlowShift: 1.0, advSigmoidScale: 1.3,
+  advAttn: 'sdpa', advTorchCompile: false, advBlocksToSwap: 0,
+  advMaxGradNorm: 1.0, advGradCheckpointing: true,
+  advDataloaderWorkers: 4, advVaeChunkSize: 0, advVaeDisableCache: true, advNoHalfVae: false,
+  advCaptionDropout: 0.05, advKeepTokens: 1, advRepeats: 0, advSampleSampler: 'euler'
 };
 
 // Element id <-> setting, for the plain inputs.
@@ -43,7 +55,27 @@ const TEXT_FIELDS: [keyof TrainflowSettings, string][] = [
 const NUM_FIELDS: [keyof TrainflowSettings, string][] = [
   ['rank', 'tfRank'], ['steps', 'tfSteps'], ['saveSteps', 'tfSaveSteps'], ['sampleSteps', 'tfSampleSteps'],
   ['batchSize', 'tfBatch'], ['gradAcc', 'tfGradAcc'], ['width', 'tfWidth'], ['height', 'tfHeight'],
-  ['sampleGenSteps', 'tfGenSteps'], ['cfg', 'tfCfg'], ['sampleSeed', 'tfSeed']
+  ['sampleGenSteps', 'tfGenSteps'], ['cfg', 'tfCfg'], ['sampleSeed', 'tfSeed'], ['trainSeed', 'tfTrainSeed']
+];
+// Advanced section: selects and checkboxes bind by id too, so one pass wires
+// them all; numeric inputs reuse the same numeric handler (0 = use default).
+const ADV_SELECT_FIELDS: [keyof TrainflowSettings, string][] = [
+  ['advLrScheduler', 'tfAdvLrScheduler'], ['advMixedPrecision', 'tfAdvMixedPrecision'],
+  ['advSavePrecision', 'tfAdvSavePrecision'], ['advTimestepSampling', 'tfAdvTimestepSampling'],
+  ['advWeighting', 'tfAdvWeighting'], ['advAttn', 'tfAdvAttn'], ['advSampleSampler', 'tfAdvSampleSampler']
+];
+const ADV_NUM_FIELDS: [keyof TrainflowSettings, string][] = [
+  ['advAlpha', 'tfAdvAlpha'], ['advNetworkDropout', 'tfAdvNetworkDropout'], ['advLrWarmup', 'tfAdvLrWarmup'],
+  ['advNoiseOffset', 'tfAdvNoiseOffset'], ['advMinSnrGamma', 'tfAdvMinSnrGamma'], ['advClipSkip', 'tfAdvClipSkip'],
+  ['advFlowShift', 'tfAdvFlowShift'], ['advSigmoidScale', 'tfAdvSigmoidScale'], ['advBlocksToSwap', 'tfAdvBlocksToSwap'],
+  ['advMaxGradNorm', 'tfAdvMaxGradNorm'], ['advDataloaderWorkers', 'tfAdvDataloaderWorkers'],
+  ['advVaeChunkSize', 'tfAdvVaeChunkSize'], ['advCaptionDropout', 'tfAdvCaptionDropout'],
+  ['advKeepTokens', 'tfAdvKeepTokens'], ['advRepeats', 'tfAdvRepeats']
+];
+const ADV_BOOL_FIELDS: [keyof TrainflowSettings, string][] = [
+  ['advTrainTextEncoder', 'tfAdvTrainTextEncoder'], ['advTorchCompile', 'tfAdvTorchCompile'],
+  ['advGradCheckpointing', 'tfAdvGradCheckpointing'], ['advVaeDisableCache', 'tfAdvVaeDisableCache'],
+  ['advNoHalfVae', 'tfAdvNoHalfVae']
 ];
 
 export function isTrainflowSupported(): boolean {
@@ -75,7 +107,10 @@ export function initTrainflow(deps: TrainflowDeps): void {
   function fillForm(): void {
     for (const [k, id] of TEXT_FIELDS) inputEl(id).value = String(settings[k]);
     for (const [k, id] of NUM_FIELDS) inputEl(id).value = String(settings[k]);
+    for (const [k, id] of ADV_NUM_FIELDS) inputEl(id).value = String(settings[k]);
     $<HTMLSelectElement>('tfOptimizer').value = settings.optimizer;
+    for (const [k, id] of ADV_SELECT_FIELDS) $<HTMLSelectElement>(id).value = String(settings[k]);
+    for (const [k, id] of ADV_BOOL_FIELDS) $<HTMLInputElement>(id).checked = !!settings[k];
   }
   fillForm();
 
@@ -85,10 +120,22 @@ export function initTrainflow(deps: TrainflowDeps): void {
       save();
     });
   }
-  for (const [k, id] of NUM_FIELDS) {
+  for (const [k, id] of [...NUM_FIELDS, ...ADV_NUM_FIELDS]) {
     inputEl(id).addEventListener('input', () => {
       const v = Number(inputEl(id).value);
       if (Number.isFinite(v)) { (settings as unknown as Record<string, unknown>)[k] = v; save(); }
+    });
+  }
+  for (const [k, id] of ADV_SELECT_FIELDS) {
+    $<HTMLSelectElement>(id).addEventListener('change', (ev) => {
+      (settings as unknown as Record<string, unknown>)[k] = (ev.target as HTMLSelectElement).value;
+      save();
+    });
+  }
+  for (const [k, id] of ADV_BOOL_FIELDS) {
+    $<HTMLInputElement>(id).addEventListener('change', (ev) => {
+      (settings as unknown as Record<string, unknown>)[k] = (ev.target as HTMLInputElement).checked;
+      save();
     });
   }
   // Prodigy sets its own rate; AdamW wants a small one. Each keeps its own.

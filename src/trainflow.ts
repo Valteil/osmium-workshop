@@ -265,7 +265,8 @@ function writeSamplePrompts(s: TrainflowSettings, file: string): void {
 
 function writeDatasetToml(s: TrainflowSettings, file: string, check: TrainflowDatasetCheck): void {
   const effective = Math.round(s.batchSize) * Math.round(s.gradAcc);
-  const repeats = Math.max(1, Math.ceil((Math.round(s.steps) * effective) / Math.max(1, check.images)));
+  // advRepeats overrides the auto value (0 = auto from steps/images).
+  const repeats = s.advRepeats > 0 ? Math.round(s.advRepeats) : Math.max(1, Math.ceil((Math.round(s.steps) * effective) / Math.max(1, check.images)));
   const trigger = s.trigger.trim();
   const lines = [
     '[general]',
@@ -283,8 +284,8 @@ function writeDatasetToml(s: TrainflowSettings, file: string, check: TrainflowDa
     'caption_extension = ".txt"',
     `num_repeats = ${repeats}`,
     ...(trigger ? [`caption_prefix = ${tomlStr(trigger + ', ')}`] : []),
-    'keep_tokens = 1',
-    'caption_dropout_rate = 0.05',
+    `keep_tokens = ${s.advKeepTokens > 0 ? Math.round(s.advKeepTokens) : 1}`,
+    `caption_dropout_rate = ${s.advCaptionDropout > 0 ? s.advCaptionDropout : 0.05}`,
     ''
   ];
   fs.writeFileSync(file, lines.join('\n'));
@@ -296,45 +297,65 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
     ? ['decouple=True', 'weight_decay=0.01', 'd_coef=1.0', 'use_bias_correction=True', 'safeguard_warmup=True', 'betas=0.9,0.99']
     : ['weight_decay=0.01'];
   const rank = Math.round(s.rank);
+  // Advanced knobs fall back to the app's original defaults when unset, so an
+  // untouched form — or an external caller passing a partial settings object
+  // (the red-team writer seam) — writes the exact TOML it always did. Every
+  // `undefined` therefore resolves to the old fixed value, never to a new one.
+  const alpha = s.advAlpha > 0 ? Math.round(s.advAlpha) : rank;
+  const mp = s.advMixedPrecision || 'bf16';
+  const savePrec = s.advSavePrecision || 'bf16';
+  // Booleans whose OLD default was `true`: undefined must stay true.
+  const gradCkpt = s.advGradCheckpointing === undefined ? true : !!s.advGradCheckpointing;
+  const vaeDisableCache = s.advVaeDisableCache === undefined ? true : !!s.advVaeDisableCache;
+  const vaeChunk = s.advVaeChunkSize > 0 ? Math.round(s.advVaeChunkSize) : 32;
   const lines = [
     `pretrained_model_name_or_path = ${tomlStr(posix(s.ditPath))}`,
     `qwen3 = ${tomlStr(posix(s.qwenPath))}`,
     `vae = ${tomlStr(posix(s.vaePath))}`,
     'network_module = "networks.lora_anima"',
     `network_dim = ${rank}`,
-    `network_alpha = ${rank}`,
-    'network_train_unet_only = true',
-    'gradient_checkpointing = true',
-    'max_grad_norm = 1.0',
+    `network_alpha = ${alpha}`,
+    // Training the text encoder is opt-in; otherwise U-Net only (the default).
+    ...(s.advTrainTextEncoder ? [] : ['network_train_unet_only = true']),
+    ...(s.advNetworkDropout > 0 ? [`network_dropout = ${s.advNetworkDropout}`] : []),
+    `gradient_checkpointing = ${gradCkpt ? 'true' : 'false'}`,
+    `max_grad_norm = ${s.advMaxGradNorm > 0 ? s.advMaxGradNorm : 1.0}`,
     `learning_rate = ${Number(s.lr)}`,
     `optimizer_type = ${tomlStr(s.optimizer)}`,
     `optimizer_args = [${optArgs.map(tomlStr).join(', ')}]`,
-    `lr_scheduler = ${tomlStr(prodigy ? 'constant' : 'cosine')}`,
+    `lr_scheduler = ${tomlStr(s.advLrScheduler || (prodigy ? 'constant' : 'cosine'))}`,
+    ...(s.advLrWarmup > 0 ? [`lr_warmup_steps = ${Math.round(s.advLrWarmup)}`] : []),
     `max_train_steps = ${Math.round(s.steps)}`,
     `train_batch_size = ${Math.round(s.batchSize)}`,
     `gradient_accumulation_steps = ${Math.round(s.gradAcc)}`,
-    'mixed_precision = "bf16"',
+    `seed = ${Math.round(s.trainSeed)}`,
+    `mixed_precision = ${tomlStr(mp)}`,
     `output_dir = ${tomlStr(posix(outDir))}`,
     `output_name = ${tomlStr(project)}`,
     `save_every_n_steps = ${Math.round(s.saveSteps)}`,
     `sample_every_n_steps = ${Math.round(s.sampleSteps)}`,
     `sample_prompts = ${tomlStr(posix(promptFile))}`,
-    'sample_sampler = "euler"',
-    'timestep_sampling = "sigmoid"',
-    'discrete_flow_shift = 1.0',
-    'sigmoid_scale = 1.3',
-    'weighting_scheme = "logit_normal"',
+    `sample_sampler = ${tomlStr(s.advSampleSampler || 'euler')}`,
+    `timestep_sampling = ${tomlStr(s.advTimestepSampling || 'sigmoid')}`,
+    `discrete_flow_shift = ${s.advFlowShift || 1.0}`,
+    `sigmoid_scale = ${s.advSigmoidScale || 1.3}`,
+    `weighting_scheme = ${tomlStr(s.advWeighting || 'logit_normal')}`,
+    ...(s.advNoiseOffset > 0 ? [`noise_offset = ${s.advNoiseOffset}`] : []),
+    ...(s.advMinSnrGamma > 0 ? [`min_snr_gamma = ${s.advMinSnrGamma}`] : []),
+    ...(s.advClipSkip >= 1 ? [`clip_skip = ${Math.round(s.advClipSkip)}`] : []),
     'cache_latents = true',
     'cache_latents_to_disk = true',
     'cache_text_encoder_outputs = true',
     'cache_text_encoder_outputs_to_disk = true',
-    'attn_mode = "sdpa"',
+    `attn_mode = ${tomlStr(s.advAttn || 'sdpa')}`,
+    ...(s.advTorchCompile ? ['torch_compile = true'] : []),
+    ...(s.advBlocksToSwap > 0 ? [`blocks_to_swap = ${Math.round(s.advBlocksToSwap)}`] : []),
     'save_model_as = "safetensors"',
-    'save_precision = "bf16"',
-    'max_data_loader_n_workers = 4',
-    'vae_chunk_size = 32',
-    'vae_disable_cache = true',
-    `seed = ${Math.round(s.trainSeed)}`,
+    `save_precision = ${tomlStr(savePrec)}`,
+    `max_data_loader_n_workers = ${s.advDataloaderWorkers > 0 ? Math.round(s.advDataloaderWorkers) : 4}`,
+    `vae_chunk_size = ${vaeChunk}`,
+    `vae_disable_cache = ${vaeDisableCache ? 'true' : 'false'}`,
+    ...(s.advNoHalfVae ? ['no_half_vae = true'] : []),
     ''
   ];
   fs.writeFileSync(file, lines.join('\n'));
