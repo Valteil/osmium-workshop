@@ -34,6 +34,7 @@ import { tagSingleImageWithWd14 } from './wd14-tagger';
 import { setIconLabel, iconSvg } from './icons';
 import { ghostTagsFor, resweepAllEntries, restoreEntryFromRules, type GhostTag } from './canonical-tags';
 import { subjectPresets, upsertSubjectPreset, deleteSubjectPreset, subjectPresetById } from './subject-presets';
+import { openImageEditsModal } from './edit-log';
 
 export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
 export let viewMode: ViewMode = 'grid';
@@ -3369,6 +3370,12 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     if (!ok) return;
     await deleteEntryPermanentlyRef(entry);
   }, { title: 'Permanently delete this image and its tags from disk — cannot be undone', className: 'ctx-item-danger' });
+
+  // Read-only history: every logged edit that touched this image, newest first.
+  addContextMenuItem(menu, '📜 Show all edits associated with this image', () => {
+    closeTagContextMenu();
+    openImageEditsModal(entry);
+  }, { title: 'See every edit logged for this image' });
 
   // --- Text / language / comic / koma / speech bubble (draft, applied on demand) ---
   // Japanese and any number of foreign languages are independent, non-exclusive

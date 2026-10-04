@@ -2164,9 +2164,41 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .log-row .log-time{ font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); white-space: nowrap; }
   .log-row .log-type{ font-family: var(--mono); font-size: 10px; color: var(--accent-manual); text-transform: uppercase; letter-spacing: 0.4px; }
   .log-row .log-summary{ font-size: 12px; color: var(--text-primary); line-height: 1.4; }
-  .log-row .log-actions{ display: flex; gap: 8px; }
-  .log-row .log-actions button{ font-size: 11px; padding: 4px 9px; }
-  .log-empty{ color: var(--text-faint); font-size: 12px; padding: 12px 4px; text-align:center; }
+.log-row .log-actions{ display: flex; gap: 8px; }
+.log-row .log-actions button{ font-size: 11px; padding: 4px 9px; }
+/* "Image not found in Dataset": a stack item whose image is gone. */
+.log-missing-warn{ display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--accent-danger); }
+.log-missing-warn .ic{ width: 13px; height: 13px; }
+
+/* Log panel: the per-entry chevron that opens the edit-stack modal. */
+.log-row .log-stack-btn{ font-size: 11px; padding: 4px 9px; }
+
+/* Edit-stack modal (edit-log.ts openLogStackModal): every image in a log
+   entry, in processing order, each with its own undo/redo. */
+.log-stack-box{ max-width: min(680px, 94vw); }
+.log-stack-sub{ font-size: 12px; color: var(--text-muted); margin: -4px 0 10px; }
+.log-stack-list{ max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.log-stack-item{ display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--border-soft); border-radius: var(--r-panel); background: var(--bg-elevated); }
+.log-stack-item.missing{ border-color: color-mix(in srgb, var(--accent-danger) 50%, transparent); }
+.log-stack-order{ font-family: var(--mono); font-size: 11px; color: var(--text-faint); min-width: 22px; text-align: right; flex: none; }
+.log-stack-thumb{ width: 44px; height: 44px; flex: none; border-radius: var(--r-check, 4px); overflow: hidden; background: var(--bg-base); display: flex; align-items: center; justify-content: center; color: var(--accent-danger); }
+.log-stack-thumb.clickable{ cursor: pointer; }
+.log-stack-thumb.clickable:hover{ outline: 1px solid var(--accent-manual); }
+.log-stack-thumb img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.log-stack-info{ flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.log-stack-name{ font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-stack-actions{ display: flex; gap: 6px; flex: none; }
+.log-stack-actions button{ font-size: 11px; padding: 4px 9px; }
+/* Log panel toolbar (sort) + pagination. */
+.log-toolbar{ display: flex; align-items: center; gap: 8px; }
+.log-toolbar label{ font-size: 11px; color: var(--text-muted); }
+.log-toolbar select{ flex: 1; }
+.log-pager{ display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.log-pager .log-page{ min-width: 26px; padding: 3px 7px; font-size: 11px; font-family: var(--mono); background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border-soft); border-radius: var(--r-ctl, 5px); cursor: pointer; }
+.log-pager .log-page:hover{ color: var(--text-primary); border-color: var(--border-strong); }
+.log-pager .log-page.active{ color: var(--bg-base); background: var(--accent-manual); border-color: var(--accent-manual); }
+.log-pager .log-page-gap{ border-color: transparent; background: transparent; }
+.log-empty{ color: var(--text-faint); font-size: 12px; padding: 12px 4px; text-align:center; }
   .log-panel-actions{ display: flex; gap: 8px; }
   .log-panel-actions button{ flex: 1; font-size: 12px; }
 

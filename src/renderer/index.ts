@@ -73,7 +73,7 @@ import { initSubjectPresets, loadSubjectPresetsForFolder } from './subject-prese
 import { initBucketImages, ORIGINAL_DIR, mergeLegacyOriginals } from './bucket-images';
 import {
   markDirty, updateDirtyUI, recordChange, applyTagDirection, applyRenameDirection, applyPixelDirection, getIsolateState, updateUndoRedoButtons,
-  resetUndoRedo, moveEntry, initTagsEdit, undoStack, redoStack, addTagToEntry,
+  resetUndoRedo, moveEntry, initTagsEdit, undoStack, redoStack, addTagToEntry, resolveAffected,
   markRulesDirty, rulesDirty, resetRulesDirty, renameAllEntriesSequentially, saveAllDirty
 } from './tags-edit';
 import {
@@ -936,6 +936,12 @@ import { setIconLabel } from './icons';
   // deciding-and-stopping before the event ever reaches its target.
   document.addEventListener('click', (ev) => {
     if (!panelsCloseOnOutsideClick) return;
+    // A click inside an open modal/lightbox/picker is not "outside" the panel
+    // beneath it. Without this, closing the per-image edit-stack modal (or
+    // dismissing the lightbox a log row opened) also closed the Log panel.
+    const target = ev.target as Element | null;
+    if (target && typeof target.closest === 'function' &&
+        target.closest('.confirm-backdrop, .lightbox-backdrop, .picker-backdrop')) return;
     let closedAny = false;
     getOutsideClosablePanels().forEach(panel => {
       if (panel.style.display === 'flex' && !panel.contains(ev.target as Node) && !isClickInsideOwnedPdrop(panel, ev.target)){
@@ -1530,7 +1536,6 @@ import { setIconLabel } from './icons';
   // Edit log + Stats tab moved to ./edit-log.ts
   initEditLog({
     getDirHandle: () => dirHandle,
-    getEntryByBase: (base) => entryByBase.get(base),
     applyTagDirection: (affected, direction) => applyTagDirection(affected, direction),
     applyRenameDirection: (affected, direction) => applyRenameDirection(affected, direction),
     applyPixelDirection: (affected, direction) => applyPixelDirection(affected, direction),
@@ -1541,7 +1546,8 @@ import { setIconLabel } from './icons';
     checkAchievements: () => checkAchievements(),
     refreshAllUI: () => refreshAllUI(),
     getUndoStack: () => undoStack,
-    getRedoStack: () => redoStack
+    getRedoStack: () => redoStack,
+    resolveAffected: (a) => resolveAffected(a)
   });
 
   // Retroactive Merge/Void dock (right sidebar) moved to ./canonical-tags.ts

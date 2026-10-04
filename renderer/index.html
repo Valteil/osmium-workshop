@@ -1471,6 +1471,16 @@
 
   <div id="logPanel" class="theme-panel log-panel" style="display:none;">
     <div class="theme-panel-head" id="logPanelTitle">Edit log</div>
+    <div class="log-toolbar">
+      <label for="logSortSelect">Sort</label>
+      <select id="logSortSelect" title="Order the log entries">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="type-asc">Edit type (A–Z)</option>
+        <option value="type-desc">Edit type (Z–A)</option>
+      </select>
+    </div>
+    <div id="logPager" class="log-pager"></div>
     <div id="logList" class="log-list"></div>
     <div class="log-panel-actions">
       <button id="btnExportLog" title="Save the full edit log to a JSON file">Export log…</button>

@@ -16,6 +16,10 @@ import { applyCanonicalRules, registerMergeRule, registerVoidRule, findBlockingR
 
 export let undoStack: ChangeRecord[] = [];
 export let redoStack: ChangeRecord[] = [];
+// The undo/redo handlers await async appliers (pixel/isolate); without this a
+// second click during the await would pop another record and could push them
+// onto the opposite stack out of order.
+let undoRedoBusy = false;
 
 // Session-only pixel-edit payloads (crop/rotate), keyed by owning log entry
 // id. multi-MB by nature — deliberately NOT part of any persisted shape
@@ -51,24 +55,21 @@ export function getIsolateState(id: number): IsolateState | undefined {
 }
 
 export function recordIsolateChange(summary: string, base: string, state: IsolateState): void {
-  const affected: EditLogAffected[] = [{ base }];
-  const logEntry = pushLogEntry({ type: 'isolate-image', summary, affected });
-  affected[0].logId = logEntry.id;
+  // pushLogEntry owns its own copy of affected now, so point at the log row's
+  // copy; the global undo record gets an independent row carrying the same id.
+  const logEntry = pushLogEntry({ type: 'isolate-image', summary, affected: [{ base }] });
+  logEntry.affected[0].logId = logEntry.id;
   isolateStates.set(logEntry.id, state);
-  undoStack.push({ type: 'isolate-image', summary, affected });
+  undoStack.push({ type: 'isolate-image', summary, affected: [{ base, logId: logEntry.id }] });
   redoStack = [];
   updateUndoRedoButtons();
 }
 
 export function recordPixelChange(type: string, summary: string, base: string, state: PixelState): void {
-  const affected: EditLogAffected[] = [{ base }];
-  const logEntry = pushLogEntry({ type, summary, affected });
-  // Same array/object refs the log entry holds (pushLogEntry keeps the
-  // passed affected array), so this tiny pointer persists with it — set
-  // synchronously here, before saveEditLog's awaits serialize anything.
-  affected[0].logId = logEntry.id;
+  const logEntry = pushLogEntry({ type, summary, affected: [{ base }] });
+  logEntry.affected[0].logId = logEntry.id;
   pixelStates.set(logEntry.id, state);
-  undoStack.push({ type, summary, affected });
+  undoStack.push({ type, summary, affected: [{ base, logId: logEntry.id }] });
   redoStack = [];
   updateUndoRedoButtons();
 }
@@ -264,7 +265,10 @@ export function removeAllTagsFromEntry(entry: Entry): void {
 }
 
 export function recordChange(type: string, summary: string, affected: EditLogAffected[], extra: Record<string, unknown> = {}): ChangeRecord {
-  const record = { type, summary, affected, ...extra };
+  // The undo/redo record and the log entry must not share one mutable array
+  // with each other or with the caller — a later mutation to one would
+  // silently rewrite the others. Each keeps its own copy.
+  const record = { type, summary, affected: affected.map((a) => ({ ...a })), ...extra };
   undoStack.push(record);
   redoStack = [];
   updateUndoRedoButtons();
@@ -278,6 +282,14 @@ export function recordChange(type: string, summary: string, affected: EditLogAff
 function entryForAffected(a: EditLogAffected): Entry | undefined {
   if (a.original) return getEntries().find(e => e.original && e.base === a.base);
   return getEntryByBase(a.base);
+}
+
+// Resolve an affected row to its loaded image, or undefined when the image is
+// gone. The Log panel's per-image stack modal greys out a missing image's own
+// undo/redo and shows "Image not found in Dataset". Same resolution the
+// appliers use.
+export function resolveAffected(a: EditLogAffected): Entry | undefined {
+  return entryForAffected(a);
 }
 
 export function applyTagDirection(affected: EditLogAffected[], direction: string): number {
@@ -647,43 +659,68 @@ export function initTagsEdit(deps: TagsEditDeps): void {
   applyFlaggedReviewDirectionRef = deps.applyFlaggedReviewDirection;
 
   btnUndo.addEventListener('click', async () => {
+    if (undoRedoBusy) return;
     const record = undoStack.pop();
     if (!record) return;
-    const count = PIXEL_TYPES.has(record.type)
-      ? await applyPixelDirection(record.affected, 'undo')
-      : ISOLATE_TYPES.has(record.type)
-        ? await applyIsolateDirectionRef(record.affected, 'undo')
-        : REVIEW_TYPES.has(record.type)
-          ? applyFlaggedReviewDirectionRef(record.affected, 'undo')
-          : applyTagDirection(record.affected, 'undo');
-    redoStack.push(record);
-    updateUndoRedoButtons();
-    const summary = `Undid: ${record.summary}`;
-    toast(count > 0 ? summary : 'Nothing to undo on the currently loaded images.');
-    pushLogEntry({ type: 'undo', summary, affected: record.affected });
-    trackStat('undos');
-    refreshAllUIRef();
-    checkAchievements();
+    undoRedoBusy = true;
+    try {
+      const count = PIXEL_TYPES.has(record.type)
+        ? await applyPixelDirection(record.affected, 'undo')
+        : ISOLATE_TYPES.has(record.type)
+          ? await applyIsolateDirectionRef(record.affected, 'undo')
+          : REVIEW_TYPES.has(record.type)
+            ? applyFlaggedReviewDirectionRef(record.affected, 'undo')
+            : applyTagDirection(record.affected, 'undo');
+      if (count === 0){
+        // Nothing on the loaded images reverted: leave the record on the stack
+        // and don't log a phantom "Undid" entry or bump the stats — the log
+        // and Undo depth must only reflect edits that actually happened.
+        undoStack.push(record);
+        toast('Nothing to undo on the currently loaded images.');
+        return;
+      }
+      redoStack.push(record);
+      updateUndoRedoButtons();
+      const summary = `Undid: ${record.summary}`;
+      toast(summary);
+      pushLogEntry({ type: 'undo', summary, affected: record.affected });
+      trackStat('undos');
+      refreshAllUIRef();
+      checkAchievements();
+    } finally {
+      undoRedoBusy = false;
+    }
   });
 
   btnRedo.addEventListener('click', async () => {
+    if (undoRedoBusy) return;
     const record = redoStack.pop();
     if (!record) return;
-    const count = PIXEL_TYPES.has(record.type)
-      ? await applyPixelDirection(record.affected, 'redo')
-      : ISOLATE_TYPES.has(record.type)
-        ? await applyIsolateDirectionRef(record.affected, 'redo')
-        : REVIEW_TYPES.has(record.type)
-          ? applyFlaggedReviewDirectionRef(record.affected, 'redo')
-          : applyTagDirection(record.affected, 'redo');
-    undoStack.push(record);
-    updateUndoRedoButtons();
-    const summary = `Redid: ${record.summary}`;
-    toast(count > 0 ? summary : 'Nothing to redo on the currently loaded images.');
-    pushLogEntry({ type: 'redo', summary, affected: record.affected });
-    trackStat('redos');
-    refreshAllUIRef();
-    checkAchievements();
+    undoRedoBusy = true;
+    try {
+      const count = PIXEL_TYPES.has(record.type)
+        ? await applyPixelDirection(record.affected, 'redo')
+        : ISOLATE_TYPES.has(record.type)
+          ? await applyIsolateDirectionRef(record.affected, 'redo')
+          : REVIEW_TYPES.has(record.type)
+            ? applyFlaggedReviewDirectionRef(record.affected, 'redo')
+            : applyTagDirection(record.affected, 'redo');
+      if (count === 0){
+        redoStack.push(record);
+        toast('Nothing to redo on the currently loaded images.');
+        return;
+      }
+      undoStack.push(record);
+      updateUndoRedoButtons();
+      const summary = `Redid: ${record.summary}`;
+      toast(summary);
+      pushLogEntry({ type: 'redo', summary, affected: record.affected });
+      trackStat('redos');
+      refreshAllUIRef();
+      checkAchievements();
+    } finally {
+      undoRedoBusy = false;
+    }
   });
 
   btnSave.addEventListener('click', () => saveAllDirty());

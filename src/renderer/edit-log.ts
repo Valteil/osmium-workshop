@@ -2,16 +2,24 @@ import type { EditLogEntry, EditLogAffected, Entry, DirHandle, ChangeRecord } fr
 import { hasSaveFilePicker, pickSaveFile, writeBytes } from './fs-access';
 import {
   btnLog, logPanel, logPanelTitle, logList, btnExportLog, btnClearLog, logCloseBtn,
+  logSortSelect, logPager,
   favoritesPanel, achievementsPanel, shopPanel, tagDetailsPanel,
   statsChartWrap, statsLegend, statsTotals, statsViewPie, statsViewBar
 } from './dom';
-import { toast, showPanel, hidePanel, showConfirmModal } from './shared-ui';
+import { toast, showPanel, hidePanel, showConfirmModal, showPromptModal, createModalShell, showImageLightbox } from './shared-ui';
 import { folderUnlocked } from './achievements';
-import { setIconLabel } from './icons';
+import { setIconLabel, iconSvg } from './icons';
 
 export let editLog: EditLogEntry[] = [];
 export let logIdCounter = 1;
 let statsChartMode: 'pie' | 'bar' = 'pie';
+
+// Log-panel view state. `editLog` itself stays append-order (oldest first);
+// ordering is applied per render and never mutates the log.
+type LogSort = 'newest' | 'oldest' | 'type-asc' | 'type-desc';
+let logSort: LogSort = 'newest';
+let logPage = 1;
+const LOG_PAGE_SIZE = 25;
 
 // Pixel-edit log types (crop/rotate). Byte payloads live in tags-edit.ts's
 // session-only pixelStates map keyed by log entry id — the persisted entries
@@ -30,11 +38,17 @@ export const ISOLATE_TYPES = new Set(['isolate-image']);
 // the same way and shares the applier.
 export const REVIEW_TYPES = new Set(['unflag-review', 'ghost-remove']);
 
+// The remaining action-bearing types. Every one of these opens the per-image
+// stack modal (a log entry is never undone/redone as one bundled batch):
+// tag-content swaps / single-entry disable-restore / batch file renames.
+const TAG_TYPES = new Set(['add-tag', 'remove-tag', 'merge', 'void', 'rename', 'find-replace', 'reset-edits', 'unmerge', 'unvoid']);
+const MOVE_TYPES = new Set(['disable', 'restore']);
+const RENAME_TYPES = new Set(['rename-files']);
+
 const LOG_FILE_NAME = '_tag_edit_log.json';
 
 interface EditLogDeps {
   getDirHandle: () => DirHandle | null;
-  getEntryByBase: (base: string) => Entry | undefined;
   applyTagDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => number;
   applyRenameDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
   applyPixelDirection: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number>;
@@ -46,10 +60,13 @@ interface EditLogDeps {
   refreshAllUI: () => void;
   getUndoStack: () => ChangeRecord[];
   getRedoStack: () => ChangeRecord[];
+  // Resolve an affected row to its loaded image, or undefined when the image
+  // is gone (tags-edit.ts entryForAffected). The stack modal greys out a
+  // missing image's own undo/redo and shows "Image not found in Dataset".
+  resolveAffected: (a: EditLogAffected) => Entry | undefined;
 }
 
 let getDirHandle: () => DirHandle | null = () => null;
-let getEntryByBase: (base: string) => Entry | undefined = () => undefined;
 let applyTagDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => number = () => 0;
 let applyRenameDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
 let applyPixelDirectionRef: (affected: EditLogAffected[], direction: 'undo' | 'redo') => Promise<number> = async () => 0;
@@ -61,6 +78,7 @@ let checkAchievementsRef: () => void = () => {};
 let refreshAllUIRef: () => void = () => {};
 let getUndoStack: () => ChangeRecord[] = () => [];
 let getRedoStack: () => ChangeRecord[] = () => [];
+let resolveAffected: (a: EditLogAffected) => Entry | undefined = () => undefined;
 
 export function pushLogEntry(partial: { type: string; summary: string; affected?: EditLogAffected[] }): EditLogEntry {
   const entry: EditLogEntry = {
@@ -69,7 +87,11 @@ export function pushLogEntry(partial: { type: string; summary: string; affected?
     ts: Date.now(),
     type: partial.type,
     summary: partial.summary,
-    affected: partial.affected || []
+    // Own a copy of every affected row: callers (and the undo/redo stacks)
+    // keep their own references, and undo/redo log entries reuse the source
+    // record's array — sharing one mutable object across all of them meant a
+    // single later mutation would silently rewrite history everywhere.
+    affected: (partial.affected || []).map((a) => ({ ...a }))
   };
   editLog.push(entry);
   updateLogButton();
@@ -78,14 +100,45 @@ export function pushLogEntry(partial: { type: string; summary: string; affected?
   return entry;
 }
 
-export async function saveEditLog(): Promise<void> {
+// Autosave is fire-and-forget and called on every push, so it coalesces and
+// serializes: only one write runs at a time (Chromium's createWritable() is
+// exclusive — a concurrent second call rejects and the old empty catch
+// swallowed it, so the newest entries could fail to reach disk), and per
+// folder only the newest snapshot is kept (each write is the WHOLE log, so
+// intermediate snapshots are redundant). Handle + snapshot are captured
+// synchronously at call time, keyed by folder, so a mid-write folder switch
+// neither redirects one folder's log into another's file nor drops the
+// folder it switched away from.
+let logSaveInFlight = false;
+const pendingLogSaves = new Map<DirHandle, string>();
+
+export function saveEditLog(): void {
   const dirHandle = getDirHandle();
   if (!dirHandle) return;
+  let data: string;
+  try { data = JSON.stringify(editLog, null, 2); } catch { return; }
+  pendingLogSaves.set(dirHandle, data);
+  void flushLogSave();
+}
+
+async function flushLogSave(): Promise<void> {
+  if (logSaveInFlight) return;
+  logSaveInFlight = true;
   try {
-    const handle = await dirHandle.getFileHandle(LOG_FILE_NAME, { create: true });
-    await writeBytes(handle, JSON.stringify(editLog, null, 2));
-  } catch {
-    // best-effort autosave
+    while (pendingLogSaves.size) {
+      const next = pendingLogSaves.entries().next();
+      if (next.done) break;
+      const [dirHandle, data] = next.value;
+      pendingLogSaves.delete(dirHandle);
+      try {
+        const handle = await dirHandle.getFileHandle(LOG_FILE_NAME, { create: true });
+        await writeBytes(handle, data);
+      } catch {
+        // best-effort autosave
+      }
+    }
+  } finally {
+    logSaveInFlight = false;
   }
 }
 
@@ -118,6 +171,19 @@ function formatLogTime(ts: number): string {
   try { return new Date(ts).toLocaleString(); } catch { return ''; }
 }
 
+// A log row's "Show affected image" chevron, opening the image in the same
+// fullscreen lightbox every other image surface uses. Returns null when the
+// image is gone (or has no preview) — nothing to show, so no control.
+function affectedImageButton(entry: Entry | undefined): HTMLButtonElement | null {
+  if (!entry || !entry.objectUrl) return null;
+  const btn = document.createElement('button');
+  btn.className = 'log-show-image-btn';
+  btn.title = 'Show the image this edit affected in the lightbox';
+  setIconLabel(btn, '▸ Show affected image');
+  btn.addEventListener('click', () => showImageLightbox(entry.objectUrl));
+  return btn;
+}
+
 // ---------------- Editing Stats tab (charts) ----------------
 
 const STAT_CHART_COLORS: Record<string, string> = {
@@ -125,7 +191,8 @@ const STAT_CHART_COLORS: Record<string, string> = {
   'rename': '#7fbf8f', 'find-replace': '#a683e0', 'disable': '#8a6f57', 'restore': '#4fae7a',
   'undo': '#9791a6', 'redo': '#6b6578', 'unmerge': '#d9b35c', 'unvoid': '#5cb9a8', 'rule-update': '#8a8fd9',
   'delete': '#c1443c', 'rename-files': '#4a9fd1', 'crop-image': '#3aa655', 'rotate-image': '#7a9fd1',
-  'isolate-image': '#b57edc', 'unflag-review': '#e8a33d', 'ghost-remove': '#9791a6', 'rule-sweep': '#b98fd6'
+  'isolate-image': '#b57edc', 'unflag-review': '#e8a33d', 'ghost-remove': '#9791a6', 'rule-sweep': '#b98fd6',
+  'reset-edits': '#c98ed6'
 };
 const STAT_TYPE_LABEL: Record<string, string> = {
   'add-tag': 'Tags added', 'remove-tag': 'Tags removed', 'merge': 'Merges', 'void': 'Voids',
@@ -135,13 +202,17 @@ const STAT_TYPE_LABEL: Record<string, string> = {
   'crop-image': 'Crops', 'rotate-image': 'Rotates', 'isolate-image': 'Isolates',
   'unflag-review': 'Review flags cleared',
   'ghost-remove': 'Past tags deleted',
-  'rule-sweep': 'Rules applied'
+  'rule-sweep': 'Rules applied',
+  'reset-edits': 'Resets'
 };
 
 function computeStatsBreakdown(): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const entry of editLog) {
-    if (!(entry.type in STAT_TYPE_LABEL)) continue;
+    // hasOwnProperty, not `in`: `in` walks the prototype chain, so a
+    // hand-edited/shared _tag_edit_log.json with type "constructor" would
+    // otherwise pass and leak an inherited function as the label/color.
+    if (!Object.prototype.hasOwnProperty.call(STAT_TYPE_LABEL, entry.type)) continue;
     counts[entry.type] = (counts[entry.type] || 0) + 1;
   }
   return counts;
@@ -256,15 +327,17 @@ export function renderLogPanel(): void {
   const dirHandle = getDirHandle();
   logPanelTitle.textContent = dirHandle ? `Edit log — ${dirHandle.name}` : 'Edit log';
   logList.innerHTML = '';
+  logPager.innerHTML = '';
   if (editLog.length === 0) {
     logList.innerHTML = '<div class="log-empty">No edits logged yet for this folder.</div>';
     return;
   }
-  const TAG_TYPES = new Set(['add-tag', 'remove-tag', 'merge', 'void', 'rename', 'find-replace', 'reset-edits', 'unmerge', 'unvoid']);
-  const MOVE_TYPES = new Set(['disable', 'restore']);
-  const RENAME_TYPES = new Set(['rename-files']);
-  const recent = editLog.slice(-150).reverse();
-  for (const logEntry of recent) {
+  const ordered = orderedLog();
+  const totalPages = Math.max(1, Math.ceil(ordered.length / LOG_PAGE_SIZE));
+  if (logPage > totalPages) logPage = totalPages;
+  if (logPage < 1) logPage = 1;
+  const pageEntries = ordered.slice((logPage - 1) * LOG_PAGE_SIZE, logPage * LOG_PAGE_SIZE);
+  for (const logEntry of pageEntries) {
     const row = document.createElement('div');
     row.className = 'log-row';
 
@@ -286,185 +359,350 @@ export function renderLogPanel(): void {
     row.appendChild(meta);
     row.appendChild(summary);
 
-    if (TAG_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
+    // Action-bearing entries: a single-image edit keeps the standard inline
+    // Undo/Redo pair (greyed, with a warning, when its image is gone). A bulk
+    // edit is never bundled — a chevron opens the per-image stack modal.
+    if (logEntry.affected && logEntry.affected.length && logEntryHasActions(logEntry)) {
       const actions = document.createElement('div');
       actions.className = 'log-actions';
-      const undoBtn = document.createElement('button');
-      setIconLabel(undoBtn, '↩ Undo this');
-      undoBtn.addEventListener('click', () => applyLogEntryDirection(logEntry, 'undo'));
-      const redoBtn = document.createElement('button');
-      setIconLabel(redoBtn, '↪ Redo this');
-      redoBtn.className = 'primary';
-      redoBtn.addEventListener('click', () => applyLogEntryDirection(logEntry, 'redo'));
-      actions.appendChild(undoBtn);
-      actions.appendChild(redoBtn);
-      row.appendChild(actions);
-    } else if (MOVE_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
-      const actions = document.createElement('div');
-      actions.className = 'log-actions';
-      const toggleBtn = document.createElement('button');
-      toggleBtn.textContent = logEntry.type === 'disable' ? 'Restore image' : 'Disable image again';
-      toggleBtn.className = 'primary';
-      toggleBtn.addEventListener('click', () => toggleMoveLogEntry(logEntry));
-      actions.appendChild(toggleBtn);
-      row.appendChild(actions);
-    } else if (RENAME_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
-      const actions = document.createElement('div');
-      actions.className = 'log-actions';
-      const undoBtn = document.createElement('button');
-      setIconLabel(undoBtn, '↩ Undo this');
-      undoBtn.addEventListener('click', () => applyRenameLogEntryDirection(logEntry, 'undo'));
-      const redoBtn = document.createElement('button');
-      setIconLabel(redoBtn, '↪ Redo this');
-      redoBtn.className = 'primary';
-      redoBtn.addEventListener('click', () => applyRenameLogEntryDirection(logEntry, 'redo'));
-      actions.appendChild(undoBtn);
-      actions.appendChild(redoBtn);
-      row.appendChild(actions);
-    } else if (PIXEL_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
-      const actions = document.createElement('div');
-      actions.className = 'log-actions';
-      const undoBtn = document.createElement('button');
-      setIconLabel(undoBtn, '↩ Undo this');
-      undoBtn.addEventListener('click', () => applyPixelLogEntryDirection(logEntry, 'undo'));
-      const redoBtn = document.createElement('button');
-      setIconLabel(redoBtn, '↪ Redo this');
-      redoBtn.className = 'primary';
-      redoBtn.addEventListener('click', () => applyPixelLogEntryDirection(logEntry, 'redo'));
-      actions.appendChild(undoBtn);
-      actions.appendChild(redoBtn);
-      row.appendChild(actions);
-    } else if (ISOLATE_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
-      const actions = document.createElement('div');
-      actions.className = 'log-actions';
-      const undoBtn = document.createElement('button');
-      setIconLabel(undoBtn, '↩ Undo this');
-      undoBtn.addEventListener('click', () => applyIsolateLogEntryDirection(logEntry, 'undo'));
-      const redoBtn = document.createElement('button');
-      setIconLabel(redoBtn, '↪ Redo this');
-      redoBtn.className = 'primary';
-      redoBtn.addEventListener('click', () => applyIsolateLogEntryDirection(logEntry, 'redo'));
-      actions.appendChild(undoBtn);
-      actions.appendChild(redoBtn);
-      row.appendChild(actions);
-    } else if (REVIEW_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
-      const actions = document.createElement('div');
-      actions.className = 'log-actions';
-      const undoBtn = document.createElement('button');
-      setIconLabel(undoBtn, '↩ Undo this');
-      undoBtn.addEventListener('click', () => applyReviewLogEntryDirection(logEntry, 'undo'));
-      const redoBtn = document.createElement('button');
-      setIconLabel(redoBtn, '↪ Redo this');
-      redoBtn.className = 'primary';
-      redoBtn.addEventListener('click', () => applyReviewLogEntryDirection(logEntry, 'redo'));
-      actions.appendChild(undoBtn);
-      actions.appendChild(redoBtn);
-      row.appendChild(actions);
+      if (logEntry.affected.length === 1) {
+        const a = logEntry.affected[0];
+        const entry = resolveAffected(a);
+        if (MOVE_TYPES.has(logEntry.type)) {
+          const toggleBtn = document.createElement('button');
+          toggleBtn.textContent = logEntry.type === 'disable' ? 'Restore image' : 'Disable image again';
+          toggleBtn.className = 'primary';
+          toggleBtn.disabled = !entry;
+          toggleBtn.addEventListener('click', async () => {
+            if (!entry) return;
+            toggleBtn.disabled = true;
+            await toggleAffectedMove(logEntry, entry);
+            renderLogPanel();
+          });
+          actions.appendChild(toggleBtn);
+        } else {
+          const undoBtn = document.createElement('button');
+          setIconLabel(undoBtn, '↩ Undo this');
+          undoBtn.disabled = !entry;
+          undoBtn.addEventListener('click', () => { void runAffected(logEntry, a, 'undo', () => {}); });
+          const redoBtn = document.createElement('button');
+          setIconLabel(redoBtn, '↪ Redo this');
+          redoBtn.className = 'primary';
+          redoBtn.disabled = !entry;
+          redoBtn.addEventListener('click', () => { void runAffected(logEntry, a, 'redo', () => {}); });
+          actions.appendChild(undoBtn);
+          actions.appendChild(redoBtn);
+        }
+        const showImg = affectedImageButton(entry);
+        if (showImg) actions.insertBefore(showImg, actions.firstChild);
+        row.appendChild(actions);
+        if (!entry){
+          const warn = document.createElement('div');
+          warn.className = 'log-missing-warn';
+          setIconLabel(warn, '⚠️ Image not found in Dataset');
+          row.appendChild(warn);
+        }
+      } else {
+        const chevron = document.createElement('button');
+        chevron.className = 'log-stack-btn';
+        chevron.title = 'Show each image in this edit and undo/redo them individually';
+        setIconLabel(chevron, `▸ ${logEntry.affected.length} images`);
+        chevron.addEventListener('click', () => openLogStackModal(logEntry));
+        actions.appendChild(chevron);
+        row.appendChild(actions);
+      }
     }
 
     logList.appendChild(row);
   }
-  if (editLog.length > 150) {
-    const note = document.createElement('div');
-    note.className = 'log-empty';
-    note.textContent = `Showing the latest 150 of ${editLog.length} entries — the rest are still in ${LOG_FILE_NAME}.`;
-    logList.appendChild(note);
+  renderPager(totalPages);
+}
+
+// A view of the log, ordered by the current sort. Never mutates editLog
+// (append-order = oldest first). Type sorts use the human STAT_TYPE_LABEL so
+// entries group by what the edit actually was (tagging, pruning, voiding, …);
+// within a type, newest-first (`b.id - a.id`) is always the tie-break.
+function orderedLog(): EditLogEntry[] {
+  const arr = editLog.slice();
+  const label = (t: string): string => STAT_TYPE_LABEL[t] || t;
+  switch (logSort){
+    case 'oldest':
+      return arr;
+    case 'type-asc':
+      return arr.sort((a, b) => label(a.type).localeCompare(label(b.type)) || b.id - a.id);
+    case 'type-desc':
+      return arr.sort((a, b) => label(b.type).localeCompare(label(a.type)) || b.id - a.id);
+    case 'newest':
+    default:
+      return arr.reverse();
   }
 }
 
-function applyLogEntryDirection(logEntry: EditLogEntry, direction: 'undo' | 'redo'): void {
-  const count = applyTagDirectionRef(logEntry.affected, direction);
-  if (count === 0) { toast('None of the affected images are in the loaded dataset anymore.'); return; }
-  const verb = direction === 'undo' ? 'Undid' : 'Redid';
-  pushLogEntry({
-    type: direction,
-    summary: `${verb} (from log): ${logEntry.summary}`,
-    affected: logEntry.affected
-  });
-  trackStatRef(direction === 'undo' ? 'undos' : 'redos');
-  toast(`${verb} that edit.`);
-  refreshAllUIRef();
-  renderLogPanel();
-  checkAchievementsRef();
+// Page buttons: 1..5, then "…", then the last page — the window slides so the
+// current page is always among the five; "…" (a gap) opens a jump-to-page
+// prompt. At most 7 buttons. -1 marks a gap.
+function pagerPages(total: number, current: number): number[] {
+  if (total <= 7){
+    const all: number[] = [];
+    for (let p = 1; p <= total; p++) all.push(p);
+    return all;
+  }
+  const start = Math.min(Math.max(current - 2, 1), total - 4);
+  const pages: number[] = [];
+  if (start > 1){
+    pages.push(1);
+    if (start > 2) pages.push(-1);
+  }
+  for (let p = start; p < start + 5; p++) pages.push(p);
+  if (start + 4 < total){
+    if (start + 4 < total - 1) pages.push(-1);
+    pages.push(total);
+  }
+  return pages;
 }
 
-async function applyRenameLogEntryDirection(logEntry: EditLogEntry, direction: 'undo' | 'redo'): Promise<void> {
-  const count = await applyRenameDirectionRef(logEntry.affected, direction);
-  if (count === 0) { toast('None of the affected images are in the loaded dataset anymore.'); return; }
-  const verb = direction === 'undo' ? 'Undid' : 'Redid';
-  pushLogEntry({
-    type: direction,
-    summary: `${verb} (from log): ${logEntry.summary}`,
-    affected: logEntry.affected
-  });
-  trackStatRef(direction === 'undo' ? 'undos' : 'redos');
-  toast(`${verb} ${count} of ${logEntry.affected.length} rename(s).`);
-  refreshAllUIRef();
-  renderLogPanel();
-  checkAchievementsRef();
+function renderPager(totalPages: number): void {
+  logPager.innerHTML = '';
+  if (totalPages <= 1) return;
+  for (const p of pagerPages(totalPages, logPage)){
+    const btn = document.createElement('button');
+    if (p === -1){
+      btn.className = 'log-page log-page-gap';
+      btn.textContent = '…';
+      btn.title = 'Jump to page';
+      btn.addEventListener('click', () => { void jumpToLogPage(totalPages); });
+    } else {
+      btn.className = 'log-page' + (p === logPage ? ' active' : '');
+      btn.textContent = String(p);
+      btn.title = `Page ${p}`;
+      btn.addEventListener('click', () => { logPage = p; renderLogPanel(); });
+    }
+    logPager.appendChild(btn);
+  }
 }
 
-async function applyPixelLogEntryDirection(logEntry: EditLogEntry, direction: 'undo' | 'redo'): Promise<void> {
-  const count = await applyPixelDirectionRef(logEntry.affected, direction);
-  if (count === 0) { toast('That image edit can no longer be restored (it was from an earlier session, or the image is gone).'); return; }
-  const verb = direction === 'undo' ? 'Undid' : 'Redid';
-  pushLogEntry({
-    type: direction,
-    summary: `${verb} (from log): ${logEntry.summary}`,
-    affected: logEntry.affected
-  });
-  trackStatRef(direction === 'undo' ? 'undos' : 'redos');
-  toast(`${verb} that edit.`);
-  refreshAllUIRef();
+async function jumpToLogPage(totalPages: number): Promise<void> {
+  const v = await showPromptModal(`Jump to page (1–${totalPages})`, { okLabel: 'Go', value: String(logPage) });
+  if (v == null) return;
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n)) return;
+  const next = Math.min(totalPages, Math.max(1, n));
+  if (next === logPage) return;
+  logPage = next;
   renderLogPanel();
-  checkAchievementsRef();
 }
 
-async function applyIsolateLogEntryDirection(logEntry: EditLogEntry, direction: 'undo' | 'redo'): Promise<void> {
-  const count = await applyIsolateDirectionRef(logEntry.affected, direction);
-  if (count === 0) { toast('That isolated image can no longer be restored (it was from an earlier session, or the file is gone).'); return; }
-  const verb = direction === 'undo' ? 'Undid' : 'Redid';
-  pushLogEntry({
-    type: direction,
-    summary: `${verb} (from log): ${logEntry.summary}`,
-    affected: logEntry.affected
-  });
-  trackStatRef(direction === 'undo' ? 'undos' : 'redos');
-  toast(`${verb} that edit.`);
-  refreshAllUIRef();
-  renderLogPanel();
-  checkAchievementsRef();
+type LogDirection = 'undo' | 'redo';
+
+// Which entries open the per-image stack modal.
+function logEntryHasActions(logEntry: EditLogEntry): boolean {
+  return TAG_TYPES.has(logEntry.type) || MOVE_TYPES.has(logEntry.type) ||
+    RENAME_TYPES.has(logEntry.type) || PIXEL_TYPES.has(logEntry.type) ||
+    ISOLATE_TYPES.has(logEntry.type) || REVIEW_TYPES.has(logEntry.type);
 }
 
-function applyReviewLogEntryDirection(logEntry: EditLogEntry, direction: 'undo' | 'redo'): void {
-  const count = applyFlaggedReviewDirectionRef(logEntry.affected, direction);
-  if (count === 0) { toast('None of the affected images are in the loaded dataset anymore.'); return; }
-  const verb = direction === 'undo' ? 'Undid' : 'Redid';
-  pushLogEntry({
-    type: direction,
-    summary: `${verb} (from log): ${logEntry.summary}`,
-    affected: logEntry.affected
-  });
-  trackStatRef(direction === 'undo' ? 'undos' : 'redos');
-  toast(`${verb} that edit.`);
-  refreshAllUIRef();
-  renderLogPanel();
-  checkAchievementsRef();
+// Apply one direction to ONE affected row. A whole log entry is never applied
+// as a bundle — openLogStackModal() splits it into per-image actions.
+async function applyAffectedDirection(logEntry: EditLogEntry, a: EditLogAffected, direction: LogDirection): Promise<number> {
+  const one = [a];
+  if (PIXEL_TYPES.has(logEntry.type)) return applyPixelDirectionRef(one, direction);
+  if (ISOLATE_TYPES.has(logEntry.type)) return applyIsolateDirectionRef(one, direction);
+  if (REVIEW_TYPES.has(logEntry.type)) return applyFlaggedReviewDirectionRef(one, direction);
+  if (RENAME_TYPES.has(logEntry.type)) return applyRenameDirectionRef(one, direction);
+  return applyTagDirectionRef(one, direction);
 }
 
-async function toggleMoveLogEntry(logEntry: EditLogEntry): Promise<void> {
-  const base = logEntry.affected[0]?.base;
-  const e = base ? getEntryByBase(base) : null;
-  if (!e) { toast('That image is no longer in the loaded dataset.'); return; }
+// Move/Restore is a toggle, not a tag swap: a 'disable' entry restores, a
+// 'restore' entry disables again.
+async function toggleAffectedMove(logEntry: EditLogEntry, e: Entry): Promise<void> {
   const shouldBeDisabled = logEntry.type !== 'disable';
   if (e.disabled === shouldBeDisabled) { toast('Already in that state.'); return; }
   await moveEntryRef(e, shouldBeDisabled);
+}
+
+// Run one per-image action, log/stat it, then refresh the panel and the open
+// modal.
+async function runAffected(logEntry: EditLogEntry, a: EditLogAffected, direction: LogDirection, after: () => void): Promise<void> {
+  const count = await applyAffectedDirection(logEntry, a, direction);
+  // A missing image's buttons are disabled, so a 0 here means the edit's own
+  // data is gone (e.g. a pixel/isolate edit's session-only before/after bytes).
+  if (count === 0){ toast('That edit can no longer be applied.'); return; }
+  const verb = direction === 'undo' ? 'Undid' : 'Redid';
+  pushLogEntry({ type: direction, summary: `${verb} (from log): ${logEntry.summary}`, affected: [a] });
+  trackStatRef(direction === 'undo' ? 'undos' : 'redos');
+  toast(`${verb} that edit.`);
+  refreshAllUIRef();
   renderLogPanel();
+  after();
+  checkAchievementsRef();
+}
+
+// The per-image stack modal: every affected image in processing order, each
+// with its own undo/redo (disabled, with a warning, when that image is gone).
+function openLogStackModal(logEntry: EditLogEntry): void {
+  const { box, close } = createModalShell({ boxClassName: 'log-stack-box' });
+
+  const head = document.createElement('div');
+  head.className = 'info-modal-title';
+  head.textContent = `Edit stack — ${logEntry.type}`;
+  box.appendChild(head);
+
+  const sub = document.createElement('div');
+  sub.className = 'log-stack-sub';
+  sub.textContent = logEntry.summary;
+  box.appendChild(sub);
+
+  const list = document.createElement('div');
+  list.className = 'log-stack-list';
+  box.appendChild(list);
+
+  function renderItems(): void {
+    list.innerHTML = '';
+    logEntry.affected.forEach((a, i) => {
+      const entry = resolveAffected(a);
+      const item = document.createElement('div');
+      item.className = 'log-stack-item' + (entry ? '' : ' missing');
+
+      const order = document.createElement('span');
+      order.className = 'log-stack-order';
+      order.textContent = String(i + 1);
+      item.appendChild(order);
+
+      const thumb = document.createElement('div');
+      thumb.className = 'log-stack-thumb';
+      if (entry && entry.objectUrl){
+        const img = document.createElement('img');
+        img.src = entry.objectUrl;
+        img.alt = '';
+        img.loading = 'lazy';
+        thumb.appendChild(img);
+        // The thumbnail is the affected image itself — let it open the same
+        // fullscreen lightbox for a bigger look. A missing image keeps the
+        // alert icon and no handler (nothing to show).
+        thumb.classList.add('clickable');
+        thumb.title = 'Show this image in the lightbox';
+        thumb.addEventListener('click', () => showImageLightbox(entry.objectUrl));
+      } else {
+        thumb.innerHTML = iconSvg('alert');
+      }
+      item.appendChild(thumb);
+
+      const info = document.createElement('div');
+      info.className = 'log-stack-info';
+      const name = document.createElement('div');
+      name.className = 'log-stack-name';
+      name.textContent = (entry && (entry.imgName || entry.base)) || a.base;
+      info.appendChild(name);
+      if (!entry){
+        const warn = document.createElement('div');
+        warn.className = 'log-missing-warn';
+        setIconLabel(warn, '⚠️ Image not found in Dataset');
+        info.appendChild(warn);
+      }
+      item.appendChild(info);
+
+      const btns = document.createElement('div');
+      btns.className = 'log-stack-actions';
+      if (MOVE_TYPES.has(logEntry.type)){
+        const toggleBtn = document.createElement('button');
+        toggleBtn.textContent = logEntry.type === 'disable' ? 'Restore image' : 'Disable image again';
+        toggleBtn.className = 'primary';
+        toggleBtn.disabled = !entry;
+        toggleBtn.addEventListener('click', async () => {
+          if (!entry) return;
+          toggleBtn.disabled = true;
+          await toggleAffectedMove(logEntry, entry);
+          renderLogPanel();
+          renderItems();
+        });
+        btns.appendChild(toggleBtn);
+      } else {
+        const undoBtn = document.createElement('button');
+        setIconLabel(undoBtn, '↩ Undo');
+        undoBtn.disabled = !entry;
+        undoBtn.addEventListener('click', () => { void runAffected(logEntry, a, 'undo', renderItems); });
+        const redoBtn = document.createElement('button');
+        setIconLabel(redoBtn, '↪ Redo');
+        redoBtn.className = 'primary';
+        redoBtn.disabled = !entry;
+        redoBtn.addEventListener('click', () => { void runAffected(logEntry, a, 'redo', renderItems); });
+        btns.appendChild(undoBtn);
+        btns.appendChild(redoBtn);
+      }
+      item.appendChild(btns);
+      list.appendChild(item);
+    });
+  }
+  renderItems();
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'confirm-btn-row';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'primary';
+  closeBtn.textContent = 'Close';
+  closeBtn.addEventListener('click', close);
+  btnRow.appendChild(closeBtn);
+  box.appendChild(btnRow);
+}
+
+// Right-click ▸ "Show all edits associated with this image": every log entry
+// whose affected rows include this image (matching the initial_state/ flag so
+// an original's own edits don't leak onto its Gallery twin), newest first.
+export function openImageEditsModal(entry: Entry): void {
+  const relevant = editLog
+    .filter(e => (e.affected || []).some(a => a.base === entry.base && !!a.original === !!entry.original))
+    .sort((a, b) => b.id - a.id);
+
+  const { box, close } = createModalShell({ boxClassName: 'log-stack-box' });
+
+  const head = document.createElement('div');
+  head.className = 'info-modal-title';
+  head.textContent = `Edits for ${entry.imgName || entry.base}`;
+  box.appendChild(head);
+
+  const sub = document.createElement('div');
+  sub.className = 'log-stack-sub';
+  sub.textContent = relevant.length
+    ? `${relevant.length} logged edit${relevant.length === 1 ? '' : 's'} — newest first`
+    : 'No edits have been logged for this image yet.';
+  box.appendChild(sub);
+
+  const list = document.createElement('div');
+  list.className = 'log-stack-list';
+  box.appendChild(list);
+  for (const logEntry of relevant) {
+    const row = document.createElement('div');
+    row.className = 'log-row';
+    const meta = document.createElement('div');
+    meta.className = 'log-meta';
+    const time = document.createElement('span');
+    time.className = 'log-time';
+    time.textContent = formatLogTime(logEntry.ts);
+    const type = document.createElement('span');
+    type.className = 'log-type';
+    type.textContent = STAT_TYPE_LABEL[logEntry.type] || logEntry.type;
+    meta.appendChild(time);
+    meta.appendChild(type);
+    const rowSummary = document.createElement('div');
+    rowSummary.className = 'log-summary';
+    rowSummary.textContent = logEntry.summary;
+    row.appendChild(meta);
+    row.appendChild(rowSummary);
+    list.appendChild(row);
+  }
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'confirm-btn-row';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'primary';
+  closeBtn.textContent = 'Close';
+  closeBtn.addEventListener('click', close);
+  btnRow.appendChild(closeBtn);
+  box.appendChild(btnRow);
 }
 
 export function initEditLog(deps: EditLogDeps): void {
   getDirHandle = deps.getDirHandle;
-  getEntryByBase = deps.getEntryByBase;
   applyTagDirectionRef = deps.applyTagDirection;
   applyRenameDirectionRef = deps.applyRenameDirection;
   applyPixelDirectionRef = deps.applyPixelDirection;
@@ -476,13 +714,22 @@ export function initEditLog(deps: EditLogDeps): void {
   refreshAllUIRef = deps.refreshAllUI;
   getUndoStack = deps.getUndoStack;
   getRedoStack = deps.getRedoStack;
+  resolveAffected = deps.resolveAffected;
   statsViewPie.addEventListener('click', () => { statsChartMode = 'pie'; statsViewPie.classList.add('active'); statsViewBar.classList.remove('active'); renderStatsTab(); });
   statsViewBar.addEventListener('click', () => { statsChartMode = 'bar'; statsViewBar.classList.add('active'); statsViewPie.classList.remove('active'); renderStatsTab(); });
+
+  logSortSelect.value = logSort;
+  logSortSelect.addEventListener('change', () => {
+    logSort = logSortSelect.value as LogSort;
+    logPage = 1;
+    renderLogPanel();
+  });
 
   btnLog.addEventListener('click', (ev: MouseEvent) => {
     ev.stopPropagation();
     if (logPanel.style.display === 'flex') { hidePanel(logPanel); return; }
     hidePanel(favoritesPanel); hidePanel(achievementsPanel); hidePanel(shopPanel); hidePanel(tagDetailsPanel);
+    logPage = 1;
     renderLogPanel();
     showPanel(logPanel);
   });
