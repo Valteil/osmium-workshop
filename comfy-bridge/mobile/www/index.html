@@ -21,6 +21,12 @@
       <div id="themeMenu" hidden></div>
     </div>
   </header>
+  <!-- Tabs (2026-10-14, like the desktop's): Generate (the main column) and
+       Metadata (image metadata, LoRA lookup; BridgeShared.mountMetadataTab). -->
+  <nav id="appTabs" role="tablist">
+    <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
+    <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
+  </nav>
 
   <div id="col">
 
@@ -39,7 +45,14 @@
       </div>
       <div class="row">
         <button id="btnConnect">Test connection</button>
+        <button id="btnFindPc" type="button" title="Search this phone's network (its hotspot, or the Wi-Fi it's on) for a PC running Comfy Bridge's phone sharing, and connect to it">Find PC</button>
         <button id="connInfoBtn" class="info-btn" type="button" title="Connection help">ⓘ</button>
+      </div>
+      <!-- The port Find PC searches: the PC's "Let the phone app use it"
+           port (Comfy Bridge's default 8189), not ComfyUI's own 8188. -->
+      <div class="row">
+        <label for="findPcPort" class="muted">PC port</label>
+        <input id="findPcPort" type="number" min="1" max="65535" value="8189" style="width:7em" title="The port set next to &quot;Let the phone app use it&quot; in Comfy Bridge on the PC (8189 unless you changed it). Find PC searches this port.">
       </div>
       <div class="row">
         <button id="btnRefreshModels">Refresh model lists</button>
@@ -69,7 +82,7 @@
       </div>
       <div class="row">
         <button id="btnImportGen" style="flex:1">⤓ Import generation…</button>
-        <input id="importFileInput" type="file" accept="image/png" style="display:none">
+        <input id="importFileInput" type="file" accept="image/png,image/jpeg,image/webp" style="display:none">
       </div>
       <div id="genStatus" class="status-line" style="display:none"></div>
       <div id="livePreviewWrap" style="display:none" class="preview-wrap">
@@ -201,6 +214,11 @@
       </select>
     </section>
 
+  </div>
+  <!-- Metadata tab (BridgeShared.mountMetadataTab). -->
+  <div id="metadataView" hidden>
+    <div id="metadataTab" class="meta-tab"></div>
+    <input id="metaFileInput" type="file" accept="image/png,image/jpeg,image/webp" style="display:none">
   </div>
 
   <!-- Generation settings (seed, cfg, resolution, sampler, 2-Pass) live in an

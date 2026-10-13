@@ -13,7 +13,11 @@ import {
 import { openThemeStudio } from './theme-studio';
 import { bridgeIcon } from './shared/icons';
 import { initUiZoom, buildUiZoomRow } from './ui-zoom';
-import { buildGenInfoPanel, stampOutputKind } from './shared/gen-info';
+import { buildGenInfoPanel, stampOutputKind, mergedPromptText, hasCategoryPrompts, type GenInfo } from './shared/gen-info';
+import { mountMetadataTab, type LoraTools } from './shared/metadata-ui';
+import {
+  imageMetadataTexts, normalizeGeneration, foreignSource, splitPromptToFields, stripA1111Syntax, type PromptFieldId
+} from './shared/prompt-import';
 import { characterIndex, recognizeCharacter, ratingFolder, nextSavePath, safeSegment, fileBaseName, joinNameParts, previewFileName } from './file-naming';
 import { initTagWiki } from './shared/tag-wiki';
 import { initHelp } from './help';
@@ -23,7 +27,12 @@ interface ElectronAPI {
   setZoomFactor(factor: number): void;
   getAppVersion(): Promise<string>;
   pickOutputFolder(): Promise<{ ok: boolean; path?: string }>;
-  importWorkflow(): Promise<{ ok: boolean; cancelled?: boolean; error?: string; prompt?: Record<string, any> }>;
+  // The picked image's embedded texts (PNG chunks) and its bytes (for JPEG/WebP EXIF).
+  importWorkflow(): Promise<{ ok: boolean; cancelled?: boolean; error?: string; texts?: Record<string, string>; bytes?: Uint8Array }>;
+  // LoRA lookup (main.ts): file metadata via the runner, the two-site online allowlist, links.
+  loraFileInfo(name: string): Promise<{ ok: boolean; info?: unknown; error?: string }>;
+  loraOnlineLookup(payload: { site: string; kind: string; q: string }): Promise<{ ok: boolean; status?: number; json?: unknown; error?: string }>;
+  openLookupLink(url: string): Promise<{ ok: boolean }>;
   saveImage(payload: { filename: string; bytes: Uint8Array }): Promise<{ ok: boolean; error?: string }>;
   listPresets(): Promise<{ ok: boolean; promptPresetNames?: string[]; negativePresetNames?: string[]; error?: string }>;
   savePreset(payload: { kind: 'prompt' | 'negative'; name: string; value: unknown }): Promise<{ ok: boolean; error?: string }>;
@@ -1422,7 +1431,26 @@ function resetGenerationForm(): void {
 // mode, Negative) takes the image's value, and one the image left empty is
 // cleared, so nothing from the current prompt mixes in. The character
 // trigger is cleared too: '11' already holds it joined with the character.
-function applySavedPromptText(prompt: Record<string, any>): void {
+//
+// Single prompt box: when the user is in single-box mode (`singleBox`, read
+// BEFORE any form reset) — or the image itself has no per-category text (made
+// in single-box mode, or Global/Character only) — every field merges into the
+// one box in the workflow's own join order (mergedPromptText), and the boxes
+// single-box mode hides (Global, Character, the categories) are cleared: the
+// builder still sends Global (node 21) in single-box mode, so leftover hidden
+// text would leak into the next generation.
+//
+// Multi-box mode: an image saved with per-category boxes fills them as-is.
+// One with a single prompt (single-box, or made elsewhere — see
+// prompt-import.ts) is SPLIT into the boxes by splitPromptToFields (Osmium's
+// Tag Sorting classifier + the Danbooru tag list; unrecognised tags → Extra).
+//
+// A1111-only syntax (<lora:…>, BREAK) is dropped either way — ComfyUI can't
+// use it; the names come back for the log. Returns them.
+const PROMPT_BOX: Record<PromptFieldId, HTMLTextAreaElement> = {
+  global: global_, rating, character, hair, face, chest, body: body_, clothes, limbs, sexual, pose, extra, effects, scene
+};
+async function applySavedPromptText(prompt: Record<string, any>, singleBox: boolean): Promise<string[]> {
   const inp = (id: string): Record<string, unknown> => (prompt[id] && prompt[id].inputs) || {};
   const s = (id: string, key: string): string => { const v = inp(id)[key]; return v == null ? '' : String(v); };
   const perField: [HTMLTextAreaElement, string][] = [
@@ -1431,33 +1459,51 @@ function applySavedPromptText(prompt: Record<string, any>): void {
     [limbs, s('20', 'value')], [sexual, s('14', 'value')], [pose, s('7', 'value')],
     [extra, s('10', 'value')], [effects, s('13', 'value')], [scene, s('17', 'value')]
   ];
-  character.value = s('11', 'value');
-  characterTrigger.value = '';
-  if (!perField.some(([, v]) => v) && s('21', 'value')){
-    // Unified mode: the template put everything into '21' and left the
-    // per-field nodes ''. '11' held unified + character trigger joined —
-    // the trigger part can't be split back out reliably, so it stays in the
-    // unified text (it generates identically when re-queued).
+  const { text: merged, loras } = stripA1111Syntax(mergedPromptText(prompt));
+  if (!singleBox && !hasCategoryPrompts(prompt)) {
+    // Split before touching the form: the classifier awaits the tag list.
+    const split = await splitPromptToFields(merged);
+    for (const box of Object.values(PROMPT_BOX)) box.value = '';
+    for (const [id, text] of Object.entries(split)) PROMPT_BOX[id as PromptFieldId].value = text;
+    unifiedPromptMode.checked = false;
+    unifiedPrompt.value = '';
+  } else if (singleBox || !hasCategoryPrompts(prompt)) {
     unifiedPromptMode.checked = true;
-    unifiedPrompt.value = s('21', 'value');
+    unifiedPrompt.value = merged;
     global_.value = '';
+    character.value = '';
     for (const [el] of perField) el.value = '';
   } else {
     unifiedPromptMode.checked = false;
     unifiedPrompt.value = '';
     global_.value = s('21', 'value');
+    character.value = s('11', 'value');
     for (const [el, v] of perField) el.value = v;
   }
-  negative.value = s('16', 'text');
+  characterTrigger.value = '';
+  negative.value = stripA1111Syntax(s('16', 'text')).text;
+  return loras;
+}
+
+function logDroppedLoras(loras: string[]): void {
+  if (loras.length) log(`Left out A1111 LoRA tags ComfyUI can't use (add them as LoRAs instead): ${loras.join(', ')}.`);
 }
 
 // "Use these prompts" (gallery info panel): only the prompt fields change;
 // models, LoRAs, sampler, seeds, size, passes and upscale stay as they are.
-function applyImportedPromptsOnly(prompt: Record<string, any>): void {
-  applySavedPromptText(prompt);
+async function applyImportedPromptsOnly(prompt: Record<string, any>): Promise<void> {
+  logDroppedLoras(await applySavedPromptText(prompt, unifiedPromptMode.checked));
   applyUnifiedPromptModeUI();
   autoGrowAll();
   scheduleUiSave();
+}
+
+// A generation made elsewhere (prompt-import.ts' Bridge-shaped result)
+// imports its PROMPTS only — the user's rule (2026-10-14): other workflows'
+// model/LoRA setups vary too much to map. Nothing else in the form changes;
+// its recorded settings and LoRAs are shown in the details panel instead.
+async function applyForeignGeneration(prompt: Record<string, any>): Promise<void> {
+  await applyImportedPromptsOnly(prompt);
 }
 
 // Reads a PNG saved by the integrated workflow and re-enters its full
@@ -1465,7 +1511,10 @@ function applyImportedPromptsOnly(prompt: Record<string, any>): void {
 // resolution, sampler/scheduler/steps/cfg/seeds, 2-Pass, resize and
 // upscale. Node ids mirror buildPrompt()'s fixed template (same file, the
 // template IS the format), so a saved prompt maps back 1:1.
-function applyImportedPrompt(prompt: Record<string, any>): void {
+async function applyImportedPrompt(prompt: Record<string, any>): Promise<void> {
+  if (foreignSource(prompt)) { await applyForeignGeneration(prompt); return; }
+  // The user's prompt-box mode, before the reset puts it back to its default.
+  const singleBox = unifiedPromptMode.checked;
   resetGenerationForm();
   const inp = (id: string): Record<string, unknown> => (prompt[id] && prompt[id].inputs) || {};
   const s = (id: string, key: string): string => { const v = inp(id)[key]; return v == null ? '' : String(v); };
@@ -1513,7 +1562,7 @@ function applyImportedPrompt(prompt: Record<string, any>): void {
     setVal(resizeMethod, s('238', 'method'));
   }
 
-  applySavedPromptText(prompt);
+  logDroppedLoras(await applySavedPromptText(prompt, singleBox));
 
   setVal(sampler, s('168:167', 'sampler_name'));
   setVal(scheduler, s('158:53', 'scheduler') || s('195', 'scheduler'));
@@ -1546,20 +1595,108 @@ function applyImportedPrompt(prompt: Record<string, any>): void {
   autoGrowAll();
   scheduleUiSave();
 }
-btnImportGen.addEventListener('click', async () => {
+// Applies a generation from the gallery, the Import lightbox or the Metadata
+// tab: everything (this workflow's images; prompts only for foreign ones,
+// see applyForeignGeneration) or prompts only.
+async function useGeneration(prompt: Record<string, any>, promptsOnly: boolean, from: string): Promise<void> {
+  try {
+    const foreign = foreignSource(prompt);
+    if (promptsOnly || foreign) {
+      await applyImportedPromptsOnly(prompt);
+      log(foreign && !promptsOnly
+        ? `Loaded the prompts from ${from} (made with ${foreign}: prompts only).`
+        : `Loaded the prompts from ${from} (other settings kept).`);
+    } else {
+      await applyImportedPrompt(prompt);
+      log(`Loaded generation settings from ${from}.`);
+    }
+  } catch (err) {
+    log(`Loading from ${from} failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+// ---------------- LoRA tools (Metadata tab, details panels) ----------------
+// File info reads the LoRA through Osmium Comfy's runner (ComfyUI's own loras
+// folders only); online lookups go through main.ts' two-site allowlist.
+const datalistValues = (el: HTMLElement): string[] => Array.from((el as HTMLDataListElement).options || []).map((o) => o.value).filter(Boolean);
+const loraTools: LoraTools = {
+  localNames: () => Array.from(new Set([...datalistValues(loraList), ...datalistValues(mainLoraList)])),
+  fileInfo: async (name) => (isLocal()
+    ? window.electronAPI.loraFileInfo(name)
+    : { ok: false, error: 'File info reads the LoRA through Osmium Comfy: set Run on to Osmium Comfy and Connect.' }),
+  onlineLookup: (site, kind, q) => window.electronAPI.loraOnlineLookup({ site, kind, q }),
+  openLink: (url) => { void window.electronAPI.openLookupLink(url); },
+  addToStack: (name, strength) => {
+    // The first empty row first (the stack starts with a blank one).
+    const empty = loraRows.find((r) => !r.input.value.trim());
+    if (empty) { empty.input.value = name; empty.strength.value = String(strength); }
+    else addLoraRow(name, strength);
+    scheduleUiSave();
+    log(`Added ${name} @ ${strength} to the LoRA stack.`);
+  }
+};
+const IMPORT_LABELS = { full: 'Import Generation', prompts: 'Use prompts only' };
+
+// The picked image (Import Generation, Metadata tab): shown as a data URL;
+// its generation read from main's texts (compressed PNG chunks inflated
+// there) plus the bytes (JPEG/WebP EXIF).
+interface PickedImage { src: string; info: GenInfo | null; }
+const sniffMime = (b: Uint8Array): string => (b[0] === 0xff && b[1] === 0xd8 ? 'image/jpeg' : b[0] === 0x52 && b[8] === 0x57 ? 'image/webp' : 'image/png');
+async function pickImageFile(): Promise<PickedImage | null> {
   const res = await window.electronAPI.importWorkflow();
   if (!res.ok){
     if (!res.cancelled){ log(res.error || 'Import failed.'); alert(res.error || 'Import failed.'); }
+    return null;
+  }
+  const bytes = res.bytes || new Uint8Array(0);
+  const texts = { ...(bytes.length ? imageMetadataTexts(bytes) : {}), ...(res.texts || {}) };
+  const prompt = normalizeGeneration(texts);
+  return { src: `data:${sniffMime(bytes)};base64,${bytesToBase64(bytes)}`, info: prompt ? { prompt, kind: null } : null };
+}
+
+// Import Generation (main UI shortcut): any image → the details lightbox →
+// "Import Generation" (all for this workflow's images, prompts for foreign
+// ones) or "Use prompts only".
+btnImportGen.addEventListener('click', async () => {
+  const picked = await pickImageFile();
+  if (!picked) return;
+  if (!picked.info){
+    const msg = 'No generation settings found in that image — it may have been re-saved or stripped by another tool.';
+    log(msg); alert(msg);
     return;
   }
-  if (res.prompt){
-    try {
-      applyImportedPrompt(res.prompt);
-      log('Imported generation settings from PNG.');
-    } catch (err) {
-      log(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
+  showImageLightbox(picked.src, undefined, (src, close) => buildGenInfoPanel(src, (prompt, promptsOnly) => {
+    close();
+    void useGeneration(prompt, promptsOnly, 'the imported image');
+  }, '', undefined, { loraTools, labels: IMPORT_LABELS, info: picked.info }));
+});
+
+// ---------------- Generate | Metadata tabs ----------------
+const appTabs = $<HTMLElement>('appTabs');
+const layoutEl = $<HTMLElement>('layout');
+const metadataView = $<HTMLElement>('metadataView');
+function showTab(tab: string): void {
+  const meta = tab === 'metadata';
+  layoutEl.style.display = meta ? 'none' : '';
+  metadataView.hidden = !meta;
+  appTabs.querySelectorAll<HTMLButtonElement>('button[data-tab]').forEach((b) => {
+    const on = b.dataset.tab === tab;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+}
+appTabs.addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-tab]');
+  if (b && b.dataset.tab) showTab(b.dataset.tab);
+});
+let metaPicked: PickedImage | null = null;
+mountMetadataTab($<HTMLElement>('metadataTab'), {
+  tools: loraTools,
+  pickImage: async () => { metaPicked = await pickImageFile(); return metaPicked ? metaPicked.src : null; },
+  details: (src) => buildGenInfoPanel(src, (prompt, promptsOnly) => {
+    showTab('generate');
+    void useGeneration(prompt, promptsOnly, 'the Metadata tab');
+  }, '', undefined, { loraTools, labels: IMPORT_LABELS, info: metaPicked && metaPicked.src === src ? metaPicked.info : undefined })
 });
 btnStop.addEventListener('click', async () => {
   genStopped = true;
@@ -1576,14 +1713,8 @@ mountGallerySidebar(desktopBackend, () => outputFolder || 'No folder chosen', {
   // Generation parameters left of an opened gallery image (./gen-info.ts);
   // "Use these settings" loads them like Import generation and closes it.
   imageInfo: (src, close, relPath) => buildGenInfoPanel(src, (prompt, promptsOnly) => {
-    if (promptsOnly) {
-      applyImportedPromptsOnly(prompt);
-      log('Loaded the prompts from a gallery image (other settings kept).');
-    } else {
-      applyImportedPrompt(prompt);
-      log('Loaded generation settings from a gallery image.');
-    }
     close();
+    void useGeneration(prompt, promptsOnly, 'a gallery image');
   }, relPath, {
     // Save details / reorganize: the panel's editor is seeded from the image
     // itself (prompt text, LoRA, model, sampler settings) and re-specifiable;
@@ -1600,7 +1731,7 @@ mountGallerySidebar(desktopBackend, () => outputFolder || 'No folder chosen', {
     },
     log: (m) => log(m),
     onMoved: () => { close(); refreshGallery(); }
-  }),
+  }, { loraTools }),
 });
 initTagWiki($<HTMLButtonElement>('btnTagWiki'));
 initHelp($<HTMLButtonElement>('btnHelp'));

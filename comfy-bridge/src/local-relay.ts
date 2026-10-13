@@ -60,6 +60,9 @@ export interface RelayGalleryHandlers {
   listDir(relDir: string): Promise<{ ok: boolean; entries?: { name: string; kind: 'file' | 'directory'; mtime?: number }[]; error?: string }>;
   readImage(relPath: string): Promise<{ ok: boolean; base64?: string; mime?: string; error?: string }>;
   thumb(relPath: string, side: number): Promise<{ ok: boolean; base64?: string; mime?: string; error?: string }>;
+  // A LoRA's file metadata + SHA-256 (the runner's lora_info), for the
+  // phone's Metadata tab / LoRA lookup.
+  loraInfo(name: string): Promise<{ ok: boolean; info?: unknown; error?: string }>;
 }
 let galleryHandlers: RelayGalleryHandlers | null = null;
 export function initRelayGallery(handlers: RelayGalleryHandlers): void { galleryHandlers = handlers; }
@@ -290,6 +293,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       const bytes = Buffer.from(r.base64, 'base64');
       cors(res); res.writeHead(200, { 'Content-Type': r.mime || 'image/png', 'Content-Length': bytes.length });
       res.end(bytes);
+    } catch (err) { sendJson(res, 500, { error: { message: err instanceof Error ? err.message : String(err) } }); }
+    return;
+  }
+  if (req.method === 'GET' && p === '/internal/lora/info') {
+    if (!galleryHandlers) { sendJson(res, 503, { error: { message: 'LoRA lookup is not available on this relay.' } }); return; }
+    try {
+      const r = await galleryHandlers.loraInfo(url.searchParams.get('name') || '');
+      if (!r.ok) { sendJson(res, 404, { error: { message: r.error || 'No such LoRA.' } }); return; }
+      sendJson(res, 200, { ok: true, info: r.info });
     } catch (err) { sendJson(res, 500, { error: { message: err instanceof Error ? err.message : String(err) } }); }
     return;
   }

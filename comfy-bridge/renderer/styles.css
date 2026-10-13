@@ -302,6 +302,14 @@ html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(
   border-radius:4px; padding:4px 8px; font:inherit; font-size:12px; cursor:pointer;
 }
 #btnHelp:focus-visible{ outline:1px solid var(--accent); }
+
+/* Generate | Metadata tabs (2026-10-14). */
+#appTabs{ display:flex; gap:2px; align-self:center; margin-left:8px; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:2px; }
+#appTabs button{ background:transparent; color:var(--muted); border:0; border-radius:4px; padding:3px 12px; font:inherit; font-size:12px; cursor:pointer; }
+#appTabs button.active{ background:var(--panel); color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.25); }
+#appTabs button:focus-visible{ outline:1px solid var(--accent); }
+#metadataView{ flex:1; overflow:auto; }
+#metadataView[hidden]{ display:none; }
 #btnHelp + #btnTagWiki{ margin-left:0; }
 
 .help-backdrop{

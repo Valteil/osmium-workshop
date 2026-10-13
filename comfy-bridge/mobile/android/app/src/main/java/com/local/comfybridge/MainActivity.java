@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(BridgeStoragePlugin.class);
         registerPlugin(GenProgressPlugin.class);
+        registerPlugin(NetInfoPlugin.class);
         super.onCreate(savedInstanceState);
         // The app itself loads over https://localhost (Capacitor's own scheme),
         // so the WebView's default mixed-content policy blocks any plain

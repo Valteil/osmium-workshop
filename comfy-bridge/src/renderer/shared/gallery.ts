@@ -142,15 +142,27 @@ async function renderThumbSlice(
     imgs.push(img);
     relByImg.set(img, rel);
   }
-  for (let i = 0; i < rels.length; i++) {
-    if (token !== galleryRenderToken) return false;
+  // A few at a time (each fills its own slot, so the grid order holds): one
+  // slow or lost thumbnail no longer holds up every one after it — over a
+  // flaky phone link a lost request costs a retry timeout (mobile pcRequest).
+  const THUMB_PARALLEL = 4;
+  let nextIdx = 0;
+  let stale = false;
+  const worker = async (): Promise<void> => {
+    while (!stale && nextIdx < rels.length) {
+      const i = nextIdx++;
+      if (token !== galleryRenderToken) { stale = true; return; }
+      await loadThumb(i);
+    }
+  };
+  const loadThumb = async (i: number): Promise<void> => {
     const rel = relByImg.get(imgs[i]) || rels[i];
     const url = srcs?.thumbSrc ? await srcs.thumbSrc(rel) : await backend.readImage(rel);
-    if (token !== galleryRenderToken) return false;
+    if (token !== galleryRenderToken) { stale = true; return; }
     const img = imgs[i];
     if (!url) {
       img.remove();
-      continue;
+      return;
     }
     img.src = url;
     // The info panel also gets the image's path in the output folder (the
@@ -170,8 +182,9 @@ async function renderThumbSlice(
       }
       showImageLightbox(openSrc, () => galleryThumbUrls(h), info, mountedOpts?.lazyInfo);
     });
-  }
-  return true;
+  };
+  await Promise.all(Array.from({ length: Math.min(THUMB_PARALLEL, rels.length) }, worker));
+  return !stale && token === galleryRenderToken;
 }
 
 // The lightbox's ← / → sequence: every loaded thumbnail in the grid, in order
@@ -444,15 +457,23 @@ export async function renderBrowserLevel(
     rerender();
   };
   let entries;
+  // An error the backend marks `userFacing` (the PC source over the network:
+  // unreachable, or the PC's server refusing) shows its reason. Any other
+  // failure (no folder chosen, a phone folder that doesn't exist yet) keeps
+  // the "pick a folder" hint.
+  let listError = '';
   try {
     entries = await backend.listDir(relDir);
-  } catch {
+  } catch (err) {
     entries = null;
+    if (err instanceof Error && (err as Error & { userFacing?: boolean }).userFacing) listError = err.message;
   }
   if (token !== galleryRenderToken) return;
   if (!entries) {
     h.empty.style.display = '';
-    h.empty.textContent = 'Nothing yet in ' + locationLabel + ' — pick an output folder to browse it here.';
+    h.empty.textContent = listError
+      ? 'Couldn\'t list ' + locationLabel + ': ' + listError
+      : 'Nothing yet in ' + locationLabel + ' — pick an output folder to browse it here.';
     return;
   }
   const subdirs = entries

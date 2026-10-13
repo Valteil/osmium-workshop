@@ -24,6 +24,7 @@ interface CapacitorPlugins {
   BridgeStorage?: any;
   Filesystem?: any;
   GenProgress?: any;
+  NetInfo?: any;
   LocalNotifications?: any;
 }
 interface Window {
@@ -32,7 +33,20 @@ interface Window {
 declare const BridgeShared: {
   buildSynthDatPrompt: (template: any, cfg: any) => any;
   parseComboValues: (nodeInfo: any, inputName: string) => string[] | null;
-  buildGenInfoPanel: (src: string, onUse: (prompt: Record<string, any>, promptsOnly: boolean) => void, relPath?: string) => HTMLElement | null;
+  buildGenInfoPanel: (src: string, onUse: (prompt: Record<string, any>, promptsOnly: boolean) => void, relPath?: string, relocate?: unknown,
+    opts?: { loraTools?: any; labels?: { full: string; prompts: string }; info?: { prompt: Record<string, any>; kind: null } | null }) => HTMLElement | null;
+  // shared/metadata-ui.ts + lora-lookup.ts (the Metadata tab, LoRA lookup).
+  mountMetadataTab: (root: HTMLElement, deps: { tools: any; pickImage: () => Promise<string | null>; details: (src: string) => HTMLElement | null }) => void;
+  lookupUrl: (site: string, kind: string, q: string) => string | null;
+  safeLookupLink: (url: string) => string | null;
+  mergedPromptText: (prompt: Record<string, any>) => string;
+  hasCategoryPrompts: (prompt: Record<string, any>) => boolean;
+  // shared/prompt-import.ts: any image's generation, and the prompt splitter.
+  imageMetadataTexts: (bytes: Uint8Array) => Record<string, string>;
+  normalizeGeneration: (texts: Record<string, string>) => Record<string, any> | null;
+  foreignSource: (prompt: Record<string, any>) => string | null;
+  stripA1111Syntax: (text: string) => { text: string; loras: string[] };
+  splitPromptToFields: (text: string) => Promise<Record<string, string>>;
   parseQueueResponse: (parsed: any, status: number, noun: string) => { ok: boolean; promptId?: string; error?: string };
   uploadImage: (t: any, host: string, filename: string, bytes: Uint8Array, label?: string) => Promise<{ ok: boolean; ref?: string; error?: string }>;
   queuePrompt: (t: any, host: string, prompt: any, clientId: string, opts?: any) => Promise<{ ok: boolean; promptId?: string; error?: string }>;
@@ -56,7 +70,7 @@ declare const BridgeShared: {
   initTagWiki: (button: HTMLElement) => void;
   mountGallerySidebar: (backend: any, label: any, opts?: any) => any;
   galleryBack: () => boolean;
-  showImageLightbox: (src: string) => void;
+  showImageLightbox: (src: string, siblings?: () => string[], info?: (src: string, close: () => void) => HTMLElement | null, infoDeferred?: boolean) => void;
   THEMES: any;
   DEFAULT_THEME: any;
 };
@@ -331,6 +345,88 @@ declare const BridgeShared: {
   });
   renderRecentHosts();
 
+  // Find PC: scan the phone's own network for a PC sharing Comfy Bridge (the
+  // Bridge relay, or Persist Comfy's runner), e.g. a laptop on this phone's
+  // hotspot, whose address changes whenever the hotspot restarts. The phone's
+  // addresses come from the NetInfo plugin (NetInfoPlugin.kt); each /24 it's
+  // on is probed with GET /system_stats, which both servers answer with a
+  // `relay` field (or a 401 naming the Comfy Bridge token). Mobile data and
+  // Tailscale (100.64/10) ranges are skipped: there's nothing to find there.
+  const btnFindPc = $<HTMLButtonElement>('btnFindPc');
+  // PC port: what Find PC searches, the PC's sharing port (Comfy Bridge's
+  // "Let the phone app use it", default 8189). Remembered on the phone.
+  const findPcPort = $<HTMLInputElement>('findPcPort');
+  const FIND_PC_PORT_KEY = 'comfybridge-findpc-port';
+  try { const saved = localStorage.getItem(FIND_PC_PORT_KEY); if (saved) findPcPort.value = saved; } catch (e) { /* best effort */ }
+  function findPcPortValue(): string {
+    const n = Math.round(Number(findPcPort.value));
+    return n >= 1 && n <= 65535 ? String(n) : '8189';
+  }
+  findPcPort.addEventListener('change', () => {
+    findPcPort.value = findPcPortValue();
+    try { localStorage.setItem(FIND_PC_PORT_KEY, findPcPort.value); } catch (e) { /* best effort */ }
+  });
+  async function phoneSubnets(): Promise<string[]> {
+    const plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NetInfo;
+    let addrs: { name: string; ip: string; prefix: number }[] = [];
+    if (plugin) {
+      try { addrs = ((await plugin.localAddresses()) || {}).addresses || []; } catch (e) { addrs = []; }
+    }
+    const out: string[] = [];
+    for (const a of addrs) {
+      if (!a || !a.ip || a.prefix >= 31) continue;
+      if (/^(rmnet|ccmni|pdp|clat|v4-|dummy|tun)/i.test(a.name || '')) continue;
+      const [o1, o2] = a.ip.split('.').map(Number);
+      if (o1 === 100 && o2 >= 64 && o2 <= 127) continue;
+      const base = a.ip.split('.').slice(0, 3).join('.');
+      if (!out.includes(base)) out.push(base);
+    }
+    return out;
+  }
+  btnFindPc.addEventListener('click', async () => {
+    connStatus.style.display = 'block';
+    connStatus.style.color = '';
+    // Native sockets only: a WebView fetch scan can't work. Chromium keeps
+    // ~32 connects in flight per page and a probe to a silent address holds
+    // its slot for the OS's whole retry time, so the queue jams and the right
+    // address times out unprobed (seen in testing).
+    const plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NetInfo;
+    if (!plugin || typeof plugin.findBridges !== 'function') {
+      connStatus.textContent = 'Find PC needs the Android app (this version can\'t search the network). Type the PC\'s address instead.';
+      return;
+    }
+    const subnets = await phoneSubnets();
+    if (!subnets.length) {
+      connStatus.textContent = 'This phone isn\'t on a Wi-Fi network or hotspot that Find PC can search. Turn on the hotspot (or join the PC\'s Wi-Fi) and try again.';
+      return;
+    }
+    // The PC port box (not the address box, whose default is ComfyUI's 8188).
+    const port = findPcPortValue();
+    const where = subnets.map((b) => b + '.x').join(', ');
+    btnFindPc.disabled = true;
+    connStatus.textContent = 'Searching ' + where + ' (port ' + port + ')…';
+    let found: string[] = [];
+    try {
+      found =((await plugin.findBridges({ subnets, ports: [Number(port)] })) || {}).found || [];
+    } catch (err) {
+      connStatus.textContent = 'Find PC failed: ' + errMsg(err);
+      return;
+    } finally {
+      btnFindPc.disabled = false;
+    }
+    if (!found.length) {
+      connStatus.textContent = 'No PC found on ' + subnets.map((b) => b + '.x').join(', ') + '. On the PC: Comfy Bridge\'s "Let the phone app use it" must be on, and Windows Firewall must allow it on this network (a phone hotspot usually counts as Public).';
+      return;
+    }
+    // The others go into Recent connections; the first is filled in and tested
+    // (which also adds it to the list when it connects).
+    const tok = (token.value || '').trim();
+    for (const h of found.slice(1).reverse()) rememberHost(h, tok);
+    host.value = found[0];
+    try { localStorage.setItem(HOST_KEY, found[0]); } catch (e) { /* best effort */ }
+    btnConnect.click();
+  });
+
   function getHost(): string {
     let h = (host.value || '').trim() || 'http://127.0.0.1:8188';
     if (!/^https?:\/\//i.test(h)) h = 'http://' + h;
@@ -591,22 +687,43 @@ declare const BridgeShared: {
   // grid loads runner-made small thumbnails and only an OPENED image moves
   // at full size (the data saver the user wanted). Not writable — saves on
   // the PC are the PC's business.
+  //
+  // Retries: the PC answers in milliseconds, so a request that's silent for a
+  // few seconds is lost on the link (a hotspot drops replies in bursts — see
+  // the Phone-VPN-Swallows-Hotspot-Replies pitfall), and a fresh request
+  // usually gets through. Only lost/silent requests retry; an HTTP answer
+  // (even an error) is returned as-is. timeoutMs is silence, not total time
+  // (comfyTransport re-arms it on download progress).
+  async function pcRequest(path: string, timeoutMs: number, tries: number) {
+    let lastErr: unknown;
+    for (let i = 0; i < tries; i++) {
+      try {
+        return await comfyTransport().request(getHost(), path, { timeoutMs });
+      } catch (err) {
+        lastErr = err;
+        if (!/^(no response for|network error)/.test(errMsg(err))) throw err;
+      }
+    }
+    throw lastErr;
+  }
   function pcGalleryBackend() {
     return {
       async listDir(relDir: string) {
-        const t = comfyTransport();
         try {
-          const res = await t.request(getHost(), '/internal/gallery/list?dir=' + encodeURIComponent(relDir || ''), { timeoutMs: 20000 });
+          const res = await pcRequest('/internal/gallery/list?dir=' + encodeURIComponent(relDir || ''), 6000, 3);
           const parsed = JSON.parse(new TextDecoder().decode(res.body) || '{}');
           if (res.status !== 200 || !parsed.ok) throw new Error((parsed && parsed.error && parsed.error.message) || ('HTTP ' + res.status));
           return (parsed.entries || []).map((e: any) => ({ name: e.name, kind: e.kind, mtime: Number(e.mtime) || 0 }));
         } catch (err) {
-          throw new Error(isLikelyCorsFailure(err) ? corsHint() : errMsg(err));
+          // userFacing: the shared gallery shows this reason instead of its
+          // generic "pick an output folder" hint.
+          const e = new Error(isLikelyCorsFailure(err) ? corsHint() : errMsg(err)) as Error & { userFacing?: boolean };
+          e.userFacing = true;
+          throw e;
         }
       },
       async readImage(relPath: string) {
-        const t = comfyTransport(undefined);
-        const res = await t.request(getHost(), '/internal/gallery/read?path=' + encodeURIComponent(relPath || ''), { timeoutMs: 60000 });
+        const res = await pcRequest('/internal/gallery/read?path=' + encodeURIComponent(relPath || ''), 8000, 3);
         if (res.status !== 200) throw new Error('Fetching the image failed (HTTP ' + res.status + ').');
         // The relay answers with the file's own content type.
         const body = new Uint8Array(res.body);
@@ -620,8 +737,7 @@ declare const BridgeShared: {
   }
   function pcThumbSrc(rel: string): Promise<string | null> {
     return (async () => {
-      const t = comfyTransport();
-      const res = await t.request(getHost(), '/internal/gallery/thumb?path=' + encodeURIComponent(rel || '') + '&side=256', { timeoutMs: 20000 });
+      const res = await pcRequest('/internal/gallery/thumb?path=' + encodeURIComponent(rel || '') + '&side=256', 6000, 2);
       if (res.status !== 200) return null;
       const body = new Uint8Array(res.body);
       const mime = sniffImageMime(body) || 'image/jpeg';
@@ -647,15 +763,9 @@ declare const BridgeShared: {
     // Generation parameters of opened images (the panel is shared with the
     // desktop); behind an "Info" button on the phone's narrow screen.
     imageInfo: (src: string, close: () => void, relPath: string) => BridgeShared.buildGenInfoPanel(src, (prompt: Record<string, any>, promptsOnly: boolean) => {
-      if (promptsOnly) {
-        applyImportedPromptsOnly(prompt);
-        log('Loaded the prompts from a gallery image (other settings kept).');
-      } else {
-        applyImportedPrompt(prompt);
-        log('Loaded generation settings from a gallery image.');
-      }
       close();
-    }, relPath),
+      void useGeneration(prompt, promptsOnly, 'a gallery image');
+    }, relPath, undefined, { loraTools }),
     lazyInfo: true
   });
 
@@ -840,25 +950,37 @@ declare const BridgeShared: {
   // fetch (and Test connection) hanging with no answer at all. 45s leaves room
   // for a cold start of a PC's Local ComfyUI behind the Bridge (~25s).
   const OBJECT_INFO_TIMEOUT_MS = 45000;
+  // The same 45s budget, as three tries (8s, 12s, 25s): a reply lost on a
+  // flaky link gets a fresh request instead of a long wait and an error. A
+  // refused connection (TypeError) also retries once the try's time is up.
+  const OBJECT_INFO_TRIES_MS = [8000, 12000, 25000];
   async function comfyGetObjectInfo(classType: string, inputName: string): Promise<ObjectInfoResult> {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), OBJECT_INFO_TIMEOUT_MS);
-    try {
-      const res = await fetch(new URL('/object_info/' + encodeURIComponent(classType), getHost()), { signal: ctrl.signal });
-      if (!res.ok) return { ok: false, error: 'ComfyUI returned HTTP ' + res.status + ' looking up ' + classType + '.' };
-      const parsed = await res.json();
-      const values = BridgeShared.parseComboValues(parsed[classType], inputName);
-      if (!Array.isArray(values)) return { ok: false, error: 'Could not find "' + inputName + '" on ' + classType + '.' };
-      return { ok: true, values };
-    } catch (err) {
-      if (ctrl.signal.aborted) {
-        return { ok: false, error: 'No answer from ' + getHost() + ' after ' + (OBJECT_INFO_TIMEOUT_MS / 1000) + 's. Check the address and port: '
-          + 'a ComfyUI server uses 8188, and a PC sharing Comfy Bridge\'s Osmium Comfy uses 8189 (not 8190, which only works on that PC).' };
+    let lastErr: unknown = null;
+    for (const tryMs of OBJECT_INFO_TRIES_MS) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), tryMs);
+      const t0 = Date.now();
+      try {
+        const res = await fetch(new URL('/object_info/' + encodeURIComponent(classType), getHost()), { signal: ctrl.signal });
+        if (!res.ok) return { ok: false, error: 'ComfyUI returned HTTP ' + res.status + ' looking up ' + classType + '.' };
+        const parsed = await res.json();
+        const values = BridgeShared.parseComboValues(parsed[classType], inputName);
+        if (!Array.isArray(values)) return { ok: false, error: 'Could not find "' + inputName + '" on ' + classType + '.' };
+        return { ok: true, values };
+      } catch (err) {
+        lastErr = ctrl.signal.aborted ? null : err;
+        // A fast failure (refused, unreachable): pause up to 2s so the three
+        // tries don't burn through in a second.
+        if (!ctrl.signal.aborted) await new Promise((r) => setTimeout(r, Math.max(0, Math.min(2000, tryMs - (Date.now() - t0)))));
+      } finally {
+        clearTimeout(timer);
       }
-      return { ok: false, error: 'Could not reach ComfyUI at ' + getHost() + (isLikelyCorsFailure(err) ? corsHint() : ' (' + errMsg(err) + ')') };
-    } finally {
-      clearTimeout(timer);
     }
+    if (lastErr === null) {
+      return { ok: false, error: 'No answer from ' + getHost() + ' after ' + (OBJECT_INFO_TIMEOUT_MS / 1000) + 's. Check the address and port: '
+        + 'a ComfyUI server uses 8188, and a PC sharing Comfy Bridge\'s Osmium Comfy uses 8189 (not 8190, which only works on that PC).' };
+    }
+    return { ok: false, error: 'Could not reach ComfyUI at ' + getHost() + (isLikelyCorsFailure(lastErr) ? corsHint() : ' (' + errMsg(lastErr) + ')') };
   }
 
   // Set for the WHOLE run — including the reference upload, before any prompt
@@ -939,6 +1061,9 @@ declare const BridgeShared: {
             armStall(full ? init.timeoutMs * 3 : init.timeoutMs, full ? 'after the full request' : '');
           };
         }
+        // Downloads: the stall timer measures silence, not the total time, so
+        // a big image arriving slowly isn't cut off while bytes still flow.
+        xhr.onprogress = () => armStall(init.timeoutMs, 'while downloading');
         xhr.onload = () => { done(); resolve({ status: xhr.status, body: new Uint8Array(xhr.response || new ArrayBuffer(0)) }); };
         xhr.onerror = () => { done(); reject(new Error('network error')); };
         armStall(init.timeoutMs, '');
@@ -1718,17 +1843,11 @@ declare const BridgeShared: {
   btnStop.addEventListener('click', stopGeneration);
 
   // ---------------- Import generation ----------------
-  // Same feature as the desktop Bridge: read a PNG saved by the integrated
-  // workflow and re-enter its full generation config. WebView file input +
-  // the chunk walk shared with the desktop Bridge (BridgeShared.
-  // extractPngTextChunks, ComfyUI embeds the queued prompt graph as a tEXt/
-  // iTXt chunk named "prompt"). The compressed-iTXt inflate stays unsupported
-  // in this WebView (ComfyUI writes the prompt chunk uncompressed), so no
-  // inflate is passed. Field mapping mirrors desktop's applyImportedPrompt
-  // (same template node ids either side).
-  function extractPngPromptChunks(buffer: ArrayBuffer): Record<string, string> {
-    return BridgeShared.extractPngTextChunks(new Uint8Array(buffer));
-  }
+  // Same feature as the desktop Bridge: read any image's generation
+  // (BridgeShared.imageMetadataTexts + normalizeGeneration, shared with the
+  // desktop) and re-enter it. The compressed-iTXt inflate stays unsupported
+  // in this WebView (ComfyUI and A1111 write their chunks uncompressed), so
+  // none is passed. Field mapping mirrors desktop's applyImportedPrompt.
 
   // Every field applyImportedPrompt can touch, reset to blank/default first
   // — same reasoning as desktop's resetGenerationForm. Without this,
@@ -1769,7 +1888,15 @@ declare const BridgeShared: {
   // every prompt field takes the image's value and one the image left empty
   // is cleared, so nothing from the current prompt mixes in. The character
   // trigger is cleared too: '11' already holds it joined with the character.
-  function applySavedPromptText(prompt: Record<string, any>) {
+  // Single prompt box (mirrors desktop's): in single-box mode (`singleBox`,
+  // read BEFORE any form reset), or when the image has no per-category text,
+  // every field merges into the one box in the workflow's join order and the
+  // boxes that mode hides are cleared (the builder still sends Global).
+  // Multi-box mode (mirrors desktop's): a single prompt (single-box, or an
+  // image made elsewhere) is SPLIT into the boxes by Osmium's Tag Sorting
+  // classifier (BridgeShared.splitPromptToFields); unrecognised tags → Extra.
+  // A1111-only syntax (<lora:…>, BREAK) is dropped; returns the LoRA names.
+  async function applySavedPromptText(prompt: Record<string, any>, singleBox: boolean): Promise<string[]> {
     const inp = (id: string): Record<string, any> => (prompt[id] && prompt[id].inputs) || {};
     const s = (id: string, key: string): string => { const v = inp(id)[key]; return v == null ? '' : String(v); };
     const perField: [HTMLTextAreaElement, string][] = [
@@ -1778,33 +1905,61 @@ declare const BridgeShared: {
       [limbs, s('20', 'value')], [sexual, s('14', 'value')], [pose, s('7', 'value')],
       [extra, s('10', 'value')], [effects, s('13', 'value')], [scene, s('17', 'value')]
     ];
-    character.value = s('11', 'value');
-    characterTrigger.value = '';
-    if (!perField.some(([, v]) => v) && s('21', 'value')) {
+    const box: Record<string, HTMLTextAreaElement> = {
+      global: global_, rating, character, hair, face, chest, body: body_, clothes, limbs, sexual, pose, extra, effects, scene
+    };
+    const { text: merged, loras } = BridgeShared.stripA1111Syntax(BridgeShared.mergedPromptText(prompt));
+    const hasBoxes = BridgeShared.hasCategoryPrompts(prompt);
+    if (!singleBox && !hasBoxes) {
+      // Split before touching the form: the classifier awaits the tag list.
+      const split = await BridgeShared.splitPromptToFields(merged);
+      for (const el of Object.values(box)) el.value = '';
+      for (const [id, text] of Object.entries(split)) if (box[id]) box[id].value = text;
+      unifiedPromptMode.checked = false;
+      unifiedPrompt.value = '';
+    } else if (singleBox || !hasBoxes) {
       unifiedPromptMode.checked = true;
-      unifiedPrompt.value = s('21', 'value');
+      unifiedPrompt.value = merged;
       global_.value = '';
+      character.value = '';
       for (const [el] of perField) el.value = '';
     } else {
       unifiedPromptMode.checked = false;
       unifiedPrompt.value = '';
       global_.value = s('21', 'value');
+      character.value = s('11', 'value');
       for (const [el, v] of perField) el.value = v;
     }
+    characterTrigger.value = '';
     applyUnifiedPromptModeUI();
-    negative.value = s('16', 'text');
+    negative.value = BridgeShared.stripA1111Syntax(s('16', 'text')).text;
+    return loras;
+  }
+
+  function logDroppedLoras(loras: string[]) {
+    if (loras.length) log('Left out A1111 LoRA tags ComfyUI can\'t use (add them as LoRAs instead): ' + loras.join(', ') + '.');
   }
 
   // "Use these prompts" (gallery info panel): only the prompt fields change;
   // models, LoRAs, sampler, seeds, size, passes and upscale stay as they are.
-  function applyImportedPromptsOnly(prompt: Record<string, any>) {
-    applySavedPromptText(prompt);
+  async function applyImportedPromptsOnly(prompt: Record<string, any>) {
+    logDroppedLoras(await applySavedPromptText(prompt, unifiedPromptMode.checked));
     autoGrowAll();
     void refreshSavePreview();
     scheduleUiSave();
   }
 
-  function applyImportedPrompt(prompt: Record<string, any>) {
+  // A generation made elsewhere (mirrors desktop's applyForeignGeneration).
+  async function applyForeignGeneration(prompt: Record<string, any>) {
+    // Prompts only (the user's rule, mirrors desktop): other workflows'
+    // model/LoRA setups vary too much; the details panel lists them instead.
+    await applyImportedPromptsOnly(prompt);
+  }
+
+  async function applyImportedPrompt(prompt: Record<string, any>) {
+    if (BridgeShared.foreignSource(prompt)) { await applyForeignGeneration(prompt); return; }
+    // The user's prompt-box mode, before the reset puts it back to its default.
+    const singleBox = unifiedPromptMode.checked;
     resetGenerationForm();
     const inp = (id: string) => (prompt[id] && prompt[id].inputs) || {};
     const s = (id: string, key: string) => { const v = inp(id)[key]; return v == null ? '' : String(v); };
@@ -1848,7 +2003,7 @@ declare const BridgeShared: {
       setVal(resizeMethod, s('238', 'method'));
     }
 
-    applySavedPromptText(prompt);
+    logDroppedLoras(await applySavedPromptText(prompt, singleBox));
 
     setVal(sampler, s('168:167', 'sampler_name'));
     setVal(scheduler, s('158:53', 'scheduler') || s('195', 'scheduler'));
@@ -1883,27 +2038,143 @@ declare const BridgeShared: {
     scheduleUiSave();
   }
 
+  // Applies a generation (gallery, Import lightbox, Metadata tab; mirrors
+  // desktop's useGeneration): everything for this workflow's images, prompts
+  // only for foreign ones or when asked.
+  async function useGeneration(prompt: Record<string, any>, promptsOnly: boolean, from: string) {
+    try {
+      const foreign = BridgeShared.foreignSource(prompt);
+      if (promptsOnly || foreign) {
+        await applyImportedPromptsOnly(prompt);
+        log(foreign && !promptsOnly
+          ? 'Loaded the prompts from ' + from + ' (made with ' + foreign + ': prompts only).'
+          : 'Loaded the prompts from ' + from + ' (other settings kept).');
+      } else {
+        await applyImportedPrompt(prompt);
+        log('Loaded generation settings from ' + from + '.');
+      }
+    } catch (err) {
+      log('Loading from ' + from + ' failed: ' + errMsg(err));
+    }
+  }
+
+  // ---------------- LoRA tools (Metadata tab, details panels) ----------------
+  // File info comes from the PC (the relay or Persist Comfy's runner reads the
+  // LoRA through ComfyUI's own loras folders). Online lookups only ever
+  // request BridgeShared.lookupUrl's fixed CivitAI / CivArchive API URLs, via
+  // Capacitor's native HTTP (CivArchive sends no CORS headers); links open in
+  // the system browser only for those two sites.
+  function datalistValues(dl: HTMLDataListElement): string[] {
+    return Array.from(dl.options || []).map((o) => o.value).filter(Boolean);
+  }
+  const loraTools = {
+    localNames: () => Array.from(new Set([...datalistValues(loraList), ...datalistValues(mainLoraList)])),
+    fileInfo: async (name: string) => {
+      try {
+        const res = await pcRequest('/internal/lora/info?name=' + encodeURIComponent(name), 30000, 2);
+        const parsed = JSON.parse(new TextDecoder().decode(res.body) || '{}');
+        if (res.status === 200 && parsed.ok) return { ok: true, info: parsed.info };
+        return { ok: false, error: (parsed.error && parsed.error.message) || (res.status === 404 ? 'File info needs a PC running Comfy Bridge (or Persist Comfy) as the host.' : 'HTTP ' + res.status) };
+      } catch (err) {
+        return { ok: false, error: 'Could not reach the PC: ' + errMsg(err) };
+      }
+    },
+    onlineLookup: async (site: string, kind: string, q: string) => {
+      const url = BridgeShared.lookupUrl(site, kind, q);
+      if (!url) return { ok: false, error: 'Nothing to look up.' };
+      try {
+        const http = window.Capacitor && window.Capacitor.Plugins && (window.Capacitor.Plugins as any).CapacitorHttp;
+        if (http) {
+          const r = await http.request({ url, method: 'GET', headers: { Accept: 'application/json' }, connectTimeout: 15000, readTimeout: 15000 });
+          const json = typeof r.data === 'string' ? (() => { try { return JSON.parse(r.data); } catch (e) { return null; } })() : r.data;
+          return { ok: true, status: r.status, json };
+        }
+        // No native HTTP (browser harness): CivitAI allows CORS, CivArchive doesn't.
+        const res = await fetch(url, { headers: { Accept: 'application/json' } });
+        return { ok: true, status: res.status, json: await res.json().catch(() => null) };
+      } catch (err) {
+        return { ok: false, error: errMsg(err) };
+      }
+    },
+    openLink: (url: string) => {
+      const safe = BridgeShared.safeLookupLink(url);
+      if (safe) window.open(safe, '_blank');
+    },
+    addToStack: (name: string, strength: number) => {
+      // The first empty row first (the stack starts with a blank one).
+      const empty = loraRows.find((r) => !r.input.value.trim());
+      if (empty) { empty.input.value = name; empty.strength.value = String(strength); }
+      else addLoraRow(name, strength);
+      scheduleUiSave();
+      log('Added ' + name + ' @ ' + strength + ' to the LoRA stack.');
+    }
+  };
+  const IMPORT_LABELS = { full: 'Import Generation', prompts: 'Use prompts only' };
+
+  // A picked image as a data URL + its generation (null when none).
+  async function readPickedImage(file: File): Promise<{ src: string; info: { prompt: Record<string, any>; kind: null } | null }> {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const prompt = BridgeShared.normalizeGeneration(BridgeShared.imageMetadataTexts(bytes));
+    return { src: 'data:' + (sniffImageMime(bytes) || 'image/png') + ';base64,' + BridgeShared.bytesToBase64(bytes), info: prompt ? { prompt, kind: null } : null };
+  }
+
+  // Import Generation (main UI shortcut): any image → the details lightbox
+  // (Details behind the top-left button, like the gallery's) → "Import
+  // Generation" or "Use prompts only".
   btnImportGen.addEventListener('click', () => importFileInput.click());
   importFileInput.addEventListener('change', async () => {
     const file = importFileInput.files && importFileInput.files[0];
+    importFileInput.value = '';
     if (!file) return;
     try {
-      const chunks = extractPngPromptChunks(await file.arrayBuffer());
-      const raw = chunks.prompt;
-      if (!raw) { alert('No embedded prompt metadata in that PNG — it may have been re-saved or stripped by another tool.'); return; }
-      const prompt = JSON.parse(raw);
-      for (const id of ['41', '51', '158:53', '158:54', '165']) {
-        if (!prompt[id] || !prompt[id].inputs) {
-          alert('That image was not generated with the integrated workflow (missing node "' + id + '").');
-          return;
-        }
-      }
-      applyImportedPrompt(prompt);
-      log('Imported generation settings from PNG.');
+      const picked = await readPickedImage(file);
+      if (!picked.info) { alert('No generation settings found in that image — it may have been re-saved or stripped by another tool.'); return; }
+      BridgeShared.showImageLightbox(picked.src, undefined, (src, close) => BridgeShared.buildGenInfoPanel(src, (prompt, promptsOnly) => {
+        close();
+        void useGeneration(prompt, promptsOnly, 'the imported image');
+      }, '', undefined, { loraTools, labels: IMPORT_LABELS, info: picked.info }), true);
     } catch (e) {
       log('Import failed: ' + errMsg(e));
     }
-    importFileInput.value = '';
+  });
+
+  // ---------------- Generate | Metadata tabs ----------------
+  const appTabs = $<HTMLElement>('appTabs');
+  const colEl = $<HTMLElement>('col');
+  const metadataView = $<HTMLElement>('metadataView');
+  const metaFileInput = $<HTMLInputElement>('metaFileInput');
+  function showTab(tab: string) {
+    const meta = tab === 'metadata';
+    colEl.hidden = meta;
+    metadataView.hidden = !meta;
+    appTabs.querySelectorAll<HTMLButtonElement>('button[data-tab]').forEach((b) => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+    window.scrollTo(0, 0);
+  }
+  appTabs.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-tab]');
+    if (b && b.dataset.tab) showTab(b.dataset.tab);
+  });
+  let metaPicked: { src: string; info: { prompt: Record<string, any>; kind: null } | null } | null = null;
+  BridgeShared.mountMetadataTab($<HTMLElement>('metadataTab'), {
+    tools: loraTools,
+    pickImage: () => new Promise<string | null>((resolve) => {
+      metaFileInput.onchange = async () => {
+        const file = metaFileInput.files && metaFileInput.files[0];
+        metaFileInput.value = '';
+        if (!file) { resolve(null); return; }
+        try { metaPicked = await readPickedImage(file); resolve(metaPicked.src); }
+        catch (e) { log('Could not read the image: ' + errMsg(e)); resolve(null); }
+      };
+      metaFileInput.click();
+    }),
+    details: (src) => BridgeShared.buildGenInfoPanel(src, (prompt, promptsOnly) => {
+      showTab('generate');
+      void useGeneration(prompt, promptsOnly, 'the Metadata tab');
+    }, '', undefined, { loraTools, labels: IMPORT_LABELS, info: metaPicked && metaPicked.src === src ? metaPicked.info : undefined })
   });
 
   // ---------------- UI state persistence ----------------

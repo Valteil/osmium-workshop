@@ -8,7 +8,7 @@
 // `notes/SynthDat-Overseer.md` for the workflow's own background — this is
 // a copy of its ComfyUI-facing bridge, not a shared module, since the two
 // apps otherwise have nothing in common (no dataset, no dirHandle writes).
-const { app, BrowserWindow, Menu, ipcMain, dialog, session } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, session, shell } = require('electron');
 const { pathToFileURL } = require('url');
 const path = require('path');
 const fs = require('fs');
@@ -19,7 +19,7 @@ import { parseComboValues, uploadImage, queuePrompt, pollHistory, extractPngText
 import type { ComfyTransport } from './comfy-core';
 import {
   configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop, localLogs, onLocalLogs,
-  localPersistEnabled, localIsPersistentConnection, localSetShare, ensureLocalStarted, localGalleryThumb
+  localPersistEnabled, localIsPersistentConnection, localSetShare, ensureLocalStarted, localGalleryThumb, localLoraInfo
 } from './comfy-local';
 import { startRelay, stopRelay, relayState, relayAddresses, initRelayGallery } from './local-relay';
 
@@ -159,6 +159,11 @@ initRelayGallery({
       if (!r.ok || !r.b64) return { ok: false, error: r.error || 'No thumbnail.' };
       return { ok: true, base64: r.b64, mime: r.mime || 'image/jpeg' };
     } catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) }; }
+  },
+  async loraInfo(name) {
+    const started = await ensureLocalStarted();
+    if (!started.ok) return { ok: false, error: started.error };
+    return localLoraInfo(name);
   }
 });
 app.whenReady().then(() => { applyRelay(); });
@@ -311,29 +316,92 @@ function extractPngTextChunks(buffer: Buffer): Record<string, string> {
   return extractPngChunks(new Uint8Array(buffer), (d) => require('zlib').inflateSync(d));
 }
 
+// ---------------- LoRA lookup (Metadata tab) ----------------
+// Online lookups leave the app ONLY from here, to two fixed HTTPS APIs. The
+// renderer names a site, a kind and a query — never a URL — and gets parsed
+// JSON back (rendered as text there). No redirects are followed, responses
+// are size- and time-capped, and links open in the system browser only for
+// those two sites' own https pages.
+const LOOKUP_HOSTS = new Set(['civitai.com', 'civarchive.com']);
+const LOOKUP_TIMEOUT_MS = 15000;
+const LOOKUP_MAX_BYTES = 4 * 1024 * 1024;
+function lookupUrl(site: string, kind: string, q: string): string | null {
+  const s = String(q || '').trim();
+  if (site === 'civitai') {
+    if (kind === 'hash') return /^[0-9a-f]{8,64}$/i.test(s) ? `https://civitai.com/api/v1/model-versions/by-hash/${s}` : null;
+    if (kind === 'name') return s && s.length <= 200 ? `https://civitai.com/api/v1/models?types=LORA&limit=8&query=${encodeURIComponent(s)}` : null;
+  }
+  if (site === 'civarchive') {
+    if (kind === 'hash') return /^[0-9a-f]{64}$/i.test(s) ? `https://civarchive.com/api/sha256/${s.toLowerCase()}` : null;
+    if (kind === 'name') return s && s.length <= 200 ? `https://civarchive.com/api/search?q=${encodeURIComponent(s)}` : null;
+  }
+  return null;
+}
+function httpsGetJson(url: string): Promise<{ status: number; json: unknown }> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { Accept: 'application/json', 'User-Agent': 'ComfyBridge/2.0 (LoRA lookup)' }, timeout: LOOKUP_TIMEOUT_MS }, (res) => {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      res.on('data', (c: Buffer) => {
+        size += c.length;
+        if (size > LOOKUP_MAX_BYTES) { req.destroy(new Error('Lookup reply too large.')); return; }
+        chunks.push(c);
+      });
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8');
+        if ((res.statusCode || 0) >= 300 && (res.statusCode || 0) < 400) { resolve({ status: res.statusCode || 0, json: null }); return; }
+        try { resolve({ status: res.statusCode || 0, json: text ? JSON.parse(text) : null }); }
+        catch { resolve({ status: res.statusCode || 0, json: null }); }
+      });
+      res.on('error', reject);
+    });
+    req.on('timeout', () => req.destroy(new Error('The lookup timed out.')));
+    req.on('error', reject);
+  });
+}
+ipcMain.handle('lora-online-lookup', async (_event, payload) => {
+  const { site, kind, q } = payload || {};
+  const url = lookupUrl(String(site), String(kind), String(q));
+  if (!url) return { ok: false, error: 'Nothing to look up.' };
+  try {
+    const r = await httpsGetJson(url);
+    return { ok: true, status: r.status, json: r.json };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+});
+ipcMain.handle('open-lookup-link', async (_event, raw) => {
+  try {
+    const u = new URL(String(raw));
+    if (u.protocol !== 'https:' || !LOOKUP_HOSTS.has(u.hostname)) return { ok: false };
+    await shell.openExternal(u.toString());
+    return { ok: true };
+  } catch { return { ok: false }; }
+});
+// A LoRA's file metadata (Osmium Comfy's runner). Never starts it: like every
+// other desktop request, a stopped runner answers "Click Connect to start it".
+ipcMain.handle('lora-file-info', async (_event, name) => localLoraInfo(String(name || '')));
+
+// Since 2026-10-13 any image imports: the renderer's shared prompt-import.ts
+// reads the Bridge workflow, other ComfyUI workflows, A1111/Forge, NovelAI,
+// InvokeAI and SwarmUI. This side only picks the file and hands over its PNG
+// text chunks (compressed ones inflated here with zlib) and, for JPEG/WebP,
+// the bytes (their EXIF is parsed in the renderer).
 ipcMain.handle('import-workflow-file', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const res = await dialog.showOpenDialog(win, {
-    title: 'Import a generation made with the integrated workflow',
-    filters: [{ name: 'PNG image', extensions: ['png'] }],
+    title: 'Import a generation (from this workflow, another ComfyUI workflow, A1111, NovelAI…)',
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
     properties: ['openFile']
   });
   if (res.canceled || !res.filePaths[0]) return { ok: false, cancelled: true };
   const file = res.filePaths[0];
   try {
-    const chunks = extractPngTextChunks(fs.readFileSync(file));
-    const raw = chunks['prompt'];
-    if (!raw) return { ok: false, error: 'No embedded prompt metadata in that PNG — it may have been re-saved or stripped by another tool.' };
-    const prompt = JSON.parse(raw);
-    // The Bridge's fixed template carries these node ids; a workflow made
-    // elsewhere (different template) won't have them, and importing one
-    // would silently mis-map fields.
-    for (const id of ['41', '51', '158:53', '158:54', '165']) {
-      if (!prompt[id] || !prompt[id].inputs) {
-        return { ok: false, error: `That image was not generated with the integrated workflow (missing node "${id}").` };
-      }
-    }
-    return { ok: true, prompt };
+    const buf = fs.readFileSync(file);
+    const isPng = buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50;
+    // The bytes always (the import lightbox and Metadata tab show the image);
+    // a PNG's text chunks too, compressed ones inflated here.
+    return isPng ? { ok: true, texts: extractPngTextChunks(buf), bytes: new Uint8Array(buf) } : { ok: true, bytes: new Uint8Array(buf) };
   } catch (err) {
     return { ok: false, error: `Could not read ${file}: ${err.message}` };
   }

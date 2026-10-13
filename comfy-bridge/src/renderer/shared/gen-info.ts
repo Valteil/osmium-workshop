@@ -6,7 +6,9 @@
 // pass 1 and pass 2 share one filename prefix. So the Bridge stamps each file
 // it saves with its own `comfybridge_output` chunk (stampOutputKind) —
 // generations saved before that show "not recorded" for 2-Pass images.
-import { extractPngTextChunks } from '../../comfy-core';
+import { imageMetadataTexts, normalizeGeneration, foreignSource } from './prompt-import';
+import { promptLoras, bridgeWorkflowLoras } from './lora-lookup';
+import { buildLoraSection, type LoraTools } from './metadata-ui';
 import {
   recognizeCharacter, ratingFolder, characterIndex,
   joinNameParts, fileBaseName, safeSegment
@@ -70,16 +72,16 @@ function dataUrlBytes(src: string): Uint8Array | null {
 
 export interface GenInfo { prompt: Record<string, any>; kind: OutputKind | null; }
 
+// Any image's generation (prompt-import.ts): the Bridge workflow as-is, or a
+// foreign one (another ComfyUI workflow, A1111, NovelAI…) Bridge-shaped.
 export function readGenInfo(src: string): GenInfo | null {
   const bytes = dataUrlBytes(src);
   if (!bytes) return null;
-  const chunks = extractPngTextChunks(bytes);
-  if (!chunks['prompt']) return null;
-  try {
-    const prompt = JSON.parse(chunks['prompt']);
-    const k = chunks[OUTPUT_KEY] as OutputKind | undefined;
-    return { prompt, kind: k && k in OUTPUT_LABEL ? k : null };
-  } catch { return null; }
+  const texts = imageMetadataTexts(bytes);
+  const prompt = normalizeGeneration(texts);
+  if (!prompt) return null;
+  const k = texts[OUTPUT_KEY] as OutputKind | undefined;
+  return { prompt, kind: k && k in OUTPUT_LABEL ? k : null };
 }
 
 // ---- The panel ----
@@ -93,6 +95,32 @@ const PROMPT_FIELDS: [string, string][] = [
 
 function isLink(v: unknown): boolean {
   return Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && typeof v[1] === 'number';
+}
+
+// The prompt fields in the order the workflow itself joins them (Text
+// Concatenate #5 → #4 → #3 → #2 → #1 Final, delimiter ", ", blanks skipped):
+// Global, Rating, Character Count, Character, Hair, Face, Chest, Body,
+// Clothes, Limbs, Sexual, Pose, Extra, Effects, Scene.
+const MERGE_ORDER = ['21', '8', '19', '11', '12', '15', '18', '9', '6', '20', '14', '7', '10', '13', '17'];
+// The per-category nodes (everything but Global and Character): a saved
+// prompt with none of these set was made in single-box mode (which writes
+// only Global + the box into Character's node 11) or uses just those two.
+const CATEGORY_NODES = ['8', '19', '12', '15', '18', '9', '6', '20', '14', '7', '10', '13', '17'];
+
+function promptValue(prompt: Record<string, any>, id: string): string {
+  const v = prompt[id] && prompt[id].inputs ? prompt[id].inputs.value : undefined;
+  return v == null || isLink(v) ? '' : String(v).trim();
+}
+
+// The whole positive prompt of a saved generation as one text: exactly what
+// the workflow fed the sampler (for the single prompt box on import).
+export function mergedPromptText(prompt: Record<string, any>): string {
+  return MERGE_ORDER.map((id) => promptValue(prompt, id)).filter(Boolean).join(', ');
+}
+
+// Whether a saved prompt used any per-category box (Rating, Hair, …, Scene).
+export function hasCategoryPrompts(prompt: Record<string, any>): boolean {
+  return CATEGORY_NODES.some((id) => promptValue(prompt, id) !== '');
 }
 
 // ---- Save details / reorganize ----
@@ -113,8 +141,18 @@ export interface GenInfoRelocation {
   onMoved(): void;
 }
 type GenInfoMoveMode = 'tag' | 'oc' | 'custom';
-export function buildGenInfoPanel(src: string, onUse: (prompt: Record<string, any>, promptsOnly: boolean) => void, relPath = '', relocate?: GenInfoRelocation): HTMLElement | null {
-  const info = readGenInfo(src);
+// Panel options (Metadata tab, 2026-10-14): the LoRA tools turn on the LoRAs
+// section (file info, CivitAI / CivArchive lookup, add to stack); `labels`
+// renames the two buttons and stacks them (the Import Generation lightbox:
+// "Import Generation" over "Use prompts only").
+export interface GenInfoPanelOptions {
+  loraTools?: LoraTools;
+  labels?: { full: string; prompts: string };
+  // Already read (the desktop's import: main inflated compressed PNG text).
+  info?: GenInfo | null;
+}
+export function buildGenInfoPanel(src: string, onUse: (prompt: Record<string, any>, promptsOnly: boolean) => void, relPath = '', relocate?: GenInfoRelocation, opts: GenInfoPanelOptions = {}): HTMLElement | null {
+  const info = opts.info || readGenInfo(src);
   const panel = document.createElement('aside');
   panel.className = 'gen-info';
   const title = document.createElement('div');
@@ -167,11 +205,14 @@ export function buildGenInfoPanel(src: string, onUse: (prompt: Record<string, an
     panel.appendChild(r);
   };
 
+  const foreign = foreignSource(p);
   const use = document.createElement('button');
   use.type = 'button';
   use.className = 'gen-info-use';
-  use.textContent = 'Use these settings';
-  use.title = 'Fill the generator with this image\'s settings (same as Import generation)';
+  use.textContent = opts.labels ? opts.labels.full : 'Use these settings';
+  use.title = foreign
+    ? 'Fill the prompts with this image\'s (an image made elsewhere imports its prompts only)'
+    : 'Fill the generator with this image\'s settings: models, LoRAs, prompts and generation settings';
   use.addEventListener('click', () => onUse(p, false));
   // Prompts only: the image's exact prompt fields replace the current ones
   // (no merging; a field the image left empty is cleared), everything else
@@ -179,38 +220,81 @@ export function buildGenInfoPanel(src: string, onUse: (prompt: Record<string, an
   const usePrompts = document.createElement('button');
   usePrompts.type = 'button';
   usePrompts.className = 'gen-info-use';
-  usePrompts.textContent = 'Use these prompts';
+  usePrompts.textContent = opts.labels ? opts.labels.prompts : 'Use these prompts';
   usePrompts.title = 'Replace only the prompt fields (and the negative) with this image\'s, keeping your current models, LoRAs and generation settings';
   usePrompts.addEventListener('click', () => onUse(p, true));
   const useRow = document.createElement('div');
-  useRow.className = 'gen-info-use-row';
+  useRow.className = 'gen-info-use-row' + (opts.labels ? ' stacked' : '');
   useRow.append(use, usePrompts);
   panel.appendChild(useRow);
+  // Weird LoRA/model setups elsewhere: only this workflow's own images
+  // replace models and LoRAs (the user's rule).
+  if (foreign) {
+    const hint = document.createElement('div');
+    hint.className = 'gen-info-hint';
+    hint.textContent = 'Made outside this workflow: importing fills the prompts only. Its settings and LoRAs are listed below for reference.';
+    panel.appendChild(hint);
+  }
 
-  const twoPass = !!p['195'];
-  const kindLabel = info.kind ? OUTPUT_LABEL[info.kind]
-    : twoPass ? 'Pass 1 or 2 (not recorded: saved before v2.0.0)'
-    : p['192_upscaled'] ? 'Single pass or upscaled (not recorded: saved before v2.0.0)'
-    : OUTPUT_LABEL.single;
   section('This image');
-  row('Output', kindLabel);
+  if (foreign) {
+    row('Made with', foreign);
+  } else {
+    const kindLabel = info.kind ? OUTPUT_LABEL[info.kind]
+      : p['195'] ?'Pass 1 or 2 (not recorded: saved before v2.0.0)'
+      : p['192_upscaled'] ? 'Single pass or upscaled (not recorded: saved before v2.0.0)'
+      : OUTPUT_LABEL.single;
+    row('Output', kindLabel);
+  }
 
   section('Prompt');
-  for (const [id, label] of PROMPT_FIELDS) row(label, val(id, 'value'), true);
+  // A single-box or foreign prompt is one text, not a "Character" box.
+  if (hasCategoryPrompts(p)) {
+    for (const [id, label] of PROMPT_FIELDS) row(label, val(id, 'value'), true);
+  } else {
+    row('Prompt', mergedPromptText(p), true);
+  }
   row('Negative', val('16', 'text'), true);
+  if (foreign) {
+    section('Settings');
+    row('Seed', val('165', 'noise_seed'));
+    row('Steps', val('158:53', 'steps'));
+    row('CFG', val('158:54', 'cfg'));
+    row('Sampler', [val('168:167', 'sampler_name'), val('158:53', 'scheduler')].filter(Boolean).join(' / '));
+    const w = val('174:171', 'value'), h = val('174:172', 'value');
+    if (w && h) row('Size', `${w} × ${h}`);
+    const loras = promptLoras(p);
+    if (loras.length) {
+      section('LoRAs');
+      if (opts.loraTools) panel.appendChild(buildLoraSection(loras, opts.loraTools));
+      else for (const l of loras) row('LoRA', l.strength !== undefined ? `${l.name} @ ${l.strength}` : l.name);
+    }
+    // Models, 2-Pass, upscale and the reference image are this workflow's
+    // own; a foreign image has none of them to show.
+    return panel;
+  }
+  const twoPass = !!p['195'];
 
   section('Models');
   row('Diffusion model', val('41', 'unet_name'));
   row('CLIP', val('249', 'clip_name'));
   row('VAE', val('47:46', 'vae_name'));
-  const mainLora = val('51', 'lora_name');
-  // 'Anima-n' is the template's placeholder, same exclusion as applyImportedPrompt.
-  if (mainLora && mainLora !== 'None' && mainLora !== 'Anima-n') row('Main LoRA', `${mainLora}${val('248', 'strength_model') ? ` @ ${val('248', 'strength_model')}` : ''}`);
-  for (const id of Object.keys(p).filter((k) => k === '237' || /^237_extra_\d+$/.test(k))) {
-    for (let i = 1; i <= 4; i++) {
-      const slot = String(i).padStart(2, '0');
-      const name = val(id, `lora_${slot}`);
-      if (name && name !== 'None') row('LoRA', `${name} @ ${val(id, `strength_${slot}`) || '0'}`);
+  // With the LoRA tools: a LoRAs section with lookups (bridgeWorkflowLoras:
+  // Main LoRA + the stack); without: plain rows as before.
+  const ownLoras = bridgeWorkflowLoras(p);
+  if (opts.loraTools && ownLoras.length) {
+    section('LoRAs');
+    panel.appendChild(buildLoraSection(ownLoras, opts.loraTools));
+  } else {
+    const mainLora = val('51', 'lora_name');
+    // 'Anima-n' is the template's placeholder, same exclusion as applyImportedPrompt.
+    if (mainLora && mainLora !== 'None' && mainLora !== 'Anima-n') row('Main LoRA', `${mainLora}${val('248', 'strength_model') ? ` @ ${val('248', 'strength_model')}` : ''}`);
+    for (const id of Object.keys(p).filter((k) => k === '237' || /^237_extra_\d+$/.test(k))) {
+      for (let i = 1; i <= 4; i++) {
+        const slot = String(i).padStart(2, '0');
+        const name = val(id, `lora_${slot}`);
+        if (name && name !== 'None') row('LoRA', `${name} @ ${val(id, `strength_${slot}`) || '0'}`);
+      }
     }
   }
 

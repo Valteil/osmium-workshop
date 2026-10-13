@@ -49,6 +49,31 @@ if "--app" in sys.argv[1:]:
     if _i + 1 < len(sys.argv):
         APP_NAME = sys.argv[_i + 1]
 
+# Lifecycle log: <ComfyUI>/user/osmium_runner.log, a few lines per session —
+# start, app connect/disconnect, phone requests, and HOW the process ended
+# (console window closed, logoff/shutdown, normal exit, crash). Added after a
+# kept-open runner kept vanishing with nothing in comfyui_detail.log to say
+# why. Best effort: never lets a logging failure reach the runner.
+_LIFE_PATH = None
+if "--comfy" in sys.argv[1:]:
+    _i = sys.argv.index("--comfy")
+    if _i + 1 < len(sys.argv):
+        _LIFE_PATH = os.path.join(os.path.abspath(sys.argv[_i + 1]), "user", "osmium_runner.log")
+
+
+def life(msg):
+    if not _LIFE_PATH:
+        return
+    try:
+        os.makedirs(os.path.dirname(_LIFE_PATH), exist_ok=True)
+        if os.path.exists(_LIFE_PATH) and os.path.getsize(_LIFE_PATH) > 2 * 1024 * 1024:
+            os.replace(_LIFE_PATH, _LIFE_PATH + ".old")
+        with open(_LIFE_PATH, "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [{APP_NAME} pid {os.getpid()}] {msg}\n")
+    except OSError:
+        pass
+
+
 # Persistent mode (--listen-port N, Comfy Bridge's "Persist Comfy"): the
 # protocol runs over a 127.0.0.1 socket instead of stdin/stdout, so this
 # process outlives the app that started it and the app can reconnect later.
@@ -68,7 +93,9 @@ if LISTEN_PORT:
         _LISTENER.bind(("127.0.0.1", LISTEN_PORT))
         _LISTENER.listen(4)
     except OSError:
+        life(f"port {LISTEN_PORT} already taken (another kept-open runner is up); exiting")
         sys.exit(0)  # another persistent runner already has the port
+life(f"started ({'kept open on 127.0.0.1:' + str(LISTEN_PORT) if LISTEN_PORT else 'pipe mode'})")
 
 _PROTO = os.fdopen(os.dup(1), "w", encoding="utf-8", buffering=1)
 _PROTO_LOCK = threading.Lock()
@@ -90,6 +117,30 @@ if os.name == "nt":
     _hwnd = _k32.GetConsoleWindow()
     if _hwnd:
         ctypes.windll.user32.ShowWindow(_hwnd, 5)  # SW_SHOW
+
+    # Record why the console is ending us (closing its window is the only
+    # intended way to stop a kept-open runner). Kept in a global so the
+    # callback isn't garbage-collected; returns False to let Windows proceed.
+    _CTRL_NAMES = {0: "Ctrl+C", 1: "Ctrl+Break", 2: "console window closed", 5: "user logoff", 6: "system shutdown"}
+
+    @ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_uint)
+    def _on_console_ctrl(kind):
+        life(f"ending: {_CTRL_NAMES.get(kind, 'console event ' + str(kind))}")
+        return 0
+
+    _k32.SetConsoleCtrlHandler(_on_console_ctrl, 1)
+
+import atexit  # noqa: E402
+import faulthandler  # noqa: E402
+
+atexit.register(lambda: life("exited normally"))
+threading.excepthook = lambda a: life(f"thread {a.thread.name if a.thread else '?'} crashed: {a.exc_type.__name__}: {a.exc_value}")
+if _LIFE_PATH:
+    try:
+        _FAULT_FILE = open(_LIFE_PATH, "a", encoding="utf-8")
+        faulthandler.enable(_FAULT_FILE)  # hard crashes (segfaults) write their stack here
+    except OSError:
+        pass
 try:
     _CON = open("CONOUT$", "w", encoding="utf-8", errors="replace", buffering=1)
     os.dup2(_CON.fileno(), 2)
@@ -441,6 +492,68 @@ def gallery_thumb_bytes(abs, side):
     return out
 
 
+# ---- LoRA file metadata (Comfy Bridge's Metadata tab / LoRA lookup) ----------
+# A LoRA named like ComfyUI's own lists ("style/foo.safetensors") is resolved
+# by ComfyUI's folder_paths — only files in its configured loras folders can
+# be read. A .safetensors header is <u64 LE length><JSON>; its __metadata__ is
+# the trainer's record (kohya ss_*, modelspec.*). The SHA-256 of the whole
+# file is what CivitAI (AutoV2 = its first 10 hex) and CivArchive look up;
+# cached per (path, size, mtime) since hashing reads the whole file.
+LORA_SHA_CACHE = {}
+LORA_META_KEYS = ("ss_output_name", "modelspec.title", "modelspec.architecture", "ss_base_model_version",
+                  "ss_sd_model_name", "modelspec.trigger_phrase", "modelspec.description", "ss_training_comment",
+                  "ss_network_module", "ss_network_dim", "ss_network_alpha", "ss_num_epochs", "ss_epoch",
+                  "ss_steps", "ss_resolution", "modelspec.resolution", "ss_learning_rate", "ss_optimizer")
+
+
+def lora_info(name):
+    import hashlib
+    name = str(name or "")
+    path = folder_paths.get_full_path("loras", name) if name else None
+    if not path or not os.path.isfile(path):
+        raise LookupError(f"Not in this PC's ComfyUI loras folders: {name}")
+    st = os.stat(path)
+    out = {"name": name, "file": os.path.basename(path), "size": st.st_size, "meta": {}, "top_tags": [], "sha256": ""}
+    if path.lower().endswith(".safetensors"):
+        with open(path, "rb") as f:
+            n = int.from_bytes(f.read(8), "little")
+            if 0 < n <= 100 * 1024 * 1024:
+                try:
+                    header = json.loads(f.read(n).decode("utf-8", "replace"))
+                except ValueError:
+                    header = {}
+                meta = (header.get("__metadata__") or {}) if isinstance(header, dict) else {}
+                if not isinstance(meta, dict):
+                    meta = {}
+                for k in LORA_META_KEYS:
+                    v = meta.get(k)
+                    if v not in (None, "", "None"):
+                        out["meta"][k] = str(v)[:2000]
+                # Training tags: ss_tag_frequency = {"<folder>": {"<tag>": count}}.
+                try:
+                    freq = json.loads(meta.get("ss_tag_frequency") or "{}")
+                    totals = {}
+                    for folder in freq.values():
+                        for tag, count in (folder or {}).items():
+                            t = str(tag).strip()
+                            if t:
+                                totals[t] = totals.get(t, 0) + int(count or 0)
+                    out["top_tags"] = sorted(totals.items(), key=lambda kv: -kv[1])[:40]
+                except (ValueError, TypeError, AttributeError):
+                    pass
+    key = (path, st.st_size, int(st.st_mtime))
+    sha = LORA_SHA_CACHE.get(key)
+    if sha is None:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for block in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(block)
+        sha = h.hexdigest()
+        LORA_SHA_CACHE[key] = sha
+    out["sha256"] = sha
+    return out
+
+
 # ---- phone share server (Persist Comfy) -------------------------------------
 class ShareServer:
     """The slice of ComfyUI's HTTP + websocket API the Comfy Bridge Android
@@ -485,6 +598,7 @@ class ShareServer:
             return False, str(err)
         self.port = port
         say(f"Serving the phone app on port {port} (every network this PC is on). It keeps working after {APP_NAME} closes.")
+        life(f"serving the phone on port {port} (folder: {self.gallery_root or 'ComfyUI output'})")
         return True, ""
 
     def stop(self):
@@ -498,6 +612,7 @@ class ShareServer:
         self.sockets.clear()
         self.log_subs.clear()
         say("Stopped serving the phone app.")
+        life("stopped serving the phone")
 
     async def _start(self, port):
         from aiohttp import web
@@ -511,10 +626,17 @@ class ShareServer:
                     resp = await handler(request)
                 except web.HTTPException as exc:
                     resp = exc
+                except Exception as exc:  # noqa: BLE001 — answer the phone with the reason, not a bare 500
+                    status = 404 if isinstance(exc, (LookupError, FileNotFoundError)) else 500
+                    resp = web.json_response({"error": {"message": str(exc) or type(exc).__name__}}, status=status)
+                    life(f"phone {request.remote} {request.method} {request.path_qs} failed: {type(exc).__name__}: {exc}")
+            # Lifecycle log: every phone request but the grid's thumbnails.
+            if request.path != "/internal/gallery/thumb":
+                life(f"phone {request.remote} {request.method} {request.path_qs} -> {getattr(resp, 'status', '?')}")
             if not getattr(resp, "prepared", False):
                 resp.headers["Access-Control-Allow-Origin"] = "*"
                 resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, OPTIONS"
-                resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+                resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Osmium-Token"
             return resp
 
         def err(status, message):
@@ -563,30 +685,38 @@ class ShareServer:
             return web.json_response({pid: rec} if rec else {})
 
         # Gallery over the share server: browse the app's picked output folder.
-        # The folder arrives with the share command (root=); without it these
-        # answer a clear error instead of ever exposing something by accident.
+        # The folder arrives with the share command (root=). Until it has, this
+        # falls back to ComfyUI's own output folder (where this runner's
+        # SaveImage writes), so the phone can always see the generations.
         def gallery_root():
-            if not self.gallery_root:
-                raise LookupError("This share doesn't know a folder to browse yet — open Comfy Bridge and pick it once.")
-            return self.gallery_root
+            root = self.gallery_root or folder_paths.get_output_directory()
+            if not root or not os.path.isdir(root):
+                raise LookupError("The PC's output folder isn't available. Open Comfy Bridge and pick it again.")
+            return root
 
-        async def gallery_list(request):
+        # The routes are named *_route: a handler named gallery_list shadowed
+        # the module's gallery_list() helper, so the listing called itself.
+        async def gallery_list_route(request):
             loop = asyncio.get_running_loop()
             r = await loop.run_in_executor(None, gallery_list, gallery_root(), request.query.get("dir") or "")
             return web.json_response({"ok": True, "entries": r})
 
-        async def gallery_read(request):
+        async def gallery_read_route(request):
             loop = asyncio.get_running_loop()
             abs = await loop.run_in_executor(None, gallery_safe_join, gallery_root(), request.query.get("path") or "")
             data, mime = await loop.run_in_executor(None, gallery_read_bytes, abs)
             return web.Response(body=data, content_type=mime.split(";")[0])
 
-        async def gallery_thumb(request):
+        async def gallery_thumb_route(request):
             loop = asyncio.get_running_loop()
             abs = await loop.run_in_executor(None, gallery_safe_join, gallery_root(), request.query.get("path") or "")
             data, mime = await loop.run_in_executor(None, gallery_thumb_bytes, abs, request.query.get("side") or "320")
-            body = base64.b64encode(data).decode("ascii")
-            return web.json_response({"ok": True, "base64": body, "mime": mime})
+            # The image itself, like the Bridge relay's route (the phone reads bytes).
+            return web.Response(body=data, content_type=mime)
+
+        async def lora_info_route(request):
+            info = await asyncio.get_running_loop().run_in_executor(None, lora_info, request.query.get("name") or "")
+            return web.json_response({"ok": True, "info": info})
 
         async def view(request):
             key = f"{request.query.get('subfolder', '')}/{request.query.get('filename', '')}"
@@ -617,6 +747,7 @@ class ShareServer:
             await sock.prepare(request)
             cid = request.query.get("clientId") or str(uuid.uuid4())
             self.sockets[cid] = sock
+            life(f"phone {request.remote} websocket open ({cid[:8]})")
             await sock.send_str(json.dumps({"type": "status", "data": {"status": {"exec_info": {"queue_remaining": 0}}, "sid": cid}}))
             try:
                 async for _msg in sock:  # the phone's feature_flags etc.: nothing to do
@@ -625,6 +756,7 @@ class ShareServer:
                 if self.sockets.get(cid) is sock:
                     self.sockets.pop(cid, None)
                     self.log_subs.discard(cid)
+                life(f"phone {request.remote} websocket closed ({cid[:8]})")
             return sock
 
         async def root(_request):
@@ -639,9 +771,10 @@ class ShareServer:
         webapp.router.add_post("/interrupt", interrupt)
         webapp.router.add_get("/internal/logs/raw", logs_raw)
         webapp.router.add_route("PATCH", "/internal/logs/subscribe", logs_subscribe)
-        webapp.router.add_get("/internal/gallery/list", gallery_list)
-        webapp.router.add_get("/internal/gallery/read", gallery_read)
-        webapp.router.add_get("/internal/gallery/thumb", gallery_thumb)
+        webapp.router.add_get("/internal/gallery/list", gallery_list_route)
+        webapp.router.add_get("/internal/gallery/read", gallery_read_route)
+        webapp.router.add_get("/internal/gallery/thumb", gallery_thumb_route)
+        webapp.router.add_get("/internal/lora/info", lora_info_route)
         webapp.router.add_get("/ws", ws)
         webapp.router.add_get("/", root)
         webapp.router.add_get("/system_stats", root)
@@ -911,6 +1044,15 @@ def main():
                     SHARE.stop()
                     ok, error = True, ""
                 send({"id": req.get("id"), "ok": ok, "error": error, "port": SHARE.port})
+            elif req.get("cmd") == "lora_info":
+                # Off the JOBS path (never waits behind a generation) and off
+                # this reader thread (hashing a big file takes a moment).
+                def answer(r=req):
+                    try:
+                        send({"id": r.get("id"), "ok": True, "info": lora_info(r.get("name"))})
+                    except Exception as err:  # noqa: BLE001
+                        send({"id": r.get("id"), "ok": False, "error": str(err)})
+                threading.Thread(target=answer, daemon=True).start()
             elif req.get("cmd") == "gallery_thumb":
                 # The app thumbnails its OWN picked folder through Pillow here
                 # (the share server route serves its own root); fast-path like
@@ -943,6 +1085,7 @@ def main():
                 except OSError:
                     pass
             say(f"{APP_NAME} connected.")
+            life(f"{APP_NAME} connected")
             send(ready)
 
             def ended(c=conn):
@@ -955,6 +1098,7 @@ def main():
                 # listener calls send(), which takes the same lock.
                 if current:
                     say(f"{APP_NAME} disconnected. Staying open with the models loaded; close this window to stop it.")
+                    life(f"{APP_NAME} disconnected; staying open")
 
             threading.Thread(target=reader, args=(rf, ended), daemon=True).start()
 

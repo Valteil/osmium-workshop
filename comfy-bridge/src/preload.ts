@@ -7,6 +7,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   pickOutputFolder: () => ipcRenderer.invoke('pick-output-folder'),
   importWorkflow: () => ipcRenderer.invoke('import-workflow-file'),
+  // LoRA lookup (Metadata tab): file metadata via the runner, online search
+  // through main's two-site allowlist, links opened only for those sites.
+  loraFileInfo: (name) => ipcRenderer.invoke('lora-file-info', name),
+  loraOnlineLookup: (payload) => ipcRenderer.invoke('lora-online-lookup', payload),
+  openLookupLink: (url) => ipcRenderer.invoke('open-lookup-link', url),
   saveImage: (payload) => ipcRenderer.invoke('save-image', payload),
   galleryListDir: (payload) => ipcRenderer.invoke('gallery-list-dir', payload),
   galleryRead: (payload) => ipcRenderer.invoke('gallery-read', payload),

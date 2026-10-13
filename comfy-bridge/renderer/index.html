@@ -17,6 +17,12 @@
   <header id="topbar">
     <h1>Comfy Bridge</h1>
     <span id="appVersion"></span>
+    <!-- Tabs (2026-10-14): Generate (the main UI) and Metadata (image
+         metadata, LoRA lookup; shared/metadata-ui.ts). -->
+    <nav id="appTabs" role="tablist">
+      <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
+      <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
+    </nav>
     <!-- Help panel (src/renderer/help.ts); the button is left of the Wiki
          button. -->
     <button id="btnHelp" type="button" title="Help: what every setting does">? Help</button>
@@ -243,6 +249,8 @@
     </div>
 
   </div>
+  <!-- Metadata tab: filled by shared/metadata-ui.ts' mountMetadataTab. -->
+  <div id="metadataView" class="meta-tab-scroll" hidden><div id="metadataTab" class="meta-tab"></div></div>
 </div>
 
   <!-- Slideouts (like the Android app's drawers): generation settings and the

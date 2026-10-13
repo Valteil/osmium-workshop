@@ -340,6 +340,13 @@ export async function localGalleryThumb(abs: string, side: number): Promise<{ ok
   return r.ok ? { ok: true, b64: r.b64 as string, mime: r.mime as string } : { ok: false, error: r.error };
 }
 
+// A LoRA's file metadata + SHA-256 (the runner's lora_info: resolved through
+// ComfyUI's own loras folders, so nothing else on disk can be read).
+export async function localLoraInfo(name: string): Promise<{ ok: boolean; info?: unknown; error?: string }> {
+  const r = await request('lora_info', { name: String(name || '') });
+  return r.ok ? { ok: true, info: r.info } : { ok: false, error: r.error };
+}
+
 export async function localObjectInfo(classType: string, inputName: string): Promise<ComfyResult> {
   const r = await request('object_info', { class_type: classType, input: inputName });
   return r.ok ? { ok: true, values: r.values as string[] } : { ok: false, error: r.error };
