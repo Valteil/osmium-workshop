@@ -707,6 +707,18 @@ declare const BridgeShared: {
     }
     throw lastErr;
   }
+  async function pcRequestPost(path: string, body: Uint8Array, tries: number) {
+    let lastErr: unknown;
+    for (let i = 0; i < tries; i++) {
+      try {
+        return await comfyTransport().request(getHost(), path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, timeoutMs: 15000 });
+      } catch (err) {
+        lastErr = err;
+        if (!/^(no response for|network error)/.test(errMsg(err))) throw err;
+      }
+    }
+    throw lastErr;
+  }
   function pcGalleryBackend() {
     return {
       async listDir(relDir: string) {
@@ -2115,6 +2127,21 @@ declare const BridgeShared: {
         return { ok: false, error: 'Could not reach the PC: ' + errMsg(err) };
       }
     },
+    // Download to PC: the PC's runner fetches the LoRA (relay or Persist
+    // Comfy's share server; both refuse set_keys — keys are set on the PC).
+    // A download start isn't retried (a lost reply would start it twice).
+    loraOp: async (payload: Record<string, unknown>) => {
+      try {
+        const body = new TextEncoder().encode(JSON.stringify(payload));
+        const res = await pcRequestPost('/internal/lora/op', body, payload.op === 'download' ? 1 : 2);
+        const parsed = JSON.parse(new TextDecoder().decode(res.body) || '{}');
+        if (res.status === 200 && parsed.ok) return parsed;
+        return { ok: false, error: (parsed.error && parsed.error.message) || (res.status === 404 ? 'Downloads need a PC running Comfy Bridge (or Persist Comfy) as the host.' : 'HTTP ' + res.status) };
+      } catch (err) {
+        return { ok: false, error: 'Could not reach the PC: ' + errMsg(err) };
+      }
+    },
+    onLoraDownloaded: () => { btnRefreshModels.click(); },
     onlineLookup: async (site: string, kind: string, q: string) => {
       const url = BridgeShared.lookupUrl(site, kind, q);
       if (!url) return { ok: false, error: 'Nothing to look up.' };

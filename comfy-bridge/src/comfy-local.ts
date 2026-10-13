@@ -350,6 +350,13 @@ export async function localLoraInfo(name: string): Promise<{ ok: boolean; info?:
   return r.ok ? { ok: true, info: r.info } : { ok: false, error: r.error };
 }
 
+// The runner's LoRA folder/download commands (lora_op: dirs, download,
+// status, cancel; set_keys only from the desktop app itself — the relay
+// filters it out). Answers on the runner's fast path, never behind a job.
+export async function localLoraOp(payload: Record<string, unknown>): Promise<Record<string, unknown> & { ok: boolean; error?: string }> {
+  return request('lora_op', payload) as Promise<Record<string, unknown> & { ok: boolean; error?: string }>;
+}
+
 export async function localObjectInfo(classType: string, inputName: string): Promise<ComfyResult> {
   const r = await request('object_info', { class_type: classType, input: inputName });
   return r.ok ? { ok: true, values: r.values as string[] } : { ok: false, error: r.error };

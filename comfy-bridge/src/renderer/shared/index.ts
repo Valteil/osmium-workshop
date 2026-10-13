@@ -12,6 +12,7 @@ export * from './gen-info';
 export * from './prompt-import';
 export * from './lora-lookup';
 export * from './metadata-ui';
+export * from './lora-download';
 export { initTagWiki, openTagWiki, closeTagWiki } from './tag-wiki';
 export { THEMES, DEFAULT_THEME } from './theme-data';
 // The shared ComfyUI prompt builder (synced from the root app's src/comfy-core.ts)

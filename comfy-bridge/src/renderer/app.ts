@@ -34,6 +34,7 @@ interface ElectronAPI {
   loraOnlineLookup(payload: { site: string; kind: string; q: string }): Promise<{ ok: boolean; status?: number; json?: unknown; error?: string }>;
   openLookupLink(url: string): Promise<{ ok: boolean }>;
   loraPreviewImage(url: string): Promise<{ ok: boolean; dataUrl?: string }>;
+  loraOp(payload: Record<string, unknown>): Promise<Record<string, any> & { ok: boolean; error?: string }>;
   saveImage(payload: { filename: string; bytes: Uint8Array }): Promise<{ ok: boolean; error?: string }>;
   listPresets(): Promise<{ ok: boolean; promptPresetNames?: string[]; negativePresetNames?: string[]; error?: string }>;
   savePreset(payload: { kind: 'prompt' | 'negative'; name: string; value: unknown }): Promise<{ ok: boolean; error?: string }>;
@@ -1663,6 +1664,11 @@ const loraTools: LoraTools = {
   onlineLookup: (site, kind, q) => window.electronAPI.loraOnlineLookup({ site, kind, q }),
   openLink: (url) => { void window.electronAPI.openLookupLink(url); },
   previewImage: async (url) => { const r = await window.electronAPI.loraPreviewImage(url); return r.ok && r.dataUrl ? r.dataUrl : null; },
+  // Download to PC + Download keys: Osmium Comfy's runner (lora_op). Needs it
+  // running (Connect); a stopped runner answers with that hint.
+  loraOp: (payload) => window.electronAPI.loraOp(payload),
+  onLoraDownloaded: () => { if (isLocal()) btnRefreshModels.click(); },
+  canSetKeys: true,
   addToStack: (name, strength) => {
     // The first empty row first (the stack starts with a blank one).
     const empty = loraRows.find((r) => !r.input.value.trim());

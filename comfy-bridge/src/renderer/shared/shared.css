@@ -212,6 +212,27 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .lora-hit-title{ font-weight:600; font-size:12px; overflow-wrap:anywhere; }
 .lora-hit-meta{ color:var(--muted); font-size:11px; }
 .lora-hit .lora-btn{ align-self:flex-start; }
+.lora-btns{ display:flex; flex-wrap:wrap; gap:5px; }
+.lora-err{ color:var(--danger, #e06c6c); }
+/* Download to PC modal (reuses the picker modal's backdrop/box/head). */
+.lora-dl-box{ width:min(560px,94vw); }
+.lora-dl-scroll{ overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
+.lora-dl-scroll > input{ width:100%; box-sizing:border-box; }
+.lora-dl-title{ font-weight:600; font-size:13px; overflow-wrap:anywhere; }
+.lora-dl-mirrors{ display:flex; flex-direction:column; gap:2px; max-height:30vh; overflow-y:auto; }
+.lora-dl-mirror{ display:flex; gap:8px; align-items:flex-start; padding:6px 4px; border-bottom:1px solid var(--border); cursor:pointer; }
+.lora-dl-mirror:last-child{ border-bottom:none; }
+.lora-dl-mirror input{ margin-top:3px; flex:0 0 auto; width:auto; }
+.lora-dl-mirror-text{ display:flex; flex-direction:column; gap:1px; min-width:0; overflow-wrap:anywhere; }
+.lora-dl-mirror-label{ font-size:12.5px; }
+.lora-dl-crumbs{ display:flex; flex-wrap:wrap; align-items:center; gap:2px; }
+.lora-dl-crumb{ background:none; border:none; color:var(--accent); font-size:12.5px; padding:2px 4px; min-height:0; }
+.lora-dl-sep{ color:var(--muted); font-size:12px; }
+.lora-dl-dirs{ display:flex; flex-direction:column; gap:2px; max-height:28vh; overflow-y:auto; }
+.lora-dl-dir{ text-align:left; background:none; border:1px solid var(--border); border-radius:6px; font-size:12.5px; padding:6px 8px; }
+.lora-dl-new input{ width:100%; box-sizing:border-box; }
+.lora-dl-go{ align-self:flex-start; font-size:13px; padding:6px 16px; margin-top:4px; }
+.lora-dl-status{ font-size:12px; overflow-wrap:anywhere; min-height:1.2em; }
 .meta-tab{ display:flex; flex-direction:column; gap:12px; padding:12px; max-width:1100px; margin:0 auto; width:100%; box-sizing:border-box; }
 .meta-image-body{ display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start; margin-top:10px; }
 .meta-image{ max-width:min(420px, 100%); max-height:70vh; border-radius:8px; object-fit:contain; }

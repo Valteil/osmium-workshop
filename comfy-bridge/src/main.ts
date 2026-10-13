@@ -19,7 +19,7 @@ import { parseComboValues, uploadImage, queuePrompt, pollHistory, extractPngText
 import type { ComfyTransport } from './comfy-core';
 import {
   configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop, localLogs, onLocalLogs,
-  localPersistEnabled, localIsPersistentConnection, localSetShare, ensureLocalStarted, localGalleryThumb, localLoraInfo
+  localPersistEnabled, localIsPersistentConnection, localSetShare, ensureLocalStarted, localGalleryThumb, localLoraInfo, localLoraOp
 } from './comfy-local';
 import { startRelay, stopRelay, relayState, relayAddresses, initRelayGallery } from './local-relay';
 
@@ -164,6 +164,11 @@ initRelayGallery({
     const started = await ensureLocalStarted();
     if (!started.ok) return { ok: false, error: started.error };
     return localLoraInfo(name);
+  },
+  async loraOp(payload) {
+    const started = await ensureLocalStarted();
+    if (!started.ok) return { ok: false, error: started.error };
+    return localLoraOp(payload);
   }
 });
 app.whenReady().then(() => { applyRelay(); });
@@ -440,6 +445,9 @@ ipcMain.handle('lora-preview-image', (_event, raw) => fetchPreview(String(raw), 
 // A LoRA's file metadata (Osmium Comfy's runner). Never starts it: like every
 // other desktop request, a stopped runner answers "Click Connect to start it".
 ipcMain.handle('lora-file-info', async (_event, name) => localLoraInfo(String(name || '')));
+// LoRA folder browser + downloads + the download keys (the app window is
+// the one place set_keys may come from). Never starts the runner.
+ipcMain.handle('lora-op', async (_event, payload) => localLoraOp(payload && typeof payload === 'object' ? payload : {}));
 
 // Since 2026-10-13 any image imports: the renderer's shared prompt-import.ts
 // reads the Bridge workflow, other ComfyUI workflows, A1111/Forge, NovelAI,

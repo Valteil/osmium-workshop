@@ -554,6 +554,264 @@ def lora_info(name):
     return out
 
 
+# ---- LoRA downloads (Comfy Bridge's LoRA lookup: "Download to this PC") -----
+# The PC fetches a LoRA straight into ComfyUI's (first) loras folder, so the
+# phone can ask for it too. The client never sends a URL: it names a source
+# and its ids, and the URL is built here from validated parts —
+#   civitai:     https://civitai.com/api/download/models/<version id>
+#   huggingface: https://huggingface.co/<owner>/<repo>/resolve/<rev>/<path>
+# (CivArchive's exact matches list these as mirrors, incl. deleted CivitAI
+# models' Hugging Face copies). Other sites (TensorArt, PixAI…) have no public
+# download API, so they're open-the-page only.
+# Some files need an account: CivitAI ("the creator requires you to be logged
+# in") takes an API key, gated Hugging Face repos an access token. Both are
+# optional, stored in <ComfyUI>/user/osmium_download_keys.json (outside
+# user/<id>/, which ComfyUI's userdata API serves), set only over the desktop
+# app's pipe (set_keys; never from the phone), never sent back — status only
+# says which are set. Redirects are followed by hand, https only, and a key
+# goes to its own site's host and nowhere else (not the CDN redirected to).
+# Only .safetensors is kept (pickle formats run code on load): the header is
+# checked, and the SHA-256 when the lookup knew it, before the .part file
+# takes its real name. Never overwrites.
+LORA_DOWNLOADS = {}
+LORA_MAX_BYTES = 4 * 1024 ** 3
+SAFE_SEGMENT = re.compile(r"^[^<>:\"/\\|?*\x00-\x1f]{1,120}$")
+KEY_SITES = {"civitai": "civitai.com", "huggingface": "huggingface.co"}
+SITE_LABELS = {"civitai": "CivitAI", "huggingface": "Hugging Face"}
+
+
+def loras_root():
+    roots = [p for p in folder_paths.get_folder_paths("loras") if os.path.isdir(p)]
+    if not roots:
+        raise LookupError("ComfyUI has no loras folder.")
+    return roots[0]
+
+
+def lora_rel_dir(rel):
+    """A loras-relative folder → its absolute path, confined to the root."""
+    parts = [p for p in str(rel or "").replace("\\", "/").split("/") if p and p != "."]
+    for p in parts:
+        if p == ".." or not SAFE_SEGMENT.match(p) or p.endswith((" ", ".")):
+            raise ValueError(f"Not a usable folder name: {p}")
+    root = os.path.realpath(loras_root())
+    full = os.path.realpath(os.path.join(root, *parts))
+    if full != root and not full.startswith(root + os.sep):
+        raise ValueError("That folder is outside the loras folder.")
+    return full, "/".join(parts)
+
+
+def lora_dirs(rel):
+    full, rel = lora_rel_dir(rel)
+    if not os.path.isdir(full):
+        raise LookupError(f"No such folder: {rel}")
+    dirs, files = [], 0
+    for e in sorted(os.scandir(full), key=lambda e: e.name.lower()):
+        if e.is_dir() and not e.name.startswith("."):
+            dirs.append(e.name)
+        elif e.is_file() and e.name.lower().endswith(".safetensors"):
+            files += 1
+    return {"path": rel, "dirs": dirs, "files": files}
+
+
+def keys_file():
+    return os.path.join(folder_paths.get_user_directory(), "osmium_download_keys.json")
+
+
+def download_keys():
+    try:
+        with open(keys_file(), encoding="utf-8") as f:
+            d = json.load(f)
+        return {k: str(d.get(k) or "") for k in KEY_SITES} if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def set_download_keys(req):
+    keys = download_keys()
+    for site in KEY_SITES:
+        if site in req:  # absent = keep; "" = remove
+            v = str(req.get(site) or "").strip()
+            if v and not re.fullmatch(r"[\x21-\x7e]{8,200}", v):
+                raise ValueError(f"That doesn't look like a {SITE_LABELS[site]} key.")
+            keys[site] = v
+    os.makedirs(os.path.dirname(keys_file()), exist_ok=True)
+    with open(keys_file(), "w", encoding="utf-8") as f:
+        json.dump(keys, f)
+
+
+def download_url(src):
+    import urllib.parse
+    site = str(src.get("source") or "")
+    if site == "civitai":
+        vid = str(src.get("version_id") or "")
+        if not re.fullmatch(r"\d{1,12}", vid):
+            raise ValueError("Not a CivitAI model version id.")
+        return site, f"https://civitai.com/api/download/models/{vid}?type=Model&format=SafeTensor"
+    if site == "huggingface":
+        repo, rev, path = str(src.get("repo") or ""), str(src.get("rev") or "main"), str(src.get("path") or "")
+        if not re.fullmatch(r"[A-Za-z0-9][\w.-]{0,95}/[A-Za-z0-9][\w.-]{0,95}", repo) or ".." in repo:
+            raise ValueError("Not a Hugging Face repo.")
+        if not re.fullmatch(r"[\w.-]{1,64}", rev) or ".." in rev:
+            raise ValueError("Not a Hugging Face revision.")
+        segs = path.split("/")
+        if not path.lower().endswith(".safetensors") or any(not s or s in (".", "..") or not SAFE_SEGMENT.match(s) for s in segs):
+            raise ValueError("Not a .safetensors file in that repo.")
+        return site, f"https://huggingface.co/{repo}/resolve/{rev}/" + "/".join(urllib.parse.quote(s) for s in segs)
+    raise ValueError("That site has no download this app can use; open its page instead.")
+
+
+def lora_download_start(src, folder, filename):
+    import hashlib
+    import http.client
+    import urllib.request
+    import urllib.error
+    import urllib.parse
+    site, first_url = download_url(src)
+    want_sha = str(src.get("sha256") or "").lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", want_sha):
+        want_sha = ""
+    full_dir, rel = lora_rel_dir(folder)
+    name = str(filename or "").strip()
+    if not name.lower().endswith(".safetensors"):
+        name += ".safetensors"
+    if not SAFE_SEGMENT.match(name) or name.startswith(".") or name.endswith(" "):
+        raise ValueError("That file name has characters Windows can't use.")
+    dest = os.path.join(full_dir, name)
+    if os.path.exists(dest):
+        raise FileExistsError(f"{(rel + '/' if rel else '') + name} already exists.")
+    for j in LORA_DOWNLOADS.values():
+        if j["state"] == "running" and j["dest"] == dest:
+            raise FileExistsError("That file is already downloading.")
+    job = {"id": uuid.uuid4().hex[:12], "state": "running", "name": (rel + "/" if rel else "") + name, "site": site,
+           "dest": dest, "bytes": 0, "total": 0, "error": "", "verified": False}
+    LORA_DOWNLOADS[job["id"]] = job
+    label = SITE_LABELS[site]
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+    opener = urllib.request.build_opener(NoRedirect)
+
+    def run():
+        part = dest + ".part"
+        try:
+            os.makedirs(full_dir, exist_ok=True)
+            key = download_keys().get(site, "")
+            what = "API key" if site == "civitai" else "access token"
+
+            # The file's response, from the source URL through its redirects
+            # (re-resolved per attempt: CDN links are signed and expire).
+            # start > 0 asks for the rest (a resume after a dropped link).
+            def open_stream(start):
+                url = first_url
+                for _hop in range(6):
+                    headers = {"User-Agent": "ComfyBridge/2.0 (LoRA download)"}
+                    if start:
+                        headers["Range"] = f"bytes={start}-"
+                    if key and (urllib.parse.urlsplit(url).hostname or "") == KEY_SITES[site]:
+                        headers["Authorization"] = f"Bearer {key}"
+                    try:
+                        return opener.open(urllib.request.Request(url, headers=headers), timeout=30)
+                    except urllib.error.HTTPError as e:
+                        if e.code in (301, 302, 303, 307, 308) and e.headers.get("Location"):
+                            url = urllib.parse.urljoin(url, e.headers["Location"])
+                            if not url.startswith("https://"):
+                                raise ValueError("The download redirected off https.")
+                            continue
+                        if e.code in (401, 403):
+                            if not key:
+                                raise PermissionError(f"{label} wants an account for this one: add your {label} {what} under "
+                                                      "Download keys (Comfy Bridge on the PC, Metadata tab), then try again.")
+                            raise PermissionError(f"{label} refused the download with your {what} (early access, a gated "
+                                                  f"repo you haven't accepted, or the {what} is wrong/expired).")
+                        raise ValueError(f"{label} answered {e.code}.")
+                raise ValueError("Too many redirects.")
+
+            # A CDN can drop the link mid-file and the read just ends short,
+            # so the length is checked against Content-Length and the rest is
+            # fetched with a Range request (up to 4 resumes).
+            sha = hashlib.sha256()
+            with open(part, "wb") as f:
+                for attempt in range(5):
+                    res = open_stream(job["bytes"])
+                    with res:
+                        if job["bytes"] == 0:
+                            job["total"] = int(res.headers.get("Content-Length") or 0)
+                        elif res.status != 206:
+                            raise ValueError("The link dropped and the server can't resume; try again.")
+                        if job["total"] > LORA_MAX_BYTES:
+                            raise ValueError("The file is larger than 4 GB.")
+                        try:
+                            while True:
+                                if job["state"] == "cancelled":
+                                    raise InterruptedError("Cancelled.")
+                                block = res.read(1024 * 1024)
+                                if not block:
+                                    break
+                                job["bytes"] += len(block)
+                                if job["bytes"] > LORA_MAX_BYTES:
+                                    raise ValueError("The file is larger than 4 GB.")
+                                sha.update(block)
+                                f.write(block)
+                        except (OSError, http.client.HTTPException) as e:
+                            life(f"LoRA download {job['name']}: link dropped at {job['bytes']} bytes ({e})")
+                    if not job["total"] or job["bytes"] >= job["total"]:
+                        break
+                    life(f"LoRA download {job['name']}: short read at {job['bytes']}/{job['total']}, resuming")
+                if job["total"] and job["bytes"] != job["total"]:
+                    raise ValueError(f"The download kept getting cut off ({job['bytes']} of {job['total']} bytes); try again.")
+            with open(part, "rb") as f:
+                n = int.from_bytes(f.read(8), "little")
+                head = f.read(1)
+            if not (0 < n <= 100 * 1024 * 1024 and head == b"{" and n + 8 <= job["bytes"]):
+                raise ValueError("That download isn't a .safetensors file (a login page?), so it wasn't kept.")
+            if want_sha:
+                if sha.hexdigest() != want_sha:
+                    raise ValueError("The downloaded file's SHA-256 doesn't match the looked-up one, so it wasn't kept.")
+                job["verified"] = True
+            if os.path.exists(dest):
+                raise FileExistsError(f"{job['name']} appeared while downloading; not overwritten.")
+            os.replace(part, dest)
+            st = os.stat(dest)
+            LORA_SHA_CACHE[(dest, st.st_size, int(st.st_mtime))] = sha.hexdigest()
+            job["state"] = "done"
+            life(f"LoRA downloaded from {site}: {job['name']} ({job['bytes']} bytes)")
+        except Exception as err:  # noqa: BLE001
+            if job["state"] != "cancelled":
+                job["state"] = "error"
+            job["error"] = str(err)
+            try:
+                os.remove(part)
+            except OSError:
+                pass
+    threading.Thread(target=run, daemon=True).start()
+    return {k: v for k, v in job.items() if k != "dest"}
+
+
+def lora_op(req, trusted=False):
+    """The LoRA folder/download commands, one entry point for the pipe, the
+    share server and the Bridge's relay: op = dirs | download | status |
+    cancel, plus set_keys from the desktop app's own pipe (trusted) only."""
+    op = str(req.get("op") or "")
+    if op == "dirs":
+        return {"ok": True, **lora_dirs(req.get("path"))}
+    if op == "download":
+        return {"ok": True, "job": lora_download_start(req.get("src") or {}, req.get("folder"), req.get("filename"))}
+    if op == "status":
+        jobs = [{k: v for k, v in j.items() if k != "dest"} for j in LORA_DOWNLOADS.values()]
+        keys = download_keys()
+        return {"ok": True, "jobs": jobs[-20:], "keys": {k: bool(keys.get(k)) for k in KEY_SITES}}
+    if op == "cancel":
+        j = LORA_DOWNLOADS.get(str(req.get("job") or ""))
+        if j and j["state"] == "running":
+            j["state"] = "cancelled"
+        return {"ok": True}
+    if op == "set_keys" and trusted:
+        set_download_keys(req.get("keys") or {})
+        return {"ok": True}
+    raise ValueError(f"Unknown LoRA command: {op}")
+
+
 # ---- phone share server (Persist Comfy) -------------------------------------
 class ShareServer:
     """The slice of ComfyUI's HTTP + websocket API the Comfy Bridge Android
@@ -718,6 +976,15 @@ class ShareServer:
             info = await asyncio.get_running_loop().run_in_executor(None, lora_info, request.query.get("name") or "")
             return web.json_response({"ok": True, "info": info})
 
+        async def lora_op_route(request):
+            try:
+                body = await request.json()
+            except ValueError:
+                return err(400, "Invalid JSON.")
+            if not isinstance(body, dict):
+                return err(400, "Invalid request.")
+            return web.json_response(await asyncio.get_running_loop().run_in_executor(None, lora_op, body))
+
         async def view(request):
             key = f"{request.query.get('subfolder', '')}/{request.query.get('filename', '')}"
             data = self.views.get(key)
@@ -775,6 +1042,7 @@ class ShareServer:
         webapp.router.add_get("/internal/gallery/read", gallery_read_route)
         webapp.router.add_get("/internal/gallery/thumb", gallery_thumb_route)
         webapp.router.add_get("/internal/lora/info", lora_info_route)
+        webapp.router.add_post("/internal/lora/op", lora_op_route)
         webapp.router.add_get("/ws", ws)
         webapp.router.add_get("/", root)
         webapp.router.add_get("/system_stats", root)
@@ -1053,6 +1321,13 @@ def main():
                     except Exception as err:  # noqa: BLE001
                         send({"id": r.get("id"), "ok": False, "error": str(err)})
                 threading.Thread(target=answer, daemon=True).start()
+            elif req.get("cmd") == "lora_op":  # LoRA folders/downloads: never queues behind a generation
+                def answer_op(r=req):
+                    try:
+                        send({"id": r.get("id"), **lora_op(r, trusted=True)})
+                    except Exception as err:  # noqa: BLE001
+                        send({"id": r.get("id"), "ok": False, "error": str(err)})
+                threading.Thread(target=answer_op, daemon=True).start()
             elif req.get("cmd") == "gallery_thumb":
                 # The app thumbnails its OWN picked folder through Pillow here
                 # (the share server route serves its own root); fast-path like

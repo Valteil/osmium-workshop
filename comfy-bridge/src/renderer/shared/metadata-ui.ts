@@ -7,6 +7,7 @@ import {
   matchLocalLora, normalizeLookup, loraMetaRows, loraStem,
   type LoraRef, type LoraFileInfo, type LookupSite, type LookupKind, type LookupHit
 } from './lora-lookup';
+import { openDownloadModal, buildDownloadKeysSection, type LoraOp } from './lora-download';
 
 export interface LoraTools {
   // ComfyUI's LoRA list as the app knows it (the LoRA stack's options).
@@ -20,6 +21,13 @@ export interface LoraTools {
   // fetched natively (main process / CapacitorHttp), or null.
   previewImage?(url: string): Promise<string | null>;
   addToStack?(name: string, strength: number): void;
+  // The PC's runner LoRA commands (lora_op): the Download to PC modal's
+  // folder browser + download. Absent = no download button.
+  loraOp?: LoraOp;
+  // After a download lands (refresh the LoRA lists).
+  onLoraDownloaded?(): void;
+  // The desktop app only: show the Download keys section.
+  canSetKeys?: boolean;
 }
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] => {
@@ -113,7 +121,14 @@ function renderHits(out: HTMLElement, hits: LookupHit[], tools: LoraTools, note?
       for (const w of h.trainedWords) chips.appendChild(el('span', 'lora-chip', w));
       body.appendChild(chips);
     }
-    body.appendChild(button(`Open on ${h.site}`, h.url, () => tools.openLink(h.url)));
+    const btns = el('div', 'lora-btns');
+    btns.appendChild(button(`Open on ${h.site}`, h.url, () => tools.openLink(h.url)));
+    if (h.downloads.length && tools.loraOp) {
+      const op = tools.loraOp;
+      btns.appendChild(button('Download to PC', h.downloads.length > 1 ? `Pick one of ${h.downloads.length} mirrors` : `From ${h.downloads[0].label}`,
+        () => openDownloadModal(h, op, tools.onLoraDownloaded)));
+    }
+    body.appendChild(btns);
     out.appendChild(card);
   }
 }
@@ -126,7 +141,8 @@ async function lookup(site: LookupSite, ref: LoraRef, local: string | null, tool
   let hash = '';
   if (local) { try { hash = (await getFileInfo(tools, local)).sha256 || ''; } catch { hash = ''; } }
   if (!hash && ref.hash && (site === 'civitai' || ref.hash.length === 64)) hash = ref.hash;
-  const name = loraStem(ref.name).replace(/_/g, ' ');
+  // A bare pasted hash has no name to fall back on.
+  const name = ref.hash && ref.name.toLowerCase() === ref.hash ? '' : loraStem(ref.name).replace(/_/g, ' ');
   const run = async (kind: LookupKind, q: string) => {
     const r = await tools.onlineLookup(site, kind, q);
     if (!r.ok) throw new Error(r.error || 'Lookup failed.');
@@ -240,10 +256,13 @@ export function mountMetadataTab(root: HTMLElement, deps: MetadataTabDeps): void
   go.addEventListener('click', () => {
     const q = input.value.trim();
     if (!q) return;
-    result.replaceChildren(buildLoraSection([{ name: q }], deps.tools));
+    // A pasted SHA-256 (or CivitAI's 10-hex AutoV2) looks up by hash.
+    const isHash = /^([0-9a-f]{64}|[0-9a-f]{10})$/i.test(q);
+    result.replaceChildren(buildLoraSection([isHash ? { name: q, hash: q.toLowerCase() } : { name: q }], deps.tools));
   });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go.click(); });
   row.append(input, go, dl);
   loraSec.append(row, result);
   root.append(imgSec, loraSec);
+  if (deps.tools.canSetKeys && deps.tools.loraOp) root.appendChild(buildDownloadKeysSection(deps.tools.loraOp));
 }

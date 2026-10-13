@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loraOnlineLookup: (payload) => ipcRenderer.invoke('lora-online-lookup', payload),
   openLookupLink: (url) => ipcRenderer.invoke('open-lookup-link', url),
   loraPreviewImage: (url) => ipcRenderer.invoke('lora-preview-image', url),
+  loraOp: (payload) => ipcRenderer.invoke('lora-op', payload),
   saveImage: (payload) => ipcRenderer.invoke('save-image', payload),
   galleryListDir: (payload) => ipcRenderer.invoke('gallery-list-dir', payload),
   galleryRead: (payload) => ipcRenderer.invoke('gallery-read', payload),

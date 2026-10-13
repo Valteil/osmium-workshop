@@ -166,6 +166,7 @@ export interface LookupHit {
   deleted: boolean;
   platform: string;        // CivArchive: where the file was published
   preview: string;         // a preview image URL (previewImageUrl-checked), or ''
+  downloads: DownloadSource[]; // where the PC can fetch the file from (may be empty)
 }
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -210,6 +211,78 @@ function firstImage(list: unknown): string {
   return '';
 }
 
+// ---- downloads ("Download to PC": the runner's lora_op download) ------------
+
+// Where the PC can fetch a hit's file from. Never a URL: the runner builds it
+// from these validated parts (CivitAI version id; Hugging Face repo/rev/path).
+// CivArchive's exact matches list every known mirror; the download modal
+// lets the user pick one.
+export interface DownloadSource {
+  source: 'civitai' | 'huggingface';
+  label: string;           // "CivitAI", "Hugging Face · owner/repo"
+  filename: string;        // the file's name there (the modal's default name)
+  versionId?: string;      // civitai
+  repo?: string; rev?: string; path?: string; // huggingface
+  sha256: string;          // expected SHA-256 when known (the runner verifies it), else ''
+  deleted: boolean;        // the site marks this copy deleted (it may still answer)
+  gated: boolean;          // needs an account/accepted terms on that site
+}
+
+const SHA = /^[0-9a-f]{64}$/;
+const VERSION_ID = /^\d{1,12}$/;
+const HF_REPO = /^[A-Za-z0-9][\w.-]{0,95}\/[A-Za-z0-9][\w.-]{0,95}$/;
+const HF_REV = /^[\w.-]{1,64}$/;
+const SAFE_FILE = /^[^<>:"/\\|?*\x00-\x1f]{1,120}$/;
+const fileBase = (p: string) => p.split('/').pop() || '';
+
+// A mirror's download URL → a source, when it's one the runner can fetch.
+export function downloadSourceFromUrl(url: string, filename: string, sha256: string, deleted = false, gated = false): DownloadSource | null {
+  let u: URL;
+  try { u = new URL(url); } catch { return null; }
+  if (u.protocol !== 'https:') return null;
+  const sha = SHA.test(sha256.toLowerCase()) ? sha256.toLowerCase() : '';
+  if (u.hostname === 'civitai.com') {
+    const m = /^\/api\/download\/models\/(\d{1,12})\/?$/.exec(u.pathname);
+    if (!m) return null;
+    return { source: 'civitai', label: 'CivitAI', filename, versionId: m[1], sha256: sha, deleted, gated };
+  }
+  if (u.hostname === 'huggingface.co') {
+    const m = /^\/([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/.exec(u.pathname);
+    if (!m) return null;
+    let path: string;
+    try { path = decodeURIComponent(m[3]); } catch { return null; }
+    const rev = decodeURIComponent(m[2]);
+    if (!HF_REPO.test(m[1]) || m[1].includes('..') || !HF_REV.test(rev) || rev.includes('..') || !/\.safetensors$/i.test(path)) return null;
+    if (path.split('/').some((s) => !s || s === '.' || s === '..' || !SAFE_FILE.test(s))) return null;
+    return { source: 'huggingface', label: `Hugging Face · ${m[1]}`, filename: filename || fileBase(path), repo: m[1], rev, path, sha256: sha, deleted, gated };
+  }
+  return null;
+}
+
+// A CivitAI version's own file list → its .safetensors model file.
+function civitaiSource(versionId: string, files: unknown): DownloadSource | null {
+  if (!VERSION_ID.test(versionId)) return null;
+  const list = (Array.isArray(files) ? files : []).filter((f: any) => f && /\.safetensors$/i.test(str(f.name)) && (!f.type || f.type === 'Model'));
+  const f: any = list.find((x: any) => x.primary) || list[0];
+  if (!f && Array.isArray(files) && files.length) return null; // only pickle/other formats: not downloadable here
+  const sha = f ? str(f.hashes && f.hashes.SHA256).toLowerCase() : '';
+  return { source: 'civitai', label: 'CivitAI', filename: f ? str(f.name, 120) : '', versionId, sha256: SHA.test(sha) ? sha : '', deleted: false, gated: false };
+}
+
+function dedupe(list: (DownloadSource | null)[]): DownloadSource[] {
+  const seen = new Set<string>();
+  const out: DownloadSource[] = [];
+  for (const d of list) {
+    if (!d) continue;
+    const key = d.source === 'civitai' ? `c:${d.versionId}` : `h:${d.repo}/${d.rev}/${d.path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(d);
+  }
+  // Live copies first, then ungated.
+  return out.sort((a, b) => Number(a.deleted) - Number(b.deleted) || Number(a.gated) - Number(b.gated)).slice(0, 20);
+}
+
 // A site's JSON reply → hits (empty when nothing matched).
 export function normalizeLookup(site: LookupSite, kind: LookupKind, json: any): LookupHit[] {
   if (!json || typeof json !== 'object') return [];
@@ -220,7 +293,8 @@ export function normalizeLookup(site: LookupSite, kind: LookupKind, json: any): 
     if (ID.test(modelId) && ID.test(id)) {
       add({ site: 'CivitAI', exact: true, title: str(json.model && json.model.name), version: str(json.name), baseModel: str(json.baseModel),
         trainedWords: words(json.trainedWords), url: `https://civitai.com/models/${modelId}?modelVersionId=${id}`,
-        nsfw: !!(json.model && json.model.nsfw), deleted: false, platform: 'civitai', preview: firstImage(json.images) });
+        nsfw: !!(json.model && json.model.nsfw), deleted: false, platform: 'civitai', preview: firstImage(json.images),
+        downloads: dedupe([civitaiSource(id, json.files)]) });
     }
   } else if (site === 'civitai') {
     for (const item of Array.isArray(json.items) ? json.items : []) {
@@ -228,16 +302,25 @@ export function normalizeLookup(site: LookupSite, kind: LookupKind, json: any): 
       const modelId = str(item.id), vid = str(v.id);
       if (!ID.test(modelId)) continue;
       add({ site: 'CivitAI', exact: false, title: str(item.name), version: str(v.name), baseModel: str(v.baseModel), trainedWords: words(v.trainedWords),
-        url: `https://civitai.com/models/${modelId}` + (ID.test(vid) ? `?modelVersionId=${vid}` : ''), nsfw: !!item.nsfw, deleted: false, platform: 'civitai', preview: firstImage(v.images) });
+        url: `https://civitai.com/models/${modelId}` + (ID.test(vid) ? `?modelVersionId=${vid}` : ''), nsfw: !!item.nsfw, deleted: false, platform: 'civitai', preview: firstImage(v.images),
+        downloads: dedupe([civitaiSource(vid, v.files)]) });
     }
   } else if (site === 'civarchive' && kind === 'hash') {
     // CivArchive nests the matched version inside the model (model.version).
     const m = json.model || {}, v = m.version || json.version || {};
     const modelId = str(m.id), vid = str(v.id);
     if (ID.test(modelId)) {
+      // Every mirror it knows: the top-level files list, and each version
+      // file's mirrors. Paid copies are left out.
+      const vfiles = Array.isArray(v.files) ? v.files : [];
+      const fileSha = str((vfiles.find((f: any) => f && f.sha256) || {}).sha256).toLowerCase();
+      const mirrors = [...(Array.isArray(json.files) ? json.files : []), ...vfiles.flatMap((f: any) => (f && Array.isArray(f.mirrors) ? f.mirrors : []))];
+      const downloads = dedupe(mirrors.filter((x: any) => x && !x.is_paid).map((x: any) =>
+        downloadSourceFromUrl(str(x.url, 1000), str(x.filename, 120), fileSha, !!(x.deletedAt || x.deleted_at), !!x.is_gated)));
       add({ site: 'CivArchive', exact: true, title: str(m.name), version: str(v.name), baseModel: str(v.baseModel),
         trainedWords: words(v.trainedWords || m.trainedWords), url: `https://civarchive.com/models/${modelId}` + (ID.test(vid) ? `?modelVersionId=${vid}` : ''),
-        nsfw: !!(m.is_nsfw || v.is_nsfw), deleted: !!(m.deletedAt || v.deletedAt), platform: str((json.files && json.files[0] && json.files[0].source) || 'civitai'), preview: firstImage(v.images || m.images) });
+        nsfw: !!(m.is_nsfw || v.is_nsfw), deleted: !!(m.deletedAt || v.deletedAt), platform: str((json.files && json.files[0] && json.files[0].source) || 'civitai'), preview: firstImage(v.images || m.images),
+        downloads });
     }
   } else if (site === 'civarchive') {
     for (const r of Array.isArray(json.results) ? json.results : []) {
@@ -245,8 +328,13 @@ export function normalizeLookup(site: LookupSite, kind: LookupKind, json: any): 
       const path = str(r.url, 400);
       // A site-relative page path only: "/x…", never "//host" or a scheme.
       if (!/^\/[A-Za-z0-9][A-Za-z0-9/_?=&.-]*$/.test(path) || path.includes('//')) continue;
+      // A search result names no file; a CivitAI-hosted one still downloads by its version id.
+      const vid = str(r.version_id);
+      const downloads = str(r.platform) === 'civitai' && VERSION_ID.test(vid)
+        ? [{ source: 'civitai' as const, label: 'CivitAI', filename: '', versionId: vid, sha256: '', deleted: !!r.is_deleted, gated: false }] : [];
       add({ site: 'CivArchive', exact: false, title: str(r.name), version: '', baseModel: str(r.base_model), trainedWords: words(r.tags),
-        url: `https://civarchive.com${path}`, nsfw: !!r.is_nsfw, deleted: !!r.is_deleted, platform: str(r.platform), preview: r.video_url && !r.image_url ? '' : previewImageUrl(r.image_url) });
+        url: `https://civarchive.com${path}`, nsfw: !!r.is_nsfw, deleted: !!r.is_deleted, platform: str(r.platform), preview: r.video_url && !r.image_url ? '' : previewImageUrl(r.image_url),
+        downloads });
     }
   }
   return hits.slice(0, 12);

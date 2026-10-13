@@ -63,6 +63,8 @@ export interface RelayGalleryHandlers {
   // A LoRA's file metadata + SHA-256 (the runner's lora_info), for the
   // phone's Metadata tab / LoRA lookup.
   loraInfo(name: string): Promise<{ ok: boolean; info?: unknown; error?: string }>;
+  // The runner's LoRA folder browser + downloads (lora_op), set_keys excluded.
+  loraOp(payload: Record<string, unknown>): Promise<Record<string, unknown> & { ok: boolean; error?: string }>;
 }
 let galleryHandlers: RelayGalleryHandlers | null = null;
 export function initRelayGallery(handlers: RelayGalleryHandlers): void { galleryHandlers = handlers; }
@@ -302,6 +304,20 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       const r = await galleryHandlers.loraInfo(url.searchParams.get('name') || '');
       if (!r.ok) { sendJson(res, 404, { error: { message: r.error || 'No such LoRA.' } }); return; }
       sendJson(res, 200, { ok: true, info: r.info });
+    } catch (err) { sendJson(res, 500, { error: { message: err instanceof Error ? err.message : String(err) } }); }
+    return;
+  }
+  if (req.method === 'POST' && p === '/internal/lora/op') {
+    if (!galleryHandlers) { sendJson(res, 503, { error: { message: 'LoRA downloads are not available on this relay.' } }); return; }
+    let body: Record<string, unknown>;
+    try { body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8') || '{}'); } catch { sendJson(res, 400, { error: { message: 'Invalid JSON.' } }); return; }
+    const op = String((body && body.op) || '');
+    // Download keys are set from the PC only, never over the network.
+    if (!['dirs', 'download', 'status', 'cancel'].includes(op)) { sendJson(res, 400, { error: { message: 'Unknown LoRA command.' } }); return; }
+    try {
+      const r = await galleryHandlers.loraOp({ ...body, op });
+      if (!r.ok) { sendJson(res, 400, { error: { message: r.error || 'The LoRA command failed.' } }); return; }
+      sendJson(res, 200, r);
     } catch (err) { sendJson(res, 500, { error: { message: err instanceof Error ? err.message : String(err) } }); }
     return;
   }
