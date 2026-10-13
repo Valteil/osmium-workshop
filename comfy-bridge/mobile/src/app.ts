@@ -269,6 +269,68 @@ declare const BridgeShared: {
     try { localStorage.setItem('comfybridge-token', (token.value || '').trim()); } catch (e) { /* best effort */ }
   });
 
+  // Recent connections: every address that passed Test connection, newest
+  // first (max 8), each with the token it connected with. Picking one fills
+  // both fields and runs Test connection again, so a dropped link is one tap.
+  const RECENT_HOSTS_KEY = 'comfybridge-recent-hosts';
+  const RECENT_HOSTS_MAX = 8;
+  const recentHostsRow = $<HTMLDivElement>('recentHostsRow');
+  const recentHosts = $<HTMLSelectElement>('recentHosts');
+  interface RecentHost { host: string; token: string; }
+  function loadRecentHosts(): RecentHost[] {
+    try {
+      const list = JSON.parse(localStorage.getItem(RECENT_HOSTS_KEY) || '[]');
+      return Array.isArray(list) ? list.filter((e: any) => e && typeof e.host === 'string' && e.host)
+        .map((e: any) => ({ host: e.host, token: typeof e.token === 'string' ? e.token : '' })) : [];
+    } catch (e) { return []; }
+  }
+  function saveRecentHosts(list: RecentHost[]) {
+    try { localStorage.setItem(RECENT_HOSTS_KEY, JSON.stringify(list)); } catch (e) { /* best effort */ }
+  }
+  function renderRecentHosts() {
+    const list = loadRecentHosts();
+    recentHosts.innerHTML = '';
+    const head = document.createElement('option');
+    head.value = '';
+    head.textContent = 'Recent connections…';
+    recentHosts.appendChild(head);
+    list.forEach((e, i) => {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = e.host + (e.token ? '  (token)' : '');
+      recentHosts.appendChild(o);
+    });
+    if (list.length) {
+      const clear = document.createElement('option');
+      clear.value = 'clear';
+      clear.textContent = 'Clear list';
+      recentHosts.appendChild(clear);
+    }
+    recentHosts.value = '';
+    recentHostsRow.style.display = list.length ? '' : 'none';
+  }
+  function rememberHost(h: string, tok: string) {
+    const list = loadRecentHosts().filter((e) => e.host.toLowerCase() !== h.toLowerCase());
+    list.unshift({ host: h, token: tok });
+    saveRecentHosts(list.slice(0, RECENT_HOSTS_MAX));
+    renderRecentHosts();
+  }
+  recentHosts.addEventListener('change', () => {
+    const v = recentHosts.value;
+    if (v === 'clear') { saveRecentHosts([]); renderRecentHosts(); return; }
+    const e = loadRecentHosts()[Number(v)];
+    recentHosts.value = '';
+    if (!v || !e) return;
+    host.value = e.host;
+    token.value = e.token;
+    try {
+      localStorage.setItem(HOST_KEY, e.host);
+      localStorage.setItem('comfybridge-token', e.token);
+    } catch (err) { /* best effort */ }
+    btnConnect.click();
+  });
+  renderRecentHosts();
+
   function getHost(): string {
     let h = (host.value || '').trim() || 'http://127.0.0.1:8188';
     if (!/^https?:\/\//i.test(h)) h = 'http://' + h;
@@ -1186,6 +1248,7 @@ declare const BridgeShared: {
     if (res.ok) {
       connStatus.style.color = 'var(--accent-ok)';
       connStatus.textContent = '✓ Connected to ' + getHost();
+      rememberHost(getHost(), (token.value || '').trim());
     } else {
       connStatus.style.color = '';
       connStatus.textContent = 'error' in res ? res.error : '';

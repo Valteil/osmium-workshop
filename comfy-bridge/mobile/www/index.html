@@ -27,7 +27,12 @@
     <section class="sec">
       <div class="sec-head"><span class="d">Connection</span></div>
       <div class="row">
-        <input id="host" type="text" placeholder=http://192.168.1.x:8188 or http://100.x.y.z:8188 (Tailscale)" value="http://192.168.1.1:8188">
+        <input id="host" type="text" placeholder="http://192.168.1.x:8188 or http://100.x.y.z:8188 (Tailscale)" value="http://192.168.1.1:8188">
+      </div>
+      <!-- Recent connections: every address that passed Test connection
+           (with its token), newest first; picking one reconnects. -->
+      <div class="row" id="recentHostsRow" style="display:none">
+        <select id="recentHosts" title="Addresses that connected before. Pick one to fill it in (with its token) and connect again."><option value="">Recent connections…</option></select>
       </div>
       <div class="row">
         <input id="relayToken" type="text" placeholder="shared token (only if the PC set one)">
