@@ -203,8 +203,11 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .lora-chips{ display:flex; flex-wrap:wrap; gap:4px; }
 .lora-chip{ font-size:11px; padding:1px 7px; border-radius:999px; background:var(--chip-bg, rgba(127,127,127,.15)); user-select:text; }
 .lora-mono{ font-family:var(--mono, monospace); font-size:11px; }
-.lora-hit{ display:flex; flex-direction:column; gap:4px; padding:6px 0; border-top:1px dashed var(--line, rgba(127,127,127,.25)); }
+.lora-hit{ display:flex; gap:8px; align-items:flex-start; padding:6px 0; border-top:1px dashed var(--line, rgba(127,127,127,.25)); }
 .lora-hit:first-child{ border-top:0; }
+.lora-hit-body{ display:flex; flex-direction:column; gap:4px; min-width:0; flex:1; }
+.lora-hit-thumb{ flex:0 0 72px; width:72px; height:96px; border-radius:6px; overflow:hidden; cursor:pointer; background:var(--line, rgba(127,127,127,.15)); }
+.lora-hit-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
 .lora-hit-head{ display:flex; flex-wrap:wrap; gap:6px; align-items:baseline; }
 .lora-hit-title{ font-weight:600; font-size:12px; overflow-wrap:anywhere; }
 .lora-hit-meta{ color:var(--muted); font-size:11px; }

@@ -379,6 +379,14 @@ export function normalizeGeneration(texts: Record<string, string>): Prompt | nul
 export type PromptFieldId = 'global' | 'rating' | 'character' | 'hair' | 'face' | 'chest' | 'body' | 'clothes' | 'limbs'
   | 'sexual' | 'pose' | 'extra' | 'effects' | 'scene';
 
+// The boxes in the workflow's join order (gen-info's MERGE_ORDER, by box).
+export const PROMPT_FIELD_ORDER: PromptFieldId[] = ['global', 'rating', 'character', 'hair', 'face', 'chest', 'body', 'clothes',
+  'limbs', 'sexual', 'pose', 'extra', 'effects', 'scene'];
+// The boxes' texts as one prompt (switching to the single prompt box).
+export function mergePromptFields(values: Partial<Record<PromptFieldId, string>>): string {
+  return PROMPT_FIELD_ORDER.map((id) => String(values[id] || '').trim().replace(/,\s*$/, '')).filter(Boolean).join(', ');
+}
+
 // Osmium's classifier (tag-categories.ts), minus its user overrides: exact
 // Danbooru-group seed, then precedence-ordered keyword rules, then other.
 const RULE_MATCHERS: { id: TagCategoryId; res: RegExp[] }[] = TAG_CATEGORY_RULES.map((rule) => ({

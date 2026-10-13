@@ -47,6 +47,7 @@ declare const BridgeShared: {
   foreignSource: (prompt: Record<string, any>) => string | null;
   stripA1111Syntax: (text: string) => { text: string; loras: string[] };
   splitPromptToFields: (text: string) => Promise<Record<string, string>>;
+  mergePromptFields: (values: Record<string, string>) => string;
   parseQueueResponse: (parsed: any, status: number, noun: string) => { ok: boolean; promptId?: string; error?: string };
   uploadImage: (t: any, host: string, filename: string, bytes: Uint8Array, label?: string) => Promise<{ ok: boolean; ref?: string; error?: string }>;
   queuePrompt: (t: any, host: string, prompt: any, clientId: string, opts?: any) => Promise<{ ok: boolean; promptId?: string; error?: string }>;
@@ -1286,8 +1287,43 @@ declare const BridgeShared: {
     // side just became visible needs a fresh autoGrow.
     autoGrowAll();
   }
-  unifiedPromptMode.addEventListener('change', applyUnifiedPromptModeUI);
+  unifiedPromptMode.addEventListener('change', () => { void convertPromptMode(); });
   applyUnifiedPromptModeUI();
+
+  // Switching modes carries the prompt over (mirrors desktop's
+  // convertPromptMode): to the single box the boxes merge (Global cleared —
+  // the builder still sends it); back, the prompt is split by Tag Sorting,
+  // unless it's unchanged since the switch (then the boxes come back as they
+  // were). An empty side never overwrites the other.
+  let boxesBeforeMerge: { merged: string; values: Record<string, string> } | null = null;
+  async function convertPromptMode() {
+    const boxes: Record<string, HTMLTextAreaElement> = {
+      global: global_, rating, character, hair, face, chest, body: body_, clothes, limbs, sexual, pose, extra, effects, scene
+    };
+    if (unifiedPromptMode.checked) {
+      const values: Record<string, string> = {};
+      for (const id of Object.keys(boxes)) values[id] = boxes[id].value;
+      const merged = BridgeShared.mergePromptFields(values);
+      if (merged) {
+        unifiedPrompt.value = merged;
+        global_.value = '';
+        boxesBeforeMerge = { merged, values };
+      }
+    } else {
+      const text = unifiedPrompt.value.trim();
+      if (text && boxesBeforeMerge && text === boxesBeforeMerge.merged) {
+        for (const id of Object.keys(boxes)) boxes[id].value = boxesBeforeMerge.values[id];
+      } else if (text) {
+        const split = await BridgeShared.splitPromptToFields(text);
+        if (unifiedPromptMode.checked) return; // toggled back while splitting
+        for (const id of Object.keys(boxes)) boxes[id].value = split[id] || '';
+      }
+      boxesBeforeMerge = null;
+    }
+    applyUnifiedPromptModeUI();
+    void refreshSavePreview();
+    scheduleUiSave();
+  }
 
   use2Pass.addEventListener('change', () => { pass2Fields.style.display = use2Pass.checked ? '' : 'none'; });
   pass2Fields.style.display = use2Pass.checked ? '' : 'none';
@@ -2095,6 +2131,20 @@ declare const BridgeShared: {
       } catch (err) {
         return { ok: false, error: errMsg(err) };
       }
+    },
+    // A hit's preview (already previewImageUrl-checked: https, no bare IPs or
+    // local names), fetched natively, image types only, 3 MB at most.
+    previewImage: async (url: string) => {
+      const http = window.Capacitor && window.Capacitor.Plugins && (window.Capacitor.Plugins as any).CapacitorHttp;
+      if (!http) return null;
+      try {
+        const r = await http.request({ url, method: 'GET', responseType: 'blob', headers: { Accept: 'image/*' }, connectTimeout: 15000, readTimeout: 15000 });
+        const headers = r.headers || {};
+        const typeKey = Object.keys(headers).find((k) => k.toLowerCase() === 'content-type');
+        const type = String(typeKey ? headers[typeKey] : '').split(';')[0].trim().toLowerCase();
+        if (r.status !== 200 || !/^image\/(jpeg|png|webp|gif|avif)$/.test(type) || typeof r.data !== 'string' || r.data.length > 4 * 1024 * 1024) return null;
+        return 'data:' + type + ';base64,' + r.data.replace(/\s+/g, '');
+      } catch (e) { return null; }
     },
     openLink: (url: string) => {
       const safe = BridgeShared.safeLookupLink(url);

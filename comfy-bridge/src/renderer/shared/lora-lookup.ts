@@ -165,6 +165,7 @@ export interface LookupHit {
   nsfw: boolean;
   deleted: boolean;
   platform: string;        // CivArchive: where the file was published
+  preview: string;         // a preview image URL (previewImageUrl-checked), or ''
 }
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -179,6 +180,36 @@ export function safeLookupLink(url: string): string | null {
   } catch { return null; }
 }
 
+// A preview image we're willing to fetch. The sites' images live on many
+// CDNs (CivitAI's, and for CivArchive whichever site the model came from:
+// TensorArt, PixAI, Yodayo…), so this can't be a host allowlist: https on
+// the default port, no credentials, and never a local or private address
+// (the desktop's main process re-checks the resolved IP; the bytes are only
+// ever shown as an image). CivitAI's and PixAI's are asked for at thumbnail size.
+const LOCAL_NAME = /^(localhost|.*\.(localhost|local|internal|lan|home|arpa))$/i;
+export function previewImageUrl(raw: unknown): string {
+  if (typeof raw !== 'string' || raw.length > 1000) return '';
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:' || u.port || u.username || u.password || !u.hostname.includes('.') || LOCAL_NAME.test(u.hostname)) return '';
+    // Bare IPs (v4 or [v6]): CDNs serve previews by name.
+    if (/^\d+(\.\d+){3}$/.test(u.hostname) || u.hostname.startsWith('[')) return '';
+    if (u.hostname === 'image.civitai.com') u.pathname = u.pathname.replace(/\/(original=true|width=\d+)(,[^/]*)?\//, '/width=320/');
+    // PixAI's full-size "orig" is served without an image type; "thumb" is a small webp.
+    if (u.hostname === 'images-ng.pixai.art') u.pathname = u.pathname.replace(/^\/images\/orig\//, '/images/thumb/');
+    return u.toString();
+  } catch { return ''; }
+}
+// The first still image of a CivitAI/CivArchive image list.
+function firstImage(list: unknown): string {
+  for (const i of Array.isArray(list) ? list : []) {
+    if (!i || typeof i !== 'object' || (i.type && i.type !== 'image')) continue;
+    const url = previewImageUrl(i.url || i.image_url);
+    if (url) return url;
+  }
+  return '';
+}
+
 // A site's JSON reply → hits (empty when nothing matched).
 export function normalizeLookup(site: LookupSite, kind: LookupKind, json: any): LookupHit[] {
   if (!json || typeof json !== 'object') return [];
@@ -189,7 +220,7 @@ export function normalizeLookup(site: LookupSite, kind: LookupKind, json: any): 
     if (ID.test(modelId) && ID.test(id)) {
       add({ site: 'CivitAI', exact: true, title: str(json.model && json.model.name), version: str(json.name), baseModel: str(json.baseModel),
         trainedWords: words(json.trainedWords), url: `https://civitai.com/models/${modelId}?modelVersionId=${id}`,
-        nsfw: !!(json.model && json.model.nsfw), deleted: false, platform: 'civitai' });
+        nsfw: !!(json.model && json.model.nsfw), deleted: false, platform: 'civitai', preview: firstImage(json.images) });
     }
   } else if (site === 'civitai') {
     for (const item of Array.isArray(json.items) ? json.items : []) {
@@ -197,7 +228,7 @@ export function normalizeLookup(site: LookupSite, kind: LookupKind, json: any): 
       const modelId = str(item.id), vid = str(v.id);
       if (!ID.test(modelId)) continue;
       add({ site: 'CivitAI', exact: false, title: str(item.name), version: str(v.name), baseModel: str(v.baseModel), trainedWords: words(v.trainedWords),
-        url: `https://civitai.com/models/${modelId}` + (ID.test(vid) ? `?modelVersionId=${vid}` : ''), nsfw: !!item.nsfw, deleted: false, platform: 'civitai' });
+        url: `https://civitai.com/models/${modelId}` + (ID.test(vid) ? `?modelVersionId=${vid}` : ''), nsfw: !!item.nsfw, deleted: false, platform: 'civitai', preview: firstImage(v.images) });
     }
   } else if (site === 'civarchive' && kind === 'hash') {
     // CivArchive nests the matched version inside the model (model.version).
@@ -206,7 +237,7 @@ export function normalizeLookup(site: LookupSite, kind: LookupKind, json: any): 
     if (ID.test(modelId)) {
       add({ site: 'CivArchive', exact: true, title: str(m.name), version: str(v.name), baseModel: str(v.baseModel),
         trainedWords: words(v.trainedWords || m.trainedWords), url: `https://civarchive.com/models/${modelId}` + (ID.test(vid) ? `?modelVersionId=${vid}` : ''),
-        nsfw: !!(m.is_nsfw || v.is_nsfw), deleted: !!(m.deletedAt || v.deletedAt), platform: str((json.files && json.files[0] && json.files[0].source) || 'civitai') });
+        nsfw: !!(m.is_nsfw || v.is_nsfw), deleted: !!(m.deletedAt || v.deletedAt), platform: str((json.files && json.files[0] && json.files[0].source) || 'civitai'), preview: firstImage(v.images || m.images) });
     }
   } else if (site === 'civarchive') {
     for (const r of Array.isArray(json.results) ? json.results : []) {
@@ -215,7 +246,7 @@ export function normalizeLookup(site: LookupSite, kind: LookupKind, json: any): 
       // A site-relative page path only: "/x…", never "//host" or a scheme.
       if (!/^\/[A-Za-z0-9][A-Za-z0-9/_?=&.-]*$/.test(path) || path.includes('//')) continue;
       add({ site: 'CivArchive', exact: false, title: str(r.name), version: '', baseModel: str(r.base_model), trainedWords: words(r.tags),
-        url: `https://civarchive.com${path}`, nsfw: !!r.is_nsfw, deleted: !!r.is_deleted, platform: str(r.platform) });
+        url: `https://civarchive.com${path}`, nsfw: !!r.is_nsfw, deleted: !!r.is_deleted, platform: str(r.platform), preview: r.video_url && !r.image_url ? '' : previewImageUrl(r.image_url) });
     }
   }
   return hits.slice(0, 12);

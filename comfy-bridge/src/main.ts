@@ -378,6 +378,65 @@ ipcMain.handle('open-lookup-link', async (_event, raw) => {
     return { ok: true };
   } catch { return { ok: false }; }
 });
+// A lookup hit's preview image, as a data: URL (the window's CSP allows no
+// remote images). The previews live on many CDNs, so instead of a host
+// allowlist: https only (the renderer's previewImageUrl already refused ports,
+// credentials, bare IPs and local names), the RESOLVED address must be public
+// (checked inside the socket's own lookup, so DNS can't swap it afterwards),
+// up to 3 redirects with every hop checked the same way (CivitAI's image host
+// always redirects to its blob store), an image content type, 3 MB at most.
+const PREVIEW_MAX_BYTES = 3 * 1024 * 1024;
+const PREVIEW_TYPES = /^image\/(jpeg|png|webp|gif|avif)$/;
+function isPublicAddress(ip: string, family: number): boolean {
+  if (family === 6) {
+    const a = ip.toLowerCase();
+    if (a.startsWith('::ffff:')) return isPublicAddress(a.slice(7), 4);
+    return !(a === '::' || a === '::1' || /^f[cd]/.test(a) || /^fe[89ab]/.test(a));
+  }
+  const [a, b] = ip.split('.').map(Number);
+  return !(a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127));
+}
+// Node's sockets call this with all:true (happy eyeballs) and expect a list.
+function publicOnlyLookup(hostname: string, options: any, cb: any): void {
+  require('dns').lookup(hostname, { ...options, all: true }, (err: any, list: { address: string; family: number }[]) => {
+    if (!err && (!list.length || list.some((a) => !isPublicAddress(a.address, a.family)))) err = new Error('Preview host is not a public address.');
+    if (err) { cb(err); return; }
+    if (options && options.all) cb(null, list); else cb(null, list[0].address, list[0].family);
+  });
+}
+function fetchPreview(raw: string, hops: number): Promise<{ ok: boolean; dataUrl?: string }> {
+  let u: URL;
+  try { u = new URL(raw); } catch { return Promise.resolve({ ok: false }); }
+  // IP literals skip the lookup hook entirely, so they're refused outright.
+  if (u.protocol !== 'https:' || u.port || u.username || u.password || require('net').isIP(u.hostname.replace(/^\[|\]$/g, ''))) return Promise.resolve({ ok: false });
+  return new Promise((resolve) => {
+    const req = https.get(u, { headers: { Accept: 'image/*', 'User-Agent': 'ComfyBridge/2.0 (LoRA lookup)' }, timeout: LOOKUP_TIMEOUT_MS, lookup: publicOnlyLookup }, (res) => {
+      const code = res.statusCode || 0;
+      if (code >= 300 && code < 400 && res.headers.location && hops > 0) {
+        res.resume();
+        let next = '';
+        try { next = new URL(String(res.headers.location), u).toString(); } catch { resolve({ ok: false }); return; }
+        void fetchPreview(next, hops - 1).then(resolve);
+        return;
+      }
+      const type = String(res.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+      if (code !== 200 || !PREVIEW_TYPES.test(type)) { res.resume(); resolve({ ok: false }); return; }
+      const chunks: Buffer[] = [];
+      let size = 0;
+      res.on('data', (c: Buffer) => {
+        size += c.length;
+        if (size > PREVIEW_MAX_BYTES) { req.destroy(); resolve({ ok: false }); return; }
+        chunks.push(c);
+      });
+      res.on('end', () => resolve({ ok: true, dataUrl: `data:${type};base64,${Buffer.concat(chunks).toString('base64')}` }));
+      res.on('error', () => resolve({ ok: false }));
+    });
+    req.on('timeout', () => req.destroy());
+    req.on('error', () => resolve({ ok: false }));
+  });
+}
+ipcMain.handle('lora-preview-image', (_event, raw) => fetchPreview(String(raw), 3));
 // A LoRA's file metadata (Osmium Comfy's runner). Never starts it: like every
 // other desktop request, a stopped runner answers "Click Connect to start it".
 ipcMain.handle('lora-file-info', async (_event, name) => localLoraInfo(String(name || '')));

@@ -16,6 +16,9 @@ export interface LoraTools {
   // One allowlisted API request (lora-lookup.ts' lookupUrl).
   onlineLookup(site: LookupSite, kind: LookupKind, q: string): Promise<{ ok: boolean; status?: number; json?: unknown; error?: string }>;
   openLink(url: string): void;
+  // A hit's preview image (lora-lookup.ts' previewImageUrl) as a data: URL,
+  // fetched natively (main process / CapacitorHttp), or null.
+  previewImage?(url: string): Promise<string | null>;
   addToStack?(name: string, strength: number): void;
 }
 
@@ -67,23 +70,50 @@ function renderFileInfo(out: HTMLElement, info: LoraFileInfo): void {
   }
 }
 
+// A hit's preview: a placeholder at once, the image when it arrives (cached
+// per URL for the session; a failed fetch just drops the box).
+const previewCache = new Map<string, Promise<string | null>>();
+function previewThumb(url: string, link: string, tools: LoraTools): HTMLElement {
+  const box = el('div', 'lora-hit-thumb');
+  box.title = 'Open the page';
+  box.addEventListener('click', () => tools.openLink(link));
+  let p = previewCache.get(url);
+  if (!p) {
+    p = tools.previewImage!(url).catch(() => null);
+    previewCache.set(url, p);
+  }
+  void p.then((data) => {
+    if (!data || !/^data:image\/(jpeg|png|webp|gif|avif);base64,/.test(data)) { previewCache.delete(url); box.remove(); return; }
+    const img = document.createElement('img');
+    img.alt = '';
+    img.decoding = 'async';
+    img.src = data;
+    img.addEventListener('error', () => box.remove());
+    box.appendChild(img);
+  });
+  return box;
+}
+
 function renderHits(out: HTMLElement, hits: LookupHit[], tools: LoraTools, note?: string): void {
   out.replaceChildren();
   if (note) out.appendChild(el('div', 'lora-note', note));
   if (!hits.length) { out.appendChild(el('div', 'lora-note', 'Nothing found.')); return; }
   for (const h of hits) {
     const card = el('div', 'lora-hit');
+    if (h.preview && tools.previewImage) card.appendChild(previewThumb(h.preview, h.url, tools));
+    const body = el('div', 'lora-hit-body');
+    card.appendChild(body);
     const head = el('div', 'lora-hit-head');
     head.appendChild(el('span', 'lora-hit-title', h.title + (h.version ? ` — ${h.version}` : '')));
     const tags = [h.exact ? 'exact match' : '', h.baseModel, h.platform && h.platform !== 'civitai' ? h.platform : '', h.nsfw ? 'NSFW' : '', h.deleted ? 'deleted' : ''].filter(Boolean);
     if (tags.length) head.appendChild(el('span', 'lora-hit-meta', tags.join(' · ')));
-    card.appendChild(head);
+    body.appendChild(head);
     if (h.trainedWords.length) {
       const chips = el('div', 'lora-chips');
       for (const w of h.trainedWords) chips.appendChild(el('span', 'lora-chip', w));
-      card.appendChild(chips);
+      body.appendChild(chips);
     }
-    card.appendChild(button(`Open on ${h.site}`, h.url, () => tools.openLink(h.url)));
+    body.appendChild(button(`Open on ${h.site}`, h.url, () => tools.openLink(h.url)));
     out.appendChild(card);
   }
 }

@@ -16,7 +16,7 @@ import { initUiZoom, buildUiZoomRow } from './ui-zoom';
 import { buildGenInfoPanel, stampOutputKind, mergedPromptText, hasCategoryPrompts, type GenInfo } from './shared/gen-info';
 import { mountMetadataTab, type LoraTools } from './shared/metadata-ui';
 import {
-  imageMetadataTexts, normalizeGeneration, foreignSource, splitPromptToFields, stripA1111Syntax, type PromptFieldId
+  imageMetadataTexts, normalizeGeneration, foreignSource, splitPromptToFields, stripA1111Syntax, mergePromptFields, type PromptFieldId
 } from './shared/prompt-import';
 import { characterIndex, recognizeCharacter, ratingFolder, nextSavePath, safeSegment, fileBaseName, joinNameParts, previewFileName } from './file-naming';
 import { initTagWiki } from './shared/tag-wiki';
@@ -33,6 +33,7 @@ interface ElectronAPI {
   loraFileInfo(name: string): Promise<{ ok: boolean; info?: unknown; error?: string }>;
   loraOnlineLookup(payload: { site: string; kind: string; q: string }): Promise<{ ok: boolean; status?: number; json?: unknown; error?: string }>;
   openLookupLink(url: string): Promise<{ ok: boolean }>;
+  loraPreviewImage(url: string): Promise<{ ok: boolean; dataUrl?: string }>;
   saveImage(payload: { filename: string; bytes: Uint8Array }): Promise<{ ok: boolean; error?: string }>;
   listPresets(): Promise<{ ok: boolean; promptPresetNames?: string[]; negativePresetNames?: string[]; error?: string }>;
   savePreset(payload: { kind: 'prompt' | 'negative'; name: string; value: unknown }): Promise<{ ok: boolean; error?: string }>;
@@ -411,8 +412,43 @@ function applyUnifiedPromptModeUI(): void {
   // left undersized from a measurement taken while it was hidden.
   autoGrowAll();
 }
-unifiedPromptMode.addEventListener('change', applyUnifiedPromptModeUI);
+unifiedPromptMode.addEventListener('change', () => { void convertPromptMode(); });
 applyUnifiedPromptModeUI();
+
+// Switching modes carries the prompt over, so the other mode isn't blank
+// (an import fills only the mode it lands in). To the single box: the boxes
+// merge into it in the workflow's join order, and Global is cleared (the
+// builder still sends Global in single-box mode, so it would double up).
+// Back to the boxes: the single prompt is split by the Tag Sorting classifier
+// — unless it's unchanged since the switch, then the boxes come back exactly
+// as they were. A side with nothing in it never overwrites the other.
+let boxesBeforeMerge: { merged: string; values: Record<PromptFieldId, string> } | null = null;
+async function convertPromptMode(): Promise<void> {
+  const toSingle = unifiedPromptMode.checked;
+  const ids = Object.keys(PROMPT_BOX) as PromptFieldId[];
+  if (toSingle) {
+    const values = {} as Record<PromptFieldId, string>;
+    for (const id of ids) values[id] = PROMPT_BOX[id].value;
+    const merged = mergePromptFields(values);
+    if (merged) {
+      unifiedPrompt.value = merged;
+      global_.value = '';
+      boxesBeforeMerge = { merged, values };
+    }
+  } else {
+    const text = unifiedPrompt.value.trim();
+    if (text && boxesBeforeMerge && text === boxesBeforeMerge.merged) {
+      for (const id of ids) PROMPT_BOX[id].value = boxesBeforeMerge.values[id];
+    } else if (text) {
+      const split = await splitPromptToFields(text);
+      if (unifiedPromptMode.checked) return; // toggled back while splitting
+      for (const id of ids) PROMPT_BOX[id].value = split[id] || '';
+    }
+    boxesBeforeMerge = null;
+  }
+  applyUnifiedPromptModeUI();
+  scheduleUiSave();
+}
 
 // ---------------- 2-Pass toggle ----------------
 
@@ -1626,6 +1662,7 @@ const loraTools: LoraTools = {
     : { ok: false, error: 'File info reads the LoRA through Osmium Comfy: set Run on to Osmium Comfy and Connect.' }),
   onlineLookup: (site, kind, q) => window.electronAPI.loraOnlineLookup({ site, kind, q }),
   openLink: (url) => { void window.electronAPI.openLookupLink(url); },
+  previewImage: async (url) => { const r = await window.electronAPI.loraPreviewImage(url); return r.ok && r.dataUrl ? r.dataUrl : null; },
   addToStack: (name, strength) => {
     // The first empty row first (the stack starts with a blank one).
     const empty = loraRows.find((r) => !r.input.value.trim());
