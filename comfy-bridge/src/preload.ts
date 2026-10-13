@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveImage: (payload) => ipcRenderer.invoke('save-image', payload),
   galleryListDir: (payload) => ipcRenderer.invoke('gallery-list-dir', payload),
   galleryRead: (payload) => ipcRenderer.invoke('gallery-read', payload),
+  moveImage: (payload) => ipcRenderer.invoke('move-image', payload),
   listPresets: () => ipcRenderer.invoke('list-presets'),
   savePreset: (payload) => ipcRenderer.invoke('save-preset', payload),
   loadPreset: (payload) => ipcRenderer.invoke('load-preset', payload),
@@ -24,6 +25,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   comfyLocalConnect: () => ipcRenderer.invoke('comfy-local-connect'),
   comfyLocalShutdown: () => ipcRenderer.invoke('comfy-local-shutdown'),
   comfyLocalSetPersist: (on) => ipcRenderer.invoke('comfy-local-set-persist', on),
+  comfyLocalSetAttention: (mode) => ipcRenderer.invoke('comfy-local-set-attention', mode),
   // Network relay for the Android app (local-relay.ts)
   comfyRelayStatus: () => ipcRenderer.invoke('comfy-relay-status'),
   comfyRelaySet: (payload) => ipcRenderer.invoke('comfy-relay-set', payload),

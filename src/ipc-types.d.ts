@@ -41,8 +41,8 @@ export interface SynthdatQueuePayload {
 
 // Local ComfyUI (src/comfy-local.ts): defined in shared-types so Comfy
 // Bridge's synced copy has it too.
-import type { ComfyLocalStatus } from './shared-types';
-export type { ComfyLocalStatus };
+import type { ComfyLocalStatus, ComfyLocalAttention } from './shared-types';
+export type { ComfyLocalStatus, ComfyLocalAttention };
 import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck, TrainflowStartResult, TrainflowBucketReport } from './shared-types';
 
 export interface ExportAppStateResult {
@@ -115,6 +115,8 @@ export interface ElectronAPI {
   comfyLocalPickFolder?(): Promise<ComfyLocalStatus>;
   comfyLocalConnect?(): Promise<{ ok: boolean; error?: string; comfyVersion?: string }>;
   comfyLocalShutdown?(): Promise<ComfyLocalStatus>;
+  // Stops an open (non-persist) runner; the next Connect starts it with this.
+  comfyLocalSetAttention?(mode: ComfyLocalAttention): Promise<ComfyLocalStatus>;
   // Trainflow (desktop only; absent in the web demo and the Android shim).
   // Real path of a File (the loaded dataset's folder is found through one of its images).
   getPathForFile?(file: File): string;

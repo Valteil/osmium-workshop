@@ -30,6 +30,7 @@ const api: ElectronAPI = {
   comfyLocalPickFolder: () => ipcRenderer.invoke('comfy-local-pick-folder'),
   comfyLocalConnect: () => ipcRenderer.invoke('comfy-local-connect'),
   comfyLocalShutdown: () => ipcRenderer.invoke('comfy-local-shutdown'),
+  comfyLocalSetAttention: (mode) => ipcRenderer.invoke('comfy-local-set-attention', mode),
   getPathForFile: (file) => webUtils.getPathForFile(file),
   trainflowStatus: () => ipcRenderer.invoke('trainflow-status'),
   trainflowPickFolder: () => ipcRenderer.invoke('trainflow-pick-folder'),

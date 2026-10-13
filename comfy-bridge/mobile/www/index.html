@@ -273,6 +273,52 @@
           <button id="btnRefreshUpscaleModels">Refresh upscale models</button>
         </div>
       </div>
+
+      <!-- File saving (shared/file-naming.ts): the same scheme as the
+           desktop Bridge's file drawer. Part 1 is automatic and read-only;
+           part 2 is the user's. No ComfyUI's-own-copy group: the phone
+           always saves its own mirror copy, and the server copy is the
+           host's own business. -->
+      <div class="sec-head small-head"><span class="d">File saving</span></div>
+      <div class="naming-group">
+        <div class="naming-title">Automatic folders</div>
+        <div class="muted small">Set by your prompt, not editable.</div>
+        <div id="namingAutoRating" class="naming-auto"></div>
+      </div>
+
+      <div class="naming-group">
+        <div class="naming-title">Character folder</div>
+        <div class="naming-seg" role="radiogroup" aria-label="Character folder">
+          <label><input type="radio" name="charMode" id="charModeTag" value="tag" checked> Tag list</label>
+          <label><input type="radio" name="charMode" id="charModeOC" value="oc"> OC</label>
+          <label><input type="radio" name="charMode" id="charModeCustom" value="custom"> Custom</label>
+        </div>
+        <div id="charTagWrap" class="naming-char-wrap">
+          <input id="charTagName" type="text" autocomplete="off" spellcheck="false" placeholder="Type to search Danbooru characters">
+          <div id="charFolderSuggest" class="naming-suggest" hidden></div>
+        </div>
+        <input id="charCustomName" type="text" spellcheck="false" placeholder="Folder name">
+        <div id="charModeNote" class="muted small"></div>
+      </div>
+
+      <div class="naming-group">
+        <div class="naming-title">Filename</div>
+        <div class="muted small">In this order; anything unticked is left out.</div>
+        <label class="chk-row"><input id="fnCharacter" type="checkbox"> Character name</label>
+        <label class="chk-row"><input id="fnLora" type="checkbox" checked> Main LoRA</label>
+        <label class="chk-row"><input id="fnGen" type="checkbox"> Model and sampler settings</label>
+        <div id="fnGenParts" class="naming-subchecks">
+          <label class="chk-row"><input id="fnModel" type="checkbox" checked> Model</label>
+          <label class="chk-row"><input id="fnSampler" type="checkbox" checked> Sampler</label>
+          <label class="chk-row"><input id="fnScheduler" type="checkbox"> Scheduler</label>
+          <label class="chk-row"><input id="fnSteps" type="checkbox"> Steps</label>
+          <label class="chk-row"><input id="fnCfg" type="checkbox"> CFG</label>
+          <label class="chk-row"><input id="fnSeed" type="checkbox"> Seed</label>
+        </div>
+        <div class="muted small">Then a number, always, so nothing is overwritten.</div>
+      </div>
+
+      <div id="savePathPreview" class="naming-preview"></div>
     </div>
   </aside>
 

@@ -13,7 +13,7 @@ import {
 import { openThemeStudio } from './theme-studio';
 import { bridgeIcon } from './shared/icons';
 import { initUiZoom, buildUiZoomRow } from './ui-zoom';
-import { buildGenInfoPanel, stampOutputKind } from './gen-info';
+import { buildGenInfoPanel, stampOutputKind } from './shared/gen-info';
 import { characterIndex, recognizeCharacter, ratingFolder, nextSavePath, safeSegment, fileBaseName, joinNameParts, previewFileName } from './file-naming';
 import { initTagWiki } from './shared/tag-wiki';
 import { initHelp } from './help';
@@ -34,6 +34,7 @@ interface ElectronAPI {
   synthdatStopGeneration(host: string): Promise<{ ok: boolean }>;
   galleryListDir(payload: { relDir: string }): Promise<{ ok: boolean; entries?: { name: string; kind: 'file' | 'directory'; mtime?: number }[]; error?: string }>;
   galleryRead(payload: { relPath: string }): Promise<{ ok: boolean; base64?: string; mime?: string; error?: string }>;
+  moveImage(payload: { from: string; to: string }): Promise<{ ok: boolean; error?: string }>;
   comfyFetchLogs(payload: { host: string }): Promise<{ ok: boolean; entries?: { t: string; m: string }[]; error?: string }>;
   onPreviewFrame(callback: (event: unknown, data: { mime: string; bytes: Uint8Array }) => void): void;
   onGenProgress(callback: (event: unknown, data: { value: number; max: number }) => void): void;
@@ -43,6 +44,7 @@ interface ElectronAPI {
   comfyLocalPickFolder?(): Promise<ComfyLocalStatus>;
   comfyLocalConnect?(): Promise<{ ok: boolean; comfyVersion?: string; error?: string }>;
   comfyLocalSetPersist?(on: boolean): Promise<ComfyLocalStatus>;
+  comfyLocalSetAttention?(mode: string): Promise<ComfyLocalStatus>;
   comfyRelayStatus?(): Promise<RelayStatus>;
   comfyRelaySet?(payload: { enabled: boolean; port: number; token?: string }): Promise<RelayStatus>;
 }
@@ -52,13 +54,13 @@ interface RelayStatus {
   servedBy?: 'bridge' | 'comfy';
   addresses: { ip: string; tailscale: boolean }[];
 }
-interface ComfyLocalStatus { folder: string; ok: boolean; error?: string; python?: string; running: boolean; persist?: boolean; }
+interface ComfyLocalStatus { folder: string; ok: boolean; error?: string; python?: string; running: boolean; persist?: boolean; attention?: string; }
 declare global { interface Window { electronAPI: ElectronAPI; } }
 export {};
 
 import {
   mountGallerySidebar, attachPickerModal, optionsFromDatalist,
-  showImageLightbox, bytesToBase64, base64ToBytes
+  showImageLightbox, bytesToBase64, base64ToBytes, refreshGallery
 } from './shared/index';
 import type { StorageBackend, DirEntry } from './shared/storage';
 import { buildSynthDatPrompt } from '../comfy-core';
@@ -256,10 +258,28 @@ if (hasPersist) {
   });
 }
 
+// Attention backend for Osmium Comfy (main process, comfy-local.json). A
+// change stops an open pipe runner so the next Connect starts it with it.
+const attentionRow = $<HTMLDivElement>('attentionRow');
+const attentionMode = $<HTMLSelectElement>('attentionMode');
+const hasAttention = typeof window.electronAPI.comfyLocalSetAttention === 'function';
+if (hasAttention) {
+  attentionMode.addEventListener('change', async () => {
+    const wasRunning = (await window.electronAPI.comfyLocalStatus!()).running;
+    const s = await window.electronAPI.comfyLocalSetAttention!(attentionMode.value);
+    showLocalStatus(s);
+    const label = attentionMode.selectedOptions[0]?.textContent || attentionMode.value;
+    if (wasRunning && !s.running) log(`Attention set to ${label}. Osmium Comfy was stopped; click Connect to start it with the new setting.`);
+    else if (wasRunning) log(`Attention set to ${label}. The kept-open Osmium Comfy keeps its current one until you close its window.`);
+    else log(`Attention set to ${label}. It applies the next time Osmium Comfy starts.`);
+  });
+}
+
 function showLocalStatus(s: ComfyLocalStatus): void {
   comfyFolderLabel.textContent = s.folder ? (s.ok ? s.folder : `${s.folder} — ${s.error}`) : 'No folder chosen';
   comfyFolderLabel.style.color = s.folder && !s.ok ? 'var(--danger, #e06c6c)' : '';
   persistComfy.checked = !!s.persist;
+  attentionMode.value = s.attention || 'auto';
 }
 // Network relay (main-process local-relay.ts): the phone app connects to
 // http://<this PC's address>:<port> as if it were a ComfyUI server. Its
@@ -306,6 +326,7 @@ function applyBackendUI(): void {
   localFields.style.display = local ? '' : 'none';
   relayRow.style.display = local && hasRelay ? '' : 'none';
   persistRow.style.display = local && hasPersist ? '' : 'none';
+  attentionRow.style.display = local && hasAttention ? '' : 'none';
   if (!local) relayInfo.style.display = 'none';
   host.style.display = local ? 'none' : '';
   btnConnect.textContent = local ? 'Connect' : 'Test';
@@ -535,6 +556,28 @@ btnDeleteNegativePreset.addEventListener('click', async () => {
   else log(res.error || 'Could not delete negative preset.');
 });
 
+// ---------------- Clear all prompt fields ----------------
+// Empties every prompt box: the unified box, the split fields and the
+// Character trigger. Negative is deliberately kept — it's "the negative I
+// reuse across characters", the same reason presets treat the two separately.
+// The same prompt fields are also enumerated by snapshotPromptFields /
+// applyPromptFields / RESET_TEXT_FIELDS; a new prompt field must join all
+// four lists. A programmatic .value write fires no 'input', so re-fit the
+// textareas, re-run the save preview (the rating/character naming folders
+// read these fields) and snapshot the UI state by hand.
+const btnClearPromptFields = $<HTMLButtonElement>('btnClearPromptFields');
+const PROMPT_TEXT_FIELDS: HTMLTextAreaElement[] = [
+  unifiedPrompt, global_, character, rating, hair, face, chest, body_,
+  clothes, limbs, sexual, pose, scene, effects, extra, characterTrigger
+];
+btnClearPromptFields.addEventListener('click', () => {
+  for (const el of PROMPT_TEXT_FIELDS) el.value = '';
+  autoGrowAll();
+  void refreshSavePreview();
+  scheduleUiSave();
+  log('Cleared all prompt fields (Negative kept).');
+});
+
 function initPresets(): void { refreshPresetLists(); }
 
 // ---------------- Width/Height swap ----------------
@@ -681,7 +724,7 @@ addLoraRow('', 0.8);
 // always win over defaults.
 const UI_STATE_KEY = 'comfybridge-ui-state';
 // The relay's settings are the main process's (comfy-relay.json).
-const UI_EXCLUDED = new Set<string>(['relayEnabled', 'relayPort', 'relayToken', 'persistComfy']);
+const UI_EXCLUDED = new Set<string>(['relayEnabled', 'relayPort', 'relayToken', 'persistComfy', 'attentionMode']);
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 function captureUiState(): void {
   const state: Record<string, unknown> = {};
@@ -1058,8 +1101,7 @@ function desktopBackend(): StorageBackend {
       const res = await window.electronAPI.galleryRead({ relPath });
       if (!res.ok || !res.base64) return null;
       return `data:${res.mime || 'image/png'};base64,${res.base64}`;
-    },
-    async writeImage(relPath: string, base64: string): Promise<void> {
+    },    async writeImage(relPath: string, base64: string): Promise<void> {
       if (!outputFolder) throw new Error('No output folder chosen.');
       const res = await window.electronAPI.saveImage({
         filename: relPath,
@@ -1375,6 +1417,49 @@ function resetGenerationForm(): void {
   applyUpscaleUI();
 }
 
+// The prompt side of a saved prompt, written exactly: every prompt field
+// (Global, Character, the per-category fields, the unified prompt and its
+// mode, Negative) takes the image's value, and one the image left empty is
+// cleared, so nothing from the current prompt mixes in. The character
+// trigger is cleared too: '11' already holds it joined with the character.
+function applySavedPromptText(prompt: Record<string, any>): void {
+  const inp = (id: string): Record<string, unknown> => (prompt[id] && prompt[id].inputs) || {};
+  const s = (id: string, key: string): string => { const v = inp(id)[key]; return v == null ? '' : String(v); };
+  const perField: [HTMLTextAreaElement, string][] = [
+    [rating, s('8', 'value')], [hair, s('12', 'value')], [face, s('15', 'value')],
+    [chest, s('18', 'value')], [body_, s('9', 'value')], [clothes, s('6', 'value')],
+    [limbs, s('20', 'value')], [sexual, s('14', 'value')], [pose, s('7', 'value')],
+    [extra, s('10', 'value')], [effects, s('13', 'value')], [scene, s('17', 'value')]
+  ];
+  character.value = s('11', 'value');
+  characterTrigger.value = '';
+  if (!perField.some(([, v]) => v) && s('21', 'value')){
+    // Unified mode: the template put everything into '21' and left the
+    // per-field nodes ''. '11' held unified + character trigger joined —
+    // the trigger part can't be split back out reliably, so it stays in the
+    // unified text (it generates identically when re-queued).
+    unifiedPromptMode.checked = true;
+    unifiedPrompt.value = s('21', 'value');
+    global_.value = '';
+    for (const [el] of perField) el.value = '';
+  } else {
+    unifiedPromptMode.checked = false;
+    unifiedPrompt.value = '';
+    global_.value = s('21', 'value');
+    for (const [el, v] of perField) el.value = v;
+  }
+  negative.value = s('16', 'text');
+}
+
+// "Use these prompts" (gallery info panel): only the prompt fields change;
+// models, LoRAs, sampler, seeds, size, passes and upscale stay as they are.
+function applyImportedPromptsOnly(prompt: Record<string, any>): void {
+  applySavedPromptText(prompt);
+  applyUnifiedPromptModeUI();
+  autoGrowAll();
+  scheduleUiSave();
+}
+
 // Reads a PNG saved by the integrated workflow and re-enters its full
 // generation config into the app: models, LoRA stack, prompt fields,
 // resolution, sampler/scheduler/steps/cfg/seeds, 2-Pass, resize and
@@ -1428,30 +1513,7 @@ function applyImportedPrompt(prompt: Record<string, any>): void {
     setVal(resizeMethod, s('238', 'method'));
   }
 
-  setVal(global_, s('21', 'value'));
-  const perField: [HTMLTextAreaElement, string][] = [
-    [rating, s('8', 'value')], [hair, s('12', 'value')], [face, s('15', 'value')],
-    [chest, s('18', 'value')], [body_, s('9', 'value')], [clothes, s('6', 'value')],
-    [limbs, s('20', 'value')], [sexual, s('14', 'value')], [pose, s('7', 'value')],
-    [extra, s('10', 'value')], [effects, s('13', 'value')], [scene, s('17', 'value')]
-  ];
-  const charVal = s('11', 'value');
-  const hasPerField = perField.some(([, v]) => v) ;
-  if (!hasPerField && s('21', 'value')){
-    // Unified mode: the template put everything into '21' and left the
-    // per-field nodes ''. '11' held unified + character trigger joined —
-    // the trigger part can't be split back out reliably, so it stays in the
-    // unified text (it generates identically when re-queued).
-    unifiedPromptMode.checked = true;
-    unifiedPrompt.value = s('21', 'value');
-    character.value = charVal;
-  } else {
-    unifiedPromptMode.checked = false;
-    unifiedPrompt.value = '';
-    character.value = charVal;
-    for (const [el, v] of perField) setVal(el, v);
-  }
-  setVal(negative, prompt['16'] && prompt['16'].inputs ? String(prompt['16'].inputs.text ?? '') : '');
+  applySavedPromptText(prompt);
 
   setVal(sampler, s('168:167', 'sampler_name'));
   setVal(scheduler, s('158:53', 'scheduler') || s('195', 'scheduler'));
@@ -1513,11 +1575,32 @@ mountGallerySidebar(desktopBackend, () => outputFolder || 'No folder chosen', {
   navigable: true,
   // Generation parameters left of an opened gallery image (./gen-info.ts);
   // "Use these settings" loads them like Import generation and closes it.
-  imageInfo: (src, close, relPath) => buildGenInfoPanel(src, (prompt) => {
-    applyImportedPrompt(prompt);
-    log('Loaded generation settings from a gallery image.');
+  imageInfo: (src, close, relPath) => buildGenInfoPanel(src, (prompt, promptsOnly) => {
+    if (promptsOnly) {
+      applyImportedPromptsOnly(prompt);
+      log('Loaded the prompts from a gallery image (other settings kept).');
+    } else {
+      applyImportedPrompt(prompt);
+      log('Loaded generation settings from a gallery image.');
+    }
     close();
-  }, relPath),
+  }, relPath, {
+    // Save details / reorganize: the panel's editor is seeded from the image
+    // itself (prompt text, LoRA, model, sampler settings) and re-specifiable;
+    // this side only picks the next free counter (never an existing file) and
+    // performs the confined rename through main.ts's move-image handler.
+    async move(fromRel, relDir, base) {
+      if (!outputFolder) return { ok: false, error: 'No output folder chosen.' };
+      const taken = new Set<string>();
+      const toRel = await nextSavePath(desktopBackend(), relDir, base, taken);
+      if (toRel.toLowerCase() === fromRel.toLowerCase()) return { ok: true, newRelPath: toRel };
+      const res = await window.electronAPI.moveImage({ from: fromRel, to: toRel });
+      if (!res.ok) return { ok: false, error: res.error };
+      return { ok: true, newRelPath: toRel };
+    },
+    log: (m) => log(m),
+    onMoved: () => { close(); refreshGallery(); }
+  }),
 });
 initTagWiki($<HTMLButtonElement>('btnTagWiki'));
 initHelp($<HTMLButtonElement>('btnHelp'));

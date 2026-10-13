@@ -33,6 +33,18 @@ export type GalleryImageInfo = (src: string, close: () => void, relPath: string)
 export interface GalleryOptions {
   navigable?: boolean;
   imageInfo?: GalleryImageInfo;
+  // More than one backend -> a switch row in the panel head (the phone: its
+  // own save location vs the PC's picked folder over the relay). Switching
+  // resets the folder and re-renders.
+  sources?: { label: string; backend(): StorageBackend; thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string) => Promise<string | null> }[];
+  // Data saver: the grid loads `thumbSrc` (a small version) instead of the
+  // full image; an opened image fetches `fullSrc` (the whole file) once.
+  // Without these the grid uses request-readImage for both.
+  thumbSrc?: (rel: string) => Promise<string | null>;
+  fullSrc?: (rel: string) => Promise<string | null>;
+  // An "Info" button in the lightbox instead of an always-on panel (the
+  // phone's narrow screen); the desktop keeps its on-at-once panel.
+  lazyInfo?: boolean;
 }
 let imageInfo: GalleryImageInfo | undefined;
 
@@ -101,14 +113,24 @@ let galleryRenderToken = 0;
 // once (that layout+decode storm was the gallery "jiggle"). Placeholders
 // for a page append synchronously in one batch, then fill progressively.
 const PAGE_SIZE = 60;
+// The whole mount's options, set at mount time so every render page (and
+// every slice) can see shared decisions like the lightbox Info mode even
+// when the caller passes nothing per level.
+let mountedOpts: GalleryOptions | undefined = undefined;
 
+// `thumbSrc` (a source's small versions) only loads the grid; `fullSrc` fires
+// on open, fetching the whole file on demand — the browser waits for it, the
+// lightbox then shows the full-size bytes.
 async function renderThumbSlice(
   backend: StorageBackend,
   h: GalleryHandles,
   token: number,
-  rels: string[]
+  rels: string[],
+  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string) => Promise<string | null> },
+  opts?: GalleryOptions
 ): Promise<boolean> {
   const imgs: HTMLImageElement[] = [];
+  const relByImg = new Map<HTMLImageElement, string>();
   for (const rel of rels) {
     if (token !== galleryRenderToken) return false;
     const img = document.createElement('img');
@@ -118,10 +140,12 @@ async function renderThumbSlice(
     img.decoding = 'async';
     h.grid.appendChild(img);
     imgs.push(img);
+    relByImg.set(img, rel);
   }
   for (let i = 0; i < rels.length; i++) {
     if (token !== galleryRenderToken) return false;
-    const url = await backend.readImage(rels[i]);
+    const rel = relByImg.get(imgs[i]) || rels[i];
+    const url = srcs?.thumbSrc ? await srcs.thumbSrc(rel) : await backend.readImage(rel);
     if (token !== galleryRenderToken) return false;
     const img = imgs[i];
     if (!url) {
@@ -134,7 +158,18 @@ async function renderThumbSlice(
     const info: LightboxInfo | undefined = imageInfo
       ? (src, close) => imageInfo!(src, close, galleryThumbRel(h, src))
       : undefined;
-    img.addEventListener('click', () => showImageLightbox(url, () => galleryThumbUrls(h), info));
+    img.addEventListener('click', async () => {
+      let openSrc = url;
+      if (srcs?.fullSrc && rel) {
+        try {
+          const full = await srcs.fullSrc(rel);
+          if (full) openSrc = full;
+        } catch {
+          /* the lightbox still opens on the small version */
+        }
+      }
+      showImageLightbox(openSrc, () => galleryThumbUrls(h), info, mountedOpts?.lazyInfo);
+    });
   }
   return true;
 }
@@ -162,11 +197,18 @@ function appendMoreButton(h: GalleryHandles, remaining: number, onMore: () => vo
   h.grid.appendChild(btn);
 }
 
+// More than one shell mounts this at most once; the refresher hangs here so
+// a relocation (the lightbox Save details' move) can ask the live grid to
+// re-list after a file lands elsewhere.
+let activeRefresh: (() => void) | null = null;
+export function refreshGallery(): void { activeRefresh?.(); }
+
 export function mountGallerySidebar(
   getBackend: () => StorageBackend,
   getLocationLabel: () => string,
   opts?: GalleryOptions
 ): GalleryHandles {
+  mountedOpts = opts;
   const navigable = !!opts?.navigable;
   imageInfo = opts?.imageInfo;
   const fab = document.createElement('button');
@@ -206,19 +248,70 @@ export function mountGallerySidebar(
     sortBtn: sidebar.querySelector('#gallerySortBtn') as HTMLButtonElement,
   };
   // Per-mount browser state (desktop only uses it).
+  const sources = opts?.sources && opts.sources.length > 1 ? opts.sources : null;
+  let srcIdx = 0;
   let relDir = '';
   let sortMode: GallerySortMode = loadSortMode();
   const browserState = (): BrowserState => ({ getDir: () => relDir, setDir: (d: string) => { relDir = d; }, getSort: () => sortMode, setSort: (s: GallerySortMode) => { sortMode = s; } });
+  function renderSourceSwitch(): void {
+    if (!sources) return;
+    let row = sidebar.querySelector<HTMLElement>('.gallery-source-row');
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'gallery-source-row';
+      sidebar.querySelector('.gallery-side-head')?.after(row);
+    }
+    row.innerHTML = '';
+    for (let i = 0; i < sources.length; i++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'gallery-source-btn' + (i === srcIdx ? ' active' : '');
+      b.textContent = sources[i].label;
+      b.addEventListener('click', () => {
+        if (i === srcIdx) return;
+        srcIdx = i;
+        relDir = '';           // a different save root: go to its top
+        galleryRenderToken++; // stop any in-flight render of the old source
+        renderSourceSwitch();
+        void render();
+      });
+      row.appendChild(b);
+    }
+  }
+  // The active backend owner: with `sources` the source owns it; otherwise
+  // it is the mount's own backend (the desktop's default single-source).
+  function activeBackend(): StorageBackend {
+    return sources ? sources[srcIdx].backend() : getBackend();
+  }
+  function activeThumbSrc(): ((rel: string) => Promise<string | null>) | undefined {
+    if (sources) return sources[srcIdx].thumbSrc;
+    return opts?.thumbSrc;
+  }
+  function activeFullSrc(): ((rel: string) => Promise<string | null>) | undefined {
+    if (sources) return sources[srcIdx].fullSrc;
+    return opts?.fullSrc;
+  }
+  // With sources the source's own label is the gallery's root label (the
+  // phone's "Documents/SAF name" vs the PC's folder name), not the mount's.
+  function getLocationText(): string {
+    return sources ? sources[srcIdx].label : getLocationLabel();
+  }
+  function render(): Promise<void> {
+    return navigable
+      ? renderBrowserLevel(activeBackend(), h, getLocationText(), browserState(), { thumbSrc: activeThumbSrc(), fullSrc: activeFullSrc() })
+      : renderGallery(activeBackend(), h, getLocationText(), { thumbSrc: activeThumbSrc(), fullSrc: activeFullSrc() });
+  }
   function open(): void {
     sidebar.classList.add('open');
     backdrop.classList.add('show');
     fab.classList.add('gallery-open');
     if (navigable) {
       relDir = '';
-      void renderBrowserLevel(getBackend(), h, getLocationLabel(), browserState());
+      void render();
     } else {
-      void renderGallery(getBackend(), h, getLocationLabel());
+      void render();
     }
+    renderSourceSwitch();
   }
   function close(): void {
     sidebar.classList.remove('open');
@@ -255,6 +348,10 @@ export function mountGallerySidebar(
     if (ev.button !== 3) return;
     if (galleryBack()) ev.preventDefault();
   });
+  activeRefresh = (): void => {
+    if (!sidebar.classList.contains('open')) return;
+    void render();
+  };
   return h;
 }
 
@@ -317,7 +414,8 @@ export async function renderBrowserLevel(
   backend: StorageBackend,
   h: GalleryHandles,
   locationLabel: string,
-  state: BrowserState
+  state: BrowserState,
+  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string) => Promise<string | null> }
 ): Promise<void> {
   const token = ++galleryRenderToken;
   const relDir = state.getDir();
@@ -428,7 +526,7 @@ export async function renderBrowserLevel(
     h.grid.querySelector('.gallery-more-btn')?.remove();
     const slice = images.slice(shown, shown + PAGE_SIZE);
     shown += slice.length;
-    const ok = await renderThumbSlice(backend, h, token, slice);
+    const ok = await renderThumbSlice(backend, h, token, slice, srcs);
     if (!ok || token !== galleryRenderToken) return;
     if (shown < images.length) {
       appendMoreButton(h, images.length - shown, () => {
@@ -442,7 +540,8 @@ export async function renderBrowserLevel(
 export async function renderGallery(
   backend: StorageBackend,
   h: GalleryHandles,
-  locationLabel: string
+  locationLabel: string,
+  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string) => Promise<string | null> }
 ): Promise<void> {
   const token = ++galleryRenderToken;
   h.navRow.style.display = 'none';
@@ -482,7 +581,7 @@ export async function renderGallery(
       }
     }
     shownImages += slice.length;
-    const ok = await renderThumbSlice(backend, h, token, slice);
+    const ok = await renderThumbSlice(backend, h, token, slice, srcs);
     if (!ok || token !== galleryRenderToken) return;
     if (shownImages < totalImages) {
       appendMoreButton(h, totalImages - shownImages, () => {

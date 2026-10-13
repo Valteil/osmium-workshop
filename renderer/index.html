@@ -1409,6 +1409,10 @@
               <button id="btnSynthDatLocalFolder" title="Choose your ComfyUI folder"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-folder"></use></svg>Choose…</button>
             </div>
           </div>
+          <div class="settings-row" id="synthDatAttentionRow" style="display:none;" title="How Osmium Comfy computes attention. Auto uses FlashAttention when your ComfyUI has flash-attn installed, otherwise ComfyUI's default (xformers when installed). Changing it stops Osmium Comfy; click Connect to start it with the new one. Images can differ very slightly between choices.">
+            <span>Attention</span>
+            <div class="pdrop" id="synthDatAttentionDropdown"></div>
+          </div>
           <div class="synthdat-lora-row">
             <button id="btnSynthDatConnect" title="Test connectivity to this ComfyUI host"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-plug"></use></svg>Connect</button>
             <button id="btnSynthDatRefreshModels" title="Reload model/LoRA lists from ComfyUI"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-refresh"></use></svg>Refresh models</button>

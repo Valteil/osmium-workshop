@@ -32,19 +32,29 @@ interface Window {
 declare const BridgeShared: {
   buildSynthDatPrompt: (template: any, cfg: any) => any;
   parseComboValues: (nodeInfo: any, inputName: string) => string[] | null;
+  buildGenInfoPanel: (src: string, onUse: (prompt: Record<string, any>, promptsOnly: boolean) => void, relPath?: string) => HTMLElement | null;
   parseQueueResponse: (parsed: any, status: number, noun: string) => { ok: boolean; promptId?: string; error?: string };
   uploadImage: (t: any, host: string, filename: string, bytes: Uint8Array, label?: string) => Promise<{ ok: boolean; ref?: string; error?: string }>;
   queuePrompt: (t: any, host: string, prompt: any, clientId: string, opts?: any) => Promise<{ ok: boolean; promptId?: string; error?: string }>;
   pollHistory: (t: any, host: string, promptId: string, opts: any) => Promise<{ ok: boolean; value?: any; error?: string; interrupted?: boolean }>;
   extractPngTextChunks: (bytes: Uint8Array, inflate?: (d: Uint8Array) => Uint8Array) => Record<string, string>;
   bytesToBase64: (bytes: Uint8Array) => string;
+  // Save scheme (shared/file-naming.ts) — the desktop Bridge's File Namer.
+  characterIndex: () => Promise<{ byTag: Map<string, string>; names: string[] }>;
+  recognizeCharacter: (field: string, index: { byTag: Map<string, string> }) => string;
+  ratingFolder: (ratingText: string) => string;
+  safeSegment: (s: string) => string;
+  fileBaseName: (path: string) => string;
+  joinNameParts: (parts: string[]) => string;
+  nextSavePath: (backend: any, relDir: string, base: string, taken?: Set<string>) => Promise<string>;
+  previewFileName: (base: string) => string;
   nextFileNumber: (backend: any) => Promise<number>;
   optionsFromDatalist: (datalist: any) => string[];
   attachPickerModal: (input: any, title: string, getOptions: () => any) => void;
   initTheme: (themes: any, def: any) => void;
   mountThemePicker: (opts: any) => void;
   initTagWiki: (button: HTMLElement) => void;
-  mountGallerySidebar: (backend: any, label: any) => any;
+  mountGallerySidebar: (backend: any, label: any, opts?: any) => any;
   galleryBack: () => boolean;
   showImageLightbox: (src: string) => void;
   THEMES: any;
@@ -156,6 +166,28 @@ declare const BridgeShared: {
   const steps1 = $<HTMLInputElement>('steps1'), cfg1 = $<HTMLInputElement>('cfg1'), seed1 = $<HTMLInputElement>('seed1');
   const use2Pass = $<HTMLInputElement>('use2Pass'), pass2Fields = $('pass2Fields');
   const steps2 = $<HTMLInputElement>('steps2'), denoise2 = $<HTMLInputElement>('denoise2'), seed2 = $<HTMLInputElement>('seed2');
+
+  // File saving (settings drawer's "File saving" section, shared/file-naming.ts).
+  const namingAutoRating = $('namingAutoRating');
+  const charModeTag = $<HTMLInputElement>('charModeTag');
+  const charModeOC = $<HTMLInputElement>('charModeOC');
+  const charModeCustom = $<HTMLInputElement>('charModeCustom');
+  const charTagName = $<HTMLInputElement>('charTagName');
+  const charCustomName = $<HTMLInputElement>('charCustomName');
+  const charFolderSuggest = $('charFolderSuggest');
+  const charModeNote = $('charModeNote');
+  const charTagWrap = $('charTagWrap');
+  const fnCharacter = $<HTMLInputElement>('fnCharacter');
+  const fnLora = $<HTMLInputElement>('fnLora');
+  const fnGen = $<HTMLInputElement>('fnGen');
+  const fnGenParts = $('fnGenParts');
+  const fnModel = $<HTMLInputElement>('fnModel');
+  const fnSampler = $<HTMLInputElement>('fnSampler');
+  const fnScheduler = $<HTMLInputElement>('fnScheduler');
+  const fnSteps = $<HTMLInputElement>('fnSteps');
+  const fnCfg = $<HTMLInputElement>('fnCfg');
+  const fnSeed = $<HTMLInputElement>('fnSeed');
+  const savePathPreview = $('savePathPreview');
 
   const upscaleEnabled = $<HTMLInputElement>('upscaleEnabled');
   const upscaleModelRow = $('upscaleModelRow');
@@ -490,8 +522,234 @@ declare const BridgeShared: {
       }
     };
   }
-  BridgeShared.mountGallerySidebar(mobileBackend, saveLocationLabelText);
+  // ---------------- PC gallery over the relay / share server ----------------
+  // The phone can browse the PC's picked output folder when it is connected
+  // to it over Tailscale/LAN: the relay (or, with Persist Comfy, the runner's
+  // own ShareServer) serves /internal/gallery/list + /read + /thumb. The
+  // grid loads runner-made small thumbnails and only an OPENED image moves
+  // at full size (the data saver the user wanted). Not writable — saves on
+  // the PC are the PC's business.
+  function pcGalleryBackend() {
+    return {
+      async listDir(relDir: string) {
+        const t = comfyTransport();
+        try {
+          const res = await t.request(getHost(), '/internal/gallery/list?dir=' + encodeURIComponent(relDir || ''), { timeoutMs: 20000 });
+          const parsed = JSON.parse(new TextDecoder().decode(res.body) || '{}');
+          if (res.status !== 200 || !parsed.ok) throw new Error((parsed && parsed.error && parsed.error.message) || ('HTTP ' + res.status));
+          return (parsed.entries || []).map((e: any) => ({ name: e.name, kind: e.kind, mtime: Number(e.mtime) || 0 }));
+        } catch (err) {
+          throw new Error(isLikelyCorsFailure(err) ? corsHint() : errMsg(err));
+        }
+      },
+      async readImage(relPath: string) {
+        const t = comfyTransport(undefined);
+        const res = await t.request(getHost(), '/internal/gallery/read?path=' + encodeURIComponent(relPath || ''), { timeoutMs: 60000 });
+        if (res.status !== 200) throw new Error('Fetching the image failed (HTTP ' + res.status + ').');
+        // The relay answers with the file's own content type.
+        const body = new Uint8Array(res.body);
+        const mime = sniffImageMime(body) || 'image/png';
+        return 'data:' + mime + ';base64,' + BridgeShared.bytesToBase64(body);
+      },
+      async writeImage() {
+        throw new Error('The PC folder is read-only from the phone.');
+      }
+    };
+  }
+  function pcThumbSrc(rel: string): Promise<string | null> {
+    return (async () => {
+      const t = comfyTransport();
+      const res = await t.request(getHost(), '/internal/gallery/thumb?path=' + encodeURIComponent(rel || '') + '&side=256', { timeoutMs: 20000 });
+      if (res.status !== 200) return null;
+      const body = new Uint8Array(res.body);
+      const mime = sniffImageMime(body) || 'image/jpeg';
+      return 'data:' + mime + ';base64,' + BridgeShared.bytesToBase64(body);
+    })().catch(() => null);
+  }
+  function pcFullSrc(rel: string): Promise<string | null> {
+    return (async () => {
+      return await pcGalleryBackend().readImage(rel);
+    })().catch(() => null);
+  }
+  BridgeShared.mountGallerySidebar(mobileBackend, saveLocationLabelText, {
+    // Folder navigation with the path listing at the top (v2.0.0: the
+    // user's call — the breadcrumb row like the desktop's, so the phone is
+    // no longer stuck inside e.g. the explicit folder).
+    navigable: true,
+    // Two sources: the phone's save location, and the PC's picked folder
+    // over the network (thumb grid, full image on open).
+    sources: [
+      { label: 'Phone', backend: () => mobileBackend() },
+      { label: 'PC', backend: () => pcGalleryBackend(), thumbSrc: pcThumbSrc, fullSrc: pcFullSrc }
+    ],
+    // Generation parameters of opened images (the panel is shared with the
+    // desktop); behind an "Info" button on the phone's narrow screen.
+    imageInfo: (src: string, close: () => void, relPath: string) => BridgeShared.buildGenInfoPanel(src, (prompt: Record<string, any>, promptsOnly: boolean) => {
+      if (promptsOnly) {
+        applyImportedPromptsOnly(prompt);
+        log('Loaded the prompts from a gallery image (other settings kept).');
+      } else {
+        applyImportedPrompt(prompt);
+        log('Loaded generation settings from a gallery image.');
+      }
+      close();
+    }, relPath),
+    lazyInfo: true
+  });
 
+  // ---------------- File Namer (shared/file-naming.ts) ----------------
+  // Where each generation lands inside the save location, mirroring the
+  // desktop Bridge's scheme: [rating/][character/][Upscaled/]<parts>_<N>_.png.
+  // The rating folder is automatic (the prompt's rating text); the character
+  // folder and the filename parts are the user's. The server-side copy is
+  // the host's own SaveImage (its dummy detector names it the same automatic
+  // way); the phone's gallery copy is named HERE. The host's returned saveRel
+  // is no longer used to place the mirror — the phone's own naming is.
+  function joinRel(...parts: string[]): string { return parts.filter(Boolean).join('/'); }
+  type CharMode = 'tag' | 'oc' | 'custom';
+  function charMode(): CharMode { return charModeOC.checked ? 'oc' : charModeCustom.checked ? 'custom' : 'tag'; }
+  // The text the rating folder is read from: the Rating field, or the unified
+  // prompt in unified mode (it has no separate Rating field).
+  function ratingText(): string { return unifiedPromptMode.checked ? unifiedPrompt.value : rating.value; }
+  // fieldValue() is defined near the presets.
+
+  interface SaveNaming { relDir: string; base: string; rating: string; character: string; recognized: string; }
+
+  async function currentNaming(): Promise<SaveNaming> {
+    // Only pull the ~25MB Danbooru tag list when there is actually a
+    // Character field to match against (the same startup-shaped guard as the
+    // desktop's — see the Startup-Eager-Data-Parse-Blocks-Input pitfall).
+    const characterField = fieldValue(character);
+    let recognized = '';
+    if (characterField) {
+      try { recognized = BridgeShared.safeSegment(BridgeShared.recognizeCharacter(characterField, await BridgeShared.characterIndex())); } catch (e) { /* tag list unavailable */ }
+    }
+    const mode = charMode();
+    const characterName = mode === 'oc' ? 'OC'
+      : mode === 'custom' ? BridgeShared.safeSegment(charCustomName.value)
+      : BridgeShared.safeSegment(charTagName.value) || recognized;
+    const ratingName = BridgeShared.ratingFolder(ratingText());
+    const lora = mainLora.value && mainLora.value !== 'None' && mainLora.value !== 'Anima-n' ? BridgeShared.fileBaseName(mainLora.value) : '';
+    const cfgNum = parseFloat(cfg1.value);
+    const base = BridgeShared.joinNameParts([
+      fnCharacter.checked ? characterName : '',
+      fnLora.checked ? lora : '',
+      fnGen.checked && fnModel.checked ? BridgeShared.fileBaseName(diffModel.value) : '',
+      fnGen.checked && fnSampler.checked ? sampler.value : '',
+      fnGen.checked && fnScheduler.checked ? scheduler.value : '',
+      fnGen.checked && fnSteps.checked && steps1.value ? 'steps' + steps1.value : '',
+      fnGen.checked && fnCfg.checked && !isNaN(cfgNum) ? 'cfg' + parseFloat(cfgNum.toFixed(2)) : '',
+      fnGen.checked && fnSeed.checked && seed1.value ? 'seed' + seed1.value : ''
+    ]);
+    return { relDir: joinRel(ratingName, characterName), base, rating: ratingName, character: characterName, recognized };
+  }
+
+  function applyNamingUI(): void {
+    const mode = charMode();
+    charTagWrap.style.display = mode === 'tag' ? '' : 'none';
+    charCustomName.style.display = mode === 'custom' ? '' : 'none';
+    fnGenParts.style.display = fnGen.checked ? '' : 'none';
+  }
+
+  let namingToken = 0;
+  async function refreshSavePreview(): Promise<void> {
+    const tok = ++namingToken;
+    const n = await currentNaming();
+    if (tok !== namingToken) return;
+
+    namingAutoRating.textContent = n.rating
+      ? 'Rating: ' + n.rating + ' (the ' + (unifiedPromptMode.checked ? 'prompt' : 'Rating field') + ' says ' + n.rating + ')'
+      : 'Rating: none, so images go straight into the save location (the ' + (unifiedPromptMode.checked ? 'prompt' : 'Rating field') + ' says neither explicit nor safe)';
+
+    const mode = charMode();
+    charTagName.placeholder = n.recognized ? n.recognized + ' (recognized)' : 'Type to search Danbooru characters';
+    charModeNote.textContent = mode === 'oc' ? 'Original characters all go in one OC folder.'
+      : mode === 'custom' ? (n.character ? '' : 'Empty: no character folder.')
+      : charTagName.value.trim() ? ''
+      : n.recognized ? 'Empty: uses the character recognized in the Character field.'
+      : 'No character recognized in the Character field, so no character folder.';
+
+    savePathPreview.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'naming-preview-head';
+    head.textContent = 'Saves to';
+    savePathPreview.appendChild(head);
+    const line = (text: string, cls: string, depth: number): void => {
+      const el = document.createElement('div');
+      el.className = 'naming-preview-line ' + cls;
+      el.style.paddingLeft = (depth * 14) + 'px';
+      el.textContent = (depth ? '└ ' : '') + text;
+      savePathPreview.appendChild(el);
+    };
+    let depth = 0;
+    line(saveLocationLabelText(), 'root', depth++);
+    if (n.rating) line(n.rating, 'auto', depth++);
+    if (n.character) line(n.character, 'user', depth++);
+    line(BridgeShared.previewFileName(n.base), 'file', depth);
+    if (upscaleEnabled.checked && upscaleModel.value.trim()) {
+      const up = document.createElement('div');
+      up.className = 'muted small';
+      up.textContent = 'Upscaled copies: the same name in an Upscaled folder next to it.';
+      savePathPreview.appendChild(up);
+    }
+  }
+  let namingTimer: ReturnType<typeof setTimeout> | null = null;
+  function scheduleNamingUI(): void {
+    if (namingTimer) clearTimeout(namingTimer);
+    namingTimer = setTimeout(() => { applyNamingUI(); void refreshSavePreview(); }, 120);
+  }
+  // Any field can change the preview (character, rating text, sampler, seed…).
+  document.addEventListener('input', scheduleNamingUI, true);
+  document.addEventListener('change', scheduleNamingUI, true);
+
+  // Danbooru character suggestions under the tag-list field.
+  function hideCharSuggest(): void { charFolderSuggest.hidden = true; charFolderSuggest.innerHTML = ''; }
+  charTagName.addEventListener('input', async () => {
+    const q = charTagName.value.trim().toLowerCase();
+    if (q.length < 2) { hideCharSuggest(); return; }
+    let names: string[];
+    try { names = (await BridgeShared.characterIndex()).names; } catch (e) { return; }
+    if (charTagName.value.trim().toLowerCase() !== q) return;
+    const starts: string[] = [];
+    const contains: string[] = [];
+    for (const nm of names) {
+      const l = nm.toLowerCase();
+      if (l.startsWith(q)) starts.push(nm);
+      else if (l.includes(q)) contains.push(nm);
+      if (starts.length >= 10) break;
+    }
+    const picks = [...starts, ...contains].slice(0, 10);
+    charFolderSuggest.innerHTML = '';
+    if (!picks.length || (picks.length === 1 && picks[0] === charTagName.value)) { hideCharSuggest(); return; }
+    for (const nm of picks) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'naming-suggest-item';
+      b.textContent = nm;
+      // mousedown (not click) so the input keeps its keyboard focus on touch;
+      // Android's tap fires the synthesized mouse sequence like desktop.
+      b.addEventListener('mousedown', (ev) => {
+        ev.preventDefault();
+        charTagName.value = nm;
+        hideCharSuggest();
+        charTagName.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      charFolderSuggest.appendChild(b);
+    }
+    charFolderSuggest.hidden = false;
+  });
+  charTagName.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') hideCharSuggest();
+    else if (ev.key === 'Enter' && !charFolderSuggest.hidden) {
+      const first = charFolderSuggest.querySelector<HTMLButtonElement>('.naming-suggest-item');
+      if (first) { ev.preventDefault(); first.dispatchEvent(new MouseEvent('mousedown')); }
+    }
+  });
+  charTagName.addEventListener('blur', hideCharSuggest);
+
+  // restoreUiState() already ran (or will, in Init) without firing 'change'.
+  applyNamingUI();
+  setTimeout(() => { void refreshSavePreview(); }, 0);
 
   // ---------------- ComfyUI bridge (fetch/WebSocket, no IPC) ----------------
 
@@ -589,21 +847,39 @@ declare const BridgeShared: {
         }
         try { const tok = (token.value || '').trim(); if (tok) xhr.setRequestHeader('X-Osmium-Token', tok); } catch (e) { /* best effort */ }
         let stallTimer: ReturnType<typeof setTimeout> | undefined;
-        const armStall = () => {
+        let lastLoaded = 0, lastTotal = 0;
+        const armStall = (ms: number, after: string) => {
           if (!init.timeoutMs) return;
           clearTimeout(stallTimer);
-          stallTimer = setTimeout(() => { xhr.abort(); reject(new Error('no response for ' + Math.round(init.timeoutMs / 1000) + 's')); }, init.timeoutMs);
+          stallTimer = setTimeout(() => {
+            xhr.abort();
+            const kb = (n: number) => Math.round(n / 1024).toLocaleString() + ' KB';
+            const sent = lastTotal > 0 ? ` (${kb(lastLoaded)} / ${kb(lastTotal)} sent)` : '';
+            reject(new Error('no response for ' + Math.round(ms / 1000) + 's ' + (after || '') + sent));
+          }, ms);
         };
         const onAbort = () => { xhr.abort(); reject(new DOMException('Stopped', 'AbortError')); };
         const done = () => { clearTimeout(stallTimer); signal?.removeEventListener('abort', onAbort); };
         if (signal?.aborted) { reject(new DOMException('Stopped', 'AbortError')); return; }
         signal?.addEventListener('abort', onAbort, { once: true });
         if (onUploadProgress && init.body) {
-          xhr.upload.onprogress = (ev) => { armStall(); if (ev.lengthComputable) onUploadProgress(ev.loaded, ev.total); };
+          xhr.upload.onprogress = (ev) => {
+            lastLoaded = ev.loaded;
+            lastTotal = ev.total;
+            if (ev.lengthComputable) onUploadProgress(ev.loaded, ev.total);
+            // Once the full request has been handed to the network the failure
+            // mode changes: bytes aren't still moving, the response is just
+            // late or lost (a receiver that stops reading, a relayed link).
+            // Concluding at the normal 20s made every attempt abort and the
+            // whole ~1MB upload restart, which failed the same way each time.
+            // Waiting 3x costs nothing and lets a slow answer through.
+            const full = ev.lengthComputable && ev.total > 0 && ev.loaded === ev.total;
+            armStall(full ? init.timeoutMs * 3 : init.timeoutMs, full ? 'after the full request' : '');
+          };
         }
         xhr.onload = () => { done(); resolve({ status: xhr.status, body: new Uint8Array(xhr.response || new ArrayBuffer(0)) }); };
         xhr.onerror = () => { done(); reject(new Error('network error')); };
-        armStall();
+        armStall(init.timeoutMs, '');
         xhr.send(init.body ?? null);
       })
     };
@@ -776,17 +1052,42 @@ declare const BridgeShared: {
   btnPickImage.addEventListener('click', () => refFileInput.click());
   refFileInput.addEventListener('change', async () => {
     const file = refFileInput.files && refFileInput.files[0];
+    // Reset before anything else: without it the WebView won't fire 'change'
+    // again for the same file, and re-picking an image would silently do
+    // nothing (looking like "the picker is inconsistent").
+    refFileInput.value = '';
     if (!file) return;
     let bytes: Uint8Array;
     try { bytes = new Uint8Array(await file.arrayBuffer()); }
     catch (err) { log('Couldn\'t read that image (' + errMsg(err) + ') — try picking it again.'); return; }
+    if (!bytes.length) { log('That image came back empty (the picker offered ' + String(file.size) + ' bytes) — try picking it again.'); return; }
     refFile = file;
     refBytes = bytes;
     refFilename = file.name;
     refFileName.textContent = file.name;
-    refPreview.src = URL.createObjectURL(file);
+    // Preview from the bytes themselves, not a blob: URL of the picked file.
+    // A blob: URL is a lazy reference to the picked content:// source — the
+    // WebView sometimes fails to materialize it for rendering (JS reads the
+    // bytes fine, the <img> shows the "generic file" broken-image icon), and
+    // any failure reproduces inconsistently per pick. A data: URL is dead
+    // simple and renders exactly the bytes the upload would send.
+    const mime = sniffImageMime(bytes) || (file.type || '').split(';')[0] || 'image/png';
+    refPreview.src = 'data:' + mime + ';base64,' + BridgeShared.bytesToBase64(bytes);
     refPreview.style.display = 'block';
   });
+
+  // The magic numbers of the formats the editor actually feeds through here.
+  // Audio/video/DICOM etc. render nothing, so only a recognized family or an
+  // explicitly image/* type gets a preview; anything else falls back to the
+  // browser's default decoding attempt as image/png.
+  function sniffImageMime(bytes: Uint8Array): string {
+    const m = (arr: number[], off = 0): boolean => arr.every((b, i) => bytes[off + i] === b);
+    if (bytes.length >= 8 && m([0x89, 0x50, 0x4e, 0x47])) return 'image/png';
+    if (bytes.length >= 3 && m([0xff, 0xd8, 0xff])) return 'image/jpeg';
+    if (bytes.length >= 12 && m([0x52, 0x49, 0x46, 0x46]) && m([0x57, 0x45, 0x42, 0x50], 8)) return 'image/webp';
+    if (bytes.length >= 6 && m([0x47, 0x49, 0x46])) return 'image/gif';
+    return '';
+  }
 
   // ---------------- Toggles ----------------
 
@@ -887,7 +1188,7 @@ declare const BridgeShared: {
       connStatus.textContent = '✓ Connected to ' + getHost();
     } else {
       connStatus.style.color = '';
-      connStatus.textContent = res.error;
+      connStatus.textContent = 'error' in res ? res.error : '';
     }
   });
 
@@ -925,7 +1226,7 @@ declare const BridgeShared: {
       fillDatalist(upscaleModelList, res.values);
       log('Found ' + res.values.length + ' upscale model(s) on the host.');
     } else {
-      log(res.error);
+      log('error' in res ? res.error : '');
     }
   });
 
@@ -1214,6 +1515,10 @@ declare const BridgeShared: {
     imageBytes: Uint8Array | null;
     passCount: number;
     totalStages: number;
+    // Where this job's copies go, snapshotted with the prompt like the
+    // desktop Bridge — a queued job saves under the folders/name its own
+    // settings produced, even if the UI changed since it was queued.
+    naming: SaveNaming;
   }
   const genQueue: GenJob[] = [];
   let genRunning = false;
@@ -1230,7 +1535,8 @@ declare const BridgeShared: {
       imageFilename: skipRefImage.checked ? null : refFilename,
       imageBytes: skipRefImage.checked ? null : refBytes,
       passCount,
-      totalStages: passCount + ((upscaleEnabled.checked && upscaleModel.value.trim()) ? 1 : 0)
+      totalStages: passCount + ((upscaleEnabled.checked && upscaleModel.value.trim()) ? 1 : 0),
+      naming: await currentNaming()
     });
     if (genRunning) {
       log('Queued a generation (' + genQueue.length + ' waiting).');
@@ -1313,23 +1619,28 @@ declare const BridgeShared: {
     }
     genStatus.style.display = 'none';
 
-    // Save with the SAME name/scheme ComfyUI's SaveImage used (File Namer
-    // prefix chain), mirrored inside the chosen save folder — flat "N.png"
-    // numbering stays only as a fallback for server shapes without paths.
-    // Both copies share ComfyUI's own counter; no second counting pass.
-    const fallbackN = async () => await BridgeShared.nextFileNumber(mobileBackend());
+    // Save under the phone's own File Namer (shared/file-naming.ts) — the
+    // same scheme the desktop Bridge uses for its copies: pass 1 and pass 2
+    // take consecutive counters in the same folders, the upscaled file goes
+    // in an Upscaled folder next to them, and nothing is overwritten.
+    // The server copy (the host's own SaveImage, chain-named the automatic
+    // way) is the host's business; the /export rel paths it returns no longer
+    // place the phone's mirror.
+    const taken = new Set<string>();
+    const savePath = (upscaled: boolean): Promise<string> =>
+      BridgeShared.nextSavePath(mobileBackend(), upscaled ? joinRel(job.naming.relDir, 'Upscaled') : job.naming.relDir, job.naming.base, taken);
     let saveFailed = false;
     const slides: { label: string; bytes: Uint8Array }[] = [];
     if (res.pass1ImageBytes) {
-      if (!(await saveBytes(res.pass1ImageBytes, res.pass1SaveRel || (await fallbackN()) + '_pass1.png'))) saveFailed = true;
+      if (!(await saveBytes(res.pass1ImageBytes, await savePath(false)))) saveFailed = true;
       slides.push({ label: 'Pass 1', bytes: res.pass1ImageBytes });
     }
     if (res.imageBytes) {
-      if (!(await saveBytes(res.imageBytes, res.saveRel || (await fallbackN()) + '.png'))) saveFailed = true;
+      if (!(await saveBytes(res.imageBytes, await savePath(false)))) saveFailed = true;
       slides.push({ label: res.pass1ImageBytes ? 'Pass 2' : 'Pass 1', bytes: res.imageBytes });
     }
     if (res.upscaledImageBytes) {
-      if (!(await saveBytes(res.upscaledImageBytes, res.upscaledSaveRel || (await fallbackN()) + '_upscaled.png'))) saveFailed = true;
+      if (!(await saveBytes(res.upscaledImageBytes, await savePath(true)))) saveFailed = true;
       slides.push({ label: 'Upscaled', bytes: res.upscaledImageBytes });
     }
     if (saveFailed) {
@@ -1391,6 +1702,45 @@ declare const BridgeShared: {
     upscaleModelRow.style.display = 'none';
   }
 
+  // The prompt side of a saved prompt, written exactly (mirrors desktop's):
+  // every prompt field takes the image's value and one the image left empty
+  // is cleared, so nothing from the current prompt mixes in. The character
+  // trigger is cleared too: '11' already holds it joined with the character.
+  function applySavedPromptText(prompt: Record<string, any>) {
+    const inp = (id: string): Record<string, any> => (prompt[id] && prompt[id].inputs) || {};
+    const s = (id: string, key: string): string => { const v = inp(id)[key]; return v == null ? '' : String(v); };
+    const perField: [HTMLTextAreaElement, string][] = [
+      [rating, s('8', 'value')], [hair, s('12', 'value')], [face, s('15', 'value')],
+      [chest, s('18', 'value')], [body_, s('9', 'value')], [clothes, s('6', 'value')],
+      [limbs, s('20', 'value')], [sexual, s('14', 'value')], [pose, s('7', 'value')],
+      [extra, s('10', 'value')], [effects, s('13', 'value')], [scene, s('17', 'value')]
+    ];
+    character.value = s('11', 'value');
+    characterTrigger.value = '';
+    if (!perField.some(([, v]) => v) && s('21', 'value')) {
+      unifiedPromptMode.checked = true;
+      unifiedPrompt.value = s('21', 'value');
+      global_.value = '';
+      for (const [el] of perField) el.value = '';
+    } else {
+      unifiedPromptMode.checked = false;
+      unifiedPrompt.value = '';
+      global_.value = s('21', 'value');
+      for (const [el, v] of perField) el.value = v;
+    }
+    applyUnifiedPromptModeUI();
+    negative.value = s('16', 'text');
+  }
+
+  // "Use these prompts" (gallery info panel): only the prompt fields change;
+  // models, LoRAs, sampler, seeds, size, passes and upscale stay as they are.
+  function applyImportedPromptsOnly(prompt: Record<string, any>) {
+    applySavedPromptText(prompt);
+    autoGrowAll();
+    void refreshSavePreview();
+    scheduleUiSave();
+  }
+
   function applyImportedPrompt(prompt: Record<string, any>) {
     resetGenerationForm();
     const inp = (id: string) => (prompt[id] && prompt[id].inputs) || {};
@@ -1435,27 +1785,7 @@ declare const BridgeShared: {
       setVal(resizeMethod, s('238', 'method'));
     }
 
-    setVal(global_, s('21', 'value'));
-    const perField: [HTMLTextAreaElement, string][] = [
-      [rating, s('8', 'value')], [hair, s('12', 'value')], [face, s('15', 'value')],
-      [chest, s('18', 'value')], [body_, s('9', 'value')], [clothes, s('6', 'value')],
-      [limbs, s('20', 'value')], [sexual, s('14', 'value')], [pose, s('7', 'value')],
-      [extra, s('10', 'value')], [effects, s('13', 'value')], [scene, s('17', 'value')]
-    ];
-    const charVal = s('11', 'value');
-    const hasPerField = perField.some(([, v]) => v);
-    if (!hasPerField && s('21', 'value')) {
-      unifiedPromptMode.checked = true;
-      unifiedPrompt.value = s('21', 'value');
-      character.value = charVal;
-    } else {
-      unifiedPromptMode.checked = false;
-      unifiedPrompt.value = '';
-      character.value = charVal;
-      for (const [el, v] of perField) setVal(el, v);
-    }
-    applyUnifiedPromptModeUI();
-    setVal(negative, prompt['16'] && prompt['16'].inputs ? String(prompt['16'].inputs.text != null ? prompt['16'].inputs.text : '') : '');
+    applySavedPromptText(prompt);
 
     setVal(sampler, s('168:167', 'sampler_name'));
     setVal(scheduler, s('158:53', 'scheduler') || s('195', 'scheduler'));
@@ -1483,6 +1813,10 @@ declare const BridgeShared: {
       }
     }
     upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none';
+    // Programmatic fills fire no input events: re-fit the boxes, refresh the
+    // File Namer preview and capture this state like a real edit would.
+    autoGrowAll();
+    void refreshSavePreview();
     scheduleUiSave();
   }
 

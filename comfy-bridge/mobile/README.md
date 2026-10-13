@@ -6,6 +6,28 @@ models/LoRA stack, ControlNet, 1-Pass/2-Pass (both saved), optional
 model-based upscale — each saved as its own distinct file (see "Result
 preview" below), not collapsed into one.
 
+## Same save naming as the desktop (File saving)
+
+The settings drawer's **File saving** section mirrors the desktop's file
+drawer: the automatic rating folder (`explicit`/`safe` from the prompt), a
+Character folder — a Danbooru character from the bundled tag list (with the
+same search suggestions), all OCs in one `OC` folder, or a custom name — and
+which parts the filename carries (character, Main LoRA, model and sampler
+settings). A live `Saves to` preview shows the whole path as you type. Files
+the phone generated land under the same `[rating/][character/][Upscaled/]`
+scheme inside the save location.
+
+## PC gallery over Tailscale (browse the PC's output folder)
+
+With a PC host reachable (the Bridge's relay, or Persist Comfy's share
+server), the gallery gains a **Phone | PC** switch at the top. The PC side
+navigates the PC's picked output folder with the path listing (breadcrumb)
+like the desktop, and stays light on data: the grid loads small
+thumbnails made by the PC's runner, and only an **opened** image is fetched
+at full size. Every opened PC image can show its **generation parameters**
+(Details button in the lightbox) and load them into the phone's generator
+with "Use these settings".
+
 ## Off-canvas drawers (mobile only)
 
 Two toggle buttons stack bottom-left (mirroring the gallery FAB's
@@ -70,8 +92,11 @@ on both platforms — they live once in `comfy-bridge/src/renderer/shared/*.ts`
 (+ `shared.css`) and are consumed two ways: desktop imports them directly into
 its esbuild bundle; mobile loads the IIFE bundle `www/shared.js` (built by
 `npm run build:shared` from the `comfy-bridge/` root — do not hand-edit it,
-nor `www/shared.css`). `www/app.js` stays hand-written mobile shell code
-(direct-fetch ComfyUI, SAF/Documents storage) calling into `BridgeShared`.
+nor `www/shared.css`). The generation-parameters panel (`shared/gen-info.ts`)
+and the File Namer logic (`shared/file-naming.ts`) are shared the same way.
+`www/app.js` is GENERATED from the TypeScript shell `mobile/src/app.ts`
+(bundled by `npm run build:mobile-app` — never hand-edit it) and calls into
+`BridgeShared`.
 Only the storage backend differs per platform (SAF/Documents on mobile,
 Electron IPC on desktop) — mobile-only APIs never appear in the desktop
 bundle and vice versa (verified by grep on both outputs).

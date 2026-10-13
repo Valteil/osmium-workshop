@@ -36,6 +36,7 @@ import io
 import json
 import os
 import queue
+import re
 import sys
 import threading
 import time
@@ -128,6 +129,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--comfy", required=True)
 ap.add_argument("--app", default="Osmium")
 ap.add_argument("--listen-port", type=int, default=0)
+ap.add_argument("--attention", default="auto")
 opts = ap.parse_args(argv)
 
 COMFY_DIR = os.path.abspath(opts.comfy)
@@ -145,8 +147,34 @@ CORE_EXTRAS = ["nodes_custom_sampler.py", "nodes_primitive.py", "nodes_preview_a
 DSM_SUBPACKAGES = ["anima_lllite", "rgthree_subset", "impact_switch", "easy_lora_names", "was_text_nodes",
                    "danbooru_character_detect"]
 
+# Attention backend, the app's "Attention" setting (--attention). ComfyUI picks
+# sage > flash > xformers > pytorch from its flags; the VAE keeps xformers
+# unless pytorch is chosen. "auto" = FlashAttention when the install has
+# flash-attn, else ComfyUI's own default (xformers when installed). A chosen
+# backend whose package is missing falls back to auto with a warning.
+# find_spec only looks a package up, it doesn't import torch.
+import importlib.util  # noqa: E402
+ATTN_MODES = {"flash": ("flash_attn", ["--use-flash-attention"]),
+              "sage": ("sageattention", ["--use-sage-attention"]),
+              "xformers": ("xformers", []),
+              "pytorch": (None, ["--use-pytorch-cross-attention", "--disable-xformers"])}
+ATTN_NOTE = ""
+_ATTN_FLAGS = {"--use-split-cross-attention", "--use-quad-cross-attention", "--use-pytorch-cross-attention",
+               "--use-sage-attention", "--use-flash-attention", "--use-ck-attention"}
+if not _ATTN_FLAGS.intersection(comfy_flags):
+    _mode = opts.attention if opts.attention in ATTN_MODES else "auto"
+    _pkg = ATTN_MODES[_mode][0] if _mode != "auto" else None
+    if _pkg and importlib.util.find_spec(_pkg) is None:
+        ATTN_NOTE = f"Attention '{_mode}' needs the {_pkg} package, which this ComfyUI doesn't have; using auto."
+        _mode = "auto"
+    if _mode == "auto":
+        if importlib.util.find_spec("flash_attn") is not None:
+            comfy_flags.append("--use-flash-attention")
+    else:
+        comfy_flags.extend(ATTN_MODES[_mode][1])
+
 # ComfyUI parses sys.argv once, on first import of comfy.cli_args.
-sys.argv = [os.path.join(COMFY_DIR, "main.py"), "--windows-standalone-build", *comfy_flags]
+sys.argv =[os.path.join(COMFY_DIR, "main.py"), "--windows-standalone-build", *comfy_flags]
 sys.path.insert(0, COMFY_DIR)
 os.chdir(COMFY_DIR)
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
@@ -154,6 +182,8 @@ os.environ.setdefault("DO_NOT_TRACK", "1")
 
 say(f"Osmium Comfy starting from {COMFY_DIR}")
 say(f"This window is {APP_NAME}'s ComfyUI. Closing it stops local generation.")
+if ATTN_NOTE:
+    say(ATTN_NOTE)
 
 import comfy.options  # noqa: E402
 comfy.options.enable_args_parsing()
@@ -327,6 +357,92 @@ def progress_hook(value, total, preview_image, prompt_id=None, node_id=None):
             pass
 
 
+# ---- gallery over the share server (2026-10-12) ------------------------------
+# The phone can browse the app's own picked output folder through the share
+# server: list/read/thumbnail. The share command carries the folder (root=);
+# the routes confine everything inside it — the same sanitizer shape the
+# Bridge's desktop handlers use (no `..`, no drive anchors, realpath checked).
+GALLERY_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
+GALLERY_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+GALLERY_THUMB_CACHE = {}  # (abs, side, mtime) -> (bytes, mime)
+
+
+def gallery_safe_join(root, rel=""):
+    raw = (rel or "").replace("\\", "/").replace("/+", "/")
+    parts = [p for p in raw.split("/") if p and p != "." and p != ".." and not re.match(r"^[A-Za-z]:$", p)]
+    abs = root if not parts else os.path.join(root, *parts)
+    real_root = os.path.realpath(root)
+    probe = abs
+    while not os.path.exists(probe):
+        parent = os.path.dirname(probe)
+        if parent == probe:
+            break
+        probe = parent
+    real_probe = os.path.realpath(probe)
+    if real_probe != real_root and not real_probe.startswith(real_root + os.sep):
+        raise ValueError("Invalid path.")
+    return abs
+
+
+def gallery_list(root, rel):
+    abs = gallery_safe_join(root, rel)
+    entries = []
+    for name in sorted(os.listdir(abs), key=str.lower):
+        full = os.path.join(abs, name)
+        ext = os.path.splitext(name)[1].lower()
+        kind = "directory" if os.path.isdir(full) else ("file" if ext in GALLERY_IMAGE_EXTENSIONS else None)
+        if kind is None:
+            continue
+        try:
+            mtime = int(os.path.getmtime(full) * 1000)
+        except OSError:
+            mtime = 0
+        entries.append({"name": name, "kind": kind, "mtime": mtime})
+    return entries
+
+
+def gallery_readable(rel_path):
+    return os.path.splitext(rel_path)[1].lower() in GALLERY_IMAGE_EXTENSIONS
+
+
+def gallery_read_bytes(abs):
+    ext = os.path.splitext(abs)[1].lower()
+    if ext not in GALLERY_IMAGE_EXTENSIONS:
+        raise ValueError("Not an image file.")
+    with open(abs, "rb") as f:
+        return f.read(), GALLERY_MIME[ext]
+
+
+def gallery_thumb_bytes(abs, side):
+    """A small JPEG for the phone's grid; Pillow is ComfyUI's own dependency.
+    Cached by (path, side, mtime) so scrolling doesn't re-encode."""
+    side = max(64, min(int(side or 320), 1024))
+    try:
+        mtime = int(os.path.getmtime(abs) * 1000)
+    except OSError:
+        mtime = 0
+    key = (abs, side, mtime)
+    hit = GALLERY_THUMB_CACHE.get(key)
+    if hit is not None:
+        while len(GALLERY_THUMB_CACHE) > 600:
+            GALLERY_THUMB_CACHE.pop(next(iter(GALLERY_THUMB_CACHE)))
+        return hit
+    from PIL import Image  # ComfyUI's own dependency; imported lazily.
+    with Image.open(abs) as im:
+        im = im.convert("RGB")
+        w, h = im.size
+        scale = side / max(w, h) if max(w, h) > side else 1.0
+        if scale < 1.0:
+            im = im.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=72)
+    out = (buf.getvalue(), "image/jpeg")
+    while len(GALLERY_THUMB_CACHE) > 600:
+        GALLERY_THUMB_CACHE.pop(next(iter(GALLERY_THUMB_CACHE)))
+    GALLERY_THUMB_CACHE[key] = out
+    return out
+
+
 # ---- phone share server (Persist Comfy) -------------------------------------
 class ShareServer:
     """The slice of ComfyUI's HTTP + websocket API the Comfy Bridge Android
@@ -348,6 +464,7 @@ class ShareServer:
         self.history = {}      # prompt id -> /history record ({} while running)
         self.views = {}        # "subfolder/filename" -> bytes
         self.number = 0
+        self.gallery_root = ""  # the app's picked output folder, set with share
 
     def _ensure_loop(self):
         if self.loop is None:
@@ -447,6 +564,32 @@ class ShareServer:
             rec = self.history.get(pid)
             return web.json_response({pid: rec} if rec else {})
 
+        # Gallery over the share server: browse the app's picked output folder.
+        # The folder arrives with the share command (root=); without it these
+        # answer a clear error instead of ever exposing something by accident.
+        def gallery_root():
+            if not self.gallery_root:
+                raise LookupError("This share doesn't know a folder to browse yet — open Comfy Bridge and pick it once.")
+            return self.gallery_root
+
+        async def gallery_list(request):
+            loop = asyncio.get_running_loop()
+            r = await loop.run_in_executor(None, gallery_list, gallery_root(), request.query.get("dir") or "")
+            return web.json_response({"ok": True, "entries": r})
+
+        async def gallery_read(request):
+            loop = asyncio.get_running_loop()
+            abs = await loop.run_in_executor(None, gallery_safe_join, gallery_root(), request.query.get("path") or "")
+            data, mime = await loop.run_in_executor(None, gallery_read_bytes, abs)
+            return web.Response(body=data, content_type=mime.split(";")[0])
+
+        async def gallery_thumb(request):
+            loop = asyncio.get_running_loop()
+            abs = await loop.run_in_executor(None, gallery_safe_join, gallery_root(), request.query.get("path") or "")
+            data, mime = await loop.run_in_executor(None, gallery_thumb_bytes, abs, request.query.get("side") or "320")
+            body = base64.b64encode(data).decode("ascii")
+            return web.json_response({"ok": True, "base64": body, "mime": mime})
+
         async def view(request):
             key = f"{request.query.get('subfolder', '')}/{request.query.get('filename', '')}"
             data = self.views.get(key)
@@ -498,6 +641,9 @@ class ShareServer:
         webapp.router.add_post("/interrupt", interrupt)
         webapp.router.add_get("/internal/logs/raw", logs_raw)
         webapp.router.add_route("PATCH", "/internal/logs/subscribe", logs_subscribe)
+        webapp.router.add_get("/internal/gallery/list", gallery_list)
+        webapp.router.add_get("/internal/gallery/read", gallery_read)
+        webapp.router.add_get("/internal/gallery/thumb", gallery_thumb)
         webapp.router.add_get("/ws", ws)
         webapp.router.add_get("/", root)
         webapp.router.add_get("/system_stats", root)
@@ -756,14 +902,28 @@ def main():
                 send({"id": req.get("id"), "ok": True})
             elif req.get("cmd") == "logs":  # nor must reading the log
                 send({"id": req.get("id"), "ok": True, "entries": list(app.logger.get_logs() or [])})
-            elif req.get("cmd") == "share":  # the phone share server: port, or 0 = off
+            elif req.get("cmd") == "share":  # the phone share server: port (0 = off) + the app's picked folder to browse
                 port = int(req.get("port") or 0)
+                root = str(req.get("root") or "")
+                if root:
+                    SHARE.gallery_root = root
                 if port:
                     ok, error = SHARE.start(port)
                 else:
                     SHARE.stop()
                     ok, error = True, ""
                 send({"id": req.get("id"), "ok": ok, "error": error, "port": SHARE.port})
+            elif req.get("cmd") == "gallery_thumb":
+                # The app thumbnails its OWN picked folder through Pillow here
+                # (the share server route serves its own root); fast-path like
+                # stop/logs so it never queues behind a running generation.
+                try:
+                    data, mime = gallery_thumb_bytes(str(req.get("abs") or ""), int(req.get("side") or 320))
+                    send({"id": req.get("id"), "ok": True, "b64": base64.b64encode(data).decode("ascii"), "mime": mime})
+                except LookupError as err:
+                    send({"id": req.get("id"), "ok": False, "error": str(err)})
+                except Exception as err:  # noqa: BLE001
+                    send({"id": req.get("id"), "ok": False, "error": str(err)})
             else:
                 jobs.put(req)
         on_end()

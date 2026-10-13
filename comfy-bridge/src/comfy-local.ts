@@ -25,7 +25,7 @@ import * as net from 'net';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
-import type { ComfyResult, ComfyLocalStatus, SynthDatPrompt } from './shared-types';
+import type { ComfyResult, ComfyLocalStatus, ComfyLocalAttention, SynthDatPrompt } from './shared-types';
 
 export const LOCAL_COMFY_HOST = 'local';
 
@@ -52,13 +52,20 @@ const PERSIST_PORT = 8190;
 
 interface Install { root: string; comfyDir: string; python: string; }
 
-function readConfig(): { folder: string; persist: boolean } {
+// The runner's attention backend (its --attention): 'auto' = FlashAttention
+// when the install has flash-attn, else ComfyUI's default.
+const ATTENTION_MODES: readonly ComfyLocalAttention[] = ['auto', 'flash', 'sage', 'xformers', 'pytorch'];
+interface LocalConfig { folder: string; persist: boolean; attention: ComfyLocalAttention; }
+function readConfig(): LocalConfig {
   try {
     const c = JSON.parse(fs.readFileSync(CONFIG_FILE(), 'utf8'));
-    return { folder: typeof c.folder === 'string' ? c.folder : '', persist: !!c.persist };
-  } catch { return { folder: '', persist: false }; }
+    return {
+      folder: typeof c.folder === 'string' ? c.folder : '', persist: !!c.persist,
+      attention: ATTENTION_MODES.includes(c.attention) ? c.attention : 'auto'
+    };
+  } catch { return { folder: '', persist: false, attention: 'auto' }; }
 }
-function writeConfig(patch: Partial<{ folder: string; persist: boolean }>): void {
+function writeConfig(patch: Partial<LocalConfig>): void {
   fs.writeFileSync(CONFIG_FILE(), JSON.stringify({ ...readConfig(), ...patch }));
 }
 const readFolder = (): string => readConfig().folder;
@@ -186,14 +193,16 @@ export function localPersistEnabled(): boolean {
 
 // Persist Comfy's phone sharing: the kept-open runner itself serves the
 // phone's ComfyUI API on `port` (0 = stop), so it keeps working after the app
-// closes. See the runner's ShareServer.
-export async function localSetShare(port: number): Promise<{ ok: boolean; error?: string; port?: number }> {
-  const r = await request('share', { port });
+// closes. See the runner's ShareServer. `root` is the app's picked output
+// folder for the phone's gallery (the share command carries it so it survives
+// the app closing; a Connect re-sends it).
+export async function localSetShare(port: number, root?: string): Promise<{ ok: boolean; error?: string; port?: number }> {
+  const r = await request('share', root ? { port, root } : { port });
   return { ok: r.ok, error: r.error || undefined, port: r.port as number | undefined };
 }
 
 function startPipe({ root, comfyDir, python }: Install): Promise<Reply> {
-  const proc = spawn(python, ['-s', runnerScript(), '--comfy', comfyDir, '--app', config.appName], {
+  const proc = spawn(python, ['-s', runnerScript(), '--comfy', comfyDir, '--app', config.appName, '--attention', readConfig().attention], {
     cwd: root, env: runnerEnv(root), stdio: ['pipe', 'pipe', 'ignore'], windowsHide: false
   });
   const c: RunnerConn = {
@@ -237,7 +246,7 @@ async function startPersistent({ root, comfyDir, python }: Install): Promise<Rep
   let sock = await tryConnect(1500);
   if (!sock) {
     try {
-      const proc = spawn(python, ['-s', runnerScript(), '--comfy', comfyDir, '--app', config.appName, '--listen-port', String(PERSIST_PORT)], {
+      const proc = spawn(python, ['-s', runnerScript(), '--comfy', comfyDir, '--app', config.appName, '--attention', readConfig().attention, '--listen-port', String(PERSIST_PORT)], {
         cwd: root, env: runnerEnv(root), stdio: 'ignore', detached: true, windowsHide: false
       });
       proc.on('error', () => { /* reported as "didn't come up" below */ });
@@ -325,6 +334,15 @@ export async function localNodeInputs(classType: string): Promise<{ ok: boolean;
   return r.ok ? { ok: true, input: r.input } : { ok: false, error: r.error };
 }
 
+// A small JPEG for the phone's gallery grid, made by the runner (Pillow is
+// ComfyUI's own dependency) on its fast reader path, so it never queues
+// behind a running generation. `abs` is an absolute path INSIDE the picked
+// output folder — the relay computes and confines it.
+export async function localGalleryThumb(abs: string, side: number): Promise<{ ok: boolean; b64?: string; mime?: string; error?: string }> {
+  const r = await request('gallery_thumb', { abs, side });
+  return r.ok ? { ok: true, b64: r.b64 as string, mime: r.mime as string } : { ok: false, error: r.error };
+}
+
 export async function localObjectInfo(classType: string, inputName: string): Promise<ComfyResult> {
   const r = await request('object_info', { class_type: classType, input: inputName });
   return r.ok ? { ok: true, values: r.values as string[] } : { ok: false, error: r.error };
@@ -378,7 +396,8 @@ function status(): ComfyLocalStatus {
     error: 'error' in resolved ? resolved.error : undefined,
     python: 'install' in resolved ? resolved.install.python : undefined,
     running: !!conn,
-    persist: persistOn()
+    persist: persistOn(),
+    attention: readConfig().attention
   };
 }
 
@@ -403,6 +422,15 @@ export function registerComfyLocalHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('comfy-local-set-persist', (_event, on: boolean) => {
     if (config.allowPersist) writeConfig({ persist: !!on });
     config.onPersistChange?.();
+    return status();
+  });
+  // Attention backend: the runner reads it at startup, so a pipe runner that's
+  // open is stopped (the next Connect starts it with the new one). A kept-open
+  // Persist Comfy runner keeps its own until its window is closed.
+  ipcMain.handle('comfy-local-set-attention', (_event, mode: string) => {
+    if (!ATTENTION_MODES.includes(mode as ComfyLocalAttention) || mode === readConfig().attention) return status();
+    writeConfig({ attention: mode as ComfyLocalAttention });
+    if (conn && !connIsPersistent) stopRunner();
     return status();
   });
   app.on('will-quit', stopRunner);

@@ -89,6 +89,50 @@ button:disabled{opacity:0.5;}
    drawer below. */
 .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;}
 .settings-span2{grid-column:1 / -1;}
+/* File saving (shared/file-naming.ts) — the desktop Bridge's file-drawer
+   styles, ported at the drawer's 14px mobile size. Class names stay the same
+   so the app.ts wiring reads identically on both ends. */
+/* The drawer's content is a 2-column .settings-grid; the file-saving rows
+   read better as full-width ones. */
+.settings-grid > .naming-group,
+.settings-grid > .naming-preview,
+.settings-grid > .sec-head.small-head{ grid-column: 1 / -1; }
+.naming-group{ margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:4px; min-width:0; }
+.naming-title{ font-weight:600; font-size:14px; color:var(--text); }
+.naming-group .small, .naming-auto{ overflow-wrap:anywhere; line-height:1.45; }
+.naming-auto{
+  font-size:13px; color:var(--muted); background:var(--panel2); border:1px solid var(--border);
+  border-radius:5px; padding:6px 8px; opacity:.8; cursor:not-allowed; user-select:none;
+}
+.naming-seg{ display:flex; flex-wrap:wrap; gap:5px; margin:2px 0 4px; }
+.naming-seg label{
+  display:flex; align-items:center; gap:6px; font-size:14px; padding:5px 11px; border:1px solid var(--border);
+  border-radius:999px; cursor:pointer; color:var(--text);
+}
+.naming-seg label:has(input:checked){ border-color:var(--accent); color:var(--accent); font-weight:600; }
+.naming-seg input{ width:auto; margin:0; transform:scale(1.3); }
+.naming-char-wrap{ position:relative; min-width:0; }
+.naming-char-wrap input, #charCustomName{ width:100%; }
+.naming-suggest{
+  position:absolute; left:0; right:0; top:calc(100% + 2px); z-index:50; max-height:240px; overflow-y:auto;
+  background:var(--panel); border:1px solid var(--border-strong, var(--border)); border-radius:6px; padding:3px;
+  box-shadow:0 10px 28px rgb(0 0 0 / 45%);
+}
+.naming-suggest-item{
+  display:block; width:100%; text-align:left; background:none; border:none; color:var(--text);
+  font:inherit; font-size:14px; padding:7px 9px; border-radius:4px; min-height:0; white-space:normal;
+}
+.naming-suggest-item:hover, .naming-suggest-item:active{ background:var(--panel2); }
+.naming-group .chk-row{ margin:4px 0; }
+.naming-subchecks{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:0 10px; padding-left:20px; }
+.naming-preview{ margin:12px 0 4px; padding:8px 10px; border:1px dashed var(--border-strong, var(--border)); border-radius:6px; min-width:0; }
+.naming-preview-head{ font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:3px; }
+.naming-preview-line{ font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+.naming-preview-line.root{ color:var(--muted); }
+.naming-preview-line.auto{ color:var(--muted); font-style:italic; }
+.naming-preview-line.user{ color:var(--text); font-weight:600; }
+.naming-preview-line.file{ color:var(--accent); font-weight:600; }
+/* END file-saving styles */
 /* Generation settings drawer — mobile-only (desktop keeps everything
    on-screen in its 3-column layout, so it never needed this). Fixed
    toggle so it's reachable from anywhere in the scroll, a backdrop for

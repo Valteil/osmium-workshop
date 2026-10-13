@@ -13,12 +13,13 @@
 // here in the renderer via the File System Access API (dirHandle), exactly
 // like every other file write in this app — no IPC needed for that part.
 import type { DirHandle, Entry, ComfyResult, SynthDatPrompt, FileHandle, Wd14Settings } from './types';
+import type { ComfyLocalAttention } from '../shared-types';
 import { hasOpenFilePicker, pickOpenFiles, writeBytes } from './fs-access';
 import { getJSON, getString, setString } from './storage';
 import { buildSynthDatPrompt } from '../comfy-core';
 import {
   synthDatHost, synthDatBackendRow, synthDatBackendDropdown, synthDatServerFields, synthDatLocalFields,
-  synthDatLocalFolder, btnSynthDatLocalFolder, synthDatRefPreviewWrap, synthDatRefPreview, synthDatRefEmpty, synthDatResizedPreviewWrap,
+  synthDatLocalFolder, btnSynthDatLocalFolder, synthDatAttentionRow, synthDatAttentionDropdown, synthDatRefPreviewWrap, synthDatRefPreview, synthDatRefEmpty, synthDatResizedPreviewWrap,
   synthDatResizedPreview, synthDatResizedPreviewLabel, btnSynthDatPickImage, btnSynthDatInterrogate,
   synthDatWd14Result, synthDatTagAssign, btnSynthDatMigratePose, synthDatDiffModel, synthDatUnetDatalist,
   synthDatClip, synthDatClipDatalist, synthDatVae, synthDatVaeDatalist,
@@ -82,6 +83,7 @@ let backend: 'server' | 'local' = hasLocalComfy && getString(BACKEND_KEY) === 'l
 function applyBackendUI(): void {
   synthDatServerFields.style.display = backend === 'server' ? '' : 'none';
   synthDatLocalFields.style.display = backend === 'local' ? '' : 'none';
+  synthDatAttentionRow.style.display = backend === 'local' && hasAttention ? '' : 'none';
   synthDatConnStatus.style.display = 'none';
   if (backend === 'local') void refreshLocalStatus();
 }
@@ -98,7 +100,34 @@ function showLocalStatus(folder: string, error?: string): void {
 
 async function refreshLocalStatus(): Promise<void> {
   const s = await window.electronAPI.comfyLocalStatus!();
+  attention = s.attention || 'auto';
+  attentionDrop?.refreshLabel();
   showLocalStatus(s.folder, s.error);
+}
+
+// Osmium Comfy's attention backend (main process, comfy-local.json). The
+// runner reads it at startup, so a change stops an open one; Connect starts
+// it again with the new setting.
+const hasAttention = typeof window.electronAPI?.comfyLocalSetAttention === 'function';
+let attention: ComfyLocalAttention = 'auto';
+let attentionDrop: { refreshLabel: () => void } | null = null;
+const ATTENTION_OPTIONS: { value: ComfyLocalAttention; label: string }[] = [
+  { value: 'auto', label: 'Auto (Flash if installed)' },
+  { value: 'flash', label: 'FlashAttention' },
+  { value: 'sage', label: 'SageAttention' },
+  { value: 'xformers', label: 'xformers' },
+  { value: 'pytorch', label: 'PyTorch (SDPA)' }
+];
+async function setAttention(mode: ComfyLocalAttention): Promise<void> {
+  const wasRunning = (await window.electronAPI.comfyLocalStatus!()).running;
+  const s = await window.electronAPI.comfyLocalSetAttention!(mode);
+  attention = s.attention || mode;
+  attentionDrop?.refreshLabel();
+  if (wasRunning && !s.running){
+    synthDatConnStatus.style.display = 'block';
+    synthDatConnStatus.style.color = '';
+    synthDatConnStatus.textContent = 'Osmium Comfy was stopped so the new attention setting can apply. Click Connect to start it again.';
+  }
 }
 
 async function pickLocalFolder(): Promise<void> {
@@ -1742,6 +1771,10 @@ export function initSynthDatOverseer(deps: SynthDatOverseerDeps): void {
       applyBackendUI();
     });
     btnSynthDatLocalFolder.addEventListener('click', () => void pickLocalFolder());
+    if (hasAttention){
+      attentionDrop = buildPersistentDropdown(synthDatAttentionDropdown, ATTENTION_OPTIONS, () => attention,
+        (val) => { void setAttention(val as ComfyLocalAttention); });
+    }
     applyBackendUI();
   } else {
     synthDatBackendRow.style.display = 'none';

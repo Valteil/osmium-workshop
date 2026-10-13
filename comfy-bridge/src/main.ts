@@ -19,9 +19,9 @@ import { parseComboValues, uploadImage, queuePrompt, pollHistory, extractPngText
 import type { ComfyTransport } from './comfy-core';
 import {
   configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop, localLogs, onLocalLogs,
-  localPersistEnabled, localIsPersistentConnection, localSetShare
+  localPersistEnabled, localIsPersistentConnection, localSetShare, ensureLocalStarted, localGalleryThumb
 } from './comfy-local';
-import { startRelay, stopRelay, relayState, relayAddresses } from './local-relay';
+import { startRelay, stopRelay, relayState, relayAddresses, initRelayGallery } from './local-relay';
 
 // ---- IPC sender guard --------------------------------------------------------
 // Ported from the desktop root app. The guard itself now lives in
@@ -76,7 +76,7 @@ async function applyRelay(): Promise<void> {
   if (localPersistEnabled()) {
     stopRelay();
     if (localIsPersistentConnection()) {
-      const r = await localSetShare(cfg.enabled ? cfg.port : 0);
+      const r = await localSetShare(cfg.enabled ? cfg.port : 0, getPickedOutputFolder() || undefined);
       shareState = { running: cfg.enabled && r.ok, error: r.ok ? '' : (r.error || 'Could not share Osmium Comfy.') };
     } else {
       // Not connected (yet): a runner kept open from before may still be
@@ -116,6 +116,51 @@ ipcMain.handle('comfy-relay-set', async (_event, { enabled, port, token }) => {
   return relayStatus();
 });
 configureComfyLocal({ onStarted: () => { applyRelay(); }, onPersistChange: () => { applyRelay(); } });
+// The relay's phone gallery (browse the picked output folder over
+// Tailscale/LAN): lists and reads reuse the same confinement the desktop
+// renderer's IPC handlers use; a thumbnail proxies to the running runner
+// (Pillow). The share server (Persist Comfy) serves its own routes from the
+// folder the share command ships.
+initRelayGallery({
+  async listDir(relDir) {
+    const folder = getPickedOutputFolder();
+    if (!folder) return { ok: false, error: 'No output folder chosen.' };
+    try {
+      const abs = galleryAbsPath(folder, relDir);
+      const dirents = fs.readdirSync(abs, { withFileTypes: true });
+      return {
+        ok: true,
+        entries: dirents.map((e) => {
+          let mtime = 0;
+          try { mtime = fs.statSync(path.join(abs, e.name)).mtimeMs || 0; } catch { /* keep 0 */ }
+          return { name: e.name, kind: e.isDirectory() ? ('directory' as const) : ('file' as const), mtime };
+        })
+      };
+    } catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) }; }
+  },
+  async readImage(relPath) {
+    const folder = getPickedOutputFolder();
+    if (!folder) return { ok: false, error: 'No output folder chosen.' };
+    try {
+      const abs = galleryAbsPath(folder, relPath);
+      const ext = path.extname(abs).toLowerCase();
+      if (!GALLERY_IMAGE_EXTENSIONS.has(ext)) return { ok: false, error: 'Not an image file.' };
+      return { ok: true, base64: fs.readFileSync(abs).toString('base64'), mime: GALLERY_MIME_BY_EXT[ext] };
+    } catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) }; }
+  },
+  async thumb(relPath, side) {
+    const folder = getPickedOutputFolder();
+    if (!folder) return { ok: false, error: 'No output folder chosen.' };
+    try {
+      const abs = galleryAbsPath(folder, relPath);
+      const started = await ensureLocalStarted();
+      if (!started.ok) return { ok: false, error: started.error };
+      const r = await localGalleryThumb(abs, side);
+      if (!r.ok || !r.b64) return { ok: false, error: r.error || 'No thumbnail.' };
+      return { ok: true, base64: r.b64, mime: r.mime || 'image/jpeg' };
+    } catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) }; }
+  }
+});
 app.whenReady().then(() => { applyRelay(); });
 app.on('will-quit', stopRelay);
 
@@ -377,6 +422,43 @@ ipcMain.handle('gallery-read', async (_event, { relPath }) => {
     if (!GALLERY_IMAGE_EXTENSIONS.has(ext)) return { ok: false, error: 'Not an image file.' };
     const data = fs.readFileSync(abs);
     return { ok: true, base64: data.toString('base64'), mime: GALLERY_MIME_BY_EXT[ext] || 'image/png' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Reorganize from the gallery (2026-10-12): move one saved image to a new
+// scheme-derived path inside the picked output folder. Same-volume rename.
+// Both paths go through the same sanitizer save-image uses; the destination
+// must not exist (the renderer picked the next free counter moments ago — a
+// collision means the world changed underneath it, not that we overwrite),
+// and its parent is created on demand so a move into a fresh rating/character
+// folder just works.
+ipcMain.handle('move-image', async (_event, { from, to }) => {
+  try {
+    const folder = getPickedOutputFolder();
+    if (!folder) return { ok: false, error: 'No output folder chosen.' };
+    const fromRel = saveImageRelPath({ filename: String(from || '') });
+    const toRel = saveImageRelPath({ filename: String(to || '') });
+    if (!fromRel || !toRel) return { ok: false, error: 'Invalid file path.' };
+    const base = path.resolve(folder);
+    const srcAbs = path.resolve(base, fromRel);
+    const destAbs = path.resolve(base, toRel);
+    for (const abs of [srcAbs, destAbs]) {
+      if (abs !== base && !abs.startsWith(base + path.sep)) return { ok: false, error: 'Invalid file path.' };
+      assertWithinBase(base, abs);
+    }
+    if (!fs.existsSync(srcAbs) || !fs.statSync(srcAbs).isFile()) return { ok: false, error: 'That image is no longer where it was.' };
+    if (srcAbs === destAbs) return { ok: true };
+    // A stale counter (the listing that picked this name is gone) or a
+    // directory at the destination both refuse — a move is never allowed to
+    // replace anything that is already there, related or not.
+    let destStat: import('fs').Stats | null = null;
+    try { destStat = fs.statSync(destAbs); } catch { /* free */ }
+    if (destStat) return { ok: false, error: destStat.isDirectory() ? 'The destination name already exists as a folder.' : 'The destination name is already taken.' };
+    fs.mkdirSync(path.dirname(destAbs), { recursive: true });
+    fs.renameSync(srcAbs, destAbs);
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
   }

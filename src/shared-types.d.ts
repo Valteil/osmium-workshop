@@ -32,7 +32,12 @@ export interface ComfyLocalStatus {
   running: boolean;
   // Comfy Bridge's Persist Comfy: the runner stays open after the app closes.
   persist?: boolean;
+  // The runner's attention backend (applies the next time it starts).
+  attention?: ComfyLocalAttention;
 }
+
+// 'auto' = FlashAttention when the install has flash-attn, else ComfyUI's default.
+export type ComfyLocalAttention = 'auto' | 'flash' | 'sage' | 'xformers' | 'pytorch';
 
 export interface SynthDatPromptNode {
   class_type: string;

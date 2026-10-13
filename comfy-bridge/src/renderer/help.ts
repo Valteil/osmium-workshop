@@ -65,7 +65,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>With it off, <b>Global</b> holds your quality words (masterpiece, best quality, and so on) and applies to every image. <b>Character</b> is the subject. Rating, Hair, Face, Chest, Body, Clothes, Limbs, Sexual, Pose, Scene, Effects and Extra each hold one slice of the description. Any of them can stay empty.</p>
       <p><b>Character trigger</b> is the activation word for a trained LoRA, when it has one. It is added after the character text.</p>
       <p><b>Negative</b> is what you do not want in the image. A sensible default is already filled in, so you can leave it alone.</p>
-      <p>Prompt presets save a whole setup under a name and load it again later. Negative presets save just the negative text, which is handy when one negative works across many characters.</p>`
+      <p>Prompt presets save a whole setup under a name and load it again later. Negative presets save just the negative text, which is handy when one negative works across many characters.</p>
+      <p>To start over, the <b>Clear all prompt fields</b> button above the fields empties every prompt box in one click, in either mode, along with the Character trigger. The Negative box is left alone.</p>`
   },
   {
     id: 'sampling',

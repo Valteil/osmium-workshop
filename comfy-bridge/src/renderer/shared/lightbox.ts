@@ -51,9 +51,11 @@ export function closeLightbox(): boolean {
 // through with ← / → (the gallery passes its loaded thumbnails, in order).
 // `info`, when given (desktop gallery only), builds a side panel for the shown
 // image, placed left of it and rebuilt on every step; it gets `close` so a
-// button in it can dismiss the lightbox.
+// button in it can dismiss the lightbox. `infoDeferred` (the phone's narrow
+// screen) puts an "Info" button in instead and only builds the panel on tap;
+// stepping rebuilds it while it is showing.
 export type LightboxInfo = (src: string, close: () => void) => HTMLElement | null;
-export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo): void {
+export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo, infoDeferred?: boolean): void {
   if (!src) return;
   closeLightbox();
   const backdrop = document.createElement('div');
@@ -159,6 +161,19 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   }
   closeOpenLightbox = close;
   let infoEl: HTMLElement | null = null;
+  let infoShown = false;
+  let infoBtn: HTMLButtonElement | null = null;
+  function toggleInfo(): void {
+    infoShown = !infoShown;
+    if (infoShown) {
+      renderInfo();
+    } else if (infoEl) {
+      infoEl.remove();
+      infoEl = null;
+      backdrop.classList.remove('has-info');
+    }
+    infoBtn?.classList.toggle('active', infoShown);
+  }
   function renderInfo(): void {
     if (!info) return;
     const next = info(img.src, close);
@@ -179,7 +194,7 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
     panX = 0;
     panY = 0;
     applyTransform();
-    renderInfo();
+    if (info && (!infoDeferred || infoShown)) renderInfo();
   }
   function onKey(ev: KeyboardEvent): void {
     if (ev.key === 'Escape') close();
@@ -197,8 +212,15 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
     close();
   });
   closeBtn.addEventListener('click', close);
+  if (info && infoDeferred) {
+    infoBtn = document.createElement('button');
+    infoBtn.className = 'lightbox-info-btn';
+    infoBtn.textContent = 'Details';
+    infoBtn.addEventListener('click', toggleInfo);
+    backdrop.appendChild(infoBtn);
+  }
   document.addEventListener('keydown', onKey);
-  renderInfo();
+  if (info && !infoDeferred) renderInfo();
   document.body.appendChild(backdrop);
   requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));
 }

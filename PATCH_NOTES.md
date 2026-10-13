@@ -47,6 +47,32 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   one. The mode applies per queued generation, so a queued batch walks the seed.
 - **In-app Help:** the ❓ Help button left of the Wiki button opens plain-language guidance for every
   setting, one section at a time, in the same layout as Osmium's Help panel.
+- A **Clear all prompt fields** button above the prompt fields empties every prompt box in one
+  click, in either prompt mode, along with the Character trigger. The Negative box is left alone.
+- **Fixed the gallery's image grid**: thumbnails were spilling out sideways, cut off at the panel
+  edge. They now sit three to a row in a square grid, folders on their own full-width rows above
+  them.
+- **Fixed reference-image picking on the Android app**: the preview now loads from the picked
+  image's bytes instead of a reference the WebView couldn't always render (real thumbnails where
+  the "generic file" icon showed), re-picking the same image registers again, and an upload whose
+  only problem is a slow or lost reply waits up to a minute before retrying instead of giving up
+  after 20 seconds. Upload failures now say how much of the image had actually been sent.
+- **The File Namer works on the Android app too.** Under Generation settings, File saving now
+  chooses where phone generations go: an automatic rating folder, a Character folder (Tag list
+  with Danbooru search suggestions, all OCs in one folder, or a custom name), and which parts the
+  filename carries — the same scheme the Windows app uses, with a live preview of the full path.
+  The PC keeps naming its own copies automatically, as it always has.
+- **The phone can browse the PC's output folder** (over Tailscale/LAN when connected): a Phone | PC
+  switch at the top of the gallery, with the PC side navigated like the desktop (breadcrumb path
+  listing, so you can leave `explicit/` and any other folder). The PC's grid loads small
+  thumbnails and only an opened image is fetched at full size, so browsing stays light on data —
+  and each opened PC image shows its **generation parameters** in the Details panel, with a
+  "Use these settings" that loads them into the phone's own generator.
+- Windows: you can **reorganize a generated image from the gallery.** Open its details panel in
+  the lightbox and under Save details it shows what the image was saved under and includes the
+  full File Namer options for the move, seeded from the image itself: reclassify as OC, pick a
+  different character, or respec the filename (add the model, sampler, seed and the settings it
+  was actually made with). Moves never overwrite anything already in the destination folder.
 - The window focuses itself on launch, and startup no longer blocks on loading the tag vocabulary, so
   the first click and scroll register right away.
 

@@ -24,7 +24,7 @@
 import * as http from 'http';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
-import { ensureLocalStarted, localNodeInputs, localGenerate, localStop, localLogs, onLocalLogs } from './comfy-local';
+import { ensureLocalStarted, localNodeInputs, localGenerate, localStop, localLogs, onLocalLogs, localGalleryThumb } from './comfy-local';
 import type { ComfyLocalEventSink } from './comfy-local';
 const WS = require('ws');
 
@@ -48,6 +48,21 @@ const sockets = new Map<string, any>();                     // clientId -> webso
 const logSubscribers = new Set<string>();                   // clientIds streaming the console
 let unsubscribeLogs: (() => void) | null = null;
 let promptNumber = 0;
+
+// ---- the phone's gallery over the relay (2026-10-12) -------------------------
+// Browse the app's own picked output folder the way the phone browses its
+// own. main.ts registers the folder-backed handlers once (they reuse the same
+// confinement chain as the desktop renderer's gallery IPC); a thumbnail
+// proxies to the runner (Pillow) so the phone's grid is small JPEGs and only
+// the opened image moves at full size. Every request is token-gated like the
+// rest of the relay.
+export interface RelayGalleryHandlers {
+  listDir(relDir: string): Promise<{ ok: boolean; entries?: { name: string; kind: 'file' | 'directory'; mtime?: number }[]; error?: string }>;
+  readImage(relPath: string): Promise<{ ok: boolean; base64?: string; mime?: string; error?: string }>;
+  thumb(relPath: string, side: number): Promise<{ ok: boolean; base64?: string; mime?: string; error?: string }>;
+}
+let galleryHandlers: RelayGalleryHandlers | null = null;
+export function initRelayGallery(handlers: RelayGalleryHandlers): void { galleryHandlers = handlers; }
 
 function trim<K, V>(map: Map<K, V>, max: number): void {
   while (map.size > max) map.delete(map.keys().next().value as K);
@@ -255,6 +270,39 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (req.method === 'GET' && (p === '/' || p === '/system_stats')) {
     sendJson(res, 200, { relay: 'Comfy Bridge Osmium Comfy', system: { comfyui_version: 'local' } });
+    return;
+  }
+  if (req.method === 'GET' && p === '/internal/gallery/list') {
+    if (!galleryHandlers) { sendJson(res, 503, { error: { message: 'No output folder configured for the relay gallery.' } }); return; }
+    try {
+      const r = await galleryHandlers.listDir(url.searchParams.get('dir') || '');
+      if (!r.ok) { sendJson(res, 404, { error: { message: r.error || 'Listing the folder failed.' } }); return; }
+      sendJson(res, 200, { ok: true, entries: r.entries || [] });
+    }
+    catch (err) { sendJson(res, 500, { error: { message: err instanceof Error ? err.message : String(err) } }); }
+    return;
+  }
+  if (req.method === 'GET' && p === '/internal/gallery/read') {
+    if (!galleryHandlers) { sendJson(res, 503, { error: { message: 'No output folder configured for the relay gallery.' } }); return; }
+    try {
+      const r = await galleryHandlers.readImage(url.searchParams.get('path') || '');
+      if (!r.ok || !r.base64) { sendJson(res, 404, { error: { message: r.error || 'No such image.' } }); return; }
+      const bytes = Buffer.from(r.base64, 'base64');
+      cors(res); res.writeHead(200, { 'Content-Type': r.mime || 'image/png', 'Content-Length': bytes.length });
+      res.end(bytes);
+    } catch (err) { sendJson(res, 500, { error: { message: err instanceof Error ? err.message : String(err) } }); }
+    return;
+  }
+  if (req.method === 'GET' && p === '/internal/gallery/thumb') {
+    if (!galleryHandlers) { sendJson(res, 503, { error: { message: 'No output folder configured for the relay gallery.' } }); return; }
+    try {
+      const side = Math.min(1024, Math.max(64, Number(url.searchParams.get('side')) || 320));
+      const r = await galleryHandlers.thumb(url.searchParams.get('path') || '', side);
+      if (!r.ok || !r.base64) { sendJson(res, 404, { error: { message: r.error || 'No such image.' } }); return; }
+      const bytes = Buffer.from(r.base64, 'base64');
+      cors(res); res.writeHead(200, { 'Content-Type': r.mime || 'image/jpeg', 'Content-Length': bytes.length });
+      res.end(bytes);
+    } catch (err) { sendJson(res, 500, { error: { message: err instanceof Error ? err.message : String(err) } }); }
     return;
   }
   sendJson(res, 404, { error: { message: `Not available on the Osmium Comfy relay: ${req.method} ${p}` } });

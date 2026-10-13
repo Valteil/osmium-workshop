@@ -35,7 +35,12 @@ export interface ComfyLocalStatus {
   running: boolean;
   // Comfy Bridge's Persist Comfy: the runner stays open after the app closes.
   persist?: boolean;
+  // The runner's attention backend (applies the next time it starts).
+  attention?: ComfyLocalAttention;
 }
+
+// 'auto' = FlashAttention when the install has flash-attn, else ComfyUI's default.
+export type ComfyLocalAttention = 'auto' | 'flash' | 'sage' | 'xformers' | 'pytorch';
 
 export interface SynthDatPromptNode {
   class_type: string;
@@ -86,6 +91,17 @@ export interface BucketImageResult {
 }
 
 // Trainflow (src/trainflow.ts): Anima LoRA training from the Trainflow tab.
+// Twenty of the fields are the JS form; the `adv*` group is the "Advanced"
+// section's power-user knobs, written into the generated TOMLs. Each maps to a
+// real flag in the bundled Anima-TrainFlow sd-scripts (verified via --help).
+export type TfMixedPrecision = 'no' | 'fp16' | 'bf16';
+export type TfSavePrecision = 'None' | 'fp16' | 'bf16';
+export type TfLrScheduler = 'constant' | 'constant_with_warmup' | 'cosine' | 'cosine_with_restarts' | 'linear' | 'polynomial' | 'adafactor';
+export type TfAttn = 'torch' | 'sdpa' | 'xformers' | 'flash';
+export type TfTimestepSampling = 'sigmoid' | 'uniform' | 'sigma' | 'shift' | 'flux_shift';
+export type TfWeighting = 'uniform' | 'none' | 'sigma_sqrt' | 'logit_normal' | 'mode' | 'cosmap';
+export type TfSampleSampler = 'euler' | 'euler_a' | 'ddim' | 'pndm' | 'lms' | 'heun' | 'dpm_2' | 'dpm_2_a' | 'dpmsolver' | 'dpmsolver++' | 'dpmsingle' | 'k_lms' | 'k_euler' | 'k_euler_a' | 'k_dpm_2' | 'k_dpm_2_a';
+
 export interface TrainflowSettings {
   trigger: string; datasetPath: string;
   ditPath: string; qwenPath: string; vaePath: string;
@@ -94,6 +110,34 @@ export interface TrainflowSettings {
   // The Bucket Images dock's sizes; Start Trainflow buckets with the same ones.
   bucketMin: number; bucketMax: number; bucketStep: number;
   prompt: string; negPrompt: string; width: number; height: number; sampleGenSteps: number; cfg: number; sampleSeed: number;
+  // ---- Advanced (power-user). 0/''/false = "leave the trainer's default". ----
+  advAlpha: number;            // network_alpha; 0 => same as rank
+  advNetworkDropout: number;   // network_dropout
+  advTrainTextEncoder: boolean;// drop network_train_unet_only, add text-encoder training
+  advLrScheduler: TfLrScheduler;
+  advLrWarmup: number;         // lr_warmup_steps
+  advMixedPrecision: TfMixedPrecision;
+  advSavePrecision: TfSavePrecision;
+  advNoiseOffset: number;
+  advMinSnrGamma: number;
+  advClipSkip: number;         // >=1; 0 => trainer default
+  advTimestepSampling: TfTimestepSampling;
+  advWeighting: TfWeighting;
+  advFlowShift: number;        // discrete_flow_shift
+  advSigmoidScale: number;     // sigmoid_scale
+  advAttn: TfAttn;
+  advTorchCompile: boolean;
+  advBlocksToSwap: number;
+  advMaxGradNorm: number;
+  advGradCheckpointing: boolean;
+  advDataloaderWorkers: number;// max_data_loader_n_workers
+  advVaeChunkSize: number;     // 0 => disabled
+  advVaeDisableCache: boolean;
+  advNoHalfVae: boolean;
+  advCaptionDropout: number;   // caption_dropout_rate
+  advKeepTokens: number;       // keep_tokens
+  advRepeats: number;          // num_repeats; 0 => auto from steps/images
+  advSampleSampler: TfSampleSampler;
 }
 export interface TrainflowRun {
   state: 'running' | 'finished' | 'stopped' | 'failed';
