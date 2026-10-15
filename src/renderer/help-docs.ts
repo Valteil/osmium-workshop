@@ -283,9 +283,9 @@ export const HELP_SECTIONS: HelpSection[] = [
     id: 'step-trainflow',
     title: '8 · Train with Trainflow',
     html: `
-      <p>Trains a LoRA for <b>Anima</b> on the dataset you have loaded. It uses your own
+      <p>Trains a LoRA for <b>Anima</b>, or <b>Janima</b>, on the dataset you have loaded. It uses your own
       Anima-TrainFlow folder (the one with <code>python_embeded</code> and <code>training</code>)
-      for Python and the trainer, and your own Anima DiT, Qwen3 and VAE files (choose them once;
+      for Python and the trainer, and your own Anima or Janima DiT, Qwen3 and VAE files (choose them once;
       the fields start empty). The first time you open a folder, Osmium caches it so Trainflow can
       resolve its real path on its own — it only asks you to point at the folder if that fails.</p>
       <p><b>Start Trainflow</b> is the only thing that begins work: it saves your tag edits, buckets

@@ -242,11 +242,12 @@ when five good images need to become fifty. (Also needs the ComfyUI node pack �
 `ComfyUI-dependencies/`.)
 
 ### Trainflow (tab)
-Trains a LoRA for Anima on the dataset you have loaded (desktop only). Point it once at your
-[Anima-TrainFlow](https://github.com/ThetaCursed/Anima-TrainFlow) folder and at your own Anima DiT,
-Qwen3 text encoder and VAE, then press **Start Trainflow**. Nothing runs before that. On first loading
-a folder, Osmium caches it so Trainflow can resolve its real path on its own. Start saves your
-tag edits, buckets the dataset with the Bucket Images settings (originals kept in `original_images/`),
+Trains a LoRA for Anima — or a model built on it, like Janima — on the dataset you have loaded
+(desktop only). Point it once at your
+[Anima-TrainFlow](https://github.com/ThetaCursed/Anima-TrainFlow) folder and at your own Anima or
+Janima DiT, Qwen3 text encoder and VAE, then press **Start Trainflow**. Nothing runs before that. On
+first loading a folder, Osmium caches it so Trainflow can resolve its real path on its own. Start saves
+your tag edits, buckets the dataset with the Bucket Images settings (originals kept in `original_images/`),
 checks for an NVIDIA GPU and launches training. **Verify buckets** lists every valid bucket size and where
 your images sit. Training runs in the background and keeps going if you close Osmium, which warns you
 first; reopen the tab to see step, speed, ETA, loss, the log, preview images and checkpoints again.

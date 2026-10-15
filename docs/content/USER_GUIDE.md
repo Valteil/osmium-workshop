@@ -520,15 +520,17 @@ zoomed in.
 
 ## Trainflow tab
 
-Trains a LoRA for **Anima** on the dataset you have loaded (desktop only). It uses your own
+Trains a LoRA for **Anima** — or a model built on it, like **Janima** — on the dataset you have
+loaded (desktop only). It uses your own
 [Anima-TrainFlow](https://github.com/ThetaCursed/Anima-TrainFlow) folder (the one with `python_embeded`
 and `training`) for Python and the trainer; its own app never needs to run, and Osmium's WD14 and
 Bucket Images do the dataset prep.
 
-**Set up once:** choose the Anima-TrainFlow folder, then pick your own Anima DiT, Qwen3 text encoder
-and VAE (the fields stay empty until you do). On first loading a folder, Osmium caches it so Trainflow
-can resolve its real path on its own (the folder picker doesn't expose paths); it only asks you to
-point at the folder if that automatic lookup fails, and **Locate…** on the tab does the same later.
+**Set up once:** choose the Anima-TrainFlow folder, then pick your own Anima or Janima DiT, Qwen3 text
+encoder and VAE (the fields stay empty until you do). On first loading a folder, Osmium caches it so
+Trainflow can resolve its real path on its own (the folder picker doesn't expose paths); it only asks
+you to point at the folder if that automatic lookup fails, and **Locate…** on the tab does the same
+later.
 
 **Dataset and settings:** trigger word / project name (used as typed, and put in front of every
 caption), rank, optimizer (Prodigy by default, which sets its own learning rate), batch size, steps,

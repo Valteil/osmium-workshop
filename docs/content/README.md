@@ -93,23 +93,33 @@ Three related apps share this repository (and much of their renderer code):
      slide-out panel and the file-saving toggles in a second one, both opening from the left (click
      the button again, or outside, to close). The **Zoom** slider in the header scales the whole
      interface and prompt boxes re-fit as you zoom or switch themes. Themes bring their fonts.
-   - **File naming (desktop):** saves go to `[explicit|safe/][Character/][Upscaled/]` inside your
-     output folder. The rating folder comes from the Rating field. The character folder is a
-     Danbooru character recognized in the Character field (exact tag match), `OC`, or a custom
+   - **File naming (desktop and Android):** saves go to `[explicit|safe/][Character/][Upscaled/]`
+     inside the output folder. The rating folder comes from the Rating field. The character folder
+     is a Danbooru character recognized in the Character field (exact tag match), `OC`, or a custom
      name. Toggles build the filename from character, LoRA, model and sampler settings, then a
-     counter. Checkboxes decide whether ComfyUI also keeps its own copy of each image.
-   - **Gallery:** slides in from the left; its button toggles it closed. Arrow keys step through
-     images, **Esc** or the mouse Back button steps back (image, then folder, then the gallery),
-     and each image's info panel shows its file name and generation settings (which pass, LoRAs,
-     sampler) with a **Use these settings** button. On Android the Back button does the same.
+     counter. The Android app has the same File saving section in its settings drawer, with the
+     live path preview. On the desktop, checkboxes decide whether ComfyUI also keeps its own copy
+     of each image.
+   - **Gallery:** slides in from the left; its button toggles it closed. Folders navigate like the
+     desktop now on both ends (a path listing at the top; tap a crumb to go back out). Arrow keys
+     step through images, **Esc** or the mouse Back button steps back (image, then folder, then
+     the gallery), and each image's info panel shows its file name and generation settings (which
+     pass, LoRAs, sampler) with a **Use these settings** button. On the phone the panel sits
+     behind a **Details** button in the lightbox. On the desktop a **Save details** section in the
+     panel shows where the image was saved and can **reorganize it**: a full move/rename under the
+     File Namer, seeded from the image (reclassify as OC, change the character, respec the
+     filename), never overwriting anything already in the destination folder.
    - **From a phone:** either point the Android app at a ComfyUI server (start ComfyUI with
      `--listen 0.0.0.0 --enable-cors-header` and allow inbound TCP 8188 through the firewall), or
      tick **Let the phone app use it** under the desktop Bridge's Osmium Comfy. The desktop Bridge
-     then shows its addresses (Tailscale first) and serves Osmium Comfy to the phone on port 8189,
-     with no password, like ComfyUI's own `--listen`. With **Persist Comfy** on as well, the
-     kept-open ComfyUI serves the phone itself, so the phone keeps working after you close the
-     Bridge (Connect once to start it). The phone always uses 8189; 8190 is the Bridge's private
-     line to ComfyUI and only works on the PC.
+     then shows its addresses (Tailscale first) and serves Osmium Comfy to the phone on port 8189.
+     With **Persist Comfy** on as well, the kept-open ComfyUI serves the phone itself, so the
+     phone keeps working after you close the Bridge (Connect once to start it). The phone always
+     uses 8189; 8190 is the Bridge's private line to ComfyUI and only works on the PC. **The
+     phone's gallery can browse the PC's output folder over that link** (a Phone | PC switch at
+     the top): the PC's grid loads small thumbnails and only an opened image is fetched at full
+     size, and each opened PC image shows its generation parameters, ready to be loaded into the
+     phone's own generator.
    - The desktop build has its own Theme Studio for a Custom theme, and reads theme files exported
      from Osmium Workshop.
 
@@ -232,11 +242,12 @@ when five good images need to become fifty. (Also needs the ComfyUI node pack �
 `ComfyUI-dependencies/`.)
 
 ### Trainflow (tab)
-Trains a LoRA for Anima on the dataset you have loaded (desktop only). Point it once at your
-[Anima-TrainFlow](https://github.com/ThetaCursed/Anima-TrainFlow) folder and at your own Anima DiT,
-Qwen3 text encoder and VAE, then press **Start Trainflow**. Nothing runs before that. On first loading
-a folder, Osmium caches it so Trainflow can resolve its real path on its own. Start saves your
-tag edits, buckets the dataset with the Bucket Images settings (originals kept in `original_images/`),
+Trains a LoRA for Anima — or a model built on it, like Janima — on the dataset you have loaded
+(desktop only). Point it once at your
+[Anima-TrainFlow](https://github.com/ThetaCursed/Anima-TrainFlow) folder and at your own Anima or
+Janima DiT, Qwen3 text encoder and VAE, then press **Start Trainflow**. Nothing runs before that. On
+first loading a folder, Osmium caches it so Trainflow can resolve its real path on its own. Start saves
+your tag edits, buckets the dataset with the Bucket Images settings (originals kept in `original_images/`),
 checks for an NVIDIA GPU and launches training. **Verify buckets** lists every valid bucket size and where
 your images sit. Training runs in the background and keeps going if you close Osmium, which warns you
 first; reopen the tab to see step, speed, ETA, loss, the log, preview images and checkpoints again.

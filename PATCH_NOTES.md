@@ -17,7 +17,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Trainflow tab** (Windows): trains a LoRA for Anima on the dataset you have loaded, using your
   own Anima-TrainFlow folder and your own Anima files. **Start Trainflow** buckets the dataset and
   starts training in the background. It keeps going if you close Osmium (which warns you first), and
-  the tab reconnects to its progress, log, previews and checkpoints when you come back.
+  the tab reconnects to its progress, log, previews and checkpoints when you come back. Trains on
+  **Janima** too, not just base Anima.
 - **Bucket Images keeps an original of every image** in `original_images/` (Initial State is Originals
   again, and `initial_state/` folders are merged into it), and bucketing again re-makes the copies from
   the originals, so you can try different dimensions as often as you like.

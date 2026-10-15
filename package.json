@@ -20,7 +20,8 @@
     "dist:zip": "electron-builder --win zip --config.directories.output=Shippable",
     "predist:dir": "npm run build",
     "dist:dir": "electron-builder --dir",
-    "prerefresh-app": "npm run build",
+    "prerefresh-app": "npm run build && npm run patch-trainer",
+    "patch-trainer": "node scripts/patch-trainflow-trainer.js",
     "build:theme-icons": "electron scripts/render-theme-icons.js",
     "refresh-app": "electron-builder --dir && node scripts/refresh-portable-dev.js"
   },
