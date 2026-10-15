@@ -117,6 +117,7 @@ comfy-bridge/mobile/android/local.properties
 # shared config.json is tracked; only its local/critique output is ignored.)
 /.claude/
 /.opencode/
+/.openchamber/
 /.impeccable/config.local.json
 /.impeccable/critique/
 /.impeccable/review/
