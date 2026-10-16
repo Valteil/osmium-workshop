@@ -117,6 +117,17 @@ if os.name == "nt":
     _hwnd = _k32.GetConsoleWindow()
     if _hwnd:
         ctypes.windll.user32.ShowWindow(_hwnd, 5)  # SW_SHOW
+    # QuickEdit off for this console: a click in it would start a selection
+    # ("Select ..." in the title), and while one is up every write to the
+    # console blocks, freezing startup, generations and new app connections
+    # until Esc. Reproduced with a runner stuck mid-startup on a stray click.
+    _k32.CreateFileW.restype = ctypes.c_void_p
+    _k32.GetConsoleMode.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+    _k32.SetConsoleMode.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    _conin = _k32.CreateFileW("CONIN$", 0xC0000000, 3, None, 3, 0, None)  # GENERIC_READ|WRITE, share R|W, OPEN_EXISTING
+    _mode = ctypes.c_uint32()
+    if _conin and _conin != ctypes.c_void_p(-1).value and _k32.GetConsoleMode(_conin, ctypes.byref(_mode)):
+        _k32.SetConsoleMode(_conin, (_mode.value | 0x80) & ~0x40)  # +ENABLE_EXTENDED_FLAGS, -ENABLE_QUICK_EDIT_MODE
 
     # Record why the console is ending us (closing its window is the only
     # intended way to stop a kept-open runner). Kept in a global so the
@@ -753,6 +764,8 @@ def lora_download_start(src, folder, filename):
                                     raise ValueError("The file is larger than 4 GB.")
                                 sha.update(block)
                                 f.write(block)
+                        except InterruptedError:
+                            raise  # Cancel: an OSError subclass, but not a dropped link to resume
                         except (OSError, http.client.HTTPException) as e:
                             life(f"LoRA download {job['name']}: link dropped at {job['bytes']} bytes ({e})")
                     if not job["total"] or job["bytes"] >= job["total"]:
