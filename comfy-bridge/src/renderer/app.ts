@@ -21,6 +21,7 @@ import {
 import { characterIndex, recognizeCharacter, ratingFolder, nextSavePath, safeSegment, fileBaseName, joinNameParts, previewFileName } from './file-naming';
 import { initTagWiki } from './shared/tag-wiki';
 import { initHelp } from './help';
+import { mountUsduPanel, usduSettingsFromPrompt, type UsduListKind } from './shared/usdu';
 export {};
 
 interface ElectronAPI {
@@ -467,6 +468,34 @@ function applyUpscaleUI(): void {
 upscaleEnabled.addEventListener('change', applyUpscaleUI);
 applyUpscaleUI();
 
+// ---------------- USDU (Ultimate SD Upscale) ----------------
+// The panel, graph and prompt logic are shared with the phone (shared/usdu.ts).
+// Mounted before restoreUiState() so its fields (ids usdu*) persist like the rest.
+let usduCkptOptions: string[] = [];
+let usduWd14Options: string[] = [];
+async function refreshUsduLists(): Promise<void> {
+  const [ckpts, wd14, ups] = await Promise.all([
+    fetchComboValues('CheckpointLoaderSimple', 'ckpt_name'),
+    fetchComboValues('WD14Tagger|pysssss', 'model'),
+    fetchComboValues('UpscaleModelLoader', 'model_name')
+  ]);
+  if (ckpts) usduCkptOptions = ckpts;
+  if (wd14) usduWd14Options = wd14;
+  if (ups) fillDatalist(upscaleModelList, ups);
+  await refreshSamplerLists();
+  log('USDU lists refreshed.');
+}
+const usdu = mountUsduPanel($<HTMLDivElement>('usduPanel'), {
+  standardToggle: upscaleEnabled,
+  getList: (kind: UsduListKind) => kind === 'ckpt' ? usduCkptOptions
+    : kind === 'wd14' ? usduWd14Options
+    : kind === 'upscale' ? optionsFromDatalist(upscaleModelList)
+    : kind === 'sampler' ? bridgeSamplerOptions : bridgeSchedulerOptions,
+  refreshLists: refreshUsduLists,
+  onRunImported: () => { void queueUsduImported(); },
+  log
+});
+
 // ---------------- Prompt / Negative presets ----------------
 // Prompt presets snapshot every field EXCEPT Negative — a prompt preset is
 // "this character's whole setup," a negative preset is "this negative I
@@ -690,6 +719,12 @@ btnRefreshModels.addEventListener('click', async () => {
   if (loraValues) { loraCombo = loraValues; fillDatalist(loraList, loraValues); }
   if (upscaleValues) fillDatalist(upscaleModelList, upscaleValues);
   log('Model lists refreshed.');
+  const [usduCkpts, usduWd14] = await Promise.all([
+    fetchComboValues('CheckpointLoaderSimple', 'ckpt_name'),
+    fetchComboValues('WD14Tagger|pysssss', 'model')
+  ]);
+  if (usduCkpts) usduCkptOptions = usduCkpts;
+  if (usduWd14) usduWd14Options = usduWd14;
   await refreshSamplerLists();
   log('Sampler/scheduler options refreshed.');
 });
@@ -809,6 +844,7 @@ function restoreUiState(): void {
   applySkipRefImageUI();
   applyUse2PassUI();
   applyUpscaleUI();
+  usdu.refresh();
   applyUnifiedPromptModeUI();
   applyBackendUI();
   autoGrowAll();
@@ -995,7 +1031,7 @@ async function refreshSavePreview(): Promise<void> {
   namingAutoRating.textContent = n.rating
     ? `Rating: ${n.rating} (the ${unifiedPromptMode.checked ? 'prompt' : 'Rating field'} says ${n.rating})`
     : `Rating: none, so images go straight into the output folder (the ${unifiedPromptMode.checked ? 'prompt' : 'Rating field'} says neither explicit nor safe)`;
-  namingAutoUpscaled.textContent = upscaleEnabled.checked
+  namingAutoUpscaled.textContent = upscaleEnabled.checked || usdu.enabled()
     ? 'Upscaled: on, upscaled images go in an Upscaled folder inside'
     : 'Upscaled: off';
 
@@ -1032,7 +1068,7 @@ async function refreshSavePreview(): Promise<void> {
   if (n.rating) line(n.rating, 'auto', depth++);
   if (n.character) line(n.character, 'user', depth++);
   line(previewFileName(n.base), 'file', depth);
-  if (upscaleEnabled.checked) {
+  if (upscaleEnabled.checked || usdu.activeForGeneration()) {
     const up = document.createElement('div');
     up.className = 'muted small';
     up.textContent = 'Upscaled copies: the same name in an Upscaled folder next to it.';
@@ -1175,6 +1211,11 @@ async function loadTemplate(): Promise<any> {
 
 function buildPrompt(): any {
   const prompt = buildPromptForComfy();
+  if (usdu.activeForGeneration()) usdu.appendToGeneration(prompt);
+  return withoutComfyCopy(prompt);
+}
+
+function withoutComfyCopy(prompt: any): any {
   // No ComfyUI copy wanted (the chosen folder IS ComfyUI's output folder, or
   // the user turned its own copy off): the save nodes become PreviewImage, so
   // ComfyUI only writes a temp preview (fetched the same way, type "temp")
@@ -1237,7 +1278,7 @@ function buildPromptForComfy(): any {
     seed2: seed2.value,
     denoise2: denoise2.value,
     steps2: steps2.value,
-    upscale: { enabled: upscaleEnabled.checked, model: upscaleModel.value, scaleBy: upscaleScaleBy.value }
+    upscale: { enabled: upscaleEnabled.checked && !usdu.enabled(), model: upscaleModel.value, scaleBy: upscaleScaleBy.value }
   });
 }
 
@@ -1248,7 +1289,9 @@ function buildPromptForComfy(): any {
 
 // `naming` is snapshotted at queue time with the prompt, so a queued job
 // saves under the folder/name its own settings produced.
-interface GenJob { host: string; prompt: any; imageFilename: string | null; imageBytes: Uint8Array | null; naming: SaveNaming; }
+// `usduOnly`: an imported image through USDU — its one output ('192') is the
+// upscaled image.
+interface GenJob { host: string; prompt: any; imageFilename: string | null; imageBytes: Uint8Array | null; naming: SaveNaming; usduOnly?: boolean; }
 const genQueue: GenJob[] = [];
 let genRunning = false;
 let genStopped = false;
@@ -1355,6 +1398,24 @@ async function generate(): Promise<void> {
     imageBytes: skipRefImage.checked ? null : new Uint8Array(await refFile!.arrayBuffer()),
     naming: await currentNaming()
   });
+  await startQueue();
+}
+
+async function queueUsduImported(): Promise<void> {
+  const j = await usdu.buildImportedJob();
+  if (!j) return;
+  genQueue.push({
+    host: getHost(),
+    prompt: withoutComfyCopy(j.prompt),
+    imageFilename: j.imageFilename,
+    imageBytes: j.imageBytes,
+    naming: { relDir: '', base: safeSegment(j.base) || 'usdu', rating: '', character: '', recognized: '' },
+    usduOnly: true
+  });
+  await startQueue();
+}
+
+async function startQueue(): Promise<void> {
   if (genRunning) {
     log(`Queued a generation (${genQueue.length} waiting).`);
     genStatus.textContent = (genStatus.textContent || 'Generating…').replace(/ · \d+ queued$/, '') + queueNote();
@@ -1403,6 +1464,15 @@ async function runGenJob(job: GenJob): Promise<void> {
     nextSavePath(backend, upscaled ? joinRel(job.naming.relDir, 'Upscaled') : job.naming.relDir, job.naming.base, taken);
   let saveFailed = false;
   const slides: { label: string; bytes: Uint8Array }[] = [];
+  if (job.usduOnly) {
+    if (res.imageBytes) {
+      if (!(await saveBytes(stampOutputKind(res.imageBytes, 'upscaled'), await savePath(true)))) saveFailed = true;
+      slides.push({ label: 'Upscaled (USDU)', bytes: res.imageBytes });
+    }
+    if (saveFailed) { genStatus.style.display = 'block'; genStatus.textContent = 'Upscaled, but saving failed — see Log for details.'; }
+    setPreviewSlides(slides);
+    return;
+  }
   // 2-Pass: save BOTH passes, per this app's whole reason for existing —
   // SynthDat only ever keeps one (via Accept), this keeps both always.
   // Each saved copy is stamped with which output it is (./gen-info.ts): the
@@ -1625,6 +1695,9 @@ async function applyImportedPrompt(prompt: Record<string, any>): Promise<void> {
       upscaleScaleBy.value = String(typeof sb === 'number' ? sb : (parseFloat(sb) || 1));
     }
   }
+  const usduSaved = usduSettingsFromPrompt(prompt);
+  if (usduSaved) usdu.apply({ ...usduSaved, source: 'generated' });
+  usdu.setEnabled(!!usduSaved);
   applySkipRefImageUI();
   applyUnifiedPromptModeUI();
   applyUse2PassUI();

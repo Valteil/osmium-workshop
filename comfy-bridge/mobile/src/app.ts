@@ -66,6 +66,13 @@ declare const BridgeShared: {
   nextFileNumber: (backend: any) => Promise<number>;
   optionsFromDatalist: (datalist: any) => string[];
   attachPickerModal: (input: any, title: string, getOptions: () => any) => void;
+  // shared/usdu.ts: the USDU panel + graph (same module as the desktop's).
+  mountUsduPanel: (host: HTMLElement, opts: any) => {
+    enabled: () => boolean; refresh: () => void; setEnabled: (on: boolean) => void; apply: (s: any) => void;
+    activeForGeneration: () => boolean; appendToGeneration: (prompt: any) => void;
+    buildImportedJob: () => Promise<{ prompt: any; imageFilename: string; imageBytes: Uint8Array; base: string } | null>;
+  };
+  usduSettingsFromPrompt: (prompt: any) => Record<string, any> | null;
   initTheme: (themes: any, def: any) => void;
   mountThemePicker: (opts: any) => void;
   initTagWiki: (button: HTMLElement) => void;
@@ -871,7 +878,7 @@ declare const BridgeShared: {
     if (n.rating) line(n.rating, 'auto', depth++);
     if (n.character) line(n.character, 'user', depth++);
     line(BridgeShared.previewFileName(n.base), 'file', depth);
-    if (upscaleEnabled.checked && upscaleModel.value.trim()) {
+    if ((upscaleEnabled.checked && upscaleModel.value.trim()) || usdu.activeForGeneration()) {
       const up = document.createElement('div');
       up.className = 'muted small';
       up.textContent = 'Upscaled copies: the same name in an Upscaled folder next to it.';
@@ -1404,6 +1411,34 @@ declare const BridgeShared: {
   upscaleEnabled.addEventListener('change', () => { upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none'; });
   upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none';
 
+  // ---------------- USDU (Ultimate SD Upscale) ----------------
+  // Shared panel/graph (shared/usdu.ts). Mounted before restoreUiState() (Init)
+  // so its usdu* fields persist with the rest.
+  let usduCkptOptions: string[] = [];
+  let usduWd14Options: string[] = [];
+  async function refreshUsduLists(): Promise<void> {
+    const [ckpts, wd14, ups] = await Promise.all([
+      comfyGetObjectInfo('CheckpointLoaderSimple', 'ckpt_name'),
+      comfyGetObjectInfo('WD14Tagger|pysssss', 'model'),
+      comfyGetObjectInfo('UpscaleModelLoader', 'model_name')
+    ]);
+    if (ckpts.ok) usduCkptOptions = ckpts.values;
+    if (wd14.ok) usduWd14Options = wd14.values;
+    if (ups.ok) fillDatalist(upscaleModelList, ups.values);
+    await refreshSamplerLists();
+    log('USDU lists refreshed.');
+  }
+  const usdu = BridgeShared.mountUsduPanel($('usduPanel'), {
+    standardToggle: upscaleEnabled,
+    getList: (kind: string) => kind === 'ckpt' ? usduCkptOptions
+      : kind === 'wd14' ? usduWd14Options
+      : kind === 'upscale' ? BridgeShared.optionsFromDatalist(upscaleModelList)
+      : kind === 'sampler' ? bridgeSamplerOptions : bridgeSchedulerOptions,
+    refreshLists: refreshUsduLists,
+    onRunImported: () => { void queueUsduImported(); },
+    log
+  });
+
   btnSwapReso.addEventListener('click', () => {
     const w = width.value;
     width.value = height.value;
@@ -1445,6 +1480,12 @@ declare const BridgeShared: {
     if (mainLoraValues.ok) fillDatalist(mainLoraList, mainLoraValues.values);
     if (loraValues.ok) fillDatalist(loraList, loraValues.values);
     if (upscaleValues.ok) fillDatalist(upscaleModelList, upscaleValues.values);
+    const [usduCkpts, usduWd14] = await Promise.all([
+      comfyGetObjectInfo('CheckpointLoaderSimple', 'ckpt_name'),
+      comfyGetObjectInfo('WD14Tagger|pysssss', 'model')
+    ]);
+    if (usduCkpts.ok) usduCkptOptions = usduCkpts.values;
+    if (usduWd14.ok) usduWd14Options = usduWd14.values;
     log('Model lists refreshed from ComfyUI.');
     await refreshSamplerLists();
     log('Sampler/scheduler options refreshed.');
@@ -1618,7 +1659,7 @@ declare const BridgeShared: {
     // Thin adapter over the shared builder (BridgeShared.buildSynthDatPrompt,
     // bundled from comfy-bridge/src/comfy-core.ts — the same source the desktop
     // apps use). All graph logic lives there so it can't drift.
-    return BridgeShared.buildSynthDatPrompt(template, {
+    const prompt = BridgeShared.buildSynthDatPrompt(template, {
       unified: unifiedPromptMode.checked,
       global: fieldValue(global_),
       rating: fieldValue(rating),
@@ -1661,8 +1702,10 @@ declare const BridgeShared: {
       seed2: seed2.value,
       denoise2: denoise2.value,
       steps2: steps2.value,
-      upscale: { enabled: upscaleEnabled.checked, model: upscaleModel.value, scaleBy: upscaleScaleBy.value }
+      upscale: { enabled: upscaleEnabled.checked && !usdu.enabled(), model: upscaleModel.value, scaleBy: upscaleScaleBy.value }
     });
+    if (usdu.activeForGeneration()) usdu.appendToGeneration(prompt);
+    return prompt;
   }
 
   // ---------------- Save to device (active backend) ----------------
@@ -1755,6 +1798,8 @@ declare const BridgeShared: {
     // desktop Bridge — a queued job saves under the folders/name its own
     // settings produced, even if the UI changed since it was queued.
     naming: SaveNaming;
+    // An imported image through USDU: its one output ('192') is the upscale.
+    usduOnly?: boolean;
   }
   const genQueue: GenJob[] = [];
   let genRunning = false;
@@ -1771,9 +1816,28 @@ declare const BridgeShared: {
       imageFilename: skipRefImage.checked ? null : refFilename,
       imageBytes: skipRefImage.checked ? null : refBytes,
       passCount,
-      totalStages: passCount + ((upscaleEnabled.checked && upscaleModel.value.trim()) ? 1 : 0),
+      totalStages: passCount + (((upscaleEnabled.checked && upscaleModel.value.trim()) || usdu.activeForGeneration()) ? 1 : 0),
       naming: await currentNaming()
     });
+    startQueue();
+  }
+
+  async function queueUsduImported() {
+    const j = await usdu.buildImportedJob();
+    if (!j) return;
+    genQueue.push({
+      prompt: j.prompt,
+      imageFilename: j.imageFilename,
+      imageBytes: j.imageBytes,
+      passCount: 1,
+      totalStages: 1,
+      naming: { relDir: '', base: BridgeShared.safeSegment(j.base) || 'usdu', rating: '', character: '', recognized: '' },
+      usduOnly: true
+    });
+    startQueue();
+  }
+
+  function startQueue() {
     if (genRunning) {
       log('Queued a generation (' + genQueue.length + ' waiting).');
       genStatus.textContent = (genStatus.textContent || 'Generating…').split(' · ')[0] + queueNote();
@@ -1867,6 +1931,16 @@ declare const BridgeShared: {
       BridgeShared.nextSavePath(mobileBackend(), upscaled ? joinRel(job.naming.relDir, 'Upscaled') : job.naming.relDir, job.naming.base, taken);
     let saveFailed = false;
     const slides: { label: string; bytes: Uint8Array }[] = [];
+    if (job.usduOnly) {
+      if (res.imageBytes) {
+        if (!(await saveBytes(res.imageBytes, await savePath(true)))) saveFailed = true;
+        slides.push({ label: 'Upscaled (USDU)', bytes: res.imageBytes });
+      }
+      if (saveFailed) { genStatus.style.display = 'block'; genStatus.textContent = 'Upscaled, but saving failed — see Log for details.'; }
+      finalizeGenNotification(saveFailed ? 'Upscaled, but saving failed' : 'Upscale complete', 'USDU');
+      setPreviewSlides(slides);
+      return;
+    }
     if (res.pass1ImageBytes) {
       if (!(await saveBytes(res.pass1ImageBytes, await savePath(false)))) saveFailed = true;
       slides.push({ label: 'Pass 1', bytes: res.pass1ImageBytes });
@@ -2079,6 +2153,9 @@ declare const BridgeShared: {
       }
     }
     upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none';
+    const usduSaved = BridgeShared.usduSettingsFromPrompt(prompt);
+    if (usduSaved) usdu.apply(Object.assign({}, usduSaved, { source: 'generated' }));
+    usdu.setEnabled(!!usduSaved);
     // Programmatic fills fire no input events: re-fit the boxes, refresh the
     // File Namer preview and capture this state like a real edit would.
     autoGrowAll();
@@ -2291,6 +2368,7 @@ declare const BridgeShared: {
     applyUnifiedPromptModeUI();
     pass2Fields.style.display = use2Pass.checked ? '' : 'none';
     upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none';
+    usdu.refresh();
   }
   var uiSaveTimer: ReturnType<typeof setTimeout> | null = null;
   function scheduleUiSave() {

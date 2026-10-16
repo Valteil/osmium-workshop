@@ -294,3 +294,13 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .tag-wiki-ac-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tag-wiki-ac-count{ color:var(--muted); font-family:var(--mono, monospace); font-size:11px; flex-shrink:0; }
 .tag-wiki-ac-empty{ padding:6px 8px; color:var(--faint, var(--muted)); font-style:italic; font-size:12px; }
+
+/* ---- USDU panel (shared/usdu.ts), both shells ---- */
+.usdu-body[hidden], .usdu-field[hidden], .usdu-import[hidden], .usdu-tip[hidden]{ display:none; }
+.usdu-sec-head{ margin:12px 0 2px; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.usdu-tip{ margin:2px 0 6px; line-height:1.4; }
+.usdu-tappable{ text-decoration:underline dotted; text-underline-offset:3px; cursor:help; }
+.usdu-info{ margin-left:auto; padding:0 6px; min-width:0; width:auto; background:none; border:none; color:var(--muted); font-size:1em; }
+.usdu-import{ margin:6px 0 4px; }
+.usdu-import .row{ display:flex; gap:8px; flex-wrap:wrap; }
+.usdu-picked{ margin-top:4px; overflow-wrap:anywhere; }

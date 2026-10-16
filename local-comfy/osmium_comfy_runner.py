@@ -357,6 +357,70 @@ def load_nodes():
     folder_paths.add_model_folder_path("controlnet", os.path.join(PACK_DIR, "models", "controlnet"))
 
 
+# Optional packs (Comfy Bridge's USDU upscale, 2026-10-17): loaded from the
+# user's custom_nodes the first time a prompt or a model list needs one of
+# their nodes, so startup is unchanged and a missing pack only matters to the
+# feature that uses it.
+OPTIONAL_PACKS = {"UltimateSDUpscale": "ComfyUI_UltimateSDUpscale", "WD14Tagger|pysssss": "ComfyUI-WD14-Tagger"}
+_OPTIONAL_TRIED = set()
+_OPTIONAL_LOCK = threading.Lock()
+
+
+class _PackServerShim:
+    """PromptServer.instance for packs that touch it at import (WD14's pysssss
+    registers a route and asks `supports`; listing custom_nodes_from_web stops
+    it copying its JS into ComfyUI's web folder). client_id None turns its
+    status messages off."""
+    supports = {"custom_nodes_from_web"}
+    client_id = None
+
+    def __init__(self):
+        from aiohttp import web
+        self.routes = web.RouteTableDef()
+
+    def send_sync(self, *a, **k):
+        pass
+
+    async def send(self, *a, **k):
+        pass
+
+
+def ensure_optional_nodes(class_types):
+    for ct in class_types:
+        pack = OPTIONAL_PACKS.get(ct)
+        if not pack or ct in nodes.NODE_CLASS_MAPPINGS:
+            continue
+        with _OPTIONAL_LOCK:
+            if pack in _OPTIONAL_TRIED:
+                continue
+            _OPTIONAL_TRIED.add(pack)
+            path = os.path.join(COMFY_DIR, "custom_nodes", pack)
+            if not os.path.isdir(path):
+                continue
+            import server
+            if getattr(server.PromptServer, "instance", None) is None:
+                server.PromptServer.instance = _PackServerShim()
+            # Own thread + loop: callers include the share server's executor
+            # threads, where a loop may already be running.
+            result = {}
+
+            def load():
+                loop = asyncio.new_event_loop()
+                try:
+                    result["ok"] = loop.run_until_complete(nodes.load_custom_node(path))
+                finally:
+                    loop.close()
+            t = threading.Thread(target=load, daemon=True)
+            t.start()
+            t.join()
+            say(f"Loaded {pack}." if result.get("ok") else f"Could not load {pack} (see the log above).")
+
+
+def missing_node_hint(class_type):
+    pack = OPTIONAL_PACKS.get(class_type)
+    return f"{class_type} (install {pack} in ComfyUI's custom_nodes)" if pack else class_type
+
+
 # ---- server stand-in ------------------------------------------------------
 class StubServer:
     """The five members ComfyUI's executor needs from its web server
@@ -1138,9 +1202,10 @@ def prepare(prompt):
         keep.add(nid)
         stack.extend(v[0] for v in out[nid]["inputs"].values() if is_link(v))
     pruned = {nid: out[nid] for nid in keep}
+    ensure_optional_nodes({n["class_type"] for n in pruned.values()})
     missing = sorted({n["class_type"] for n in pruned.values() if n["class_type"] not in nodes.NODE_CLASS_MAPPINGS})
     if missing:
-        raise ValueError("Node types not available to the local runner: " + ", ".join(missing))
+        raise ValueError("Node types not available to the local runner: " + ", ".join(missing_node_hint(m) for m in missing))
     return pruned, captures
 
 
@@ -1149,6 +1214,7 @@ EXECUTOR = None
 
 
 def cmd_object_info(req):
+    ensure_optional_nodes([req["class_type"]])
     cls = nodes.NODE_CLASS_MAPPINGS.get(req["class_type"])
     if cls is None:
         return {"ok": False, "error": f"{req['class_type']} is not loaded in the local runner."}
@@ -1177,6 +1243,7 @@ def cmd_node_info(req):
     """A node's inputs in /object_info's shape ({"required": {...}, "optional":
     {...}}), so Comfy Bridge's network relay can answer /object_info/<class>
     for a phone. Combo lists are kept; other specs are made JSON-safe."""
+    ensure_optional_nodes([req["class_type"]])
     cls = nodes.NODE_CLASS_MAPPINGS.get(req["class_type"])
     if cls is None:
         return {"ok": False, "error": f"{req['class_type']} is not loaded in the local runner."}

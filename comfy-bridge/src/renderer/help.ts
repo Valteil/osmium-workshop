@@ -86,7 +86,9 @@ export const HELP_SECTIONS: HelpSection[] = [
     html: `
       <p>Turn this on to enlarge the finished image with a separate upscale model. Pick the model, then use Scale by to trim the result back to the size you want.</p>
       <p>Many upscale models multiply by 4, so a Scale by of 0.5 brings that back to a 2x increase. For a 1024 pixel image, that gives you 2048.</p>
-      <p>Refresh from disk reloads the upscale models ComfyUI has, without touching the rest of the model lists.</p>`
+      <p>Refresh from disk reloads the upscale models ComfyUI has, without touching the rest of the model lists.</p>
+      <p><b>Upscale with USDU</b> is the other choice (turning one on turns the other off). Ultimate SD Upscale enlarges the image with an upscale model, then redraws it tile by tile with a checkpoint of its own at low denoise, which adds real detail. It needs the ComfyUI_UltimateSDUpscale node pack, and the WD14 Tagger pack for "Tag with WD14".</p>
+      <p>It upscales either the image you generate (the pass-2 image when 2-Pass is on) or an image you import: choose one and press Upscale this image. The prompt for the tiles is your image's prompt (optionally without the Global field, where artist tags live), WD14 tags, or your own text. Hover any setting for what it does; on the phone, tap its name. Results go in the Upscaled folder.</p>`
   },
   {
     id: 'output',

@@ -331,7 +331,7 @@
         </div>
       </div>
     </div>
-    <div class="side-drawer-sec-head">Upscale (optional)</div>
+    <div class="side-drawer-sec-head" title="One upscale per generation: the standard pass (an upscale model, then a resize) or USDU (upscale model, then a tile-by-tile redraw that adds detail). Turning one on turns the other off.">Upscale (optional)</div>
         <label class="chk-row"><input id="upscaleEnabled" type="checkbox"> Upscale by model before saving</label>
     <div id="upscaleModelRow">
       <label>Upscale model</label>
@@ -343,6 +343,7 @@
       <label>Scale by (after model upscale, e.g. 0.5 to bring a 4x model back to 2x)</label>
       <input id="upscaleScaleBy" type="number" step="0.05" value="0.5">
     </div>
+    <div id="usduPanel"></div>
   </aside>
   <aside id="fileDrawer" class="side-drawer" aria-label="File saving">
     <div class="side-drawer-head">
