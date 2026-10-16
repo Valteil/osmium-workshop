@@ -24,9 +24,8 @@ import {
 import { startRelay, stopRelay, relayState, relayAddresses, initRelayGallery } from './local-relay';
 
 // ---- IPC sender guard --------------------------------------------------------
-// Ported from the desktop root app. The guard itself now lives in
-// ./ipc-guard (dependency-free, requireable by the red-team harness without
-// electron). main.ts only wires it: every ipcMain.handle is wrapped once, at
+// Ported from the desktop root app. The guard itself lives in
+// ./ipc-guard (dependency-free, requireable without electron). main.ts only wires it: every ipcMain.handle is wrapped once, at
 // module load and before registerComfyLocalHandlers() runs below, so no handler
 // (this file's or comfy-local.ts's) can run for a frame that isn't the app's
 // own renderer page. Defence in depth, not a substitute for per-handler input

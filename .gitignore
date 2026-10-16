@@ -128,6 +128,3 @@ comfy-bridge/mobile/android/local.properties
 /site-drafts/
 /Screenshots/
 
-# Red Team harness: the tool itself is tracked (Red Team.cmd + tools/redteam/),
-# but its run output — timestamps, temp evidence, payload captures — is local.
-/tools/redteam/results/

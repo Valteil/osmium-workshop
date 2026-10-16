@@ -336,8 +336,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   sendJson(res, 404, { error: { message: `Not available on the Osmium Comfy relay: ${req.method} ${p}` } });
 }
 
-// `host` defaults to 0.0.0.0 (the opt-in LAN/Tailscale bind). The red-team
-// harness passes 127.0.0.1 so it can exercise the relay on loopback only.
+// `host` defaults to 0.0.0.0 (the opt-in LAN/Tailscale bind); a test can pass
+// 127.0.0.1 to exercise the relay on loopback only.
 export function startRelay(port: number, token = '', host = '0.0.0.0'): Promise<{ ok: boolean; error?: string }> {
   sharedToken = token;
   stopRelay();

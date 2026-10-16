@@ -1,5 +1,5 @@
 // IPC sender guard — extracted from main.ts so it is a small, dependency-free
-// unit that can be required and tested directly (see tools/redteam). It does
+// unit that can be required and tested directly. It does
 // NOT import electron: the guard only needs a frame's URL, so a fake event
 // object `{ senderFrame: { url } }` is enough to exercise it.
 //

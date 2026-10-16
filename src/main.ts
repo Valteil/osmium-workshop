@@ -24,8 +24,8 @@ import type { ComfyResult } from './shared-types';
 type AppWindow = BrowserWindow & { __closeConfirmed?: boolean };
 
 // ---- IPC sender guard --------------------------------------------------------
-// The guard itself now lives in ./ipc-guard (dependency-free, requireable by
-// the red-team harness without electron). main.ts only wires it: every
+// The guard itself lives in ./ipc-guard (dependency-free, requireable without
+// electron). main.ts only wires it: every
 // ipcMain.handle is wrapped once, at module load, so ALL handlers (this file's
 // and every register*Handlers module's) are guarded without editing each one.
 // This is defence-in-depth, not a substitute for per-handler input validation:
