@@ -51,8 +51,8 @@ I don't know go eat a rock or something
 2. Run `Osmium Workshop.exe` (or the equivalent for your OS). It's portable — no installer.
 3. Click **File → Open dataset folder** and select the folder containing your images and their
    matching `.txt` caption files.
-4. Tags are shown and edited as clean space-separated text (e.g. `red hair`, not `red_hair`) —
-   underscores are normalized on load and restored on save automatically.
+4. Tags are shown and edited as clean text (e.g. `red hair`, not `red_hair`): underscores become
+   spaces on load, and captions are saved as comma-separated tags with spaces.
 
 See [USER_GUIDE.md](USER_GUIDE.md) for a full walkthrough of every tab, power tool, and setting.
 

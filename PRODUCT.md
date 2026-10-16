@@ -28,7 +28,7 @@ and the booru-tag families around it. Other models work fine, but the design and
 Anima's tag-based captioning, and SynthDat and Comfy Bridge run its workflow. It exists because curating thousands of
 image/caption pairs is tedious and ComfyUI alone offers no dataset management. It is a
 feature-heavy, ComfyUI-compatible dataset manager: tag editing as clean
-space-separated text (underscores normalized on load, restored on save), plus
+text (underscores become spaces on load; captions save with spaces), plus
 dataset-wide manipulation tools, automation (WD14 autotagging, Retroactive
 Merge/Void rules, bulk passes), SynthDat synthetic data generation, and direct sync
 with ComfyUI's output folder. Portable Electron app — unzip, run, nothing installed.

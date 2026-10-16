@@ -647,7 +647,7 @@ function openLogStackModal(logEntry: EditLogEntry): void {
 }
 
 // Right-click ▸ "Show all edits associated with this image": every log entry
-// whose affected rows include this image (matching the initial_state/ flag so
+// whose affected rows include this image (matching the original_images/ flag so
 // an original's own edits don't leak onto its Gallery twin), newest first.
 export function openImageEditsModal(entry: Entry): void {
   const relevant = editLog

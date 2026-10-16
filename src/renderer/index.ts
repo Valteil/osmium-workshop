@@ -1726,7 +1726,7 @@ import { setIconLabel } from './icons';
       meta: { flaggedTags: [], note: '', noteAlwaysVisible: false, locked: false, mergeImmune: false, antivoid: false, dateAdded: Date.now() }
     };
     entries.push(entry);
-    // entryByBase is keyed by bare stem, but an `initial_state/` shadow copy
+    // entryByBase is keyed by bare stem, but an `original_images/` shadow copy
     // (Bucket Images) shares that stem with its bucketed root image — and
     // originalImages is scanned AFTER the root, so a plain set() here let the
     // DISABLED original clobber the real entry's mapping. Every selection-based
@@ -1846,7 +1846,7 @@ import { setIconLabel } from './icons';
           const imgHandle = await dirHandle.getFileHandle(st.imgName, { create: true });
           await writeBytes(imgHandle, st.bytes);
           const txtHandle = await dirHandle.getFileHandle(a.base + '.txt', { create: true });
-          await writeBytes(txtHandle, st.tags.map((t) => t.replace(/ /g, '_')).join(','));
+          await writeBytes(txtHandle, st.tags.join(', '));
           const existing = entryByBase.get(a.base);
           if (existing){
             try { URL.revokeObjectURL(existing.objectUrl); } catch(e){}

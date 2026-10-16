@@ -24,7 +24,7 @@ import { resweepAllEntries, restoreEntryFromRules } from './canonical-tags';
 import { attachFillAutocomplete } from './tags-autocomplete';
 import { setIconLabel, plainLabel } from './icons';
 
-// Holds the entries themselves, not their stems: an initial_state/ copy
+// Holds the entries themselves, not their stems: an original_images/ copy
 // shares its stem with a Gallery image, so a stem-keyed selection ticked both.
 // It also survives Disable/Restore, which move the same Entry object.
 export let masterSelectedImages = new Set<Entry>();

@@ -210,6 +210,9 @@
   var logPanel = $("logPanel");
   var logPanelTitle = $("logPanelTitle");
   var logList = $("logList");
+  var logTypeDropdown = $("logTypeDropdown");
+  var logOrderBtn = $("logOrderBtn");
+  var logPager = $("logPager");
   var btnExportLog = $("btnExportLog");
   var btnClearLog = $("btnClearLog");
   var canonicalTagsList = $("canonicalTagsList");
@@ -436,6 +439,8 @@
   var synthDatLocalFields = $("synthDatLocalFields");
   var synthDatLocalFolder = $("synthDatLocalFolder");
   var btnSynthDatLocalFolder = $("btnSynthDatLocalFolder");
+  var synthDatAttentionRow = $("synthDatAttentionRow");
+  var synthDatAttentionDropdown = $("synthDatAttentionDropdown");
   var btnSynthDatConnect = $("btnSynthDatConnect");
   var synthDatConnStatus = $("synthDatConnStatus");
   var synthDatWidth = $("synthDatWidth");
@@ -2490,7 +2495,7 @@
       jumpEl.appendChild(jump);
       return sec;
     }
-    function field2(parent, label, hint) {
+    function field3(parent, label, hint) {
       const f = document.createElement("div");
       f.className = "ts-field";
       f.innerHTML = `<div class="ts-field-label">${esc(label)}${hint ? `<span class="ts-field-hint">${esc(hint)}</span>` : ""}</div>`;
@@ -2498,7 +2503,7 @@
       return f;
     }
     function optionGrid(parent, label, opts, get, set, sample, cls = "", hint, lockOf) {
-      const f = field2(parent, label, hint);
+      const f = field3(parent, label, hint);
       const grid = document.createElement("div");
       grid.className = "ts-opts " + cls;
       grid.setAttribute("role", "radiogroup");
@@ -2555,7 +2560,7 @@
       });
     }
     function segmented(parent, label, opts, get, set, editsSpec = true) {
-      const f = field2(parent, label);
+      const f = field3(parent, label);
       const seg = document.createElement("div");
       seg.className = "ts-seg";
       seg.setAttribute("role", "radiogroup");
@@ -2586,7 +2591,7 @@
       });
     }
     function slider(parent, label, min, max, get, set, unit = "px") {
-      const f = field2(parent, label);
+      const f = field3(parent, label);
       const row = document.createElement("div");
       row.className = "ts-slider";
       const input = document.createElement("input");
@@ -2651,7 +2656,7 @@
     }
     window.addEventListener("keydown", onPopoverKey, true);
     function fontPicker(parent, label, slot) {
-      const f = field2(parent, label);
+      const f = field3(parent, label);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "ts-font-btn";
@@ -2980,7 +2985,7 @@
         spec.type.btnWeight = Number(id);
       }
     );
-    const capsField = field2(secType, "Capitals", "Tracked out automatically");
+    const capsField = field3(secType, "Capitals", "Tracked out automatically");
     const capsWrap = document.createElement("div");
     capsWrap.className = "ts-toggles";
     capsField.appendChild(capsWrap);
@@ -4176,7 +4181,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       </ul>
       <h3>Open or add images</h3>
       <p><b>File \u25B8 Open dataset folder</b> picks the folder holding your images and captions. Tags
-      show with spaces in the app and are saved back with underscores, so you never think about it.
+      show with spaces in the app, and captions are saved with spaces too (what Anima expects).
       <b>File \u25B8 Add images\u2026</b> copies more in, each arriving untagged with an empty
       <code>.txt</code>${isTouchDevice ? " (you choose which app to pick them from)" : ""}. With no
       dataset open it first offers to create one: name it, choose where its folder goes, and it
@@ -4324,8 +4329,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       title: "7 \xB7 Bucket images",
       html: `
       <p><b>\u{1F9FA} Bucket Images</b> (in the Gallery's right sidebar) crops and resizes every Gallery
-      image to its nearest LoRA training bucket (Min side / Max side / Step, default 256 / 1024 /
-      64), so your trainer doesn't have to. The crop keeps the subject using a saliency model (a
+      image to its nearest LoRA training bucket (Min side / Max side / Step, default 512 / 1024 /
+      64, remembered per dataset and also set from the Trainflow tab), so your trainer doesn't have to. The crop keeps the subject using a saliency model (a
       one-time ~176 MB download, \u2B07 button in the dock). <b>Prefer GPU</b> runs it on your graphics
       card with an automatic CPU fallback. Originals are never lost: they move to an
       <code>original_images/</code> folder (browse them via the \u{1F5BC} Originals view), and every image
@@ -4346,15 +4351,16 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       id: "step-trainflow",
       title: "8 \xB7 Train with Trainflow",
       html: `
-      <p>Trains a LoRA for <b>Anima</b> on the dataset you have loaded. It uses your own
+      <p>Trains a LoRA for <b>Anima</b>, or <b>Janima</b>, on the dataset you have loaded. It uses your own
       Anima-TrainFlow folder (the one with <code>python_embeded</code> and <code>training</code>)
-      for Python and the trainer, and your own Anima DiT, Qwen3 and VAE files (choose them once;
+      for Python and the trainer, and your own Anima or Janima DiT, Qwen3 and VAE files (choose them once;
       the fields start empty). The first time you open a folder, Osmium caches it so Trainflow can
       resolve its real path on its own \u2014 it only asks you to point at the folder if that fails.</p>
       <p><b>Start Trainflow</b> is the only thing that begins work: it saves your tag edits, buckets
       the dataset (originals go to <code>original_images/</code>; nothing is redone if the copies
-      are already right), checks for an NVIDIA GPU and starts training. <b>Verify buckets</b> lists
-      every valid bucket size for the Bucket Images dock's Min/Max/Step and where your images sit.</p>
+      are already right), checks for an NVIDIA GPU and starts training. <b>Min side / Max side / Step</b>
+      set the bucket sizes Start uses (the same per-dataset values as the Bucket Images dock).
+      <b>Verify buckets</b> lists every valid bucket size for them and where your images sit.</p>
       <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
       you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
       and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
@@ -5493,12 +5499,18 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   var editLog = [];
   var logIdCounter = 1;
   var statsChartMode = "pie";
+  var logTypeFilter = "";
+  var logOrder = "newest";
+  var logPage = 1;
+  var LOG_PAGE_SIZE = 25;
   var PIXEL_TYPES = /* @__PURE__ */ new Set(["crop-image", "rotate-image"]);
   var ISOLATE_TYPES = /* @__PURE__ */ new Set(["isolate-image"]);
   var REVIEW_TYPES = /* @__PURE__ */ new Set(["unflag-review", "ghost-remove"]);
+  var TAG_TYPES = /* @__PURE__ */ new Set(["add-tag", "remove-tag", "merge", "void", "rename", "find-replace", "reset-edits", "unmerge", "unvoid"]);
+  var MOVE_TYPES = /* @__PURE__ */ new Set(["disable", "restore"]);
+  var RENAME_TYPES = /* @__PURE__ */ new Set(["rename-files"]);
   var LOG_FILE_NAME = "_tag_edit_log.json";
   var getDirHandle2 = () => null;
-  var getEntryByBase = () => void 0;
   var applyTagDirectionRef = () => 0;
   var applyRenameDirectionRef = async () => 0;
   var applyPixelDirectionRef = async () => 0;
@@ -5514,6 +5526,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   };
   var getUndoStack = () => [];
   var getRedoStack = () => [];
+  var resolveAffected = () => void 0;
   function pushLogEntry(partial) {
     const entry = {
       ...partial,
@@ -5521,7 +5534,11 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       ts: Date.now(),
       type: partial.type,
       summary: partial.summary,
-      affected: partial.affected || []
+      // Own a copy of every affected row: callers (and the undo/redo stacks)
+      // keep their own references, and undo/redo log entries reuse the source
+      // record's array — sharing one mutable object across all of them meant a
+      // single later mutation would silently rewrite history everywhere.
+      affected: (partial.affected || []).map((a) => ({ ...a }))
     };
     editLog.push(entry);
     updateLogButton();
@@ -5529,13 +5546,37 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     if (logPanel.style.display === "flex") renderLogPanel();
     return entry;
   }
-  async function saveEditLog() {
+  var logSaveInFlight = false;
+  var pendingLogSaves = /* @__PURE__ */ new Map();
+  function saveEditLog() {
     const dirHandle = getDirHandle2();
     if (!dirHandle) return;
+    let data;
     try {
-      const handle = await dirHandle.getFileHandle(LOG_FILE_NAME, { create: true });
-      await writeBytes(handle, JSON.stringify(editLog, null, 2));
+      data = JSON.stringify(editLog, null, 2);
     } catch {
+      return;
+    }
+    pendingLogSaves.set(dirHandle, data);
+    void flushLogSave();
+  }
+  async function flushLogSave() {
+    if (logSaveInFlight) return;
+    logSaveInFlight = true;
+    try {
+      while (pendingLogSaves.size) {
+        const next = pendingLogSaves.entries().next();
+        if (next.done) break;
+        const [dirHandle, data] = next.value;
+        pendingLogSaves.delete(dirHandle);
+        try {
+          const handle = await dirHandle.getFileHandle(LOG_FILE_NAME, { create: true });
+          await writeBytes(handle, data);
+        } catch {
+        }
+      }
+    } finally {
+      logSaveInFlight = false;
     }
   }
   async function loadEditLogForFolder() {
@@ -5568,6 +5609,15 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       return "";
     }
   }
+  function affectedImageButton(entry) {
+    if (!entry || !entry.objectUrl) return null;
+    const btn = document.createElement("button");
+    btn.className = "log-show-image-btn";
+    btn.title = "Show the image this edit affected in the lightbox";
+    setIconLabel(btn, "\u25B8 Show affected image");
+    btn.addEventListener("click", () => showImageLightbox(entry.objectUrl));
+    return btn;
+  }
   var STAT_CHART_COLORS = {
     "add-tag": "#6fb8d1",
     "remove-tag": "#e2637a",
@@ -5589,7 +5639,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     "isolate-image": "#b57edc",
     "unflag-review": "#e8a33d",
     "ghost-remove": "#9791a6",
-    "rule-sweep": "#b98fd6"
+    "rule-sweep": "#b98fd6",
+    "reset-edits": "#c98ed6"
   };
   var STAT_TYPE_LABEL = {
     "add-tag": "Tags added",
@@ -5612,12 +5663,13 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     "isolate-image": "Isolates",
     "unflag-review": "Review flags cleared",
     "ghost-remove": "Past tags deleted",
-    "rule-sweep": "Rules applied"
+    "rule-sweep": "Rules applied",
+    "reset-edits": "Resets"
   };
   function computeStatsBreakdown() {
     const counts = {};
     for (const entry of editLog) {
-      if (!(entry.type in STAT_TYPE_LABEL)) continue;
+      if (!Object.prototype.hasOwnProperty.call(STAT_TYPE_LABEL, entry.type)) continue;
       counts[entry.type] = (counts[entry.type] || 0) + 1;
     }
     return counts;
@@ -5725,15 +5777,21 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     const dirHandle = getDirHandle2();
     logPanelTitle.textContent = dirHandle ? `Edit log \u2014 ${dirHandle.name}` : "Edit log";
     logList.innerHTML = "";
+    logPager.innerHTML = "";
     if (editLog.length === 0) {
       logList.innerHTML = '<div class="log-empty">No edits logged yet for this folder.</div>';
       return;
     }
-    const TAG_TYPES = /* @__PURE__ */ new Set(["add-tag", "remove-tag", "merge", "void", "rename", "find-replace", "reset-edits", "unmerge", "unvoid"]);
-    const MOVE_TYPES = /* @__PURE__ */ new Set(["disable", "restore"]);
-    const RENAME_TYPES = /* @__PURE__ */ new Set(["rename-files"]);
-    const recent = editLog.slice(-150).reverse();
-    for (const logEntry of recent) {
+    const ordered = orderedLog();
+    if (ordered.length === 0) {
+      logList.innerHTML = `<div class="log-empty">No ${STAT_TYPE_LABEL[logTypeFilter] || logTypeFilter} edits logged yet.</div>`;
+      return;
+    }
+    const totalPages = Math.max(1, Math.ceil(ordered.length / LOG_PAGE_SIZE));
+    if (logPage > totalPages) logPage = totalPages;
+    if (logPage < 1) logPage = 1;
+    const pageEntries = ordered.slice((logPage - 1) * LOG_PAGE_SIZE, logPage * LOG_PAGE_SIZE);
+    for (const logEntry of pageEntries) {
       const row = document.createElement("div");
       row.className = "log-row";
       const meta = document.createElement("div");
@@ -5751,198 +5809,310 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       summary.textContent = logEntry.summary;
       row.appendChild(meta);
       row.appendChild(summary);
-      if (TAG_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
+      if (logEntry.affected && logEntry.affected.length && logEntryHasActions(logEntry)) {
         const actions = document.createElement("div");
         actions.className = "log-actions";
-        const undoBtn = document.createElement("button");
-        setIconLabel(undoBtn, "\u21A9 Undo this");
-        undoBtn.addEventListener("click", () => applyLogEntryDirection(logEntry, "undo"));
-        const redoBtn = document.createElement("button");
-        setIconLabel(redoBtn, "\u21AA Redo this");
-        redoBtn.className = "primary";
-        redoBtn.addEventListener("click", () => applyLogEntryDirection(logEntry, "redo"));
-        actions.appendChild(undoBtn);
-        actions.appendChild(redoBtn);
-        row.appendChild(actions);
-      } else if (MOVE_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
-        const actions = document.createElement("div");
-        actions.className = "log-actions";
-        const toggleBtn = document.createElement("button");
-        toggleBtn.textContent = logEntry.type === "disable" ? "Restore image" : "Disable image again";
-        toggleBtn.className = "primary";
-        toggleBtn.addEventListener("click", () => toggleMoveLogEntry(logEntry));
-        actions.appendChild(toggleBtn);
-        row.appendChild(actions);
-      } else if (RENAME_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
-        const actions = document.createElement("div");
-        actions.className = "log-actions";
-        const undoBtn = document.createElement("button");
-        setIconLabel(undoBtn, "\u21A9 Undo this");
-        undoBtn.addEventListener("click", () => applyRenameLogEntryDirection(logEntry, "undo"));
-        const redoBtn = document.createElement("button");
-        setIconLabel(redoBtn, "\u21AA Redo this");
-        redoBtn.className = "primary";
-        redoBtn.addEventListener("click", () => applyRenameLogEntryDirection(logEntry, "redo"));
-        actions.appendChild(undoBtn);
-        actions.appendChild(redoBtn);
-        row.appendChild(actions);
-      } else if (PIXEL_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
-        const actions = document.createElement("div");
-        actions.className = "log-actions";
-        const undoBtn = document.createElement("button");
-        setIconLabel(undoBtn, "\u21A9 Undo this");
-        undoBtn.addEventListener("click", () => applyPixelLogEntryDirection(logEntry, "undo"));
-        const redoBtn = document.createElement("button");
-        setIconLabel(redoBtn, "\u21AA Redo this");
-        redoBtn.className = "primary";
-        redoBtn.addEventListener("click", () => applyPixelLogEntryDirection(logEntry, "redo"));
-        actions.appendChild(undoBtn);
-        actions.appendChild(redoBtn);
-        row.appendChild(actions);
-      } else if (ISOLATE_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
-        const actions = document.createElement("div");
-        actions.className = "log-actions";
-        const undoBtn = document.createElement("button");
-        setIconLabel(undoBtn, "\u21A9 Undo this");
-        undoBtn.addEventListener("click", () => applyIsolateLogEntryDirection(logEntry, "undo"));
-        const redoBtn = document.createElement("button");
-        setIconLabel(redoBtn, "\u21AA Redo this");
-        redoBtn.className = "primary";
-        redoBtn.addEventListener("click", () => applyIsolateLogEntryDirection(logEntry, "redo"));
-        actions.appendChild(undoBtn);
-        actions.appendChild(redoBtn);
-        row.appendChild(actions);
-      } else if (REVIEW_TYPES.has(logEntry.type) && logEntry.affected && logEntry.affected.length) {
-        const actions = document.createElement("div");
-        actions.className = "log-actions";
-        const undoBtn = document.createElement("button");
-        setIconLabel(undoBtn, "\u21A9 Undo this");
-        undoBtn.addEventListener("click", () => applyReviewLogEntryDirection(logEntry, "undo"));
-        const redoBtn = document.createElement("button");
-        setIconLabel(redoBtn, "\u21AA Redo this");
-        redoBtn.className = "primary";
-        redoBtn.addEventListener("click", () => applyReviewLogEntryDirection(logEntry, "redo"));
-        actions.appendChild(undoBtn);
-        actions.appendChild(redoBtn);
-        row.appendChild(actions);
+        if (logEntry.affected.length === 1) {
+          const a = logEntry.affected[0];
+          const entry = resolveAffected(a);
+          if (MOVE_TYPES.has(logEntry.type)) {
+            const toggleBtn = document.createElement("button");
+            toggleBtn.textContent = logEntry.type === "disable" ? "Restore image" : "Disable image again";
+            toggleBtn.className = "primary";
+            toggleBtn.disabled = !entry;
+            toggleBtn.addEventListener("click", async () => {
+              if (!entry) return;
+              toggleBtn.disabled = true;
+              await toggleAffectedMove(logEntry, entry);
+              renderLogPanel();
+            });
+            actions.appendChild(toggleBtn);
+          } else {
+            const undoBtn = document.createElement("button");
+            setIconLabel(undoBtn, "\u21A9 Undo this");
+            undoBtn.disabled = !entry;
+            undoBtn.addEventListener("click", () => {
+              void runAffected(logEntry, a, "undo", () => {
+              });
+            });
+            const redoBtn = document.createElement("button");
+            setIconLabel(redoBtn, "\u21AA Redo this");
+            redoBtn.className = "primary";
+            redoBtn.disabled = !entry;
+            redoBtn.addEventListener("click", () => {
+              void runAffected(logEntry, a, "redo", () => {
+              });
+            });
+            actions.appendChild(undoBtn);
+            actions.appendChild(redoBtn);
+          }
+          const showImg = affectedImageButton(entry);
+          if (showImg) actions.insertBefore(showImg, actions.firstChild);
+          row.appendChild(actions);
+          if (!entry) {
+            const warn = document.createElement("div");
+            warn.className = "log-missing-warn";
+            setIconLabel(warn, "\u26A0\uFE0F Image not found in Dataset");
+            row.appendChild(warn);
+          }
+        } else {
+          const chevron = document.createElement("button");
+          chevron.className = "log-stack-btn";
+          chevron.title = "Show each image in this edit and undo/redo them individually";
+          setIconLabel(chevron, `\u25B8 ${logEntry.affected.length} images`);
+          chevron.addEventListener("click", () => openLogStackModal(logEntry));
+          actions.appendChild(chevron);
+          row.appendChild(actions);
+        }
       }
       logList.appendChild(row);
     }
-    if (editLog.length > 150) {
-      const note = document.createElement("div");
-      note.className = "log-empty";
-      note.textContent = `Showing the latest 150 of ${editLog.length} entries \u2014 the rest are still in ${LOG_FILE_NAME}.`;
-      logList.appendChild(note);
+    renderPager(totalPages);
+  }
+  function orderedLog() {
+    const arr = editLog.filter((e) => !logTypeFilter || e.type === logTypeFilter);
+    return logOrder === "oldest" ? arr : arr.reverse();
+  }
+  function pagerPages(total, current) {
+    if (total <= 7) {
+      const all = [];
+      for (let p = 1; p <= total; p++) all.push(p);
+      return all;
+    }
+    const start = Math.min(Math.max(current - 2, 1), total - 4);
+    const pages = [];
+    if (start > 1) {
+      pages.push(1);
+      if (start > 2) pages.push(-1);
+    }
+    for (let p = start; p < start + 5; p++) pages.push(p);
+    if (start + 4 < total) {
+      if (start + 4 < total - 1) pages.push(-1);
+      pages.push(total);
+    }
+    return pages;
+  }
+  function renderPager(totalPages) {
+    logPager.innerHTML = "";
+    if (totalPages <= 1) return;
+    for (const p of pagerPages(totalPages, logPage)) {
+      const btn = document.createElement("button");
+      if (p === -1) {
+        btn.className = "log-page log-page-gap";
+        btn.textContent = "\u2026";
+        btn.title = "Jump to page";
+        btn.addEventListener("click", () => {
+          void jumpToLogPage(totalPages);
+        });
+      } else {
+        btn.className = "log-page" + (p === logPage ? " active" : "");
+        btn.textContent = String(p);
+        btn.title = `Page ${p}`;
+        btn.addEventListener("click", () => {
+          logPage = p;
+          renderLogPanel();
+        });
+      }
+      logPager.appendChild(btn);
     }
   }
-  function applyLogEntryDirection(logEntry, direction) {
-    const count = applyTagDirectionRef(logEntry.affected, direction);
-    if (count === 0) {
-      toast("None of the affected images are in the loaded dataset anymore.");
-      return;
-    }
-    const verb = direction === "undo" ? "Undid" : "Redid";
-    pushLogEntry({
-      type: direction,
-      summary: `${verb} (from log): ${logEntry.summary}`,
-      affected: logEntry.affected
-    });
-    trackStatRef(direction === "undo" ? "undos" : "redos");
-    toast(`${verb} that edit.`);
-    refreshAllUIRef();
+  async function jumpToLogPage(totalPages) {
+    const v = await showPromptModal(`Jump to page (1\u2013${totalPages})`, { okLabel: "Go", value: String(logPage) });
+    if (v == null) return;
+    const n = parseInt(v, 10);
+    if (!Number.isFinite(n)) return;
+    const next = Math.min(totalPages, Math.max(1, n));
+    if (next === logPage) return;
+    logPage = next;
     renderLogPanel();
-    checkAchievementsRef();
   }
-  async function applyRenameLogEntryDirection(logEntry, direction) {
-    const count = await applyRenameDirectionRef(logEntry.affected, direction);
-    if (count === 0) {
-      toast("None of the affected images are in the loaded dataset anymore.");
-      return;
-    }
-    const verb = direction === "undo" ? "Undid" : "Redid";
-    pushLogEntry({
-      type: direction,
-      summary: `${verb} (from log): ${logEntry.summary}`,
-      affected: logEntry.affected
-    });
-    trackStatRef(direction === "undo" ? "undos" : "redos");
-    toast(`${verb} ${count} of ${logEntry.affected.length} rename(s).`);
-    refreshAllUIRef();
-    renderLogPanel();
-    checkAchievementsRef();
+  function logEntryHasActions(logEntry) {
+    return TAG_TYPES.has(logEntry.type) || MOVE_TYPES.has(logEntry.type) || RENAME_TYPES.has(logEntry.type) || PIXEL_TYPES.has(logEntry.type) || ISOLATE_TYPES.has(logEntry.type) || REVIEW_TYPES.has(logEntry.type);
   }
-  async function applyPixelLogEntryDirection(logEntry, direction) {
-    const count = await applyPixelDirectionRef(logEntry.affected, direction);
-    if (count === 0) {
-      toast("That image edit can no longer be restored (it was from an earlier session, or the image is gone).");
-      return;
-    }
-    const verb = direction === "undo" ? "Undid" : "Redid";
-    pushLogEntry({
-      type: direction,
-      summary: `${verb} (from log): ${logEntry.summary}`,
-      affected: logEntry.affected
-    });
-    trackStatRef(direction === "undo" ? "undos" : "redos");
-    toast(`${verb} that edit.`);
-    refreshAllUIRef();
-    renderLogPanel();
-    checkAchievementsRef();
+  async function applyAffectedDirection(logEntry, a, direction) {
+    const one = [a];
+    if (PIXEL_TYPES.has(logEntry.type)) return applyPixelDirectionRef(one, direction);
+    if (ISOLATE_TYPES.has(logEntry.type)) return applyIsolateDirectionRef(one, direction);
+    if (REVIEW_TYPES.has(logEntry.type)) return applyFlaggedReviewDirectionRef(one, direction);
+    if (RENAME_TYPES.has(logEntry.type)) return applyRenameDirectionRef(one, direction);
+    return applyTagDirectionRef(one, direction);
   }
-  async function applyIsolateLogEntryDirection(logEntry, direction) {
-    const count = await applyIsolateDirectionRef(logEntry.affected, direction);
-    if (count === 0) {
-      toast("That isolated image can no longer be restored (it was from an earlier session, or the file is gone).");
-      return;
-    }
-    const verb = direction === "undo" ? "Undid" : "Redid";
-    pushLogEntry({
-      type: direction,
-      summary: `${verb} (from log): ${logEntry.summary}`,
-      affected: logEntry.affected
-    });
-    trackStatRef(direction === "undo" ? "undos" : "redos");
-    toast(`${verb} that edit.`);
-    refreshAllUIRef();
-    renderLogPanel();
-    checkAchievementsRef();
-  }
-  function applyReviewLogEntryDirection(logEntry, direction) {
-    const count = applyFlaggedReviewDirectionRef(logEntry.affected, direction);
-    if (count === 0) {
-      toast("None of the affected images are in the loaded dataset anymore.");
-      return;
-    }
-    const verb = direction === "undo" ? "Undid" : "Redid";
-    pushLogEntry({
-      type: direction,
-      summary: `${verb} (from log): ${logEntry.summary}`,
-      affected: logEntry.affected
-    });
-    trackStatRef(direction === "undo" ? "undos" : "redos");
-    toast(`${verb} that edit.`);
-    refreshAllUIRef();
-    renderLogPanel();
-    checkAchievementsRef();
-  }
-  async function toggleMoveLogEntry(logEntry) {
-    const base = logEntry.affected[0]?.base;
-    const e = base ? getEntryByBase(base) : null;
-    if (!e) {
-      toast("That image is no longer in the loaded dataset.");
-      return;
-    }
+  async function toggleAffectedMove(logEntry, e) {
     const shouldBeDisabled = logEntry.type !== "disable";
     if (e.disabled === shouldBeDisabled) {
       toast("Already in that state.");
       return;
     }
     await moveEntryRef(e, shouldBeDisabled);
+  }
+  function buildAffectedActionButtons(logEntry, a, entry, after) {
+    const btns = document.createElement("div");
+    btns.className = "log-stack-actions";
+    if (MOVE_TYPES.has(logEntry.type)) {
+      const toggleBtn = document.createElement("button");
+      toggleBtn.textContent = logEntry.type === "disable" ? "Restore image" : "Disable image again";
+      toggleBtn.className = "primary";
+      toggleBtn.disabled = !entry;
+      toggleBtn.addEventListener("click", async () => {
+        if (!entry) return;
+        toggleBtn.disabled = true;
+        await toggleAffectedMove(logEntry, entry);
+        renderLogPanel();
+        after();
+      });
+      btns.appendChild(toggleBtn);
+    } else {
+      const undoBtn = document.createElement("button");
+      setIconLabel(undoBtn, "\u21A9 Undo");
+      undoBtn.disabled = !entry;
+      undoBtn.addEventListener("click", () => {
+        void runAffected(logEntry, a, "undo", after);
+      });
+      const redoBtn = document.createElement("button");
+      setIconLabel(redoBtn, "\u21AA Redo");
+      redoBtn.className = "primary";
+      redoBtn.disabled = !entry;
+      redoBtn.addEventListener("click", () => {
+        void runAffected(logEntry, a, "redo", after);
+      });
+      btns.appendChild(undoBtn);
+      btns.appendChild(redoBtn);
+    }
+    return btns;
+  }
+  async function runAffected(logEntry, a, direction, after) {
+    const count = await applyAffectedDirection(logEntry, a, direction);
+    if (count === 0) {
+      toast("That edit can no longer be applied.");
+      return;
+    }
+    const verb = direction === "undo" ? "Undid" : "Redid";
+    pushLogEntry({ type: direction, summary: `${verb} (from log): ${logEntry.summary}`, affected: [a] });
+    trackStatRef(direction === "undo" ? "undos" : "redos");
+    toast(`${verb} that edit.`);
+    refreshAllUIRef();
     renderLogPanel();
+    after();
+    checkAchievementsRef();
+  }
+  function openLogStackModal(logEntry) {
+    const { box, close } = createModalShell({ boxClassName: "log-stack-box" });
+    const head = document.createElement("div");
+    head.className = "info-modal-title";
+    head.textContent = `Edit stack \u2014 ${logEntry.type}`;
+    box.appendChild(head);
+    const sub = document.createElement("div");
+    sub.className = "log-stack-sub";
+    sub.textContent = logEntry.summary;
+    box.appendChild(sub);
+    const list = document.createElement("div");
+    list.className = "log-stack-list";
+    box.appendChild(list);
+    function renderItems() {
+      list.innerHTML = "";
+      logEntry.affected.forEach((a, i) => {
+        const entry = resolveAffected(a);
+        const item = document.createElement("div");
+        item.className = "log-stack-item" + (entry ? "" : " missing");
+        const order = document.createElement("span");
+        order.className = "log-stack-order";
+        order.textContent = String(i + 1);
+        item.appendChild(order);
+        const thumb = document.createElement("div");
+        thumb.className = "log-stack-thumb";
+        if (entry && entry.objectUrl) {
+          const img = document.createElement("img");
+          img.src = entry.objectUrl;
+          img.alt = "";
+          img.loading = "lazy";
+          thumb.appendChild(img);
+          thumb.classList.add("clickable");
+          thumb.title = "Show this image in the lightbox";
+          thumb.addEventListener("click", () => showImageLightbox(entry.objectUrl));
+        } else {
+          thumb.innerHTML = iconSvg("alert");
+        }
+        item.appendChild(thumb);
+        const info = document.createElement("div");
+        info.className = "log-stack-info";
+        const name = document.createElement("div");
+        name.className = "log-stack-name";
+        name.textContent = entry && (entry.imgName || entry.base) || a.base;
+        info.appendChild(name);
+        if (!entry) {
+          const warn = document.createElement("div");
+          warn.className = "log-missing-warn";
+          setIconLabel(warn, "\u26A0\uFE0F Image not found in Dataset");
+          info.appendChild(warn);
+        }
+        item.appendChild(info);
+        item.appendChild(buildAffectedActionButtons(logEntry, a, entry, renderItems));
+        list.appendChild(item);
+      });
+    }
+    renderItems();
+    const btnRow = document.createElement("div");
+    btnRow.className = "confirm-btn-row";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "primary";
+    closeBtn.textContent = "Close";
+    closeBtn.addEventListener("click", close);
+    btnRow.appendChild(closeBtn);
+    box.appendChild(btnRow);
+  }
+  function openImageEditsModal(entry) {
+    const relevant = editLog.filter((e) => (e.affected || []).some((a) => a.base === entry.base && !!a.original === !!entry.original)).sort((a, b) => b.id - a.id);
+    const { box, close } = createModalShell({ boxClassName: "log-stack-box" });
+    const head = document.createElement("div");
+    head.className = "info-modal-title";
+    head.textContent = `Edits for ${entry.imgName || entry.base}`;
+    box.appendChild(head);
+    const sub = document.createElement("div");
+    sub.className = "log-stack-sub";
+    sub.textContent = relevant.length ? `${relevant.length} logged edit${relevant.length === 1 ? "" : "s"} \u2014 newest first. Undo/Redo reverses that edit for this image.` : "No edits have been logged for this image yet.";
+    box.appendChild(sub);
+    const list = document.createElement("div");
+    list.className = "log-stack-list";
+    box.appendChild(list);
+    function renderItems() {
+      list.innerHTML = "";
+      for (const logEntry of relevant) {
+        const row = document.createElement("div");
+        row.className = "log-row";
+        const meta = document.createElement("div");
+        meta.className = "log-meta";
+        const time = document.createElement("span");
+        time.className = "log-time";
+        time.textContent = formatLogTime(logEntry.ts);
+        const type = document.createElement("span");
+        type.className = "log-type";
+        type.textContent = STAT_TYPE_LABEL[logEntry.type] || logEntry.type;
+        meta.appendChild(time);
+        meta.appendChild(type);
+        const rowSummary = document.createElement("div");
+        rowSummary.className = "log-summary";
+        rowSummary.textContent = logEntry.summary;
+        row.appendChild(meta);
+        row.appendChild(rowSummary);
+        const a = logEntry.affected.find((x) => x.base === entry.base && !!x.original === !!entry.original);
+        if (a && logEntryHasActions(logEntry)) {
+          row.appendChild(buildAffectedActionButtons(logEntry, a, entry, renderItems));
+        }
+        list.appendChild(row);
+      }
+    }
+    renderItems();
+    const btnRow = document.createElement("div");
+    btnRow.className = "confirm-btn-row";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "primary";
+    closeBtn.textContent = "Close";
+    closeBtn.addEventListener("click", close);
+    btnRow.appendChild(closeBtn);
+    box.appendChild(btnRow);
   }
   function initEditLog(deps3) {
     getDirHandle2 = deps3.getDirHandle;
-    getEntryByBase = deps3.getEntryByBase;
     applyTagDirectionRef = deps3.applyTagDirection;
     applyRenameDirectionRef = deps3.applyRenameDirection;
     applyPixelDirectionRef = deps3.applyPixelDirection;
@@ -5954,6 +6124,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     refreshAllUIRef = deps3.refreshAllUI;
     getUndoStack = deps3.getUndoStack;
     getRedoStack = deps3.getRedoStack;
+    resolveAffected = deps3.resolveAffected;
     statsViewPie.addEventListener("click", () => {
       statsChartMode = "pie";
       statsViewPie.classList.add("active");
@@ -5966,6 +6137,36 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       statsViewPie.classList.remove("active");
       renderStatsTab();
     });
+    let typeDropdown = null;
+    function buildLogTypeDropdown() {
+      const present = new Set(editLog.map((e) => e.type));
+      const options = [
+        { value: "", label: "All edit types" },
+        ...Array.from(present).sort((a, b) => (STAT_TYPE_LABEL[a] || a).localeCompare(STAT_TYPE_LABEL[b] || b)).map((t) => ({ value: t, label: STAT_TYPE_LABEL[t] || t }))
+      ];
+      if (logTypeFilter && !present.has(logTypeFilter)) logTypeFilter = "";
+      typeDropdown = buildPersistentDropdown(
+        logTypeDropdown,
+        options,
+        () => logTypeFilter,
+        (v) => {
+          logTypeFilter = v;
+          logPage = 1;
+          renderLogPanel();
+        }
+      );
+    }
+    function refreshOrderBtn() {
+      setIconLabel(logOrderBtn, logOrder === "newest" ? "Newest \u25BE" : "Oldest \u25B4");
+      logOrderBtn.title = logOrder === "newest" ? "Switch to oldest first" : "Switch to newest first";
+    }
+    refreshOrderBtn();
+    logOrderBtn.addEventListener("click", () => {
+      logOrder = logOrder === "newest" ? "oldest" : "newest";
+      refreshOrderBtn();
+      logPage = 1;
+      renderLogPanel();
+    });
     btnLog.addEventListener("click", (ev) => {
       ev.stopPropagation();
       if (logPanel.style.display === "flex") {
@@ -5976,6 +6177,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       hidePanel(achievementsPanel);
       hidePanel(shopPanel);
       hidePanel(tagDetailsPanel);
+      logPage = 1;
+      buildLogTypeDropdown();
       renderLogPanel();
       showPanel(logPanel);
     });
@@ -6595,26 +6798,25 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   // src/renderer/tags-edit.ts
   var undoStack = [];
   var redoStack = [];
+  var undoRedoBusy = false;
   var pixelStates = /* @__PURE__ */ new Map();
   var isolateStates = /* @__PURE__ */ new Map();
   function getIsolateState(id) {
     return isolateStates.get(id);
   }
   function recordIsolateChange(summary, base, state) {
-    const affected = [{ base }];
-    const logEntry = pushLogEntry({ type: "isolate-image", summary, affected });
-    affected[0].logId = logEntry.id;
+    const logEntry = pushLogEntry({ type: "isolate-image", summary, affected: [{ base }] });
+    logEntry.affected[0].logId = logEntry.id;
     isolateStates.set(logEntry.id, state);
-    undoStack.push({ type: "isolate-image", summary, affected });
+    undoStack.push({ type: "isolate-image", summary, affected: [{ base, logId: logEntry.id }] });
     redoStack = [];
     updateUndoRedoButtons();
   }
   function recordPixelChange(type, summary, base, state) {
-    const affected = [{ base }];
-    const logEntry = pushLogEntry({ type, summary, affected });
-    affected[0].logId = logEntry.id;
+    const logEntry = pushLogEntry({ type, summary, affected: [{ base }] });
+    logEntry.affected[0].logId = logEntry.id;
     pixelStates.set(logEntry.id, state);
-    undoStack.push({ type, summary, affected });
+    undoStack.push({ type, summary, affected: [{ base, logId: logEntry.id }] });
     redoStack = [];
     updateUndoRedoButtons();
   }
@@ -6648,7 +6850,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     return count;
   }
   var getEntries2 = () => [];
-  var getEntryByBase2 = () => void 0;
+  var getEntryByBase = () => void 0;
   var getDirHandle4 = () => null;
   var getDisabledDirHandle = () => null;
   var setDisabledDirHandle = () => {
@@ -6793,7 +6995,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     checkAchievements();
   }
   function recordChange(type, summary, affected, extra = {}) {
-    const record = { type, summary, affected, ...extra };
+    const record = { type, summary, affected: affected.map((a) => ({ ...a })), ...extra };
     undoStack.push(record);
     redoStack = [];
     updateUndoRedoButtons();
@@ -6802,7 +7004,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   }
   function entryForAffected(a) {
     if (a.original) return getEntries2().find((e) => e.original && e.base === a.base);
-    return getEntryByBase2(a.base);
+    return getEntryByBase(a.base);
+  }
+  function resolveAffected2(a) {
+    return entryForAffected(a);
   }
   function applyTagDirection(affected, direction) {
     let count = 0;
@@ -7041,7 +7246,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       if (!a.prevBase || !a.prevImgName || !a.newImgName) continue;
       const fromBase = direction === "undo" ? a.base : a.prevBase;
       const toBase = direction === "undo" ? a.prevBase : a.base;
-      const entry = getEntryByBase2(fromBase);
+      const entry = getEntryByBase(fromBase);
       if (!entry) continue;
       const dir = entry.disabled ? disabledDirHandle : dirHandle;
       if (!dir) continue;
@@ -7082,7 +7287,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   }
   function initTagsEdit(deps3) {
     getEntries2 = deps3.getEntries;
-    getEntryByBase2 = deps3.getEntryByBase;
+    getEntryByBase = deps3.getEntryByBase;
     getDirHandle4 = deps3.getDirHandle;
     getDisabledDirHandle = deps3.getDisabledDirHandle;
     setDisabledDirHandle = deps3.setDisabledDirHandle;
@@ -7095,30 +7300,52 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     applyIsolateDirectionRef2 = deps3.applyIsolateDirection;
     applyFlaggedReviewDirectionRef2 = deps3.applyFlaggedReviewDirection;
     btnUndo.addEventListener("click", async () => {
+      if (undoRedoBusy) return;
       const record = undoStack.pop();
       if (!record) return;
-      const count = PIXEL_TYPES.has(record.type) ? await applyPixelDirection(record.affected, "undo") : ISOLATE_TYPES.has(record.type) ? await applyIsolateDirectionRef2(record.affected, "undo") : REVIEW_TYPES.has(record.type) ? applyFlaggedReviewDirectionRef2(record.affected, "undo") : applyTagDirection(record.affected, "undo");
-      redoStack.push(record);
-      updateUndoRedoButtons();
-      const summary = `Undid: ${record.summary}`;
-      toast(count > 0 ? summary : "Nothing to undo on the currently loaded images.");
-      pushLogEntry({ type: "undo", summary, affected: record.affected });
-      trackStat("undos");
-      refreshAllUIRef3();
-      checkAchievements();
+      undoRedoBusy = true;
+      try {
+        const count = PIXEL_TYPES.has(record.type) ? await applyPixelDirection(record.affected, "undo") : ISOLATE_TYPES.has(record.type) ? await applyIsolateDirectionRef2(record.affected, "undo") : REVIEW_TYPES.has(record.type) ? applyFlaggedReviewDirectionRef2(record.affected, "undo") : applyTagDirection(record.affected, "undo");
+        if (count === 0) {
+          undoStack.push(record);
+          toast("Nothing to undo on the currently loaded images.");
+          return;
+        }
+        redoStack.push(record);
+        updateUndoRedoButtons();
+        const summary = `Undid: ${record.summary}`;
+        toast(summary);
+        pushLogEntry({ type: "undo", summary, affected: record.affected });
+        trackStat("undos");
+        refreshAllUIRef3();
+        checkAchievements();
+      } finally {
+        undoRedoBusy = false;
+      }
     });
     btnRedo.addEventListener("click", async () => {
+      if (undoRedoBusy) return;
       const record = redoStack.pop();
       if (!record) return;
-      const count = PIXEL_TYPES.has(record.type) ? await applyPixelDirection(record.affected, "redo") : ISOLATE_TYPES.has(record.type) ? await applyIsolateDirectionRef2(record.affected, "redo") : REVIEW_TYPES.has(record.type) ? applyFlaggedReviewDirectionRef2(record.affected, "redo") : applyTagDirection(record.affected, "redo");
-      undoStack.push(record);
-      updateUndoRedoButtons();
-      const summary = `Redid: ${record.summary}`;
-      toast(count > 0 ? summary : "Nothing to redo on the currently loaded images.");
-      pushLogEntry({ type: "redo", summary, affected: record.affected });
-      trackStat("redos");
-      refreshAllUIRef3();
-      checkAchievements();
+      undoRedoBusy = true;
+      try {
+        const count = PIXEL_TYPES.has(record.type) ? await applyPixelDirection(record.affected, "redo") : ISOLATE_TYPES.has(record.type) ? await applyIsolateDirectionRef2(record.affected, "redo") : REVIEW_TYPES.has(record.type) ? applyFlaggedReviewDirectionRef2(record.affected, "redo") : applyTagDirection(record.affected, "redo");
+        if (count === 0) {
+          redoStack.push(record);
+          toast("Nothing to redo on the currently loaded images.");
+          return;
+        }
+        undoStack.push(record);
+        updateUndoRedoButtons();
+        const summary = `Redid: ${record.summary}`;
+        toast(summary);
+        pushLogEntry({ type: "redo", summary, affected: record.affected });
+        trackStat("redos");
+        refreshAllUIRef3();
+        checkAchievements();
+      } finally {
+        undoRedoBusy = false;
+      }
     });
     btnSave.addEventListener("click", () => saveAllDirty());
   }
@@ -9257,6 +9484,36 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     }
   }
   var SETTINGS_KEY = "dts-bucket-settings";
+  var SIZES_KEY = "dts-bucket-sizes";
+  var BUCKET_DEFAULTS = { min: 512, max: 1024, step: 64 };
+  var SIZE_FIELDS = [
+    ["min", "bucketSideMin", "tfBucketMin"],
+    ["max", "bucketSideMax", "tfBucketMax"],
+    ["step", "bucketSideStep", "tfBucketStep"]
+  ];
+  var field = (id) => document.getElementById(id);
+  function applyDatasetBucketSizes() {
+    const name = getDirHandle8()?.name;
+    const saved = name ? getJSON(SIZES_KEY, {})[name] : void 0;
+    for (const [k, dockId, tfId] of SIZE_FIELDS) {
+      const v = String(saved?.[k] ?? BUCKET_DEFAULTS[k]);
+      for (const id of [dockId, tfId]) {
+        const el = field(id);
+        if (el) el.value = v;
+      }
+    }
+  }
+  function saveDatasetBucketSizes() {
+    const name = getDirHandle8()?.name;
+    if (!name) return;
+    const map = getJSON(SIZES_KEY, {});
+    map[name] = { ...BUCKET_DEFAULTS };
+    for (const [k, dockId] of SIZE_FIELDS) {
+      const n = parseInt(field(dockId)?.value || "", 10);
+      if (n > 0) map[name][k] = n;
+    }
+    setJSON(SIZES_KEY, map);
+  }
   var getDirHandle8 = () => null;
   var getEntries3 = () => [];
   var getDisabledDirHandle2 = () => null;
@@ -9276,9 +9533,9 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     bucketLog.textContent = "";
   }
   function params() {
-    const sideMin = Math.max(64, parseInt(bucketSideMin.value, 10) || 256);
-    const sideMax = Math.max(sideMin, parseInt(bucketSideMax.value, 10) || 1024);
-    const step = Math.max(16, parseInt(bucketSideStep.value, 10) || 64);
+    const sideMin = Math.max(64, parseInt(bucketSideMin.value, 10) || BUCKET_DEFAULTS.min);
+    const sideMax = Math.max(sideMin, parseInt(bucketSideMax.value, 10) || BUCKET_DEFAULTS.max);
+    const step = Math.max(16, parseInt(bucketSideStep.value, 10) || BUCKET_DEFAULTS.step);
     return { sideMin, sideMax, step };
   }
   async function imageDimensions(file) {
@@ -9607,6 +9864,15 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     const saved = getJSON(SETTINGS_KEY, null);
     if (saved && typeof saved.gpu === "boolean") bucketGpu.checked = saved.gpu;
     bucketGpu.addEventListener("change", () => setJSON(SETTINGS_KEY, { gpu: bucketGpu.checked }));
+    for (const [, dockId, tfId] of SIZE_FIELDS) {
+      const pair = [field(dockId), field(tfId)];
+      pair.forEach((el, i) => el?.addEventListener("input", () => {
+        const other = pair[1 - i];
+        if (other) other.value = el.value;
+        saveDatasetBucketSizes();
+      }));
+    }
+    applyDatasetBucketSizes();
     btnBucketRun.addEventListener("click", () => {
       void run();
     });
@@ -9679,7 +9945,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     return row;
   }
   var getEntries4 = () => [];
-  var getEntryByBase3 = () => void 0;
+  var getEntryByBase2 = () => void 0;
   var filteredEntriesRef = () => [];
   var renderCurrentViewRef2 = () => {
   };
@@ -9780,7 +10046,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
   };
   function initMasterTagControl(deps3) {
     getEntries4 = deps3.getEntries;
-    getEntryByBase3 = deps3.getEntryByBase;
+    getEntryByBase2 = deps3.getEntryByBase;
     filteredEntriesRef = deps3.filteredEntries;
     renderCurrentViewRef2 = deps3.renderCurrentView;
     refreshAllUIRef4 = deps3.refreshAllUI;
@@ -20600,6 +20866,7 @@ Image: ${entry.imgName}`,
   // src/renderer/trainflow.ts
   var PATHS_KEY = "dts-trainflow-dataset-paths";
   var STORAGE_KEY = "dts-trainflow-settings";
+  var LR_AUTO_MIGRATED_KEY = "dts-trainflow-lr-auto-migrated";
   var POLL_MS = 2e3;
   var DEFAULTS = {
     trigger: "",
@@ -20616,16 +20883,42 @@ Image: ${entry.imgName}`,
     batchSize: 1,
     gradAcc: 1,
     trainSeed: 42,
-    bucketMin: 256,
-    bucketMax: 1024,
-    bucketStep: 64,
+    bucketMin: BUCKET_DEFAULTS.min,
+    bucketMax: BUCKET_DEFAULTS.max,
+    bucketStep: BUCKET_DEFAULTS.step,
     prompt: "",
     negPrompt: "worst quality, low quality, score_1, score_2, score_3, artist name",
     width: 1024,
     height: 1024,
     sampleGenSteps: 30,
     cfg: 4,
-    sampleSeed: 42
+    sampleSeed: 42,
+    // Advanced — these match the trainer's / app's previous fixed defaults, so the
+    // untouched form writes the same TOML as before.
+    advAlpha: 0,
+    advNetworkDropout: 0,
+    advTrainTextEncoder: false,
+    advLrScheduler: "",
+    advLrWarmup: 0,
+    advMixedPrecision: "bf16",
+    advSavePrecision: "bf16",
+    advTimestepSampling: "sigmoid",
+    advWeighting: "logit_normal",
+    advFlowShift: 1,
+    advSigmoidScale: 1.3,
+    advAttn: "sdpa",
+    advTorchCompile: false,
+    advBlocksToSwap: 0,
+    advMaxGradNorm: 1,
+    advGradCheckpointing: true,
+    advDataloaderWorkers: 4,
+    advVaeChunkSize: 0,
+    advVaeDisableCache: true,
+    advNoHalfVae: false,
+    advCaptionDropout: 0.05,
+    advKeepTokens: 1,
+    advRepeats: 0,
+    advSampleSampler: "euler"
   };
   var TEXT_FIELDS = [
     ["trigger", "tfTrigger"],
@@ -20647,7 +20940,38 @@ Image: ${entry.imgName}`,
     ["height", "tfHeight"],
     ["sampleGenSteps", "tfGenSteps"],
     ["cfg", "tfCfg"],
-    ["sampleSeed", "tfSeed"]
+    ["sampleSeed", "tfSeed"],
+    ["trainSeed", "tfTrainSeed"]
+  ];
+  var ADV_SELECT_FIELDS = [
+    ["advLrScheduler", "tfAdvLrScheduler"],
+    ["advMixedPrecision", "tfAdvMixedPrecision"],
+    ["advSavePrecision", "tfAdvSavePrecision"],
+    ["advTimestepSampling", "tfAdvTimestepSampling"],
+    ["advWeighting", "tfAdvWeighting"],
+    ["advAttn", "tfAdvAttn"],
+    ["advSampleSampler", "tfAdvSampleSampler"]
+  ];
+  var ADV_NUM_FIELDS = [
+    ["advAlpha", "tfAdvAlpha"],
+    ["advNetworkDropout", "tfAdvNetworkDropout"],
+    ["advLrWarmup", "tfAdvLrWarmup"],
+    ["advFlowShift", "tfAdvFlowShift"],
+    ["advSigmoidScale", "tfAdvSigmoidScale"],
+    ["advBlocksToSwap", "tfAdvBlocksToSwap"],
+    ["advMaxGradNorm", "tfAdvMaxGradNorm"],
+    ["advDataloaderWorkers", "tfAdvDataloaderWorkers"],
+    ["advVaeChunkSize", "tfAdvVaeChunkSize"],
+    ["advCaptionDropout", "tfAdvCaptionDropout"],
+    ["advKeepTokens", "tfAdvKeepTokens"],
+    ["advRepeats", "tfAdvRepeats"]
+  ];
+  var ADV_BOOL_FIELDS = [
+    ["advTrainTextEncoder", "tfAdvTrainTextEncoder"],
+    ["advTorchCompile", "tfAdvTorchCompile"],
+    ["advGradCheckpointing", "tfAdvGradCheckpointing"],
+    ["advVaeDisableCache", "tfAdvVaeDisableCache"],
+    ["advNoHalfVae", "tfAdvNoHalfVae"]
   ];
   function isTrainflowSupported() {
     return !!(window.electronAPI && window.electronAPI.trainflowStatus);
@@ -20661,6 +20985,10 @@ Image: ${entry.imgName}`,
       return;
     }
     let settings2 = { ...DEFAULTS, ...getJSON(STORAGE_KEY, {}) };
+    if (!getJSON(LR_AUTO_MIGRATED_KEY, false)) {
+      if (settings2.advLrScheduler === "constant") settings2.advLrScheduler = "";
+      setJSON(LR_AUTO_MIGRATED_KEY, true);
+    }
     let last = null;
     let starting = false;
     let sampleSig = "";
@@ -20670,13 +20998,16 @@ Image: ${entry.imgName}`,
     const save = () => setJSON(STORAGE_KEY, settings2);
     const dockNum = (id, fallback) => Math.max(1, parseInt(document.getElementById(id)?.value || "", 10) || fallback);
     const bucketCfg = () => {
-      const min = Math.max(64, dockNum("bucketSideMin", 256));
-      return { min, max: Math.max(min, dockNum("bucketSideMax", 1024)), step: dockNum("bucketSideStep", 64) };
+      const min = Math.max(64, dockNum("bucketSideMin", BUCKET_DEFAULTS.min));
+      return { min, max: Math.max(min, dockNum("bucketSideMax", BUCKET_DEFAULTS.max)), step: dockNum("bucketSideStep", BUCKET_DEFAULTS.step) };
     };
     function fillForm() {
       for (const [k, id] of TEXT_FIELDS) inputEl2(id).value = String(settings2[k]);
       for (const [k, id] of NUM_FIELDS) inputEl2(id).value = String(settings2[k]);
+      for (const [k, id] of ADV_NUM_FIELDS) inputEl2(id).value = String(settings2[k]);
       $("tfOptimizer").value = settings2.optimizer;
+      for (const [k, id] of ADV_SELECT_FIELDS) $(id).value = String(settings2[k]);
+      for (const [k, id] of ADV_BOOL_FIELDS) $(id).checked = !!settings2[k];
     }
     fillForm();
     for (const [k, id] of TEXT_FIELDS) {
@@ -20685,13 +21016,25 @@ Image: ${entry.imgName}`,
         save();
       });
     }
-    for (const [k, id] of NUM_FIELDS) {
+    for (const [k, id] of [...NUM_FIELDS, ...ADV_NUM_FIELDS]) {
       inputEl2(id).addEventListener("input", () => {
         const v = Number(inputEl2(id).value);
         if (Number.isFinite(v)) {
           settings2[k] = v;
           save();
         }
+      });
+    }
+    for (const [k, id] of ADV_SELECT_FIELDS) {
+      $(id).addEventListener("change", (ev) => {
+        settings2[k] = ev.target.value;
+        save();
+      });
+    }
+    for (const [k, id] of ADV_BOOL_FIELDS) {
+      $(id).addEventListener("change", (ev) => {
+        settings2[k] = ev.target.checked;
+        save();
       });
     }
     let adamLr = "0.00005";
@@ -20830,7 +21173,7 @@ Image: ${entry.imgName}`,
       box.textContent = "Checking\u2026";
       const cfg = bucketCfg();
       const r = await api.trainflowVerifyBuckets(dir, cfg);
-      const lines = [`Bucket sizes for ${cfg.min}\u2013${cfg.max} (step ${cfg.step}), as set in the Bucket Images dock:`];
+      const lines = [`Bucket sizes for ${cfg.min}\u2013${cfg.max} (step ${cfg.step}):`];
       lines.push(r.buckets.map((b) => `${b.w}x${b.h}${b.count ? " (" + b.count + ")" : ""}`).join("  \xB7  "));
       lines.push("");
       lines.push(`${r.images - r.offBucket.length}/${r.images} images are at a valid bucket size.`);
@@ -21234,6 +21577,7 @@ Image: ${entry.imgName}`,
   function applyBackendUI() {
     synthDatServerFields.style.display = backend === "server" ? "" : "none";
     synthDatLocalFields.style.display = backend === "local" ? "" : "none";
+    synthDatAttentionRow.style.display = backend === "local" && hasAttention ? "" : "none";
     synthDatConnStatus.style.display = "none";
     if (backend === "local") void refreshLocalStatus();
   }
@@ -21248,7 +21592,30 @@ Image: ${entry.imgName}`,
   }
   async function refreshLocalStatus() {
     const s = await window.electronAPI.comfyLocalStatus();
+    attention = s.attention || "auto";
+    attentionDrop?.refreshLabel();
     showLocalStatus(s.folder, s.error);
+  }
+  var hasAttention = typeof window.electronAPI?.comfyLocalSetAttention === "function";
+  var attention = "auto";
+  var attentionDrop = null;
+  var ATTENTION_OPTIONS = [
+    { value: "auto", label: "Auto (Flash if installed)" },
+    { value: "flash", label: "FlashAttention" },
+    { value: "sage", label: "SageAttention" },
+    { value: "xformers", label: "xformers" },
+    { value: "pytorch", label: "PyTorch (SDPA)" }
+  ];
+  async function setAttention(mode) {
+    const wasRunning = (await window.electronAPI.comfyLocalStatus()).running;
+    const s = await window.electronAPI.comfyLocalSetAttention(mode);
+    attention = s.attention || mode;
+    attentionDrop?.refreshLabel();
+    if (wasRunning && !s.running) {
+      synthDatConnStatus.style.display = "block";
+      synthDatConnStatus.style.color = "";
+      synthDatConnStatus.textContent = "Osmium Comfy was stopped so the new attention setting can apply. Click Connect to start it again.";
+    }
   }
   async function pickLocalFolder() {
     const s = await window.electronAPI.comfyLocalPickFolder();
@@ -22171,18 +22538,18 @@ Image: ${entry.imgName}`,
     const fieldByDest = { pose: synthDatPose, limbs: synthDatLimbs, scene: synthDatScene, sexual: synthDatSexual };
     const clearFirst = synthDatMigrateClearFirst.checked;
     if (clearFirst) {
-      for (const field2 of Object.values(fieldByDest)) {
-        field2.value = "";
-        growTextarea(field2);
+      for (const field3 of Object.values(fieldByDest)) {
+        field3.value = "";
+        growTextarea(field3);
       }
     }
     let total = 0;
     for (const dest of Object.keys(byDest)) {
       if (byDest[dest].length === 0) continue;
-      const field2 = fieldByDest[dest];
-      const existing = clearFirst ? [] : field2.value.split(",").map((t) => t.trim()).filter(Boolean);
-      field2.value = Array.from(/* @__PURE__ */ new Set([...existing, ...byDest[dest]])).join(", ");
-      growTextarea(field2);
+      const field3 = fieldByDest[dest];
+      const existing = clearFirst ? [] : field3.value.split(",").map((t) => t.trim()).filter(Boolean);
+      field3.value = Array.from(/* @__PURE__ */ new Set([...existing, ...byDest[dest]])).join(", ");
+      growTextarea(field3);
       total += byDest[dest].length;
     }
     if (total === 0) {
@@ -22906,6 +23273,16 @@ Image: ${entry.imgName}`,
         applyBackendUI();
       });
       btnSynthDatLocalFolder.addEventListener("click", () => void pickLocalFolder());
+      if (hasAttention) {
+        attentionDrop = buildPersistentDropdown(
+          synthDatAttentionDropdown,
+          ATTENTION_OPTIONS,
+          () => attention,
+          (val) => {
+            void setAttention(val);
+          }
+        );
+      }
       applyBackendUI();
     } else {
       synthDatBackendRow.style.display = "none";
@@ -23645,7 +24022,7 @@ Image: ${entry.imgName}`,
     const sizes = BREAST_SIZES.some((t) => entry.tags.includes(t));
     if (!sizes && entry.tags.includes("flat chest") && entry.tags.includes("breasts")) deps2.removeTagFromEntry(entry, "breasts");
   }
-  function field(box, label, hint, value, placeholder, list) {
+  function field2(box, label, hint, value, placeholder, list) {
     const wrap = document.createElement("label");
     wrap.className = "quicktag-edit-field";
     const l = document.createElement("span");
@@ -23686,12 +24063,12 @@ Image: ${entry.imgName}`,
       title.className = "confirm-message";
       title.textContent = `${existing ? "Edit" : "New"} quicktag in ${groupLabel}`;
       box.appendChild(title);
-      const tag = field(box, "Quicktag", "The tag ticking this box writes.", existing?.tag || "", "e.g. very long hair", false);
-      const label = field(box, "Checkbox label (optional)", "What the box says; blank shows the tag.", existing?.label || "", "e.g. Very long", false);
-      const adds = field(box, "Ticking also adds", "Extra tags written with it (commas for several).", (existing?.adds || []).join(", "), "e.g. long hair", true);
-      const keep = field(box, "Keep after unticking", "Which of those extra tags stay when this is unticked (the rest are removed with it).", (existing?.keep || []).join(", "), "e.g. long hair", true);
-      const untickRemoves = field(box, "Unticking also removes", "Other tags taken off when this is unticked.", (existing?.untickRemoves || []).join(", "), "", true);
-      const untickedBy = field(box, "Unticked by", "Ticking any of these tags unticks this quicktag.", (existing?.untickedBy || []).join(", "), "e.g. short hair", true);
+      const tag = field2(box, "Quicktag", "The tag ticking this box writes.", existing?.tag || "", "e.g. very long hair", false);
+      const label = field2(box, "Checkbox label (optional)", "What the box says; blank shows the tag.", existing?.label || "", "e.g. Very long", false);
+      const adds = field2(box, "Ticking also adds", "Extra tags written with it (commas for several).", (existing?.adds || []).join(", "), "e.g. long hair", true);
+      const keep = field2(box, "Keep after unticking", "Which of those extra tags stay when this is unticked (the rest are removed with it).", (existing?.keep || []).join(", "), "e.g. long hair", true);
+      const untickRemoves = field2(box, "Unticking also removes", "Other tags taken off when this is unticked.", (existing?.untickRemoves || []).join(", "), "", true);
+      const untickedBy = field2(box, "Unticked by", "Ticking any of these tags unticks this quicktag.", (existing?.untickedBy || []).join(", "), "e.g. short hair", true);
       const row = document.createElement("div");
       row.className = "confirm-btn-row";
       const cancel = document.createElement("button");
@@ -23909,7 +24286,7 @@ Image: ${entry.imgName}`,
   var commonLanguages = ["English"];
   var autoSelectNewLanguage = true;
   var getEntries7 = () => [];
-  var getEntryByBase4 = () => void 0;
+  var getEntryByBase3 = () => void 0;
   var getDirHandleRef = () => null;
   var addEntryFromNewFileRef = async () => null;
   var getMasterTagModeActive = () => false;
@@ -24207,7 +24584,7 @@ Image: ${entry.imgName}`,
     renderCompactGrid();
   }
   function renderCompactCompareArea() {
-    const stickyEntries = stickyCompareImages.map((b) => getEntryByBase4(b)).filter((e) => !!e);
+    const stickyEntries = stickyCompareImages.map((b) => getEntryByBase3(b)).filter((e) => !!e);
     if (stickyEntries.length === 0) {
       compactCompareArea.style.display = "none";
       return;
@@ -26846,6 +27223,10 @@ Image: ${entry.imgName}`,
       if (!ok) return;
       await deleteEntryPermanentlyRef(entry);
     }, { title: "Permanently delete this image and its tags from disk \u2014 cannot be undone", className: "ctx-item-danger" });
+    addContextMenuItem(menu, "\u{1F4DC} Show all edits associated with this image", () => {
+      closeTagContextMenu();
+      openImageEditsModal(entry);
+    }, { title: "See every edit logged for this image" });
     const draft = {
       hasText: entry.tags.includes("text") || getForeignLangTags(entry).length > 0,
       isJapanese: entry.tags.includes("text"),
@@ -27257,7 +27638,7 @@ Image: ${entry.imgName}`,
       }
     });
     getEntries7 = deps3.getEntries;
-    getEntryByBase4 = deps3.getEntryByBase;
+    getEntryByBase3 = deps3.getEntryByBase;
     getDirHandleRef = deps3.getDirHandle;
     addEntryFromNewFileRef = deps3.addEntryFromNewFile;
     getMasterTagModeActive = deps3.getMasterTagModeActive;
@@ -27354,7 +27735,7 @@ Image: ${entry.imgName}`,
       ev.preventDefault();
       viewDisabledBtn.classList.remove("drag-over");
       const base = ev.dataTransfer.getData("text/plain");
-      const target = getEntryByBase4(base);
+      const target = getEntryByBase3(base);
       if (target && !target.disabled) {
         moveEntry(target, true);
         folderStats.drag_disabled_used = true;
@@ -28201,6 +28582,8 @@ Image: ${entry.imgName}`,
     })();
     document.addEventListener("click", (ev) => {
       if (!panelsCloseOnOutsideClick) return;
+      const target = ev.target;
+      if (target && typeof target.closest === "function" && target.closest(".confirm-backdrop, .lightbox-backdrop, .picker-backdrop")) return;
       let closedAny = false;
       getOutsideClosablePanels().forEach((panel2) => {
         if (panel2.style.display === "flex" && !panel2.contains(ev.target) && !isClickInsideOwnedPdrop(panel2, ev.target)) {
@@ -28663,7 +29046,6 @@ Save your edits first?`,
     });
     initEditLog({
       getDirHandle: () => dirHandle,
-      getEntryByBase: (base) => entryByBase.get(base),
       applyTagDirection: (affected, direction) => applyTagDirection(affected, direction),
       applyRenameDirection: (affected, direction) => applyRenameDirection(affected, direction),
       applyPixelDirection: (affected, direction) => applyPixelDirection(affected, direction),
@@ -28674,7 +29056,8 @@ Save your edits first?`,
       checkAchievements: () => checkAchievements(),
       refreshAllUI: () => refreshAllUI(),
       getUndoStack: () => undoStack,
-      getRedoStack: () => redoStack
+      getRedoStack: () => redoStack,
+      resolveAffected: (a) => resolveAffected2(a)
     });
     initSubjectPresets({ getDirHandle: () => dirHandle });
     initCanonicalTags({
@@ -28905,7 +29288,7 @@ Save your edits first?`,
             const imgHandle = await dirHandle.getFileHandle(st.imgName, { create: true });
             await writeBytes(imgHandle, st.bytes);
             const txtHandle = await dirHandle.getFileHandle(a.base + ".txt", { create: true });
-            await writeBytes(txtHandle, st.tags.map((t) => t.replace(/ /g, "_")).join(","));
+            await writeBytes(txtHandle, st.tags.join(", "));
             const existing = entryByBase.get(a.base);
             if (existing) {
               try {
@@ -29048,6 +29431,7 @@ Save your edits first?`,
     }
     async function loadFolder() {
       await loadFolderCore();
+      applyDatasetBucketSizes();
       window.__dtsDatasetOpened?.();
     }
     async function loadFolderCore() {

@@ -111,7 +111,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       </ul>
       <h3>Open or add images</h3>
       <p><b>File ▸ Open dataset folder</b> picks the folder holding your images and captions. Tags
-      show with spaces in the app and are saved back with underscores, so you never think about it.
+      show with spaces in the app, and captions are saved with spaces too (what Anima expects).
       <b>File ▸ Add images…</b> copies more in, each arriving untagged with an empty
       <code>.txt</code>${isTouchDevice ? ' (you choose which app to pick them from)' : ''}. With no
       dataset open it first offers to create one: name it, choose where its folder goes, and it

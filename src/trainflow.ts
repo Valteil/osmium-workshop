@@ -518,7 +518,7 @@ function status(): TrainflowStatus {
 let prep: TrainflowStatus['prep'];
 
 // Bucket the dataset the way the Bucket Images dock does, using its u2net
-// model and its initial_state/ folder. Idempotent: an image already at a valid
+// model and its original_images/ folder. Idempotent: an image already at a valid
 // bucket size is left alone, so pressing Start again never re-processes or
 // duplicates anything. Returns an error string, or '' when done.
 async function bucketDataset(dir: string, b: { min: number; max: number; step: number }): Promise<string> {

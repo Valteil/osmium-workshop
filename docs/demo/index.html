@@ -947,7 +947,7 @@
               <button id="btnBucketDownloadModel" class="dock-list-open-btn primary" style="display:none;"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-download"></use></svg>Download model (176 MB)</button>
             </div>
             <div class="bucket-params-row">
-              <label>Min side <input type="number" id="bucketSideMin" value="256" min="64" step="64"></label>
+              <label>Min side <input type="number" id="bucketSideMin" value="512" min="64" step="64"></label>
               <label>Max side <input type="number" id="bucketSideMax" value="1024" min="64" step="64"></label>
               <label>Step <input type="number" id="bucketSideStep" value="64" min="16" step="16"></label>
             </div>
@@ -1171,7 +1171,7 @@
       <div class="synthdat-cols">
         <div class="synthdat-col trainflow-col-run">
           <div class="tool-section">
-            <div class="sec-head"><span class="t">Train a LoRA for Anima</span></div>
+            <div class="sec-head"><span class="t">Train a LoRA for Anima or Janima</span></div>
             <div class="sec-head"><span class="d">Nothing starts until you press Start Trainflow. Training runs in the background and keeps going if you close Osmium; reopen it and this tab reconnects to the progress.</span></div>
             <div class="synthdat-lora-row">
               <button id="btnTrainflowStart" class="primary" title="Check everything, then start training this dataset"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-play"></use></svg>Start Trainflow</button>
@@ -1220,14 +1220,19 @@
               </div>
             </div>
             <div id="tfDatasetCheck" class="synthdat-wd14-result"></div>
-            <div class="synthdat-lora-row"><button id="btnTfVerifyBuckets" title="Check the dataset against the Bucket Images dock's Min/Max/Step and list every valid bucket size"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-check-circle"></use></svg>Verify buckets</button></div>
+            <div class="bucket-params-row trainflow-bucket-params" title="Bucket sizes for this dataset. Start Trainflow buckets to these; the same fields as the Gallery's Bucket Images dock, remembered per dataset.">
+              <label>Min side <input type="number" id="tfBucketMin" value="512" min="64" step="64"></label>
+              <label>Max side <input type="number" id="tfBucketMax" value="1024" min="64" step="64"></label>
+              <label>Step <input type="number" id="tfBucketStep" value="64" min="16" step="16"></label>
+            </div>
+            <div class="synthdat-lora-row"><button id="btnTfVerifyBuckets" title="Check the dataset against these bucket sizes and list every valid bucket size"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-check-circle"></use></svg>Verify buckets</button></div>
             <div id="tfBucketReport" class="synthdat-wd14-result trainflow-bucket-report" style="display:none;"></div>
           </div>
 
           <div class="tool-section">
             <div class="sec-head"><span class="t">Models (set once)</span></div>
-            <div class="sec-head"><span class="d">Pick your own copy of Anima and its text encoder and VAE.</span></div>
-            <div class="field-block"><span>DiT</span><div class="synthdat-lora-row"><input type="text" id="tfDit" placeholder="Select your Anima DiT (.safetensors)…"><button class="tf-pick-file" data-target="tfDit" data-title="Choose the Anima DiT">Choose…</button></div></div>
+            <div class="sec-head"><span class="d">Pick your own copy of Anima or Janima and its text encoder and VAE.</span></div>
+            <div class="field-block"><span>DiT</span><div class="synthdat-lora-row"><input type="text" id="tfDit" placeholder="Select your Anima or Janima DiT (.safetensors)…"><button class="tf-pick-file" data-target="tfDit" data-title="Choose the Anima or Janima DiT">Choose…</button></div></div>
             <div class="field-block"><span>Qwen3 text encoder</span><div class="synthdat-lora-row"><input type="text" id="tfQwen" placeholder="Select your Qwen3 text encoder…"><button class="tf-pick-file" data-target="tfQwen" data-title="Choose the Qwen3 text encoder">Choose…</button></div></div>
             <div class="field-block"><span>VAE</span><div class="synthdat-lora-row"><input type="text" id="tfVae" placeholder="Select your Anima VAE…"><button class="tf-pick-file" data-target="tfVae" data-title="Choose the VAE">Choose…</button></div></div>
           </div>
@@ -1243,7 +1248,63 @@
               <label class="field-block"><span>Gradient accumulation</span><input type="number" id="tfGradAcc" min="1" step="1"></label>
               <label class="field-block"><span>Save every n steps</span><input type="number" id="tfSaveSteps" min="1" step="1"></label>
               <label class="field-block"><span>Preview every n steps</span><input type="number" id="tfSampleSteps" min="1" step="1"></label>
+              <label class="field-block" title="Reproducibility seed for training. Same seed + data + steps reproduces a run."><span>Train seed</span><input type="number" id="tfTrainSeed" step="1"></label>
             </div>
+
+            <!-- Power-user knobs. Collapsed by default so the one-button path
+                 stays obvious; every field maps to a real flag in the bundled
+                 Anima-TrainFlow sd-scripts. Empty/0 = the trainer's own default. -->
+            <details class="tf-advanced">
+              <summary title="LoRA alpha, precision, LR schedule, timestep/flow sampling, VRAM knobs and more — all written straight into the generated TOMLs">Advanced (power users)</summary>
+
+              <div class="tf-adv-head">LoRA shape</div>
+              <div class="trainflow-grid">
+                <label class="field-block" title="LoRA weight-scaling alpha. 0 uses Network rank (alpha = rank, the old behaviour). Lower alpha = softer effect."><span>Network alpha</span><input type="number" id="tfAdvAlpha" min="0" step="1"></label>
+                <label class="field-block" title="Dropout on LoRA neurons each step. 0 = off. Useful against overfitting on small datasets."><span>Network dropout</span><input type="number" id="tfAdvNetworkDropout" min="0" max="1" step="0.05"></label>
+                <label class="field-block" title="Off by default: only the DiT/U-Net is trained. On additionally trains the Qwen3 text encoder — slower, more VRAM, can help prompt-following. Turns off text-encoder output caching (the trainer requires it)."><span>Train text encoder</span><label class="ach-toggle-row"><input type="checkbox" id="tfAdvTrainTextEncoder"><span>Also train Qwen3</span></label></label>
+              </div>
+
+              <div class="tf-adv-head">Precision</div>
+              <div class="trainflow-grid">
+                <label class="field-block" title="Training precision. bf16 needs an Ampere+ GPU (RTX 30-series or newer). On older cards pick fp16 or no."><span>Mixed precision</span><select id="tfAdvMixedPrecision"><option>bf16</option><option>fp16</option><option>no</option></select></label>
+                <label class="field-block" title="Precision the checkpoint is written in."><span>Save precision</span><select id="tfAdvSavePrecision"><option>bf16</option><option>fp16</option><option>None</option></select></label>
+                <label class="field-block" title="Keep the VAE in float32 in mixed precision. Slower, but fixes black/NaN output on some VAEs."><span>No half VAE</span><label class="ach-toggle-row"><input type="checkbox" id="tfAdvNoHalfVae"><span>Use float VAE</span></label></label>
+              </div>
+
+              <div class="tf-adv-head">Schedule &amp; flow</div>
+              <div class="trainflow-grid">
+                <label class="field-block" title="Learning-rate schedule. Auto (the default) uses constant for Prodigy and cosine otherwise."><span>LR scheduler</span><select id="tfAdvLrScheduler"><option value="">auto</option><option>constant</option><option>constant_with_warmup</option><option>cosine</option><option>cosine_with_restarts</option><option>linear</option><option>polynomial</option><option>adafactor</option></select></label>
+                <label class="field-block" title="Warm-up steps before the LR schedule starts. 0 = none."><span>LR warmup steps</span><input type="number" id="tfAdvLrWarmup" min="0" step="1"></label>
+                <label class="field-block" title="How timesteps are sampled for this flow-matching model. sigmoid (logit-normal) is the Anima default."><span>Timestep sampling</span><select id="tfAdvTimestepSampling"><option>sigmoid</option><option>uniform</option><option>sigma</option><option>shift</option><option>flux_shift</option></select></label>
+                <label class="field-block" title="Loss weighting. Only sigma_sqrt and cosmap change the loss; the rest leave it unweighted. logit_normal/mode/uniform also pick the timestep density, but only when Timestep sampling is sigma."><span>Weighting</span><select id="tfAdvWeighting"><option>logit_normal</option><option>uniform</option><option>none</option><option>sigma_sqrt</option><option>mode</option><option>cosmap</option></select></label>
+                <label class="field-block" title="Timestep shift for rectified flow. Only used when Timestep sampling is shift. Default 1.0."><span>Flow shift</span><input type="number" id="tfAdvFlowShift" min="0" step="0.1"></label>
+                <label class="field-block" title="Scale factor for sigmoid/logit-normal timestep sampling. Default 1.3."><span>Sigmoid scale</span><input type="number" id="tfAdvSigmoidScale" min="0" step="0.1"></label>
+              </div>
+
+              <div class="tf-adv-head">Regularisation</div>
+              <div class="trainflow-grid">
+                <label class="field-block" title="Max gradient norm for clipping. 0 = the default (1.0)."><span>Max grad norm</span><input type="number" id="tfAdvMaxGradNorm" min="0" step="0.1"></label>
+                <label class="field-block" title="Caption dropout rate (0–1). 0.05 is the default."><span>Caption dropout</span><input type="number" id="tfAdvCaptionDropout" min="0" max="1" step="0.01"></label>
+                <label class="field-block" title="Number of leading caption tokens kept fixed (the trigger). 1 is the default."><span>Keep tokens</span><input type="number" id="tfAdvKeepTokens" min="0" step="1"></label>
+                <label class="field-block" title="Dataset repeats per step budget. 0 = auto-computed from steps and image count (the default)."><span>Dataset repeats</span><input type="number" id="tfAdvRepeats" min="0" step="1"></label>
+              </div>
+
+              <div class="tf-adv-head">Performance &amp; VRAM</div>
+              <div class="trainflow-grid">
+                <label class="field-block" title="Attention implementation. sdpa is the default and works everywhere; xformers/flash need those packages installed; torch is the plain fallback."><span>Attention</span><select id="tfAdvAttn"><option>sdpa</option><option>torch</option><option>xformers</option><option>flash</option></select></label>
+                <label class="field-block" title="Off by default. On uses torch.compile — faster steps after a long first-step compile."><span>torch.compile</span><label class="ach-toggle-row"><input type="checkbox" id="tfAdvTorchCompile"><span>Enable</span></label></label>
+                <label class="field-block" title="Swap this many DiT blocks to CPU each pass. 0 = off. Raises the number to fit training into less VRAM at the cost of speed."><span>Blocks to swap</span><input type="number" id="tfAdvBlocksToSwap" min="0" step="1"></label>
+                <label class="field-block" title="Off loads everything possible to GPU RAM at once; on (default) keeps memory use low while caching. Turn off if you have lots of VRAM."><span>Gradient checkpointing</span><label class="ach-toggle-row"><input type="checkbox" id="tfAdvGradCheckpointing"><span>Enable</span></label></label>
+                <label class="field-block" title="Data-loader worker processes. 4 is the default; lower saves RAM, higher loads faster."><span>Dataloader workers</span><input type="number" id="tfAdvDataloaderWorkers" min="0" step="1"></label>
+                <label class="field-block" title="VAE spatial chunk size to cut memory use during encode/decode. 0 = the default (32). Lower it (16) if you hit VAE OOM."><span>VAE chunk size</span><input type="number" id="tfAdvVaeChunkSize" min="0" step="8"></label>
+                <label class="field-block" title="Disable the VAE's internal cache to lower memory use. On by default."><span>VAE disable cache</span><label class="ach-toggle-row"><input type="checkbox" id="tfAdvVaeDisableCache"><span>Disable cache</span></label></label>
+              </div>
+
+              <div class="tf-adv-head">Preview sampling</div>
+              <div class="trainflow-grid">
+                <label class="field-block" title="Sampler used for preview images during training."><span>Sample sampler</span><select id="tfAdvSampleSampler"><option>euler</option><option>euler_a</option><option>ddim</option><option>pndm</option><option>lms</option><option>heun</option><option>dpm_2</option><option>dpm_2_a</option><option>dpmsolver</option><option>dpmsolver++</option><option>dpmsingle</option><option>k_lms</option><option>k_euler</option><option>k_euler_a</option><option>k_dpm_2</option><option>k_dpm_2_a</option></select></label>
+              </div>
+            </details>
           </div>
 
           <div class="tool-section">
@@ -1351,6 +1412,10 @@
               <span id="synthDatLocalFolder" class="synthdat-local-folder">Not set</span>
               <button id="btnSynthDatLocalFolder" title="Choose your ComfyUI folder"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-folder"></use></svg>Choose…</button>
             </div>
+          </div>
+          <div class="settings-row" id="synthDatAttentionRow" style="display:none;" title="How Osmium Comfy computes attention. Auto uses FlashAttention when your ComfyUI has flash-attn installed, otherwise ComfyUI's default (xformers when installed). Changing it stops Osmium Comfy; click Connect to start it with the new one. Images can differ very slightly between choices.">
+            <span>Attention</span>
+            <div class="pdrop" id="synthDatAttentionDropdown"></div>
           </div>
           <div class="synthdat-lora-row">
             <button id="btnSynthDatConnect" title="Test connectivity to this ComfyUI host"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-plug"></use></svg>Connect</button>
@@ -1473,6 +1538,12 @@
 
   <div id="logPanel" class="theme-panel log-panel" style="display:none;">
     <div class="theme-panel-head" id="logPanelTitle">Edit log</div>
+    <div class="log-toolbar">
+      <label>Edit type</label>
+      <div id="logTypeDropdown" class="log-type-dropdown" title="Show only one kind of edit (Tagging, Pruning, Voiding, …)"></div>
+      <button id="logOrderBtn" class="log-order-btn" type="button" title="Switch to oldest first">Newest ▾</button>
+    </div>
+    <div id="logPager" class="log-pager"></div>
     <div id="logList" class="log-list"></div>
     <div class="log-panel-actions">
       <button id="btnExportLog" title="Save the full edit log to a JSON file">Export log…</button>

@@ -36,11 +36,11 @@ export interface Entry {
   tags: string[];
   dirty: boolean;
   disabled: boolean;
-  // True for images living in the dataset's initial_state/ folder (the
+  // True for images living in the dataset's original_images/ folder (the
   // pre-bucketing originals). They are ALSO `disabled: true`, so the
   // whole-folder tools skip them (the selected-image tools act on whatever is
   // selected), and the Disabled view excludes them so they only show in the
-  // Initial State view.
+  // Originals view.
   original?: boolean;
   meta?: EntryMeta;
   imgName?: string;
@@ -110,7 +110,7 @@ export type LeftSortDir = 'asc' | 'desc';
 
 export interface EditLogAffected {
   base: string;
-  // Set when the entry is an initial_state/ shadow copy, which shares its
+  // Set when the entry is an original_images/ shadow copy, which shares its
   // stem with a Gallery image; undo/redo resolves it to the original then.
   original?: boolean;
   prevTags?: string[];

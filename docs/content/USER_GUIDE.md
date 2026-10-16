@@ -80,8 +80,8 @@ arrive with an empty one and WD14 fills it in step 2.
 
 **File ▸ Open dataset folder** and pick the folder containing your images and their matching
 `.txt` caption files (same base filename — `image.png` + `image.txt`). Underscores in tags are
-shown as spaces in the app and converted back to underscores when saved, so you never need to
-think about the distinction while editing.
+shown as spaces in the app, and captions are saved with spaces (`red hair, smile`), which is what
+Anima expects.
 
 **File ▸ Add images…** copies more images into the open dataset folder. Each one arrives untagged,
 with an empty `.txt` beside it. On Android it lets you choose which app to pick from (Photos, Files,
@@ -330,8 +330,8 @@ standing rules so a cleanup never needs repeating.
 
 ### Bucket Images
 Crops and resizes every Gallery image to its nearest LoRA training bucket, so your trainer
-doesn't have to. Set **Min side / Max side / Step** (default 256 / 1024 / 64 — the same bucket set
-the trainer builds); each image goes to the bucket closest to its aspect ratio. The crop is
+doesn't have to. Set **Min side / Max side / Step** (default 512 / 1024 / 64, remembered per
+dataset, and also settable from the Trainflow tab); each image goes to the bucket closest to its aspect ratio. The crop is
 subject-first: a u2net saliency model decides what to keep. It's a one-time ~176 MB download via
 the dock's **⬇ Download model** button. **Prefer GPU** (on by default) runs it on your graphics
 card with an automatic CPU fallback; the log names which one handled each image.
@@ -534,8 +534,9 @@ later.
 
 **Dataset and settings:** trigger word / project name (used as typed, and put in front of every
 caption), rank, optimizer (Prodigy by default, which sets its own learning rate), batch size, steps,
-save and preview intervals, and the preview prompt. **Verify buckets** lists every valid bucket size
-for the Bucket Images dock's Min/Max/Step and how many of your images sit at each.
+save and preview intervals, and the preview prompt. **Min side / Max side / Step** set the bucket
+sizes Start uses (the same per-dataset values as the Bucket Images dock; change either). **Verify
+buckets** lists every valid bucket size for them and how many of your images sit at each.
 
 **Start Trainflow** is the only thing that begins work. It saves your tag edits, buckets the dataset
 (originals in `original_images/`; nothing happens if the copies are already right, and new dimensions

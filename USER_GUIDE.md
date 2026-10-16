@@ -80,8 +80,8 @@ arrive with an empty one and WD14 fills it in step 2.
 
 **File ▸ Open dataset folder** and pick the folder containing your images and their matching
 `.txt` caption files (same base filename — `image.png` + `image.txt`). Underscores in tags are
-shown as spaces in the app and converted back to underscores when saved, so you never need to
-think about the distinction while editing.
+shown as spaces in the app, and captions are saved with spaces (`red hair, smile`), which is what
+Anima expects.
 
 **File ▸ Add images…** copies more images into the open dataset folder. Each one arrives untagged,
 with an empty `.txt` beside it. On Android it lets you choose which app to pick from (Photos, Files,
