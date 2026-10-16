@@ -261,8 +261,8 @@ export const HELP_SECTIONS: HelpSection[] = [
     title: '7 · Bucket images',
     html: `
       <p><b>🧺 Bucket Images</b> (in the Gallery's right sidebar) crops and resizes every Gallery
-      image to its nearest LoRA training bucket (Min side / Max side / Step, default 256 / 1024 /
-      64), so your trainer doesn't have to. The crop keeps the subject using a saliency model (a
+      image to its nearest LoRA training bucket (Min side / Max side / Step, default 512 / 1024 /
+      64, remembered per dataset and also set from the Trainflow tab), so your trainer doesn't have to. The crop keeps the subject using a saliency model (a
       one-time ~176 MB download, ⬇ button in the dock). <b>Prefer GPU</b> runs it on your graphics
       card with an automatic CPU fallback. Originals are never lost: they move to an
       <code>original_images/</code> folder (browse them via the 🖼 Originals view), and every image
@@ -290,8 +290,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       resolve its real path on its own — it only asks you to point at the folder if that fails.</p>
       <p><b>Start Trainflow</b> is the only thing that begins work: it saves your tag edits, buckets
       the dataset (originals go to <code>original_images/</code>; nothing is redone if the copies
-      are already right), checks for an NVIDIA GPU and starts training. <b>Verify buckets</b> lists
-      every valid bucket size for the Bucket Images dock's Min/Max/Step and where your images sit.</p>
+      are already right), checks for an NVIDIA GPU and starts training. <b>Min side / Max side / Step</b>
+      set the bucket sizes Start uses (the same per-dataset values as the Bucket Images dock).
+      <b>Verify buckets</b> lists every valid bucket size for them and where your images sit.</p>
       <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
       you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
       and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow

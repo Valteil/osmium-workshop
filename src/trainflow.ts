@@ -1,8 +1,8 @@
 // Trainflow: LoRA training for Anima, run from Osmium. The user points Osmium
 // at their Anima-TrainFlow folder once (userData/trainflow.json); the tab then
 // writes the same dataset/training TOML files Anima-TrainFlow's own app.py
-// does and launches `accelerate launch anima_train_network.py` with that
-// install's embedded Python.
+// does and runs `anima_train_network.py` directly (not via `accelerate
+// launch`) with that install's embedded Python.
 //
 // The job is DETACHED: stdout/stderr go to a log file in the project's output
 // folder and the process is unref()'d, so it keeps training after Osmium
@@ -672,7 +672,7 @@ function stopTraining(): { ok: boolean; message: string } {
   // reused PID after a crash). runIsLive() already ruled out a pre-boot PID.
   if (!pidMatchesRecord(rec.pid, rec.exe)) return { ok: false, message: 'The recorded training process no longer matches; not killing it.' };
   writeRun({ ...rec, stopRequested: true });
-  // The captured PID and its tree (accelerate launches the trainer as a child).
+  // The captured PID and its tree (the trainer's dataloader workers are children).
   if (process.platform === 'win32') execFile('taskkill', ['/PID', String(rec.pid), '/T', '/F'], { windowsHide: true }, () => { /* status() sees it exit */ });
   else { try { process.kill(-rec.pid, 'SIGTERM'); } catch { try { process.kill(rec.pid, 'SIGTERM'); } catch { /* gone */ } } }
   return { ok: true, message: 'Stopping…' };
