@@ -27,7 +27,7 @@ local-only). It is the source of truth for architecture, features, and hard-won 
 - `main.js` / `preload.js` / `renderer/app.js` are generated — never hand-edit. Dev loop:
   `npm run refresh-app` (same loop inside `comfy-bridge/`).
 - `comfy-bridge/src/renderer/shared/` is hand-authored (ports of root
-  modules, not synced). `npm run build:shared` only bundles it into `mobile/www/shared.js`;
-  never hand-edit those outputs.
+  modules, not synced). `npm run build:shared` only bundles it into `mobile/www/shared.js`
+  (+ copies `shared.css` to `renderer/` and `mobile/www/`); never hand-edit those outputs.
 - After any change judged "major", update this vault **in the same session** — see
   `notes/Meta/Maintenance-Policy.md`.
