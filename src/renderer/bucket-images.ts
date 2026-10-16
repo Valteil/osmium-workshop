@@ -92,8 +92,43 @@ export async function mergeLegacyOriginals(root: DirHandle): Promise<void> {
   } catch { /* leave it; the next load tries again */ }
 }
 const SETTINGS_KEY = 'dts-bucket-settings';
+// Min/Max/Step remembered per dataset (keyed by folder name, like Trainflow's
+// dataset paths). A dataset with nothing saved gets the defaults.
+const SIZES_KEY = 'dts-bucket-sizes';
+export const BUCKET_DEFAULTS = { min: 512, max: 1024, step: 64 };
 
 interface BucketSettings { gpu: boolean; }
+type BucketSizes = typeof BUCKET_DEFAULTS;
+
+// The dock's fields and Trainflow's mirror of them: [dock, trainflow] per value.
+const SIZE_FIELDS: [keyof BucketSizes, string, string][] = [
+  ['min', 'bucketSideMin', 'tfBucketMin'],
+  ['max', 'bucketSideMax', 'tfBucketMax'],
+  ['step', 'bucketSideStep', 'tfBucketStep']
+];
+const field = (id: string) => document.getElementById(id) as HTMLInputElement | null;
+
+// Fills both sets of fields from the loaded dataset's saved sizes (or the defaults).
+export function applyDatasetBucketSizes(): void {
+  const name = getDirHandle()?.name;
+  const saved = name ? getJSON<Record<string, Partial<BucketSizes>>>(SIZES_KEY, {})[name] : undefined;
+  for (const [k, dockId, tfId] of SIZE_FIELDS) {
+    const v = String(saved?.[k] ?? BUCKET_DEFAULTS[k]);
+    for (const id of [dockId, tfId]) { const el = field(id); if (el) el.value = v; }
+  }
+}
+
+function saveDatasetBucketSizes(): void {
+  const name = getDirHandle()?.name;
+  if (!name) return;
+  const map = getJSON<Record<string, BucketSizes>>(SIZES_KEY, {});
+  map[name] = { ...BUCKET_DEFAULTS };
+  for (const [k, dockId] of SIZE_FIELDS) {
+    const n = parseInt(field(dockId)?.value || '', 10);
+    if (n > 0) map[name][k] = n;
+  }
+  setJSON(SIZES_KEY, map);
+}
 
 let getDirHandle: () => DirHandle | null = () => null;
 let getEntries: () => Entry[] = () => [];
@@ -113,9 +148,9 @@ function log(line: string, isErr = false): void {
 function clearLog(): void { bucketLog.textContent = ''; }
 
 function params(): { sideMin: number; sideMax: number; step: number } {
-  const sideMin = Math.max(64, parseInt(bucketSideMin.value, 10) || 256);
-  const sideMax = Math.max(sideMin, parseInt(bucketSideMax.value, 10) || 1024);
-  const step = Math.max(16, parseInt(bucketSideStep.value, 10) || 64);
+  const sideMin = Math.max(64, parseInt(bucketSideMin.value, 10) || BUCKET_DEFAULTS.min);
+  const sideMax = Math.max(sideMin, parseInt(bucketSideMax.value, 10) || BUCKET_DEFAULTS.max);
+  const step = Math.max(16, parseInt(bucketSideStep.value, 10) || BUCKET_DEFAULTS.step);
   return { sideMin, sideMax, step };
 }
 
@@ -447,6 +482,17 @@ export function initBucketImages(deps: BucketImagesDeps): void {
   const saved = getJSON<Partial<BucketSettings> | null>(SETTINGS_KEY, null);
   if (saved && typeof saved.gpu === 'boolean') bucketGpu.checked = saved.gpu;
   bucketGpu.addEventListener('change', () => setJSON(SETTINGS_KEY, { gpu: bucketGpu.checked }));
+
+  // Either copy of a size field updates the other and saves for this dataset.
+  for (const [, dockId, tfId] of SIZE_FIELDS) {
+    const pair = [field(dockId), field(tfId)];
+    pair.forEach((el, i) => el?.addEventListener('input', () => {
+      const other = pair[1 - i];
+      if (other) other.value = el.value;
+      saveDatasetBucketSizes();
+    }));
+  }
+  applyDatasetBucketSizes();
 
   btnBucketRun.addEventListener('click', () => { void run(); });
   btnBucketRevert.addEventListener('click', () => { void revert(); });

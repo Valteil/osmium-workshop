@@ -233,7 +233,7 @@ function checkDataset(dir: string, bucket: { min: number; max: number; step: num
   if (!images.length) errors.push('No images found in the dataset folder.');
   if (missing) errors.push(`${missing} image${missing === 1 ? ' has' : 's have'} no .txt caption. Tag them first (Tag Overseer's WD14).`);
   // Before Start bucketing runs this is fixed for us; after it, only a huge max side can leave any.
-  if (oversized && afterBucketing) errors.push(`${oversized} image${oversized === 1 ? ' is' : 's are'} 2048px or larger. Lower the Bucket Images dock's max side.`);
+  if (oversized && afterBucketing) errors.push(`${oversized} image${oversized === 1 ? ' is' : 's are'} 2048px or larger. Lower the bucket Max side (Trainflow tab or Bucket Images dock).`);
   const baseRes = maxArea ? Math.ceil(Math.sqrt(maxArea) / 64) * 64 : 512;
   const maxBucket = maxSide ? Math.ceil(maxSide / 64) * 64 : 768;
   return { ok: !errors.length, images: images.length, unbucketed, missingCaptions: missing, oversized, baseRes, maxBucket, errors };
@@ -246,6 +246,8 @@ function checkDataset(dir: string, bucket: { min: number; max: number; step: num
 // carrying an embedded newline can't inject extra lines.
 const stripControl = (s: string) => s.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ');
 const tomlStr = (s: string) => JSON.stringify(stripControl(s));
+// A float key stays a TOML float (1 -> "1.0"), as the fixed values always were.
+const tomlFloat = (n: number) => Number.isInteger(n) ? n.toFixed(1) : String(n);
 const posix = (p: string) => stripControl(path.resolve(p)).replace(/\\/g, '/');
 
 function sanitizeProject(trigger: string): string {
@@ -319,7 +321,7 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
     ...(s.advTrainTextEncoder ? [] : ['network_train_unet_only = true']),
     ...(s.advNetworkDropout > 0 ? [`network_dropout = ${s.advNetworkDropout}`] : []),
     `gradient_checkpointing = ${gradCkpt ? 'true' : 'false'}`,
-    `max_grad_norm = ${s.advMaxGradNorm > 0 ? s.advMaxGradNorm : 1.0}`,
+    `max_grad_norm = ${tomlFloat(s.advMaxGradNorm > 0 ? s.advMaxGradNorm : 1.0)}`,
     `learning_rate = ${Number(s.lr)}`,
     `optimizer_type = ${tomlStr(s.optimizer)}`,
     `optimizer_args = [${optArgs.map(tomlStr).join(', ')}]`,
@@ -337,16 +339,13 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
     `sample_prompts = ${tomlStr(posix(promptFile))}`,
     `sample_sampler = ${tomlStr(s.advSampleSampler || 'euler')}`,
     `timestep_sampling = ${tomlStr(s.advTimestepSampling || 'sigmoid')}`,
-    `discrete_flow_shift = ${s.advFlowShift || 1.0}`,
-    `sigmoid_scale = ${s.advSigmoidScale || 1.3}`,
+    `discrete_flow_shift = ${tomlFloat(s.advFlowShift || 1.0)}`,
+    `sigmoid_scale = ${tomlFloat(s.advSigmoidScale || 1.3)}`,
     `weighting_scheme = ${tomlStr(s.advWeighting || 'logit_normal')}`,
-    ...(s.advNoiseOffset > 0 ? [`noise_offset = ${s.advNoiseOffset}`] : []),
-    ...(s.advMinSnrGamma > 0 ? [`min_snr_gamma = ${s.advMinSnrGamma}`] : []),
-    ...(s.advClipSkip >= 1 ? [`clip_skip = ${Math.round(s.advClipSkip)}`] : []),
     'cache_latents = true',
     'cache_latents_to_disk = true',
-    'cache_text_encoder_outputs = true',
-    'cache_text_encoder_outputs_to_disk = true',
+    // The trainer refuses to train the text encoder from cached TE outputs.
+    ...(s.advTrainTextEncoder ? [] : ['cache_text_encoder_outputs = true', 'cache_text_encoder_outputs_to_disk = true']),
     `attn_mode = ${tomlStr(s.advAttn || 'sdpa')}`,
     ...(s.advTorchCompile ? ['torch_compile = true'] : []),
     ...(s.advBlocksToSwap > 0 ? [`blocks_to_swap = ${Math.round(s.advBlocksToSwap)}`] : []),

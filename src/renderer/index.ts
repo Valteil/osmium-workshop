@@ -70,7 +70,7 @@ import {
 } from './edit-log';
 import { initCanonicalTags, loadCanonicalRulesForFolder } from './canonical-tags';
 import { initSubjectPresets, loadSubjectPresetsForFolder } from './subject-presets';
-import { initBucketImages, ORIGINAL_DIR, mergeLegacyOriginals } from './bucket-images';
+import { initBucketImages, ORIGINAL_DIR, mergeLegacyOriginals, applyDatasetBucketSizes } from './bucket-images';
 import {
   markDirty, updateDirtyUI, recordChange, applyTagDirection, applyRenameDirection, applyPixelDirection, getIsolateState, updateUndoRedoButtons,
   resetUndoRedo, moveEntry, initTagsEdit, undoStack, redoStack, addTagToEntry, resolveAffected,
@@ -2008,6 +2008,7 @@ import { setIconLabel } from './icons';
 
   async function loadFolder(){
     await loadFolderCore();
+    applyDatasetBucketSizes();
     // Trainflow learns where a newly opened dataset lives on disk (Osmium itself only has a handle).
     (window as unknown as { __dtsDatasetOpened?: () => void }).__dtsDatasetOpened?.();
   }

@@ -945,7 +945,7 @@
               <button id="btnBucketDownloadModel" class="dock-list-open-btn primary" style="display:none;"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-download"></use></svg>Download model (176 MB)</button>
             </div>
             <div class="bucket-params-row">
-              <label>Min side <input type="number" id="bucketSideMin" value="256" min="64" step="64"></label>
+              <label>Min side <input type="number" id="bucketSideMin" value="512" min="64" step="64"></label>
               <label>Max side <input type="number" id="bucketSideMax" value="1024" min="64" step="64"></label>
               <label>Step <input type="number" id="bucketSideStep" value="64" min="16" step="16"></label>
             </div>
@@ -1218,7 +1218,12 @@
               </div>
             </div>
             <div id="tfDatasetCheck" class="synthdat-wd14-result"></div>
-            <div class="synthdat-lora-row"><button id="btnTfVerifyBuckets" title="Check the dataset against the Bucket Images dock's Min/Max/Step and list every valid bucket size"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-check-circle"></use></svg>Verify buckets</button></div>
+            <div class="bucket-params-row trainflow-bucket-params" title="Bucket sizes for this dataset. Start Trainflow buckets to these; the same fields as the Gallery's Bucket Images dock, remembered per dataset.">
+              <label>Min side <input type="number" id="tfBucketMin" value="512" min="64" step="64"></label>
+              <label>Max side <input type="number" id="tfBucketMax" value="1024" min="64" step="64"></label>
+              <label>Step <input type="number" id="tfBucketStep" value="64" min="16" step="16"></label>
+            </div>
+            <div class="synthdat-lora-row"><button id="btnTfVerifyBuckets" title="Check the dataset against these bucket sizes and list every valid bucket size"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-check-circle"></use></svg>Verify buckets</button></div>
             <div id="tfBucketReport" class="synthdat-wd14-result trainflow-bucket-report" style="display:none;"></div>
           </div>
 
@@ -1254,7 +1259,7 @@
               <div class="trainflow-grid">
                 <label class="field-block" title="LoRA weight-scaling alpha. 0 uses Network rank (alpha = rank, the old behaviour). Lower alpha = softer effect."><span>Network alpha</span><input type="number" id="tfAdvAlpha" min="0" step="1"></label>
                 <label class="field-block" title="Dropout on LoRA neurons each step. 0 = off. Useful against overfitting on small datasets."><span>Network dropout</span><input type="number" id="tfAdvNetworkDropout" min="0" max="1" step="0.05"></label>
-                <label class="field-block" title="Off by default: only the DiT/U-Net is trained. On additionally trains the Qwen3 text encoder — slower, more VRAM, can help prompt-following."><span>Train text encoder</span><label class="ach-toggle-row"><input type="checkbox" id="tfAdvTrainTextEncoder"><span>Also train Qwen3</span></label></label>
+                <label class="field-block" title="Off by default: only the DiT/U-Net is trained. On additionally trains the Qwen3 text encoder — slower, more VRAM, can help prompt-following. Turns off text-encoder output caching (the trainer requires it)."><span>Train text encoder</span><label class="ach-toggle-row"><input type="checkbox" id="tfAdvTrainTextEncoder"><span>Also train Qwen3</span></label></label>
               </div>
 
               <div class="tf-adv-head">Precision</div>
@@ -1266,20 +1271,17 @@
 
               <div class="tf-adv-head">Schedule &amp; flow</div>
               <div class="trainflow-grid">
-                <label class="field-block" title="Learning-rate schedule. Prodigy usually wants constant; a fixed LR often prefers cosine."><span>LR scheduler</span><select id="tfAdvLrScheduler"><option>constant</option><option>constant_with_warmup</option><option>cosine</option><option>cosine_with_restarts</option><option>linear</option><option>polynomial</option><option>adafactor</option></select></label>
+                <label class="field-block" title="Learning-rate schedule. Auto (the default) uses constant for Prodigy and cosine otherwise."><span>LR scheduler</span><select id="tfAdvLrScheduler"><option value="">auto</option><option>constant</option><option>constant_with_warmup</option><option>cosine</option><option>cosine_with_restarts</option><option>linear</option><option>polynomial</option><option>adafactor</option></select></label>
                 <label class="field-block" title="Warm-up steps before the LR schedule starts. 0 = none."><span>LR warmup steps</span><input type="number" id="tfAdvLrWarmup" min="0" step="1"></label>
                 <label class="field-block" title="How timesteps are sampled for this flow-matching model. sigmoid (logit-normal) is the Anima default."><span>Timestep sampling</span><select id="tfAdvTimestepSampling"><option>sigmoid</option><option>uniform</option><option>sigma</option><option>shift</option><option>flux_shift</option></select></label>
-                <label class="field-block" title="Timestep weighting scheme. logit_normal is the Anima default."><span>Weighting</span><select id="tfAdvWeighting"><option>logit_normal</option><option>uniform</option><option>none</option><option>sigma_sqrt</option><option>mode</option><option>cosmap</option></select></label>
-                <label class="field-block" title="Timestep-distribution shift for rectified flow. Default 1.0."><span>Flow shift</span><input type="number" id="tfAdvFlowShift" min="0" step="0.1"></label>
+                <label class="field-block" title="Loss weighting. Only sigma_sqrt and cosmap change the loss; the rest leave it unweighted. logit_normal/mode/uniform also pick the timestep density, but only when Timestep sampling is sigma."><span>Weighting</span><select id="tfAdvWeighting"><option>logit_normal</option><option>uniform</option><option>none</option><option>sigma_sqrt</option><option>mode</option><option>cosmap</option></select></label>
+                <label class="field-block" title="Timestep shift for rectified flow. Only used when Timestep sampling is shift. Default 1.0."><span>Flow shift</span><input type="number" id="tfAdvFlowShift" min="0" step="0.1"></label>
                 <label class="field-block" title="Scale factor for sigmoid/logit-normal timestep sampling. Default 1.3."><span>Sigmoid scale</span><input type="number" id="tfAdvSigmoidScale" min="0" step="0.1"></label>
               </div>
 
               <div class="tf-adv-head">Regularisation</div>
               <div class="trainflow-grid">
-                <label class="field-block" title="Noise offset. 0 = off; ~0.1 helps darker images. Leave 0 unless you know why."><span>Noise offset</span><input type="number" id="tfAdvNoiseOffset" min="0" step="0.01"></label>
-                <label class="field-block" title="Min-SNR gamma to down-weight high-loss timesteps. 0 = off; 5 is the paper's recommendation."><span>Min SNR gamma</span><input type="number" id="tfAdvMinSnrGamma" min="0" step="0.5"></label>
-                <label class="field-block" title="Text-encoder layer to clip at (n>=1). 0 = the trainer's default."><span>CLIP skip</span><input type="number" id="tfAdvClipSkip" min="0" step="1"></label>
-                <label class="field-block" title="Max gradient norm for clipping. 0 disables clipping; 1.0 is the default."><span>Max grad norm</span><input type="number" id="tfAdvMaxGradNorm" min="0" step="0.1"></label>
+                <label class="field-block" title="Max gradient norm for clipping. 0 = the default (1.0)."><span>Max grad norm</span><input type="number" id="tfAdvMaxGradNorm" min="0" step="0.1"></label>
                 <label class="field-block" title="Caption dropout rate (0–1). 0.05 is the default."><span>Caption dropout</span><input type="number" id="tfAdvCaptionDropout" min="0" max="1" step="0.01"></label>
                 <label class="field-block" title="Number of leading caption tokens kept fixed (the trigger). 1 is the default."><span>Keep tokens</span><input type="number" id="tfAdvKeepTokens" min="0" step="1"></label>
                 <label class="field-block" title="Dataset repeats per step budget. 0 = auto-computed from steps and image count (the default)."><span>Dataset repeats</span><input type="number" id="tfAdvRepeats" min="0" step="1"></label>
@@ -1292,7 +1294,7 @@
                 <label class="field-block" title="Swap this many DiT blocks to CPU each pass. 0 = off. Raises the number to fit training into less VRAM at the cost of speed."><span>Blocks to swap</span><input type="number" id="tfAdvBlocksToSwap" min="0" step="1"></label>
                 <label class="field-block" title="Off loads everything possible to GPU RAM at once; on (default) keeps memory use low while caching. Turn off if you have lots of VRAM."><span>Gradient checkpointing</span><label class="ach-toggle-row"><input type="checkbox" id="tfAdvGradCheckpointing"><span>Enable</span></label></label>
                 <label class="field-block" title="Data-loader worker processes. 4 is the default; lower saves RAM, higher loads faster."><span>Dataloader workers</span><input type="number" id="tfAdvDataloaderWorkers" min="0" step="1"></label>
-                <label class="field-block" title="VAE spatial chunk size to cut memory use during encode/decode. 0 = chunking off. Set 16/32/64 if you hit VAE OOM."><span>VAE chunk size</span><input type="number" id="tfAdvVaeChunkSize" min="0" step="8"></label>
+                <label class="field-block" title="VAE spatial chunk size to cut memory use during encode/decode. 0 = the default (32). Lower it (16) if you hit VAE OOM."><span>VAE chunk size</span><input type="number" id="tfAdvVaeChunkSize" min="0" step="8"></label>
                 <label class="field-block" title="Disable the VAE's internal cache to lower memory use. On by default."><span>VAE disable cache</span><label class="ach-toggle-row"><input type="checkbox" id="tfAdvVaeDisableCache"><span>Disable cache</span></label></label>
               </div>
 

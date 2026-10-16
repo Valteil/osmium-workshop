@@ -96,7 +96,7 @@ export interface BucketImageResult {
 // real flag in the bundled Anima-TrainFlow sd-scripts (verified via --help).
 export type TfMixedPrecision = 'no' | 'fp16' | 'bf16';
 export type TfSavePrecision = 'None' | 'fp16' | 'bf16';
-export type TfLrScheduler = 'constant' | 'constant_with_warmup' | 'cosine' | 'cosine_with_restarts' | 'linear' | 'polynomial' | 'adafactor';
+export type TfLrScheduler = '' | 'constant' | 'constant_with_warmup' | 'cosine' | 'cosine_with_restarts' | 'linear' | 'polynomial' | 'adafactor';
 export type TfAttn = 'torch' | 'sdpa' | 'xformers' | 'flash';
 export type TfTimestepSampling = 'sigmoid' | 'uniform' | 'sigma' | 'shift' | 'flux_shift';
 export type TfWeighting = 'uniform' | 'none' | 'sigma_sqrt' | 'logit_normal' | 'mode' | 'cosmap';
@@ -114,13 +114,10 @@ export interface TrainflowSettings {
   advAlpha: number;            // network_alpha; 0 => same as rank
   advNetworkDropout: number;   // network_dropout
   advTrainTextEncoder: boolean;// drop network_train_unet_only, add text-encoder training
-  advLrScheduler: TfLrScheduler;
+  advLrScheduler: TfLrScheduler; // '' => constant for Prodigy, cosine otherwise
   advLrWarmup: number;         // lr_warmup_steps
   advMixedPrecision: TfMixedPrecision;
   advSavePrecision: TfSavePrecision;
-  advNoiseOffset: number;
-  advMinSnrGamma: number;
-  advClipSkip: number;         // >=1; 0 => trainer default
   advTimestepSampling: TfTimestepSampling;
   advWeighting: TfWeighting;
   advFlowShift: number;        // discrete_flow_shift
@@ -131,7 +128,7 @@ export interface TrainflowSettings {
   advMaxGradNorm: number;
   advGradCheckpointing: boolean;
   advDataloaderWorkers: number;// max_data_loader_n_workers
-  advVaeChunkSize: number;     // 0 => disabled
+  advVaeChunkSize: number;     // 0 => 32
   advVaeDisableCache: boolean;
   advNoHalfVae: boolean;
   advCaptionDropout: number;   // caption_dropout_rate

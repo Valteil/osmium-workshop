@@ -8,7 +8,7 @@ import { $ } from './dom';
 import { getJSON, setJSON } from './storage';
 import { showImageLightbox, showConfirmModal, toast } from './shared-ui';
 import { writeBytes } from './fs-access';
-import { convertAllWebpToPng } from './bucket-images';
+import { convertAllWebpToPng, BUCKET_DEFAULTS } from './bucket-images';
 import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck } from '../shared-types';
 import type { Entry, DirHandle } from './types';
 
@@ -25,20 +25,20 @@ interface TrainflowDeps {
 const PATHS_KEY = 'dts-trainflow-dataset-paths';
 
 const STORAGE_KEY = 'dts-trainflow-settings';
+const LR_AUTO_MIGRATED_KEY = 'dts-trainflow-lr-auto-migrated';
 const POLL_MS = 2000;
 
 const DEFAULTS: TrainflowSettings = {
   trigger: '', datasetPath: '', ditPath: '', qwenPath: '', vaePath: '',
   rank: 32, lr: '1.0', optimizer: 'Prodigy', steps: 2400, saveSteps: 300, sampleSteps: 300,
-  batchSize: 1, gradAcc: 1, trainSeed: 42, bucketMin: 256, bucketMax: 1024, bucketStep: 64,
+  batchSize: 1, gradAcc: 1, trainSeed: 42, bucketMin: BUCKET_DEFAULTS.min, bucketMax: BUCKET_DEFAULTS.max, bucketStep: BUCKET_DEFAULTS.step,
   prompt: '', negPrompt: 'worst quality, low quality, score_1, score_2, score_3, artist name',
   width: 1024, height: 1024, sampleGenSteps: 30, cfg: 4, sampleSeed: 42,
   // Advanced — these match the trainer's / app's previous fixed defaults, so the
   // untouched form writes the same TOML as before.
   advAlpha: 0, advNetworkDropout: 0, advTrainTextEncoder: false,
-  advLrScheduler: 'constant', advLrWarmup: 0,
+  advLrScheduler: '', advLrWarmup: 0,
   advMixedPrecision: 'bf16', advSavePrecision: 'bf16',
-  advNoiseOffset: 0, advMinSnrGamma: 0, advClipSkip: 0,
   advTimestepSampling: 'sigmoid', advWeighting: 'logit_normal',
   advFlowShift: 1.0, advSigmoidScale: 1.3,
   advAttn: 'sdpa', advTorchCompile: false, advBlocksToSwap: 0,
@@ -66,7 +66,6 @@ const ADV_SELECT_FIELDS: [keyof TrainflowSettings, string][] = [
 ];
 const ADV_NUM_FIELDS: [keyof TrainflowSettings, string][] = [
   ['advAlpha', 'tfAdvAlpha'], ['advNetworkDropout', 'tfAdvNetworkDropout'], ['advLrWarmup', 'tfAdvLrWarmup'],
-  ['advNoiseOffset', 'tfAdvNoiseOffset'], ['advMinSnrGamma', 'tfAdvMinSnrGamma'], ['advClipSkip', 'tfAdvClipSkip'],
   ['advFlowShift', 'tfAdvFlowShift'], ['advSigmoidScale', 'tfAdvSigmoidScale'], ['advBlocksToSwap', 'tfAdvBlocksToSwap'],
   ['advMaxGradNorm', 'tfAdvMaxGradNorm'], ['advDataloaderWorkers', 'tfAdvDataloaderWorkers'],
   ['advVaeChunkSize', 'tfAdvVaeChunkSize'], ['advCaptionDropout', 'tfAdvCaptionDropout'],
@@ -89,6 +88,13 @@ export function initTrainflow(deps: TrainflowDeps): void {
   if (!isTrainflowSupported()) { tabBtn.style.display = 'none'; return; }
 
   let settings: TrainflowSettings = { ...DEFAULTS, ...getJSON<Partial<TrainflowSettings>>(STORAGE_KEY, {}) };
+  // One-time: the scheduler used to default to (and save) 'constant' even when
+  // untouched, which a non-Prodigy run would then keep instead of cosine. Move
+  // that saved 'constant' to auto ('') once; a later pick of constant sticks.
+  if (!getJSON<boolean>(LR_AUTO_MIGRATED_KEY, false)) {
+    if (settings.advLrScheduler === 'constant') settings.advLrScheduler = '';
+    setJSON(LR_AUTO_MIGRATED_KEY, true);
+  }
   let last: TrainflowStatus | null = null;
   let starting = false;
   let sampleSig = '';
@@ -97,11 +103,12 @@ export function initTrainflow(deps: TrainflowDeps): void {
 
   const inputEl = (id: string) => $<HTMLInputElement>(id);
   const save = () => setJSON(STORAGE_KEY, settings);
-  // One source for bucket sizes: the Bucket Images dock's own fields.
+  // One source for bucket sizes: the Bucket Images dock's fields (the tab's own
+  // Min/Max/Step mirror them; both are saved per dataset by bucket-images.ts).
   const dockNum = (id: string, fallback: number) => Math.max(1, parseInt((document.getElementById(id) as HTMLInputElement | null)?.value || '', 10) || fallback);
   const bucketCfg = () => {
-    const min = Math.max(64, dockNum('bucketSideMin', 256));
-    return { min, max: Math.max(min, dockNum('bucketSideMax', 1024)), step: dockNum('bucketSideStep', 64) };
+    const min = Math.max(64, dockNum('bucketSideMin', BUCKET_DEFAULTS.min));
+    return { min, max: Math.max(min, dockNum('bucketSideMax', BUCKET_DEFAULTS.max)), step: dockNum('bucketSideStep', BUCKET_DEFAULTS.step) };
   };
 
   function fillForm(): void {
@@ -273,7 +280,7 @@ export function initTrainflow(deps: TrainflowDeps): void {
     box.textContent = 'Checking…';
     const cfg = bucketCfg();
     const r = await api.trainflowVerifyBuckets!(dir, cfg);
-    const lines = [`Bucket sizes for ${cfg.min}–${cfg.max} (step ${cfg.step}), as set in the Bucket Images dock:`];
+    const lines = [`Bucket sizes for ${cfg.min}–${cfg.max} (step ${cfg.step}):`];
     lines.push(r.buckets.map((b) => `${b.w}x${b.h}${b.count ? ' (' + b.count + ')' : ''}`).join('  ·  '));
     lines.push('');
     lines.push(`${r.images - r.offBucket.length}/${r.images} images are at a valid bucket size.`);
