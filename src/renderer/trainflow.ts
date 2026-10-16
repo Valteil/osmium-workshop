@@ -266,7 +266,26 @@ export function initTrainflow(deps: TrainflowDeps): void {
     box.style.whiteSpace = 'pre-wrap';
     return c;
   }
-  async function refreshDataset(): Promise<void> { await resolveDataset(); await runDatasetCheck(); }
+  // The trainer's latent / text-encoder caches in the dataset: it reuses them on
+  // the next run even after tags change, so the button shows what's there.
+  const mb = (b: number) => (b / 1048576).toFixed(b < 10485760 ? 1 : 0);
+  async function refreshCacheInfo(): Promise<void> {
+    const btn = $<HTMLButtonElement>('btnTfClearCache');
+    const label = $('tfClearCacheLabel');
+    const c = datasetPath ? await api.trainflowCacheInfo!(datasetPath) : { files: 0, bytes: 0 };
+    btn.disabled = !c.files;
+    label.textContent = c.files ? `Clear training cache (${c.files} file${c.files === 1 ? '' : 's'} · ${mb(c.bytes)} MB)` : 'No training cache';
+  }
+  $('btnTfClearCache').addEventListener('click', async () => {
+    await resolveDataset();
+    if (!datasetPath) return;
+    const ok = await showConfirmModal('Delete the latent and text-encoder caches the trainer saved in this dataset? The next Start Trainflow rebuilds them from the current images and tags (a little slower to start). Your images, tags and trained LoRAs are untouched.', { okLabel: 'Clear cache', danger: true });
+    if (!ok) return;
+    const r = await api.trainflowClearCache!(datasetPath);
+    toast(r.ok ? `Training cache cleared (${r.files} file${r.files === 1 ? '' : 's'}, ${mb(r.bytes)} MB).` : (r.message || 'Could not clear the training cache.'), 4200);
+    await refreshCacheInfo();
+  });
+  async function refreshDataset(): Promise<void> { await resolveDataset(); await runDatasetCheck(); await refreshCacheInfo(); }
 
   async function pick(kind: 'folder' | 'file', title: string, current: string): Promise<string | null> {
     return api.trainflowPickPath!({ kind, title, defaultPath: current || undefined });
@@ -348,6 +367,7 @@ export function initTrainflow(deps: TrainflowDeps): void {
   // ---- status rendering ----------------------------------------------------
   const fmtSize = (n: number) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
 
+  let wasRunning = false;
   function applyStatus(s: TrainflowStatus): void {
     last = s;
     $('trainflowFolder').textContent = s.folder || 'Not set';
@@ -357,6 +377,11 @@ export function initTrainflow(deps: TrainflowDeps): void {
     fs.textContent = s.error || '';
     const run = s.run;
     const running = run?.state === 'running';
+    // The trainer writes its caches during a run: recount when one ends. While
+    // running, clearing is refused anyway.
+    if (wasRunning && !running) void refreshCacheInfo();
+    wasRunning = running;
+    $<HTMLButtonElement>('btnTfClearCache').disabled = running || $<HTMLButtonElement>('btnTfClearCache').disabled;
     $<HTMLButtonElement>('btnTrainflowStart').disabled = running || starting || !s.ok;
     $<HTMLButtonElement>('btnTrainflowStop').disabled = !running;
     const info = $('trainflowRunInfo');

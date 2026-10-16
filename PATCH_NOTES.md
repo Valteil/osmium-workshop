@@ -18,64 +18,89 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   own Anima-TrainFlow folder and your own Anima files. **Start Trainflow** buckets the dataset and
   starts training in the background. It keeps going if you close Osmium (which warns you first), and
   the tab reconnects to its progress, log, previews and checkpoints when you come back. Trains on
-  **Janima** too, not just base Anima.
+  **Janima** too, not just base Anima. An **Advanced** section opens up the trainer's settings for
+  those who want them (network alpha and dropout, training the text encoder, precision, LR schedule,
+  timestep sampling, VRAM options and more); left alone, it trains exactly as before. **Clear
+  training cache** deletes the latent and text-encoder caches the trainer keeps in the dataset, which
+  it would otherwise reuse even after you change images or tags.
 - **Bucket Images keeps an original of every image** in `original_images/` (Initial State is Originals
   again, and `initial_state/` folders are merged into it), and bucketing again re-makes the copies from
   the originals, so you can try different dimensions as often as you like.
+- **Bucket sizes are remembered per dataset** and start at 512 to 1024 (step 64). Set them in the
+  Bucket Images dock or right in the Trainflow tab; both show the same values.
 - **WD14 review window, rebuilt**: tagging a batch in Tag Overseer with "Apply automatically" off now
   shows one card per image. Each card keeps its picture on the left and its own tag area on the
   right, with the tags WD14 added tinted so they stand out from the ones already on the image. Drop
   any tag to the "Dropped" row and click it to put it back, or type in more. A **Tag sorting**
   button groups each card's tags by category, and you can apply one image, apply all of them, or
   skip all.
+- **Edit Log upgrades**: filter by edit type, flip between newest and oldest first, and page through
+  the whole log. A bulk edit opens a list of every image it touched, each with its own undo/redo and
+  a thumbnail you can open, and right-clicking an image in the gallery shows **every edit made to
+  that image**, undoable one by one.
+- **Attention setting** for Osmium Comfy (SynthDat Overseer): auto, Flash, Sage, xformers or plain
+  PyTorch attention. Auto picks Flash Attention when it's installed.
 
 ### Comfy Bridge
 
-- **Phone access can require a shared token** (Windows): the "Let the phone app use it" row now has
-  an optional token field next to the port. Leave it empty for the old no-password LAN/Tailscale
-  behaviour; set one and the phone must enter the same token (a new field above its Test connection
-  button) before it can use this PC. The status line now says plainly when no token is set, so it's
-  clear that anything on the network could otherwise use it. Saved output folder is now remembered
-  by the app itself rather than the page, so it survives a restart and no longer has to be supplied
-  per save.
+- **Metadata tab** (Windows and Android): open any image to see how it was made and which LoRAs it
+  used. Each LoRA can be looked up on **CivitAI** and **CivArchive** (by its file hash when you have
+  it, otherwise by name), with preview images, and added to your LoRA stack in one click when it's
+  in your folder.
+- **Download to PC** (Windows, with Osmium Comfy): a looked-up LoRA can be downloaded straight into
+  your ComfyUI loras folder, with a choice of mirrors, a folder browser and a new file name. Files
+  are checked against the looked-up hash, and API keys for CivitAI and Hugging Face are saved under
+  **Download keys** and only ever sent to their own site.
+- **Import from any image**: Import Generation now reads images made outside the Bridge too
+  (Automatic1111/Forge, NovelAI, InvokeAI, SwarmUI, Fooocus and other ComfyUI workflows), from PNG,
+  JPEG or WebP. It shows the image's details first, with **Import Generation** and **Use prompts
+  only**. A single prompt is sorted into the prompt boxes by tag type, and switching between one box
+  and separate boxes carries the prompt over. Images from other tools bring their prompts and basic
+  settings, never their models.
+- **Phone access can require a shared token** (Windows): the "Let the phone app use it" row has an
+  optional token field next to the port. Leave it empty for the old no-password LAN/Tailscale
+  behaviour; set one and the phone must enter the same token (a field above its Test connection
+  button) before it can use this PC. The status line says plainly when no token is set.
 - **Main LoRA is now optional.** Leave it empty and generation runs normally with no LoRA, even on a
-  machine that has none installed. It used to send a placeholder name ComfyUI rejected. The Main
-  LoRA weight only applies when a LoRA is chosen.
+  machine that has none installed. The Main LoRA weight only applies when a LoRA is chosen.
 - **Friendlier default settings:** CFG 4, 25 steps, 1024×1024, sampler Euler A, scheduler Simple,
   seed 0; pass 2 starts at seed 1 with 20 steps.
 - **Seed behaviour dropdown** next to each seed: **Fixed** (the default) reuses the number you
   typed, **Randomize** rolls a new one each generation, and **Increment** / **Decrement** step it by
   one. The mode applies per queued generation, so a queued batch walks the seed.
-- **In-app Help:** the ❓ Help button left of the Wiki button opens plain-language guidance for every
-  setting, one section at a time, in the same layout as Osmium's Help panel.
-- A **Clear all prompt fields** button above the prompt fields empties every prompt box in one
-  click, in either prompt mode, along with the Character trigger. The Negative box is left alone.
-- **Fixed the gallery's image grid**: thumbnails were spilling out sideways, cut off at the panel
-  edge. They now sit three to a row in a square grid, folders on their own full-width rows above
-  them.
-- **Fixed reference-image picking on the Android app**: the preview now loads from the picked
-  image's bytes instead of a reference the WebView couldn't always render (real thumbnails where
-  the "generic file" icon showed), re-picking the same image registers again, and an upload whose
-  only problem is a slow or lost reply waits up to a minute before retrying instead of giving up
-  after 20 seconds. Upload failures now say how much of the image had actually been sent.
-- **The File Namer works on the Android app too.** Under Generation settings, File saving now
-  chooses where phone generations go: an automatic rating folder, a Character folder (Tag list
-  with Danbooru search suggestions, all OCs in one folder, or a custom name), and which parts the
-  filename carries — the same scheme the Windows app uses, with a live preview of the full path.
-  The PC keeps naming its own copies automatically, as it always has.
-- **The phone can browse the PC's output folder** (over Tailscale/LAN when connected): a Phone | PC
-  switch at the top of the gallery, with the PC side navigated like the desktop (breadcrumb path
-  listing, so you can leave `explicit/` and any other folder). The PC's grid loads small
-  thumbnails and only an opened image is fetched at full size, so browsing stays light on data —
-  and each opened PC image shows its **generation parameters** in the Details panel, with a
-  "Use these settings" that loads them into the phone's own generator.
+- **In-app Help** (Windows): the ❓ Help button left of the Wiki button opens plain-language guidance
+  for every setting, one section at a time, in the same layout as Osmium's Help panel.
+- A **Clear all prompt fields** button empties every prompt box in one click, in either prompt mode,
+  along with the Character trigger. The Negative box is left alone.
+- **Attention setting** for Osmium Comfy, the same as in Osmium.
 - Windows: you can **reorganize a generated image from the gallery.** Open its details panel in
   the lightbox and under Save details it shows what the image was saved under and includes the
   full File Namer options for the move, seeded from the image itself: reclassify as OC, pick a
   different character, or respec the filename (add the model, sampler, seed and the settings it
   was actually made with). Moves never overwrite anything already in the destination folder.
-- The window focuses itself on launch, and startup no longer blocks on loading the tag vocabulary, so
-  the first click and scroll register right away.
+- **"Use these prompts"** next to "Use these settings" in an image's details loads only its prompt
+  fields and leaves everything else as it is.
+
+### Comfy Bridge for Android
+
+- **The File Namer works on the Android app too.** Under Generation settings, File saving
+  chooses where phone generations go: an automatic rating folder, a Character folder (Tag list
+  with Danbooru search suggestions, all OCs in one folder, or a custom name), and which parts the
+  filename carries — the same scheme the Windows app uses, with a live preview of the full path.
+- **The phone can browse the PC's output folder** (over Tailscale/LAN): a Phone | PC switch at the
+  top of the gallery, with the PC side navigated like the desktop. The PC's grid loads small
+  thumbnails and only an opened image is fetched at full size, so browsing stays light on data, and
+  each opened PC image shows its generation parameters with "Use these settings" and "Use these
+  prompts". With **Persist Comfy** on, it works even while the Bridge itself is closed.
+- **Find PC**: a button next to Test connection searches your Wi-Fi network for a PC sharing Osmium
+  Comfy and connects to it (it searches the port in the box beside it, 8189 by default).
+- **Recent connections**: every address that connects is remembered with its token, so a dropped
+  link is one tap to reconnect.
+- **Flaky links recover on their own**: lost or silent requests are retried, and thumbnails load
+  several at a time, so one lost reply no longer holds up the rest.
+- **Reference images pick reliably**: the preview shows the picked image itself, re-picking the same
+  image works, and a slow reply after an upload waits up to a minute before giving up. Upload
+  failures say how much of the image had been sent.
 
 ---
 

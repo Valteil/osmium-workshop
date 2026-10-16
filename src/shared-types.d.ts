@@ -152,6 +152,9 @@ export interface TrainflowDatasetCheck {
   baseRes: number; maxBucket: number; errors: string[];
 }
 export interface TrainflowStartResult { ok: boolean; errors?: string[]; }
+// The trainer's caches inside the dataset (latent_cache/, cache_text_encoder/).
+export interface TrainflowCacheInfo { files: number; bytes: number; }
+export interface TrainflowCacheClearResult { ok: boolean; files: number; bytes: number; message?: string; }
 export interface TrainflowBucketReport {
   // Every valid bucket for the current Min/Max/Step, and how many dataset images sit at each.
   buckets: { w: number; h: number; count: number }[];

@@ -1225,7 +1225,7 @@
               <label>Max side <input type="number" id="tfBucketMax" value="1024" min="64" step="64"></label>
               <label>Step <input type="number" id="tfBucketStep" value="64" min="16" step="16"></label>
             </div>
-            <div class="synthdat-lora-row"><button id="btnTfVerifyBuckets" title="Check the dataset against these bucket sizes and list every valid bucket size"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-check-circle"></use></svg>Verify buckets</button></div>
+            <div class="synthdat-lora-row"><button id="btnTfVerifyBuckets" title="Check the dataset against these bucket sizes and list every valid bucket size"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-check-circle"></use></svg>Verify buckets</button><button id="btnTfClearCache" disabled title="Delete the latent and text-encoder caches the trainer saved in this dataset (latent_cache/, cache_text_encoder/). The trainer reuses them on the next run even after you change images or tags, so clear them after editing a dataset you've trained before."><svg class="ic ic-lead" aria-hidden="true"><use href="#i-trash"></use></svg><span id="tfClearCacheLabel">Clear training cache</span></button></div>
             <div id="tfBucketReport" class="synthdat-wd14-result trainflow-bucket-report" style="display:none;"></div>
           </div>
 

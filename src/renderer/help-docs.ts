@@ -292,7 +292,10 @@ export const HELP_SECTIONS: HelpSection[] = [
       the dataset (originals go to <code>original_images/</code>; nothing is redone if the copies
       are already right), checks for an NVIDIA GPU and starts training. <b>Min side / Max side / Step</b>
       set the bucket sizes Start uses (the same per-dataset values as the Bucket Images dock).
-      <b>Verify buckets</b> lists every valid bucket size for them and where your images sit.</p>
+      <b>Verify buckets</b> lists every valid bucket size for them and where your images sit. The
+      trainer keeps latent and text-encoder caches in the dataset and reuses them even after you
+      change images or tags, so after editing a dataset you trained before, press <b>Clear training
+      cache</b> before starting again.</p>
       <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
       you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
       and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow

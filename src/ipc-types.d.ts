@@ -43,7 +43,7 @@ export interface SynthdatQueuePayload {
 // Bridge's synced copy has it too.
 import type { ComfyLocalStatus, ComfyLocalAttention } from './shared-types';
 export type { ComfyLocalStatus, ComfyLocalAttention };
-import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck, TrainflowStartResult, TrainflowBucketReport } from './shared-types';
+import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck, TrainflowStartResult, TrainflowBucketReport, TrainflowCacheInfo, TrainflowCacheClearResult } from './shared-types';
 
 export interface ExportAppStateResult {
   ok: boolean;
@@ -129,6 +129,8 @@ export interface ElectronAPI {
   trainflowFindByMarker?(name: string, marker: string): Promise<string | null>;
   trainflowCheckDataset?(dir: string, bucket: { min: number; max: number; step: number }): Promise<TrainflowDatasetCheck>;
   trainflowVerifyBuckets?(dir: string, bucket: { min: number; max: number; step: number }): Promise<TrainflowBucketReport>;
+  trainflowCacheInfo?(dir: string): Promise<TrainflowCacheInfo>;
+  trainflowClearCache?(dir: string): Promise<TrainflowCacheClearResult>;
   trainflowStart?(s: TrainflowSettings): Promise<TrainflowStartResult>;
   trainflowStop?(): Promise<{ ok: boolean; message: string }>;
   trainflowClearRun?(): Promise<TrainflowStatus>;

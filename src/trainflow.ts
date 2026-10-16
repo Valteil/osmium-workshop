@@ -20,7 +20,8 @@ import * as path from 'path';
 import { bucketImage, modelStatus, downloadModel } from './bucket-local';
 import { getValidBuckets, getBestBucket, isBucketSize } from './bucket-core';
 import type {
-  TrainflowSettings, TrainflowStatus, TrainflowRun, TrainflowDatasetCheck, TrainflowStartResult, TrainflowBucketReport
+  TrainflowSettings, TrainflowStatus, TrainflowRun, TrainflowDatasetCheck, TrainflowStartResult, TrainflowBucketReport,
+  TrainflowCacheClearResult
 } from './shared-types';
 
 const CONFIG_FILE = () => path.join(app.getPath('userData'), 'trainflow.json');
@@ -301,7 +302,7 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
   const rank = Math.round(s.rank);
   // Advanced knobs fall back to the app's original defaults when unset, so an
   // untouched form — or an external caller passing a partial settings object
-  // (the red-team writer seam) — writes the exact TOML it always did. Every
+  // (the renderTomlsForTest seam) — writes the exact TOML it always did. Every
   // `undefined` therefore resolves to the old fixed value, never to a new one.
   const alpha = s.advAlpha > 0 ? Math.round(s.advAlpha) : rank;
   const mp = s.advMixedPrecision || 'bf16';
@@ -360,12 +361,11 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
   fs.writeFileSync(file, lines.join('\n'));
 }
 
-// ---- test seam (red-team harness) --------------------------------------------
+// ---- test seam ----------------------------------------------------------------
 // Runs the REAL writer path (writeSamplePrompts + writeDatasetToml +
-// writeTrainingToml) against the given settings and returns each file's text.
-// Exists so the harness can feed newline/control characters through the actual
-// writers and read the output, instead of grepping for stripControl. Not used
-// by the app itself.
+// writeTrainingToml) against the given settings and returns each file's text,
+// so a script can check the generated TOML (e.g. untouched settings vs an older
+// writer, or control characters stripped). Not used by the app itself.
 export function renderTomlsForTest(
   s: TrainflowSettings,
   check: TrainflowDatasetCheck,
@@ -420,6 +420,45 @@ const startedBeforeBoot = (r: RunRecord) => r.startedAt < Date.now() - os.uptime
 function runIsLive(): RunRecord | null {
   const r = readRun();
   return r && !startedBeforeBoot(r) && pidAlive(r.pid) ? r : null;
+}
+
+// ---- trainer caches ----------------------------------------------------------
+// The trainer writes latents and text-encoder outputs next to the dataset and
+// reuses any it finds, even after the images or captions changed — so a
+// retrain after editing tags trains on the old captions. Clearing touches only
+// these two folders and only files with the trainer's own suffixes (sd-scripts'
+// strategy_anima.py), never follows a link, and refuses while a run is live.
+const CACHE_DIRS: [string, string][] = [['latent_cache', '_anima.npz'], ['cache_text_encoder', '_anima_te.npz']];
+
+function cacheFiles(dataset: string): { file: string; bytes: number }[] {
+  const out: { file: string; bytes: number }[] = [];
+  for (const [name, suffix] of CACHE_DIRS) {
+    const dir = path.join(dataset, name);
+    try {
+      const st = fs.lstatSync(dir);
+      if (!st.isDirectory() || st.isSymbolicLink()) continue;
+      for (const f of fs.readdirSync(dir)) {
+        if (!f.endsWith(suffix)) continue;
+        const p = path.join(dir, f);
+        const fst = fs.lstatSync(p);
+        if (fst.isFile()) out.push({ file: p, bytes: fst.size });
+      }
+    } catch { /* no cache folder */ }
+  }
+  return out;
+}
+
+function clearCache(dataset: string): TrainflowCacheClearResult {
+  if (runIsLive()) return { ok: false, files: 0, bytes: 0, message: 'Training is running. Stop it first, or wait for it to finish.' };
+  let files = 0, bytes = 0;
+  const failed: string[] = [];
+  for (const f of cacheFiles(dataset)) {
+    try { fs.unlinkSync(f.file); files++; bytes += f.bytes; } catch { failed.push(path.basename(f.file)); }
+  }
+  for (const [name] of CACHE_DIRS) { try { fs.rmdirSync(path.join(dataset, name)); } catch { /* not empty or gone */ } }
+  return failed.length
+    ? { ok: false, files, bytes, message: `${failed.length} cache file${failed.length === 1 ? '' : 's'} couldn't be deleted (in use?).` }
+    : { ok: true, files, bytes };
 }
 
 // trainflow-run.json is reads/writes we trust only if its output paths stay
@@ -804,6 +843,14 @@ export function registerTrainflowHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('trainflow-verify-buckets', (_e, dir: string, b: { min: number; max: number; step: number }) => {
     const d = safeAbsPath(dir);
     return d ? verifyBuckets(d, b) : { buckets: [], images: 0, offBucket: [], withoutOriginal: 0, toRebucket: 0 };
+  });
+  ipcMain.handle('trainflow-cache-info', (_e, dir: string) => {
+    const d = safeAbsPath(dir);
+    return d ? cacheFiles(d).reduce((a, f) => ({ files: a.files + 1, bytes: a.bytes + f.bytes }), { files: 0, bytes: 0 }) : { files: 0, bytes: 0 };
+  });
+  ipcMain.handle('trainflow-clear-cache', (_e, dir: string) => {
+    const d = safeAbsPath(dir);
+    return d ? clearCache(d) : { ok: false, files: 0, bytes: 0, message: 'Invalid dataset folder.' };
   });
   ipcMain.handle('trainflow-start', (_e, s: TrainflowSettings) => startTraining(s));
   ipcMain.handle('trainflow-stop', () => stopTraining());

@@ -4360,7 +4360,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       the dataset (originals go to <code>original_images/</code>; nothing is redone if the copies
       are already right), checks for an NVIDIA GPU and starts training. <b>Min side / Max side / Step</b>
       set the bucket sizes Start uses (the same per-dataset values as the Bucket Images dock).
-      <b>Verify buckets</b> lists every valid bucket size for them and where your images sit.</p>
+      <b>Verify buckets</b> lists every valid bucket size for them and where your images sit. The
+      trainer keeps latent and text-encoder caches in the dataset and reuses them even after you
+      change images or tags, so after editing a dataset you trained before, press <b>Clear training
+      cache</b> before starting again.</p>
       <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
       you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
       and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
@@ -21154,9 +21157,27 @@ Image: ${entry.imgName}`,
       box.style.whiteSpace = "pre-wrap";
       return c;
     }
+    const mb = (b) => (b / 1048576).toFixed(b < 10485760 ? 1 : 0);
+    async function refreshCacheInfo() {
+      const btn = $("btnTfClearCache");
+      const label = $("tfClearCacheLabel");
+      const c = datasetPath ? await api.trainflowCacheInfo(datasetPath) : { files: 0, bytes: 0 };
+      btn.disabled = !c.files;
+      label.textContent = c.files ? `Clear training cache (${c.files} file${c.files === 1 ? "" : "s"} \xB7 ${mb(c.bytes)} MB)` : "No training cache";
+    }
+    $("btnTfClearCache").addEventListener("click", async () => {
+      await resolveDataset();
+      if (!datasetPath) return;
+      const ok = await showConfirmModal("Delete the latent and text-encoder caches the trainer saved in this dataset? The next Start Trainflow rebuilds them from the current images and tags (a little slower to start). Your images, tags and trained LoRAs are untouched.", { okLabel: "Clear cache", danger: true });
+      if (!ok) return;
+      const r = await api.trainflowClearCache(datasetPath);
+      toast(r.ok ? `Training cache cleared (${r.files} file${r.files === 1 ? "" : "s"}, ${mb(r.bytes)} MB).` : r.message || "Could not clear the training cache.", 4200);
+      await refreshCacheInfo();
+    });
     async function refreshDataset() {
       await resolveDataset();
       await runDatasetCheck();
+      await refreshCacheInfo();
     }
     async function pick2(kind, title, current) {
       return api.trainflowPickPath({ kind, title, defaultPath: current || void 0 });
@@ -21241,6 +21262,7 @@ Image: ${entry.imgName}`,
       await refresh2();
     });
     const fmtSize = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " KB";
+    let wasRunning = false;
     function applyStatus(s) {
       last = s;
       $("trainflowFolder").textContent = s.folder || "Not set";
@@ -21250,6 +21272,9 @@ Image: ${entry.imgName}`,
       fs.textContent = s.error || "";
       const run2 = s.run;
       const running2 = run2?.state === "running";
+      if (wasRunning && !running2) void refreshCacheInfo();
+      wasRunning = running2;
+      $("btnTfClearCache").disabled = running2 || $("btnTfClearCache").disabled;
       $("btnTrainflowStart").disabled = running2 || starting || !s.ok;
       $("btnTrainflowStop").disabled = !running2;
       const info = $("trainflowRunInfo");

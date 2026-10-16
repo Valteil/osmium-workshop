@@ -536,7 +536,10 @@ later.
 caption), rank, optimizer (Prodigy by default, which sets its own learning rate), batch size, steps,
 save and preview intervals, and the preview prompt. **Min side / Max side / Step** set the bucket
 sizes Start uses (the same per-dataset values as the Bucket Images dock; change either). **Verify
-buckets** lists every valid bucket size for them and how many of your images sit at each.
+buckets** lists every valid bucket size for them and how many of your images sit at each. The trainer
+saves latent and text-encoder caches in the dataset (`latent_cache/`, `cache_text_encoder/`) and reuses
+them on the next run even after you change images or tags, so after editing a dataset you've trained
+before, press **Clear training cache** (it shows how much is there) before starting again.
 
 **Start Trainflow** is the only thing that begins work. It saves your tag edits, buckets the dataset
 (originals in `original_images/`; nothing happens if the copies are already right, and new dimensions
