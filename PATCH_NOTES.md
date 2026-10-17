@@ -4,23 +4,9 @@ Every release of Osmium Workshop (called Dataset Tag Studio up to v1.5.0), newes
 Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 [releases page](https://github.com/Valteil/osmium-workshop/releases).
 
-- [v2.1.0 (unreleased)](#v210-unreleased) · [v2.0.0 (unreleased)](#v200-unreleased) · [v1.9.5](#v195) · [v1.9.0](#v190) · [v1.8.0](#v180) · [v1.7.0](#v170) · [v1.6.5](#v165) · [v1.6.0](#v160) · [v1.5.5](#v155) ·
+- [v2.0.0 (unreleased)](#v200-unreleased) · [v1.9.5](#v195) · [v1.9.0](#v190) · [v1.8.0](#v180) · [v1.7.0](#v170) · [v1.6.5](#v165) · [v1.6.0](#v160) · [v1.5.5](#v155) ·
   [v1.5.0](#v150) · [v1.4.0](#v140) · [v1.3.0](#v130) · [v1.2.0](#v120) ·
   [v1.1.5](#v115-tauri--discontinued) · [v1.1.0](#v110) · [v1.0.0](#v100)
-
----
-
-## v2.1.0 (unreleased)
-
-### Comfy Bridge
-
-- **Compare tab** (Windows and Android): put any number of images into slots (tap a slot's ⊕, then
-  an image in the large gallery below it, or Open file…) and compare two at a time. **Side by
-  side**: tap an image and its prompt slides up beside it while the pair moves over to make room.
-  **Overlay**: the two images stacked; press and hold to see through the top one. The ‹ › arrows
-  pick which slot each side shows. Animated throughout, with an **Animations** switch to turn the
-  motion off.
-- **The gallery panel remembers where you were**: closing it keeps the folder and scroll position.
 
 ---
 
@@ -61,6 +47,13 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **Compare tab** (Windows and Android): put any number of images into slots (tap a slot's ⊕, then
+  an image in the large gallery below it, or Open file…) and compare two at a time. **Side by
+  side**: tap an image and its prompt slides up beside it while the pair moves over to make room.
+  **Overlay**: the two images stacked; press and hold to see through the top one. The ‹ › arrows
+  pick which slot each side shows. Animated throughout, with an **Animations** switch to turn the
+  motion off.
+- **The gallery panel remembers where you were**: closing it keeps the folder and scroll position.
 - **Upscale with USDU** (Windows and Android): Ultimate SD Upscale as the other choice next to the
   normal upscale. It upscales the image you generate (the pass 2 image when 2-Pass is on) or any
   image you import, then redraws it tile by tile with its own checkpoint, so you get real added
