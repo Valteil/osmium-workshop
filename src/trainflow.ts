@@ -609,6 +609,24 @@ function checkCuda(python: string, cwd: string): Promise<boolean> {
   });
 }
 
+// sd-scripts' library/attention.py imports flash_attn / xformers in a
+// try/except and leaves them None, so a backend that isn't installed in the
+// trainer's own Python only fails at the first attention call (step 0, after
+// the model load). Checked here instead, and only for those two choices.
+const ATTN_PACKAGES: Record<string, { module: string; pkg: string }> = {
+  flash: { module: 'flash_attn', pkg: 'flash-attn' },
+  xformers: { module: 'xformers.ops', pkg: 'xformers' }
+};
+function checkAttentionBackend(mode: string | undefined, python: string, cwd: string): Promise<string> {
+  const need = mode ? ATTN_PACKAGES[mode] : undefined;
+  if (!need) return Promise.resolve('');
+  return new Promise((resolve) => {
+    execFile(python, ['-c', `import ${need.module}`], { cwd, timeout: 60000, windowsHide: true }, (err) => {
+      resolve(err ? `Attention is set to ${mode}, but ${need.pkg} isn't installed in Anima-TrainFlow's Python (${python}). Set Attention to sdpa (on RTX 30-series and newer it already uses FlashAttention kernels), or install ${need.pkg} into that Python.` : '');
+    });
+  });
+}
+
 async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult> {
   if (runIsLive()) return { ok: false, errors: ['Training is already running.'] };
   const resolved = resolveInstall(readFolder());
@@ -640,6 +658,8 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
   if (!(await checkCuda(inst.python, inst.scriptsDir))) {
     return { ok: false, errors: ['No NVIDIA GPU / CUDA found by PyTorch. Training on CPU isn\'t supported. Update your NVIDIA drivers and try again.'] };
   }
+  const attnError = await checkAttentionBackend(s.advAttn, inst.python, inst.scriptsDir);
+  if (attnError) return { ok: false, errors: [attnError] };
 
   const project = sanitizeProject(s.trigger);
   const outDir = path.join(inst.outputBase, project);
