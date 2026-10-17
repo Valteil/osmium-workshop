@@ -73,6 +73,9 @@ export interface Wd14LocalTagImagePayload {
   threshold: number;
   characterThreshold: number;
   preferGpu?: boolean;
+  // Mass tagging: keep the loaded model for the batch's next images
+  // (released by wd14-local-release when the batch ends).
+  keepSession?: boolean;
 }
 
 export interface BucketImagePayload {
@@ -143,6 +146,7 @@ export interface ElectronAPI {
   wd14LocalDeleteModel(name: string): Promise<void>;
   wd14LocalDownloadModel(payload: Wd14LocalDownloadPayload): Promise<void>;
   wd14LocalTagImage(payload: Wd14LocalTagImagePayload): Promise<Wd14LocalTagResult>;
+  wd14LocalRelease(): Promise<void>;
   onWd14LocalDownloadProgress(callback: (event: unknown, ev: Wd14LocalDownloadProgress) => void): void;
   wd14LocalPickImportFiles(): Promise<Wd14LocalPickImportResult>;
   wd14LocalImportModel(payload: Wd14LocalImportPayload): Promise<void>;

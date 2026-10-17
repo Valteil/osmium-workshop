@@ -288,7 +288,9 @@ export interface Wd14LocalInterface {
   listModels(): Promise<Wd14LocalModel[]>;
   deleteModel(name: string): Promise<void>;
   downloadModel(opts: { name: string; modelUrl: string; tagsUrl: string }, onProgress?: (ev: Wd14LocalDownloadProgress) => void): Promise<void>;
-  tagImage(payload: { name: string; imageBytes: Uint8Array; threshold: number; characterThreshold: number; preferGpu?: boolean }): Promise<Wd14LocalTagResult>;
+  tagImage(payload: { name: string; imageBytes: Uint8Array; threshold: number; characterThreshold: number; preferGpu?: boolean; keepSession?: boolean }): Promise<Wd14LocalTagResult>;
+  // Desktop: free the sessions a mass-tagging batch kept (keepSession).
+  release?(): Promise<void>;
   pickImportFiles?(): Promise<{ canceled: true } | { canceled?: false; name: string; modelPath: string; tagsPath: string }>;
   importModel?(payload: { name: string; modelPath: string; tagsPath: string }): Promise<void>;
 }

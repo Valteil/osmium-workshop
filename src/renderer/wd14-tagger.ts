@@ -221,7 +221,9 @@ function setStatus(text: string, progressFraction?: number): void {
   if (fill) fill.style.width = (progressFraction == null ? 0 : Math.round(progressFraction * 100)) + '%';
 }
 
-async function tagOneWithRetry(entry: Entry): Promise<string | null> {
+// keepSession: mass tagging keeps the on-device model loaded between images
+// (runBatch releases it at the end); a single image doesn't hold it.
+async function tagOneWithRetry(entry: Entry, keepSession: boolean): Promise<string | null> {
   while (true){
     if (cancelRequested) return null;
     let bytes;
@@ -238,7 +240,8 @@ async function tagOneWithRetry(entry: Entry): Promise<string | null> {
           imageBytes: bytes,
           threshold: settings.threshold,
           characterThreshold: settings.characterThreshold,
-          preferGpu: settings.gpu !== false
+          preferGpu: settings.gpu !== false,
+          keepSession
         })
       : hasElectronComfy
         ? await window.electronAPI.wd14TagImage({
@@ -563,15 +566,21 @@ async function runBatch(entries: Entry[]): Promise<void> {
   setIconLabel(btnWd14TagSelected, '⏹ Cancel tagging');
   const results: Wd14ReviewRow[] = [];
   let failCount = 0;
-  for (let i = 0; i < entries.length; i++){
-    if (cancelRequested) break;
-    const entry = entries[i];
-    setStatus(`Tagging ${i + 1}/${entries.length} — ${entry.imgName}…`, i / entries.length);
-    const tagsCsv = await tagOneWithRetry(entry);
-    if (tagsCsv == null){ failCount++; continue; }
-    const fresh = parseWd14Tags(tagsCsv);
-    const mergedTags = entry.tags.concat(fresh.filter(t => !entry.tags.includes(t)));
-    results.push({ entry, mergedTags });
+  const keepSession = usingLocal && entries.length > 1;
+  try {
+    for (let i = 0; i < entries.length; i++){
+      if (cancelRequested) break;
+      const entry = entries[i];
+      setStatus(`Tagging ${i + 1}/${entries.length} — ${entry.imgName}…`, i / entries.length);
+      const tagsCsv = await tagOneWithRetry(entry, keepSession);
+      if (tagsCsv == null){ failCount++; continue; }
+      const fresh = parseWd14Tags(tagsCsv);
+      const mergedTags = entry.tags.concat(fresh.filter(t => !entry.tags.includes(t)));
+      results.push({ entry, mergedTags });
+    }
+  } finally {
+    // The batch is over (done, cancelled or failed): free the kept model.
+    if (keepSession && window.Wd14Local && window.Wd14Local.release) await window.Wd14Local.release().catch(() => undefined);
   }
   const failNote = failCount > 0 ? ` (${failCount} skipped)` : '';
   const engineNote = lastProvider ? ` — on ${lastProvider === 'dml' ? 'GPU' : 'CPU'}` : '';

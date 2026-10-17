@@ -51,6 +51,7 @@ const api: ElectronAPI = {
   wd14LocalDeleteModel: (name) => ipcRenderer.invoke('wd14-local-delete-model', name),
   wd14LocalDownloadModel: (payload) => ipcRenderer.invoke('wd14-local-download-model', payload),
   wd14LocalTagImage: (payload) => ipcRenderer.invoke('wd14-local-tag-image', payload),
+  wd14LocalRelease: () => ipcRenderer.invoke('wd14-local-release'),
   onWd14LocalDownloadProgress: (callback) => ipcRenderer.on('wd14-local-download-progress', callback),
   wd14LocalPickImportFiles: () => ipcRenderer.invoke('wd14-local-pick-import-files'),
   wd14LocalImportModel: (payload) => ipcRenderer.invoke('wd14-local-import-model', payload),

@@ -27,8 +27,11 @@ if (window.electronAPI && window.electronAPI.wd14LocalListModels) {
         progressCallbacks.delete(opts.name);
       }
     },
-    async tagImage(payload: { name: string; imageBytes: Uint8Array; threshold: number; characterThreshold: number; preferGpu?: boolean }) {
+    async tagImage(payload: { name: string; imageBytes: Uint8Array; threshold: number; characterThreshold: number; preferGpu?: boolean; keepSession?: boolean }) {
       return await window.electronAPI.wd14LocalTagImage(payload);
+    },
+    async release() {
+      await window.electronAPI.wd14LocalRelease();
     },
     async pickImportFiles() {
       return await window.electronAPI.wd14LocalPickImportFiles();

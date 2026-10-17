@@ -141,14 +141,32 @@ const DEFAULT_INPUT_SIZE = 448;
 // GPU via DirectML (runs on the NVIDIA card through DirectX 12 — the stock
 // onnxruntime-node Windows package bundles DirectML.dll but no CUDA EP, and
 // per its own README CUDA is Linux-only, so DirectML is the GPU path here).
-// Sessions are cached per model+provider; a failed GPU bring-up falls back
-// to CPU inside the same call rather than failing the batch.
-const sessionCache = new Map<string, { session: InferenceSession; provider: string }>();
+// A failed GPU bring-up falls back to CPU inside the same call rather than
+// failing the batch.
+//
+// Sessions are kept (per model+provider) only while a mass-tagging batch runs:
+// the batch tags with keepSession and calls wd14-local-release at its end, so
+// the model (~1.2 GB for EVA02 Large) isn't left in VRAM between uses. A
+// one-off tag (single image, SynthDat's reference) loads, tags and releases —
+// unless a batch already holds that session, which it then just borrows.
+// `inUse` stops a release from freeing a session mid-run.
+const sessionCache = new Map<string, { session: InferenceSession; provider: string; inUse: number; dropped?: boolean }>();
+async function releaseSession(entry: { session: InferenceSession }): Promise<void> {
+  try { await entry.session.release(); } catch { /* already gone */ }
+}
+async function releaseSessions(): Promise<void> {
+  const entries = [...sessionCache.values()];
+  sessionCache.clear();
+  for (const e of entries) {
+    if (e.inUse > 0) e.dropped = true; // freed by whoever is still running on it
+    else await releaseSession(e);
+  }
+}
 async function loadSession(name: string, preferGpu?: boolean) {
   const wantGpu = !!preferGpu;
   const key = name + '|' + (wantGpu ? 'dml' : 'cpu');
   const cachedSession = sessionCache.get(key);
-  if (cachedSession) return cachedSession;
+  if (cachedSession) return { entry: cachedSession, key, cached: true };
   const modelPath = path.join(modelDir(name), 'model.onnx');
   if (!fs.existsSync(modelPath)) throw new Error(`Model "${name}" is not downloaded.`);
   let session: InferenceSession | null = null;
@@ -162,9 +180,7 @@ async function loadSession(name: string, preferGpu?: boolean) {
     }
   }
   if (!session) session = await InferenceSession.create(modelPath);
-  const entry = { session, provider };
-  sessionCache.set(key, entry);
-  return entry;
+  return { entry: { session, provider, inUse: 0 }, key, cached: false };
 }
 
 const tagsCache = new Map<string, { name: string; category: number }[]>();
@@ -222,19 +238,30 @@ function escapeTag(name: string): string {
   return name.replace(/ /g, '_').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 }
 
-async function tagImage({ name, imageBytes, threshold, characterThreshold, preferGpu }: Wd14LocalTagImagePayload): Promise<Wd14LocalTagResult> {
-  const { session, provider } = await loadSession(name, preferGpu);
+async function tagImage({ name, imageBytes, threshold, characterThreshold, preferGpu, keepSession }: Wd14LocalTagImagePayload): Promise<Wd14LocalTagResult> {
+  const { entry, key, cached } = await loadSession(name, preferGpu);
+  // A batch keeps a fresh session for its next images; a one-off doesn't.
+  if (!cached && keepSession) sessionCache.set(key, entry);
+  const owned = !cached && !keepSession;
+  const { session, provider } = entry;
+  const outputName = session.outputNames[0]; // read before a possible release
+  entry.inUse++;
+  let results: InferenceSession.OnnxValueMapType;
+  try {
+    const inputTensor = preprocess(Buffer.from(imageBytes), DEFAULT_INPUT_SIZE);
+    results = await session.run({ [session.inputNames[0]]: inputTensor });
+  } finally {
+    entry.inUse--;
+    if (owned || (entry.dropped && entry.inUse === 0)) await releaseSession(entry);
+  }
   const tags = loadTags(name);
-  const inputTensor = preprocess(Buffer.from(imageBytes), DEFAULT_INPUT_SIZE);
-  const feeds = { [session.inputNames[0]]: inputTensor };
-  const results = await session.run(feeds);
   // Model output is ALREADY sigmoid-activated (SmilingWolf's WD14 ONNX
   // exports bake sigmoid into the graph's own final layer) — used as-is,
   // deliberately NOT re-applying sigmoid() here. Re-applying it was a real
   // bug on the mobile plugin: it compresses every score into ~0.5-0.73
   // regardless of real confidence, dumping nearly the whole vocabulary
   // (~8900 tags on one test image) instead of the normal 20-40.
-  const scores = results[session.outputNames[0]].data as Float32Array;
+  const scores = results[outputName].data as Float32Array;
   const picked: string[] = [];
   for (let i = 0; i < tags.length && i < scores.length; i++) {
     const tag = tags[i];
@@ -247,6 +274,8 @@ async function tagImage({ name, imageBytes, threshold, characterThreshold, prefe
 
 function registerWd14LocalHandlers(ipcMain: IpcMain) {
   ipcMain.handle('wd14-local-list-models', async () => listModels());
+  // End of a mass-tagging batch: free the sessions it kept.
+  ipcMain.handle('wd14-local-release', async () => releaseSessions());
   ipcMain.handle('wd14-local-delete-model', async (_event, name: string) => deleteModel(name));
   ipcMain.handle('wd14-local-download-model', async (event, payload: Wd14LocalDownloadPayload) => {
     await downloadModel(payload, (progress) => event.sender.send('wd14-local-download-progress', progress));
