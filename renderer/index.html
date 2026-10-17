@@ -1193,6 +1193,17 @@
             <div class="wd14-progress-track trainflow-progress" id="trainflowProgressTrack" style="display:none;"><div class="wd14-progress-fill" id="trainflowProgressFill"></div></div>
             <div id="trainflowStats" class="trainflow-stats" style="display:none;"></div>
           </div>
+          <!-- Continue training (2026-10-17): Start Trainflow carries on from one of
+               this project's checkpoints (its weights) or saved states (exact). -->
+          <div class="tool-section">
+            <div class="sec-head"><span class="t">Continue training</span></div>
+            <div class="sec-head"><span class="d">Not happy with where a run ended? Pick one of this project's checkpoints and Start Trainflow trains on from there instead of starting over.</span></div>
+            <div class="trainflow-grid">
+              <label class="field-block" title="A new LoRA, a checkpoint's weights, or a saved state (exact resume; needs Resume state turned on in Training when that run was trained)"><span>Start from</span><select id="tfContinueFrom"><option value="">A new LoRA (start over)</option></select></label>
+              <label class="field-block" title="How many steps to train on top of the checkpoint"><span>More steps</span><input type="number" id="tfContinueSteps" min="1" step="1"></label>
+            </div>
+            <div id="tfContinueHint" class="synthdat-wd14-result"></div>
+          </div>
           <div class="tool-section">
             <div class="sec-head"><span class="t">Log</span><button id="btnTrainflowLog" class="trainflow-mini" title="Open the full log file">Open log</button></div>
             <pre id="trainflowLog" class="trainflow-log">Not started.</pre>
@@ -1259,6 +1270,7 @@
               <label class="field-block"><span>Save every n steps</span><input type="number" id="tfSaveSteps" min="1" step="1"></label>
               <label class="field-block"><span>Preview every n steps</span><input type="number" id="tfSampleSteps" min="1" step="1"></label>
               <label class="field-block" title="Reproducibility seed for training. Same seed + data + steps reproduces a run."><span>Train seed</span><input type="number" id="tfTrainSeed" step="1"></label>
+              <label class="field-block" title="Also save the optimizer, learning-rate schedule and random state with every checkpoint (a folder beside it, about 3 times the checkpoint's size: ~265 MB per save at rank 32). Then Continue training can resume that checkpoint exactly, instead of from its weights only."><span>Resume state</span><label class="ach-toggle-row"><input type="checkbox" id="tfSaveState"><span>Save with checkpoints</span></label></label>
             </div>
 
             <!-- Power-user knobs. Collapsed by default so the one-button path

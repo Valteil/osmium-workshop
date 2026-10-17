@@ -21,8 +21,9 @@ import { bucketImage, modelStatus, downloadModel } from './bucket-local';
 import { getValidBuckets, getBestBucket, isBucketSize } from './bucket-core';
 import type {
   TrainflowSettings, TrainflowStatus, TrainflowRun, TrainflowDatasetCheck, TrainflowStartResult, TrainflowBucketReport,
-  TrainflowCacheClearResult
+  TrainflowCacheClearResult, TrainflowContinueOption
 } from './shared-types';
+import { resumePatchError, writeResumeBootstrap } from './trainflow-resume';
 
 const CONFIG_FILE = () => path.join(app.getPath('userData'), 'trainflow.json');
 const RUN_FILE = () => path.join(app.getPath('userData'), 'trainflow-run.json');
@@ -294,7 +295,8 @@ function writeDatasetToml(s: TrainflowSettings, file: string, check: TrainflowDa
   fs.writeFileSync(file, lines.join('\n'));
 }
 
-function writeTrainingToml(s: TrainflowSettings, file: string, project: string, outDir: string, promptFile: string): void {
+// `extra` = lines a continued run adds (network_weights for a warm start).
+function writeTrainingToml(s: TrainflowSettings, file: string, project: string, outDir: string, promptFile: string, extra: string[] = []): void {
   const prodigy = s.optimizer === 'Prodigy';
   const optArgs = prodigy
     ? ['decouple=True', 'weight_decay=0.01', 'd_coef=1.0', 'use_bias_correction=True', 'safeguard_warmup=True', 'betas=0.9,0.99']
@@ -356,6 +358,10 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
     `vae_chunk_size = ${vaeChunk}`,
     `vae_disable_cache = ${vaeDisableCache ? 'true' : 'false'}`,
     ...(s.advNoHalfVae ? ['no_half_vae = true'] : []),
+    // Optimizer/scheduler/RNG state beside each checkpoint (and at the end), so
+    // the run can be resumed exactly: <name>-stepNNNNNNNN-state/, <name>-state/.
+    ...(s.saveState ? ['save_state = true'] : []),
+    ...extra,
     ''
   ];
   fs.writeFileSync(file, lines.join('\n'));
@@ -396,6 +402,9 @@ export function renderTomlsForTest(
 interface RunRecord {
   pid: number; project: string; outDir: string; logFile: string; samplesDir: string;
   totalSteps: number; startedAt: number; stopRequested?: boolean;
+  // The run's output name (its final file is <outputName>.safetensors); a
+  // continued run's differs from the project. Absent in older records.
+  outputName?: string;
   // Trainer executable we spawned, kept so a reused PID can be sanity-checked.
   exe?: string;
 }
@@ -538,13 +547,13 @@ function status(): TrainflowStatus {
   if (!rec) return out;
   const live = !startedBeforeBoot(rec) && pidAlive(rec.pid);
   const parsed = parseLog(readTail(rec.logFile));
-  const finalFile = path.join(rec.outDir, rec.project + '.safetensors');
+  const finalFile = path.join(rec.outDir, (rec.outputName || rec.project) + '.safetensors');
   let finished = false;
   try { finished = fs.statSync(finalFile).mtimeMs >= rec.startedAt; } catch { /* not written yet */ }
   const total = parsed.total || rec.totalSteps;
   const state: TrainflowRun['state'] = live ? 'running' : finished ? 'finished' : rec.stopRequested ? 'stopped' : 'failed';
   out.run = {
-    state, project: rec.project, outDir: rec.outDir, startedAt: rec.startedAt,
+    state, project: rec.outputName || rec.project, outDir: rec.outDir, startedAt: rec.startedAt,
     step: state === 'finished' ? total : parsed.step, total,
     speed: parsed.speed, eta: parsed.eta, elapsed: parsed.elapsed, loss: parsed.loss
   };
@@ -627,6 +636,106 @@ function checkAttentionBackend(mode: string | undefined, python: string, cwd: st
   });
 }
 
+// ---- continuing a run ------------------------------------------------------------
+// Two ways to train further from an earlier run of the same project:
+//   - weights: a checkpoint's LoRA weights (network_weights + dim_from_weights,
+//     so rank/alpha come from the file) start a NEW run of `continueSteps`
+//     steps with the form's settings. Works on any checkpoint, but the
+//     optimizer's moments (Prodigy's step-size estimate too) and the LR
+//     schedule start over. Named <run>-from<step> so nothing is overwritten.
+//   - state: a `save_state` folder (<run>-stepNNNNNNNN-state/, <run>-state/)
+//     resumes exactly: same configs as that run (its configs/<run>_*.toml),
+//     optimizer, LR scheduler and RNG restored, the step counter continuing,
+//     checkpoints named on (step 700, 800, …) up to step + continueSteps.
+const STEP_FILE_RE = /^(.+?)-step(\d{8})\.safetensors$/i;
+const STATE_DIR_RE = /^(.+?)(?:-step(\d{8}))?-state$/;
+const FROM_RE = /^(.+)-from(\d+)$/;
+
+// A warm start's output name, counted from the whole chain's start:
+// <p>-from600's step 400 is step 1000 of <p>, so it continues as <p>-from1000.
+function warmStartName(run: string, step: number): string {
+  const from = FROM_RE.exec(run);
+  const abs = step ? step + (from ? Number(from[2]) : 0) : 0;
+  return abs ? `${from ? from[1] : run}-from${abs}` : `${run}-more`;
+}
+
+// A run's own step count, from the training TOML it was started with.
+function configSteps(outDir: string, run: string): number {
+  try {
+    const m = /^max_train_steps\s*=\s*(\d+)/m.exec(fs.readFileSync(path.join(outDir, 'configs', `${run}_training.toml`), 'utf8'));
+    return m ? Number(m[1]) : 0;
+  } catch { return 0; }
+}
+function stateStep(dir: string): number {
+  try {
+    const n = Number(JSON.parse(fs.readFileSync(path.join(dir, 'train_state.json'), 'utf8')).current_step);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  } catch { return 0; }
+}
+
+function listContinueOptions(trigger: string): TrainflowContinueOption[] {
+  const resolved = resolveInstall(readFolder());
+  if (!('install' in resolved)) return [];
+  const outDir = path.join(resolved.install.outputBase, sanitizeProject(String(trigger || '')));
+  let entries: fs.Dirent[];
+  try { entries = fs.readdirSync(outDir, { withFileTypes: true }); } catch { return []; }
+  const out: TrainflowContinueOption[] = [];
+  for (const e of entries) {
+    const full = path.join(outDir, e.name);
+    let mtime = 0;
+    try { mtime = fs.statSync(full).mtimeMs; } catch { continue; }
+    if (e.isFile() && /\.safetensors$/i.test(e.name)) {
+      const m = STEP_FILE_RE.exec(e.name);
+      const run = m ? m[1] : e.name.replace(/\.safetensors$/i, '');
+      const step = m ? Number(m[2]) : configSteps(outDir, run);
+      out.push({ id: 'weights:' + e.name, kind: 'weights', name: e.name, run, step, mtime, outputName: warmStartName(run, step) });
+    } else if (e.isDirectory()) {
+      const m = STATE_DIR_RE.exec(e.name);
+      const step = m ? stateStep(full) : 0;
+      if (m && step) out.push({ id: 'state:' + e.name, kind: 'state', name: e.name, run: m[1], step, mtime, outputName: m[1] });
+    }
+  }
+  return out.sort((a, b) => b.mtime - a.mtime || b.step - a.step);
+}
+
+interface ContinuePlan {
+  kind: 'weights' | 'state';
+  path: string;        // the checkpoint file / state folder
+  run: string;         // the run it came from
+  step: number;        // its step (0 = unknown)
+  outputName: string;  // the new run's output name
+  total: number;       // max_train_steps of the new run
+}
+// Validates `continueFrom` against the project's output folder. Names are
+// plain entries of that folder only (no paths from the renderer).
+function planContinue(s: TrainflowSettings, outDir: string, scriptsDir: string): { plan?: ContinuePlan; error?: string } {
+  const raw = String(s.continueFrom || '');
+  if (!raw) return {};
+  const more = Math.round(Number(s.continueSteps));
+  if (!(more >= 1)) return { error: 'Set how many more steps to train.' };
+  const kind = raw.startsWith('weights:') ? 'weights' : raw.startsWith('state:') ? 'state' : null;
+  const name = kind ? plainFileName(raw.slice(kind.length + 1)) : null;
+  if (!kind || !name) return { error: 'Pick what to continue from again.' };
+  const full = path.join(outDir, name);
+  if (kind === 'weights') {
+    const m = STEP_FILE_RE.exec(name);
+    if (!/\.safetensors$/i.test(name) || !fs.existsSync(full) || !fs.statSync(full).isFile()) return { error: `Checkpoint not found: ${name}` };
+    const run = m ? m[1] : name.replace(/\.safetensors$/i, '');
+    const step = m ? Number(m[2]) : configSteps(outDir, run);
+    return { plan: { kind, path: full, run, step, outputName: warmStartName(run, step), total: more } };
+  }
+  const m = STATE_DIR_RE.exec(name);
+  const step = m ? stateStep(full) : 0;
+  if (!m || !step || !fs.statSync(full, { throwIfNoEntry: false })?.isDirectory()) return { error: `Saved state not found: ${name}` };
+  const run = m[1];
+  for (const k of ['training', 'dataset']) {
+    if (!fs.existsSync(path.join(outDir, 'configs', `${run}_${k}.toml`))) return { error: `The settings this state was trained with (configs/${run}_${k}.toml) are gone, so it can't be resumed exactly. Continue from its checkpoint's weights instead.` };
+  }
+  const patchError = resumePatchError(scriptsDir);
+  if (patchError) return { error: patchError };
+  return { plan: { kind: 'state', path: full, run, step, outputName: run, total: step + more } };
+}
+
 async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult> {
   if (runIsLive()) return { ok: false, errors: ['Training is already running.'] };
   const resolved = resolveInstall(readFolder());
@@ -642,6 +751,10 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
     if (typeof p !== 'string' || p.includes('\0') || !p || !fs.existsSync(p) || !fs.statSync(p).isFile()) errors.push(`${label} file not found: ${p || '(not set)'}`);
   }
   if (errors.length) return { ok: false, errors };
+  const project = sanitizeProject(s.trigger);
+  const outDir = path.join(inst.outputBase, project);
+  const { plan, error: planError } = planContinue(s, outDir, inst.scriptsDir);
+  if (planError) return { ok: false, errors: [planError] };
   const bucketCfg = { min: s.bucketMin, max: s.bucketMax, step: s.bucketStep };
   const pre = checkDataset(datasetDir!, bucketCfg);
   errors.push(...pre.errors);
@@ -661,25 +774,40 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
   const attnError = await checkAttentionBackend(s.advAttn, inst.python, inst.scriptsDir);
   if (attnError) return { ok: false, errors: [attnError] };
 
-  const project = sanitizeProject(s.trigger);
-  const outDir = path.join(inst.outputBase, project);
   const samplesDir = path.join(outDir, 'sample');
   const configsDir = path.join(outDir, 'configs');
   for (const d of [outDir, samplesDir, configsDir]) fs.mkdirSync(d, { recursive: true });
-  const promptFile = path.join(configsDir, `${project}_prompts.txt`);
-  const datasetToml = path.join(configsDir, `${project}_dataset.toml`);
-  const trainingToml = path.join(configsDir, `${project}_training.toml`);
-  writeSamplePrompts(s, promptFile);
-  writeDatasetToml(s, datasetToml, check);
-  writeTrainingToml(s, trainingToml, project, outDir, promptFile);
+  // Configs are named by output name, so an exact resume later finds the very
+  // settings each run used (a fresh run's output name is the project, as before).
+  const outputName = plan ? plan.outputName : project;
+  const datasetToml = path.join(configsDir, `${outputName}_dataset.toml`);
+  const trainingToml = path.join(configsDir, `${outputName}_training.toml`);
+  if (plan?.kind !== 'state') {
+    // A fresh run, or a warm start: the form's settings, steps = the extra steps.
+    const runSettings = plan ? { ...s, steps: plan.total } : s;
+    const promptFile = path.join(configsDir, `${outputName}_prompts.txt`);
+    writeSamplePrompts(runSettings, promptFile);
+    writeDatasetToml(runSettings, datasetToml, check);
+    writeTrainingToml(runSettings, trainingToml, outputName, outDir, promptFile,
+      plan ? [`network_weights = ${tomlStr(posix(plan.path))}`, 'dim_from_weights = true'] : []);
+  }
 
   const logFile = path.join(outDir, 'osmium_train.log');
   const logFd = fs.openSync(logFile, 'w');
-  fs.writeSync(logFd, `Preparing ${project}: ${check.images} images, base ${check.baseRes}px, max bucket ${check.maxBucket}px\n`);
+  fs.writeSync(logFd, `Preparing ${outputName}: ${check.images} images, base ${check.baseRes}px, max bucket ${check.maxBucket}px\n`);
+  if (plan?.kind === 'weights') fs.writeSync(logFd, `Continuing from ${path.basename(plan.path)}'s weights: ${plan.total} more steps as ${outputName} (new optimizer state and LR schedule).\n`);
+  if (plan?.kind === 'state') fs.writeSync(logFd, `Resuming ${plan.run} exactly from ${path.basename(plan.path)} (step ${plan.step}) to step ${plan.total}, with that run's settings.\n`);
   // The trainer runs directly, not through `accelerate launch`: that starts it as a child process, and a
   // detached job's grandchild doesn't inherit the log file, so its progress bar went nowhere. One process,
   // one log. (Anima-TrainFlow used a single process via accelerate; mixed precision comes from the toml.)
-  const args = [posix(inst.trainScript), '--config_file', posix(trainingToml), '--dataset_config', posix(datasetToml)];
+  // An exact resume goes through the bootstrap (see RESUME_PATCHES) with --resume and the new step total
+  // on the command line, which sd-scripts lets override the run's own TOML.
+  let args = [posix(inst.trainScript), '--config_file', posix(trainingToml), '--dataset_config', posix(datasetToml)];
+  if (plan?.kind === 'state') {
+    const boot = path.join(configsDir, 'osmium_resume_boot.py');
+    writeResumeBootstrap(boot);
+    args = [posix(boot), posix(inst.scriptsDir), ...args, '--resume', posix(plan.path), '--max_train_steps', String(plan.total)];
+  }
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     PYTHONPATH: inst.scriptsDir + path.delimiter + (process.env.PYTHONPATH || ''),
@@ -703,7 +831,7 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
     const child = spawn(trainerExe, spawnArgs, { cwd: inst.scriptsDir, env, detached: true, stdio: ['ignore', logFd, logFd], windowsHide: true });
     await new Promise<void>((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
     child.unref();
-    writeRun({ pid: child.pid as number, project, outDir, logFile, samplesDir, totalSteps: Math.round(s.steps), startedAt: Date.now(), exe: trainerExe });
+    writeRun({ pid: child.pid as number, project, outputName, outDir, logFile, samplesDir, totalSteps: plan ? plan.total : Math.round(s.steps), startedAt: Date.now(), exe: trainerExe });
     return { ok: true };
   } catch (e) {
     return { ok: false, errors: ['Could not start training: ' + (e as Error).message] };
@@ -880,6 +1008,7 @@ export function registerTrainflowHandlers(ipcMain: IpcMain): void {
     return d ? clearCache(d) : { ok: false, files: 0, bytes: 0, message: 'Invalid dataset folder.' };
   });
   ipcMain.handle('trainflow-start', (_e, s: TrainflowSettings) => startTraining(s));
+  ipcMain.handle('trainflow-continue-options', (_e, trigger: string) => listContinueOptions(trigger));
   ipcMain.handle('trainflow-stop', () => stopTraining());
   ipcMain.handle('trainflow-clear-run', () => {
     if (!runIsLive()) { try { fs.unlinkSync(RUN_FILE()); } catch { /* already gone */ } }

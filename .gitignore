@@ -85,6 +85,7 @@ comfy-bridge/mobile/android/local.properties
 /bucket-core.js
 /comfy-local.js
 /trainflow.js
+/trainflow-resume.js
 /local-comfy/__pycache__/
 /http-download.js
 /ipc-guard.js

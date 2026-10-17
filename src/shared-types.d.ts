@@ -134,6 +134,26 @@ export interface TrainflowSettings {
   advKeepTokens: number;       // keep_tokens
   advRepeats: number;          // num_repeats; 0 => auto from steps/images
   advSampleSampler: TfSampleSampler;
+  // ---- Continue training (2026-10-17) ----
+  // save_state: the optimizer/scheduler/RNG state beside each checkpoint, so a
+  // run can be resumed exactly later. Off (undefined) = the old TOML.
+  saveState?: boolean;
+  // Where Start begins: unset = a fresh LoRA. 'weights:<file>' = load that
+  // checkpoint's weights and train `continueSteps` more as a new run;
+  // 'state:<dir>' = resume that saved state exactly with the run's own configs.
+  // Names are plain entries of the project's output folder. Not persisted.
+  continueFrom?: string;
+  continueSteps?: number;
+}
+// One thing Start can continue from, listed from the project's output folder.
+export interface TrainflowContinueOption {
+  id: string;            // 'weights:<file>' | 'state:<dir>'
+  kind: 'weights' | 'state';
+  name: string;          // the file or folder name
+  run: string;           // the output name it belongs to
+  step: number;          // 0 = unknown (a final file without configs)
+  mtime: number;
+  outputName: string;    // what the continued run is saved as
 }
 export interface TrainflowRun {
   state: 'running' | 'finished' | 'stopped' | 'failed';

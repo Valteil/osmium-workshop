@@ -555,6 +555,20 @@ training carries on and finishes by itself. Reopen Osmium and open the tab to re
 the run for good. Checkpoints and the final LoRA are in the Anima-TrainFlow folder under
 `training/output/<project>/`; **Checkpoints** opens it.
 
+**Continue training** (when a run ended too early, e.g. step 600 isn't quite there): pick one of the
+project's checkpoints in **Start from**, set **More steps**, and the button becomes **Continue
+training**. Two kinds are listed:
+
+- **From checkpoint weights** — any checkpoint. Its LoRA is loaded and trained further with the
+  settings in Training (rank and alpha come from the file), saved under a new name so nothing is
+  overwritten: continuing `myproj-step00000600` gives `myproj-from600-step…` and `myproj-from1000`.
+  The optimizer and learning-rate schedule start fresh, so it isn't identical to having trained longer.
+- **Exact resume** — only for runs trained with **Resume state** on (Training section). That saves
+  the optimizer, learning-rate schedule and random state next to each checkpoint (a folder about 3× the
+  checkpoint's size, ~265 MB per save at rank 32). Resuming continues that very run with its own settings: the step count
+  carries on (`step00000700`, `00000800`, …) and the project's final LoRA becomes the longer version.
+  A cosine schedule is stretched to the new total, so its learning rate rises again partway.
+
 ---
 
 ## Settings

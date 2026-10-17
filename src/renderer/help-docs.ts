@@ -299,7 +299,13 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
       you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
       and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
-      folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.</p>`
+      folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.</p>
+      <p><b>Continue training</b>: if a run stopped short (step 600 not quite there), pick one of its
+      checkpoints in <b>Start from</b>, set <b>More steps</b> and press <b>Continue training</b>.
+      <i>From checkpoint weights</i> works on any checkpoint: it trains the LoRA further under a new name
+      (<code>…-from600</code>), with a fresh optimizer and learning-rate schedule. <i>Exact resume</i> picks
+      up the run itself, optimizer and schedule included, with the step count carrying on; it needs
+      <b>Resume state</b> (Training section) turned on when that run was trained.</p>`
   }]),
   {
     id: 'gallery',

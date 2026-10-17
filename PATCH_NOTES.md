@@ -23,6 +23,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   timestep sampling, VRAM options and more); left alone, it trains exactly as before. **Clear
   training cache** deletes the latent and text-encoder caches the trainer keeps in the dataset, which
   it would otherwise reuse even after you change images or tags.
+- **Continue training**: if a run stopped short of what you wanted (step 600 isn't quite there),
+  pick one of its checkpoints and train on from it instead of starting over. Any checkpoint can be
+  trained further from its weights, saved under a new name. Turn on **Resume state** and later runs
+  can also be resumed exactly, optimizer and learning-rate schedule included, with the step count
+  carrying on.
 - **Bucket Images keeps an original of every image** in `original_images/` (Initial State is Originals
   again, and `initial_state/` folders are merged into it), and bucketing again re-makes the copies from
   the originals, so you can try different dimensions as often as you like.

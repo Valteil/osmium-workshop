@@ -9,7 +9,7 @@ import { getJSON, setJSON } from './storage';
 import { showImageLightbox, showConfirmModal, toast } from './shared-ui';
 import { writeBytes } from './fs-access';
 import { convertAllWebpToPng, BUCKET_DEFAULTS } from './bucket-images';
-import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck } from '../shared-types';
+import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck, TrainflowContinueOption } from '../shared-types';
 import type { Entry, DirHandle } from './types';
 
 interface TrainflowDeps {
@@ -44,7 +44,8 @@ const DEFAULTS: TrainflowSettings = {
   advAttn: 'sdpa', advTorchCompile: false, advBlocksToSwap: 0,
   advMaxGradNorm: 1.0, advGradCheckpointing: true,
   advDataloaderWorkers: 4, advVaeChunkSize: 0, advVaeDisableCache: true, advNoHalfVae: false,
-  advCaptionDropout: 0.05, advKeepTokens: 1, advRepeats: 0, advSampleSampler: 'euler'
+  advCaptionDropout: 0.05, advKeepTokens: 1, advRepeats: 0, advSampleSampler: 'euler',
+  saveState: false, continueSteps: 400
 };
 
 // Element id <-> setting, for the plain inputs.
@@ -55,7 +56,8 @@ const TEXT_FIELDS: [keyof TrainflowSettings, string][] = [
 const NUM_FIELDS: [keyof TrainflowSettings, string][] = [
   ['rank', 'tfRank'], ['steps', 'tfSteps'], ['saveSteps', 'tfSaveSteps'], ['sampleSteps', 'tfSampleSteps'],
   ['batchSize', 'tfBatch'], ['gradAcc', 'tfGradAcc'], ['width', 'tfWidth'], ['height', 'tfHeight'],
-  ['sampleGenSteps', 'tfGenSteps'], ['cfg', 'tfCfg'], ['sampleSeed', 'tfSeed'], ['trainSeed', 'tfTrainSeed']
+  ['sampleGenSteps', 'tfGenSteps'], ['cfg', 'tfCfg'], ['sampleSeed', 'tfSeed'], ['trainSeed', 'tfTrainSeed'],
+  ['continueSteps', 'tfContinueSteps']
 ];
 // Advanced section: selects and checkboxes bind by id too, so one pass wires
 // them all; numeric inputs reuse the same numeric handler (0 = use default).
@@ -74,7 +76,7 @@ const ADV_NUM_FIELDS: [keyof TrainflowSettings, string][] = [
 const ADV_BOOL_FIELDS: [keyof TrainflowSettings, string][] = [
   ['advTrainTextEncoder', 'tfAdvTrainTextEncoder'], ['advTorchCompile', 'tfAdvTorchCompile'],
   ['advGradCheckpointing', 'tfAdvGradCheckpointing'], ['advVaeDisableCache', 'tfAdvVaeDisableCache'],
-  ['advNoHalfVae', 'tfAdvNoHalfVae']
+  ['advNoHalfVae', 'tfAdvNoHalfVae'], ['saveState', 'tfSaveState']
 ];
 
 export function isTrainflowSupported(): boolean {
@@ -88,6 +90,8 @@ export function initTrainflow(deps: TrainflowDeps): void {
   if (!isTrainflowSupported()) { tabBtn.style.display = 'none'; return; }
 
   let settings: TrainflowSettings = { ...DEFAULTS, ...getJSON<Partial<TrainflowSettings>>(STORAGE_KEY, {}) };
+  // What Start continues from is picked per session (the checkpoints change), never restored.
+  delete settings.continueFrom;
   // One-time: the scheduler used to default to (and save) 'constant' even when
   // untouched, which a non-Prodigy run would then keep instead of cosine. Move
   // that saved 'constant' to auto ('') once; a later pick of constant sticks.
@@ -322,6 +326,67 @@ export function initTrainflow(deps: TrainflowDeps): void {
   $('btnTrainflowOutput').addEventListener('click', () => void api.trainflowOpen!('output'));
   $('btnTrainflowLog').addEventListener('click', () => void api.trainflowOpen!('log'));
 
+  // ---- continue training ---------------------------------------------------
+  // Start from: a new LoRA, a checkpoint's weights, or a saved state (exact).
+  // Listed from the project's output folder (the trigger names the project).
+  let continueOpts: TrainflowContinueOption[] = [];
+  let continueFrom = '';
+  const startLabel = () => $('btnTrainflowStart').lastChild as Text;
+  function renderContinueHint(): void {
+    const opt = continueOpts.find((o) => o.id === continueFrom);
+    const n = Math.max(1, Math.round(settings.continueSteps || 0));
+    const hint = $('tfContinueHint');
+    startLabel().textContent = opt ? 'Continue training' : 'Start Trainflow';
+    if (!opt) {
+      hint.textContent = continueOpts.length
+        ? 'Start Trainflow trains a new LoRA from scratch with the settings in Training.'
+        : 'Nothing to continue from yet: this project has no checkpoints. (The trigger word names the project.)';
+      return;
+    }
+    hint.textContent = opt.kind === 'state'
+      ? `Resumes ${opt.run} exactly from step ${opt.step}, with the optimizer, learning-rate schedule and random state it saved, and trains on to step ${opt.step + n}. It uses that run's own settings, so Training's fields are ignored. New checkpoints continue the numbering (${opt.run}-step…), and ${opt.run}.safetensors becomes the step ${opt.step + n} version. A cosine schedule is stretched to the new total, so its learning rate picks up again partway.`
+      : `Loads ${opt.name}'s weights and trains ${n} more steps with the settings in Training (its rank and alpha are read from the file), saved as ${opt.outputName}. The optimizer and learning-rate schedule start fresh, so the first steps relearn their momentum${settings.optimizer === 'Prodigy' ? ' (Prodigy re-estimates its step size)' : ''}. Turn on Resume state in Training for runs you may want to resume exactly.`;
+  }
+  const optLabel = (o: TrainflowContinueOption) => `${o.run} · ${o.step ? 'step ' + o.step : 'final'}${o.name === o.run + '.safetensors' ? ' (final)' : ''}`;
+  async function refreshContinue(): Promise<void> {
+    if (!api.trainflowContinueOptions) return;
+    try { continueOpts = await api.trainflowContinueOptions(settings.trigger); } catch { continueOpts = []; }
+    const sel = $<HTMLSelectElement>('tfContinueFrom');
+    const groups: [string, TrainflowContinueOption[]][] = [
+      ['Exact resume (saved state)', continueOpts.filter((o) => o.kind === 'state')],
+      ['From checkpoint weights', continueOpts.filter((o) => o.kind === 'weights')]
+    ];
+    const first = document.createElement('option');
+    first.value = ''; first.textContent = 'A new LoRA (start over)';
+    const nodes: HTMLElement[] = [first];
+    for (const [label, list] of groups) {
+      if (!list.length) continue;
+      const g = document.createElement('optgroup');
+      g.label = label;
+      for (const o of [...list].sort((a, b) => a.run.localeCompare(b.run) || b.step - a.step)) {
+        const el = document.createElement('option');
+        el.value = o.id; el.textContent = optLabel(o); el.title = o.name;
+        g.appendChild(el);
+      }
+      nodes.push(g);
+    }
+    sel.replaceChildren(...nodes);
+    if (!continueOpts.some((o) => o.id === continueFrom)) continueFrom = '';
+    sel.value = continueFrom;
+    renderContinueHint();
+  }
+  $<HTMLSelectElement>('tfContinueFrom').addEventListener('change', (ev) => {
+    continueFrom = (ev.target as HTMLSelectElement).value;
+    renderContinueHint();
+  });
+  inputEl('tfContinueSteps').addEventListener('input', renderContinueHint);
+  $<HTMLSelectElement>('tfOptimizer').addEventListener('change', renderContinueHint);
+  let continueTimer = 0;
+  inputEl('tfTrigger').addEventListener('input', () => {
+    window.clearTimeout(continueTimer);
+    continueTimer = window.setTimeout(() => void refreshContinue(), 400);
+  });
+
   // ---- start / stop --------------------------------------------------------
   function showErrors(errors: string[]): void {
     const box = $('trainflowErrors');
@@ -348,7 +413,9 @@ export function initTrainflow(deps: TrainflowDeps): void {
       // Any WebP is renamed to PNG before main touches the dataset: the trainer
       // (and the main-process bucketing decoder) can't read WebP.
       await convertAllWebpToPng();
-      const r = await api.trainflowStart!({ ...settings, datasetPath, bucketMin: b.min, bucketMax: b.max, bucketStep: b.step });
+      const r = await api.trainflowStart!({ ...settings, continueFrom: continueFrom || undefined, datasetPath, bucketMin: b.min, bucketMax: b.max, bucketStep: b.step });
+      // Started: the next Start is a new choice (the list grows as this run saves).
+      if (r.ok) { continueFrom = ''; void refreshContinue(); }
       if (!r.ok) showErrors(r.errors || ['Could not start.']);
     } finally {
       starting = false;
@@ -379,7 +446,7 @@ export function initTrainflow(deps: TrainflowDeps): void {
     const running = run?.state === 'running';
     // The trainer writes its caches during a run: recount when one ends. While
     // running, clearing is refused anyway.
-    if (wasRunning && !running) void refreshCacheInfo();
+    if (wasRunning && !running) { void refreshCacheInfo(); void refreshContinue(); }
     wasRunning = running;
     $<HTMLButtonElement>('btnTfClearCache').disabled = running || $<HTMLButtonElement>('btnTfClearCache').disabled;
     $<HTMLButtonElement>('btnTrainflowStart').disabled = running || starting || !s.ok;
@@ -470,7 +537,8 @@ export function initTrainflow(deps: TrainflowDeps): void {
   setInterval(() => { if (tabVisible() && !document.hidden) void refresh(); }, POLL_MS);
 
   // index.ts calls this when the tab is switched to, so it never shows stale progress.
-  (window as unknown as { __dtsTrainflowShown?: () => void }).__dtsTrainflowShown = () => { void refresh(); void refreshDataset(); };
+  (window as unknown as { __dtsTrainflowShown?: () => void }).__dtsTrainflowShown = () => { void refresh(); void refreshDataset(); void refreshContinue(); };
   void refresh();
+  void refreshContinue();
   void last;
 }

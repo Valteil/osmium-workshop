@@ -42,6 +42,7 @@ const api: ElectronAPI = {
   trainflowCacheInfo: (dir) => ipcRenderer.invoke('trainflow-cache-info', dir),
   trainflowClearCache: (dir) => ipcRenderer.invoke('trainflow-clear-cache', dir),
   trainflowStart: (s) => ipcRenderer.invoke('trainflow-start', s),
+  trainflowContinueOptions: (trigger) => ipcRenderer.invoke('trainflow-continue-options', trigger),
   trainflowStop: () => ipcRenderer.invoke('trainflow-stop'),
   trainflowClearRun: () => ipcRenderer.invoke('trainflow-clear-run'),
   trainflowGetSample: (name) => ipcRenderer.invoke('trainflow-get-sample', name),

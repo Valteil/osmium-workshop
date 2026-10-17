@@ -43,7 +43,7 @@ export interface SynthdatQueuePayload {
 // Bridge's synced copy has it too.
 import type { ComfyLocalStatus, ComfyLocalAttention } from './shared-types';
 export type { ComfyLocalStatus, ComfyLocalAttention };
-import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck, TrainflowStartResult, TrainflowBucketReport, TrainflowCacheInfo, TrainflowCacheClearResult } from './shared-types';
+import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck, TrainflowStartResult, TrainflowBucketReport, TrainflowCacheInfo, TrainflowCacheClearResult, TrainflowContinueOption } from './shared-types';
 
 export interface ExportAppStateResult {
   ok: boolean;
@@ -135,6 +135,8 @@ export interface ElectronAPI {
   trainflowCacheInfo?(dir: string): Promise<TrainflowCacheInfo>;
   trainflowClearCache?(dir: string): Promise<TrainflowCacheClearResult>;
   trainflowStart?(s: TrainflowSettings): Promise<TrainflowStartResult>;
+  // Checkpoints / saved states of the project named by `trigger` that Start can continue from.
+  trainflowContinueOptions?(trigger: string): Promise<TrainflowContinueOption[]>;
   trainflowStop?(): Promise<{ ok: boolean; message: string }>;
   trainflowClearRun?(): Promise<TrainflowStatus>;
   trainflowGetSample?(name: string): Promise<Uint8Array | null>;
