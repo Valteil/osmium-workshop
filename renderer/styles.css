@@ -4944,6 +4944,28 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
 
   .apply-row { display: flex; gap: 8px; }
   .apply-row input { flex: 1; }
+  /* A text field + its button stack (field full width, button under it):
+     side by side, the button squeezed the field to a few characters in the
+     narrow Tag Overseer panel. Rows without a text field (select + icon
+     button, the delete tool's actions) stay side by side. */
+  .apply-row:has(> input) { flex-direction: column; }
+  .apply-row:has(> input) > input { flex: none; width: 100%; }
+
+  /* Tag Overseer "Delete tags": a ticked list of the dataset's tags. */
+  .mass-delete-list {
+    max-height: 220px;
+    overflow-y: auto;
+    margin: 6px 0;
+    padding: 4px 6px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-field, 6px);
+  }
+  .mass-delete-list:empty::before { content: 'No tags in this dataset yet.'; color: var(--muted); font-size: 12px; }
+  .mass-delete-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; font-size: 12px; cursor: pointer; }
+  .mass-delete-row .n { margin-left: auto; color: var(--muted); font-family: var(--mono); }
+  .mass-delete-more { color: var(--muted); font-size: 11px; padding: 4px 0; }
+  .mass-delete-actions { align-items: center; }
+  .mass-delete-count { flex: 1; color: var(--muted); font-size: 12px; }
 
   /* Explicit nowrap + shared flex-shrink so these two stay side-by-side at
      any dock width/zoom level instead of dropping onto separate lines —
@@ -4958,8 +4980,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      drop to a second line if the panel's too narrow for both. */
   .selection-actions-row{ display: flex; flex-wrap: wrap; gap: 8px; }
 
-  .gtt-row{ display: flex; gap: 8px; }
-  .gtt-row input{ flex: 1; min-width: 0; }
+  /* Paired fields stack one per line (the button that runs them sits under
+     the last one): two-up, each field showed only a few characters. */
+  .gtt-row{ display: flex; flex-direction: column; gap: 8px; }
+  .gtt-row input{ width: 100%; min-width: 0; }
   .gtt-divider{ height: 1px; background: var(--border-soft); margin: 2px 0; }
   .gtt-label{ font-size: 11px; color: var(--text-faint); }
   .gtt-result{ font-size: 11.5px; color: var(--text-muted); min-height: 14px; line-height: 1.4; }

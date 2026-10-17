@@ -1120,6 +1120,18 @@
         </div>
 
         <div class="tool-section">
+          <div class="sec-head"><span class="t">Delete tags (whole dataset)</span></div>
+          <div class="sec-head" style="margin-top:0;"><span class="d">Tick any number of tags and take them off every active image at once. A one-off, unlike Void: no standing rule is made, so a tag can come back if something adds it later (WD14, Master Tags). Locked images are skipped; Undo puts the tags back.</span></div>
+          <input type="text" id="massDeleteSearch" placeholder="Filter tags…" title="Narrow the list below to tags containing this text">
+          <div id="massDeleteTagList" class="mass-delete-list" role="group" aria-label="Tags to delete"></div>
+          <div class="apply-row mass-delete-actions">
+            <span id="massDeleteCount" class="mass-delete-count">No tags ticked.</span>
+            <button id="btnMassDeleteClear" title="Untick every tag">Clear</button>
+            <button id="btnMassDeleteTags" class="danger-ghost" title="Remove every ticked tag from every active, unlocked image in the dataset">Delete from all</button>
+          </div>
+        </div>
+
+        <div class="tool-section">
           <div class="sec-head"><span class="t">Replace a tag (exact or substring)</span></div>
           <div class="gtt-label">Replace all (exact tag rename)</div>
           <div class="gtt-row">

@@ -15,7 +15,8 @@ import {
   condRemoveSourceTag, condRemoveTag, btnCondRemove,
   massApplyInput, btnMassApply,
   massRemoveInput, btnMassRemove, masterRenameFrom, masterRenameTo, btnMasterRename,
-  masterFRFind, masterFRReplace, btnMasterFR
+  masterFRFind, masterFRReplace, btnMasterFR,
+  massDeleteSearch, massDeleteTagList, massDeleteCount, btnMassDeleteClear, btnMassDeleteTags
 } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
@@ -135,10 +136,88 @@ let miniGridStale = true;
 export function refreshMasterMiniGrid(): void {
   if (masterMiniGrid.getClientRects().length) renderMasterMiniGrid();
   else miniGridStale = true;
+  refreshMassDeleteList();
 }
 export function renderMasterMiniGridIfStale(): void {
   if (miniGridStale) renderMasterMiniGrid();
+  renderMassDeleteListIfStale();
 }
+
+// ---- "Delete tags (whole dataset)": every tag on an active image, with its
+// count, tickable; ticked ones are removed from every active, unlocked image
+// in one go (no standing rule, unlike Void). Rebuilt with the grid (every
+// gallery rebuild = tags may have changed), or marked stale while hidden.
+const massDeleteTicked = new Set<string>();
+const MASS_DELETE_MAX_ROWS = 400;
+let massDeleteStale = true;
+function activeTagCounts(): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const e of getEntries()) {
+    if (e.disabled) continue;
+    for (const t of new Set(e.tags)) counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  return counts;
+}
+function updateMassDeleteCount(): void {
+  const n = massDeleteTicked.size;
+  massDeleteCount.textContent = n ? `${n} tag${n === 1 ? '' : 's'} ticked.` : 'No tags ticked.';
+}
+function renderMassDeleteList(): void {
+  massDeleteStale = false;
+  const counts = activeTagCounts();
+  // Ticked tags that no longer exist anywhere drop out of the selection.
+  for (const t of [...massDeleteTicked]) if (!counts.has(t)) massDeleteTicked.delete(t);
+  const q = massDeleteSearch.value.trim().toLowerCase().replace(/_/g, ' ');
+  const rows = [...counts.entries()]
+    .filter(([t]) => !q || t.toLowerCase().includes(q))
+    // Ticked first (so they stay in view), then most used, then A–Z.
+    .sort((a, b) => (Number(massDeleteTicked.has(b[0])) - Number(massDeleteTicked.has(a[0]))) || (b[1] - a[1]) || a[0].localeCompare(b[0]));
+  massDeleteTagList.innerHTML = '';
+  for (const [tag, n] of rows.slice(0, MASS_DELETE_MAX_ROWS)) {
+    const row = document.createElement('label');
+    row.className = 'mass-delete-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = massDeleteTicked.has(tag);
+    cb.addEventListener('change', () => {
+      if (cb.checked) massDeleteTicked.add(tag); else massDeleteTicked.delete(tag);
+      updateMassDeleteCount();
+    });
+    const name = document.createElement('span');
+    name.textContent = tag;
+    const count = document.createElement('span');
+    count.className = 'n';
+    count.textContent = String(n);
+    row.append(cb, name, count);
+    massDeleteTagList.appendChild(row);
+  }
+  if (rows.length > MASS_DELETE_MAX_ROWS) {
+    const more = document.createElement('div');
+    more.className = 'mass-delete-more';
+    more.textContent = `${rows.length - MASS_DELETE_MAX_ROWS} more — type in the filter to find them.`;
+    massDeleteTagList.appendChild(more);
+  }
+  if (!rows.length && counts.size) {
+    const none = document.createElement('div');
+    none.className = 'mass-delete-more';
+    none.textContent = 'No tag matches the filter.';
+    massDeleteTagList.appendChild(none);
+  }
+  updateMassDeleteCount();
+}
+function refreshMassDeleteList(): void {
+  if (massDeleteTagList.getClientRects().length) renderMassDeleteList();
+  else massDeleteStale = true;
+}
+function renderMassDeleteListIfStale(): void {
+  if (massDeleteStale && massDeleteTagList.getClientRects().length) renderMassDeleteList();
+}
+let massDeleteWasVisible = false;
+new ResizeObserver(() => {
+  const visible = massDeleteTagList.getClientRects().length > 0;
+  if (visible && !massDeleteWasVisible) renderMassDeleteListIfStale();
+  massDeleteWasVisible = visible;
+}).observe(massDeleteTagList);
 // Catches every other way the grid comes on screen (the right panel or its
 // dock expanding): going from no size to some size rebuilds a stale grid.
 let miniGridWasVisible = false;
@@ -623,6 +702,27 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
       emptyMsg: 'No images have that tag.',
       clearInputs: () => { massRemoveInput.value = ''; }
     });
+  });
+
+  massDeleteSearch.addEventListener('input', renderMassDeleteList);
+  btnMassDeleteClear.addEventListener('click', () => { massDeleteTicked.clear(); renderMassDeleteList(); });
+  btnMassDeleteTags.addEventListener('click', async () => {
+    const tags = [...massDeleteTicked];
+    if (!tags.length){ toast('Tick at least one tag to delete.'); return; }
+    const list = tags.length <= 8 ? tags.map(t => `"${t}"`).join(', ') : `${tags.slice(0, 8).map(t => `"${t}"`).join(', ')} and ${tags.length - 8} more`;
+    const ok = await showConfirmModal(`Delete ${list} from EVERY active image in this folder? Locked images are skipped. Undo puts them back.`, { okLabel: 'Delete from all', danger: true });
+    if (!ok) return;
+    const drop = new Set(tags);
+    runMassTagOp({
+      entries: getEntries(),
+      skip: e => e.disabled || !!e.meta?.locked || !e.tags.some(t => drop.has(t)),
+      apply: e => { e.tags = e.tags.filter(t => !drop.has(t)); },
+      logType: 'remove-tag',
+      summary: n => `Deleted ${tags.length === 1 ? `"${tags[0]}"` : `${tags.length} tags`} from ${n} image(s).`,
+      emptyMsg: 'No active, unlocked images have those tags.',
+      clearInputs: () => { massDeleteTicked.clear(); massDeleteSearch.value = ''; }
+    });
+    renderMassDeleteList();
   });
 
   btnMasterRename.addEventListener('click', () => {

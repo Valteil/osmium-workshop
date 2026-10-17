@@ -279,6 +279,11 @@
   var btnMassApply = $("btnMassApply");
   var massRemoveInput = $("massRemoveInput");
   var btnMassRemove = $("btnMassRemove");
+  var massDeleteSearch = $("massDeleteSearch");
+  var massDeleteTagList = $("massDeleteTagList");
+  var massDeleteCount = $("massDeleteCount");
+  var btnMassDeleteClear = $("btnMassDeleteClear");
+  var btnMassDeleteTags = $("btnMassDeleteTags");
   var masterRenameFrom = $("masterRenameFrom");
   var masterRenameTo = $("masterRenameTo");
   var btnMasterRename = $("btnMasterRename");
@@ -3810,6 +3815,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     { id: "builtin-cond-remove", field: ["condRemoveSourceTag", "condRemoveTag"], button: "btnCondRemove", mode: "both", label: "Master Tags: conditional remove" },
     { id: "builtin-mass-apply", field: ["massApplyInput"], button: "btnMassApply", mode: "both", label: "Master Tags: mass apply" },
     { id: "builtin-mass-remove", field: ["massRemoveInput"], button: "btnMassRemove", mode: "both", label: "Master Tags: mass remove" },
+    { id: "builtin-mass-delete-tags", button: "btnMassDeleteTags", mode: "button", label: "Master Tags: delete ticked tags" },
     { id: "builtin-purge", button: "btnPurgeAllTags", mode: "button", label: "Purge all tags" },
     { id: "builtin-tag-pruner", infoOnly: true, label: "Tag Pruner search filters (always marked, dynamic)" }
   ];
@@ -4461,7 +4467,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       you can apply or remove a tag across the whole selection, conditionally apply one tag based
       on another already being present (or its own separate row for the inverse \u2014 based on it
       being ABSENT), conditionally remove a tag from every image that has another, or run a
-      dataset-wide rename or find-and-replace. The
+      dataset-wide rename or find-and-replace. <b>Delete tags (whole dataset)</b> lists every tag
+      with its image count: tick any number and <b>Delete from all</b> removes them from every
+      active, unlocked image in one undoable step \u2014 a one-off, unlike Void's standing rule. The
       Lock/Unlock and Merge Immunize/Antivoid/Antimmunize buttons here apply the same per-image
       flags described in the 3-dot menu section, but to your entire selection at once. <b>\u274C Delete
       selected permanently</b> removes every selected image and its tags from disk outright
@@ -9973,10 +9981,80 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
   function refreshMasterMiniGrid() {
     if (masterMiniGrid.getClientRects().length) renderMasterMiniGrid();
     else miniGridStale = true;
+    refreshMassDeleteList();
   }
   function renderMasterMiniGridIfStale() {
     if (miniGridStale) renderMasterMiniGrid();
+    renderMassDeleteListIfStale();
   }
+  var massDeleteTicked = /* @__PURE__ */ new Set();
+  var MASS_DELETE_MAX_ROWS = 400;
+  var massDeleteStale = true;
+  function activeTagCounts() {
+    const counts = /* @__PURE__ */ new Map();
+    for (const e of getEntries4()) {
+      if (e.disabled) continue;
+      for (const t of new Set(e.tags)) counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    return counts;
+  }
+  function updateMassDeleteCount() {
+    const n = massDeleteTicked.size;
+    massDeleteCount.textContent = n ? `${n} tag${n === 1 ? "" : "s"} ticked.` : "No tags ticked.";
+  }
+  function renderMassDeleteList() {
+    massDeleteStale = false;
+    const counts = activeTagCounts();
+    for (const t of [...massDeleteTicked]) if (!counts.has(t)) massDeleteTicked.delete(t);
+    const q = massDeleteSearch.value.trim().toLowerCase().replace(/_/g, " ");
+    const rows = [...counts.entries()].filter(([t]) => !q || t.toLowerCase().includes(q)).sort((a, b) => Number(massDeleteTicked.has(b[0])) - Number(massDeleteTicked.has(a[0])) || b[1] - a[1] || a[0].localeCompare(b[0]));
+    massDeleteTagList.innerHTML = "";
+    for (const [tag, n] of rows.slice(0, MASS_DELETE_MAX_ROWS)) {
+      const row = document.createElement("label");
+      row.className = "mass-delete-row";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = massDeleteTicked.has(tag);
+      cb.addEventListener("change", () => {
+        if (cb.checked) massDeleteTicked.add(tag);
+        else massDeleteTicked.delete(tag);
+        updateMassDeleteCount();
+      });
+      const name = document.createElement("span");
+      name.textContent = tag;
+      const count = document.createElement("span");
+      count.className = "n";
+      count.textContent = String(n);
+      row.append(cb, name, count);
+      massDeleteTagList.appendChild(row);
+    }
+    if (rows.length > MASS_DELETE_MAX_ROWS) {
+      const more = document.createElement("div");
+      more.className = "mass-delete-more";
+      more.textContent = `${rows.length - MASS_DELETE_MAX_ROWS} more \u2014 type in the filter to find them.`;
+      massDeleteTagList.appendChild(more);
+    }
+    if (!rows.length && counts.size) {
+      const none = document.createElement("div");
+      none.className = "mass-delete-more";
+      none.textContent = "No tag matches the filter.";
+      massDeleteTagList.appendChild(none);
+    }
+    updateMassDeleteCount();
+  }
+  function refreshMassDeleteList() {
+    if (massDeleteTagList.getClientRects().length) renderMassDeleteList();
+    else massDeleteStale = true;
+  }
+  function renderMassDeleteListIfStale() {
+    if (massDeleteStale && massDeleteTagList.getClientRects().length) renderMassDeleteList();
+  }
+  var massDeleteWasVisible = false;
+  new ResizeObserver(() => {
+    const visible = massDeleteTagList.getClientRects().length > 0;
+    if (visible && !massDeleteWasVisible) renderMassDeleteListIfStale();
+    massDeleteWasVisible = visible;
+  }).observe(massDeleteTagList);
   var miniGridWasVisible = false;
   new ResizeObserver(() => {
     const visible = masterMiniGrid.getClientRects().length > 0;
@@ -10440,6 +10518,37 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
           massRemoveInput.value = "";
         }
       });
+    });
+    massDeleteSearch.addEventListener("input", renderMassDeleteList);
+    btnMassDeleteClear.addEventListener("click", () => {
+      massDeleteTicked.clear();
+      renderMassDeleteList();
+    });
+    btnMassDeleteTags.addEventListener("click", async () => {
+      const tags = [...massDeleteTicked];
+      if (!tags.length) {
+        toast("Tick at least one tag to delete.");
+        return;
+      }
+      const list = tags.length <= 8 ? tags.map((t) => `"${t}"`).join(", ") : `${tags.slice(0, 8).map((t) => `"${t}"`).join(", ")} and ${tags.length - 8} more`;
+      const ok = await showConfirmModal(`Delete ${list} from EVERY active image in this folder? Locked images are skipped. Undo puts them back.`, { okLabel: "Delete from all", danger: true });
+      if (!ok) return;
+      const drop = new Set(tags);
+      runMassTagOp({
+        entries: getEntries4(),
+        skip: (e) => e.disabled || !!e.meta?.locked || !e.tags.some((t) => drop.has(t)),
+        apply: (e) => {
+          e.tags = e.tags.filter((t) => !drop.has(t));
+        },
+        logType: "remove-tag",
+        summary: (n) => `Deleted ${tags.length === 1 ? `"${tags[0]}"` : `${tags.length} tags`} from ${n} image(s).`,
+        emptyMsg: "No active, unlocked images have those tags.",
+        clearInputs: () => {
+          massDeleteTicked.clear();
+          massDeleteSearch.value = "";
+        }
+      });
+      renderMassDeleteList();
     });
     btnMasterRename.addEventListener("click", () => {
       const from = masterRenameFrom.value.trim();
@@ -20201,6 +20310,9 @@ Content-Type: application/octet-stream\r
       async tagImage(payload) {
         return await window.electronAPI.wd14LocalTagImage(payload);
       },
+      async release() {
+        await window.electronAPI.wd14LocalRelease();
+      },
       async pickImportFiles() {
         return await window.electronAPI.wd14LocalPickImportFiles();
       },
@@ -20323,7 +20435,7 @@ Content-Type: application/octet-stream\r
     const fill = wd14Status.querySelector(".wd14-progress-fill");
     if (fill) fill.style.width = (progressFraction == null ? 0 : Math.round(progressFraction * 100)) + "%";
   }
-  async function tagOneWithRetry(entry) {
+  async function tagOneWithRetry(entry, keepSession) {
     while (true) {
       if (cancelRequested) return null;
       let bytes;
@@ -20339,7 +20451,8 @@ Content-Type: application/octet-stream\r
         imageBytes: bytes,
         threshold: settings.threshold,
         characterThreshold: settings.characterThreshold,
-        preferGpu: settings.gpu !== false
+        preferGpu: settings.gpu !== false,
+        keepSession
       }) : hasElectronComfy ? await window.electronAPI.wd14TagImage({
         host: settings.host,
         filename: entry.imgName || entry.base,
@@ -20644,18 +20757,23 @@ Image: ${entry.imgName}`,
     setIconLabel(btnWd14TagSelected, "\u23F9 Cancel tagging");
     const results = [];
     let failCount = 0;
-    for (let i = 0; i < entries.length; i++) {
-      if (cancelRequested) break;
-      const entry = entries[i];
-      setStatus(`Tagging ${i + 1}/${entries.length} \u2014 ${entry.imgName}\u2026`, i / entries.length);
-      const tagsCsv = await tagOneWithRetry(entry);
-      if (tagsCsv == null) {
-        failCount++;
-        continue;
+    const keepSession = usingLocal && entries.length > 1;
+    try {
+      for (let i = 0; i < entries.length; i++) {
+        if (cancelRequested) break;
+        const entry = entries[i];
+        setStatus(`Tagging ${i + 1}/${entries.length} \u2014 ${entry.imgName}\u2026`, i / entries.length);
+        const tagsCsv = await tagOneWithRetry(entry, keepSession);
+        if (tagsCsv == null) {
+          failCount++;
+          continue;
+        }
+        const fresh = parseWd14Tags(tagsCsv);
+        const mergedTags = entry.tags.concat(fresh.filter((t) => !entry.tags.includes(t)));
+        results.push({ entry, mergedTags });
       }
-      const fresh = parseWd14Tags(tagsCsv);
-      const mergedTags = entry.tags.concat(fresh.filter((t) => !entry.tags.includes(t)));
-      results.push({ entry, mergedTags });
+    } finally {
+      if (keepSession && window.Wd14Local && window.Wd14Local.release) await window.Wd14Local.release().catch(() => void 0);
     }
     const failNote = failCount > 0 ? ` (${failCount} skipped)` : "";
     const engineNote = lastProvider ? ` \u2014 on ${lastProvider === "dml" ? "GPU" : "CPU"}` : "";

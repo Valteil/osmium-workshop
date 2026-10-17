@@ -393,7 +393,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       you can apply or remove a tag across the whole selection, conditionally apply one tag based
       on another already being present (or its own separate row for the inverse — based on it
       being ABSENT), conditionally remove a tag from every image that has another, or run a
-      dataset-wide rename or find-and-replace. The
+      dataset-wide rename or find-and-replace. <b>Delete tags (whole dataset)</b> lists every tag
+      with its image count: tick any number and <b>Delete from all</b> removes them from every
+      active, unlocked image in one undoable step — a one-off, unlike Void's standing rule. The
       Lock/Unlock and Merge Immunize/Antivoid/Antimmunize buttons here apply the same per-image
       flags described in the 3-dot menu section, but to your entire selection at once. <b>❌ Delete
       selected permanently</b> removes every selected image and its tags from disk outright

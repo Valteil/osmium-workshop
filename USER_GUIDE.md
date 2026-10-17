@@ -375,6 +375,10 @@ opens it, and toggling back via the tab tucks it away again.
    first) — conditionally **remove** a tag from every image that has another (e.g. take "breasts"
    off every "flat chest" image), or run a dataset-wide rename / find-and-replace. Use it for bulk passes (e.g. tag
    everything containing X).
+   **Delete tags (whole dataset)** lists every tag with how many images have it: tick as many as
+   you like (the filter box narrows the list) and **Delete from all** takes them all off every
+   active, unlocked image in one undoable step. Unlike Void it makes no standing rule, so a deleted
+   tag can come back if WD14 or Master Tags add it later.
 3. Mass **Lock/Unlock**, **Merge Immunize/Antivoid/Antimmunize** buttons apply the same per-image
    flags described above to your entire selection at once.
 4. **❌ Delete selected permanently** — removes every selected image and its tags from disk

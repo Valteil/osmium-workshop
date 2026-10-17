@@ -375,6 +375,10 @@ opens it, and toggling back via the tab tucks it away again.
    first) — conditionally **remove** a tag from every image that has another (e.g. take "breasts"
    off every "flat chest" image), or run a dataset-wide rename / find-and-replace. Use it for bulk passes (e.g. tag
    everything containing X).
+   **Delete tags (whole dataset)** lists every tag with how many images have it: tick as many as
+   you like (the filter box narrows the list) and **Delete from all** takes them all off every
+   active, unlocked image in one undoable step. Unlike Void it makes no standing rule, so a deleted
+   tag can come back if WD14 or Master Tags add it later.
 3. Mass **Lock/Unlock**, **Merge Immunize/Antivoid/Antimmunize** buttons apply the same per-image
    flags described above to your entire selection at once.
 4. **❌ Delete selected permanently** — removes every selected image and its tags from disk
@@ -728,6 +732,20 @@ This guide covers the desktop app. Two siblings share this repo:
     slide-out panel and the file-saving toggles in a second one, both opening from the left; click
     their button again (or outside them) to close. The header **Zoom** slider scales the whole
     interface, prompt boxes re-fit as you zoom or change theme, and themes bring their fonts.
+  - **Upscale with USDU** (desktop and phone): instead of the standard upscale (turning one on
+    turns the other off), Ultimate SD Upscale enlarges the image with an upscale model, then
+    redraws it tile by tile with its own checkpoint at low denoise. It upscales the image you
+    generate (the pass-2 image with 2-Pass on) or any image you import (**Upscale this image**).
+    The tiles' prompt is your image's prompt (optionally without the Global field), WD14 tags, or
+    your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
+    phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);
+    Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
+  - **WD14 tags** (desktop and phone, under the result): **Tag last generation** tags each saved
+    image and can write a same-name `.txt` beside it in the output folder. **Tag an image** tags any
+    image you choose; **Use as prompt** sorts the tags into your prompt boxes (Global, Character
+    trigger and Negative kept), and the tags can be saved as a `.txt` next to the original
+    (desktop) or as a copy + `.txt` in a `Tagged` folder of your output folder. Runs the
+    ComfyUI-WD14-Tagger node on your ComfyUI or Osmium Comfy.
   - **Settings & Help:** out of the box the Bridge generates at 1024×1024 with Euler A + Simple, 25
     steps, CFG 4 and seed 0, and pass 2 at seed 1 / 20 steps. Each seed has a behaviour dropdown:
     **Fixed** (the default) reuses the number, **Randomize** rolls a new one each generation, and
