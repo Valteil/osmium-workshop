@@ -332,7 +332,7 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .cmp-motion{ display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); cursor:pointer; }
 .cmp-peek{ display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); }
 .cmp-peek[hidden]{ display:none; }
-.cmp-peek input[type=range]{ width:110px; accent-color:var(--accent); }
+.cmp-peek input[type=range]{ width:clamp(120px, 22vw, 280px); accent-color:var(--accent); }
 .cmp-peek-val{ min-width:3ch; color:var(--text); font-variant-numeric:tabular-nums; }
 
 .cmp-slots{ display:flex; gap:10px; overflow-x:auto; padding:4px 2px 8px; scroll-snap-type:x proximity; }
@@ -391,6 +391,13 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
    (z 5) paint above B's image. */
 .cmp-stage[data-mode="overlay"] .cmp-side-b .cmp-img{ transition:opacity .2s var(--cmp-ease); }
 .cmp-stage[data-mode="overlay"].peek .cmp-side-b .cmp-img{ opacity:var(--cmp-peek, .42); transition-duration:.16s; }
+/* Live preview: the slider drives it directly, no easing lag while scrubbing. */
+.cmp-stage[data-mode="overlay"].live .cmp-side-b .cmp-img{ opacity:var(--cmp-peek, .42); transition:none; }
+/* An empty side has no "Top:" / "Bottom:" label. */
+.cmp-side-label:empty{ display:none; }
+.cmp-foot{ display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap; }
+.cmp-foot .cmp-hint{ margin-top:0; }
+.cmp-live[hidden]{ display:none; }
 .cmp-stage[data-mode="overlay"] .cmp-side-a .cmp-side-label{ top:auto; bottom:44px; }
 .cmp-stage[data-mode="overlay"] .cmp-side-b .cmp-side-label{ text-align:left; }
 .cmp-stage[data-mode="overlay"] .cmp-side-a .cmp-side-label::before{ content:'Bottom: '; }

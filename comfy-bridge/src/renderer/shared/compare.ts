@@ -53,6 +53,7 @@ const MOTION_KEY = 'comfybridge-compare-motion';
 const MODE_KEY = 'comfybridge-compare-mode';
 const OPEN_KEY = 'comfybridge-compare-open';
 const PEEK_KEY = 'comfybridge-compare-peek';
+const LIVE_KEY = 'comfybridge-compare-live';
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
 const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)';
 const PAGE = 60;
@@ -146,21 +147,30 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
   motionBox.type = 'checkbox';
   motionBox.checked = motion;
   motionLbl.append(motionBox, document.createTextNode(' Animations'));
-  // Overlay only: how see-through the top image gets while held (5–95 %
-  // opacity, `comfybridge-compare-peek`). Dragging previews it.
+  bar.append(seg, swapBtn, fileBtn, el('span', 'cmp-spacer'), motionLbl);
+  // Overlay only, under the stage: the top image's opacity (0–100 %,
+  // `comfybridge-compare-peek`). Live (the default) = the slider drives the
+  // top image directly, to scrub between the two. "Turn off live overlay
+  // preview" (`comfybridge-compare-live` = 0) = the top image stays solid
+  // and the slider only sets how see-through holding makes it.
   const peekLbl = el('label', 'cmp-peek');
-  peekLbl.title = 'How visible the top image stays while you hold it';
   const peekRange = el('input');
   peekRange.type = 'range';
-  peekRange.min = '5';
-  peekRange.max = '95';
+  peekRange.min = '0';
+  peekRange.max = '100';
   peekRange.step = '1';
   let peekPct = 42;
-  try { const v = Number(localStorage.getItem(PEEK_KEY)); if (v >= 5 && v <= 95) peekPct = v; } catch { /* best effort */ }
+  try { const v = localStorage.getItem(PEEK_KEY); if (v !== null && Number(v) >= 0 && Number(v) <= 100) peekPct = Number(v); } catch { /* best effort */ }
   peekRange.value = String(peekPct);
+  const peekName = document.createTextNode('');
   const peekVal = el('span', 'cmp-peek-val');
-  peekLbl.append(document.createTextNode('Top image when held '), peekRange, peekVal);
-  bar.append(seg, swapBtn, fileBtn, peekLbl, el('span', 'cmp-spacer'), motionLbl);
+  peekLbl.append(peekName, peekRange, peekVal);
+  let live = loadFlag(LIVE_KEY, true);
+  const liveLbl = el('label', 'cmp-motion cmp-live');
+  const liveBox = el('input');
+  liveBox.type = 'checkbox';
+  liveBox.checked = !live;
+  liveLbl.append(liveBox, document.createTextNode(' Turn off live overlay preview'));
 
   const slotHint = el('div', 'muted small cmp-hint');
   const slotRow = el('div', 'cmp-slots');
@@ -182,7 +192,9 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
   const holdHint = el('div', 'cmp-hold-hint', touch ? 'Touch and hold to see through' : 'Hold the mouse down to see through');
   const stageTip = el('div', 'muted small cmp-hint');
   stage.append(stageHint, holdHint);
-  foldBody.append(bar, slotHint, slotRow, stage, stageTip);
+  const stageFoot = el('div', 'cmp-foot');
+  stageFoot.append(stageTip, el('span', 'cmp-spacer'), peekLbl, liveLbl);
+  foldBody.append(bar, slotHint, slotRow, stage, stageFoot);
 
   // ---- gallery ----
   const browser = el('section', 'cmp-browser');
@@ -221,7 +233,7 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
       ? `Tap a slot to show it ${l}, long-press to show it ${r}. Tap an empty slot to fill it next.`
       : `Click a slot to show it ${l}, right-click to show it ${r} (Shift swaps them). Click an empty slot to fill it next.`;
     stageTip.textContent = mode === 'overlay'
-      ? (touch ? 'Tap the image to zoom it.' : 'Click the image to zoom it.')
+      ? (touch ? 'Tap the image to zoom it.' : 'Click the image to zoom it.') + (live ? ' Drag the slider to fade the top image.' : '')
       : (touch ? 'Tap an image to zoom it, long-press it for its prompt.' : 'Click an image to zoom it, Shift-click it for its prompt.');
     sumCount.textContent = filled().length ? String(filled().length) : '';
   }
@@ -387,6 +399,10 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
     segSide.classList.toggle('active', mode === 'side');
     segOver.classList.toggle('active', mode === 'overlay');
     peekLbl.hidden = mode !== 'overlay';
+    liveLbl.hidden = mode !== 'overlay';
+    stage.classList.toggle('live', mode === 'overlay' && live);
+    peekName.textContent = live ? 'Top image ' : 'Top image when held ';
+    peekLbl.title = live ? 'Drag to fade the top image in and out over the bottom one' : 'How visible the top image stays while you hold it';
     segSide.setAttribute('aria-selected', String(mode === 'side'));
     segOver.setAttribute('aria-selected', String(mode === 'overlay'));
     seg.classList.toggle('right', mode === 'overlay');
@@ -407,7 +423,7 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
     swapBtn.disabled = !(shown.a && shown.b);
     stageHint.hidden = n > 0;
     stageHint.textContent = touch ? 'Long-press an image in the gallery below to add it here.' : 'Shift-click an image in the gallery below to add it here.';
-    holdHint.hidden = !(mode === 'overlay' && shown.a && shown.b);
+    holdHint.hidden = !(mode === 'overlay' && !live && shown.a && shown.b);
     renderHints();
   }
 
@@ -453,7 +469,8 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
   };
   stage.addEventListener('pointerdown', (ev) => {
     held = false;
-    if (mode !== 'overlay' || (ev.target as Element).closest('button')) return;
+    // Live preview: the slider shows the top image's opacity, so no hold.
+    if (mode !== 'overlay' || live || (ev.target as Element).closest('button')) return;
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
     endHold();
     holdTimer = window.setTimeout(() => { held = true; stage.classList.add('peek'); }, HOLD_MS);
@@ -529,7 +546,6 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
       anim(sideEls.b.img, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: EASE_OUT });
     }
   });
-  let peekPreview = 0;
   const applyPeek = (): void => {
     stage.style.setProperty('--cmp-peek', String(peekPct / 100));
     peekVal.textContent = peekPct + '%';
@@ -537,13 +553,14 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
   peekRange.addEventListener('input', () => {
     peekPct = Number(peekRange.value);
     applyPeek();
-    // Show the setting on the stage while dragging, then let go.
-    stage.classList.add('peek');
-    window.clearTimeout(peekPreview);
-    peekPreview = window.setTimeout(() => { if (!holdTimer) stage.classList.remove('peek'); }, 700);
   });
   peekRange.addEventListener('change', () => {
     try { localStorage.setItem(PEEK_KEY, String(peekPct)); } catch { /* best effort */ }
+  });
+  liveBox.addEventListener('change', () => {
+    live = !liveBox.checked;
+    saveFlag(LIVE_KEY, live);
+    renderStage();
   });
   applyPeek();
   motionBox.addEventListener('change', () => {

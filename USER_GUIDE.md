@@ -758,9 +758,11 @@ This guide covers the desktop app. Two siblings share this repo:
       right. In Overlay, left is the bottom image and right is the top one.
     - **Side by side:** click an image to zoom it; **Shift-click** it (long-press on the phone) and
       its prompt panel slides up on that side while the other image is pushed away (Shift-click
-      again, ×, Esc or the phone's Back closes it). **Overlay** stacks them; press and hold to make
-      the top image see-through; the **Top image when held** slider (Overlay only) sets how visible
-      it stays, 5–95 %. **Animations** in the Compare bar turns the motion off.
+      again, ×, Esc or the phone's Back closes it). **Overlay** stacks them; the **Top image**
+      slider under the stage fades the top image from 0 to 100 % live, so you can scrub between the
+      two. Tick **Turn off live overlay preview** to keep the top image solid instead: then press and
+      hold to make it see-through, and the slider sets how much. **Animations** in the Compare bar
+      turns the motion off.
   - **Gallery panel** (the round button): keeps its folder and scroll when you close it.
   - **Settings & Help:** out of the box the Bridge generates at 1024×1024 with Euler A + Simple, 25
     steps, CFG 4 and seed 0, and pass 2 at seed 1 / 20 steps. Each seed has a behaviour dropdown:
