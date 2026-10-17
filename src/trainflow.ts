@@ -668,12 +668,19 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
     ACCELERATE_MIXED_PRECISION: 'bf16', ACCELERATE_DYNAMO_BACKEND: 'no'
   };
   try {
-    // pythonw.exe (Python with no console): the job is detached, so it has no console, and every data-loader
-    // worker it spawns would otherwise open its own visible console window. multiprocessing reuses
-    // sys.executable, so the workers are windowless too. Output still goes to the log file.
+    // The job is detached, so it has no console, and every console program it starts would open its own
+    // visible window: data-loader workers, and with torch_compile a rapid stream of them (Triton's tcc
+    // launcher builds, Inductor's compile workers). So on Windows a windowless pythonw.exe launcher starts
+    // the trainer as python.exe with CREATE_NO_WINDOW: a console that has no window, which every child
+    // inherits instead of making its own (verified: a child's GetConsoleWindow() is 0). The launcher waits
+    // and exits with the trainer's code; the run record keeps the launcher's PID, and Stop's
+    // `taskkill /T` takes the whole tree. Without pythonw.exe (a venv layout), the old direct spawn.
     const pythonw = path.join(path.dirname(inst.python), 'pythonw.exe');
-    const trainerExe = fs.existsSync(pythonw) ? pythonw : inst.python;
-    const child = spawn(trainerExe, args, { cwd: inst.scriptsDir, env, detached: true, stdio: ['ignore', logFd, logFd], windowsHide: true });
+    const useLauncher = process.platform === 'win32' && fs.existsSync(pythonw);
+    const trainerExe = useLauncher ? pythonw : inst.python;
+    const launcher = "import subprocess,sys; p=subprocess.Popen(sys.argv[1:], stdin=subprocess.DEVNULL, stdout=sys.stdout, stderr=sys.stderr, creationflags=0x08000000); sys.exit(p.wait())";
+    const spawnArgs = useLauncher ? ['-c', launcher, inst.python, ...args] : args;
+    const child = spawn(trainerExe, spawnArgs, { cwd: inst.scriptsDir, env, detached: true, stdio: ['ignore', logFd, logFd], windowsHide: true });
     await new Promise<void>((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
     child.unref();
     writeRun({ pid: child.pid as number, project, outDir, logFile, samplesDir, totalSteps: Math.round(s.steps), startedAt: Date.now(), exe: trainerExe });
