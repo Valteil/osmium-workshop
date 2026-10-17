@@ -746,16 +746,21 @@ This guide covers the desktop app. Two siblings share this repo:
     trigger and Negative kept), and the tags can be saved as a `.txt` next to the original
     (desktop) or as a copy + `.txt` in a `Tagged` folder of your output folder. Runs the
     ComfyUI-WD14-Tagger node on your ComfyUI or Osmium Comfy.
-  - **Compare tab** (desktop and phone): the big gallery of your outputs (the phone can switch
-    between its own folder and the PC's) plus image slots. Tap an empty slot's ⊕ to target it, then
-    an image in the gallery (or **Open file…**); tapping a gallery image with no slot targeted fills
-    the first empty slot, or adds one. Two slots are on the stage at a time: ‹ › on each side steps
-    through the filled slots, and tapping a slot puts it on the stage. **Side by side** shows them
-    next to each other; tap one and its prompt panel slides up on that side while the other image
-    is pushed away (tap again, ×, Esc or the phone's Back to close it). **Overlay** stacks them;
-    press and hold to make the top image see-through. Double-click an image for the zoomable viewer.
-    **Animations** in the tab's bar turns its motion off. The gallery panel (the round button)
-    keeps its folder and scroll when you close it.
+  - **Gallery tab** (desktop and phone): the big gallery of your outputs (the phone can switch
+    between its own folder and the PC's). Click an image to open it in the zoomable viewer (arrow
+    keys step through the rest; its settings are beside it, behind Details on the phone).
+    - **Compare** (folded above the gallery; click its header to open it): **Shift-click** a gallery
+      image (**long-press** on the phone) to add it to a slot, or use **Open file…**. The page
+      doesn't scroll; a message and the count on the Compare header confirm it. Click an empty
+      slot's ⊕ first to choose which slot it fills; the dashed + box adds more slots.
+    - **Which two are shown:** click a filled slot to show it on the left, right-click it to show it
+      on the right; with Shift it's the other way round. On the phone, tap = left, long-press =
+      right. In Overlay, left is the bottom image and right is the top one.
+    - **Side by side:** click an image to zoom it; **Shift-click** it (long-press on the phone) and
+      its prompt panel slides up on that side while the other image is pushed away (Shift-click
+      again, ×, Esc or the phone's Back closes it). **Overlay** stacks them; press and hold to make
+      the top image see-through. **Animations** in the Compare bar turns the motion off.
+  - **Gallery panel** (the round button): keeps its folder and scroll when you close it.
   - **Settings & Help:** out of the box the Bridge generates at 1024×1024 with Euler A + Simple, 25
     steps, CFG 4 and seed 0, and pass 2 at seed 1 / 20 steps. Each seed has a behaviour dropdown:
     **Fixed** (the default) reuses the number, **Randomize** rolls a new one each generation, and

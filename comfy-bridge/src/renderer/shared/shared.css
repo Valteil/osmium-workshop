@@ -358,14 +358,10 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .cmp-stage{ position:relative; height:min(72vh, 820px); min-height:280px; overflow:hidden; border-radius:12px; background:var(--panel2); border:1px solid var(--border); user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
 .cmp-side{ position:absolute; top:0; bottom:0; width:50%; transition:transform .3s var(--cmp-drawer), opacity .3s var(--cmp-drawer); }
 .cmp-side-a{ left:0; } .cmp-side-b{ left:50%; }
-.cmp-img{ width:100%; height:100%; object-fit:contain; display:block; padding:10px; cursor:pointer; box-sizing:border-box; }
+.cmp-img{ width:100%; height:100%; object-fit:contain; display:block; padding:10px; cursor:zoom-in; box-sizing:border-box; }
 .cmp-img[hidden]{ display:none; }
 .cmp-side-label{ position:absolute; left:12px; right:12px; top:10px; font-size:11.5px; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.9); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
 .cmp-side-b .cmp-side-label{ text-align:right; }
-.cmp-nav{ position:absolute; top:50%; width:34px; height:52px; margin-top:-26px; min-height:0; padding:0; border:0; border-radius:8px; background:rgba(0,0,0,.42); color:#fff; font-size:24px; cursor:pointer; transition:opacity .15s ease, transform .12s var(--cmp-ease); }
-.cmp-nav:active{ transform:scale(0.94); }
-.cmp-nav[hidden]{ display:none; }
-.cmp-prev{ left:8px; } .cmp-next{ right:8px; }
 .cmp-stage-hint{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px; color:var(--muted); font-size:14px; pointer-events:none; }
 .cmp-stage-hint[hidden], .cmp-hold-hint[hidden]{ display:none; }
 .cmp-hold-hint{ position:absolute; left:50%; bottom:12px; transform:translateX(-50%); font-size:12px; color:#fff; background:rgba(0,0,0,.5); padding:4px 10px; border-radius:999px; pointer-events:none; z-index:4; transition:opacity .2s ease; }
@@ -380,7 +376,6 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .cmp-stage[data-focus="b"] .cmp-side{ transform:translateX(-76%); }
 .cmp-stage[data-focus="a"] .cmp-side{ transform:translateX(76%); }
 .cmp-stage[data-focus="b"] .cmp-side-a, .cmp-stage[data-focus="a"] .cmp-side-b{ opacity:.35; }
-.cmp-stage[data-focus="a"] .cmp-nav, .cmp-stage[data-focus="b"] .cmp-nav{ opacity:0; pointer-events:none; }
 .cmp-panel-head{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px 6px; }
 .cmp-panel-x{ background:none; border:0; color:var(--muted); font-size:20px; min-height:0; padding:0 4px; cursor:pointer; }
 .cmp-panel-body{ flex:1; overflow-y:auto; padding:0 12px 12px; user-select:text; -webkit-user-select:text; }
@@ -392,17 +387,11 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
    (z 5) paint above B's image. */
 .cmp-stage[data-mode="overlay"] .cmp-side-b .cmp-img{ transition:opacity .2s var(--cmp-ease); }
 .cmp-stage[data-mode="overlay"].peek .cmp-side-b .cmp-img{ opacity:.42; transition-duration:.16s; }
-.cmp-stage[data-mode="overlay"] .cmp-img{ cursor:default; }
-.cmp-stage[data-mode="overlay"] .cmp-side-a .cmp-side-label{ top:auto; bottom:48px; }
+.cmp-stage[data-mode="overlay"] .cmp-side-a .cmp-side-label{ top:auto; bottom:44px; }
 .cmp-stage[data-mode="overlay"] .cmp-side-b .cmp-side-label{ text-align:left; }
 .cmp-stage[data-mode="overlay"] .cmp-side-a .cmp-side-label::before{ content:'Bottom: '; }
 .cmp-stage[data-mode="overlay"] .cmp-side-b .cmp-side-label::before{ content:'Top: '; }
 .cmp-stage[data-mode="overlay"] .cmp-side-label{ z-index:5; }
-.cmp-stage[data-mode="overlay"] .cmp-nav{ top:auto; bottom:10px; margin-top:0; height:32px; width:32px; font-size:18px; z-index:5; }
-.cmp-stage[data-mode="overlay"] .cmp-side-a .cmp-prev{ left:8px; }
-.cmp-stage[data-mode="overlay"] .cmp-side-a .cmp-next{ left:44px; right:auto; }
-.cmp-stage[data-mode="overlay"] .cmp-side-b .cmp-prev{ left:auto; right:44px; }
-.cmp-stage[data-mode="overlay"] .cmp-side-b .cmp-next{ right:8px; }
 .cmp-stage.cmp-switching .cmp-side{ transition:none; }
 
 .cmp-browser{ display:flex; flex-direction:column; gap:8px; }
@@ -418,6 +407,29 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .cmp-thumb.loaded:active img{ transform:scale(0.97); }
 .cmp-more{ grid-column:1/-1; }
 .cmp-bempty[hidden]{ display:none; }
+/* Shift held (desktop): a click adds to Compare, so the thumbs say so. */
+.cmp.shift .cmp-thumb{ cursor:copy; }
+.cmp.shift .cmp-thumb::after{ content:'+ Compare'; position:absolute; right:6px; bottom:6px; font-size:11px; font-weight:600; color:var(--c-pri-fg, #fff); background:var(--accent); border-radius:999px; padding:2px 8px; opacity:0; transform:translateY(3px); transition:opacity .15s var(--cmp-ease), transform .15s var(--cmp-ease); pointer-events:none; }
+@media (hover:hover) and (pointer:fine){
+  .cmp.shift .cmp-thumb:hover::after{ opacity:1; transform:none; }
+  .cmp.shift .cmp-thumb:hover{ border-color:var(--accent); }
+}
+
+/* Compare, folded above the gallery. */
+.cmp-fold{ border:1px solid var(--border); border-radius:12px; background:color-mix(in srgb, var(--panel2) 55%, transparent); }
+.cmp-fold-sum{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 14px; cursor:pointer; list-style:none; user-select:none; }
+.cmp-fold-sum::-webkit-details-marker{ display:none; }
+.cmp-fold-sum::before{ content:''; width:7px; height:7px; border-right:2px solid var(--muted); border-bottom:2px solid var(--muted); transform:rotate(-45deg); transition:transform .2s var(--cmp-ease); margin-right:2px; }
+.cmp-fold[open] > .cmp-fold-sum::before{ transform:rotate(45deg); }
+.cmp-count{ min-width:18px; padding:0 6px; border-radius:999px; background:var(--accent); color:var(--c-pri-fg, #fff); font-size:11.5px; font-weight:600; line-height:18px; text-align:center; }
+.cmp-count:empty{ display:none; }
+.cmp-sum-hint{ margin-left:auto; }
+.cmp-fold-body{ display:flex; flex-direction:column; gap:10px; padding:0 14px 14px; }
+.cmp-hint{ margin-top:-4px; }
+
+/* "Added to Compare" toast: rises from the bottom, leaves the same way. */
+.cmp-toast{ position:fixed; left:50%; bottom:90px; z-index:800; max-width:calc(100vw - 32px); padding:8px 14px; border-radius:999px; background:var(--panel3, var(--panel)); border:1px solid var(--border-strong, var(--border)); color:var(--text); font-size:13px; box-shadow:0 8px 24px rgba(0,0,0,.4); pointer-events:none; opacity:0; transform:translate(-50%, 12px); transition:opacity .2s var(--cmp-ease), transform .2s var(--cmp-ease); }
+.cmp-toast.show{ opacity:1; transform:translate(-50%, 0); }
 
 /* Animations off (the tab's switch). */
 .cmp.cmp-still *, .cmp.cmp-still *::before, .cmp.cmp-still *::after{ transition:none !important; }
@@ -432,7 +444,7 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
   .cmp-panel{ width:64%; }
   .cmp-stage[data-focus="b"] .cmp-side{ transform:translateX(-128%); }
   .cmp-stage[data-focus="a"] .cmp-side{ transform:translateX(128%); }
-  .cmp-nav{ width:30px; height:44px; margin-top:-22px; font-size:20px; }
+  .cmp-sum-hint{ flex-basis:100%; margin-left:18px; }
 }
 @media (prefers-reduced-motion: reduce){
   .cmp-side, .cmp-panel{ transition-property:opacity; }

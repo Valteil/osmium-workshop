@@ -22,7 +22,7 @@
     <nav id="appTabs" role="tablist">
       <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
       <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
-      <button type="button" role="tab" data-tab="compare" aria-selected="false">Compare</button>
+      <button type="button" role="tab" data-tab="compare" aria-selected="false">Gallery</button>
     </nav>
     <!-- Help panel (src/renderer/help.ts); the button is left of the Wiki
          button. -->
@@ -258,7 +258,7 @@
   </div>
   <!-- Metadata tab: filled by shared/metadata-ui.ts' mountMetadataTab. -->
   <div id="metadataView" class="meta-tab-scroll" hidden><div id="metadataTab" class="meta-tab"></div></div>
-  <!-- Compare tab: slots, side by side / overlay, the large gallery (shared/compare.ts). -->
+  <!-- Gallery tab: the large gallery + a folded Compare (slots, side by side / overlay); shared/compare.ts. -->
   <div id="compareView" hidden><div id="compareTab"></div></div>
 </div>
 

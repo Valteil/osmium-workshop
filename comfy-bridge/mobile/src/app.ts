@@ -37,7 +37,7 @@ declare const BridgeShared: {
     opts?: { loraTools?: any; labels?: { full: string; prompts: string }; info?: { prompt: Record<string, any>; kind: null } | null }) => HTMLElement | null;
   // shared/metadata-ui.ts + lora-lookup.ts (the Metadata tab, LoRA lookup).
   mountMetadataTab: (root: HTMLElement, deps: { tools: any; pickImage: () => Promise<string | null>; details: (src: string) => HTMLElement | null }) => void;
-  mountCompareTab: (root: HTMLElement, deps: { sources: any[]; pickFile: () => Promise<string | null>; details: (src: string, relPath: string) => HTMLElement | null }) => { onShow(): void };
+  mountCompareTab: (root: HTMLElement, deps: { sources: any[]; pickFile: () => Promise<string | null>; details: (src: string, relPath: string, close?: () => void) => HTMLElement | null; lazyInfo?: boolean }) => { onShow(): void };
   lookupUrl: (site: string, kind: string, q: string) => string | null;
   safeLookupLink: (url: string) => string | null;
   mergedPromptText: (prompt: Record<string, any>) => string;
@@ -2387,8 +2387,8 @@ declare const BridgeShared: {
     }, '', undefined, { loraTools, labels: IMPORT_LABELS, info: metaPicked && metaPicked.src === src ? metaPicked.info : undefined })
   });
 
-  // Compare: the phone's save location or the PC's folder (like the
-  // gallery's source switch); details are the gallery's panel.
+  // Gallery tab + Compare: the phone's save location or the PC's folder
+  // (like the gallery's source switch); details are the gallery's panel.
   const compare = BridgeShared.mountCompareTab($<HTMLElement>('compareTab'), {
     sources: [
       { label: 'Phone', backend: () => mobileBackend() },
@@ -2404,10 +2404,12 @@ declare const BridgeShared: {
       };
       metaFileInput.click();
     }),
-    details: (src, relPath) => BridgeShared.buildGenInfoPanel(src, (prompt, promptsOnly) => {
+    details: (src, relPath, close) => BridgeShared.buildGenInfoPanel(src, (prompt, promptsOnly) => {
+      if (close) close();
       showTab('generate');
-      void useGeneration(prompt, promptsOnly, 'the Compare tab');
-    }, relPath, undefined, { loraTools })
+      void useGeneration(prompt, promptsOnly, 'the Gallery tab');
+    }, relPath, undefined, { loraTools }),
+    lazyInfo: true
   });
 
   // ---------------- UI state persistence ----------------

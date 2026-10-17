@@ -1863,14 +1863,15 @@ mountMetadataTab($<HTMLElement>('metadataTab'), {
     void useGeneration(prompt, promptsOnly, 'the Metadata tab');
   }, '', undefined, { loraTools, labels: IMPORT_LABELS, info: metaPicked && metaPicked.src === src ? metaPicked.info : undefined })
 });
-// Compare: slots filled from the output folder (or a file), the prompt
-// panel is the gallery's details panel.
+// Gallery tab: the output folder large, plus Compare (slots filled from it
+// or a file); the prompt panel is the gallery's details panel.
 const compare = mountCompareTab($<HTMLElement>('compareTab'), {
   sources: [{ label: 'Output', backend: () => desktopBackend() }],
   pickFile: async () => { const p = await pickImageFile(); return p ? p.src : null; },
-  details: (src, relPath) => buildGenInfoPanel(src, (prompt, promptsOnly) => {
+  details: (src, relPath, close) => buildGenInfoPanel(src, (prompt, promptsOnly) => {
+    close?.();
     showTab('generate');
-    void useGeneration(prompt, promptsOnly, 'the Compare tab');
+    void useGeneration(prompt, promptsOnly, 'the Gallery tab');
   }, relPath, undefined, { loraTools }),
 });
 btnStop.addEventListener('click', async () => {
