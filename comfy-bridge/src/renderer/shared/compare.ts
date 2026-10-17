@@ -52,6 +52,7 @@ type Side = 'a' | 'b';
 const MOTION_KEY = 'comfybridge-compare-motion';
 const MODE_KEY = 'comfybridge-compare-mode';
 const OPEN_KEY = 'comfybridge-compare-open';
+const PEEK_KEY = 'comfybridge-compare-peek';
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
 const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)';
 const PAGE = 60;
@@ -145,7 +146,21 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
   motionBox.type = 'checkbox';
   motionBox.checked = motion;
   motionLbl.append(motionBox, document.createTextNode(' Animations'));
-  bar.append(seg, swapBtn, fileBtn, el('span', 'cmp-spacer'), motionLbl);
+  // Overlay only: how see-through the top image gets while held (5–95 %
+  // opacity, `comfybridge-compare-peek`). Dragging previews it.
+  const peekLbl = el('label', 'cmp-peek');
+  peekLbl.title = 'How visible the top image stays while you hold it';
+  const peekRange = el('input');
+  peekRange.type = 'range';
+  peekRange.min = '5';
+  peekRange.max = '95';
+  peekRange.step = '1';
+  let peekPct = 42;
+  try { const v = Number(localStorage.getItem(PEEK_KEY)); if (v >= 5 && v <= 95) peekPct = v; } catch { /* best effort */ }
+  peekRange.value = String(peekPct);
+  const peekVal = el('span', 'cmp-peek-val');
+  peekLbl.append(document.createTextNode('Top image when held '), peekRange, peekVal);
+  bar.append(seg, swapBtn, fileBtn, peekLbl, el('span', 'cmp-spacer'), motionLbl);
 
   const slotHint = el('div', 'muted small cmp-hint');
   const slotRow = el('div', 'cmp-slots');
@@ -371,6 +386,7 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
     stage.dataset.focus = focus || '';
     segSide.classList.toggle('active', mode === 'side');
     segOver.classList.toggle('active', mode === 'overlay');
+    peekLbl.hidden = mode !== 'overlay';
     segSide.setAttribute('aria-selected', String(mode === 'side'));
     segOver.setAttribute('aria-selected', String(mode === 'overlay'));
     seg.classList.toggle('right', mode === 'overlay');
@@ -513,6 +529,23 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
       anim(sideEls.b.img, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: EASE_OUT });
     }
   });
+  let peekPreview = 0;
+  const applyPeek = (): void => {
+    stage.style.setProperty('--cmp-peek', String(peekPct / 100));
+    peekVal.textContent = peekPct + '%';
+  };
+  peekRange.addEventListener('input', () => {
+    peekPct = Number(peekRange.value);
+    applyPeek();
+    // Show the setting on the stage while dragging, then let go.
+    stage.classList.add('peek');
+    window.clearTimeout(peekPreview);
+    peekPreview = window.setTimeout(() => { if (!holdTimer) stage.classList.remove('peek'); }, 700);
+  });
+  peekRange.addEventListener('change', () => {
+    try { localStorage.setItem(PEEK_KEY, String(peekPct)); } catch { /* best effort */ }
+  });
+  applyPeek();
   motionBox.addEventListener('change', () => {
     motion = motionBox.checked;
     saveFlag(MOTION_KEY, motion);

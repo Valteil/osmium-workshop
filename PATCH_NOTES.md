@@ -53,7 +53,7 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   slot, as many as you like. Click a slot to show it on the left, right-click to show it on the
   right. **Side by side**: click an image to zoom it, Shift-click it and its prompt slides up
   beside it while the pair moves over to make room. **Overlay**: the two images stacked; press and
-  hold to see through the top one. Animated throughout, with an **Animations** switch to turn the
+  hold to see through the top one, and set how faint it gets with the slider. Animated throughout, with an **Animations** switch to turn the
   motion off.
 - **The gallery panel remembers where you were**: closing it keeps the folder and scroll position.
 - **Upscale with USDU** (Windows and Android): Ultimate SD Upscale as the other choice next to the

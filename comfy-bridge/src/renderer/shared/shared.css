@@ -330,6 +330,10 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .cmp-tool{ background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:6px; font-size:13px; padding:6px 12px; min-height:0; cursor:pointer; }
 .cmp-tool:disabled{ opacity:.45; cursor:default; }
 .cmp-motion{ display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); cursor:pointer; }
+.cmp-peek{ display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); }
+.cmp-peek[hidden]{ display:none; }
+.cmp-peek input[type=range]{ width:110px; accent-color:var(--accent); }
+.cmp-peek-val{ min-width:3ch; color:var(--text); font-variant-numeric:tabular-nums; }
 
 .cmp-slots{ display:flex; gap:10px; overflow-x:auto; padding:4px 2px 8px; scroll-snap-type:x proximity; }
 .cmp-slot{ position:relative; flex:0 0 auto; width:96px; height:96px; border-radius:10px; scroll-snap-align:start; cursor:pointer; overflow:hidden; padding:0; min-height:0; background:var(--panel2); border:1px solid var(--border); transition:transform .16s var(--cmp-ease), border-color .15s ease, box-shadow .15s ease; }
@@ -358,7 +362,7 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .cmp-stage{ position:relative; height:min(72vh, 820px); min-height:280px; overflow:hidden; border-radius:12px; background:var(--panel2); border:1px solid var(--border); user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
 .cmp-side{ position:absolute; top:0; bottom:0; width:50%; transition:transform .3s var(--cmp-drawer), opacity .3s var(--cmp-drawer); }
 .cmp-side-a{ left:0; } .cmp-side-b{ left:50%; }
-.cmp-img{ width:100%; height:100%; object-fit:contain; display:block; padding:10px; cursor:zoom-in; box-sizing:border-box; }
+.cmp-img{ width:100%; height:100%; object-fit:contain; display:block; padding:10px; cursor:pointer; box-sizing:border-box; }
 .cmp-img[hidden]{ display:none; }
 .cmp-side-label{ position:absolute; left:12px; right:12px; top:10px; font-size:11.5px; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.9); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
 .cmp-side-b .cmp-side-label{ text-align:right; }
@@ -386,7 +390,7 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 /* The side boxes stay non-stacking (no z-index), so A's controls and label
    (z 5) paint above B's image. */
 .cmp-stage[data-mode="overlay"] .cmp-side-b .cmp-img{ transition:opacity .2s var(--cmp-ease); }
-.cmp-stage[data-mode="overlay"].peek .cmp-side-b .cmp-img{ opacity:.42; transition-duration:.16s; }
+.cmp-stage[data-mode="overlay"].peek .cmp-side-b .cmp-img{ opacity:var(--cmp-peek, .42); transition-duration:.16s; }
 .cmp-stage[data-mode="overlay"] .cmp-side-a .cmp-side-label{ top:auto; bottom:44px; }
 .cmp-stage[data-mode="overlay"] .cmp-side-b .cmp-side-label{ text-align:left; }
 .cmp-stage[data-mode="overlay"] .cmp-side-a .cmp-side-label::before{ content:'Bottom: '; }
@@ -407,8 +411,9 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .cmp-thumb.loaded:active img{ transform:scale(0.97); }
 .cmp-more{ grid-column:1/-1; }
 .cmp-bempty[hidden]{ display:none; }
-/* Shift held (desktop): a click adds to Compare, so the thumbs say so. */
-.cmp.shift .cmp-thumb{ cursor:copy; }
+/* Shift held (desktop): a click adds to Compare, so the thumbs say so with
+   the chip. The cursor stays the normal hand: `copy` (or `zoom-in`) isn't in
+   most custom Windows cursor schemes, so Chromium fell back to its own. */
 .cmp.shift .cmp-thumb::after{ content:'+ Compare'; position:absolute; right:6px; bottom:6px; font-size:11px; font-weight:600; color:var(--c-pri-fg, #fff); background:var(--accent); border-radius:999px; padding:2px 8px; opacity:0; transform:translateY(3px); transition:opacity .15s var(--cmp-ease), transform .15s var(--cmp-ease); pointer-events:none; }
 @media (hover:hover) and (pointer:fine){
   .cmp.shift .cmp-thumb:hover::after{ opacity:1; transform:none; }
