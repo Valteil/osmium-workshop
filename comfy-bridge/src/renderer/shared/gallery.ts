@@ -107,6 +107,12 @@ function savePins(locationLabel: string, pins: string[]): void {
 }
 
 let galleryRenderToken = 0;
+// The listing the browser grid last rendered (names + mtimes), so a reopened
+// gallery can tell whether its folder changed while it was closed.
+let lastListingSig = '';
+function listingSig(entries: { name: string; kind: string; mtime?: number }[]): string {
+  return entries.map((e) => e.kind[0] + e.name + ':' + (e.mtime || 0)).sort().join('|');
+}
 
 // Images render one page at a time behind a "Show more" button: a folder
 // with thousands of images must never queue thousands of reads/decodes at
@@ -314,27 +320,35 @@ export function mountGallerySidebar(
       ? renderBrowserLevel(activeBackend(), h, getLocationText(), browserState(), { thumbSrc: activeThumbSrc(), fullSrc: activeFullSrc() })
       : renderGallery(activeBackend(), h, getLocationText(), { thumbSrc: activeThumbSrc(), fullSrc: activeFullSrc() });
   }
-  function open(): void {
+  // Closing keeps the place (v2.0.x, the user's call): the folder, the pages
+  // shown and the scroll survive a close. Reopening re-lists the folder and
+  // only re-renders when its listing changed, then puts the scroll back.
+  let rendered = false;
+  async function open(): Promise<void> {
     sidebar.classList.add('open');
     backdrop.classList.add('show');
     fab.classList.add('gallery-open');
-    if (navigable) {
-      relDir = '';
-      void render();
-    } else {
-      void render();
-    }
     renderSourceSwitch();
+    if (!rendered || !navigable) {
+      rendered = true;
+      void render();
+      return;
+    }
+    const keep = { scrollTop: h.grid.scrollTop, shown: h.grid.querySelectorAll('img.gallery-thumb').length };
+    let sig: string | null = null;
+    try { sig = listingSig(await activeBackend().listDir(relDir)); } catch { /* re-render below shows the error */ }
+    if (sig !== null && sig === lastListingSig) return;
+    await renderBrowserLevel(activeBackend(), h, getLocationText(), browserState(), { thumbSrc: activeThumbSrc(), fullSrc: activeFullSrc() }, keep.shown);
+    h.grid.scrollTop = keep.scrollTop;
   }
   function close(): void {
     sidebar.classList.remove('open');
     backdrop.classList.remove('show');
     fab.classList.remove('gallery-open');
-    galleryRenderToken++;
   }
   // The button toggles: the gallery opens from the left, so the button stays
   // uncovered (and above the backdrop) while it's open.
-  fab.addEventListener('click', () => { if (sidebar.classList.contains('open')) close(); else open(); });
+  fab.addEventListener('click', () => { if (sidebar.classList.contains('open')) close(); else void open(); });
   h.closeBtn.addEventListener('click', close);
   backdrop.addEventListener('click', close);
 
@@ -343,7 +357,7 @@ export function mountGallerySidebar(
     if (closeLightbox()) return true;
     if (navigable && relDir) {
       relDir = relDir.includes('/') ? relDir.slice(0, relDir.lastIndexOf('/')) : '';
-      void renderBrowserLevel(getBackend(), h, getLocationLabel(), browserState());
+      void render();
       return true;
     }
     close();
@@ -428,7 +442,8 @@ export async function renderBrowserLevel(
   h: GalleryHandles,
   locationLabel: string,
   state: BrowserState,
-  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string) => Promise<string | null> }
+  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string) => Promise<string | null> },
+  minShown = 0
 ): Promise<void> {
   const token = ++galleryRenderToken;
   const relDir = state.getDir();
@@ -440,10 +455,10 @@ export async function renderBrowserLevel(
   h.sortBtn.textContent = SORT_LABELS[sortMode];
   const navTo = (dir: string): void => {
     state.setDir(dir);
-    void renderBrowserLevel(backend, h, locationLabel, state);
+    void renderBrowserLevel(backend, h, locationLabel, state, srcs);
   };
   const rerender = (): void => {
-    void renderBrowserLevel(backend, h, locationLabel, state);
+    void renderBrowserLevel(backend, h, locationLabel, state, srcs);
   };
   renderCrumb(h, locationLabel, relDir, navTo);
   h.sortBtn.onclick = () => {
@@ -469,6 +484,7 @@ export async function renderBrowserLevel(
     if (err instanceof Error && (err as Error & { userFacing?: boolean }).userFacing) listError = err.message;
   }
   if (token !== galleryRenderToken) return;
+  lastListingSig = entries ? listingSig(entries) : '';
   if (!entries) {
     h.empty.style.display = '';
     h.empty.textContent = listError
@@ -549,6 +565,9 @@ export async function renderBrowserLevel(
     shown += slice.length;
     const ok = await renderThumbSlice(backend, h, token, slice, srcs);
     if (!ok || token !== galleryRenderToken) return;
+    // A reopened gallery whose folder changed brings back as many pages as
+    // were showing, so the restored scroll lands where it was.
+    if (shown < minShown && shown < images.length) return showMore();
     if (shown < images.length) {
       appendMoreButton(h, images.length - shown, () => {
         void showMore();

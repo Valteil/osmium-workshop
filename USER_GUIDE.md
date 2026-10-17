@@ -746,6 +746,16 @@ This guide covers the desktop app. Two siblings share this repo:
     trigger and Negative kept), and the tags can be saved as a `.txt` next to the original
     (desktop) or as a copy + `.txt` in a `Tagged` folder of your output folder. Runs the
     ComfyUI-WD14-Tagger node on your ComfyUI or Osmium Comfy.
+  - **Compare tab** (desktop and phone): the big gallery of your outputs (the phone can switch
+    between its own folder and the PC's) plus image slots. Tap an empty slot's ⊕ to target it, then
+    an image in the gallery (or **Open file…**); tapping a gallery image with no slot targeted fills
+    the first empty slot, or adds one. Two slots are on the stage at a time: ‹ › on each side steps
+    through the filled slots, and tapping a slot puts it on the stage. **Side by side** shows them
+    next to each other; tap one and its prompt panel slides up on that side while the other image
+    is pushed away (tap again, ×, Esc or the phone's Back to close it). **Overlay** stacks them;
+    press and hold to make the top image see-through. Double-click an image for the zoomable viewer.
+    **Animations** in the tab's bar turns its motion off. The gallery panel (the round button)
+    keeps its folder and scroll when you close it.
   - **Settings & Help:** out of the box the Bridge generates at 1024×1024 with Euler A + Simple, 25
     steps, CFG 4 and seed 0, and pass 2 at seed 1 / 20 steps. Each seed has a behaviour dropdown:
     **Fixed** (the default) reuses the number, **Randomize** rolls a new one each generation, and

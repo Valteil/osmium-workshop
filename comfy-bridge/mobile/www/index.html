@@ -26,6 +26,7 @@
   <nav id="appTabs" role="tablist">
     <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
     <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
+    <button type="button" role="tab" data-tab="compare" aria-selected="false">Compare</button>
   </nav>
 
   <div id="col">
@@ -227,6 +228,8 @@
     <div id="metadataTab" class="meta-tab"></div>
     <input id="metaFileInput" type="file" accept="image/png,image/jpeg,image/webp" style="display:none">
   </div>
+  <!-- Compare tab (BridgeShared.mountCompareTab). -->
+  <div id="compareView" hidden><div id="compareTab"></div></div>
 
   <!-- Generation settings (seed, cfg, resolution, sampler, 2-Pass) live in an
        off-canvas drawer on mobile instead of inline — reaching them inline

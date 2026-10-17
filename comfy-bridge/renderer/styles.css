@@ -310,6 +310,8 @@ html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(
 #appTabs button:focus-visible{ outline:1px solid var(--accent); }
 #metadataView{ flex:1; overflow:auto; }
 #metadataView[hidden]{ display:none; }
+#compareView{ flex:1; overflow:auto; }
+#compareView[hidden]{ display:none; }
 #btnHelp + #btnTagWiki{ margin-left:0; }
 
 .help-backdrop{

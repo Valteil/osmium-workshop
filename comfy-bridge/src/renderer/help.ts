@@ -114,7 +114,8 @@ export const HELP_SECTIONS: HelpSection[] = [
     html: `
       <p>The right column shows a live preview while a generation runs. When it finishes you get up to three saved images: pass 1, pass 2 (or just pass 1 when 2-Pass is off), and the upscaled one. Swipe between them, or use the thumbnail strip underneath.</p>
       <p>The Log below the preview records what the app and ComfyUI are doing. When a run fails, that is the first place to look, and the message usually names the problem.</p>
-      <p>The gallery button at the bottom right opens your output folder as a browsable grid. Click an image to see it larger and use the arrow keys to step through the rest. The panel beside an open image lists the settings that made it, and Use these settings loads them straight back into the form.</p>`
+      <p>The gallery button at the bottom right opens your output folder as a browsable grid. Click an image to see it larger and use the arrow keys to step through the rest. The panel beside an open image lists the settings that made it, and Use these settings loads them straight back into the form. Closing the gallery keeps the folder and scroll you were at.</p>
+      <p>The <b>Compare</b> tab is the larger gallery. Tap an empty slot's ⊕, then an image below (or Open file…), to fill it; more slots come with the dashed + box. Two slots are shown at a time, and ‹ › on each side steps through the rest. In <b>Side by side</b>, click an image to slide up its prompt beside it; in <b>Overlay</b>, the two are stacked, and holding the mouse down makes the top one see-through. Double-click an image to zoom it. The <b>Animations</b> box turns the tab's motion off.</p>`
   }
 ];
 

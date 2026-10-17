@@ -23,6 +23,7 @@ import { initTagWiki } from './shared/tag-wiki';
 import { initHelp } from './help';
 import { mountUsduPanel, usduSettingsFromPrompt, type UsduListKind } from './shared/usdu';
 import { mountWd14Panel, type Wd14SavedImage } from './shared/wd14-tag';
+import { mountCompareTab } from './shared/compare';
 export {};
 
 interface ElectronAPI {
@@ -1833,14 +1834,16 @@ btnImportGen.addEventListener('click', async () => {
   }, '', undefined, { loraTools, labels: IMPORT_LABELS, info: picked.info }));
 });
 
-// ---------------- Generate | Metadata tabs ----------------
+// ---------------- Generate | Metadata | Compare tabs ----------------
 const appTabs = $<HTMLElement>('appTabs');
 const layoutEl = $<HTMLElement>('layout');
 const metadataView = $<HTMLElement>('metadataView');
+const compareView = $<HTMLElement>('compareView');
 function showTab(tab: string): void {
-  const meta = tab === 'metadata';
-  layoutEl.style.display = meta ? 'none' : '';
-  metadataView.hidden = !meta;
+  layoutEl.style.display = tab === 'generate' ? '' : 'none';
+  metadataView.hidden = tab !== 'metadata';
+  compareView.hidden = tab !== 'compare';
+  if (tab === 'compare') compare.onShow();
   appTabs.querySelectorAll<HTMLButtonElement>('button[data-tab]').forEach((b) => {
     const on = b.dataset.tab === tab;
     b.classList.toggle('active', on);
@@ -1859,6 +1862,16 @@ mountMetadataTab($<HTMLElement>('metadataTab'), {
     showTab('generate');
     void useGeneration(prompt, promptsOnly, 'the Metadata tab');
   }, '', undefined, { loraTools, labels: IMPORT_LABELS, info: metaPicked && metaPicked.src === src ? metaPicked.info : undefined })
+});
+// Compare: slots filled from the output folder (or a file), the prompt
+// panel is the gallery's details panel.
+const compare = mountCompareTab($<HTMLElement>('compareTab'), {
+  sources: [{ label: 'Output', backend: () => desktopBackend() }],
+  pickFile: async () => { const p = await pickImageFile(); return p ? p.src : null; },
+  details: (src, relPath) => buildGenInfoPanel(src, (prompt, promptsOnly) => {
+    showTab('generate');
+    void useGeneration(prompt, promptsOnly, 'the Compare tab');
+  }, relPath, undefined, { loraTools }),
 });
 btnStop.addEventListener('click', async () => {
   genStopped = true;

@@ -37,6 +37,7 @@ declare const BridgeShared: {
     opts?: { loraTools?: any; labels?: { full: string; prompts: string }; info?: { prompt: Record<string, any>; kind: null } | null }) => HTMLElement | null;
   // shared/metadata-ui.ts + lora-lookup.ts (the Metadata tab, LoRA lookup).
   mountMetadataTab: (root: HTMLElement, deps: { tools: any; pickImage: () => Promise<string | null>; details: (src: string) => HTMLElement | null }) => void;
+  mountCompareTab: (root: HTMLElement, deps: { sources: any[]; pickFile: () => Promise<string | null>; details: (src: string, relPath: string) => HTMLElement | null }) => { onShow(): void };
   lookupUrl: (site: string, kind: string, q: string) => string | null;
   safeLookupLink: (url: string) => string | null;
   mergedPromptText: (prompt: Record<string, any>) => string;
@@ -81,6 +82,7 @@ declare const BridgeShared: {
   initTagWiki: (button: HTMLElement) => void;
   mountGallerySidebar: (backend: any, label: any, opts?: any) => any;
   galleryBack: () => boolean;
+  compareBack: () => boolean;
   showImageLightbox: (src: string, siblings?: () => string[], info?: (src: string, close: () => void) => HTMLElement | null, infoDeferred?: boolean) => void;
   THEMES: any;
   DEFAULT_THEME: any;
@@ -1403,6 +1405,7 @@ declare const BridgeShared: {
   if (AppPlugin) {
     AppPlugin.addListener('backButton', () => {
       if (BridgeShared.galleryBack()) return;
+      if (BridgeShared.compareBack()) return;
       if (!connInfoBackdrop.hidden) { closeConnInfo(); return; }
       const themeMenu = document.getElementById('themeMenu');
       if (themeMenu && !themeMenu.hidden) { themeMenu.hidden = true; return; }
@@ -2347,11 +2350,13 @@ declare const BridgeShared: {
   const appTabs = $<HTMLElement>('appTabs');
   const colEl = $<HTMLElement>('col');
   const metadataView = $<HTMLElement>('metadataView');
+  const compareView = $<HTMLElement>('compareView');
   const metaFileInput = $<HTMLInputElement>('metaFileInput');
   function showTab(tab: string) {
-    const meta = tab === 'metadata';
-    colEl.hidden = meta;
-    metadataView.hidden = !meta;
+    colEl.hidden = tab !== 'generate';
+    metadataView.hidden = tab !== 'metadata';
+    compareView.hidden = tab !== 'compare';
+    if (tab === 'compare') compare.onShow();
     appTabs.querySelectorAll<HTMLButtonElement>('button[data-tab]').forEach((b) => {
       const on = b.dataset.tab === tab;
       b.classList.toggle('active', on);
@@ -2380,6 +2385,29 @@ declare const BridgeShared: {
       showTab('generate');
       void useGeneration(prompt, promptsOnly, 'the Metadata tab');
     }, '', undefined, { loraTools, labels: IMPORT_LABELS, info: metaPicked && metaPicked.src === src ? metaPicked.info : undefined })
+  });
+
+  // Compare: the phone's save location or the PC's folder (like the
+  // gallery's source switch); details are the gallery's panel.
+  const compare = BridgeShared.mountCompareTab($<HTMLElement>('compareTab'), {
+    sources: [
+      { label: 'Phone', backend: () => mobileBackend() },
+      { label: 'PC', backend: () => pcGalleryBackend(), thumbSrc: pcThumbSrc, fullSrc: pcFullSrc }
+    ],
+    pickFile: () => new Promise<string | null>((resolve) => {
+      metaFileInput.onchange = async () => {
+        const file = metaFileInput.files && metaFileInput.files[0];
+        metaFileInput.value = '';
+        if (!file) { resolve(null); return; }
+        try { resolve((await readPickedImage(file)).src); }
+        catch (e) { log('Could not read the image: ' + errMsg(e)); resolve(null); }
+      };
+      metaFileInput.click();
+    }),
+    details: (src, relPath) => BridgeShared.buildGenInfoPanel(src, (prompt, promptsOnly) => {
+      showTab('generate');
+      void useGeneration(prompt, promptsOnly, 'the Compare tab');
+    }, relPath, undefined, { loraTools })
   });
 
   // ---------------- UI state persistence ----------------
