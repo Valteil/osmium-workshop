@@ -40,8 +40,23 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   that image**, undoable one by one.
 - **Attention setting** for Osmium Comfy (SynthDat Overseer): auto, Flash, Sage, xformers or plain
   PyTorch attention. Auto picks Flash Attention when it's installed.
+- **Delete several tags at once**: Tag Overseer has a new **Delete tags** list with every tag in the
+  dataset and how many images have it. Tick as many as you want and **Delete from all** takes them
+  off every image in one go, and one Undo brings them back. Unlike Void it doesn't set up a standing
+  rule.
 
 ### Comfy Bridge
+
+- **Upscale with USDU** (Windows and Android): Ultimate SD Upscale as the other choice next to the
+  normal upscale. It upscales the image you generate (the pass 2 image when 2-Pass is on) or any
+  image you import, then redraws it tile by tile with its own checkpoint, so you get real added
+  detail. Every setting is there with a tooltip, and the tiles' prompt can be the image's own prompt
+  (with or without your Global field), WD14 tags, or text you type. Needs the
+  ComfyUI_UltimateSDUpscale node pack.
+- **WD14 tags** (Windows and Android): tag the images your last generation saved, with a .txt
+  caption next to each one if you want, or tag any image you pick and use its tags as your prompt.
+  On Windows the .txt can go right next to the picked image. Needs the ComfyUI-WD14-Tagger node
+  pack.
 
 - **Metadata tab** (Windows and Android): open any image to see how it was made and which LoRAs it
   used. Each LoRA can be looked up on **CivitAI** and **CivArchive** (by its file hash when you have
