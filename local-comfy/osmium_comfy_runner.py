@@ -1161,6 +1161,8 @@ class ShareServer:
             sub, _, fname = rel.rpartition("/")
             self.views[f"{sub}/{fname}"] = base64.b64decode(b64)
             outputs[nid] = {"images": [{"filename": fname, "subfolder": sub, "type": "output"}]}
+        for nid, text in (reply.get("texts") or {}).items():
+            outputs[nid] = {"tags": [text]}
         while len(self.views) > self.KEEP * 3:
             self.views.pop(next(iter(self.views)))
         self.history[pid] = {"status": {"status_str": "success", "completed": True, "messages": []}, "outputs": outputs}
@@ -1179,9 +1181,11 @@ def is_capture(node):
     PreviewImage that Comfy Bridge marked `_meta.capture` — its outputs when
     the user wants no copy in ComfyUI's output folder (the image then only
     exists in ComfyUI's temp folder until the Bridge saves it). The template's
-    own PreviewImages carry no mark and stay pruned as UI-only."""
+    own PreviewImages carry no mark and stay pruned as UI-only. Any other node
+    marked `_meta.capture` is a text output (Comfy Bridge's WD14 tagging: the
+    tagger's `tags`), returned as `texts`."""
     ct = node.get("class_type")
-    return ct == "SaveImage" or (ct == "PreviewImage" and bool((node.get("_meta") or {}).get("capture")))
+    return ct == "SaveImage" or bool((node.get("_meta") or {}).get("capture"))
 
 
 def prepare(prompt):
@@ -1301,6 +1305,19 @@ def saved_image(node_id):
         return f.read(), os.path.relpath(path, base)
 
 
+def saved_texts(captures):
+    """Text outputs of the captured nodes (a tagger's `tags`), one string each."""
+    outputs = (EXECUTOR.history_result or {}).get("outputs", {})
+    out = {}
+    for nid in captures:
+        tags = (outputs.get(nid) or {}).get("tags")
+        if isinstance(tags, list):
+            tags = tags[0] if tags else None
+        if isinstance(tags, str):
+            out[nid] = tags
+    return out
+
+
 def run_prompt(prompt, captures):
     global EXECUTOR
     SERVER.messages = []
@@ -1323,14 +1340,16 @@ def run_prompt(prompt, captures):
             return {"ok": False, "error": f"{data.get('node_type')} failed: {str(data.get('exception_message', '')).strip()}"}
     saved = {nid: saved_image(nid) for nid in captures} if EXECUTOR.success else {}
     saved = {nid: s for nid, s in saved.items() if s}
-    if not saved:
+    texts = saved_texts(captures) if EXECUTOR.success else {}
+    if not saved and not texts:
         return {"ok": False, "error": "The local runner finished without producing an image."}
     for nid, (_bytes, rel) in saved.items():
         say(f"Saved {rel}")
     say("Done in {:.1f}s".format(time.perf_counter() - started))
     return {"ok": True,
             "images": {nid: base64.b64encode(b).decode("ascii") for nid, (b, _rel) in saved.items()},
-            "paths": {nid: rel.replace(os.sep, "/") for nid, (_b, rel) in saved.items()}}
+            "paths": {nid: rel.replace(os.sep, "/") for nid, (_b, rel) in saved.items()},
+            "texts": texts}
 
 
 def cmd_unload(_req):

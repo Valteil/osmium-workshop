@@ -213,6 +213,8 @@ async function handlePrompt(req: http.IncomingMessage, res: http.ServerResponse)
   if (r.imageBytes) outputs['192'] = imageEntry(promptId, '192', r.imageBytes, r.saveRel);
   if (r.pass1ImageBytes) outputs['192_pass1'] = imageEntry(promptId, '192_pass1', r.pass1ImageBytes, r.pass1SaveRel);
   if (r.upscaledImageBytes) outputs['192_upscaled'] = imageEntry(promptId, '192_upscaled', r.upscaledImageBytes, r.upscaledSaveRel);
+  // Text outputs (WD14 tagging), in the tagger node's own /history shape.
+  for (const [nid, text] of Object.entries(r.texts || {})) outputs[nid] = { tags: [text] };
   history.set(promptId, { status: { status_str: 'success', completed: true, messages: [] }, outputs });
 }
 

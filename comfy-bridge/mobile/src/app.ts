@@ -73,6 +73,9 @@ declare const BridgeShared: {
     buildImportedJob: () => Promise<{ prompt: any; imageFilename: string; imageBytes: Uint8Array; base: string } | null>;
   };
   usduSettingsFromPrompt: (prompt: any) => Record<string, any> | null;
+  // shared/wd14-tag.ts: WD14 tagging panel (same module as the desktop's).
+  mountWd14Panel: (host: HTMLElement, opts: any) => { refresh: () => void };
+  extractWd14Tags: (record: any) => string | null;
   initTheme: (themes: any, def: any) => void;
   mountThemePicker: (opts: any) => void;
   initTagWiki: (button: HTMLElement) => void;
@@ -1931,28 +1934,26 @@ declare const BridgeShared: {
       BridgeShared.nextSavePath(mobileBackend(), upscaled ? joinRel(job.naming.relDir, 'Upscaled') : job.naming.relDir, job.naming.base, taken);
     let saveFailed = false;
     const slides: { label: string; bytes: Uint8Array }[] = [];
+    // What WD14's "Tag last generation" tags (saved copies only).
+    const saved: { label: string; bytes: Uint8Array; relPath: string }[] = [];
+    const keep = async (label: string, bytes: Uint8Array, upscaled: boolean): Promise<void> => {
+      const rel = await savePath(upscaled);
+      if (await saveBytes(bytes, rel)) saved.push({ label, bytes, relPath: rel });
+      else saveFailed = true;
+      slides.push({ label, bytes });
+    };
     if (job.usduOnly) {
-      if (res.imageBytes) {
-        if (!(await saveBytes(res.imageBytes, await savePath(true)))) saveFailed = true;
-        slides.push({ label: 'Upscaled (USDU)', bytes: res.imageBytes });
-      }
+      if (res.imageBytes) await keep('Upscaled (USDU)', res.imageBytes, true);
+      lastSavedImages = saved;
       if (saveFailed) { genStatus.style.display = 'block'; genStatus.textContent = 'Upscaled, but saving failed — see Log for details.'; }
       finalizeGenNotification(saveFailed ? 'Upscaled, but saving failed' : 'Upscale complete', 'USDU');
       setPreviewSlides(slides);
       return;
     }
-    if (res.pass1ImageBytes) {
-      if (!(await saveBytes(res.pass1ImageBytes, await savePath(false)))) saveFailed = true;
-      slides.push({ label: 'Pass 1', bytes: res.pass1ImageBytes });
-    }
-    if (res.imageBytes) {
-      if (!(await saveBytes(res.imageBytes, await savePath(false)))) saveFailed = true;
-      slides.push({ label: res.pass1ImageBytes ? 'Pass 2' : 'Pass 1', bytes: res.imageBytes });
-    }
-    if (res.upscaledImageBytes) {
-      if (!(await saveBytes(res.upscaledImageBytes, await savePath(true)))) saveFailed = true;
-      slides.push({ label: 'Upscaled', bytes: res.upscaledImageBytes });
-    }
+    if (res.pass1ImageBytes) await keep('Pass 1', res.pass1ImageBytes, false);
+    if (res.imageBytes) await keep(res.pass1ImageBytes ? 'Pass 2' : 'Pass 1', res.imageBytes, false);
+    if (res.upscaledImageBytes) await keep('Upscaled', res.upscaledImageBytes, true);
+    lastSavedImages = saved;
     if (saveFailed) {
       genStatus.style.display = 'block';
       genStatus.textContent = 'Generated, but saving failed — see Log for details.';
@@ -1963,6 +1964,56 @@ declare const BridgeShared: {
 
   btnGenerate.addEventListener('click', generate);
   btnStop.addEventListener('click', stopGeneration);
+
+  // ---------------- WD14 tagging (shared/wd14-tag.ts) ----------------
+  let lastSavedImages: { label: string; bytes: Uint8Array; relPath: string }[] = [];
+  let wd14TagModels: string[] = [];
+  async function comfyTag(prompt: Record<string, any>, imageName: string, bytes: Uint8Array): Promise<string> {
+    const t = comfyTransport();
+    const up = await BridgeShared.uploadImage(t, getHost(), imageName, bytes, 'Image');
+    if (!up.ok || !up.ref) throw new Error(up.error || 'Upload failed.');
+    prompt['239'].inputs.image = up.ref;
+    const q = await BridgeShared.queuePrompt(t, getHost(), prompt, 'comfy-bridge-tag-' + Date.now().toString(16), { noun: 'tag' });
+    if (!q.ok || !q.promptId) throw new Error(q.error || 'Could not queue the tagging job.');
+    const poll = await BridgeShared.pollHistory(t, getHost(), q.promptId, {
+      deadlineMs: 180000,
+      extract: (record: any) => BridgeShared.extractWd14Tags(record),
+      errorStatusMessage: 'ComfyUI reported an error while tagging — check its console.',
+      timeoutMessage: 'Timed out waiting for ComfyUI to tag the image.'
+    });
+    if (!poll.ok || typeof poll.value !== 'string') throw new Error(poll.error || 'Tagging failed.');
+    return poll.value;
+  }
+  async function useTagsAsPrompt(tags: string) {
+    if (unifiedPromptMode.checked) {
+      unifiedPrompt.value = tags;
+    } else {
+      const boxes: Record<string, HTMLTextAreaElement> = {
+        global: global_, rating, character, hair, face, chest, body: body_, clothes, limbs, sexual, pose, extra, effects, scene
+      };
+      const split = await BridgeShared.splitPromptToFields(tags);
+      const keepGlobal = global_.value.trim();
+      for (const id of Object.keys(boxes)) boxes[id].value = split[id] || '';
+      global_.value = [keepGlobal, split.global || ''].filter(Boolean).join(', ');
+    }
+    autoGrowAll();
+    void refreshSavePreview();
+    scheduleUiSave();
+    log('Used the WD14 tags as the prompt (Global, Character trigger and Negative kept).');
+  }
+  BridgeShared.mountWd14Panel($('wd14Panel'), {
+    tag: comfyTag,
+    getModels: () => wd14TagModels.length ? wd14TagModels : usduWd14Options,
+    async refreshModels() {
+      const r = await comfyGetObjectInfo('WD14Tagger|pysssss', 'model');
+      if (r.ok) { wd14TagModels = r.values; log('Found ' + r.values.length + ' WD14 model(s).'); }
+      else log('error' in r ? r.error : '');
+    },
+    lastSaved: () => lastSavedImages,
+    writeOutput: (relPath: string, base64: string, mime: string) => mobileBackend().writeImage(relPath, base64, mime),
+    usePrompt: (tags: string) => { void useTagsAsPrompt(tags); },
+    log
+  });
 
   // ---------------- Import generation ----------------
   // Same feature as the desktop Bridge: read any image's generation

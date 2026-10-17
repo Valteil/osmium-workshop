@@ -736,6 +736,12 @@ This guide covers the desktop app. Two siblings share this repo:
     your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
     phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);
     Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
+  - **WD14 tags** (desktop and phone, under the result): **Tag last generation** tags each saved
+    image and can write a same-name `.txt` beside it in the output folder. **Tag an image** tags any
+    image you choose; **Use as prompt** sorts the tags into your prompt boxes (Global, Character
+    trigger and Negative kept), and the tags can be saved as a `.txt` next to the original
+    (desktop) or as a copy + `.txt` in a `Tagged` folder of your output folder. Runs the
+    ComfyUI-WD14-Tagger node on your ComfyUI or Osmium Comfy.
   - **Settings & Help:** out of the box the Bridge generates at 1024×1024 with Euler A + Simple, 25
     steps, CFG 4 and seed 0, and pass 2 at seed 1 / 20 steps. Each seed has a behaviour dropdown:
     **Fixed** (the default) reuses the number, **Randomize** rolls a new one each generation, and

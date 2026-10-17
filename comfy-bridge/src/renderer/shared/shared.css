@@ -304,3 +304,13 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .usdu-import{ margin:6px 0 4px; }
 .usdu-import .row{ display:flex; gap:8px; flex-wrap:wrap; }
 .usdu-picked{ margin-top:4px; overflow-wrap:anywhere; }
+
+/* ---- WD14 tagging panel (shared/wd14-tag.ts), both shells ---- */
+.wd14-details > summary{ cursor:pointer; list-style:none; }
+.wd14-details > summary::-webkit-details-marker{ display:none; }
+.wd14-details > summary .d::after{ content:' ▸'; color:var(--muted); }
+.wd14-details[open] > summary .d::after{ content:' ▾'; }
+.wd14-panel .row{ display:flex; gap:8px; flex-wrap:wrap; margin:6px 0; }
+.wd14-tags{ width:100%; margin-top:6px; }
+.wd14-results{ display:flex; flex-direction:column; gap:6px; }
+.wd14-result-tags{ font-size:12px; line-height:1.45; overflow-wrap:anywhere; user-select:text; }

@@ -91,6 +91,14 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>It upscales either the image you generate (the pass-2 image when 2-Pass is on) or an image you import: choose one and press Upscale this image. The prompt for the tiles is your image's prompt (optionally without the Global field, where artist tags live), WD14 tags, or your own text. Hover any setting for what it does; on the phone, tap its name. Results go in the Upscaled folder.</p>`
   },
   {
+    id: 'wd14',
+    title: 'WD14 tags',
+    html: `
+      <p>The WD14 tags section, under the result, describes images in Danbooru tags with the WD14 tagger running on your ComfyUI (the ComfyUI-WD14-Tagger node pack).</p>
+      <p><b>Tag last generation</b> tags every image the last generation saved, each from its own pixels. With "Save a .txt beside each image" on, the tags are written as a same-name .txt next to each image in your output folder, the caption format Osmium and LoRA trainers read.</p>
+      <p><b>Tag an image</b>: choose any image, press Tag it, and edit the tags if you like. Use as prompt sorts them into your prompt boxes and keeps your Global field, Character trigger and Negative. Save .txt next to the image writes it in that image's own folder (desktop). Save copy + .txt to output copies the image and its .txt into a Tagged folder in your output folder.</p>`
+  },
+  {
     id: 'output',
     title: 'Output and file names',
     html: `

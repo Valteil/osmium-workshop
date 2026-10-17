@@ -22,6 +22,7 @@ import { characterIndex, recognizeCharacter, ratingFolder, nextSavePath, safeSeg
 import { initTagWiki } from './shared/tag-wiki';
 import { initHelp } from './help';
 import { mountUsduPanel, usduSettingsFromPrompt, type UsduListKind } from './shared/usdu';
+import { mountWd14Panel, type Wd14SavedImage } from './shared/wd14-tag';
 export {};
 
 interface ElectronAPI {
@@ -44,6 +45,9 @@ interface ElectronAPI {
   synthdatGetObjectInfo(payload: { host: string; classType: string; inputName: string }): Promise<{ ok: boolean; values?: string[]; error?: string }>;
   synthdatQueueAndFetch(payload: { host: string; imageFilename: string | null; imageBytes: Uint8Array | null; prompt: any }): Promise<{ ok: boolean; imageBytes?: Uint8Array; pass1ImageBytes?: Uint8Array; upscaledImageBytes?: Uint8Array; error?: string; interrupted?: boolean; saveRel?: string; pass1SaveRel?: string; upscaledSaveRel?: string }>;
   synthdatStopGeneration(host: string): Promise<{ ok: boolean }>;
+  wd14Tag(payload: { host: string; imageFilename: string; imageBytes: Uint8Array; prompt: any }): Promise<{ ok: boolean; tags?: string; error?: string }>;
+  wd14PickImage(): Promise<{ ok: boolean; token?: string; name?: string; bytes?: Uint8Array; error?: string }>;
+  wd14SaveTxtBeside(payload: { token: string; text: string; overwrite: boolean }): Promise<{ ok: boolean; exists?: boolean; error?: string; path?: string }>;
   galleryListDir(payload: { relDir: string }): Promise<{ ok: boolean; entries?: { name: string; kind: 'file' | 'directory'; mtime?: number }[]; error?: string }>;
   galleryRead(payload: { relPath: string }): Promise<{ ok: boolean; base64?: string; mime?: string; error?: string }>;
   moveImage(payload: { from: string; to: string }): Promise<{ ok: boolean; error?: string }>;
@@ -1464,11 +1468,17 @@ async function runGenJob(job: GenJob): Promise<void> {
     nextSavePath(backend, upscaled ? joinRel(job.naming.relDir, 'Upscaled') : job.naming.relDir, job.naming.base, taken);
   let saveFailed = false;
   const slides: { label: string; bytes: Uint8Array }[] = [];
+  // What WD14's "Tag last generation" tags (saved copies only).
+  const saved: Wd14SavedImage[] = [];
+  const keep = async (label: string, bytes: Uint8Array, stamped: Uint8Array, upscaled: boolean): Promise<void> => {
+    const rel = await savePath(upscaled);
+    if (await saveBytes(stamped, rel)) saved.push({ label, bytes, relPath: rel });
+    else saveFailed = true;
+    slides.push({ label, bytes });
+  };
   if (job.usduOnly) {
-    if (res.imageBytes) {
-      if (!(await saveBytes(stampOutputKind(res.imageBytes, 'upscaled'), await savePath(true)))) saveFailed = true;
-      slides.push({ label: 'Upscaled (USDU)', bytes: res.imageBytes });
-    }
+    if (res.imageBytes) await keep('Upscaled (USDU)', res.imageBytes, stampOutputKind(res.imageBytes, 'upscaled'), true);
+    lastSavedImages = saved;
     if (saveFailed) { genStatus.style.display = 'block'; genStatus.textContent = 'Upscaled, but saving failed — see Log for details.'; }
     setPreviewSlides(slides);
     return;
@@ -1477,18 +1487,10 @@ async function runGenJob(job: GenJob): Promise<void> {
   // SynthDat only ever keeps one (via Accept), this keeps both always.
   // Each saved copy is stamped with which output it is (./gen-info.ts): the
   // gallery's parameters panel can't tell pass 1 from pass 2 otherwise.
-  if (res.pass1ImageBytes) {
-    if (!(await saveBytes(stampOutputKind(res.pass1ImageBytes, 'pass1'), await savePath(false)))) saveFailed = true;
-    slides.push({ label: 'Pass 1', bytes: res.pass1ImageBytes });
-  }
-  if (res.imageBytes) {
-    if (!(await saveBytes(stampOutputKind(res.imageBytes, res.pass1ImageBytes ? 'pass2' : 'single'), await savePath(false)))) saveFailed = true;
-    slides.push({ label: res.pass1ImageBytes ? 'Pass 2' : 'Pass 1', bytes: res.imageBytes });
-  }
-  if (res.upscaledImageBytes) {
-    if (!(await saveBytes(stampOutputKind(res.upscaledImageBytes, 'upscaled'), await savePath(true)))) saveFailed = true;
-    slides.push({ label: 'Upscaled', bytes: res.upscaledImageBytes });
-  }
+  if (res.pass1ImageBytes) await keep('Pass 1', res.pass1ImageBytes, stampOutputKind(res.pass1ImageBytes, 'pass1'), false);
+  if (res.imageBytes) await keep(res.pass1ImageBytes ? 'Pass 2' : 'Pass 1', res.imageBytes, stampOutputKind(res.imageBytes, res.pass1ImageBytes ? 'pass2' : 'single'), false);
+  if (res.upscaledImageBytes) await keep('Upscaled', res.upscaledImageBytes, stampOutputKind(res.upscaledImageBytes, 'upscaled'), true);
+  lastSavedImages = saved;
   if (saveFailed) {
     genStatus.style.display = 'block';
     genStatus.textContent = 'Generated, but saving failed — see Log for details.';
@@ -1497,6 +1499,50 @@ async function runGenJob(job: GenJob): Promise<void> {
 }
 
 btnGenerate.addEventListener('click', generate);
+
+// ---------------- WD14 tagging (shared/wd14-tag.ts) ----------------
+let lastSavedImages: Wd14SavedImage[] = [];
+let wd14TagModels: string[] = [];
+async function useTagsAsPrompt(tags: string): Promise<void> {
+  if (unifiedPromptMode.checked) {
+    unifiedPrompt.value = tags;
+  } else {
+    const split = await splitPromptToFields(tags);
+    const keepGlobal = global_.value.trim();
+    for (const box of Object.values(PROMPT_BOX)) box.value = '';
+    for (const [id, text] of Object.entries(split)) PROMPT_BOX[id as PromptFieldId].value = text;
+    global_.value = [keepGlobal, split.global].filter(Boolean).join(', ');
+  }
+  autoGrowAll();
+  void refreshSavePreview();
+  scheduleUiSave();
+  log('Used the WD14 tags as the prompt (Global, Character trigger and Negative kept).');
+}
+mountWd14Panel($<HTMLDivElement>('wd14Panel'), {
+  async tag(prompt, imageName, bytes) {
+    const r = await window.electronAPI.wd14Tag({ host: getHost(), imageFilename: imageName, imageBytes: bytes, prompt });
+    if (!r.ok || typeof r.tags !== 'string') throw new Error(r.error || 'Tagging failed.');
+    return r.tags;
+  },
+  // "Refresh model lists" fills USDU's WD14 list; reuse it until refreshed here.
+  getModels: () => wd14TagModels.length ? wd14TagModels : usduWd14Options,
+  async refreshModels() {
+    const v = await fetchComboValues('WD14Tagger|pysssss', 'model');
+    if (v) { wd14TagModels = v; log(`Found ${v.length} WD14 model(s).`); }
+  },
+  lastSaved: () => lastSavedImages,
+  async writeOutput(relPath, base64, mime) {
+    if (!outputFolder) throw new Error('No output folder chosen.');
+    await desktopBackend().writeImage(relPath, base64, mime);
+  },
+  async pickImage() {
+    const r = await window.electronAPI.wd14PickImage();
+    return r.ok && r.token && r.bytes ? { name: r.name || 'image.png', bytes: new Uint8Array(r.bytes), token: r.token } : null;
+  },
+  saveNextToOriginal: (token, text, overwrite) => window.electronAPI.wd14SaveTxtBeside({ token, text, overwrite }),
+  usePrompt: (tags) => { void useTagsAsPrompt(tags); },
+  log
+});
 
 // ---------------- Import generation ----------------
 // Every field applyImportedPrompt can touch, reset to blank/default first.

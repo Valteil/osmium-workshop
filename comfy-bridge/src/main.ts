@@ -15,7 +15,8 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const WS = require('ws');
-import { parseComboValues, uploadImage, queuePrompt, pollHistory, extractPngTextChunks as extractPngChunks } from './comfy-core';
+const { randomUUID } = require('crypto');
+import { parseComboValues, uploadImage, queuePrompt, pollHistory, extractWd14Tags, extractPngTextChunks as extractPngChunks } from './comfy-core';
 import type { ComfyTransport } from './comfy-core';
 import {
   configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop, localLogs, onLocalLogs,
@@ -678,6 +679,66 @@ ipcMain.handle('comfy-fetch-logs', async (event, { host }) => {
     return { ok: true, entries: parsed.entries || [] };
   } catch (err) {
     return { ok: false, error: `Could not reach ComfyUI at ${host} (${err.message})` };
+  }
+});
+
+// ---------------- WD14 tagging (shared/wd14-tag.ts) ----------------
+// One image: upload into '239', run the LoadImage → WD14Tagger '2' graph the
+// renderer built, read the tags (server: /history; Osmium Comfy: the runner's
+// `texts`, the tagger being marked `_meta.capture`).
+ipcMain.handle('wd14-tag', async (event, { host, imageFilename, imageBytes, prompt }) => {
+  if (!prompt || !prompt['239'] || !prompt['2']) return { ok: false, error: 'Not a WD14 tagging graph.' };
+  if (host === LOCAL_COMFY_HOST) {
+    const r = await localGenerate(event.sender, prompt, imageBytes);
+    if (!r.ok) return r;
+    const tags = r.texts && r.texts['2'];
+    return typeof tags === 'string' ? { ok: true, tags } : { ok: false, error: 'The tagger returned no tags.' };
+  }
+  try {
+    const upload = await uploadImage(nodeComfyTransport, host, imageFilename || 'image.png', imageBytes, 'Image');
+    if (!upload.ok) return upload;
+    prompt['239'].inputs.image = upload.ref;
+    const clientId = `comfy-bridge-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+    const queue = await queuePrompt(nodeComfyTransport, host, prompt, clientId, { noun: 'tag' });
+    if (!queue.ok) return queue;
+    const poll = await pollHistory<string>(nodeComfyTransport, host, queue.promptId, {
+      deadlineMs: 180000,
+      extract: (record) => extractWd14Tags(record),
+      errorStatusMessage: 'ComfyUI reported an error while tagging — check its console.',
+      timeoutMessage: 'Timed out waiting for ComfyUI to tag the image.'
+    });
+    if (!poll.ok) return poll;
+    return { ok: true, tags: poll.value };
+  } catch (err) {
+    return { ok: false, error: `Could not reach ComfyUI at ${host} (${(err as Error).message})` };
+  }
+});
+
+// An image picked for tagging, remembered by token so the renderer can later
+// ask for "<same folder>/<same name>.txt" without ever handling a path.
+const taggingPicks = new Map<string, string>();
+ipcMain.handle('wd14-pick-image', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const res = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] });
+  if (res.canceled || !res.filePaths[0]) return { ok: false };
+  const file = res.filePaths[0];
+  if (!GALLERY_IMAGE_EXTENSIONS.has(path.extname(file).toLowerCase())) return { ok: false, error: 'Not an image file.' };
+  const token = randomUUID();
+  taggingPicks.set(token, file);
+  if (taggingPicks.size > 50) taggingPicks.delete(taggingPicks.keys().next().value as string);
+  return { ok: true, token, name: path.basename(file), bytes: new Uint8Array(fs.readFileSync(file)) };
+});
+ipcMain.handle('wd14-save-txt-beside', async (_event, { token, text, overwrite }) => {
+  const file = typeof token === 'string' ? taggingPicks.get(token) : undefined;
+  if (!file) return { ok: false, error: 'Pick the image again.' };
+  if (typeof text !== 'string' || text.length > 1_000_000) return { ok: false, error: 'Invalid text.' };
+  const dest = path.join(path.dirname(file), path.parse(file).name + '.txt');
+  try {
+    if (fs.existsSync(dest) && !overwrite) return { ok: false, exists: true };
+    fs.writeFileSync(dest, text, 'utf8');
+    return { ok: true, path: dest };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
   }
 });
 

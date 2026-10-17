@@ -389,6 +389,8 @@ async function runGenerate(sender: ComfyLocalEventSink, prompt: SynthDatPrompt, 
     const result: ComfyResult = { ok: true, imageBytes: bytesOf('192'), saveRel: paths['192'] || null };
     if (images['192_pass1']) { result.pass1ImageBytes = bytesOf('192_pass1'); result.pass1SaveRel = paths['192_pass1'] || null; }
     if (images['192_upscaled']) { result.upscaledImageBytes = bytesOf('192_upscaled'); result.upscaledSaveRel = paths['192_upscaled'] || null; }
+    // Text outputs (Comfy Bridge's WD14 tagging: the tagger node's tags).
+    if (r.texts && Object.keys(r.texts).length) result.texts = r.texts as Record<string, string>;
     return result;
   } finally {
     eventSink = null;

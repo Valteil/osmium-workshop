@@ -15,6 +15,8 @@ export interface ComfyResult<T = unknown> {
   // Comfy Bridge: the upscaled branch, and each SaveImage's path under
   // ComfyUI's output folder (the File Namer's scheme, mirrored on disk).
   upscaledImageBytes?: Uint8Array;
+  // Text outputs by node id (the local runner's `_meta.capture` text nodes).
+  texts?: Record<string, string>;
   saveRel?: string | null;
   pass1SaveRel?: string | null;
   upscaledSaveRel?: string | null;
