@@ -545,6 +545,34 @@ saves latent and text-encoder caches in the dataset (`latent_cache/`, `cache_tex
 them on the next run even after you change images or tags, so after editing a dataset you've trained
 before, press **Clear training cache** (it shows how much is there) before starting again.
 
+**Network type:** **LoRA** (the standard), **LoKr** or **LoHa**. LoKr builds each change from a small
+matrix combined with a low-rank pair (the **LoKr factor** sets the small one's size, 4 by default): at the
+same rank it can capture much richer changes in a quarter of the file, which suits styles. All three
+train the same layers and load in ComfyUI. LoKr usually wants a higher learning rate than LoRA unless you
+use Prodigy.
+
+**More options** (all off by default):
+
+- **Optimizers:** Prodigy, Prodigy + ScheduleFree (both set their own step size; keep the learning rate
+  at 1.0), AdamW8bit, AdamW, AdamW ScheduleFree (no schedule needed), Lion8bit (use a small learning
+  rate) and Adafactor.
+- **Advanced → LoRA shape:** also train the **modulation layers**. There's also an option to train
+  the **LLM adapter** (Anima's bridge between Qwen3 and the image model), but Anima's model card says
+  not to: the adapter is easy to degrade and affects every image. Leave it off unless you're
+  experimenting.
+- **Advanced → Performance & VRAM:** **torch.compile** per block (faster steps after a one-time compile)
+  or whole model, and **Checkpoint offload**, which moves saved activations to system RAM to use less
+  VRAM. Offload can't be combined with Blocks to swap, so pick one.
+  **Split attention** saves VRAM at batch sizes above 1.
+- **Advanced → Regularisation:** **Shuffle tags** and **Tag dropout** vary the captions each step. Both
+  make the text encoder run every step instead of using its cache, so they cost VRAM and time.
+  **Validation split** holds back a share of the images and reports a **Val loss** next to the training
+  loss. When it stops falling while the training loss keeps dropping, the run is overfitting and an
+  earlier checkpoint is the one to keep.
+- **Extra image folders** (Dataset section): train more folders of captioned images together with the
+  loaded dataset, each with its own repeats (0 = automatic).
+- **Keep states:** with Resume state on, keep only the newest few saved states.
+
 **Start Trainflow** is the only thing that begins work. It saves your tag edits, buckets the dataset
 (originals in `original_images/`; nothing happens if the copies are already right, and new dimensions
 re-make them from the originals), checks that PyTorch can see an NVIDIA GPU, and starts training.

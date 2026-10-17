@@ -23,6 +23,13 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   timestep sampling, VRAM options and more); left alone, it trains exactly as before. **Clear
   training cache** deletes the latent and text-encoder caches the trainer keeps in the dataset, which
   it would otherwise reuse even after you change images or tags.
+- **LoKr and LoHa in Trainflow**, next to LoRA. LoKr packs much richer changes into a quarter of the
+  file at the same rank, which is popular for art styles. Also new: more optimizers (Prodigy +
+  ScheduleFree, AdamW ScheduleFree, Lion8bit, Adafactor), per-block torch.compile, checkpoint offloading
+  to save VRAM, split attention, training the modulation layers, tag shuffling and tag
+  dropout, a validation split with its own validation loss, and extra image folders trained alongside
+  the dataset.
+- **Newer trainer:** the bundled Anima-TrainFlow trainer is updated to sd-scripts v0.12.0.
 - **Continue training**: if a run stopped short of what you wanted (step 600 isn't quite there),
   pick one of its checkpoints and train on from it instead of starting over. Any checkpoint can be
   trained further from its weights, saved under a new name. Turn on **Resume state** and later runs

@@ -300,6 +300,15 @@ export const HELP_SECTIONS: HelpSection[] = [
       you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
       and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
       folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.</p>
+      <p><b>Network type</b>: LoRA, <b>LoKr</b> or LoHa. LoKr captures much richer changes in a quarter of
+      the file at the same rank (good for styles; the <b>LoKr factor</b> is usually 4) and wants a higher
+      learning rate than LoRA unless you use Prodigy. The <b>Advanced</b> section adds more optimizers,
+      training the modulation layers (training the LLM adapter is offered too, but Anima's model card
+      advises against it), per-block <b>torch.compile</b>, <b>Checkpoint
+      offload</b> (less VRAM; not together with Blocks to swap), <b>Shuffle tags</b> / <b>Tag dropout</b>
+      (the text encoder then runs every step: more VRAM), and a <b>Validation split</b> that reports a
+      <b>Val loss</b>: when it stops falling, the run is overfitting. <b>Extra image folders</b> (Dataset)
+      train more captioned folders together with this one.</p>
       <p><b>Continue training</b>: if a run stopped short (step 600 not quite there), pick one of its
       checkpoints in <b>Start from</b>, set <b>More steps</b> and press <b>Continue training</b>.
       <i>From checkpoint weights</i> works on any checkpoint: it trains the LoRA further under a new name

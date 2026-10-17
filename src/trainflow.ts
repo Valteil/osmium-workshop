@@ -21,7 +21,7 @@ import { bucketImage, modelStatus, downloadModel } from './bucket-local';
 import { getValidBuckets, getBestBucket, isBucketSize } from './bucket-core';
 import type {
   TrainflowSettings, TrainflowStatus, TrainflowRun, TrainflowDatasetCheck, TrainflowStartResult, TrainflowBucketReport,
-  TrainflowCacheClearResult, TrainflowContinueOption
+  TrainflowCacheClearResult, TrainflowContinueOption, TfNetworkType
 } from './shared-types';
 import { resumePatchError, writeResumeBootstrap } from './trainflow-resume';
 
@@ -267,11 +267,35 @@ function writeSamplePrompts(s: TrainflowSettings, file: string): void {
   fs.writeFileSync(file, `${pos} --n ${neg} --w ${Math.round(s.width)} --h ${Math.round(s.height)} --l ${Number(s.cfg)} --s ${Math.round(s.sampleGenSteps)} --d ${Math.round(s.sampleSeed)}`);
 }
 
-function writeDatasetToml(s: TrainflowSettings, file: string, check: TrainflowDatasetCheck): void {
+// Extra image folders beside the loaded dataset (validated in startTraining).
+interface ExtraFolder { path: string; images: number; repeats: number; }
+
+// Shuffled captions or tag dropout change the text every step, so the trainer
+// refuses cached text-encoder outputs with them (anima_train_network.py asserts):
+// the text encoder then runs each step, which costs VRAM and time.
+const captionsVary = (s: TrainflowSettings) => !!s.captionShuffle || (s.captionTagDropout || 0) > 0;
+
+function writeDatasetToml(s: TrainflowSettings, file: string, check: TrainflowDatasetCheck, extras: ExtraFolder[] = []): void {
   const effective = Math.round(s.batchSize) * Math.round(s.gradAcc);
-  // advRepeats overrides the auto value (0 = auto from steps/images).
-  const repeats = s.advRepeats > 0 ? Math.round(s.advRepeats) : Math.max(1, Math.ceil((Math.round(s.steps) * effective) / Math.max(1, check.images)));
+  // Auto repeats spread the step budget over every folder's images; advRepeats
+  // (the loaded dataset) and a folder's own repeats override it (0 = auto).
+  const totalImages = check.images + extras.reduce((n, e) => n + e.images, 0);
+  const auto = Math.max(1, Math.ceil((Math.round(s.steps) * effective) / Math.max(1, totalImages)));
+  const repeats = s.advRepeats > 0 ? Math.round(s.advRepeats) : auto;
   const trigger = s.trigger.trim();
+  const split = Math.min(0.5, Math.max(0, Number(s.validationSplit) || 0));
+  const subset = (dir: string, n: number): string[] => [
+    '[[datasets.subsets]]',
+    `image_dir = ${tomlStr(posix(dir))}`,
+    'caption_extension = ".txt"',
+    `num_repeats = ${n}`,
+    ...(trigger ? [`caption_prefix = ${tomlStr(trigger + ', ')}`] : []),
+    `keep_tokens = ${s.advKeepTokens > 0 ? Math.round(s.advKeepTokens) : 1}`,
+    `caption_dropout_rate = ${s.advCaptionDropout > 0 ? s.advCaptionDropout : 0.05}`,
+    ...(s.captionShuffle ? ['shuffle_caption = true'] : []),
+    ...((s.captionTagDropout || 0) > 0 ? [`caption_tag_dropout_rate = ${Math.min(1, Number(s.captionTagDropout))}`] : []),
+    ''
+  ];
   const lines = [
     '[general]',
     'enable_bucket = true',
@@ -282,25 +306,59 @@ function writeDatasetToml(s: TrainflowSettings, file: string, check: TrainflowDa
     '',
     '[[datasets]]',
     `resolution = ${check.baseRes}`,
+    // Held-out images for a validation loss (sd-scripts splits each dataset).
+    ...(split > 0 ? [`validation_split = ${split}`, `validation_seed = ${Math.round(s.trainSeed)}`] : []),
     '',
-    '[[datasets.subsets]]',
-    `image_dir = ${tomlStr(posix(s.datasetPath))}`,
-    'caption_extension = ".txt"',
-    `num_repeats = ${repeats}`,
-    ...(trigger ? [`caption_prefix = ${tomlStr(trigger + ', ')}`] : []),
-    `keep_tokens = ${s.advKeepTokens > 0 ? Math.round(s.advKeepTokens) : 1}`,
-    `caption_dropout_rate = ${s.advCaptionDropout > 0 ? s.advCaptionDropout : 0.05}`,
-    ''
+    ...subset(s.datasetPath, repeats),
+    ...extras.flatMap((e) => subset(e.path, e.repeats > 0 ? Math.round(e.repeats) : auto))
   ];
   fs.writeFileSync(file, lines.join('\n'));
 }
 
+// Optimizer arguments per optimizer. Prodigy keeps its tuned set; Adafactor is
+// run as a plain fixed-LR optimizer (no relative step), so the LR field and the
+// scheduler mean what they say.
+function optimizerArgs(opt: string): string[] {
+  if (opt === 'Prodigy') return ['decouple=True', 'weight_decay=0.01', 'd_coef=1.0', 'use_bias_correction=True', 'safeguard_warmup=True', 'betas=0.9,0.99'];
+  if (opt === 'Adafactor') return ['scale_parameter=False', 'relative_step=False', 'warmup_init=False'];
+  return ['weight_decay=0.01'];
+}
+// Prodigy-family optimizers set their own step size: LR 1.0, constant schedule.
+export const selfTuningOptimizer = (opt: string) => opt === 'Prodigy' || opt === 'prodigyplus.ProdigyPlusScheduleFree';
+const scheduleFree = (opt: string) => /schedulefree$/i.test(opt);
+
+// The network lines: LoRA (the old TOML, unchanged), or sd-scripts' LoKr/LoHa,
+// which share lora_anima's module selection (same default excludes, same
+// lora_unet_* key names; a LoKr with factor 4 is laid out like the common
+// Anima LoKrs). Extra args go in network_args as sd-scripts' key=value strings.
+function networkLines(s: TrainflowSettings): string[] {
+  const type = s.netType || 'lora';
+  const module = type === 'lokr' ? 'networks.lokr' : type === 'loha' ? 'networks.loha' : 'networks.lora_anima';
+  const args: string[] = [];
+  if (type === 'lokr') args.push(`factor=${Math.round(Number(s.netFactor) || -1)}`);
+  if (s.netTrainLlmAdapter) args.push('train_llm_adapter=True');
+  // An include pattern wins over the default exclude (network_base / lora_anima).
+  if (s.netTrainModulation) args.push(`include_patterns=['.*_modulation.*']`);
+  return [`network_module = ${tomlStr(module)}`, ...(args.length ? [`network_args = [${args.map(tomlStr).join(', ')}]`] : [])];
+}
+
 // `extra` = lines a continued run adds (network_weights for a warm start).
-function writeTrainingToml(s: TrainflowSettings, file: string, project: string, outDir: string, promptFile: string, extra: string[] = []): void {
-  const prodigy = s.optimizer === 'Prodigy';
-  const optArgs = prodigy
-    ? ['decouple=True', 'weight_decay=0.01', 'd_coef=1.0', 'use_bias_correction=True', 'safeguard_warmup=True', 'betas=0.9,0.99']
-    : ['weight_decay=0.01'];
+// `caps` = what the install's sd-scripts supports (older ones lack per-block compile).
+function writeTrainingToml(s: TrainflowSettings, file: string, project: string, outDir: string, promptFile: string, extra: string[] = [], caps: { blockCompile: boolean } = { blockCompile: true }): void {
+  const prodigy = selfTuningOptimizer(s.optimizer);
+  const optArgs = optimizerArgs(s.optimizer);
+  // torch.compile: the old checkbox meant whole-model (accelerate dynamo).
+  const compile = s.advCompile !== undefined ? s.advCompile : (s.advTorchCompile ? 'model' : '');
+  const compileLines = compile === 'block' && caps.blockCompile ? ['compile = true']
+    : compile ? ['torch_compile = true'] : [];
+  // Offload = unsloth's async variant only: v0.12's cpu_offload_checkpointing for
+  // Anima picks each block's device from its first input, which the previous
+  // block already moved to the CPU ("Expected all tensors to be on the same
+  // device", reproduced 2026-10-17). A saved 'cpu' runs as unsloth.
+  const offload = s.advOffloadCkpt ? ['unsloth_offload_checkpointing = true'] : [];
+  // Keep only the newest N resume states: sd-scripts counts it in steps.
+  const keepStates = s.saveState && (s.keepStates || 0) > 0 ? [`save_last_n_steps_state = ${Math.round(Number(s.keepStates)) * Math.max(1, Math.round(s.saveSteps))}`] : [];
+  const validate = (s.validationSplit || 0) > 0 && (s.validateEvery || 0) > 0 ? [`validate_every_n_steps = ${Math.round(Number(s.validateEvery))}`] : [];
   const rank = Math.round(s.rank);
   // Advanced knobs fall back to the app's original defaults when unset, so an
   // untouched form — or an external caller passing a partial settings object
@@ -317,7 +375,7 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
     `pretrained_model_name_or_path = ${tomlStr(posix(s.ditPath))}`,
     `qwen3 = ${tomlStr(posix(s.qwenPath))}`,
     `vae = ${tomlStr(posix(s.vaePath))}`,
-    'network_module = "networks.lora_anima"',
+    ...networkLines(s),
     `network_dim = ${rank}`,
     `network_alpha = ${alpha}`,
     // Training the text encoder is opt-in; otherwise U-Net only (the default).
@@ -328,7 +386,8 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
     `learning_rate = ${Number(s.lr)}`,
     `optimizer_type = ${tomlStr(s.optimizer)}`,
     `optimizer_args = [${optArgs.map(tomlStr).join(', ')}]`,
-    `lr_scheduler = ${tomlStr(s.advLrScheduler || (prodigy ? 'constant' : 'cosine'))}`,
+    // Schedule-free optimizers ignore the scheduler (sd-scripts swaps in a dummy one).
+    `lr_scheduler = ${tomlStr(s.advLrScheduler || (prodigy || scheduleFree(s.optimizer) ? 'constant' : 'cosine'))}`,
     ...(s.advLrWarmup > 0 ? [`lr_warmup_steps = ${Math.round(s.advLrWarmup)}`] : []),
     `max_train_steps = ${Math.round(s.steps)}`,
     `train_batch_size = ${Math.round(s.batchSize)}`,
@@ -347,11 +406,14 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
     `weighting_scheme = ${tomlStr(s.advWeighting || 'logit_normal')}`,
     'cache_latents = true',
     'cache_latents_to_disk = true',
-    // The trainer refuses to train the text encoder from cached TE outputs.
-    ...(s.advTrainTextEncoder ? [] : ['cache_text_encoder_outputs = true', 'cache_text_encoder_outputs_to_disk = true']),
+    // The trainer refuses cached TE outputs when it trains the text encoder, or
+    // when captions change per step (shuffle / tag dropout).
+    ...(s.advTrainTextEncoder || captionsVary(s) ? [] : ['cache_text_encoder_outputs = true', 'cache_text_encoder_outputs_to_disk = true']),
     `attn_mode = ${tomlStr(s.advAttn || 'sdpa')}`,
-    ...(s.advTorchCompile ? ['torch_compile = true'] : []),
+    ...(s.advSplitAttn ? ['split_attn = true'] : []),
+    ...compileLines,
     ...(s.advBlocksToSwap > 0 ? [`blocks_to_swap = ${Math.round(s.advBlocksToSwap)}`] : []),
+    ...offload,
     'save_model_as = "safetensors"',
     `save_precision = ${tomlStr(savePrec)}`,
     `max_data_loader_n_workers = ${s.advDataloaderWorkers > 0 ? Math.round(s.advDataloaderWorkers) : 4}`,
@@ -361,6 +423,8 @@ function writeTrainingToml(s: TrainflowSettings, file: string, project: string, 
     // Optimizer/scheduler/RNG state beside each checkpoint (and at the end), so
     // the run can be resumed exactly: <name>-stepNNNNNNNN-state/, <name>-state/.
     ...(s.saveState ? ['save_state = true'] : []),
+    ...keepStates,
+    ...validate,
     ...extra,
     ''
   ];
@@ -377,7 +441,9 @@ export function renderTomlsForTest(
   check: TrainflowDatasetCheck,
   outDir: string,
   promptFile: string,
-  project: string
+  project: string,
+  extras: { path: string; images: number; repeats: number }[] = [],
+  extraTrainingLines: string[] = []
 ): { samplePrompts: string; datasetToml: string; trainingToml: string } {
   const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'osmium-toml-'));
   try {
@@ -385,8 +451,8 @@ export function renderTomlsForTest(
     const datasetFile = path.join(dir, 'dataset.toml');
     const trainingFile = path.join(dir, 'training.toml');
     writeSamplePrompts(s, samplesFile);
-    writeDatasetToml(s, datasetFile, check);
-    writeTrainingToml(s, trainingFile, project, outDir, promptFile);
+    writeDatasetToml(s, datasetFile, check, extras);
+    writeTrainingToml(s, trainingFile, project, outDir, promptFile, extraTrainingLines);
     return {
       samplePrompts: fs.readFileSync(samplesFile, 'utf8'),
       datasetToml: fs.readFileSync(datasetFile, 'utf8'),
@@ -484,7 +550,13 @@ function runDirsValid(rec: RunRecord): boolean {
   return within(rec.outDir) && within(rec.logFile) && within(rec.samplesDir);
 }
 
-const PROGRESS_RE = /(\d+)\s*%\|[^|]*\|\s*(\d+)\/(\d+)\s*\[([^\]]*)\]/;
+// Only the training bar ("steps: 40%|…| 240/600 […]"); validation runs its own
+// tqdm bar ("validation steps" / "epoch validation steps"), whose numbers must
+// not be read as the training step. Its moving average comes from VAL_LOSS_RE.
+const PROGRESS_RE = /(?<!validation )\bsteps:\s*(\d+)\s*%\|[^|]*\|\s*(\d+)\/(\d+)\s*\[([^\]]*)\]/;
+const VAL_BAR_RE = /validation steps:\s*\d+\s*%\|/;
+// v0.12 writes val_avg_loss (step validation) and val_epoch_avg_loss; older ones val_step_avg_loss.
+const VAL_LOSS_RE = /val_(?:step_|epoch_)?avg_loss=([\d.eE+-]+)/;
 
 function readTail(file: string): string {
   try {
@@ -501,13 +573,22 @@ function readTail(file: string): string {
   } catch { return ''; }
 }
 
-function parseLog(text: string): { lines: string[]; step: number; total: number; speed: string; eta: string; elapsed: string; loss?: number } {
+function parseLog(text: string): { lines: string[]; step: number; total: number; speed: string; eta: string; elapsed: string; loss?: number; valLoss?: number } {
   const lines: string[] = [];
-  let step = 0, total = 0, speed = '', eta = '', elapsed = '', loss: number | undefined;
-  let lastWasProgress = false;
+  let step = 0, total = 0, speed = '', eta = '', elapsed = '', loss: number | undefined, valLoss: number | undefined;
+  let lastWasProgress = false, lastWasVal = false;
   for (const raw of text.split(/[\r\n]+/)) {
     const line = raw.trim();
     if (!line || LOG_BLACKLIST.some((w) => line.includes(w))) continue;
+    const v = VAL_LOSS_RE.exec(line);
+    if (v) valLoss = Number(v[1]);
+    // A validation bar redraws like the training one: keep only its latest line.
+    if (VAL_BAR_RE.test(line)) {
+      if (lastWasVal) lines[lines.length - 1] = line; else lines.push(line);
+      lastWasVal = true; lastWasProgress = false;
+      continue;
+    }
+    lastWasVal = false;
     const m = PROGRESS_RE.exec(line);
     if (m) {
       step = Number(m[2]); total = Number(m[3]);
@@ -524,7 +605,7 @@ function parseLog(text: string): { lines: string[]; step: number; total: number;
       lastWasProgress = false;
     }
   }
-  return { lines: lines.slice(-LOG_TAIL_LINES), step, total, speed, eta, elapsed, loss };
+  return { lines: lines.slice(-LOG_TAIL_LINES), step, total, speed, eta, elapsed, loss, valLoss };
 }
 
 function listFiles(dir: string, exts: string[]): { name: string; mtime: number; size: number }[] {
@@ -541,6 +622,7 @@ function status(): TrainflowStatus {
   const resolved = resolveInstall(folder);
   const out: TrainflowStatus = {
     folder, ok: resolved.ok, error: 'error' in resolved ? resolved.error : undefined,
+    trainer: 'install' in resolved ? trainerCaps(resolved.install.scriptsDir) : undefined,
     run: null, prep, logTail: [], samples: [], checkpoints: []
   };
   const rec = readRun();
@@ -555,7 +637,7 @@ function status(): TrainflowStatus {
   out.run = {
     state, project: rec.outputName || rec.project, outDir: rec.outDir, startedAt: rec.startedAt,
     step: state === 'finished' ? total : parsed.step, total,
-    speed: parsed.speed, eta: parsed.eta, elapsed: parsed.elapsed, loss: parsed.loss
+    speed: parsed.speed, eta: parsed.eta, elapsed: parsed.elapsed, loss: parsed.loss, valLoss: parsed.valLoss
   };
   out.logTail = parsed.lines;
   out.samples = listFiles(rec.samplesDir, ['.png', '.jpg', '.jpeg', '.webp']).slice(0, 60).map(({ name, mtime }) => ({ name, mtime }));
@@ -736,6 +818,70 @@ function planContinue(s: TrainflowSettings, outDir: string, scriptsDir: string):
   return { plan: { kind: 'state', path: full, run, step, outputName: run, total: step + more } };
 }
 
+// What the install's sd-scripts supports, read from its source (users may point
+// Trainflow at an older Anima-TrainFlow than the in-tree one).
+const capsCache = new Map<string, { mtime: number; caps: { blockCompile: boolean } }>();
+function trainerCaps(scriptsDir: string): { blockCompile: boolean } {
+  const file = path.join(scriptsDir, 'library', 'anima_train_utils.py');
+  let mtime = 0;
+  try { mtime = fs.statSync(file).mtimeMs; } catch { /* old layout */ }
+  const hit = capsCache.get(file);
+  if (hit && hit.mtime === mtime) return hit.caps;
+  let utils = '';
+  try { utils = fs.readFileSync(file, 'utf8'); } catch { /* old layout */ }
+  const caps = { blockCompile: utils.includes('"--compile"') };
+  capsCache.set(file, { mtime, caps });
+  return caps;
+}
+
+// A checkpoint's network type from its tensor names (safetensors header only):
+// a warm start must load it with the module that made it. For LoKr also the
+// factor: networks.lokr's create_network_from_weights rebuilds the modules with
+// the factor from network_args (default -1), not from the file, so a factor-4
+// file loaded with -1 would get the wrong shapes. A fixed factor F makes every
+// lokr_w1 F×F; anything else came from the automatic split (-1).
+export function networkInfoOf(file: string): { type: TfNetworkType; factor?: number } {
+  try {
+    const fd = fs.openSync(file, 'r');
+    try {
+      const lenBuf = Buffer.alloc(8);
+      fs.readSync(fd, lenBuf, 0, 8, 0);
+      const len = Number(lenBuf.readBigUInt64LE(0));
+      if (!(len > 0 && len < 64 * 1048576)) return { type: 'lora' };
+      const head = Buffer.alloc(len);
+      fs.readSync(fd, head, 0, len, 8);
+      const header = JSON.parse(head.toString('utf8')) as Record<string, { shape?: number[] }>;
+      const keys = Object.keys(header);
+      if (keys.some((k) => k.includes('.lokr_w'))) {
+        const w1 = keys.filter((k) => k.endsWith('.lokr_w1')).map((k) => header[k].shape || []);
+        const f = w1.length ? w1[0][0] : 0;
+        const fixed = f > 0 && w1.every((sh) => sh.length === 2 && sh[0] === f && sh[1] === f);
+        return { type: 'lokr', factor: fixed ? f : -1 };
+      }
+      if (keys.some((k) => k.includes('.hada_w'))) return { type: 'loha' };
+    } finally { fs.closeSync(fd); }
+  } catch { /* unreadable: treat as LoRA */ }
+  return { type: 'lora' };
+}
+
+// The extra image folders: real local folders with images, each captioned.
+function checkExtraFolders(s: TrainflowSettings, datasetDir: string): { extras: ExtraFolder[]; errors: string[] } {
+  const extras: ExtraFolder[] = [];
+  const errors: string[] = [];
+  for (const f of s.extraFolders || []) {
+    const dir = safeAbsPath(f && f.path);
+    if (!dir || !fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) { errors.push(`Extra folder not found: ${(f && f.path) || '(empty)'}`); continue; }
+    if (path.resolve(dir).toLowerCase() === path.resolve(datasetDir).toLowerCase()) { errors.push(`An extra folder is the loaded dataset itself: ${dir}`); continue; }
+    const imgs = listImages(dir);
+    if (!imgs.length) { errors.push(`No images in extra folder ${dir}`); continue; }
+    const missing = imgs.filter((img) => !fs.existsSync(img.slice(0, img.length - path.extname(img).length) + '.txt')).length;
+    if (missing) errors.push(`${missing} image${missing === 1 ? '' : 's'} in ${dir} ha${missing === 1 ? 's' : 've'} no .txt caption.`);
+    if (imgs.some((img) => path.extname(img).toLowerCase() === '.webp')) errors.push(`${dir} has WebP images, which the trainer can't read. Convert them to PNG first.`);
+    extras.push({ path: dir, images: imgs.length, repeats: Math.max(0, Math.round(Number(f.repeats) || 0)) });
+  }
+  return { extras, errors };
+}
+
 async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult> {
   if (runIsLive()) return { ok: false, errors: ['Training is already running.'] };
   const resolved = resolveInstall(readFolder());
@@ -758,6 +904,10 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
   const bucketCfg = { min: s.bucketMin, max: s.bucketMax, step: s.bucketStep };
   const pre = checkDataset(datasetDir!, bucketCfg);
   errors.push(...pre.errors);
+  const { extras, errors: extraErrors } = checkExtraFolders(s, datasetDir!);
+  errors.push(...extraErrors);
+  // Combinations anima_train_network.py asserts against: say so before loading anything.
+  if (s.advOffloadCkpt && s.advBlocksToSwap > 0) errors.push('Checkpoint offloading can\'t be combined with Blocks to swap. Use one of the two (Advanced → Performance & VRAM).');
   if (errors.length) return { ok: false, errors };
 
   // Bucketing is part of Start: one button, idempotent (see bucketDataset).
@@ -783,18 +933,20 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
   const datasetToml = path.join(configsDir, `${outputName}_dataset.toml`);
   const trainingToml = path.join(configsDir, `${outputName}_training.toml`);
   if (plan?.kind !== 'state') {
-    // A fresh run, or a warm start: the form's settings, steps = the extra steps.
-    const runSettings = plan ? { ...s, steps: plan.total } : s;
+    // A fresh run, or a warm start: the form's settings, steps = the extra steps,
+    // and the network type (and LoKr factor) the checkpoint was made with.
+    const net = plan ? networkInfoOf(plan.path) : null;
+    const runSettings: TrainflowSettings = plan && net ? { ...s, steps: plan.total, netType: net.type, ...(net.factor !== undefined ? { netFactor: net.factor } : {}) } : s;
     const promptFile = path.join(configsDir, `${outputName}_prompts.txt`);
     writeSamplePrompts(runSettings, promptFile);
-    writeDatasetToml(runSettings, datasetToml, check);
+    writeDatasetToml(runSettings, datasetToml, check, extras);
     writeTrainingToml(runSettings, trainingToml, outputName, outDir, promptFile,
-      plan ? [`network_weights = ${tomlStr(posix(plan.path))}`, 'dim_from_weights = true'] : []);
+      plan ? [`network_weights = ${tomlStr(posix(plan.path))}`, 'dim_from_weights = true'] : [], trainerCaps(inst.scriptsDir));
   }
 
   const logFile = path.join(outDir, 'osmium_train.log');
   const logFd = fs.openSync(logFile, 'w');
-  fs.writeSync(logFd, `Preparing ${outputName}: ${check.images} images, base ${check.baseRes}px, max bucket ${check.maxBucket}px\n`);
+  fs.writeSync(logFd, `Preparing ${outputName}: ${check.images} images${extras.length ? ` + ${extras.reduce((n, e) => n + e.images, 0)} in ${extras.length} extra folder${extras.length === 1 ? '' : 's'}` : ''}, base ${check.baseRes}px, max bucket ${check.maxBucket}px\n`);
   if (plan?.kind === 'weights') fs.writeSync(logFd, `Continuing from ${path.basename(plan.path)}'s weights: ${plan.total} more steps as ${outputName} (new optimizer state and LR schedule).\n`);
   if (plan?.kind === 'state') fs.writeSync(logFd, `Resuming ${plan.run} exactly from ${path.basename(plan.path)} (step ${plan.step}) to step ${plan.total}, with that run's settings.\n`);
   // The trainer runs directly, not through `accelerate launch`: that starts it as a child process, and a

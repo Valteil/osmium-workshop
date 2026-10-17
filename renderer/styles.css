@@ -2638,6 +2638,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .trainflow-col-run{ flex: 3 1 480px; }
   .trainflow-col-setup{ flex: 2 1 340px; max-width: 520px; }
   .trainflow-grid{ display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  /* Extra image folders: path (shrinks), repeats, remove. */
+  .tf-extra-folders{ display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+  .tf-extra-row{ align-items: center; }
+  .tf-extra-row .synthdat-local-folder{ flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tf-extra-row .tf-extra-repeats{ width: 64px; flex: none; }
 
   /* Trainflow ▸ Advanced: a native <details> disclosure, collapsed by default so
      the one-button path stays obvious. Everything reads theme tokens (bg/border/

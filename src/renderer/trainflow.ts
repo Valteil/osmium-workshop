@@ -45,7 +45,10 @@ const DEFAULTS: TrainflowSettings = {
   advMaxGradNorm: 1.0, advGradCheckpointing: true,
   advDataloaderWorkers: 4, advVaeChunkSize: 0, advVaeDisableCache: true, advNoHalfVae: false,
   advCaptionDropout: 0.05, advKeepTokens: 1, advRepeats: 0, advSampleSampler: 'euler',
-  saveState: false, continueSteps: 400
+  saveState: false, continueSteps: 400, keepStates: 0,
+  netType: 'lora', netFactor: 4, netTrainLlmAdapter: false, netTrainModulation: false,
+  advOffloadCkpt: '', advSplitAttn: false,
+  extraFolders: [], captionShuffle: false, captionTagDropout: 0, validationSplit: 0, validateEvery: 0
 };
 
 // Element id <-> setting, for the plain inputs.
@@ -64,20 +67,27 @@ const NUM_FIELDS: [keyof TrainflowSettings, string][] = [
 const ADV_SELECT_FIELDS: [keyof TrainflowSettings, string][] = [
   ['advLrScheduler', 'tfAdvLrScheduler'], ['advMixedPrecision', 'tfAdvMixedPrecision'],
   ['advSavePrecision', 'tfAdvSavePrecision'], ['advTimestepSampling', 'tfAdvTimestepSampling'],
-  ['advWeighting', 'tfAdvWeighting'], ['advAttn', 'tfAdvAttn'], ['advSampleSampler', 'tfAdvSampleSampler']
+  ['advWeighting', 'tfAdvWeighting'], ['advAttn', 'tfAdvAttn'], ['advSampleSampler', 'tfAdvSampleSampler'],
+  ['netType', 'tfNetType'], ['advCompile', 'tfAdvCompile'], ['advOffloadCkpt', 'tfAdvOffloadCkpt']
 ];
 const ADV_NUM_FIELDS: [keyof TrainflowSettings, string][] = [
   ['advAlpha', 'tfAdvAlpha'], ['advNetworkDropout', 'tfAdvNetworkDropout'], ['advLrWarmup', 'tfAdvLrWarmup'],
   ['advFlowShift', 'tfAdvFlowShift'], ['advSigmoidScale', 'tfAdvSigmoidScale'], ['advBlocksToSwap', 'tfAdvBlocksToSwap'],
   ['advMaxGradNorm', 'tfAdvMaxGradNorm'], ['advDataloaderWorkers', 'tfAdvDataloaderWorkers'],
   ['advVaeChunkSize', 'tfAdvVaeChunkSize'], ['advCaptionDropout', 'tfAdvCaptionDropout'],
-  ['advKeepTokens', 'tfAdvKeepTokens'], ['advRepeats', 'tfAdvRepeats']
+  ['advKeepTokens', 'tfAdvKeepTokens'], ['advRepeats', 'tfAdvRepeats'],
+  ['netFactor', 'tfNetFactor'], ['captionTagDropout', 'tfCaptionTagDropout'], ['validationSplit', 'tfValidationSplit'],
+  ['validateEvery', 'tfValidateEvery'], ['keepStates', 'tfKeepStates']
 ];
 const ADV_BOOL_FIELDS: [keyof TrainflowSettings, string][] = [
-  ['advTrainTextEncoder', 'tfAdvTrainTextEncoder'], ['advTorchCompile', 'tfAdvTorchCompile'],
+  ['advTrainTextEncoder', 'tfAdvTrainTextEncoder'],
   ['advGradCheckpointing', 'tfAdvGradCheckpointing'], ['advVaeDisableCache', 'tfAdvVaeDisableCache'],
-  ['advNoHalfVae', 'tfAdvNoHalfVae'], ['saveState', 'tfSaveState']
+  ['advNoHalfVae', 'tfAdvNoHalfVae'], ['saveState', 'tfSaveState'],
+  ['netTrainLlmAdapter', 'tfNetTrainLlmAdapter'], ['netTrainModulation', 'tfNetTrainModulation'],
+  ['advSplitAttn', 'tfAdvSplitAttn'], ['captionShuffle', 'tfCaptionShuffle']
 ];
+// Prodigy-family optimizers set their own step size (LR 1.0).
+const selfTuning = (opt: string) => opt === 'Prodigy' || opt === 'prodigyplus.ProdigyPlusScheduleFree';
 
 export function isTrainflowSupported(): boolean {
   return !!(window.electronAPI && window.electronAPI.trainflowStatus);
@@ -92,6 +102,12 @@ export function initTrainflow(deps: TrainflowDeps): void {
   let settings: TrainflowSettings = { ...DEFAULTS, ...getJSON<Partial<TrainflowSettings>>(STORAGE_KEY, {}) };
   // What Start continues from is picked per session (the checkpoints change), never restored.
   delete settings.continueFrom;
+  // The torch.compile checkbox became a select (off / per block / whole model);
+  // a saved "on" meant whole model.
+  if (settings.advCompile === undefined) settings.advCompile = settings.advTorchCompile ? 'model' : '';
+  if (!Array.isArray(settings.extraFolders)) settings.extraFolders = [];
+  // The plain CPU offload was dropped (broken for Anima upstream); it runs as unsloth.
+  if (settings.advOffloadCkpt === 'cpu') settings.advOffloadCkpt = 'unsloth';
   // One-time: the scheduler used to default to (and save) 'constant' even when
   // untouched, which a non-Prodigy run would then keep instead of cosine. Move
   // that saved 'constant' to auto ('') once; a later pick of constant sticks.
@@ -153,12 +169,51 @@ export function initTrainflow(deps: TrainflowDeps): void {
   let adamLr = '0.00005';
   $<HTMLSelectElement>('tfOptimizer').addEventListener('change', (ev) => {
     const opt = (ev.target as HTMLSelectElement).value as TrainflowSettings['optimizer'];
-    if (opt === 'Prodigy') { if (settings.lr !== '1.0') adamLr = settings.lr; settings.lr = '1.0'; }
+    if (selfTuning(opt)) { if (settings.lr !== '1.0') adamLr = settings.lr; settings.lr = '1.0'; }
     else if (settings.lr === '1.0') settings.lr = adamLr;
     settings.optimizer = opt;
     inputEl('tfLr').value = settings.lr;
     save();
   });
+  // The LoKr factor only means something for LoKr.
+  const syncNetFields = () => { $('tfNetFactorField').style.display = settings.netType === 'lokr' ? '' : 'none'; };
+  $<HTMLSelectElement>('tfNetType').addEventListener('change', syncNetFields);
+  syncNetFields();
+
+  // ---- extra image folders ---------------------------------------------------
+  // Trained together with the loaded dataset; real paths from the folder dialog.
+  function renderExtraFolders(): void {
+    const box = $('tfExtraFolders');
+    const list = settings.extraFolders || [];
+    box.replaceChildren(...list.map((f, i) => {
+      const row = document.createElement('div');
+      row.className = 'synthdat-lora-row tf-extra-row';
+      const name = document.createElement('span');
+      name.className = 'synthdat-local-folder';
+      name.textContent = f.path; name.title = f.path;
+      const rep = document.createElement('input');
+      rep.type = 'number'; rep.min = '0'; rep.step = '1'; rep.value = String(f.repeats || 0);
+      rep.title = 'Repeats for this folder (0 = auto)';
+      rep.className = 'tf-extra-repeats';
+      rep.addEventListener('input', () => { const v = Number(rep.value); if (Number.isFinite(v) && v >= 0) { list[i].repeats = Math.round(v); save(); } });
+      const rm = document.createElement('button');
+      rm.textContent = 'Remove'; rm.title = 'Stop training with this folder (the folder itself is untouched)';
+      rm.addEventListener('click', () => { list.splice(i, 1); save(); renderExtraFolders(); });
+      row.append(name, rep, rm);
+      return row;
+    }));
+    if (!list.length) { const e = document.createElement('div'); e.className = 'stats-empty'; e.textContent = 'None: only the loaded dataset is trained.'; box.appendChild(e); }
+  }
+  $('btnTfAddFolder').addEventListener('click', async () => {
+    const p = await api.trainflowPickPath!({ kind: 'folder', title: 'Add a folder of captioned images to train with this dataset' });
+    if (!p) return;
+    const list = settings.extraFolders || (settings.extraFolders = []);
+    if (list.some((f) => f.path.toLowerCase() === p.toLowerCase())) { toast('That folder is already in the list.'); return; }
+    list.push({ path: p, repeats: 0 });
+    save();
+    renderExtraFolders();
+  });
+  renderExtraFolders();
 
   // ---- the loaded dataset ---------------------------------------------------
   // Trainflow trains whatever dataset Osmium has loaded. Osmium holds a folder
@@ -345,7 +400,7 @@ export function initTrainflow(deps: TrainflowDeps): void {
     }
     hint.textContent = opt.kind === 'state'
       ? `Resumes ${opt.run} exactly from step ${opt.step}, with the optimizer, learning-rate schedule and random state it saved, and trains on to step ${opt.step + n}. It uses that run's own settings, so Training's fields are ignored. New checkpoints continue the numbering (${opt.run}-step…), and ${opt.run}.safetensors becomes the step ${opt.step + n} version. A cosine schedule is stretched to the new total, so its learning rate picks up again partway.`
-      : `Loads ${opt.name}'s weights and trains ${n} more steps with the settings in Training (its rank and alpha are read from the file), saved as ${opt.outputName}. The optimizer and learning-rate schedule start fresh, so the first steps relearn their momentum${settings.optimizer === 'Prodigy' ? ' (Prodigy re-estimates its step size)' : ''}. Turn on Resume state in Training for runs you may want to resume exactly.`;
+      : `Loads ${opt.name}'s weights and trains ${n} more steps with the settings in Training (its rank and alpha are read from the file), saved as ${opt.outputName}. The optimizer and learning-rate schedule start fresh, so the first steps relearn their momentum${selfTuning(settings.optimizer) ? ' (Prodigy re-estimates its step size)' : ''}. Turn on Resume state in Training for runs you may want to resume exactly.`;
   }
   const optLabel = (o: TrainflowContinueOption) => `${o.run} · ${o.step ? 'step ' + o.step : 'final'}${o.name === o.run + '.safetensors' ? ' (final)' : ''}`;
   async function refreshContinue(): Promise<void> {
@@ -477,6 +532,7 @@ export function initTrainflow(deps: TrainflowDeps): void {
       }
       if (run.elapsed) bits.push(`<span>Elapsed <b>${run.elapsed}</b></span>`);
       if (run.loss !== undefined) bits.push(`<span>Loss <b>${run.loss.toFixed(4)}</b></span>`);
+      if (run.valLoss !== undefined) bits.push(`<span title="Average loss on the held-out validation images">Val loss <b>${run.valLoss.toFixed(4)}</b></span>`);
       stats.innerHTML = bits.join('');
       stats.style.display = run.step || run.state === 'finished' ? '' : 'none';
       const logEl = $('trainflowLog');
