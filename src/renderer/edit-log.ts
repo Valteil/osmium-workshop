@@ -66,6 +66,7 @@ interface EditLogDeps {
   // is gone (tags-edit.ts entryForAffected). The stack modal greys out a
   // missing image's own undo/redo and shows "Image not found in Dataset".
   resolveAffected: (a: EditLogAffected) => Entry | undefined;
+  setUndoRuleTags: (rec: EditLogEntry, active: boolean) => void;
 }
 
 let getDirHandle: () => DirHandle | null = () => null;
@@ -81,6 +82,7 @@ let refreshAllUIRef: () => void = () => {};
 let getUndoStack: () => ChangeRecord[] = () => [];
 let getRedoStack: () => ChangeRecord[] = () => [];
 let resolveAffected: (a: EditLogAffected) => Entry | undefined = () => undefined;
+let setUndoRuleTagsRef: (rec: EditLogEntry, active: boolean) => void = () => {};
 
 export function pushLogEntry(partial: { type: string; summary: string; affected?: EditLogAffected[] }): EditLogEntry {
   const entry: EditLogEntry = {
@@ -552,7 +554,11 @@ function buildAffectedActionButtons(logEntry: EditLogEntry, a: EditLogAffected, 
 // Run one per-image action, log/stat it, then refresh the panel and the open
 // modal.
 async function runAffected(logEntry: EditLogEntry, a: EditLogAffected, direction: LogDirection, after: () => void): Promise<void> {
+  // A Merge/Void's standing rule: paused before an undo, resumed after a redo
+  // (canonical-tags.ts setUndoRuleTags), or it re-applies the edit straight away.
+  if (direction === 'undo') setUndoRuleTagsRef(logEntry, false);
   const count = await applyAffectedDirection(logEntry, a, direction);
+  if (direction === 'redo') setUndoRuleTagsRef(logEntry, true);
   // A missing image's buttons are disabled, so a 0 here means the edit's own
   // data is gone (e.g. a pixel/isolate edit's session-only before/after bytes).
   if (count === 0){ toast(`Nothing changed: this image is already ${direction === 'undo' ? 'without' : 'with'} that edit (or its data is gone).`, 3600); return; }
@@ -728,6 +734,7 @@ export function initEditLog(deps: EditLogDeps): void {
   getUndoStack = deps.getUndoStack;
   getRedoStack = deps.getRedoStack;
   resolveAffected = deps.resolveAffected;
+  setUndoRuleTagsRef = deps.setUndoRuleTags;
   statsViewPie.addEventListener('click', () => { statsChartMode = 'pie'; statsViewPie.classList.add('active'); statsViewBar.classList.remove('active'); renderStatsTab(); });
   statsViewBar.addEventListener('click', () => { statsChartMode = 'bar'; statsViewBar.classList.add('active'); statsViewPie.classList.remove('active'); renderStatsTab(); });
 

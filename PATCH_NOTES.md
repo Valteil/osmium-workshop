@@ -79,7 +79,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   wipes the tag changes you made after it; only that edit is reversed. After **Rename all**, Undo
   and the Log's buttons follow the images to their new names instead of acting on whatever image now
   has the old name. A step that was already undone from the Log no longer blocks Undo for older
-  steps. Clearing the log no longer breaks undoing crops, rotates and splits.
+  steps. Clearing the log no longer breaks undoing crops, rotates and splits. **Undoing a Merge or
+  Void** now actually sticks: the tags it merged or voided are paused in its standing rule (which
+  used to re-apply it on the spot), and Redo turns them back on.
 - **Fixed: Rename all could delete images.** If a rename stopped partway, the files were left with
   temporary `__dts_rename_tmp_…` names, and running Rename all again could delete some of them.
   Rename all now checks every file first, puts everything back if it stops partway, and never

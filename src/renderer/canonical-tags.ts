@@ -562,6 +562,28 @@ export function registerVoidRule(children: string[]): void {
   resweepAllEntries();
 }
 
+// Undo/Redo of a Tag Pruner Merge/Void (2026-10-18). The merge/void registered its
+// tags in a standing rule, and markDirty() re-runs the rules — so without this an
+// undo was merged/voided straight back. Undo pauses just THIS edit's tags in the
+// rule (its per-tag toggles: a merge rule collects several merges, and all voids
+// share one rule) before the tags are restored; redo turns them back on after.
+// No unmergeChildren() here: the undo itself restores the edit's own images.
+export function setUndoRuleTags(rec: { type: string; mergedTags?: unknown; unifiedTag?: unknown; voidedTags?: unknown }, active: boolean): void {
+  const isMerge = rec.type === 'merge' && typeof rec.unifiedTag === 'string';
+  const tags = (isMerge ? rec.mergedTags : rec.type === 'void' ? rec.voidedTags : null) as string[] | null | undefined;
+  if (!Array.isArray(tags) || !tags.length) return; // e.g. Purge ALL: a 'void' with no rule behind it
+  const rule = isMerge ? canonicalRules.find(r => r.canonical === rec.unifiedTag) : canonicalRules.find(r => r.canonical === null);
+  if (!rule) return;
+  const off = rule.disabledChildren || (rule.disabledChildren = []);
+  const changed = tags.filter(t => rule.children.includes(t) && off.includes(t) === active);
+  if (!changed.length) return;
+  rule.disabledChildren = active ? off.filter(t => !changed.includes(t)) : [...off, ...changed];
+  logRuleChange(`${active ? 'Resumed' : 'Paused'} ${changed.map(t => `"${t}"`).join(', ')} in the ${ruleLabel(rule)} (${active ? 'redo' : 'undo'} of that ${rec.type}).`);
+  markRulesDirtyRef();
+  renderCanonicalTagsList();
+  if (active) resweepAllEntries();
+}
+
 // ---------------- Dock UI ----------------
 
 function commitRuleChange(): void {

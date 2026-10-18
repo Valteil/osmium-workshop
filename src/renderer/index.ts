@@ -68,7 +68,7 @@ import {
   editLog, pushLogEntry, loadEditLogForFolder, updateLogButton, renderLogPanel,
   renderStatsTab, initEditLog
 } from './edit-log';
-import { initCanonicalTags, loadCanonicalRulesForFolder } from './canonical-tags';
+import { initCanonicalTags, loadCanonicalRulesForFolder, setUndoRuleTags } from './canonical-tags';
 import { initSubjectPresets, loadSubjectPresetsForFolder } from './subject-presets';
 import { initBucketImages, ORIGINAL_DIR, mergeLegacyOriginals, applyDatasetBucketSizes } from './bucket-images';
 import {
@@ -1554,7 +1554,8 @@ import { setIconLabel } from './icons';
     refreshAllUI: () => refreshAllUI(),
     getUndoStack: () => undoStack,
     getRedoStack: () => redoStack,
-    resolveAffected: (a) => resolveAffected(a)
+    resolveAffected: (a) => resolveAffected(a),
+    setUndoRuleTags: (rec, active) => setUndoRuleTags(rec, active)
   });
 
   // Retroactive Merge/Void dock (right sidebar) moved to ./canonical-tags.ts

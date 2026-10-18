@@ -12,7 +12,7 @@ import { btnUndo, btnRedo, btnSave, dirtyCountEl, includeDisabledToggle, autosav
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, checkVoidThemeAchievements, folderStats, saveFolderStats } from './achievements';
 import { pushLogEntry, editLog, saveEditLog, PIXEL_TYPES, ISOLATE_TYPES, REVIEW_TYPES } from './edit-log';
-import { applyCanonicalRules, registerMergeRule, registerVoidRule, findBlockingRule, saveCanonicalRules } from './canonical-tags';
+import { applyCanonicalRules, registerMergeRule, registerVoidRule, findBlockingRule, saveCanonicalRules, setUndoRuleTags } from './canonical-tags';
 
 export let undoStack: ChangeRecord[] = [];
 export let redoStack: ChangeRecord[] = [];
@@ -778,6 +778,8 @@ export function initTagsEdit(deps: TagsEditDeps): void {
     if (!record) return;
     undoRedoBusy = true;
     try {
+      // A Merge/Void's own rule would re-apply it the moment the tags come back.
+      setUndoRuleTags(record, false);
       const count = PIXEL_TYPES.has(record.type)
         ? await applyPixelDirection(record.affected, 'undo')
         : ISOLATE_TYPES.has(record.type)
@@ -820,6 +822,9 @@ export function initTagsEdit(deps: TagsEditDeps): void {
           : REVIEW_TYPES.has(record.type)
             ? applyFlaggedReviewDirectionRef(record.affected, 'redo')
             : applyTagDirection(record.affected, 'redo');
+      // After the tags are re-applied (resuming first would re-merge them itself,
+      // leaving the redo nothing to change).
+      setUndoRuleTags(record, true);
       if (count === 0){
         undoStack.push(record);
         updateUndoRedoButtons();
