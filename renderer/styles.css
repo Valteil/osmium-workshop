@@ -2643,6 +2643,19 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     margin: 0 -24px; padding: 10px 24px; background: var(--bg-base); border-bottom: 1px solid var(--border-soft);
   }
   .curate-row{ display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .curate-folders{ display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .curate-folder-chip{
+    display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 4px 6px 4px 12px;
+    border: 1px solid var(--accent-flair); color: var(--text-primary);
+  }
+  .curate-folder-chip.all, .curate-folder-chip.none{ border-color: var(--border-strong); }
+  .curate-folder-chip.junk{ border-color: var(--accent-danger); color: var(--accent-danger); }
+  .curate-folder-chip.active{ background: var(--accent-manual-dim); }
+  .curate-folder-chip.junk.active{ background: color-mix(in srgb, var(--accent-danger) 22%, var(--bg-panel)); }
+  .curate-folder-n{
+    font-family: var(--mono); font-size: 11px; color: var(--text-muted);
+    background: var(--bg-elevated); border-radius: 999px; padding: 1px 7px;
+  }
   .curate-sep{ width: 1px; align-self: stretch; margin: 2px 4px; background: var(--border-strong); }
   .curate-folder{ font-family: var(--mono); color: var(--text-primary); overflow-wrap: anywhere; margin-right: 4px; }
   .curate-count{ color: var(--text-muted); min-width: 82px; }

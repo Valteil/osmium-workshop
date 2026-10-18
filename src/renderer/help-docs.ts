@@ -130,7 +130,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       caption) into that folder; <b>Unsorted</b> moves it back. In Single, each artstyle is a
       button beside the image — click it, or press its number (0 = Unsorted, 1–9 the artstyles), to
       move the image and go on to the next one. <b>Create junk folder</b> makes a <b>junk</b>
-      folder (labelled red) for images you're throwing out. <b>Show</b> filters to one folder.</p>
+      folder (labelled red) for images you're throwing out. The toolbar's folder buttons
+      (<b>All</b>, <b>Unsorted</b>, each artstyle, <b>Junk</b>, with image counts) show one folder at
+      a time.</p>
       <h3>What the app writes into your folder</h3>
       <p>None of these touch your images or captions unless you tell them to:</p>
       <ul>

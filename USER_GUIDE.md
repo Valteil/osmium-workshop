@@ -454,7 +454,10 @@ before anything goes into a dataset. It sits next to the Datasets tab.
 - **Artstyles:** an artist often has several distinct styles, and mixing them in one dataset gives
   a muddled LoRA. **Create Artstyle…** makes a folder with that name inside the folder you're
   curating. Assigning *moves* the image (and its caption) into that folder, and **Unsorted** moves
-  it back to the top. Each image shows which folder it's in; **Show** filters to one.
+  it back to the top. Each image shows which folder it's in.
+- **Viewing a folder:** the toolbar has one button per folder with its image count — **All**,
+  **Unsorted**, every artstyle, and **Junk** (red). Click one to see only that folder's images, in
+  Grid or Single.
   - In **Single**, every artstyle is a button in the right column: click one (or press its number:
     0 = Unsorted, 1–9 = the artstyles) to move the image there and go straight to the next one.
   - In **Grid**, **Assign to** moves the selected images.

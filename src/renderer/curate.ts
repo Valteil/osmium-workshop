@@ -243,13 +243,11 @@ async function addSelected(target: 'open' | 'new', only?: CurateItem): Promise<v
 
 // ---------------- rendering ----------------
 
-function styleSelect(value: string, onPick: (v: string) => void, opts: { all?: boolean; placeholder?: string } = {}): HTMLSelectElement {
+function styleSelect(value: string, onPick: (v: string) => void, opts: { placeholder?: string } = {}): HTMLSelectElement {
   const s = el('select', 'curate-select');
   if (opts.placeholder) { const o = el('option', '', opts.placeholder); o.value = '\u0000'; s.appendChild(o); }
-  if (opts.all) { const o = el('option', '', `All (${items.length})`); o.value = '*'; s.appendChild(o); }
-  const count = (st: string) => items.filter((it) => it.style === st).length;
   for (const st of [UNSORTED, ...styles]) {
-    const o = el('option', '', `${styleLabel(st)}${opts.all ? ` (${count(st)})` : ''}`);
+    const o = el('option', '', styleLabel(st));
     o.value = st;
     s.appendChild(o);
   }
@@ -299,9 +297,7 @@ function toolbar(): HTMLElement {
     btn('Grid', 'All images as a grid', () => { view = 'grid'; render(); }, view === 'grid' ? 'active' : ''),
     btn('Single', 'One image at a time (← / → to move, 0–9 to assign)', () => { view = 'single'; render(); }, view === 'single' ? 'active' : ''));
   bar.appendChild(views);
-  const show = el('label', 'curate-label', 'Show');
-  show.appendChild(styleSelect(filter, (v) => { filter = v; index = 0; lastClicked = -1; render(); }, { all: true }));
-  bar.appendChild(show);
+  bar.appendChild(folderChips());
   if (view === 'single') return bar;
 
   const sel = items.filter((it) => it.selected);
@@ -317,6 +313,27 @@ function toolbar(): HTMLElement {
     btn('Add selected to dataset', 'Copy the selected images (and their captions) into the open dataset', () => void addSelected('open'), 'primary'),
     btn('New dataset from selected…', 'Make a new dataset folder and copy the selected images into it', () => void addSelected('new')));
   return bar;
+}
+
+// The folders as one chip each (All, Unsorted, every artstyle, junk red) with
+// its image count: a click views just that folder, in Grid or Single.
+function folderChips(): HTMLElement {
+  const row = el('div', 'curate-folders');
+  row.setAttribute('role', 'tablist');
+  const chip = (value: string, label: string, n: number, cls: string) => {
+    const b = btn('', value === '*' ? 'Every image in the folder and its artstyle folders' : `View the images in ${label}`, () => {
+      filter = value; index = 0; lastClicked = -1; render();
+    }, `curate-folder-chip ${cls}${filter === value ? ' active' : ''}`);
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', String(filter === value));
+    b.append(label, el('span', 'curate-folder-n', String(n)));
+    row.appendChild(b);
+  };
+  chip('*', 'All', items.length, 'all');
+  for (const st of [UNSORTED, ...styles]) {
+    chip(st, styleLabel(st), items.filter((it) => it.style === st).length, st === JUNK ? 'junk' : st === UNSORTED ? 'none' : '');
+  }
+  return row;
 }
 
 // Single view's assign keys: 0 = Unsorted, 1–9 = the artstyles in order.
