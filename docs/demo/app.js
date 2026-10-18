@@ -374,6 +374,9 @@
   var tabTrainflow = $("tabTrainflow");
   var trainflowTab = $("trainflowTab");
   var btnTrainflowBack = $("btnTrainflowBack");
+  var tabCurate = $("tabCurate");
+  var curateTab = $("curateTab");
+  var btnCurateBack = $("btnCurateBack");
   var synthDatCol1 = $("synthDatCol1");
   var btnSynthDatBack = $("btnSynthDatBack");
   var synthDatSkipRefImage = $("synthDatSkipRefImage");
@@ -609,17 +612,17 @@
     GLYPH_RE.lastIndex = 0;
     return hit;
   }
-  function setIconLabel(el, text) {
+  function setIconLabel(el2, text) {
     if (!hasIconGlyph(text)) {
-      el.textContent = text;
+      el2.textContent = text;
       return;
     }
     const parts = text.split(GLYPH_RE);
     const midSentence = parts.length > 2 && parts[0].trim() !== "" && parts[parts.length - 1].trim() !== "";
-    el.innerHTML = midSentence ? `<span>${iconHTML(text)}</span>` : iconHTML(text);
+    el2.innerHTML = midSentence ? `<span>${iconHTML(text)}</span>` : iconHTML(text);
   }
-  function iconize(root) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+  function iconize(root2) {
+    const walker = document.createTreeWalker(root2, NodeFilter.SHOW_TEXT, {
       acceptNode: (n) => {
         const p = n.parentElement;
         if (!p || p.closest("option, select, textarea, script, style, svg, code, pre")) return NodeFilter.FILTER_REJECT;
@@ -686,14 +689,14 @@
   function escapeHtml(s) {
     return s.replace(/[&<>"']/g, (c) => HTML_ESCAPE_MAP[c]);
   }
-  function shrinkTextToFit(el, minFontPx = 9) {
-    el.style.fontSize = "";
-    const baseFontPx = parseFloat(getComputedStyle(el).fontSize);
-    if (!baseFontPx || el.scrollWidth <= el.clientWidth) return;
+  function shrinkTextToFit(el2, minFontPx = 9) {
+    el2.style.fontSize = "";
+    const baseFontPx = parseFloat(getComputedStyle(el2).fontSize);
+    if (!baseFontPx || el2.scrollWidth <= el2.clientWidth) return;
     let fontPx = baseFontPx;
-    while (fontPx > minFontPx && el.scrollWidth > el.clientWidth) {
+    while (fontPx > minFontPx && el2.scrollWidth > el2.clientWidth) {
       fontPx -= 0.5;
-      el.style.fontSize = fontPx + "px";
+      el2.style.fontSize = fontPx + "px";
     }
   }
   function refitShrunkText() {
@@ -727,24 +730,24 @@
   }
   function closeAllFloatingPanels(exceptEl) {
     closeAnyOpenPdrop();
-    document.querySelectorAll(".theme-panel.panel-visible").forEach((el) => {
-      if (el !== exceptEl) hidePanel(el);
+    document.querySelectorAll(".theme-panel.panel-visible").forEach((el2) => {
+      if (el2 !== exceptEl) hidePanel(el2);
     });
   }
   function buildPersistentDropdown(container, options, getValue, onSelect) {
     container.innerHTML = "";
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "pdrop-btn";
+    const btn2 = document.createElement("button");
+    btn2.type = "button";
+    btn2.className = "pdrop-btn";
     function currentLabel() {
       const found = options.find((o) => o.value === getValue());
       return found ? found.label : getValue();
     }
     function setLabel() {
-      setIconLabel(btn, currentLabel() + " \u25BE");
-      shrinkTextToFit(btn);
+      setIconLabel(btn2, currentLabel() + " \u25BE");
+      shrinkTextToFit(btn2);
     }
-    setIconLabel(btn, currentLabel() + " \u25BE");
+    setIconLabel(btn2, currentLabel() + " \u25BE");
     let menuEl = null;
     function closeMenu() {
       if (menuEl) {
@@ -779,13 +782,13 @@
         menuEl.appendChild(item);
       }
       document.body.appendChild(menuEl);
-      const rect = btn.getBoundingClientRect();
+      const rect = btn2.getBoundingClientRect();
       positionMenu(menuEl, rect.left, rect.bottom + 4);
       openPdropClose = closeMenu;
       openPdropOwnerPanel = ownPanel;
       openPdropMenuEl = menuEl;
     }
-    btn.addEventListener("click", (ev) => {
+    btn2.addEventListener("click", (ev) => {
       ev.stopPropagation();
       if (menuEl) closeMenu();
       else openMenu();
@@ -800,21 +803,21 @@
         ev.preventDefault();
       }
     }, true);
-    container.appendChild(btn);
-    shrinkTextToFit(btn);
+    container.appendChild(btn2);
+    shrinkTextToFit(btn2);
     return { refreshLabel: setLabel };
   }
-  function attachPinchZoom(el, onZoomDelta) {
+  function attachPinchZoom(el2, onZoomDelta) {
     let startDist = null;
     function dist(touches) {
       const dx = touches[0].clientX - touches[1].clientX;
       const dy = touches[0].clientY - touches[1].clientY;
       return Math.sqrt(dx * dx + dy * dy);
     }
-    el.addEventListener("touchstart", (ev) => {
+    el2.addEventListener("touchstart", (ev) => {
       if (ev.touches.length === 2) startDist = dist(ev.touches);
     }, { passive: true });
-    el.addEventListener("touchmove", (ev) => {
+    el2.addEventListener("touchmove", (ev) => {
       if (ev.touches.length === 2 && startDist) {
         ev.preventDefault();
         const newDist = dist(ev.touches);
@@ -825,15 +828,15 @@
         }
       }
     }, { passive: false });
-    el.addEventListener("touchend", (ev) => {
+    el2.addEventListener("touchend", (ev) => {
       if (ev.touches.length < 2) startDist = null;
     }, { passive: true });
   }
-  function attachLongPress(el, callback, ms = 500) {
+  function attachLongPress(el2, callback, ms = 500) {
     let timer = null;
     let startX = 0, startY = 0;
     const moveTolerance = 12;
-    el.addEventListener("touchstart", (ev) => {
+    el2.addEventListener("touchstart", (ev) => {
       if (ev.touches.length !== 1) return;
       startX = ev.touches[0].clientX;
       startY = ev.touches[0].clientY;
@@ -844,7 +847,7 @@
         } });
       }, ms);
     }, { passive: true });
-    el.addEventListener("touchmove", (ev) => {
+    el2.addEventListener("touchmove", (ev) => {
       if (!timer || !ev.touches[0]) return;
       const dx = ev.touches[0].clientX - startX;
       const dy = ev.touches[0].clientY - startY;
@@ -853,13 +856,13 @@
         timer = null;
       }
     }, { passive: true });
-    el.addEventListener("touchend", () => {
+    el2.addEventListener("touchend", () => {
       if (timer) {
         clearTimeout(timer);
         timer = null;
       }
     }, { passive: true });
-    el.addEventListener("touchcancel", () => {
+    el2.addEventListener("touchcancel", () => {
       if (timer) {
         clearTimeout(timer);
         timer = null;
@@ -878,31 +881,31 @@
     toast(`${prefix}: ${msg}`, ms);
   }
   function addContextMenuItem(menu, label, onClick, opts = {}) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "ctx-item" + (opts.className ? " " + opts.className : "");
-    setIconLabel(btn, label);
-    if (opts.title) btn.title = opts.title;
-    btn.addEventListener("click", (ev) => {
+    const btn2 = document.createElement("button");
+    btn2.type = "button";
+    btn2.className = "ctx-item" + (opts.className ? " " + opts.className : "");
+    setIconLabel(btn2, label);
+    if (opts.title) btn2.title = opts.title;
+    btn2.addEventListener("click", (ev) => {
       ev.stopPropagation();
       onClick(ev);
     });
-    menu.appendChild(btn);
-    return btn;
+    menu.appendChild(btn2);
+    return btn2;
   }
-  function showPanel(el) {
-    el.style.display = "flex";
-    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("panel-visible")));
+  function showPanel(el2) {
+    el2.style.display = "flex";
+    requestAnimationFrame(() => requestAnimationFrame(() => el2.classList.add("panel-visible")));
   }
-  function hidePanel(el) {
-    closeOwnedPdropIfPanel(el);
-    if (el.style.display === "none") return;
-    el.classList.remove("panel-visible");
+  function hidePanel(el2) {
+    closeOwnedPdropIfPanel(el2);
+    if (el2.style.display === "none") return;
+    el2.classList.remove("panel-visible");
     setTimeout(() => {
-      el.style.display = "none";
+      el2.style.display = "none";
     }, 160);
   }
-  function showImageLightbox(src, onZoom) {
+  function showImageLightbox(src, onZoom, nav) {
     if (!src) return;
     const backdrop = document.createElement("div");
     backdrop.className = "lightbox-backdrop";
@@ -911,6 +914,15 @@
     img.draggable = false;
     img.style.transformOrigin = "center center";
     backdrop.appendChild(img);
+    const caption = document.createElement("div");
+    caption.className = "lightbox-caption";
+    if (nav && nav.count > 1) backdrop.appendChild(caption);
+    let navIndex = nav ? nav.index : 0;
+    const showCaption = () => {
+      if (!nav) return;
+      caption.textContent = `${navIndex + 1} / ${nav.count}${nav.label ? " \xB7 " + nav.label(navIndex) : ""}  \xB7  \u2190 \u2192`;
+    };
+    showCaption();
     let scale = 1, panX = 0, panY = 0;
     let dragging = false, didDrag = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0;
     const MIN_SCALE = 1, MAX_SCALE = 6;
@@ -984,10 +996,30 @@
       backdrop.classList.remove("modal-visible");
       setTimeout(() => backdrop.remove(), 160);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onNavKey, true);
     }
     function onKey(ev) {
       if (ev.key === "Escape") close();
     }
+    async function onNavKey(ev) {
+      if (!nav || nav.count < 2 || ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      navIndex = (navIndex + (ev.key === "ArrowRight" ? 1 : -1) + nav.count) % nav.count;
+      const want = navIndex;
+      showCaption();
+      try {
+        const url = await nav.load(want);
+        if (want !== navIndex) return;
+        scale = 1;
+        panX = 0;
+        panY = 0;
+        applyTransform();
+        img.src = url;
+      } catch {
+      }
+    }
+    if (nav && nav.count > 1) window.addEventListener("keydown", onNavKey, true);
     backdrop.addEventListener("click", (ev) => {
       if (didDrag) {
         didDrag = false;
@@ -1035,8 +1067,8 @@
     }).observe(scroller, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class", "hidden"] });
     schedule();
   }
-  function transitionMsOf(el) {
-    const raw = getComputedStyle(el).transitionDuration.split(",")[0].trim();
+  function transitionMsOf(el2) {
+    const raw = getComputedStyle(el2).transitionDuration.split(",")[0].trim();
     const n = parseFloat(raw);
     if (!Number.isFinite(n)) return 160;
     return raw.endsWith("ms") ? n : n * 1e3;
@@ -1073,12 +1105,12 @@
     if (!dir || !doc.startViewTransition || !html.classList.contains("motion-swipe") || html.classList.contains("motion-off")) return false;
     installPanClickRelay();
     const seq = ++mapPanSeq;
-    for (const el of mapNamed) el.style.viewTransitionName = "";
+    for (const el2 of mapNamed) el2.style.viewTransitionName = "";
     mapNamed = [];
-    const name = (el) => {
-      if (!(el instanceof HTMLElement)) return;
-      el.style.viewTransitionName = "map-pane";
-      mapNamed.push(el);
+    const name = (el2) => {
+      if (!(el2 instanceof HTMLElement)) return;
+      el2.style.viewTransitionName = "map-pane";
+      mapNamed.push(el2);
     };
     html.dataset.mapDir = dir > 0 ? "fwd" : "back";
     html.dataset.mapKind = kind;
@@ -1093,7 +1125,7 @@
       if (after) after();
       if (seq !== mapPanSeq) return;
       activePan = null;
-      for (const el of mapNamed) el.style.viewTransitionName = "";
+      for (const el2 of mapNamed) el2.style.viewTransitionName = "";
       mapNamed = [];
       delete html.dataset.mapDir;
       delete html.dataset.mapKind;
@@ -1257,16 +1289,16 @@
       msg.textContent = message;
       box.appendChild(msg);
       const makeBtn = (opt) => {
-        const btn = document.createElement("button");
-        btn.textContent = opt.label;
-        if (opt.variant === "primary") btn.className = "primary";
-        else if (opt.variant === "danger") btn.className = "danger-ghost";
-        if (opt.title) btn.title = opt.title;
-        btn.addEventListener("click", () => {
+        const btn2 = document.createElement("button");
+        btn2.textContent = opt.label;
+        if (opt.variant === "primary") btn2.className = "primary";
+        else if (opt.variant === "danger") btn2.className = "danger-ghost";
+        if (opt.title) btn2.title = opt.title;
+        btn2.addEventListener("click", () => {
           resolve(opt.key);
           close();
         });
-        return btn;
+        return btn2;
       };
       if (layout === "stack") {
         const cancel = options.find((o) => o.key === "cancel");
@@ -1341,15 +1373,15 @@
     box.appendChild(btnRow);
   }
   function initInfoButtons(scope) {
-    (scope || document).querySelectorAll(".info-btn").forEach((btn) => {
-      const el = btn;
-      if (el.dataset.infoWired) return;
-      const tpl = document.getElementById(el.id + "Content");
+    (scope || document).querySelectorAll(".info-btn").forEach((btn2) => {
+      const el2 = btn2;
+      if (el2.dataset.infoWired) return;
+      const tpl = document.getElementById(el2.id + "Content");
       if (!tpl) return;
-      el.dataset.infoWired = "1";
-      el.addEventListener("click", (ev) => {
+      el2.dataset.infoWired = "1";
+      el2.addEventListener("click", (ev) => {
         ev.stopPropagation();
-        showInfoModal(tpl.innerHTML, el.title || "");
+        showInfoModal(tpl.innerHTML, el2.title || "");
       });
     });
   }
@@ -1358,24 +1390,24 @@
   function initClickFlash() {
     document.addEventListener("click", (ev) => {
       const target = ev.target;
-      const btn = target.closest("button");
-      if (!btn) return;
-      if (btn.matches('.active, .on, .selected, [aria-pressed="true"]')) return;
+      const btn2 = target.closest("button");
+      if (!btn2) return;
+      if (btn2.matches('.active, .on, .selected, [aria-pressed="true"]')) return;
       const now = Date.now();
-      const prev = flashState.get(btn);
+      const prev = flashState.get(btn2);
       if (prev && now - prev.lastTrigger < FLASH_CYCLE_MS) return;
       const token = (prev ? prev.token : 0) + 1;
-      flashState.set(btn, { lastTrigger: now, token });
-      btn.classList.remove("fx-flash");
-      void btn.offsetWidth;
-      btn.classList.add("fx-flash");
+      flashState.set(btn2, { lastTrigger: now, token });
+      btn2.classList.remove("fx-flash");
+      void btn2.offsetWidth;
+      btn2.classList.add("fx-flash");
       setTimeout(() => {
-        const cur = flashState.get(btn);
+        const cur = flashState.get(btn2);
         if (!(cur && cur.token === token)) return;
-        btn.classList.remove("fx-flash");
-        btn.classList.add("fx-flash-reset");
-        void btn.offsetWidth;
-        btn.classList.remove("fx-flash-reset");
+        btn2.classList.remove("fx-flash");
+        btn2.classList.add("fx-flash-reset");
+        void btn2.offsetWidth;
+        btn2.classList.remove("fx-flash-reset");
       }, FLASH_CYCLE_MS + 50);
     }, true);
   }
@@ -1386,17 +1418,17 @@
       const menus = Array.from(document.querySelectorAll(MENU_CONTAINER_SELECTOR)).filter((m) => getComputedStyle(m).display !== "none");
       if (!menus.length) return;
       const menu = menus[menus.length - 1];
-      const items = Array.from(menu.querySelectorAll("button:not(:disabled)"));
-      if (!items.length) return;
+      const items2 = Array.from(menu.querySelectorAll("button:not(:disabled)"));
+      if (!items2.length) return;
       ev.preventDefault();
-      const current = menu.contains(document.activeElement) ? items.indexOf(document.activeElement) : -1;
+      const current = menu.contains(document.activeElement) ? items2.indexOf(document.activeElement) : -1;
       let idx;
-      if (current === -1) idx = ev.key === "ArrowUp" || ev.key === "End" ? items.length - 1 : 0;
+      if (current === -1) idx = ev.key === "ArrowUp" || ev.key === "End" ? items2.length - 1 : 0;
       else if (ev.key === "Home") idx = 0;
-      else if (ev.key === "End") idx = items.length - 1;
-      else if (ev.key === "ArrowDown") idx = (current + 1) % items.length;
-      else idx = (current - 1 + items.length) % items.length;
-      items[idx].focus();
+      else if (ev.key === "End") idx = items2.length - 1;
+      else if (ev.key === "ArrowDown") idx = (current + 1) % items2.length;
+      else idx = (current - 1 + items2.length) % items2.length;
+      items2[idx].focus();
       if (onNavigate) onNavigate();
     });
   }
@@ -1587,18 +1619,18 @@
     document.documentElement.classList.add("theme-refined");
   }
   function initThemeDropdown(container) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "pdrop-btn";
+    const btn2 = document.createElement("button");
+    btn2.type = "button";
+    btn2.className = "pdrop-btn";
     function currentLabel() {
       const opt = themeSelect.options[themeSelect.selectedIndex];
       return (opt ? opt.textContent : themeSelect.value) + " \u25BE";
     }
     function setLabel() {
-      setIconLabel(btn, currentLabel());
-      shrinkTextToFit(btn);
+      setIconLabel(btn2, currentLabel());
+      shrinkTextToFit(btn2);
     }
-    setIconLabel(btn, currentLabel());
+    setIconLabel(btn2, currentLabel());
     let menuEl = null;
     function onOutsideMouseDown(ev) {
       if (ev.target === document.documentElement || ev.target === document.body) return;
@@ -1641,14 +1673,14 @@
       document.addEventListener("mousedown", onOutsideMouseDown);
       requestAnimationFrame(() => requestAnimationFrame(() => menuEl.classList.add("menu-in")));
     }
-    btn.addEventListener("click", (ev) => {
+    btn2.addEventListener("click", (ev) => {
       ev.stopPropagation();
       if (menuEl) closeMenu();
       else openMenu();
     });
     container.style.position = "relative";
-    container.appendChild(btn);
-    shrinkTextToFit(btn);
+    container.appendChild(btn2);
+    shrinkTextToFit(btn2);
     return { refreshLabel: setLabel };
   }
   function toggleDayNightMode() {
@@ -2222,8 +2254,8 @@
     } catch {
     }
     let library = readLibrary();
-    let currentId = library.some((i) => i.id === activeLibId()) ? activeLibId() : null;
-    const saved = currentId ? library.find((i) => i.id === currentId).spec : loadSavedSpec();
+    let currentId2 = library.some((i) => i.id === activeLibId()) ? activeLibId() : null;
+    const saved = currentId2 ? library.find((i) => i.id === currentId2).spec : loadSavedSpec();
     let spec = normalizeSpec(JSON.parse(JSON.stringify(saved)));
     let dirty = false;
     let palette = "day";
@@ -2316,7 +2348,7 @@
       for (const grid of Array.from(app.querySelectorAll("#galleryGrid, #compactGrid"))) {
         Array.from(grid.children).slice(36).forEach((c) => c.remove());
       }
-      app.querySelectorAll(".pdrop-menu, .header-cat-flyout").forEach((el) => el.style.display = "none");
+      app.querySelectorAll(".pdrop-menu, .header-cat-flyout").forEach((el2) => el2.style.display = "none");
       seedSampleGallery(app);
       const keep = Array.from(document.documentElement.classList).filter((c) => /^motion-|^touch-device$/.test(c));
       const sprite = document.getElementById("iconSprite");
@@ -2334,7 +2366,7 @@
           ev.stopPropagation();
         }, true);
       }
-      doc.querySelectorAll("input, textarea, select, button").forEach((el) => el.setAttribute("tabindex", "-1"));
+      doc.querySelectorAll("input, textarea, select, button").forEach((el2) => el2.setAttribute("tabindex", "-1"));
       showPreviewTab(previewTab, false);
       applyDraft();
       let revealed = false;
@@ -2361,8 +2393,8 @@
         if (!pdoc) return;
         const $p = (id) => pdoc.getElementById(id);
         const set = (id, disp) => {
-          const el = $p(id);
-          if (el) el.style.display = disp;
+          const el2 = $p(id);
+          if (el2) el2.style.display = disp;
         };
         const map = { tabDatasetManager: "datasets", tabGallery: "gallery", tabMasterTags: "master", tabStats: "stats", tabSynthDat: "synthdat" };
         for (const [id, t] of Object.entries(map)) $p(id)?.classList.toggle("active", t === tab);
@@ -2400,9 +2432,9 @@
           pdoc.documentElement.classList.toggle("theme-refined", vars["--c-fx-on"] === "1");
         }
         const c = cols();
-        box.querySelectorAll(".ts-sample").forEach((el) => {
-          for (const [k] of THEME_VARS) el.style.setProperty(k, c[k]);
-          el.style.setProperty("--c-tint", `var(--accent-${spec.fx.tint})`);
+        box.querySelectorAll(".ts-sample").forEach((el2) => {
+          for (const [k] of THEME_VARS) el2.style.setProperty(k, c[k]);
+          el2.style.setProperty("--c-tint", `var(--accent-${spec.fx.tint})`);
         });
       });
     }
@@ -2410,45 +2442,45 @@
     function setCompare(on) {
       if (on === comparing || !pdoc) return;
       comparing = on;
-      const btn = q(".ts-compare");
-      btn.setAttribute("aria-pressed", String(on));
-      btn.classList.toggle("on", on);
+      const btn2 = q(".ts-compare");
+      btn2.setAttribute("aria-pressed", String(on));
+      btn2.classList.toggle("on", on);
       frameWrap.classList.toggle("ts-comparing", on);
-      const root = pdoc.documentElement, live = document.documentElement;
+      const root2 = pdoc.documentElement, live = document.documentElement;
       if (on) {
-        root.removeAttribute("style");
-        root.setAttribute("data-theme", live.getAttribute("data-theme") || "studio");
-        for (const c of ["theme-refined", "night-mode", "suppress-theme-flourishes"]) root.classList.toggle(c, live.classList.contains(c));
+        root2.removeAttribute("style");
+        root2.setAttribute("data-theme", live.getAttribute("data-theme") || "studio");
+        for (const c of ["theme-refined", "night-mode", "suppress-theme-flourishes"]) root2.classList.toggle(c, live.classList.contains(c));
         for (let i = 0; i < live.style.length; i++) {
           const k = live.style[i];
-          if (k.startsWith("--")) root.style.setProperty(k, live.style.getPropertyValue(k));
+          if (k.startsWith("--")) root2.style.setProperty(k, live.style.getPropertyValue(k));
         }
       } else {
-        root.removeAttribute("style");
-        root.setAttribute("data-theme", "custom");
-        root.classList.remove("night-mode", "suppress-theme-flourishes");
+        root2.removeAttribute("style");
+        root2.setAttribute("data-theme", "custom");
+        root2.classList.remove("night-mode", "suppress-theme-flourishes");
         appliedKeys = [];
         applyDraft();
       }
     }
     {
-      const btn = q(".ts-compare");
-      btn.addEventListener("pointerdown", (ev) => {
-        btn.setPointerCapture(ev.pointerId);
+      const btn2 = q(".ts-compare");
+      btn2.addEventListener("pointerdown", (ev) => {
+        btn2.setPointerCapture(ev.pointerId);
         setCompare(true);
       });
-      btn.addEventListener("pointerup", () => setCompare(false));
-      btn.addEventListener("pointercancel", () => setCompare(false));
-      btn.addEventListener("keydown", (ev) => {
+      btn2.addEventListener("pointerup", () => setCompare(false));
+      btn2.addEventListener("pointercancel", () => setCompare(false));
+      btn2.addEventListener("keydown", (ev) => {
         if ((ev.key === " " || ev.key === "Enter") && !ev.repeat) {
           ev.preventDefault();
           setCompare(true);
         }
       });
-      btn.addEventListener("keyup", (ev) => {
+      btn2.addEventListener("keyup", (ev) => {
         if (ev.key === " " || ev.key === "Enter") setCompare(false);
       });
-      btn.addEventListener("blur", () => setCompare(false));
+      btn2.addEventListener("blur", () => setCompare(false));
     }
     const syncers = [];
     function syncAll() {
@@ -2530,10 +2562,10 @@
         b.setAttribute("role", "radio");
         b.innerHTML = `<span class="ts-sample">${sample(o)}</span><span class="ts-opt-label">${esc(o.label)}</span>`;
         if (lockOf) {
-          const badge = document.createElement("span");
-          badge.className = "ts-price";
-          badge.setAttribute("aria-hidden", "true");
-          b.querySelector(".ts-sample").appendChild(badge);
+          const badge2 = document.createElement("span");
+          badge2.className = "ts-price";
+          badge2.setAttribute("aria-hidden", "true");
+          b.querySelector(".ts-sample").appendChild(badge2);
         }
         b.addEventListener("click", () => {
           set(o.id);
@@ -2554,11 +2586,11 @@
           if (!lockOf) return;
           const lock = lockOf(b.dataset.id);
           b.classList.toggle("locked", !!lock);
-          const badge = b.querySelector(".ts-price");
-          badge.hidden = !lock;
+          const badge2 = b.querySelector(".ts-price");
+          badge2.hidden = !lock;
           if (lock) {
-            badge.className = `ts-price rarity-${lock.tier}`;
-            badge.innerHTML = `${iconSvg("lock")}${lock.price}`;
+            badge2.className = `ts-price rarity-${lock.tier}`;
+            badge2.innerHTML = `${iconSvg("lock")}${lock.price}`;
             b.title = `${lock.tier === "epic" ? "Epic" : "Legendary"} effect: preview free, ${lock.price} Edibits to keep`;
           } else b.removeAttribute("title");
         });
@@ -2662,20 +2694,20 @@
     window.addEventListener("keydown", onPopoverKey, true);
     function fontPicker(parent, label, slot) {
       const f = field3(parent, label);
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "ts-font-btn";
-      btn.setAttribute("aria-haspopup", "listbox");
-      btn.setAttribute("aria-expanded", "false");
-      f.appendChild(btn);
+      const btn2 = document.createElement("button");
+      btn2.type = "button";
+      btn2.className = "ts-font-btn";
+      btn2.setAttribute("aria-haspopup", "listbox");
+      btn2.setAttribute("aria-expanded", "false");
+      f.appendChild(btn2);
       const sync = () => {
         const name = spec.fonts[slot];
-        btn.innerHTML = `<span class="ts-font-face">${esc(name || "System")}</span>${iconSvg("caret-down", "ts-font-caret")}`;
-        btn.firstElementChild.style.fontFamily = fontStack(name, slot === "mono" ? "mono" : "ui");
+        btn2.innerHTML = `<span class="ts-font-face">${esc(name || "System")}</span>${iconSvg("caret-down", "ts-font-caret")}`;
+        btn2.firstElementChild.style.fontFamily = fontStack(name, slot === "mono" ? "mono" : "ui");
       };
       syncers.push(sync);
-      btn.addEventListener("click", () => {
-        if (openPopover && openPopover.anchor === btn) {
+      btn2.addEventListener("click", () => {
+        if (openPopover && openPopover.anchor === btn2) {
           closePopover();
           return;
         }
@@ -2703,14 +2735,14 @@
               spec.fonts[slot] = name;
               changed();
               closePopover();
-              btn.focus();
+              btn2.focus();
             });
             pop.appendChild(item);
           }
         }
         f.appendChild(pop);
-        btn.setAttribute("aria-expanded", "true");
-        openPopover = { el: pop, anchor: btn };
+        btn2.setAttribute("aria-expanded", "true");
+        openPopover = { el: pop, anchor: btn2 };
         document.addEventListener("mousedown", onPopoverDown, true);
         const on = pop.querySelector(".ts-font-item.on");
         if (on) pop.scrollTop = on.offsetTop - pop.clientHeight / 2 + on.offsetHeight / 2;
@@ -2736,11 +2768,11 @@
       hex.spellcheck = false;
       hex.maxLength = 9;
       hex.setAttribute("aria-label", label + " hex value");
-      const badge = document.createElement("button");
-      badge.type = "button";
-      badge.className = "ts-contrast";
-      badge.tabIndex = -1;
-      row.append(swatch, name, badge, hex);
+      const badge2 = document.createElement("button");
+      badge2.type = "button";
+      badge2.className = "ts-contrast";
+      badge2.tabIndex = -1;
+      row.append(swatch, name, badge2, hex);
       parent.appendChild(row);
       const editable = () => palette === "day" || !!spec.night;
       picker.addEventListener("input", () => {
@@ -2765,8 +2797,8 @@
         hex.value = cols()[key];
       });
       const rule = CONTRAST[key];
-      badge.addEventListener("click", () => {
-        if (!rule || !badge.classList.contains("low") || !editable()) return;
+      badge2.addEventListener("click", () => {
+        if (!rule || !badge2.classList.contains("low") || !editable()) return;
         const c = cols();
         c[key] = fixContrast(c[key], c[rule.against], rule.floor);
         changed();
@@ -2784,12 +2816,12 @@
           const ratio = contrast(v, c[rule.against]);
           const low = ratio < rule.floor;
           const where = rule.against.replace("--", "").replace(/-/g, " ");
-          badge.textContent = low && canEdit ? `${ratio.toFixed(1)}:1 \xB7 Fix` : ratio.toFixed(1) + ":1";
-          badge.classList.toggle("low", low);
-          badge.tabIndex = low && canEdit ? 0 : -1;
-          badge.title = low ? `Below ${rule.floor}:1 against ${where}: hard to read.${canEdit ? " Click to adjust its lightness until it passes." : ""}` : `Contrast against ${where}`;
+          badge2.textContent = low && canEdit ? `${ratio.toFixed(1)}:1 \xB7 Fix` : ratio.toFixed(1) + ":1";
+          badge2.classList.toggle("low", low);
+          badge2.tabIndex = low && canEdit ? 0 : -1;
+          badge2.title = low ? `Below ${rule.floor}:1 against ${where}: hard to read.${canEdit ? " Click to adjust its lightness until it passes." : ""}` : `Contrast against ${where}`;
         } else {
-          badge.hidden = true;
+          badge2.hidden = true;
         }
       });
     }
@@ -2806,17 +2838,17 @@
       const active = activeLibId();
       for (const item of library) {
         const tile = document.createElement("div");
-        tile.className = "ts-lib-item" + (item.id === currentId ? " editing" : "");
+        tile.className = "ts-lib-item" + (item.id === currentId2 ? " editing" : "");
         const b = document.createElement("button");
         b.type = "button";
         b.className = "ts-preset";
         const c = item.spec.colors;
         b.innerHTML = `<span class="ts-preset-sw">${[c["--bg-base"], c["--bg-panel"], c["--accent-manual"], c["--accent-flair"]].map((x) => `<i style="background:${esc(x)}"></i>`).join("")}</span><span class="ts-preset-name">${esc(item.spec.name)}</span>` + (item.id === active ? '<span class="ts-lib-badge">In use</span>' : "");
-        b.title = item.id === currentId ? "Editing this theme" : `Edit ${item.spec.name}`;
+        b.title = item.id === currentId2 ? "Editing this theme" : `Edit ${item.spec.name}`;
         b.addEventListener("click", async () => {
-          if (item.id === currentId) return;
+          if (item.id === currentId2) return;
           if (!await confirmDiscard()) return;
-          currentId = item.id;
+          currentId2 = item.id;
           spec = normalizeSpec(JSON.parse(JSON.stringify(item.spec)));
           dirty = false;
           renderLibrary();
@@ -2851,8 +2883,8 @@
             library = library.filter((i) => i.id !== item.id);
             writeLibrary(library);
             refreshCustomOptionLabel();
-            if (currentId === item.id) {
-              currentId = null;
+            if (currentId2 === item.id) {
+              currentId2 = null;
               dirty = true;
             }
             renderLibrary();
@@ -2865,12 +2897,12 @@
       }
       const add = document.createElement("button");
       add.type = "button";
-      add.className = "ts-preset ts-lib-new" + (currentId === null ? " editing" : "");
+      add.className = "ts-preset ts-lib-new" + (currentId2 === null ? " editing" : "");
       add.innerHTML = `<span class="ts-preset-sw ts-lib-plus">+</span><span class="ts-preset-name">New theme</span>`;
       add.title = "Start a new theme from the Studio defaults";
       add.addEventListener("click", async () => {
         if (!await confirmDiscard()) return;
-        currentId = null;
+        currentId2 = null;
         spec = defaultSpec();
         dirty = false;
         renderLibrary();
@@ -3203,15 +3235,15 @@
     ];
     function readThemeTokens(themeId) {
       if (!pdoc) return null;
-      const root = pdoc.documentElement;
-      const prevStyle = root.getAttribute("style");
-      root.removeAttribute("style");
-      root.setAttribute("data-theme", themeId);
-      const cs = (pdoc.defaultView || window).getComputedStyle(root);
+      const root2 = pdoc.documentElement;
+      const prevStyle = root2.getAttribute("style");
+      root2.removeAttribute("style");
+      root2.setAttribute("data-theme", themeId);
+      const cs = (pdoc.defaultView || window).getComputedStyle(root2);
       const out = {};
       for (const k of PRESET_KEYS) out[k] = cs.getPropertyValue(k).trim();
-      root.setAttribute("data-theme", "custom");
-      if (prevStyle !== null) root.setAttribute("style", prevStyle);
+      root2.setAttribute("data-theme", "custom");
+      if (prevStyle !== null) root2.setAttribute("style", prevStyle);
       return out;
     }
     const firstFamily = (stack) => (stack.split(",")[0] || "").trim().replace(/^['"]|['"]$/g, "");
@@ -3357,16 +3389,16 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         }
         setJSON(FX_OWNED_KEY, [...ownedFx(), ...due.map((u) => u.key)]);
       }
-      if (asCopy || !currentId) {
+      if (asCopy || !currentId2) {
         const item = { id: newLibId(), spec: JSON.parse(JSON.stringify(spec)) };
-        if (asCopy && currentId && item.spec.name === library.find((i) => i.id === currentId)?.spec.name) item.spec.name = `${item.spec.name} copy`.slice(0, 40);
+        if (asCopy && currentId2 && item.spec.name === library.find((i) => i.id === currentId2)?.spec.name) item.spec.name = `${item.spec.name} copy`.slice(0, 40);
         library.push(item);
-        currentId = item.id;
+        currentId2 = item.id;
       } else {
-        library = library.map((i) => i.id === currentId ? { id: i.id, spec: JSON.parse(JSON.stringify(spec)) } : i);
+        library = library.map((i) => i.id === currentId2 ? { id: i.id, spec: JSON.parse(JSON.stringify(spec)) } : i);
       }
       writeLibrary(library);
-      persistActive(library.find((i) => i.id === currentId));
+      persistActive(library.find((i) => i.id === currentId2));
       setString("dts-theme", "custom");
       themeSelect.value = "custom";
       refreshCustomOptionLabel();
@@ -3429,8 +3461,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     if (!grid || grid.querySelector(".card")) return;
     const hint = app.querySelector("#dropHintWrap");
     if (hint) hint.style.display = "none";
-    const toolbar = app.querySelector("#galleryToolbar");
-    if (toolbar) toolbar.style.display = "flex";
+    const toolbar2 = app.querySelector("#galleryToolbar");
+    if (toolbar2) toolbar2.style.display = "flex";
     grid.style.display = "";
     const art = (a, b, shape, w = 300, h = 400) => "data:image/svg+xml;utf8," + encodeURIComponent(
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/>${shape}</svg>`
@@ -3476,8 +3508,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       </div>
     </div>`).join("");
     const setNum = (id, v) => {
-      const el = app.querySelector("#" + id);
-      if (el) el.textContent = v;
+      const el2 = app.querySelector("#" + id);
+      if (el2) el2.textContent = v;
     };
     setNum("cardImages", "6");
     setNum("cardTags", "24");
@@ -3525,7 +3557,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       const cssProp = horizontal ? "max-width" : "max-height";
       const scrollBody = sec.querySelector(".dock-scroll-body");
       const bodyEls = scrollBody ? [scrollBody] : Array.from(sec.children).filter(
-        (el) => !el.classList.contains("sec-head") && !el.classList.contains("dock-resize-handle")
+        (el2) => !el2.classList.contains("sec-head") && !el2.classList.contains("dock-resize-handle")
       );
       const resizeHandle = sec.querySelector(".dock-resize-handle");
       const resizeTarget = scrollBody || sec;
@@ -3536,8 +3568,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       const headEl = horizontal ? sec.querySelector(".sec-head") : null;
       const outerCollapsedWidth = headEl ? headEl.getBoundingClientRect().width + 24 + "px" : "100px";
       if (!animate || !dockMotionEnabled()) {
-        bodyEls.forEach((el) => {
-          el.style.display = collapsing ? "none" : "";
+        bodyEls.forEach((el2) => {
+          el2.style.display = collapsing ? "none" : "";
         });
         if (resizeHandle) resizeHandle.style.display = collapsing ? "none" : "";
         resizeTarget.style[maxProp] = finalMaxDim;
@@ -3556,51 +3588,51 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       }
       const trans = `${cssProp} ${DOCK_ANIM_MS}ms ease, opacity ${DOCK_ANIM_MS}ms ease`;
       if (collapsing) {
-        bodyEls.forEach((el) => {
-          el.style.overflow = "hidden";
-          el.style[maxProp] = el[scrollProp] + "px";
-          el.style.opacity = "1";
-          el.style.transition = trans;
-          void el.offsetHeight;
+        bodyEls.forEach((el2) => {
+          el2.style.overflow = "hidden";
+          el2.style[maxProp] = el2[scrollProp] + "px";
+          el2.style.opacity = "1";
+          el2.style.transition = trans;
+          void el2.offsetHeight;
           requestAnimationFrame(() => {
-            el.style[maxProp] = "0px";
-            el.style.opacity = "0";
+            el2.style[maxProp] = "0px";
+            el2.style.opacity = "0";
           });
         });
         if (resizeHandle) resizeHandle.style.display = "none";
         setTimeout(() => {
-          bodyEls.forEach((el) => {
-            el.style.display = "none";
-            el.style.transition = "";
-            el.style.overflow = "";
-            el.style[maxProp] = "";
-            el.style.opacity = "";
+          bodyEls.forEach((el2) => {
+            el2.style.display = "none";
+            el2.style.transition = "";
+            el2.style.overflow = "";
+            el2.style[maxProp] = "";
+            el2.style.opacity = "";
           });
           resizeTarget.style[maxProp] = "";
           resizeTarget.style[overflowProp] = "";
         }, DOCK_ANIM_MS);
       } else {
-        bodyEls.forEach((el) => {
-          el.style.display = "";
-          el.style.overflow = "hidden";
-          el.style[maxProp] = "0px";
-          el.style.opacity = "0";
-          el.style.transition = trans;
+        bodyEls.forEach((el2) => {
+          el2.style.display = "";
+          el2.style.overflow = "hidden";
+          el2.style[maxProp] = "0px";
+          el2.style.opacity = "0";
+          el2.style.transition = trans;
         });
         if (resizeHandle) resizeHandle.style.display = "";
         void sec.offsetHeight;
         requestAnimationFrame(() => {
-          bodyEls.forEach((el) => {
-            el.style[maxProp] = el === scrollBody && savedHeight ? savedHeight : el[scrollProp] + "px";
-            el.style.opacity = "1";
+          bodyEls.forEach((el2) => {
+            el2.style[maxProp] = el2 === scrollBody && savedHeight ? savedHeight : el2[scrollProp] + "px";
+            el2.style.opacity = "1";
           });
         });
         setTimeout(() => {
-          bodyEls.forEach((el) => {
-            el.style.transition = "";
-            el.style.overflow = el === scrollBody ? finalOverflow || "" : "";
-            el.style[maxProp] = el === scrollBody ? finalMaxDim : "";
-            el.style.opacity = "";
+          bodyEls.forEach((el2) => {
+            el2.style.transition = "";
+            el2.style.overflow = el2 === scrollBody ? finalOverflow || "" : "";
+            el2.style[maxProp] = el2 === scrollBody ? finalMaxDim : "";
+            el2.style.opacity = "";
           });
           resizeTarget.style[maxProp] = finalMaxDim;
           resizeTarget.style[overflowProp] = finalOverflow;
@@ -3830,22 +3862,22 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     return { fieldIds, buttonIds };
   }
   function applyPowerToolMarks() {
-    document.querySelectorAll(".power-tool").forEach((el) => {
-      if (!el.classList.contains("pt-dynamic")) el.classList.remove("power-tool");
+    document.querySelectorAll(".power-tool").forEach((el2) => {
+      if (!el2.classList.contains("pt-dynamic")) el2.classList.remove("power-tool");
     });
     for (const entry of BUILTIN_POWER_TOOLS.concat(customPowerTools)) {
       if (entry.infoOnly) continue;
       const { fieldIds, buttonIds } = powerToolIdsFor(entry);
       if (entry.mode === "field" || entry.mode === "both") {
         for (const fid of fieldIds) {
-          const el = $(fid);
-          if (el) el.classList.add("power-tool");
+          const el2 = $(fid);
+          if (el2) el2.classList.add("power-tool");
         }
       }
       if (entry.mode === "button" || entry.mode === "both") {
         for (const bid of buttonIds) {
-          const el = $(bid);
-          if (el) el.classList.add("power-tool");
+          const el2 = $(bid);
+          if (el2) el2.classList.add("power-tool");
         }
       }
     }
@@ -3967,9 +3999,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     }
   }
   function onPowerToolPickerClick(ev) {
-    const el = ev.target.closest("input, textarea, select, button");
+    const el2 = ev.target.closest("input, textarea, select, button");
     exitPowerToolPicker();
-    if (!el || !el.id || el.classList.contains("tab-btn")) {
+    if (!el2 || !el2.id || el2.classList.contains("tab-btn")) {
       ev.preventDefault();
       ev.stopPropagation();
       toast("That spot isn't a markable field or button \u2014 try again.");
@@ -3978,7 +4010,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     }
     ev.preventDefault();
     ev.stopPropagation();
-    const existing = findPowerToolMatch(el.id);
+    const existing = findPowerToolMatch(el2.id);
     if (existing && existing.scope === "builtin") {
       toast("That's already a built-in power tool and can't be unmarked.");
       finishPowerToolPicking();
@@ -3990,15 +4022,15 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       finishPowerToolPicking();
       return;
     }
-    const container = el.closest(".apply-row, .gtt-row");
+    const container = el2.closest(".apply-row, .gtt-row");
     let fields = [], buttons = [];
     if (container) {
       fields = Array.from(container.querySelectorAll("input, textarea, select")).filter((x) => x.id);
       buttons = Array.from(container.querySelectorAll("button")).filter((x) => x.id);
     }
-    const isField = el.matches("input, textarea, select");
-    if (fields.length === 0) fields = isField ? [el] : [];
-    if (buttons.length === 0) buttons = !isField ? [el] : [];
+    const isField = el2.matches("input, textarea, select");
+    if (fields.length === 0) fields = isField ? [el2] : [];
+    if (buttons.length === 0) buttons = !isField ? [el2] : [];
     const fieldIds = fields.map((f) => f.id);
     const buttonIds = buttons.map((b) => b.id);
     const matchedCandidate = OPTIONAL_POWER_TOOL_CANDIDATES.find((cand) => {
@@ -4012,15 +4044,15 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       return;
     }
     if (fields.length && buttons.length) {
-      openPowerToolModeChoice(el, fields, buttons, ev.clientX, ev.clientY);
+      openPowerToolModeChoice(el2, fields, buttons, ev.clientX, ev.clientY);
     } else {
       const mode = fieldIds.length ? "field" : "button";
-      const label = buttons[0] && buttons[0].textContent.trim() || fields[0] && (fields[0].placeholder || fields[0].id) || el.id;
+      const label = buttons[0] && buttons[0].textContent.trim() || fields[0] && (fields[0].placeholder || fields[0].id) || el2.id;
       addCustomPowerTool(fieldIds, buttonIds, mode, label.slice(0, 60));
       finishPowerToolPicking();
     }
   }
-  function openPowerToolModeChoice(el, fields, buttons, x, y) {
+  function openPowerToolModeChoice(el2, fields, buttons, x, y) {
     const menu = document.createElement("div");
     menu.className = "pt-choice-menu";
     const header = document.createElement("div");
@@ -4029,22 +4061,22 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     menu.appendChild(header);
     const fieldIds = fields.map((f) => f.id);
     const buttonIds = buttons.map((b) => b.id);
-    const label = (buttons[0] && buttons[0].textContent.trim() || fields[0] && (fields[0].placeholder || fields[0].id) || el.id).slice(0, 60);
+    const label = (buttons[0] && buttons[0].textContent.trim() || fields[0] && (fields[0].placeholder || fields[0].id) || el2.id).slice(0, 60);
     const choices = [
       ["field", "Highlight the field" + (fields.length > 1 ? "s" : "")],
       ["button", "Highlight the button"],
       ["both", "Highlight both"]
     ];
     for (const [mode, text] of choices) {
-      const btn = document.createElement("button");
-      btn.textContent = text;
-      btn.addEventListener("click", () => {
+      const btn2 = document.createElement("button");
+      btn2.textContent = text;
+      btn2.addEventListener("click", () => {
         menu.remove();
         document.removeEventListener("click", onOutsideCloseChoiceMenu, true);
         addCustomPowerTool(fieldIds, buttonIds, mode, label);
         finishPowerToolPicking();
       });
-      menu.appendChild(btn);
+      menu.appendChild(btn2);
     }
     document.body.appendChild(menu);
     positionMenu(menu, x, y);
@@ -4192,6 +4224,34 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       <code>.txt</code>${isTouchDevice ? " (you choose which app to pick them from)" : ""}. With no
       dataset open it first offers to create one: name it, choose where its folder goes, and it
       opens ready for the images.</p>
+      <h3>Curate a folder first</h3>
+      <p>The <b>Curate</b> tab (next to Datasets) is for a folder of new images you haven't sorted
+      yet. It opens on your curation folders, like the Datasets tab: <b>+</b> adds a folder, and
+      every folder you've curated stays as a tile \u2014 click it to go back to where you left off, even
+      after a restart (<b>\u2039 Folders</b> returns to the list). An open folder shows every image in it as a <b>Grid</b>, or one at a time in
+      <b>Single</b> (\u2190 / \u2192 or the \u2039 \u203A buttons; click the image to zoom). In the grid, click images
+      to select them (Shift-click for a range, drag a box across several \u2014 Alt-drag deselects \u2014
+      double-click to open one), then <b>Add selected to
+      dataset</b> copies them, and any <code>.txt</code> captions they have, into the open dataset,
+      or <b>New dataset from selected\u2026</b> makes a new dataset folder for them. In Single, those
+      actions apply to the image on screen. Each image shows its resolution; one with both sides
+      under 1024px is flagged red (usually a preview or WIP).</p>
+      <p><b>Artstyles</b> keep an artist's different styles apart, so one style never mixes with
+      another in a dataset (train each as its own branch later). <b>Create Artstyle\u2026</b> makes a
+      folder of that name inside the opened folder. Assigning <i>moves</i> the image (and its
+      caption) into that folder; <b>Unsorted</b> moves it back. In Single, each artstyle is a
+      button beside the image \u2014 click it, or press its number (0 = Unsorted, 1\u20139 the artstyles), to
+      move the image and go on to the next one. <b>Create junk folder</b> makes a <b>junk</b>
+      folder (labelled red) for images you're throwing out. The toolbar's folder buttons
+      (<b>All</b>, <b>Unsorted</b>, each artstyle, <b>Junk</b>, with image counts) show one folder at
+      a time.</p>
+      <p><b>Duplicates</b> (the third view) groups images that look the same: resized, re-saved,
+      mirrored or lightly edited copies. The folder buttons pick where to look \u2014 every folder but
+      junk, or one artstyle at a time. The biggest copy is marked <b>Keep</b> (click to change,
+      double-click to zoom, then \u2190 / \u2192 through the rest of its group); <b>Junk the others</b> / <b>Junk all extras</b> moves the rest to the junk folder.
+      Each image's <b>Move to\u2026</b> sends just that copy to an artstyle (or a new one) \u2014 for variants
+      like flat-colour or monochrome versions.
+      <b>Strictness</b> sets how alike they must be.</p>
       <h3>What the app writes into your folder</h3>
       <p>None of these touch your images or captions unless you tell them to:</p>
       <ul>
@@ -4336,7 +4396,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       html: `
       <p><b>\u{1F9FA} Bucket Images</b> (in the Gallery's right sidebar) crops and resizes every Gallery
       image to its nearest LoRA training bucket (Min side / Max side / Step, default 512 / 1024 /
-      64, remembered per dataset and also set from the Trainflow tab), so your trainer doesn't have to. The crop keeps the subject using a saliency model (a
+      64, remembered per dataset and also set from the Trainflow tab), so your trainer doesn't have to.
+      A bucket's short side is always Min side; the <b>Training size</b> picker sets the fields for
+      \u2248512 (fast, less detail), \u2248640 (the default) or \u22481024 (more detail, slower), and the line under
+      them says what a 2:3 and a square image become. The crop keeps the subject using a saliency model (a
       one-time ~176 MB download, \u2B07 button in the dock). <b>Prefer GPU</b> runs it on your graphics
       card with an automatic CPU fallback. Originals are never lost: they move to an
       <code>original_images/</code> folder (browse them via the \u{1F5BC} Originals view), and every image
@@ -4357,7 +4420,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       id: "step-trainflow",
       title: "8 \xB7 Train with Trainflow",
       html: `
-      <p>Trains a LoRA for <b>Anima</b>, or <b>Janima</b>, on the dataset you have loaded. It uses your own
+      <p><b>Get the trainer first:</b> download <code>Anima-TrainFlow-Osmium</code> from the release page,
+      unzip it (about 8 GB free) and run its <code>Install_Requirements.bat</code> once \u2014 it downloads
+      PyTorch and the trainer's packages (about 5 GB).</p>
+      <p>Trains a LoRA for <b>Anima</b>, or <b>Janima</b>, on the dataset you have loaded. It uses that
       Anima-TrainFlow folder (the one with <code>python_embeded</code> and <code>training</code>)
       for Python and the trainer, and your own Anima or Janima DiT, Qwen3 and VAE files (choose them once;
       the fields start empty). The first time you open a folder, Osmium caches it so Trainflow can
@@ -4373,7 +4439,28 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
       you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
       and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
-      folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.</p>`
+      folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.
+      Training the same trigger again starts a new folder (<code>&lt;project&gt;_2</code>, <code>_3</code>, \u2026)
+      instead of reusing the old one; continuing a run keeps it in its own folder.
+      <b>Send\u2026</b> next to a checkpoint copies it to a folder you choose (\u2605 remembers a favorite)
+      under the name you give it; it never overwrites a file that's already there.</p>
+      <p><b>Network type</b>: LoRA, <b>LoKr</b> or LoHa. LoKr captures much richer changes in a quarter of
+      the file at the same rank (good for styles; the <b>LoKr factor</b> is usually 4) and wants a higher
+      learning rate than LoRA unless you use Prodigy. <b>LoRA+ ratio</b> (Advanced, 0 = off) makes each
+      layer's second matrix learn that many times faster, often reaching the same result in fewer steps:
+      16 with AdamW / Lion, 2\u20134 with Prodigy. The <b>Advanced</b> section adds more optimizers,
+      training the modulation layers (training the LLM adapter is offered too, but Anima's model card
+      advises against it), per-block <b>torch.compile</b>, <b>Checkpoint
+      offload</b> (less VRAM; not together with Blocks to swap), <b>Shuffle tags</b> / <b>Tag dropout</b>
+      (the text encoder then runs every step: more VRAM), and a <b>Validation split</b> that reports a
+      <b>Val loss</b>: when it stops falling, the run is overfitting. <b>Extra image folders</b> (Dataset)
+      train more captioned folders together with this one.</p>
+      <p><b>Continue training</b>: if a run stopped short (step 600 not quite there), pick one of its
+      checkpoints in <b>Start from</b>, set <b>More steps</b> and press <b>Continue training</b>.
+      <i>From checkpoint weights</i> works on any checkpoint: it trains the LoRA further under a new name
+      (<code>\u2026-from600</code>), with a fresh optimizer and learning-rate schedule. <i>Exact resume</i> picks
+      up the run itself, optimizer and schedule included, with the step count carrying on; it needs
+      <b>Resume state</b> (Training section) turned on when that run was trained.</p>`
     }],
     {
       id: "gallery",
@@ -4424,7 +4511,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       <p><b>Locking</b> an image (\u{1F512}, in its 3-dot menu) keeps it out of every mass or automatic
       tool \u2014 Unify/Void, Master Tags, bulk WD14 \u2014 while leaving it fully editable by hand. Use it
       to protect one image from an unattended batch operation without disabling it.</p>
-      ${isTouchDevice ? "<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>" : "<p>Opening a card image also offers <b>\u27F2/\u27F3 Rotate</b> and <b>\u2702 Crop</b> \u2014 pixel edits that rewrite the image file in place (confirmed first, logged and undoable in the Log), with Crop\u2019s Isolate button saving the selected region as a NEW dataset image instead of touching the source.</p>"}`
+      ${isTouchDevice ? "<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>" : "<p>Opening a card image also offers <b>\u27F2/\u27F3 Rotate</b> and <b>\u2702 Crop</b> \u2014 pixel edits that rewrite the image file in place (confirmed first, logged and undoable in the Log), with Crop\u2019s Isolate button saving the selected region as a NEW dataset image instead of touching the source. <b>Isolate (Split)</b> cuts the whole image along vertical and/or horizontal lines (set how many, drag them into place, Reset lines to space them evenly) and saves every piece as a new image \u2014 handy for character sheets and panel pages; one Undo removes them all.</p>"}`
     },
     {
       id: "image-menu",
@@ -4989,13 +5076,13 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   function initGroundScroll(toggle) {
     const gallery = document.getElementById("gallery");
     if (!gallery) return;
-    const root = document.documentElement;
+    const root2 = document.documentElement;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const rain = createRain(gallery);
     let anim = null;
     let scheduled = false;
     const syncRain = (restart) => {
-      const want = toggle.checked && !reduced.matches && root.getAttribute("data-theme") === "terminal" && !root.classList.contains("no-flourish-ambient");
+      const want = toggle.checked && !reduced.matches && root2.getAttribute("data-theme") === "terminal" && !root2.classList.contains("no-flourish-ambient");
       if (!want) rain.stop();
       else if (restart || !rain.running()) {
         rain.stop();
@@ -5012,7 +5099,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     const start = () => {
       stop();
       syncRain(true);
-      root.classList.toggle("ground-scroll-on", toggle.checked);
+      root2.classList.toggle("ground-scroll-on", toggle.checked);
       if (!toggle.checked || reduced.matches) return;
       const p = plan(getComputedStyle(gallery));
       if (!p.moving) return;
@@ -5021,7 +5108,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         [{ backgroundPosition: p.from }, { backgroundPosition: p.to }],
         { duration: LOOP_S * 1e3, iterations: Infinity, easing: "linear" }
       );
-      if (root.classList.contains("no-flourish-ambient")) anim.pause();
+      if (root2.classList.contains("no-flourish-ambient")) anim.pause();
     };
     const refresh2 = () => {
       if (scheduled) return;
@@ -5040,13 +5127,13 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     new MutationObserver((muts) => {
       if (muts.some((m) => m.attributeName === "class")) {
         if (anim) {
-          if (root.classList.contains("no-flourish-ambient")) anim.pause();
+          if (root2.classList.contains("no-flourish-ambient")) anim.pause();
           else if (anim.playState === "paused") anim.play();
         }
         syncRain(false);
       }
       if (muts.some((m) => m.attributeName !== "class")) refresh2();
-    }).observe(root, { attributes: true, attributeFilter: ["data-theme", "style", "class"] });
+    }).observe(root2, { attributes: true, attributeFilter: ["data-theme", "style", "class"] });
     start();
   }
 
@@ -5060,10 +5147,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   var getEditLog = () => [];
   var refreshThemeDropdownLabel = () => {
   };
-  function initAchievements(deps3) {
-    getDirHandle = deps3.getDirHandle;
-    getEditLog = deps3.getEditLog;
-    refreshThemeDropdownLabel = deps3.refreshThemeDropdownLabel;
+  function initAchievements(deps4) {
+    getDirHandle = deps4.getDirHandle;
+    getEditLog = deps4.getEditLog;
+    refreshThemeDropdownLabel = deps4.refreshThemeDropdownLabel;
   }
   var RARITY_VALUE = { common: 10, uncommon: 25, rare: 60, epic: 120, legendary: 250 };
   var ACHIEVEMENTS = [
@@ -5310,29 +5397,29 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       const info = document.createElement("div");
       info.className = "shop-info";
       info.innerHTML = `<div class="shop-name">${escapeHtml(t.name)}</div><div class="shop-rarity">${t.rarity} \xB7 ${t.price} Edibits</div>`;
-      const btn = document.createElement("button");
+      const btn2 = document.createElement("button");
       if (owned) {
         const active = themeSelect.value === t.id;
-        setIconLabel(btn, active ? "In use \u2713" : "Use");
-        btn.disabled = active;
+        setIconLabel(btn2, active ? "In use \u2713" : "Use");
+        btn2.disabled = active;
         if (!active) {
-          btn.addEventListener("click", (ev) => {
+          btn2.addEventListener("click", (ev) => {
             ev.stopPropagation();
             useOwnedTheme(t);
           });
         }
       } else {
-        btn.textContent = "Buy";
-        btn.className = "primary";
-        btn.disabled = wallet < t.price;
-        btn.addEventListener("click", (ev) => {
+        btn2.textContent = "Buy";
+        btn2.className = "primary";
+        btn2.disabled = wallet < t.price;
+        btn2.addEventListener("click", (ev) => {
           ev.stopPropagation();
           buyTheme(t);
         });
       }
       row.appendChild(swatches);
       row.appendChild(info);
-      row.appendChild(btn);
+      row.appendChild(btn2);
       shopList.appendChild(row);
     }
   }
@@ -5538,6 +5625,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   var getUndoStack = () => [];
   var getRedoStack = () => [];
   var resolveAffected = () => void 0;
+  var setUndoRuleTagsRef = () => {
+  };
   function pushLogEntry(partial) {
     const entry = {
       ...partial,
@@ -5622,12 +5711,12 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   }
   function affectedImageButton(entry) {
     if (!entry || !entry.objectUrl) return null;
-    const btn = document.createElement("button");
-    btn.className = "log-show-image-btn";
-    btn.title = "Show the image this edit affected in the lightbox";
-    setIconLabel(btn, "\u25B8 Show affected image");
-    btn.addEventListener("click", () => showImageLightbox(entry.objectUrl));
-    return btn;
+    const btn2 = document.createElement("button");
+    btn2.className = "log-show-image-btn";
+    btn2.title = "Show the image this edit affected in the lightbox";
+    setIconLabel(btn2, "\u25B8 Show affected image");
+    btn2.addEventListener("click", () => showImageLightbox(entry.objectUrl));
+    return btn2;
   }
   var STAT_CHART_COLORS = {
     "add-tag": "#6fb8d1",
@@ -5685,12 +5774,12 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     }
     return counts;
   }
-  function animateCountUp(el, target, duration = 600) {
+  function animateCountUp(el2, target, duration = 600) {
     const start = 0;
     const startTime = performance.now();
     function tick2(now) {
       const p = Math.min(1, (now - startTime) / duration);
-      el.textContent = String(Math.round(start + (target - start) * p));
+      el2.textContent = String(Math.round(start + (target - start) * p));
       if (p < 1) requestAnimationFrame(tick2);
     }
     requestAnimationFrame(tick2);
@@ -5907,24 +5996,24 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     logPager.innerHTML = "";
     if (totalPages <= 1) return;
     for (const p of pagerPages(totalPages, logPage)) {
-      const btn = document.createElement("button");
+      const btn2 = document.createElement("button");
       if (p === -1) {
-        btn.className = "log-page log-page-gap";
-        btn.textContent = "\u2026";
-        btn.title = "Jump to page";
-        btn.addEventListener("click", () => {
+        btn2.className = "log-page log-page-gap";
+        btn2.textContent = "\u2026";
+        btn2.title = "Jump to page";
+        btn2.addEventListener("click", () => {
           void jumpToLogPage(totalPages);
         });
       } else {
-        btn.className = "log-page" + (p === logPage ? " active" : "");
-        btn.textContent = String(p);
-        btn.title = `Page ${p}`;
-        btn.addEventListener("click", () => {
+        btn2.className = "log-page" + (p === logPage ? " active" : "");
+        btn2.textContent = String(p);
+        btn2.title = `Page ${p}`;
+        btn2.addEventListener("click", () => {
           logPage = p;
           renderLogPanel();
         });
       }
-      logPager.appendChild(btn);
+      logPager.appendChild(btn2);
     }
   }
   async function jumpToLogPage(totalPages) {
@@ -5992,9 +6081,11 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     return btns;
   }
   async function runAffected(logEntry, a, direction, after) {
+    if (direction === "undo") setUndoRuleTagsRef(logEntry, false);
     const count = await applyAffectedDirection(logEntry, a, direction);
+    if (direction === "redo") setUndoRuleTagsRef(logEntry, true);
     if (count === 0) {
-      toast("That edit can no longer be applied.");
+      toast(`Nothing changed: this image is already ${direction === "undo" ? "without" : "with"} that edit (or its data is gone).`, 3600);
       return;
     }
     const verb = direction === "undo" ? "Undid" : "Redid";
@@ -6122,20 +6213,21 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     btnRow.appendChild(closeBtn);
     box.appendChild(btnRow);
   }
-  function initEditLog(deps3) {
-    getDirHandle2 = deps3.getDirHandle;
-    applyTagDirectionRef = deps3.applyTagDirection;
-    applyRenameDirectionRef = deps3.applyRenameDirection;
-    applyPixelDirectionRef = deps3.applyPixelDirection;
-    applyIsolateDirectionRef = deps3.applyIsolateDirection;
-    applyFlaggedReviewDirectionRef = deps3.applyFlaggedReviewDirection;
-    moveEntryRef = deps3.moveEntry;
-    trackStatRef = deps3.trackStat;
-    checkAchievementsRef = deps3.checkAchievements;
-    refreshAllUIRef = deps3.refreshAllUI;
-    getUndoStack = deps3.getUndoStack;
-    getRedoStack = deps3.getRedoStack;
-    resolveAffected = deps3.resolveAffected;
+  function initEditLog(deps4) {
+    getDirHandle2 = deps4.getDirHandle;
+    applyTagDirectionRef = deps4.applyTagDirection;
+    applyRenameDirectionRef = deps4.applyRenameDirection;
+    applyPixelDirectionRef = deps4.applyPixelDirection;
+    applyIsolateDirectionRef = deps4.applyIsolateDirection;
+    applyFlaggedReviewDirectionRef = deps4.applyFlaggedReviewDirection;
+    moveEntryRef = deps4.moveEntry;
+    trackStatRef = deps4.trackStat;
+    checkAchievementsRef = deps4.checkAchievements;
+    refreshAllUIRef = deps4.refreshAllUI;
+    getUndoStack = deps4.getUndoStack;
+    getRedoStack = deps4.getRedoStack;
+    resolveAffected = deps4.resolveAffected;
+    setUndoRuleTagsRef = deps4.setUndoRuleTags;
     statsViewPie.addEventListener("click", () => {
       statsChartMode = "pie";
       statsViewPie.classList.add("active");
@@ -6220,7 +6312,6 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       const ok = await showConfirmModal(`Clear all ${editLog.length} log entries for this folder? This cannot be undone.`, { okLabel: "Clear log", danger: true });
       if (!ok) return;
       editLog = [];
-      logIdCounter = 1;
       updateLogButton();
       saveEditLog();
       renderLogPanel();
@@ -6405,38 +6496,38 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     return touched;
   }
   function buildMergeEvidenceIndex(canonical, tags) {
-    const index = new Map(tags.map((t) => [t, /* @__PURE__ */ new Set()]));
+    const index2 = new Map(tags.map((t) => [t, /* @__PURE__ */ new Set()]));
     for (const le of editLog) {
       if (le.type !== "merge" && le.type !== "rule-sweep" || le.unifiedTag !== canonical) continue;
       const merged = le.mergedTags || [];
       for (const a of le.affected || []) {
         const prev = a.prevTags || [];
         for (const t of tags) {
-          if (merged.includes(t) && prev.includes(t)) index.get(t).add(a.base);
+          if (merged.includes(t) && prev.includes(t)) index2.get(t).add(a.base);
         }
       }
     }
-    return index;
+    return index2;
   }
   function buildVoidEvidenceIndex(tags) {
-    const index = new Map(tags.map((t) => [t, /* @__PURE__ */ new Set()]));
+    const index2 = new Map(tags.map((t) => [t, /* @__PURE__ */ new Set()]));
     for (const le of editLog) {
       if (le.type !== "void" && !(le.type === "rule-sweep" && !le.unifiedTag)) continue;
       const voided = le.voidedTags || [];
       for (const a of le.affected || []) {
         const prev = a.prevTags || [];
         for (const t of tags) {
-          if (voided.includes(t) && prev.includes(t)) index.get(t).add(a.base);
+          if (voided.includes(t) && prev.includes(t)) index2.get(t).add(a.base);
         }
       }
     }
-    return index;
+    return index2;
   }
   function unmergeChildren(rule, childrenBeingTurnedOff) {
     let touched = 0;
     const affected = [];
     if (!rule.canonical) {
-      const index = buildVoidEvidenceIndex(childrenBeingTurnedOff);
+      const index2 = buildVoidEvidenceIndex(childrenBeingTurnedOff);
       for (const e of getEntries()) {
         if (e.meta && e.meta.locked) continue;
         if (e.disabled) continue;
@@ -6445,7 +6536,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         const dismissed = e.meta?.ghostDismissed || [];
         for (const child of childrenBeingTurnedOff) {
           if (e.tags.includes(child)) continue;
-          if (!index.get(child).has(e.base)) continue;
+          if (!index2.get(child).has(e.base)) continue;
           if (dismissed.includes(child)) continue;
           e.tags = [...e.tags, child];
           changed = true;
@@ -6461,7 +6552,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         recordChangeRef("unvoid", `Unvoided ${tagPhrase} back onto ${touched} image(s).`, affected, { revivedTags: childrenBeingTurnedOff.slice() });
       }
     } else {
-      const index = buildMergeEvidenceIndex(rule.canonical, rule.children);
+      const index2 = buildMergeEvidenceIndex(rule.canonical, rule.children);
       const disabledChildren = rule.disabledChildren || [];
       for (const e of getEntries()) {
         if (e.meta && e.meta.locked) continue;
@@ -6472,7 +6563,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         let stillJustified = false;
         const dismissed = e.meta?.ghostDismissed || [];
         for (const child of rule.children) {
-          const hadIt = index.get(child).has(e.base) && !dismissed.includes(child);
+          const hadIt = index2.get(child).has(e.base) && !dismissed.includes(child);
           if (childrenBeingTurnedOff.includes(child)) {
             if (hadIt && !e.tags.includes(child)) {
               e.tags = [...e.tags, child];
@@ -6593,6 +6684,21 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     renderCanonicalTagsList();
     resweepAllEntries();
   }
+  function setUndoRuleTags(rec, active) {
+    const isMerge = rec.type === "merge" && typeof rec.unifiedTag === "string";
+    const tags = isMerge ? rec.mergedTags : rec.type === "void" ? rec.voidedTags : null;
+    if (!Array.isArray(tags) || !tags.length) return;
+    const rule = isMerge ? canonicalRules.find((r) => r.canonical === rec.unifiedTag) : canonicalRules.find((r) => r.canonical === null);
+    if (!rule) return;
+    const off = rule.disabledChildren || (rule.disabledChildren = []);
+    const changed = tags.filter((t) => rule.children.includes(t) && off.includes(t) === active);
+    if (!changed.length) return;
+    rule.disabledChildren = active ? off.filter((t) => !changed.includes(t)) : [...off, ...changed];
+    logRuleChange(`${active ? "Resumed" : "Paused"} ${changed.map((t) => `"${t}"`).join(", ")} in the ${ruleLabel(rule)} (${active ? "redo" : "undo"} of that ${rec.type}).`);
+    markRulesDirtyRef();
+    renderCanonicalTagsList();
+    if (active) resweepAllEntries();
+  }
   function commitRuleChange() {
     markRulesDirtyRef();
     resweepAllEntries();
@@ -6610,11 +6716,11 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     const label = document.createElement("span");
     label.textContent = text;
     chip.appendChild(label);
-    const btn = document.createElement("button");
-    btn.textContent = "\xD7";
-    btn.title = "Remove this tag from the rule entirely";
-    btn.addEventListener("click", onRemove);
-    chip.appendChild(btn);
+    const btn2 = document.createElement("button");
+    btn2.textContent = "\xD7";
+    btn2.title = "Remove this tag from the rule entirely";
+    btn2.addEventListener("click", onRemove);
+    chip.appendChild(btn2);
     return chip;
   }
   function buildRuleRow(rule) {
@@ -6763,13 +6869,13 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     section.appendChild(body);
     canonicalTagsList.appendChild(section);
   }
-  function initCanonicalTags(deps3) {
-    getDirHandle3 = deps3.getDirHandle;
-    getEntries = deps3.getEntries;
-    markDirtyRef = deps3.markDirty;
-    refreshAllUIRef2 = deps3.refreshAllUI;
-    markRulesDirtyRef = deps3.markRulesDirty;
-    recordChangeRef = deps3.recordChange;
+  function initCanonicalTags(deps4) {
+    getDirHandle3 = deps4.getDirHandle;
+    getEntries = deps4.getEntries;
+    markDirtyRef = deps4.markDirty;
+    refreshAllUIRef2 = deps4.refreshAllUI;
+    markRulesDirtyRef = deps4.markRulesDirty;
+    recordChangeRef = deps4.recordChange;
     btnAddCanonicalRule.addEventListener("click", () => {
       const newRule = { id: nextRuleId(), canonical: "", children: [], ...newRuleDefaults() };
       canonicalRules.push(newRule);
@@ -6812,14 +6918,14 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
   var undoRedoBusy = false;
   var pixelStates = /* @__PURE__ */ new Map();
   var isolateStates = /* @__PURE__ */ new Map();
-  function getIsolateState(id) {
-    return isolateStates.get(id);
+  function getIsolateState(id, base) {
+    return isolateStates.get(`${id}|${base}`);
   }
-  function recordIsolateChange(summary, base, state) {
-    const logEntry = pushLogEntry({ type: "isolate-image", summary, affected: [{ base }] });
-    logEntry.affected[0].logId = logEntry.id;
-    isolateStates.set(logEntry.id, state);
-    undoStack.push({ type: "isolate-image", summary, affected: [{ base, logId: logEntry.id }] });
+  function recordIsolateChange(summary, items2) {
+    const logEntry = pushLogEntry({ type: "isolate-image", summary, affected: items2.map((it) => ({ base: it.base })) });
+    for (const a of logEntry.affected) a.logId = logEntry.id;
+    for (const it of items2) isolateStates.set(`${logEntry.id}|${it.base}`, it.state);
+    undoStack.push({ type: "isolate-image", summary, affected: items2.map((it) => ({ base: it.base, logId: logEntry.id })) });
     redoStack = [];
     updateUndoRedoButtons();
   }
@@ -6923,15 +7029,16 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     btnSave.disabled = dirtyCount === 0 && !rulesDirty;
   }
   function resetImageEdits(entry) {
+    const mine = (a) => a.base === entry.base && !!a.original === !!entry.original;
     const relevant = editLog.filter(
-      (le) => le.affected && le.affected.some((a) => a.base === entry.base && a.prevTags) && le.type !== "restore" && le.type !== "disable" && le.type !== "undo" && le.type !== "redo" && le.type !== "reset-edits"
+      (le) => le.affected && le.affected.some((a) => mine(a) && a.prevTags) && le.type !== "restore" && le.type !== "disable" && le.type !== "undo" && le.type !== "redo" && le.type !== "reset-edits"
     );
     if (relevant.length === 0) {
       toast("No edit history found for this image yet.");
       return;
     }
     const first = relevant[0];
-    const affectedItem = first.affected.find((a) => a.base === entry.base);
+    const affectedItem = first.affected.find((a) => mine(a) && a.prevTags);
     const prevTags = entry.tags.slice();
     entry.tags = affectedItem.prevTags.slice();
     markDirty(entry);
@@ -7013,6 +7120,33 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     pushLogEntry({ type, summary, affected, ...extra });
     return record;
   }
+  function remapBases(map, skip = []) {
+    if (!map.size) return;
+    const skipSet = new Set(skip);
+    const restem = (name, oldBase, newBase) => {
+      if (!name) return name;
+      const i = name.lastIndexOf(".");
+      return (i === -1 ? name : name.slice(0, i)) === oldBase ? newBase + (i === -1 ? "" : name.slice(i)) : name;
+    };
+    const fix = (a) => {
+      if (skipSet.has(a)) return;
+      const next = map.get(a.base);
+      if (next === void 0) return;
+      a.newImgName = restem(a.newImgName, a.base, next);
+      a.newTxtName = restem(a.newTxtName, a.base, next);
+      a.base = next;
+    };
+    for (const r of [...undoStack, ...redoStack]) r.affected.forEach(fix);
+    for (const le of editLog) (le.affected || []).forEach(fix);
+    for (const [key, st] of Array.from(isolateStates)) {
+      const bar = key.indexOf("|");
+      const next = map.get(key.slice(bar + 1));
+      if (next === void 0) continue;
+      isolateStates.delete(key);
+      isolateStates.set(`${key.slice(0, bar)}|${next}`, st);
+    }
+    saveEditLog();
+  }
   function entryForAffected(a) {
     if (a.original) return getEntries2().find((e) => e.original && e.base === a.base);
     return getEntryByBase(a.base);
@@ -7024,10 +7158,16 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     let count = 0;
     for (const a of affected) {
       const e = entryForAffected(a);
-      if (!e) continue;
-      const target = direction === "undo" ? a.prevTags : a.newTags;
-      if (!target) continue;
-      e.tags = target.slice();
+      if (!e || !a.prevTags || !a.newTags) continue;
+      const from = direction === "undo" ? a.newTags : a.prevTags;
+      const to = direction === "undo" ? a.prevTags : a.newTags;
+      const drop = new Set(from.filter((t) => !to.includes(t)));
+      const tags = e.tags.filter((t) => !drop.has(t));
+      to.forEach((t, i) => {
+        if (!from.includes(t) && !tags.includes(t)) tags.splice(Math.min(i, tags.length), 0, t);
+      });
+      if (tags.length === e.tags.length && tags.every((t, i) => t === e.tags[i])) continue;
+      e.tags = tags;
       markDirty(e);
       count++;
     }
@@ -7119,8 +7259,18 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       toast("Could not move that file \u2014 check folder permissions.", 3600);
     }
   }
+  async function fileExists(dir, name) {
+    try {
+      await dir.getFileHandle(name, { create: false });
+      return true;
+    } catch {
+      return false;
+    }
+  }
   async function renameFileInPlace(dir, oldName, newName) {
+    if (oldName === newName) return dir.getFileHandle(oldName, { create: false });
     const oldHandle = await dir.getFileHandle(oldName, { create: false });
+    if (await fileExists(dir, newName)) throw new Error(`${newName} already exists.`);
     const file = await oldHandle.getFile();
     const newHandle = await dir.getFileHandle(newName, { create: true });
     await writeBytes(newHandle, file);
@@ -7183,66 +7333,114 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       };
     });
     const converted = plan2.filter((p) => p.toPng).length;
+    for (const p of plan2) {
+      const missing = !await fileExists(p.dir, p.oldImgName) ? p.oldImgName : p.oldTxtName && !await fileExists(p.dir, p.oldTxtName) ? p.oldTxtName : null;
+      if (missing) {
+        toast(`${missing} isn't on disk any more \u2014 reload the dataset and try again. Nothing was renamed.`, 5200);
+        return;
+      }
+    }
+    const tmpOf = (i, ext) => `__dts_rename_${Date.now().toString(36)}_${i}__${ext}`;
+    const moved = [];
     try {
       for (let i = 0; i < plan2.length; i++) {
         const p = plan2[i];
-        p.entry.imgHandle = p.toPng ? await convertToPngInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__.png`) : await renameFileInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__${extOf(p.oldImgName)}`);
+        p.entry.imgHandle = p.toPng ? await convertToPngInPlace(p.dir, p.oldImgName, tmpOf(i, ".png")) : await renameFileInPlace(p.dir, p.oldImgName, tmpOf(i, extOf(p.oldImgName)));
+        moved.push(p);
         if (p.entry.txtHandle && p.oldTxtName) {
-          p.entry.txtHandle = await renameFileInPlace(p.dir, p.oldTxtName, `__dts_rename_tmp_${i}__.txt`);
+          p.entry.txtHandle = await renameFileInPlace(p.dir, p.oldTxtName, tmpOf(i, ".txt"));
         }
       }
-      const affected = [];
-      const origDir = getOriginalDirHandle();
-      for (const p of plan2) {
+    } catch (err) {
+      for (const p of moved) {
+        try {
+          p.entry.imgHandle = await renameFileInPlace(p.dir, p.entry.imgHandle.name, p.toPng ? `${p.oldBase}.png` : p.oldImgName);
+          if (p.entry.txtHandle && p.oldTxtName) p.entry.txtHandle = await renameFileInPlace(p.dir, p.entry.txtHandle.name, p.oldTxtName);
+        } catch {
+        }
+      }
+      const why = err instanceof Error ? ` (${err.message})` : "";
+      toast(`Rename stopped${why} \u2014 the files were put back. Close anything using the folder and try again.`, 5200);
+      refreshAllUIRef3();
+      return;
+    }
+    const affected = [];
+    const stuck = [];
+    const renamedPairs = [];
+    for (const p of plan2) {
+      try {
         p.entry.imgHandle = await renameFileInPlace(p.dir, p.entry.imgHandle.name, p.newImgName);
         if (p.entry.txtHandle) {
           p.entry.txtHandle = await renameFileInPlace(p.dir, p.entry.txtHandle.name, p.newTxtName);
         }
-        const pairedOriginal = originalByBase.get(p.oldBase);
-        if (origDir && pairedOriginal) {
-          const oldOrigName = pairedOriginal.imgName || pairedOriginal.base;
-          const newOrigName = p.newBase + extOf(oldOrigName);
-          try {
-            pairedOriginal.imgHandle = await renameFileInPlace(origDir, oldOrigName, newOrigName);
-            if (pairedOriginal.txtHandle && pairedOriginal.txtName) {
-              pairedOriginal.txtHandle = await renameFileInPlace(origDir, pairedOriginal.txtName, `${p.newBase}.txt`);
-            }
-            pairedOriginal.base = p.newBase;
-            pairedOriginal.imgName = newOrigName;
-            pairedOriginal.txtName = `${p.newBase}.txt`;
-            originalByBase.delete(p.oldBase);
-            originalByBase.set(p.newBase, pairedOriginal);
-          } catch {
-          }
-        }
-        reindexEntry(p.oldBase, p.newBase);
-        p.entry.base = p.newBase;
-        p.entry.imgName = p.newImgName;
-        p.entry.txtName = `${p.newBase}.txt`;
-        affected.push({
-          base: p.newBase,
-          prevBase: p.oldBase,
-          // A converted WebP undoes to its old name as a .png: the conversion
-          // itself is permanent, only the rename is undoable.
-          prevImgName: p.toPng ? `${p.oldBase}.png` : p.oldImgName,
-          newImgName: p.newImgName,
-          prevTxtName: p.oldTxtName || void 0,
-          newTxtName: p.newTxtName || void 0
-        });
+      } catch {
+        stuck.push(p.oldImgName);
+        continue;
       }
-      const convertedNote = converted ? ` ${converted} WebP image(s) converted to PNG.` : "";
+      const pairedOriginal = originalByBase.get(p.oldBase);
+      if (pairedOriginal) renamedPairs.push({ original: pairedOriginal, newBase: p.newBase });
+      reindexEntry(p.oldBase, p.newBase);
+      p.entry.base = p.newBase;
+      p.entry.imgName = p.newImgName;
+      p.entry.txtName = `${p.newBase}.txt`;
+      affected.push({
+        base: p.newBase,
+        prevBase: p.oldBase,
+        // A converted WebP undoes to its old name as a .png: the conversion
+        // itself is permanent, only the rename is undoable.
+        prevImgName: p.toPng ? `${p.oldBase}.png` : p.oldImgName,
+        newImgName: p.newImgName,
+        prevTxtName: p.oldTxtName || void 0,
+        newTxtName: p.newTxtName || void 0
+      });
+    }
+    const origDir = getOriginalDirHandle();
+    if (origDir) {
+      const pairs = renamedPairs.filter((r) => r.original.base !== r.newBase);
+      const staged = [];
+      for (let i = 0; i < pairs.length; i++) {
+        const { original, newBase } = pairs[i];
+        const ext = extOf(original.imgName || original.base);
+        try {
+          original.imgHandle = await renameFileInPlace(origDir, original.imgName || original.base, tmpOf(i, ext));
+          if (original.txtHandle && original.txtName) {
+            original.txtHandle = await renameFileInPlace(origDir, original.txtName, tmpOf(i, ".txt"));
+          }
+          staged.push({ original, newBase, ext });
+        } catch {
+          stuck.push(`original_images/${original.imgName}`);
+        }
+      }
+      for (const { original, newBase, ext } of staged) {
+        try {
+          original.imgHandle = await renameFileInPlace(origDir, original.imgHandle.name, newBase + ext);
+          if (original.txtHandle) {
+            original.txtHandle = await renameFileInPlace(origDir, original.txtHandle.name, `${newBase}.txt`);
+          }
+          original.base = newBase;
+          original.imgName = newBase + ext;
+          original.txtName = `${newBase}.txt`;
+        } catch {
+          stuck.push(`original_images/${original.imgName}`);
+        }
+      }
+    }
+    remapBases(new Map(affected.map((a) => [a.prevBase, a.base])));
+    const convertedNote = converted ? ` ${converted} WebP image(s) converted to PNG.` : "";
+    if (affected.length) {
       pushLogEntry({
         type: "rename-files",
         summary: `Renamed ${affected.length} image(s) to a simple 1-${ordered.length} sequence.${convertedNote}`,
         affected
       });
-      toast(`Renamed ${affected.length} image(s).${convertedNote}`, 3600);
-      resetSingleIndex();
-      refreshAllUIRef3();
-    } catch (err) {
-      toast("Something went wrong partway through \u2014 check folder permissions. Some files may already be renamed; check the Log panel for what completed.", 4600);
-      refreshAllUIRef3();
     }
+    if (stuck.length) {
+      toast(`Renamed ${affected.length} image(s); ${stuck.length} couldn't be renamed and kept a temporary name (${stuck.slice(0, 3).join(", ")}${stuck.length > 3 ? "\u2026" : ""}). Run Rename all again to finish.`, 6e3);
+    } else {
+      toast(`Renamed ${affected.length} image(s).${convertedNote}`, 3600);
+    }
+    resetSingleIndex();
+    refreshAllUIRef3();
   }
   async function applyRenameDirection(affected, direction) {
     const dirHandle = getDirHandle4();
@@ -7253,6 +7451,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       return i === -1 ? "" : name.slice(i);
     };
     let count = 0;
+    const moved = /* @__PURE__ */ new Map();
     for (const a of affected) {
       if (!a.prevBase || !a.prevImgName || !a.newImgName) continue;
       const fromBase = direction === "undo" ? a.base : a.prevBase;
@@ -7290,36 +7489,40 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         reindexEntry(fromBase, toBase);
         entry.base = toBase;
         entry.imgName = toImgName;
+        moved.set(fromBase, toBase);
         count++;
       } catch (err) {
       }
     }
+    remapBases(moved, affected);
     return count;
   }
-  function initTagsEdit(deps3) {
-    getEntries2 = deps3.getEntries;
-    getEntryByBase = deps3.getEntryByBase;
-    getDirHandle4 = deps3.getDirHandle;
-    getDisabledDirHandle = deps3.getDisabledDirHandle;
-    setDisabledDirHandle = deps3.setDisabledDirHandle;
-    getOriginalDirHandle = deps3.getOriginalDirHandle;
-    reindexEntry = deps3.reindexEntry;
-    resetSingleIndex = deps3.resetSingleIndex;
-    refreshStatsRef = deps3.refreshStats;
-    refreshAllUIRef3 = deps3.refreshAllUI;
-    renderCurrentViewRef = deps3.renderCurrentView;
-    applyIsolateDirectionRef2 = deps3.applyIsolateDirection;
-    applyFlaggedReviewDirectionRef2 = deps3.applyFlaggedReviewDirection;
+  function initTagsEdit(deps4) {
+    getEntries2 = deps4.getEntries;
+    getEntryByBase = deps4.getEntryByBase;
+    getDirHandle4 = deps4.getDirHandle;
+    getDisabledDirHandle = deps4.getDisabledDirHandle;
+    setDisabledDirHandle = deps4.setDisabledDirHandle;
+    getOriginalDirHandle = deps4.getOriginalDirHandle;
+    reindexEntry = deps4.reindexEntry;
+    resetSingleIndex = deps4.resetSingleIndex;
+    refreshStatsRef = deps4.refreshStats;
+    refreshAllUIRef3 = deps4.refreshAllUI;
+    renderCurrentViewRef = deps4.renderCurrentView;
+    applyIsolateDirectionRef2 = deps4.applyIsolateDirection;
+    applyFlaggedReviewDirectionRef2 = deps4.applyFlaggedReviewDirection;
     btnUndo.addEventListener("click", async () => {
       if (undoRedoBusy) return;
       const record = undoStack.pop();
       if (!record) return;
       undoRedoBusy = true;
       try {
+        setUndoRuleTags(record, false);
         const count = PIXEL_TYPES.has(record.type) ? await applyPixelDirection(record.affected, "undo") : ISOLATE_TYPES.has(record.type) ? await applyIsolateDirectionRef2(record.affected, "undo") : REVIEW_TYPES.has(record.type) ? applyFlaggedReviewDirectionRef2(record.affected, "undo") : applyTagDirection(record.affected, "undo");
         if (count === 0) {
-          undoStack.push(record);
-          toast("Nothing to undo on the currently loaded images.");
+          redoStack.push(record);
+          updateUndoRedoButtons();
+          toast("Nothing changed (already undone, or its images aren't loaded). Undo again for the step before it.", 3600);
           return;
         }
         redoStack.push(record);
@@ -7341,9 +7544,11 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       undoRedoBusy = true;
       try {
         const count = PIXEL_TYPES.has(record.type) ? await applyPixelDirection(record.affected, "redo") : ISOLATE_TYPES.has(record.type) ? await applyIsolateDirectionRef2(record.affected, "redo") : REVIEW_TYPES.has(record.type) ? applyFlaggedReviewDirectionRef2(record.affected, "redo") : applyTagDirection(record.affected, "redo");
+        setUndoRuleTags(record, true);
         if (count === 0) {
-          redoStack.push(record);
-          toast("Nothing to redo on the currently loaded images.");
+          undoStack.push(record);
+          updateUndoRedoButtons();
+          toast("Nothing changed (already redone, or its images aren't loaded). Redo again for the next step.", 3600);
           return;
         }
         undoStack.push(record);
@@ -7501,7 +7706,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
   }
   function renderTagPruners() {
     tagPrunerList.innerHTML = "";
-    const index = getIndexRef();
+    const index2 = getIndexRef();
     tagPruners.forEach((pruner) => {
       const instance = document.createElement("div");
       instance.className = "pruner-instance";
@@ -7514,7 +7719,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       input.value = pruner.filter;
       input.addEventListener("input", () => {
         pruner.filter = input.value;
-        renderPrunerResults(pruner, resultsList, index);
+        renderPrunerResults(pruner, resultsList, index2);
       });
       head.appendChild(input);
       const mirrorLabel = document.createElement("label");
@@ -7560,7 +7765,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       resultsList.className = "pruner-instance-list";
       instance.appendChild(resultsList);
       tagPrunerList.appendChild(instance);
-      renderPrunerResults(pruner, resultsList, index);
+      renderPrunerResults(pruner, resultsList, index2);
     });
     renderUnifyVoidRows();
     renderMobileTaskSection();
@@ -7585,7 +7790,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     });
     wrap.appendChild(saveBtn);
     tagPrunerList.appendChild(wrap);
-    const index = getIndexRef();
+    const index2 = getIndexRef();
     const entries = [];
     if (pruner.selected.size > 0) {
       entries.push({
@@ -7642,7 +7847,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       }
       const totalImages = /* @__PURE__ */ new Set();
       for (const tag of entry.selected) {
-        const set = index.get(tag);
+        const set = index2.get(tag);
         if (set) set.forEach((b) => totalImages.add(b));
       }
       const footer = document.createElement("div");
@@ -7698,10 +7903,10 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       wrap.appendChild(row);
     });
   }
-  function renderPrunerResults(pruner, resultsList, index) {
+  function renderPrunerResults(pruner, resultsList, index2) {
     const q = pruner.filter.trim().toLowerCase();
     const claimed = tagsClaimedByOthers(pruner);
-    let list = Array.from(index.entries()).filter(([tag]) => !claimed.has(tag));
+    let list = Array.from(index2.entries()).filter(([tag]) => !claimed.has(tag));
     if (q) list = list.filter(([tag]) => tag.toLowerCase().includes(q));
     list.sort((a, b) => q ? b[1].size - a[1].size : a[0].localeCompare(b[0]));
     resultsList.innerHTML = "";
@@ -7745,7 +7950,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       unifyVoidRows.appendChild(empty);
       return;
     }
-    const index = getIndexRef();
+    const index2 = getIndexRef();
     active.forEach((pruner) => {
       const row = document.createElement("div");
       row.className = "unify-void-row";
@@ -7759,7 +7964,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
       }
       const totalImages = /* @__PURE__ */ new Set();
       for (const tag of pruner.selected) {
-        const set = index.get(tag);
+        const set = index2.get(tag);
         if (set) set.forEach((b) => totalImages.add(b));
       }
       const footer = document.createElement("div");
@@ -7824,13 +8029,13 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
   var ensureAllTagsLoadedRef = null;
   var addTagToEntryRef = null;
   var refreshRightPanelsRef = null;
-  function initTagAutocomplete(deps3) {
-    ensureWikiDataLoadedRef = deps3.ensureWikiDataLoaded;
-    getCustomTagNoteRef = deps3.getCustomTagNote;
-    setCustomTagNoteRef = deps3.setCustomTagNote;
-    ensureAllTagsLoadedRef = deps3.ensureAllTagsLoaded;
-    addTagToEntryRef = deps3.addTagToEntry;
-    refreshRightPanelsRef = deps3.refreshRightPanels;
+  function initTagAutocomplete(deps4) {
+    ensureWikiDataLoadedRef = deps4.ensureWikiDataLoaded;
+    getCustomTagNoteRef = deps4.getCustomTagNote;
+    setCustomTagNoteRef = deps4.setCustomTagNote;
+    ensureAllTagsLoadedRef = deps4.ensureAllTagsLoaded;
+    addTagToEntryRef = deps4.addTagToEntry;
+    refreshRightPanelsRef = deps4.refreshRightPanels;
   }
   function closeAutocomplete() {
     hideInlineDefinition();
@@ -7860,14 +8065,14 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
     });
   }
   function createPanel() {
-    const el = document.createElement("div");
-    el.className = "ac-panel";
-    el.addEventListener("mousedown", (e) => {
+    const el2 = document.createElement("div");
+    el2.className = "ac-panel";
+    el2.addEventListener("mousedown", (e) => {
       if (!e.target.closest("textarea, input, button")) e.preventDefault();
     });
-    document.body.appendChild(el);
+    document.body.appendChild(el2);
     document.addEventListener("click", onDocClickCloseAutocomplete, true);
-    return el;
+    return el2;
   }
   function positionAutocomplete(inputEl2) {
     if (!autocompleteEl) return;
@@ -7949,7 +8154,7 @@ This deletes them outright \u2014 nothing is merged into a replacement tag. Use 
   function hideChipDefinition() {
     if (chipHoverTimer) clearTimeout(chipHoverTimer);
     chipHoverTimer = null;
-    document.querySelectorAll(".ac-flash-card.ac-flash-floating").forEach((el) => el.remove());
+    document.querySelectorAll(".ac-flash-card.ac-flash-floating").forEach((el2) => el2.remove());
     acDefinitionHost = null;
     chipHoverTag = null;
   }
@@ -8428,10 +8633,10 @@ Locate the folder again to re-link it?`,
       }
     }
   }
-  function initFavorites(deps3) {
-    getDirHandle5 = deps3.getDirHandle;
-    openFolderHandle = deps3.openFolderHandle;
-    onFavoriteChanged = deps3.onFavoriteChanged || (() => {
+  function initFavorites(deps4) {
+    getDirHandle5 = deps4.getDirHandle;
+    openFolderHandle = deps4.openFolderHandle;
+    onFavoriteChanged = deps4.onFavoriteChanged || (() => {
     });
     btnFavorites.addEventListener("click", (ev) => {
       ev.stopPropagation();
@@ -8929,15 +9134,18 @@ Locate the folder again to re-link it?`,
     return svg;
   }
   function buildFolderIcon(record) {
+    return folderIconEl(record.iconMode === "image" ? record.iconImageDataUrl ?? void 0 : void 0);
+  }
+  function folderIconEl(imageDataUrl) {
     const wrap = document.createElement("div");
     wrap.className = "dm-folder-icon";
     const back = svgEl(FOLDER_BACK_PATH);
     back.classList.add("dm-folder-back");
     wrap.appendChild(back);
-    if (record.iconMode === "image" && record.iconImageDataUrl) {
+    if (imageDataUrl) {
       const img = document.createElement("img");
       img.className = "dm-folder-img";
-      img.src = record.iconImageDataUrl;
+      img.src = imageDataUrl;
       img.alt = "";
       wrap.appendChild(img);
     }
@@ -9328,10 +9536,10 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     for (const record of sorted) dmGrid.appendChild(buildFolderTile(record));
     if (viewMode !== "list") dmGrid.appendChild(buildAddTile());
   }
-  function initDatasetManager(deps3) {
-    getDirHandle6 = deps3.getDirHandle;
-    openFolderHandle2 = deps3.openFolderHandle;
-    switchTab = deps3.switchTab;
+  function initDatasetManager(deps4) {
+    getDirHandle6 = deps4.getDirHandle;
+    openFolderHandle2 = deps4.openFolderHandle;
+    switchTab = deps4.switchTab;
     loadPrefs();
     loadGroups();
     dmGridBtn.addEventListener("click", () => {
@@ -9360,8 +9568,8 @@ If you choose No, this won't ask again for any folder. You can still add the ope
   var PRESETS_FILE_NAME = "_dts_subject_presets.json";
   var subjectPresets = [];
   var getDirHandle7 = () => null;
-  function initSubjectPresets(deps3) {
-    getDirHandle7 = deps3.getDirHandle;
+  function initSubjectPresets(deps4) {
+    getDirHandle7 = deps4.getDirHandle;
   }
   async function loadSubjectPresetsForFolder() {
     subjectPresets = [];
@@ -9405,8 +9613,8 @@ If you choose No, this won't ask again for any folder. You can still add the ope
   }
 
   // src/bucket-core.ts
-  function getValidBuckets(sideMin, sideMax, step = 64) {
-    const sMin = Math.floor(sideMin), sMax = Math.floor(sideMax), st = Math.max(1, Math.floor(step));
+  function getValidBuckets(sideMin, sideMax, step2 = 64) {
+    const sMin = Math.floor(sideMin), sMax = Math.floor(sideMax), st = Math.max(1, Math.floor(step2));
     const seen = /* @__PURE__ */ new Map();
     const add = (w, h) => {
       seen.set(`${w}x${h}`, [w, h]);
@@ -9468,15 +9676,15 @@ If you choose No, this won't ask again for any folder. You can still add the ope
   }
   var ORIGINAL_DIR = "original_images";
   var LEGACY_ORIGINAL_DIR = "initial_state";
-  async function mergeLegacyOriginals(root) {
+  async function mergeLegacyOriginals(root2) {
     let legacy;
     try {
-      legacy = await root.getDirectoryHandle(LEGACY_ORIGINAL_DIR, { create: false });
+      legacy = await root2.getDirectoryHandle(LEGACY_ORIGINAL_DIR, { create: false });
     } catch {
       return;
     }
     try {
-      const target = await root.getDirectoryHandle(ORIGINAL_DIR, { create: true });
+      const target = await root2.getDirectoryHandle(ORIGINAL_DIR, { create: true });
       const names = [];
       for await (const h of legacy.values()) if (h.kind === "file") names.push(h.name);
       for (const name of names) {
@@ -9490,7 +9698,7 @@ If you choose No, this won't ask again for any folder. You can still add the ope
         const src = await legacy.getFileHandle(name);
         await writeBytes(await target.getFileHandle(name, { create: true }), await src.getFile());
       }
-      await root.removeEntry(LEGACY_ORIGINAL_DIR, { recursive: true });
+      await root2.removeEntry(LEGACY_ORIGINAL_DIR, { recursive: true });
     } catch {
     }
   }
@@ -9503,16 +9711,78 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     ["step", "bucketSideStep", "tfBucketStep"]
   ];
   var field = (id) => document.getElementById(id);
+  var SIZE_PRESETS = [
+    { id: "512", label: "\u2248512 \u2014 fast, less detail", sizes: { min: 448, max: 704, step: 64 } },
+    { id: "default", label: "\u2248640 \u2014 Osmium's default", sizes: { ...BUCKET_DEFAULTS } },
+    { id: "1024", label: "\u22481024 \u2014 more detail, slower, more VRAM", sizes: { min: 832, max: 1280, step: 64 } }
+  ];
+  var presetSelects = [];
+  var sizeHints = [];
+  function currentSizes() {
+    const v = (k) => parseInt(field(SIZE_FIELDS.find((f) => f[0] === k)[1])?.value || "", 10) || BUCKET_DEFAULTS[k];
+    return { min: v("min"), max: v("max"), step: v("step") };
+  }
+  function syncSizeUI() {
+    const s = currentSizes();
+    const match = SIZE_PRESETS.find((p) => p.sizes.min === s.min && p.sizes.max === s.max && p.sizes.step === s.step);
+    for (const sel of presetSelects) sel.value = match ? match.id : "custom";
+    const buckets = getValidBuckets(s.min, Math.max(s.min, s.max), s.step);
+    const [pw, ph] = getBestBucket(2, 3, buckets);
+    const [sw, sh] = getBestBucket(1, 1, buckets);
+    const text = `A 2:3 image trains at ${pw}\xD7${ph} (about ${Math.round(Math.sqrt(pw * ph))}\xB2), a square one at ${sw}\xD7${sh}. Smaller originals are enlarged to fit, which adds no detail.`;
+    for (const h of sizeHints) h.textContent = text;
+  }
+  function buildSizePresetUI() {
+    for (const [, dockId, tfId] of [SIZE_FIELDS[0]]) {
+      for (const id of [dockId, tfId]) {
+        const row = field(id)?.closest(".bucket-params-row");
+        if (!row) continue;
+        const wrap = document.createElement("label");
+        wrap.className = "bucket-preset-row";
+        wrap.title = "Pick a training size and the Min / Max / Step below are set for you. A bucket's short side is always Min, and Max caps the long side. Change the fields yourself for a custom size.";
+        wrap.appendChild(document.createTextNode("Training size"));
+        const sel = document.createElement("select");
+        for (const p of SIZE_PRESETS) {
+          const o = document.createElement("option");
+          o.value = p.id;
+          o.textContent = p.label;
+          sel.appendChild(o);
+        }
+        const custom = document.createElement("option");
+        custom.value = "custom";
+        custom.textContent = "Custom (the fields below)";
+        sel.appendChild(custom);
+        sel.addEventListener("change", () => {
+          const p = SIZE_PRESETS.find((x) => x.id === sel.value);
+          if (!p) return;
+          for (const [k, dId, tId] of SIZE_FIELDS) for (const fid of [dId, tId]) {
+            const el2 = field(fid);
+            if (el2) el2.value = String(p.sizes[k]);
+          }
+          saveDatasetBucketSizes();
+          syncSizeUI();
+        });
+        wrap.appendChild(sel);
+        row.before(wrap);
+        presetSelects.push(sel);
+        const hint = document.createElement("div");
+        hint.className = "bucket-size-hint";
+        row.after(hint);
+        sizeHints.push(hint);
+      }
+    }
+  }
   function applyDatasetBucketSizes() {
     const name = getDirHandle8()?.name;
     const saved = name ? getJSON(SIZES_KEY, {})[name] : void 0;
     for (const [k, dockId, tfId] of SIZE_FIELDS) {
       const v = String(saved?.[k] ?? BUCKET_DEFAULTS[k]);
       for (const id of [dockId, tfId]) {
-        const el = field(id);
-        if (el) el.value = v;
+        const el2 = field(id);
+        if (el2) el2.value = v;
       }
     }
+    syncSizeUI();
   }
   function saveDatasetBucketSizes() {
     const name = getDirHandle8()?.name;
@@ -9534,10 +9804,10 @@ If you choose No, this won't ask again for any folder. You can still add the ope
   var guardUnsavedForReload = async () => "proceed";
   var busy = false;
   function log(line, isErr = false) {
-    const el = document.createElement("div");
-    el.className = "bucket-log-line" + (isErr ? " err" : "");
-    el.textContent = line;
-    bucketLog.appendChild(el);
+    const el2 = document.createElement("div");
+    el2.className = "bucket-log-line" + (isErr ? " err" : "");
+    el2.textContent = line;
+    bucketLog.appendChild(el2);
     bucketLog.scrollTop = bucketLog.scrollHeight;
   }
   function clearLog() {
@@ -9546,8 +9816,8 @@ If you choose No, this won't ask again for any folder. You can still add the ope
   function params() {
     const sideMin = Math.max(64, parseInt(bucketSideMin.value, 10) || BUCKET_DEFAULTS.min);
     const sideMax = Math.max(sideMin, parseInt(bucketSideMax.value, 10) || BUCKET_DEFAULTS.max);
-    const step = Math.max(16, parseInt(bucketSideStep.value, 10) || BUCKET_DEFAULTS.step);
-    return { sideMin, sideMax, step };
+    const step2 = Math.max(16, parseInt(bucketSideStep.value, 10) || BUCKET_DEFAULTS.step);
+    return { sideMin, sideMax, step: step2 };
   }
   async function imageDimensions(file) {
     const bmp = await createImageBitmap(file);
@@ -9622,11 +9892,11 @@ If you choose No, this won't ask again for any folder. You can still add the ope
       toast("No Gallery images to bucket.");
       return;
     }
-    const { sideMin, sideMax, step } = params();
-    const buckets = getValidBuckets(sideMin, sideMax, step);
+    const { sideMin, sideMax, step: step2 } = params();
+    const buckets = getValidBuckets(sideMin, sideMax, step2);
     const preferGpu = bucketGpu.checked;
     const ok = await showConfirmModal(
-      `Bucket the Gallery at ${sideMin}\u2013${sideMax} (step ${step})?
+      `Bucket the Gallery at ${sideMin}\u2013${sideMax} (step ${step2})?
 
 Originals are kept in ${ORIGINAL_DIR}/ (shown in the Originals view) and the bucketed copies are PNGs in the dataset root. Images that were bucketed before are re-made from their originals at these sizes, so you can bucket again with different dimensions. Every image gets a copy in ${ORIGINAL_DIR}/ first, even one that's already a valid size.`,
       { okLabel: "Bucket images" }
@@ -9722,7 +9992,7 @@ Originals are kept in ${ORIGINAL_DIR}/ (shown in the Originals view) and the buc
             }
           }
         }
-        const res = await window.electronAPI.bucketImage({ imageBytes: bytes, sideMin, sideMax, step, preferGpu });
+        const res = await window.electronAPI.bucketImage({ imageBytes: bytes, sideMin, sideMax, step: step2, preferGpu });
         if (!res.ok || !res.pngBytes || !res.bucket) {
           log(`${filename}: ${res.error || "bucketing failed"}`, true);
           failed++;
@@ -9773,8 +10043,8 @@ Originals are kept in ${ORIGINAL_DIR}/ (shown in the Originals view) and the buc
       toast("No originals to restore \u2014 nothing has been bucketed.");
       return;
     }
-    const { sideMin, sideMax, step } = params();
-    const buckets = getValidBuckets(sideMin, sideMax, step);
+    const { sideMin, sideMax, step: step2 } = params();
+    const buckets = getValidBuckets(sideMin, sideMax, step2);
     const originalBases = new Set(originals.map((e) => e.base));
     const orphans = [];
     for (const e of getEntries3().filter((x) => !x.disabled && !x.original)) {
@@ -9802,11 +10072,11 @@ This deletes the bucketed copy in the dataset root and moves the original back f
         const stemPng = entry.base + ".png";
         try {
           if (origDir) {
+            const file = await entry.imgHandle.getFile();
             try {
               await dirHandle.removeEntry(stemPng);
             } catch {
             }
-            const file = await entry.imgHandle.getFile();
             const back = await dirHandle.getFileHandle(imgName, { create: true });
             await writeBytes(back, file);
             try {
@@ -9865,22 +10135,24 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
       await reload();
     }
   }
-  function initBucketImages(deps3) {
-    getDirHandle8 = deps3.getDirHandle;
-    getEntries3 = deps3.getEntries;
-    getDisabledDirHandle2 = deps3.getDisabledDirHandle;
-    getOriginalDirHandle2 = deps3.getOriginalDirHandle;
-    reload = deps3.reload;
-    guardUnsavedForReload = deps3.guardUnsavedForReload;
+  function initBucketImages(deps4) {
+    getDirHandle8 = deps4.getDirHandle;
+    getEntries3 = deps4.getEntries;
+    getDisabledDirHandle2 = deps4.getDisabledDirHandle;
+    getOriginalDirHandle2 = deps4.getOriginalDirHandle;
+    reload = deps4.reload;
+    guardUnsavedForReload = deps4.guardUnsavedForReload;
     const saved = getJSON(SETTINGS_KEY, null);
     if (saved && typeof saved.gpu === "boolean") bucketGpu.checked = saved.gpu;
     bucketGpu.addEventListener("change", () => setJSON(SETTINGS_KEY, { gpu: bucketGpu.checked }));
+    buildSizePresetUI();
     for (const [, dockId, tfId] of SIZE_FIELDS) {
       const pair = [field(dockId), field(tfId)];
-      pair.forEach((el, i) => el?.addEventListener("input", () => {
+      pair.forEach((el2, i) => el2?.addEventListener("input", () => {
         const other = pair[1 - i];
-        if (other) other.value = el.value;
+        if (other) other.value = el2.value;
         saveDatasetBucketSizes();
+        syncSizeUI();
       }));
     }
     applyDatasetBucketSizes();
@@ -9902,11 +10174,11 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
   // src/renderer/master-tag-control.ts
   var masterSelectedImages = /* @__PURE__ */ new Set();
   var miniCellEntry = /* @__PURE__ */ new WeakMap();
-  function attachIconFallback(btn, icon) {
-    const label = (btn.dataset.iconLabel || btn.textContent || "").trim();
-    btn.classList.add("icon-fallback-btn");
-    btn.setAttribute("aria-label", plainLabel(label));
-    btn.textContent = "";
+  function attachIconFallback(btn2, icon) {
+    const label = (btn2.dataset.iconLabel || btn2.textContent || "").trim();
+    btn2.classList.add("icon-fallback-btn");
+    btn2.setAttribute("aria-label", plainLabel(label));
+    btn2.textContent = "";
     const full = document.createElement("span");
     full.className = "label-full";
     full.setAttribute("aria-hidden", "true");
@@ -9915,8 +10187,8 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     iconEl.className = "label-icon";
     iconEl.setAttribute("aria-hidden", "true");
     setIconLabel(iconEl, icon);
-    btn.appendChild(full);
-    btn.appendChild(iconEl);
+    btn2.appendChild(full);
+    btn2.appendChild(iconEl);
   }
   var miniGridDragging = false;
   var miniGridPaintMode = false;
@@ -9940,18 +10212,18 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     label.textContent = "Size";
     row.appendChild(label);
     for (let n = 1; n <= 4; n++) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = n + "x";
-      btn.className = n === miniGridSize ? "active" : "";
-      btn.title = `${n}x thumbnail size`;
-      btn.addEventListener("click", () => {
+      const btn2 = document.createElement("button");
+      btn2.type = "button";
+      btn2.textContent = n + "x";
+      btn2.className = n === miniGridSize ? "active" : "";
+      btn2.title = `${n}x thumbnail size`;
+      btn2.addEventListener("click", () => {
         miniGridSize = n;
         setInt(MINI_GRID_SIZE_KEY, n);
         masterMiniGrid.style.setProperty("--mini-grid-size", String(n));
-        row.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
+        row.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn2));
       });
-      row.appendChild(btn);
+      row.appendChild(btn2);
     }
     return row;
   }
@@ -10125,27 +10397,27 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
   }
   var onStartSequentialRef = () => {
   };
-  function initMasterTagControl(deps3) {
-    getEntries4 = deps3.getEntries;
-    getEntryByBase2 = deps3.getEntryByBase;
-    filteredEntriesRef = deps3.filteredEntries;
-    renderCurrentViewRef2 = deps3.renderCurrentView;
-    refreshAllUIRef4 = deps3.refreshAllUI;
-    getEntryMeta = deps3.getEntryMeta;
-    saveEntryMetaRef = deps3.saveEntryMeta;
-    deleteEntriesPermanentlyRef = deps3.deleteEntriesPermanently;
-    disableEntriesRef = deps3.disableEntries;
-    onStartSequentialRef = deps3.onStartSequential;
+  function initMasterTagControl(deps4) {
+    getEntries4 = deps4.getEntries;
+    getEntryByBase2 = deps4.getEntryByBase;
+    filteredEntriesRef = deps4.filteredEntries;
+    renderCurrentViewRef2 = deps4.renderCurrentView;
+    refreshAllUIRef4 = deps4.refreshAllUI;
+    getEntryMeta = deps4.getEntryMeta;
+    saveEntryMetaRef = deps4.saveEntryMeta;
+    deleteEntriesPermanentlyRef = deps4.deleteEntriesPermanently;
+    disableEntriesRef = deps4.disableEntries;
+    onStartSequentialRef = deps4.onStartSequential;
     attachIconFallback(btnMasterSelectAll, "\u2611");
     attachIconFallback(btnMasterClearSelection, "\u2716");
     {
       let makeSeqBtn = function(label, icon, title, from) {
-        const btn = document.createElement("button");
-        btn.title = title;
-        btn.dataset.iconLabel = "\u25B6 " + label;
-        attachIconFallback(btn, icon);
-        btn.addEventListener("click", () => onStartSequentialRef(from));
-        return btn;
+        const btn2 = document.createElement("button");
+        btn2.title = title;
+        btn2.dataset.iconLabel = "\u25B6 " + label;
+        attachIconFallback(btn2, icon);
+        btn2.addEventListener("click", () => onStartSequentialRef(from));
+        return btn2;
       };
       const seqRow = document.createElement("div");
       seqRow.className = "mtc-btn-row";
@@ -10333,7 +10605,7 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
     function selectedEntries() {
       return Array.from(masterSelectedImages);
     }
-    const readTag = (el) => el.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+    const readTag = (el2) => el2.value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
     function runMassTagOp(opts) {
       const affected = [];
       for (const e of opts.entries) {
@@ -19850,6 +20122,7 @@ Content-Type: application/octet-stream\r
 `));
     return { boundary, body: concatBytes(parts) };
   }
+  var RES4LYF_PREFIX = "res4lyf:";
   function buildSynthDatPrompt(template2, cfg) {
     const prompt = JSON.parse(JSON.stringify(template2));
     const character = [cfg.unified ? cfg.unifiedPrompt : cfg.character, cfg.characterTrigger].filter(Boolean).join(", ");
@@ -19929,7 +20202,15 @@ Content-Type: application/octet-stream\r
       prompt["238"].inputs.method = cfg.resizeMethod;
       prompt["240"].inputs.image = ["238", 0];
     }
-    prompt["168:167"].inputs.sampler_name = cfg.sampler;
+    if (cfg.sampler.startsWith(RES4LYF_PREFIX)) {
+      prompt["168:167"] = {
+        class_type: "ClownSampler_Beta",
+        inputs: { eta: 0.5, sampler_name: cfg.sampler.slice(RES4LYF_PREFIX.length), seed: parseInt(cfg.seed1, 10) || 0, bongmath: true },
+        _meta: { title: "ClownSampler (RES4LYF)" }
+      };
+    } else {
+      prompt["168:167"].inputs.sampler_name = cfg.sampler;
+    }
     prompt["158:53"].inputs.scheduler = cfg.scheduler;
     prompt["158:53"].inputs.steps = parseInt(cfg.steps1, 10) || 1;
     prompt["158:54"].inputs.cfg = parseFloat(cfg.cfg1) || 1;
@@ -20947,13 +21228,13 @@ Image: ${entry.imgName}`,
       wd14LocalCatalog.appendChild(row);
     }
   }
-  function initWd14Tagger(deps3) {
-    getEntries5 = deps3.getEntries;
-    refreshAllUIRef5 = deps3.refreshAllUI;
+  function initWd14Tagger(deps4) {
+    getEntries5 = deps4.getEntries;
+    refreshAllUIRef5 = deps4.refreshAllUI;
     loadSettings();
     applySettingsToUI();
     refreshModels(true);
-    [wd14Host, wd14Threshold, wd14CharThreshold, wd14TrailingComma, wd14ExcludeTags, wd14AutoApply, wd14ModelSelect].forEach((el) => el.addEventListener("change", readSettingsFromUI));
+    [wd14Host, wd14Threshold, wd14CharThreshold, wd14TrailingComma, wd14ExcludeTags, wd14AutoApply, wd14ModelSelect].forEach((el2) => el2.addEventListener("change", readSettingsFromUI));
     btnWd14RefreshModels.addEventListener("click", () => refreshModels(false));
     if (hasLocalWd14) {
       wd14ModeSelect.addEventListener("change", readSettingsFromUI);
@@ -21039,7 +21320,22 @@ Image: ${entry.imgName}`,
     advCaptionDropout: 0.05,
     advKeepTokens: 1,
     advRepeats: 0,
-    advSampleSampler: "euler"
+    advSampleSampler: "euler",
+    saveState: false,
+    continueSteps: 400,
+    keepStates: 0,
+    netType: "lora",
+    netFactor: 4,
+    netTrainLlmAdapter: false,
+    netTrainModulation: false,
+    netLoraPlus: 0,
+    advOffloadCkpt: "",
+    advSplitAttn: false,
+    extraFolders: [],
+    captionShuffle: false,
+    captionTagDropout: 0,
+    validationSplit: 0,
+    validateEvery: 0
   };
   var TEXT_FIELDS = [
     ["trigger", "tfTrigger"],
@@ -21062,7 +21358,8 @@ Image: ${entry.imgName}`,
     ["sampleGenSteps", "tfGenSteps"],
     ["cfg", "tfCfg"],
     ["sampleSeed", "tfSeed"],
-    ["trainSeed", "tfTrainSeed"]
+    ["trainSeed", "tfTrainSeed"],
+    ["continueSteps", "tfContinueSteps"]
   ];
   var ADV_SELECT_FIELDS = [
     ["advLrScheduler", "tfAdvLrScheduler"],
@@ -21071,7 +21368,10 @@ Image: ${entry.imgName}`,
     ["advTimestepSampling", "tfAdvTimestepSampling"],
     ["advWeighting", "tfAdvWeighting"],
     ["advAttn", "tfAdvAttn"],
-    ["advSampleSampler", "tfAdvSampleSampler"]
+    ["advSampleSampler", "tfAdvSampleSampler"],
+    ["netType", "tfNetType"],
+    ["advCompile", "tfAdvCompile"],
+    ["advOffloadCkpt", "tfAdvOffloadCkpt"]
   ];
   var ADV_NUM_FIELDS = [
     ["advAlpha", "tfAdvAlpha"],
@@ -21085,19 +21385,30 @@ Image: ${entry.imgName}`,
     ["advVaeChunkSize", "tfAdvVaeChunkSize"],
     ["advCaptionDropout", "tfAdvCaptionDropout"],
     ["advKeepTokens", "tfAdvKeepTokens"],
-    ["advRepeats", "tfAdvRepeats"]
+    ["advRepeats", "tfAdvRepeats"],
+    ["netFactor", "tfNetFactor"],
+    ["netLoraPlus", "tfNetLoraPlus"],
+    ["captionTagDropout", "tfCaptionTagDropout"],
+    ["validationSplit", "tfValidationSplit"],
+    ["validateEvery", "tfValidateEvery"],
+    ["keepStates", "tfKeepStates"]
   ];
   var ADV_BOOL_FIELDS = [
     ["advTrainTextEncoder", "tfAdvTrainTextEncoder"],
-    ["advTorchCompile", "tfAdvTorchCompile"],
     ["advGradCheckpointing", "tfAdvGradCheckpointing"],
     ["advVaeDisableCache", "tfAdvVaeDisableCache"],
-    ["advNoHalfVae", "tfAdvNoHalfVae"]
+    ["advNoHalfVae", "tfAdvNoHalfVae"],
+    ["saveState", "tfSaveState"],
+    ["netTrainLlmAdapter", "tfNetTrainLlmAdapter"],
+    ["netTrainModulation", "tfNetTrainModulation"],
+    ["advSplitAttn", "tfAdvSplitAttn"],
+    ["captionShuffle", "tfCaptionShuffle"]
   ];
+  var selfTuning = (opt) => opt === "Prodigy" || opt === "prodigyplus.ProdigyPlusScheduleFree";
   function isTrainflowSupported() {
     return !!(window.electronAPI && window.electronAPI.trainflowStatus);
   }
-  function initTrainflow(deps3) {
+  function initTrainflow(deps4) {
     const api = window.electronAPI;
     const tab = $("trainflowTab");
     const tabBtn = $("tabTrainflow");
@@ -21106,6 +21417,10 @@ Image: ${entry.imgName}`,
       return;
     }
     let settings2 = { ...DEFAULTS, ...getJSON(STORAGE_KEY, {}) };
+    delete settings2.continueFrom;
+    if (settings2.advCompile === void 0) settings2.advCompile = settings2.advTorchCompile ? "model" : "";
+    if (!Array.isArray(settings2.extraFolders)) settings2.extraFolders = [];
+    if (settings2.advOffloadCkpt === "cpu") settings2.advOffloadCkpt = "unsloth";
     if (!getJSON(LR_AUTO_MIGRATED_KEY, false)) {
       if (settings2.advLrScheduler === "constant") settings2.advLrScheduler = "";
       setJSON(LR_AUTO_MIGRATED_KEY, true);
@@ -21161,7 +21476,7 @@ Image: ${entry.imgName}`,
     let adamLr = "0.00005";
     $("tfOptimizer").addEventListener("change", (ev) => {
       const opt = ev.target.value;
-      if (opt === "Prodigy") {
+      if (selfTuning(opt)) {
         if (settings2.lr !== "1.0") adamLr = settings2.lr;
         settings2.lr = "1.0";
       } else if (settings2.lr === "1.0") settings2.lr = adamLr;
@@ -21169,8 +21484,68 @@ Image: ${entry.imgName}`,
       inputEl2("tfLr").value = settings2.lr;
       save();
     });
+    const syncNetFields = () => {
+      $("tfNetFactorField").style.display = settings2.netType === "lokr" ? "" : "none";
+    };
+    $("tfNetType").addEventListener("change", syncNetFields);
+    syncNetFields();
+    function renderExtraFolders() {
+      const box = $("tfExtraFolders");
+      const list = settings2.extraFolders || [];
+      box.replaceChildren(...list.map((f, i) => {
+        const row = document.createElement("div");
+        row.className = "synthdat-lora-row tf-extra-row";
+        const name = document.createElement("span");
+        name.className = "synthdat-local-folder";
+        name.textContent = f.path;
+        name.title = f.path;
+        const rep = document.createElement("input");
+        rep.type = "number";
+        rep.min = "0";
+        rep.step = "1";
+        rep.value = String(f.repeats || 0);
+        rep.title = "Repeats for this folder (0 = auto)";
+        rep.className = "tf-extra-repeats";
+        rep.addEventListener("input", () => {
+          const v = Number(rep.value);
+          if (Number.isFinite(v) && v >= 0) {
+            list[i].repeats = Math.round(v);
+            save();
+          }
+        });
+        const rm = document.createElement("button");
+        rm.textContent = "Remove";
+        rm.title = "Stop training with this folder (the folder itself is untouched)";
+        rm.addEventListener("click", () => {
+          list.splice(i, 1);
+          save();
+          renderExtraFolders();
+        });
+        row.append(name, rep, rm);
+        return row;
+      }));
+      if (!list.length) {
+        const e = document.createElement("div");
+        e.className = "stats-empty";
+        e.textContent = "None: only the loaded dataset is trained.";
+        box.appendChild(e);
+      }
+    }
+    $("btnTfAddFolder").addEventListener("click", async () => {
+      const p = await api.trainflowPickPath({ kind: "folder", title: "Add a folder of captioned images to train with this dataset" });
+      if (!p) return;
+      const list = settings2.extraFolders || (settings2.extraFolders = []);
+      if (list.some((f) => f.path.toLowerCase() === p.toLowerCase())) {
+        toast("That folder is already in the list.");
+        return;
+      }
+      list.push({ path: p, repeats: 0 });
+      save();
+      renderExtraFolders();
+    });
+    renderExtraFolders();
     let datasetPath = "";
-    const firstImage = () => deps3.getEntries().find((x) => !x.disabled && !x.original);
+    const firstImage = () => deps4.getEntries().find((x) => !x.disabled && !x.original);
     const savedPaths = () => getJSON(PATHS_KEY, {});
     const askedThisSession = /* @__PURE__ */ new Set();
     const newMarker = () => `.osmium-probe-${crypto.randomUUID()}`;
@@ -21212,7 +21587,7 @@ Image: ${entry.imgName}`,
       }
     }
     async function resolveDataset() {
-      const dir = deps3.getDirHandle();
+      const dir = deps4.getDirHandle();
       const nameEl = $("tfDatasetName"), locate = $("btnTfLocate");
       datasetPath = "";
       locate.style.display = "none";
@@ -21234,7 +21609,7 @@ Image: ${entry.imgName}`,
     }
     let marker = "";
     async function locateDataset() {
-      const dir = deps3.getDirHandle();
+      const dir = deps4.getDirHandle();
       if (!dir) return false;
       if (!marker) marker = persistMarkerFor(dir.name);
       const p = await api.trainflowPickPath({ kind: "folder", title: `Where is "${dir.name}" on your computer?` });
@@ -21248,7 +21623,7 @@ Image: ${entry.imgName}`,
     }
     window.__dtsDatasetOpened = () => {
       void (async () => {
-        const dir = deps3.getDirHandle();
+        const dir = deps4.getDirHandle();
         if (!dir || !firstImage()) return;
         if (await resolveDataset()) {
           if (tab.style.display !== "none") void refreshDataset();
@@ -21277,10 +21652,10 @@ Image: ${entry.imgName}`,
     }
     const mb = (b) => (b / 1048576).toFixed(b < 10485760 ? 1 : 0);
     async function refreshCacheInfo() {
-      const btn = $("btnTfClearCache");
+      const btn2 = $("btnTfClearCache");
       const label = $("tfClearCacheLabel");
       const c = datasetPath ? await api.trainflowCacheInfo(datasetPath) : { files: 0, bytes: 0 };
-      btn.disabled = !c.files;
+      btn2.disabled = !c.files;
       label.textContent = c.files ? `Clear training cache (${c.files} file${c.files === 1 ? "" : "s"} \xB7 ${mb(c.bytes)} MB)` : "No training cache";
     }
     $("btnTfClearCache").addEventListener("click", async () => {
@@ -21322,10 +21697,10 @@ Image: ${entry.imgName}`,
       box.textContent = lines.join("\n");
     });
     $("btnTfDatasetOpen").addEventListener("click", () => void api.trainflowOpen("dataset", datasetPath));
-    tab.querySelectorAll(".tf-pick-file").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const id = btn.dataset.target;
-        const p = await pick2("file", btn.dataset.title || "Choose a file", inputEl2(id).value);
+    tab.querySelectorAll(".tf-pick-file").forEach((btn2) => {
+      btn2.addEventListener("click", async () => {
+        const id = btn2.dataset.target;
+        const p = await pick2("file", btn2.dataset.title || "Choose a file", inputEl2(id).value);
         if (!p) return;
         inputEl2(id).value = p;
         inputEl2(id).dispatchEvent(new Event("input"));
@@ -21336,6 +21711,66 @@ Image: ${entry.imgName}`,
     });
     $("btnTrainflowOutput").addEventListener("click", () => void api.trainflowOpen("output"));
     $("btnTrainflowLog").addEventListener("click", () => void api.trainflowOpen("log"));
+    let continueOpts = [];
+    let continueFrom = "";
+    const startLabel = () => $("btnTrainflowStart").lastChild;
+    function renderContinueHint() {
+      const opt = continueOpts.find((o) => o.id === continueFrom);
+      const n = Math.max(1, Math.round(settings2.continueSteps || 0));
+      const hint = $("tfContinueHint");
+      startLabel().textContent = opt ? "Continue training" : "Start Trainflow";
+      if (!opt) {
+        hint.textContent = continueOpts.length ? "Start Trainflow trains a new LoRA from scratch with the settings in Training." : "Nothing to continue from yet: this project has no checkpoints. (The trigger word names the project.)";
+        return;
+      }
+      hint.textContent = opt.kind === "state" ? `Resumes ${opt.run} exactly from step ${opt.step}, with the optimizer, learning-rate schedule and random state it saved, and trains on to step ${opt.step + n}. It uses that run's own settings, so Training's fields are ignored. New checkpoints continue the numbering (${opt.run}-step\u2026), and ${opt.run}.safetensors becomes the step ${opt.step + n} version. A cosine schedule is stretched to the new total, so its learning rate picks up again partway.` : `Loads ${opt.name}'s weights and trains ${n} more steps with the settings in Training (its rank and alpha are read from the file), saved as ${opt.outputName}. The optimizer and learning-rate schedule start fresh, so the first steps relearn their momentum${selfTuning(settings2.optimizer) ? " (Prodigy re-estimates its step size)" : ""}. Turn on Resume state in Training for runs you may want to resume exactly.`;
+    }
+    const optLabel = (o) => `${o.run} \xB7 ${o.step ? "step " + o.step : "final"}${o.name === o.run + ".safetensors" ? " (final)" : ""}`;
+    async function refreshContinue() {
+      if (!api.trainflowContinueOptions) return;
+      try {
+        continueOpts = await api.trainflowContinueOptions(settings2.trigger);
+      } catch {
+        continueOpts = [];
+      }
+      const sel = $("tfContinueFrom");
+      const groups2 = [
+        ["Exact resume (saved state)", continueOpts.filter((o) => o.kind === "state")],
+        ["From checkpoint weights", continueOpts.filter((o) => o.kind === "weights")]
+      ];
+      const first = document.createElement("option");
+      first.value = "";
+      first.textContent = "A new LoRA (start over)";
+      const nodes = [first];
+      for (const [label, list] of groups2) {
+        if (!list.length) continue;
+        const g = document.createElement("optgroup");
+        g.label = label;
+        for (const o of [...list].sort((a, b) => a.run.localeCompare(b.run) || b.step - a.step)) {
+          const el2 = document.createElement("option");
+          el2.value = o.id;
+          el2.textContent = optLabel(o);
+          el2.title = o.name;
+          g.appendChild(el2);
+        }
+        nodes.push(g);
+      }
+      sel.replaceChildren(...nodes);
+      if (!continueOpts.some((o) => o.id === continueFrom)) continueFrom = "";
+      sel.value = continueFrom;
+      renderContinueHint();
+    }
+    $("tfContinueFrom").addEventListener("change", (ev) => {
+      continueFrom = ev.target.value;
+      renderContinueHint();
+    });
+    inputEl2("tfContinueSteps").addEventListener("input", renderContinueHint);
+    $("tfOptimizer").addEventListener("change", renderContinueHint);
+    let continueTimer = 0;
+    inputEl2("tfTrigger").addEventListener("input", () => {
+      window.clearTimeout(continueTimer);
+      continueTimer = window.setTimeout(() => void refreshContinue(), 400);
+    });
     function showErrors(errors) {
       const box = $("trainflowErrors");
       box.style.display = errors.length ? "" : "none";
@@ -21345,28 +21780,32 @@ Image: ${entry.imgName}`,
       if (starting) return;
       starting = true;
       showErrors([]);
-      const btn = $("btnTrainflowStart");
-      btn.disabled = true;
+      const btn2 = $("btnTrainflowStart");
+      btn2.disabled = true;
       $("trainflowRunInfo").style.display = "";
       $("trainflowRunInfo").textContent = "Checking your dataset, models and GPU\u2026";
       const b = bucketCfg();
       let reloadAfter = false;
       try {
         if (!await resolveDataset()) {
-          showErrors([deps3.getDirHandle() ? "Osmium couldn't find where the loaded dataset is on disk. Use Locate\u2026 next to it." : "Load a dataset first."]);
+          showErrors([deps4.getDirHandle() ? "Osmium couldn't find where the loaded dataset is on disk. Use Locate\u2026 next to it." : "Load a dataset first."]);
           return;
         }
-        const guard = await deps3.guardUnsavedForReload("starting Trainflow");
+        const guard = await deps4.guardUnsavedForReload("starting Trainflow");
         if (guard !== "proceed") return;
         reloadAfter = true;
         await convertAllWebpToPng();
-        const r = await api.trainflowStart({ ...settings2, datasetPath, bucketMin: b.min, bucketMax: b.max, bucketStep: b.step });
+        const r = await api.trainflowStart({ ...settings2, continueFrom: continueFrom || void 0, datasetPath, bucketMin: b.min, bucketMax: b.max, bucketStep: b.step });
+        if (r.ok) {
+          continueFrom = "";
+          void refreshContinue();
+        }
         if (!r.ok) showErrors(r.errors || ["Could not start."]);
       } finally {
         starting = false;
         if (reloadAfter) {
           try {
-            await deps3.reload();
+            await deps4.reload();
           } catch {
           }
         }
@@ -21390,7 +21829,10 @@ Image: ${entry.imgName}`,
       fs.textContent = s.error || "";
       const run2 = s.run;
       const running2 = run2?.state === "running";
-      if (wasRunning && !running2) void refreshCacheInfo();
+      if (wasRunning && !running2) {
+        void refreshCacheInfo();
+        void refreshContinue();
+      }
       wasRunning = running2;
       $("btnTfClearCache").disabled = running2 || $("btnTfClearCache").disabled;
       $("btnTrainflowStart").disabled = running2 || starting || !s.ok;
@@ -21422,6 +21864,7 @@ Image: ${entry.imgName}`,
         }
         if (run2.elapsed) bits.push(`<span>Elapsed <b>${run2.elapsed}</b></span>`);
         if (run2.loss !== void 0) bits.push(`<span>Loss <b>${run2.loss.toFixed(4)}</b></span>`);
+        if (run2.valLoss !== void 0) bits.push(`<span title="Average loss on the held-out validation images">Val loss <b>${run2.valLoss.toFixed(4)}</b></span>`);
         stats.innerHTML = bits.join("");
         stats.style.display = run2.step || run2.state === "finished" ? "" : "none";
         const logEl = $("trainflowLog");
@@ -21478,9 +21921,112 @@ Image: ${entry.imgName}`,
         name.textContent = c.name;
         const size = document.createElement("span");
         size.textContent = fmtSize(c.size);
-        row.append(name, size);
+        const send = document.createElement("button");
+        send.type = "button";
+        send.className = "tf-ckpt-send";
+        send.textContent = "Send\u2026";
+        send.title = "Copy this checkpoint to a folder of yours (e.g. ComfyUI's loras folder), under a name you choose";
+        send.addEventListener("click", () => {
+          void sendCheckpoint(c.name);
+        });
+        row.append(name, size, send);
         return row;
       }));
+    }
+    async function sendCheckpoint(file) {
+      let favorite = (await api.trainflowSendDest()).favorite;
+      let picked = null;
+      const { box, close } = createModalShell({ onShow: () => {
+        nameIn.focus();
+        nameIn.select();
+      } });
+      box.classList.add("tf-send-box");
+      const msg = document.createElement("div");
+      msg.className = "confirm-message";
+      msg.textContent = `Send ${file}`;
+      const nameLabel = document.createElement("label");
+      nameLabel.className = "tf-send-label";
+      nameLabel.textContent = "Name on arrival";
+      const nameRow = document.createElement("div");
+      nameRow.className = "tf-send-name";
+      const nameIn = document.createElement("input");
+      nameIn.type = "text";
+      nameIn.className = "dm-prompt-input";
+      nameIn.value = file.replace(/\.safetensors$/i, "");
+      const ext = document.createElement("span");
+      ext.textContent = ".safetensors";
+      nameRow.append(nameIn, ext);
+      const destLabel = document.createElement("label");
+      destLabel.className = "tf-send-label";
+      destLabel.textContent = "To";
+      const destPath = document.createElement("div");
+      destPath.className = "tf-send-path";
+      const destRow = document.createElement("div");
+      destRow.className = "tf-send-dest";
+      const choose = document.createElement("button");
+      choose.type = "button";
+      choose.textContent = "Choose folder\u2026";
+      const fav = document.createElement("button");
+      fav.type = "button";
+      fav.textContent = "\u2605 Make favorite";
+      fav.title = "Use this folder by default next time";
+      destRow.append(choose, fav);
+      const err = document.createElement("div");
+      err.className = "tf-send-error";
+      const btnRow = document.createElement("div");
+      btnRow.className = "confirm-btn-row";
+      const cancel = document.createElement("button");
+      cancel.textContent = "Cancel";
+      const ok = document.createElement("button");
+      ok.className = "primary";
+      ok.textContent = "Send";
+      btnRow.append(cancel, ok);
+      box.append(msg, nameLabel, nameRow, destLabel, destPath, destRow, err, btnRow);
+      const dest = () => picked || favorite;
+      const paint = () => {
+        const d = dest();
+        destPath.textContent = d ? d + (d === favorite ? "  \u2605" : "") : "No folder yet. Choose one.";
+        fav.style.display = picked && picked !== favorite ? "" : "none";
+        ok.disabled = !d;
+      };
+      paint();
+      choose.addEventListener("click", async () => {
+        const p = await api.trainflowPickSendDest();
+        if (p) {
+          picked = p;
+          err.textContent = "";
+          paint();
+        }
+      });
+      fav.addEventListener("click", async () => {
+        favorite = (await api.trainflowSetSendFavorite()).favorite;
+        paint();
+      });
+      const submit = async () => {
+        if (!dest() || ok.disabled) return;
+        ok.disabled = true;
+        ok.textContent = "Sending\u2026";
+        const r = await api.trainflowSendCheckpoint({ name: file, newName: nameIn.value, dest: picked ? "picked" : "favorite" });
+        ok.textContent = "Send";
+        ok.disabled = false;
+        if (!r.ok) {
+          err.textContent = r.error || "Could not send it.";
+          if (r.exists) {
+            nameIn.focus();
+            nameIn.select();
+          }
+          return;
+        }
+        close();
+        toast(`Sent to ${r.path}`, 4200);
+      };
+      cancel.addEventListener("click", close);
+      ok.addEventListener("click", () => {
+        void submit();
+      });
+      nameIn.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") void submit();
+      });
     }
     async function refresh2() {
       try {
@@ -21495,8 +22041,1157 @@ Image: ${entry.imgName}`,
     window.__dtsTrainflowShown = () => {
       void refresh2();
       void refreshDataset();
+      void refreshContinue();
     };
     void refresh2();
+    void refreshContinue();
+  }
+
+  // src/renderer/curate.ts
+  var JUNK = "junk";
+  var STATE_FILE = "_osmium_curate.json";
+  var UNSORTED = "";
+  var DB_NAME2 = "osmium-curate-db";
+  var STORE2 = "folders";
+  var POS_KEY = (id) => `osmium-curate-pos-${id}`;
+  var currentId = null;
+  var openCurateDB = () => openDB(DB_NAME2, 1, STORE2);
+  async function listFolders() {
+    const recs = await idbGetAll(await openCurateDB(), STORE2);
+    for (const r of recs) if (r.handle && isMobileHandle(r.handle)) r.handle = reviveHandle(r.handle);
+    return recs.sort((a, b) => (b.lastOpenedAt || b.addedAt) - (a.lastOpenedAt || a.addedAt));
+  }
+  async function trackFolder(dir) {
+    for (const r of await listFolders()) {
+      const same = dir.isSameEntry ? await dir.isSameEntry(r.handle).catch(() => false) : r.name === dir.name;
+      if (same) return r.id;
+    }
+    return Number(await idbAdd(await openCurateDB(), STORE2, { name: dir.name, handle: serializeHandle(dir), addedAt: Date.now(), lastOpenedAt: Date.now() }));
+  }
+  function savePosition() {
+    if (currentId === null) return;
+    try {
+      localStorage.setItem(POS_KEY(currentId), JSON.stringify({ view, filter, index }));
+    } catch {
+    }
+  }
+  function restorePosition(id) {
+    try {
+      const p = JSON.parse(localStorage.getItem(POS_KEY(id)) || "null");
+      if (!p) return;
+      if (p.view === "grid" || p.view === "single") view = p.view;
+      if (typeof p.filter === "string" && (p.filter === "*" || p.filter === UNSORTED || styles.includes(p.filter))) filter = p.filter;
+      if (Number.isInteger(p.index) && p.index >= 0) index = p.index;
+    } catch {
+    }
+  }
+  async function makeIcon(id) {
+    const first = items[0];
+    if (!first) return;
+    try {
+      const bmp = await createImageBitmap(await first.handle.getFile());
+      const size = 120;
+      const c = document.createElement("canvas");
+      c.width = size;
+      c.height = size;
+      const k = Math.max(size / bmp.width, size / bmp.height);
+      c.getContext("2d").drawImage(bmp, (size - bmp.width * k) / 2, (size - bmp.height * k) / 2, bmp.width * k, bmp.height * k);
+      bmp.close();
+      await idbUpdate(await openCurateDB(), STORE2, id, { icon: c.toDataURL("image/jpeg", 0.7) });
+    } catch {
+    }
+  }
+  async function openTracked(rec) {
+    try {
+      if (await requestPermission(rec.handle, "readwrite") !== "granted") {
+        toast("Permission was not granted for that folder.");
+        return;
+      }
+      await openDir(rec.handle, rec.id);
+    } catch {
+      const again = await promptRelinkFolder(rec.name);
+      if (!again) return;
+      try {
+        await idbUpdate(await openCurateDB(), STORE2, rec.id, { handle: serializeHandle(again), name: again.name });
+        await openDir(again, rec.id);
+      } catch (err) {
+        toastError("Could not open that folder either", err);
+      }
+    }
+  }
+  async function openDir(dir, id) {
+    savePosition();
+    currentId = null;
+    await loadFolder(dir);
+    currentId = id;
+    restorePosition(id);
+    render();
+    const db = await openCurateDB();
+    await idbUpdate(db, STORE2, id, { lastOpenedAt: Date.now() });
+    const rec = (await idbGetAll(db, STORE2)).find((r) => r.id === id);
+    if (rec && !rec.icon) void makeIcon(id);
+  }
+  function backToFolders() {
+    savePosition();
+    closeFolder();
+    currentId = null;
+    render();
+  }
+  var ctxMenu = null;
+  function closeCtx() {
+    ctxMenu?.remove();
+    ctxMenu = null;
+    document.removeEventListener("click", closeCtx);
+  }
+  function folderMenu(rec, x, y) {
+    closeCtx();
+    const menu = el("div", "ctx-menu");
+    menu.appendChild(el("div", "ctx-header", rec.name));
+    addContextMenuItem(menu, "Open", () => {
+      closeCtx();
+      void openTracked(rec);
+    });
+    addContextMenuItem(menu, "Remove from this list", async () => {
+      closeCtx();
+      const ok = await showConfirmModal(`Remove "${rec.name}" from Curate's folder list?
+The folder and its files are untouched.`, { okLabel: "Remove", danger: true });
+      if (!ok) return;
+      await idbDelete(await openCurateDB(), STORE2, rec.id);
+      try {
+        localStorage.removeItem(POS_KEY(rec.id));
+      } catch {
+      }
+      render();
+    }, { className: "danger" });
+    document.body.appendChild(menu);
+    positionMenu(menu, x, y);
+    ctxMenu = menu;
+    setTimeout(() => document.addEventListener("click", closeCtx), 0);
+  }
+  async function renderHome(body) {
+    const intro = el("div", "curate-empty");
+    intro.append(el("p", "", "Curate a folder of new images before they go into a dataset: pick the keepers, add them to your dataset or start a new one, and sort an artist's different styles into their own folders. Every folder you curate stays here, so you can come back to it anytime and carry on where you left off."));
+    const grid = el("div", "dm-grid curate-home");
+    let recs = [];
+    try {
+      recs = await listFolders();
+    } catch {
+      recs = [];
+    }
+    if (root) return;
+    for (const rec of recs) {
+      const tile = el("div", "dm-tile");
+      tile.tabIndex = 0;
+      tile.title = `${rec.name}
+Last opened ${new Date(rec.lastOpenedAt || rec.addedAt).toLocaleString()}`;
+      tile.appendChild(folderIconEl(rec.icon));
+      tile.appendChild(el("div", "dm-tile-label", rec.name));
+      const menuBtn = btn("\u22EF", "Folder options", () => void 0, "dm-menu-btn");
+      menuBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const r = menuBtn.getBoundingClientRect();
+        folderMenu(rec, r.left, r.bottom + 4);
+      });
+      tile.appendChild(menuBtn);
+      tile.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        folderMenu(rec, ev.clientX, ev.clientY);
+      });
+      tile.addEventListener("click", (ev) => {
+        if (ev.target !== menuBtn) void openTracked(rec);
+      });
+      tile.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") void openTracked(rec);
+      });
+      grid.appendChild(tile);
+    }
+    const add = el("button", "dm-tile dm-add-tile", "+");
+    add.type = "button";
+    add.title = "Curate a new folder";
+    add.addEventListener("click", () => void openFolder());
+    grid.appendChild(add);
+    body.replaceChildren(intro, grid);
+  }
+  var THUMB_W = 320;
+  var THUMB_JOBS = 3;
+  var thumbActive = 0;
+  var thumbQueue = [];
+  function pumpThumbs() {
+    while (thumbActive < THUMB_JOBS && thumbQueue.length) {
+      const job = thumbQueue.shift();
+      thumbActive++;
+      void job().finally(() => {
+        thumbActive--;
+        pumpThumbs();
+      });
+    }
+  }
+  function thumbOf(it, stillWanted) {
+    if (it.thumb) return Promise.resolve(it.thumb);
+    return new Promise((resolve, reject) => {
+      thumbQueue.push(async () => {
+        if (it.thumb) {
+          resolve(it.thumb);
+          return;
+        }
+        try {
+          const file = await it.handle.getFile();
+          if (!stillWanted()) {
+            reject(new Error("stale"));
+            return;
+          }
+          const bmp = await createImageBitmap(file);
+          it.w = bmp.width;
+          it.h = bmp.height;
+          const k = Math.min(1, THUMB_W / bmp.width);
+          const c = document.createElement("canvas");
+          c.width = Math.max(1, Math.round(bmp.width * k));
+          c.height = Math.max(1, Math.round(bmp.height * k));
+          c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+          bmp.close();
+          const blob = await new Promise((r) => c.toBlob(r, "image/webp", 0.85));
+          if (!blob) throw new Error("Could not make a thumbnail.");
+          it.thumb = URL.createObjectURL(blob);
+          resolve(it.thumb);
+        } catch (err) {
+          reject(err);
+        }
+      });
+      pumpThumbs();
+    });
+  }
+  var LOW_RES = 1024;
+  function resLabel(it) {
+    const s = el("span", "curate-res");
+    const fill = () => {
+      if (!it.w || !it.h) return;
+      const low = Math.max(it.w, it.h) < LOW_RES;
+      s.textContent = `${it.w}\xD7${it.h}`;
+      s.classList.toggle("low", low);
+      s.title = low ? `Low resolution: both sides are under ${LOW_RES}px (often a preview or WIP)` : "";
+    };
+    fill();
+    s.fill = fill;
+    return s;
+  }
+  function noteSize(it, img, label) {
+    img.addEventListener("load", () => {
+      it.w = img.naturalWidth;
+      it.h = img.naturalHeight;
+      label.fill?.();
+    }, { once: true });
+  }
+  var deps2;
+  var root = null;
+  var styles = [];
+  var items = [];
+  var view = "grid";
+  var index = 0;
+  var filter = "*";
+  var lastClicked = -1;
+  var busy2 = false;
+  var observer = null;
+  var el = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== void 0) e.textContent = text;
+    return e;
+  };
+  var btn = (label, title, onClick, cls = "") => {
+    const b = el("button", cls, label);
+    b.type = "button";
+    b.title = title;
+    b.addEventListener("click", onClick);
+    return b;
+  };
+  var styleLabel = (s) => s === UNSORTED ? "Unsorted" : s === JUNK ? "Junk" : s;
+  var cleanName = (raw) => raw.replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+  var visibleItems = () => filter === "*" ? items : items.filter((it) => it.style === filter);
+  var isActive = () => tabCurate.classList.contains("active");
+  async function dirOf(style) {
+    if (!root) throw new Error("No folder open.");
+    return style === UNSORTED ? root : root.getDirectoryHandle(style, { create: true });
+  }
+  async function captionOf(it) {
+    try {
+      const dir = await dirOf(it.style);
+      const txt = await dir.getFileHandle(it.name.replace(/\.[^.]+$/, "") + ".txt");
+      return await (await txt.getFile()).text();
+    } catch {
+      return null;
+    }
+  }
+  async function saveState() {
+    if (!root) return;
+    try {
+      const h = await root.getFileHandle(STATE_FILE, { create: true });
+      await writeBytes(h, JSON.stringify({ styles }, null, 2));
+    } catch {
+    }
+  }
+  async function loadFolder(dir) {
+    closeFolder();
+    root = dir;
+    styles = [];
+    try {
+      const st = JSON.parse(await (await (await dir.getFileHandle(STATE_FILE)).getFile()).text());
+      if (st && Array.isArray(st.styles)) styles = st.styles.map((s) => cleanName(String(s))).filter(Boolean);
+    } catch {
+    }
+    const found = [];
+    const subdirs = /* @__PURE__ */ new Map();
+    for await (const h of dir.values()) {
+      if (h.kind === "file" && isImageFile(h.name)) found.push({ name: h.name, style: UNSORTED, handle: h, url: null, thumb: null, selected: false });
+      else if (h.kind === "directory") subdirs.set(h.name, h);
+    }
+    if (subdirs.has(JUNK) && !styles.includes(JUNK)) styles.push(JUNK);
+    for (const s of styles) {
+      const sub = subdirs.get(s);
+      if (!sub) continue;
+      for await (const h of sub.values()) {
+        if (h.kind === "file" && isImageFile(h.name)) found.push({ name: h.name, style: s, handle: h, url: null, thumb: null, selected: false });
+      }
+    }
+    found.sort((a, b) => a.name.localeCompare(b.name, void 0, { numeric: true }));
+    items = found;
+    index = 0;
+    filter = "*";
+    lastClicked = -1;
+    if (dupeScan) dupeScan.cancelled = true;
+    dupe = null;
+    if (view === "dupes") view = "grid";
+  }
+  async function rescan() {
+    if (!root) return;
+    savePosition();
+    await loadFolder(root);
+    if (currentId !== null) restorePosition(currentId);
+    render();
+  }
+  function closeFolder() {
+    for (const it of items) {
+      if (it.url) URL.revokeObjectURL(it.url);
+      if (it.thumb) URL.revokeObjectURL(it.thumb);
+    }
+    items = [];
+    thumbQueue.length = 0;
+    root = null;
+    observer?.disconnect();
+    observer = null;
+  }
+  async function urlOf(it) {
+    if (!it.url) it.url = URL.createObjectURL(await it.handle.getFile());
+    return it.url;
+  }
+  async function moveItem(it, to) {
+    if (it.style === to) return;
+    const from = await dirOf(it.style);
+    const dest = await dirOf(to);
+    const dot = it.name.lastIndexOf(".");
+    const stem = dot < 0 ? it.name : it.name.slice(0, dot);
+    const ext = dot < 0 ? "" : it.name.slice(dot);
+    let name = it.name;
+    for (let n = 2; n < 1e4; n++) {
+      try {
+        await dest.getFileHandle(name);
+      } catch {
+        break;
+      }
+      name = `${stem} (${n})${ext}`;
+    }
+    const file = await it.handle.getFile();
+    const newHandle = await dest.getFileHandle(name, { create: true });
+    await writeBytes(newHandle, file);
+    try {
+      const txt = await from.getFileHandle(stem + ".txt");
+      const text = await (await txt.getFile()).text();
+      const newTxt = await dest.getFileHandle(name.replace(/\.[^.]+$/, "") + ".txt", { create: true });
+      await writeBytes(newTxt, text);
+      await from.removeEntry(stem + ".txt");
+    } catch {
+    }
+    await from.removeEntry(it.name);
+    if (it.url) {
+      URL.revokeObjectURL(it.url);
+      it.url = null;
+    }
+    it.name = name;
+    it.style = to;
+    it.handle = newHandle;
+  }
+  async function assign(targets, to, advance = false) {
+    if (busy2 || !targets.length) return;
+    busy2 = true;
+    let moved = 0;
+    try {
+      for (const it of targets) {
+        if (it.style === to) continue;
+        await moveItem(it, to);
+        moved++;
+      }
+    } catch (err) {
+      toastError("Could not move the image", err);
+    } finally {
+      busy2 = false;
+    }
+    if (moved) toast(`Moved ${moved} image${moved === 1 ? "" : "s"} to ${styleLabel(to)}.`, 1600);
+    const vis = visibleItems();
+    if (advance && vis.includes(targets[0])) index++;
+    if (index >= vis.length) index = Math.max(0, vis.length - 1);
+    render();
+  }
+  async function createStyle(junk) {
+    if (!root) return null;
+    let name = JUNK;
+    if (!junk) {
+      const raw = await showPromptModal(
+        "Name the artstyle. Artstyles split a folder into clear definitions, so one style never mixes with another in a dataset (e.g. an artist's early, painterly and chibi styles). It becomes a folder of that name in the opened folder.",
+        { okLabel: "Create artstyle", placeholder: "e.g. painterly" }
+      );
+      name = cleanName(raw || "");
+      if (!name) return null;
+      if (name.toLowerCase() === JUNK) {
+        toast('Use "Create junk folder" for junk.', 2600);
+        return null;
+      }
+    }
+    if (styles.some((s) => s.toLowerCase() === name.toLowerCase())) {
+      toast(`"${styleLabel(name)}" already exists.`, 2200);
+      return name;
+    }
+    try {
+      await root.getDirectoryHandle(name, { create: true });
+    } catch (err) {
+      toastError("Could not create the folder", err);
+      return null;
+    }
+    styles.push(name);
+    await saveState();
+    toast(junk ? "Created the junk folder." : `Created artstyle "${name}".`, 2200);
+    render();
+    return name;
+  }
+  async function addSelected(target, only) {
+    const sel = only ? [only] : items.filter((it) => it.selected);
+    if (!sel.length) {
+      toast("Select some images first.", 2200);
+      return;
+    }
+    if (busy2) return;
+    busy2 = true;
+    try {
+      const files = [];
+      const captions = /* @__PURE__ */ new Map();
+      for (const it of sel) {
+        const f = await it.handle.getFile();
+        files.push(f);
+        const c = await captionOf(it);
+        if (c !== null) captions.set(f, c);
+      }
+      if (await deps2.addToDataset(files, captions, target)) for (const it of sel) it.selected = false;
+    } catch (err) {
+      toastError("Could not add the images", err);
+    } finally {
+      busy2 = false;
+    }
+    render();
+  }
+  function styleSelect(value, onPick, opts = {}) {
+    const s = el("select", "curate-select");
+    if (opts.placeholder) {
+      const o = el("option", "", opts.placeholder);
+      o.value = "\0";
+      s.appendChild(o);
+    }
+    for (const st of [UNSORTED, ...styles]) {
+      const o = el("option", "", styleLabel(st));
+      o.value = st;
+      s.appendChild(o);
+    }
+    s.value = value;
+    s.addEventListener("change", () => {
+      if (s.value !== "\0") onPick(s.value);
+    });
+    return s;
+  }
+  function badge(style) {
+    const b = el("span", "curate-badge" + (style === JUNK ? " junk" : style === UNSORTED ? " none" : ""), styleLabel(style));
+    return b;
+  }
+  function render() {
+    observer?.disconnect();
+    observer = null;
+    const body = curateTab.querySelector(".curate-body");
+    body.replaceChildren();
+    if (!root) {
+      curateTab.classList.remove("curate-single-mode");
+      void renderHome(body);
+      return;
+    }
+    savePosition();
+    curateTab.classList.toggle("curate-single-mode", view === "single" && items.length > 0);
+    body.appendChild(toolbar());
+    if (!items.length) {
+      body.appendChild(el("div", "curate-empty", "No images in this folder."));
+      return;
+    }
+    if (view === "dupes") {
+      body.appendChild(renderDupes());
+      return;
+    }
+    const vis = visibleItems();
+    if (!vis.length) {
+      body.appendChild(el("div", "curate-empty", `No images in ${styleLabel(filter)}.`));
+      return;
+    }
+    body.appendChild(view === "grid" ? renderGrid(vis) : renderSingle(vis));
+  }
+  function toolbar() {
+    const bar = el("div", "curate-toolbar curate-row");
+    bar.append(
+      el("span", "curate-folder", root.name),
+      btn("\u2039 Folders", "Back to your curation folders (this one stays in the list, where you left off)", backToFolders),
+      btn("Rescan", "Re-read the folder from disk", () => void rescan())
+    );
+    const views = el("div", "curate-seg");
+    views.append(
+      btn("Grid", "All images as a grid", () => {
+        view = "grid";
+        render();
+      }, view === "grid" ? "active" : ""),
+      btn("Single", "One image at a time (\u2190 / \u2192 to move, 0\u20139 to assign)", () => {
+        view = "single";
+        render();
+      }, view === "single" ? "active" : ""),
+      btn("Duplicates", "Find images that look the same (resized, re-saved, mirrored or lightly edited copies) and review them in groups", () => void showDupes(), view === "dupes" ? "active" : "")
+    );
+    bar.appendChild(views);
+    bar.appendChild(folderChips());
+    if (view === "single" || view === "dupes") return bar;
+    const sel = items.filter((it) => it.selected);
+    bar.append(
+      el("span", "curate-sep"),
+      el("span", "curate-count", `${sel.length} selected`),
+      btn("Select all", "Select every image shown", () => {
+        for (const it of visibleItems()) it.selected = true;
+        render();
+      }),
+      btn("Select none", "Clear the selection", () => {
+        for (const it of items) it.selected = false;
+        render();
+      })
+    );
+    const assignTo = el("label", "curate-label", "Assign to");
+    const assignSel = styleSelect("\0", (v) => {
+      const now = items.filter((it) => it.selected);
+      if (!now.length) {
+        toast("Select some images first.", 2200);
+        assignSel.value = "\0";
+        return;
+      }
+      void assign(now, v).then(() => {
+        for (const it of now) if (it.style === v) it.selected = false;
+        render();
+      });
+    }, { placeholder: "Choose\u2026" });
+    assignTo.appendChild(assignSel);
+    bar.append(
+      assignTo,
+      btn("Create artstyle\u2026", "Make a folder for one of the artist's styles, so styles don't mix in a dataset", () => void createStyle(false))
+    );
+    if (!styles.includes(JUNK)) bar.appendChild(btn("Create junk folder", "A folder for images that aren't worth training on", () => void createStyle(true), "curate-junk-btn"));
+    bar.append(
+      el("span", "curate-sep"),
+      btn("Add selected to dataset", "Copy the selected images (and their captions) into the open dataset", () => void addSelected("open"), "primary"),
+      btn("New dataset from selected\u2026", "Make a new dataset folder and copy the selected images into it", () => void addSelected("new"))
+    );
+    return bar;
+  }
+  function folderChips() {
+    const row = el("div", "curate-folders");
+    row.setAttribute("role", "tablist");
+    const chip = (value, label, n, cls) => {
+      const b = btn("", value === "*" ? "Every image in the folder and its artstyle folders" : `View the images in ${label}`, () => {
+        filter = value;
+        index = 0;
+        lastClicked = -1;
+        render();
+      }, `curate-folder-chip ${cls}${filter === value ? " active" : ""}`);
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", String(filter === value));
+      b.append(label, el("span", "curate-folder-n", String(n)));
+      row.appendChild(b);
+    };
+    chip("*", "All", items.length, "all");
+    for (const st of [UNSORTED, ...styles]) {
+      chip(st, styleLabel(st), items.filter((it) => it.style === st).length, st === JUNK ? "junk" : st === UNSORTED ? "none" : "");
+    }
+    return row;
+  }
+  var stackStyles = () => [UNSORTED, ...styles];
+  function renderGrid(vis) {
+    const grid = el("div", "curate-grid");
+    const scroller = curateTab.querySelector(".curate-scroll");
+    observer = new IntersectionObserver((ents) => {
+      for (const e of ents) {
+        if (!e.isIntersecting) continue;
+        const img = e.target;
+        const it = vis[Number(img.dataset.i)];
+        if (!it) continue;
+        observer?.unobserve(img);
+        const near = () => {
+          if (!img.isConnected) return false;
+          const r = img.getBoundingClientRect(), s = scroller.getBoundingClientRect();
+          return r.bottom > s.top - 600 && r.top < s.bottom + 600;
+        };
+        void thumbOf(it, near).then((u) => {
+          img.src = u;
+          img.parentElement?.querySelector(".curate-res")?.fill?.();
+        }).catch(() => {
+          if (img.isConnected && !it.thumb) observer?.observe(img);
+        });
+      }
+    }, { root: scroller, rootMargin: "400px" });
+    const cards = [];
+    const countEl = curateTab.querySelector(".curate-count");
+    const setSelected = (k, on) => {
+      vis[k].selected = on;
+      cards[k].classList.toggle("selected", on);
+    };
+    vis.forEach((it, i) => {
+      const card = el("div", "curate-card" + (it.selected ? " selected" : ""));
+      card.title = `${it.name}
+Click to select (Shift-click for a range), double-click to open`;
+      const img = el("img");
+      img.alt = it.name;
+      img.draggable = false;
+      img.decoding = "async";
+      img.dataset.i = String(i);
+      const res = resLabel(it);
+      if (it.thumb) img.src = it.thumb;
+      else observer.observe(img);
+      const check = el("span", "curate-check", "\u2713");
+      const foot = el("div", "curate-card-foot");
+      foot.append(el("span", "curate-name", it.name), badge(it.style));
+      res.classList.add("curate-res-card");
+      card.appendChild(res);
+      card.append(img, check, foot);
+      card.addEventListener("click", (ev) => {
+        if (dragJustEnded) return;
+        if (ev.shiftKey && lastClicked >= 0) {
+          const [a, b] = [Math.min(lastClicked, i), Math.max(lastClicked, i)];
+          for (let k = a; k <= b; k++) setSelected(k, true);
+        } else {
+          setSelected(i, !it.selected);
+        }
+        lastClicked = i;
+        if (countEl) countEl.textContent = `${items.filter((x) => x.selected).length} selected`;
+      });
+      card.addEventListener("dblclick", () => {
+        index = i;
+        view = "single";
+        render();
+      });
+      cards.push(card);
+      grid.appendChild(card);
+    });
+    let dragJustEnded = false;
+    const marquee = el("div", "curate-marquee");
+    let drag = null;
+    let autoScroll = 0;
+    const point = (cx, cy) => {
+      const g = grid.getBoundingClientRect();
+      return { x: cx - g.left, y: cy - g.top };
+    };
+    let lastClient = { x: 0, y: 0 };
+    const apply = () => {
+      if (!drag) return;
+      const p = point(lastClient.x, lastClient.y);
+      drag.x = p.x;
+      drag.y = p.y;
+      const l = Math.min(drag.x0, drag.x), t = Math.min(drag.y0, drag.y);
+      const r = Math.max(drag.x0, drag.x), b = Math.max(drag.y0, drag.y);
+      Object.assign(marquee.style, { left: `${l}px`, top: `${t}px`, width: `${r - l}px`, height: `${b - t}px` });
+      drag.boxes.forEach((c, k) => {
+        const hit = c.left < r && c.right > l && c.top < b && c.bottom > t;
+        const want = hit ? !drag.deselect : drag.base[k];
+        if (vis[k].selected !== want) setSelected(k, want);
+      });
+      if (countEl) countEl.textContent = `${items.filter((x) => x.selected).length} selected`;
+    };
+    const tick2 = () => {
+      if (!drag || !drag.on) {
+        autoScroll = 0;
+        return;
+      }
+      const s = scroller.getBoundingClientRect(), edge = 48;
+      const dy = lastClient.y < s.top + edge ? -(s.top + edge - lastClient.y) : lastClient.y > s.bottom - edge ? lastClient.y - (s.bottom - edge) : 0;
+      if (dy) {
+        scroller.scrollTop += Math.max(-30, Math.min(30, dy / 2));
+        apply();
+      }
+      autoScroll = requestAnimationFrame(tick2);
+    };
+    grid.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0 || ev.pointerType === "touch") return;
+      const p = point(ev.clientX, ev.clientY);
+      const g = grid.getBoundingClientRect();
+      drag = {
+        x0: p.x,
+        y0: p.y,
+        x: p.x,
+        y: p.y,
+        deselect: ev.altKey,
+        on: false,
+        id: ev.pointerId,
+        base: vis.map((it) => it.selected),
+        boxes: cards.map((c) => {
+          const r = c.getBoundingClientRect();
+          return new DOMRect(r.left - g.left, r.top - g.top, r.width, r.height);
+        })
+      };
+      lastClient = { x: ev.clientX, y: ev.clientY };
+    });
+    grid.addEventListener("pointermove", (ev) => {
+      if (!drag || ev.pointerId !== drag.id) return;
+      lastClient = { x: ev.clientX, y: ev.clientY };
+      if (!drag.on) {
+        const p = point(ev.clientX, ev.clientY);
+        if (Math.hypot(p.x - drag.x0, p.y - drag.y0) < 6) return;
+        drag.on = true;
+        try {
+          grid.setPointerCapture(ev.pointerId);
+        } catch {
+        }
+        grid.classList.add("dragging");
+        grid.appendChild(marquee);
+        autoScroll = requestAnimationFrame(tick2);
+      }
+      ev.preventDefault();
+      apply();
+    });
+    const end = (ev) => {
+      if (!drag || ev.pointerId !== drag.id) return;
+      const was = drag.on;
+      drag = null;
+      cancelAnimationFrame(autoScroll);
+      marquee.remove();
+      grid.classList.remove("dragging");
+      if (was) {
+        dragJustEnded = true;
+        setTimeout(() => {
+          dragJustEnded = false;
+        }, 0);
+      }
+    };
+    grid.addEventListener("pointerup", end);
+    grid.addEventListener("pointercancel", end);
+    return grid;
+  }
+  function renderSingle(vis) {
+    index = Math.max(0, Math.min(index, vis.length - 1));
+    const it = vis[index];
+    const wrap = el("div", "curate-single");
+    const side = el("div", "curate-side");
+    const nav = el("div", "curate-nav");
+    const prev = btn("\u2039", "Previous image (\u2190)", () => step(-1));
+    const next = btn("\u203A", "Next image (\u2192)", () => step(1));
+    prev.disabled = index === 0;
+    next.disabled = index >= vis.length - 1;
+    nav.append(prev, el("span", "curate-pos", `${index + 1} / ${vis.length}`), next);
+    const name = el("div", "curate-single-name");
+    name.append(el("span", "curate-name", it.name), badge(it.style));
+    const res = resLabel(it);
+    name.title = it.name;
+    res.classList.add("curate-res-single");
+    side.append(nav, name, res, el("div", "curate-side-title", "Assign to"));
+    const stack = el("div", "curate-stack");
+    stackStyles().forEach((st, k) => {
+      const b = btn(
+        "",
+        st === it.style ? `Already in ${styleLabel(st)}` : `Move to ${styleLabel(st)} and show the next image (${k})`,
+        () => void assign([it], st, true),
+        "curate-stack-btn" + (st === it.style ? " current" : "") + (st === JUNK ? " junk" : st === UNSORTED ? " none" : "")
+      );
+      if (k <= 9) b.appendChild(el("kbd", "", String(k)));
+      b.append(styleLabel(st));
+      stack.appendChild(b);
+    });
+    stack.appendChild(btn("+ Create Artstyle\u2026", "Make a folder for one of the artist's styles and put this image in it. Artstyles keep an artist's styles apart, so a dataset never mixes one with another.", async () => {
+      const n = await createStyle(false);
+      if (n) await assign([it], n, true);
+    }, "curate-stack-btn create"));
+    if (!styles.includes(JUNK)) stack.appendChild(btn("+ Create junk folder", "A red folder for images that aren't worth training on (this image goes there)", async () => {
+      const n = await createStyle(true);
+      if (n) await assign([it], n, true);
+    }, "curate-stack-btn create junk"));
+    side.appendChild(stack);
+    const add = el("div", "curate-side-add");
+    add.append(
+      btn("Add to dataset", "Copy this image (and its caption) into the open dataset", () => void addSelected("open", it), "primary"),
+      btn("New dataset with it\u2026", "Make a new dataset folder and copy this image into it", () => void addSelected("new", it))
+    );
+    side.appendChild(add);
+    const stage = el("div", "curate-stage");
+    const img = el("img");
+    img.alt = it.name;
+    img.draggable = false;
+    img.title = "Click to zoom";
+    noteSize(it, img, res);
+    void urlOf(it).then((u) => {
+      img.src = u;
+      img.addEventListener("click", () => showImageLightbox(u));
+      for (const n of [vis[index + 1], vis[index - 1]]) if (n) void urlOf(n).then((nu) => {
+        const p = new Image();
+        p.src = nu;
+      }).catch(() => void 0);
+    }).catch(() => void 0);
+    stage.appendChild(img);
+    wrap.append(stage, side);
+    return wrap;
+  }
+  var HASH_FILE = "_osmium_curate_hashes.json";
+  var STRICTNESS = [["Strict", 4], ["Normal", 8], ["Loose", 13]];
+  var dupeBits = 8;
+  var dupe = null;
+  var dupeScan = null;
+  var hashKey = (it, f) => `v2|${it.style}/${it.name}|${f.size}|${f.lastModified}`;
+  var pop32 = (x) => {
+    x -= x >>> 1 & 1431655765;
+    x = (x & 858993459) + (x >>> 2 & 858993459);
+    return (x + (x >>> 4) & 252645135) * 16843009 >>> 24;
+  };
+  function hashDistance(a, b) {
+    const same = pop32(a[0] ^ b[0]) + pop32(a[1] ^ b[1]);
+    const mirrored = pop32(a[0] ^ b[2]) + pop32(a[1] ^ b[3]);
+    return Math.min(same, mirrored);
+  }
+  var hashCanvas = null;
+  async function computeHash(file) {
+    const bmp = await createImageBitmap(file, { resizeWidth: 9, resizeHeight: 8, resizeQuality: "high" });
+    if (!hashCanvas) {
+      const c = document.createElement("canvas");
+      c.width = 9;
+      c.height = 8;
+      hashCanvas = c.getContext("2d", { willReadFrequently: true });
+    }
+    hashCanvas.fillStyle = "#fff";
+    hashCanvas.fillRect(0, 0, 9, 8);
+    hashCanvas.drawImage(bmp, 0, 0);
+    bmp.close();
+    const px2 = hashCanvas.getImageData(0, 0, 9, 8).data;
+    const g = (x, y) => {
+      const i = (y * 9 + x) * 4;
+      return px2[i] * 0.299 + px2[i + 1] * 0.587 + px2[i + 2] * 0.114;
+    };
+    const out = new Uint32Array(4);
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        const bit = y * 8 + x, word = bit < 32 ? 0 : 1, shift = bit % 32;
+        if (g(x, y) > g(x + 1, y)) out[word] |= 1 << shift >>> 0;
+        if (g(8 - x, y) > g(7 - x, y)) out[2 + word] |= 1 << shift >>> 0;
+      }
+    }
+    return out;
+  }
+  var scopeItems = (scope) => scope === "*" ? items.filter((it) => it.style !== JUNK) : items.filter((it) => it.style === scope);
+  async function scanDupes(scope) {
+    if (!root || dupeScan) return;
+    const todo = scopeItems(scope);
+    const scan = { scope, done: 0, total: todo.length, stage: "Comparing images", cancelled: false };
+    dupeScan = scan;
+    render();
+    let cache = {};
+    try {
+      cache = JSON.parse(await (await (await root.getFileHandle(HASH_FILE)).getFile()).text()) || {};
+    } catch {
+      cache = {};
+    }
+    let changed = false;
+    const queue = todo.filter((it) => !it.hash);
+    const worker = async () => {
+      for (let it = queue.shift(); it && !scan.cancelled; it = queue.shift()) {
+        try {
+          const f = await it.handle.getFile();
+          it.bytes = f.size;
+          const key = hashKey(it, f);
+          const hit = cache[key];
+          if (hit && /^[0-9a-f]{32}$/.test(hit)) {
+            it.hash = Uint32Array.from([0, 8, 16, 24].map((o) => parseInt(hit.slice(o, o + 8), 16)));
+          } else {
+            it.hash = await computeHash(f);
+            cache[key] = Array.from(it.hash, (n) => n.toString(16).padStart(8, "0")).join("");
+            changed = true;
+          }
+        } catch {
+        }
+        scan.done++;
+        updateScanProgress();
+      }
+    };
+    scan.done = todo.length - queue.length;
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    if (changed && root) {
+      try {
+        await writeBytes(await root.getFileHandle(HASH_FILE, { create: true }), JSON.stringify(cache));
+      } catch {
+      }
+    }
+    if (scan.cancelled) {
+      dupeScan = null;
+      view = "grid";
+      render();
+      return;
+    }
+    scan.stage = "Checking sizes";
+    updateScanProgress();
+    const groups2 = groupDupes(todo);
+    for (const it of groups2.flatMap((gr) => gr.members)) {
+      if (it.w && it.h && it.bytes) continue;
+      try {
+        const f = await it.handle.getFile();
+        it.bytes = f.size;
+        const bmp = await createImageBitmap(f);
+        it.w = bmp.width;
+        it.h = bmp.height;
+        bmp.close();
+      } catch {
+      }
+    }
+    for (const gr of groups2) gr.keep = /* @__PURE__ */ new Set([pickKeeper(gr.members)]);
+    dupeScan = null;
+    dupe = { scope, groups: groups2 };
+    if (view === "dupes") render();
+  }
+  function groupDupes(list) {
+    const hashed = list.filter((it) => it.hash);
+    const parent = hashed.map((_, i) => i);
+    const find = (i) => {
+      while (parent[i] !== i) {
+        parent[i] = parent[parent[i]];
+        i = parent[i];
+      }
+      return i;
+    };
+    for (let i = 0; i < hashed.length; i++) {
+      for (let j = i + 1; j < hashed.length; j++) {
+        if (hashDistance(hashed[i].hash, hashed[j].hash) <= dupeBits) parent[find(i)] = find(j);
+      }
+    }
+    const by = /* @__PURE__ */ new Map();
+    hashed.forEach((it, i) => {
+      const r = find(i);
+      by.set(r, [...by.get(r) || [], it]);
+    });
+    return [...by.values()].filter((m) => m.length > 1).map((members) => ({ members, keep: /* @__PURE__ */ new Set() }));
+  }
+  function pickKeeper(members) {
+    return [...members].sort((a, b) => (b.w || 0) * (b.h || 0) - (a.w || 0) * (a.h || 0) || (b.bytes || 0) - (a.bytes || 0))[0];
+  }
+  function updateScanProgress() {
+    const bar = curateTab.querySelector(".curate-scan");
+    if (!bar || !dupeScan) return;
+    bar.querySelector(".curate-scan-text").textContent = `${dupeScan.stage}\u2026 ${dupeScan.done} / ${dupeScan.total}`;
+    bar.querySelector(".curate-scan-fill").style.width = `${dupeScan.total ? 100 * dupeScan.done / dupeScan.total : 0}%`;
+  }
+  function showDupes() {
+    view = "dupes";
+    render();
+  }
+  async function junkExtras(groups2) {
+    const extras = groups2.flatMap((gr) => gr.members.filter((m) => !gr.keep.has(m)));
+    if (!extras.length) {
+      toast("Nothing to junk: every image in these groups is marked Keep.", 2600);
+      return;
+    }
+    if (!styles.includes(JUNK) && !await createStyle(true)) return;
+    await assign(extras, JUNK);
+    pruneDupes();
+  }
+  function pruneDupes() {
+    if (dupe) {
+      const inScope = (m) => dupe.scope === "*" ? m.style !== JUNK : m.style === dupe.scope;
+      for (const gr of dupe.groups) {
+        gr.members = gr.members.filter(inScope);
+        for (const k of [...gr.keep]) if (!gr.members.includes(k)) gr.keep.delete(k);
+      }
+      dupe.groups = dupe.groups.filter((gr) => gr.members.length > 1);
+    }
+    render();
+  }
+  var dupeExtras = () => dupe ? dupe.groups.reduce((s, gr) => s + gr.members.length - gr.keep.size, 0) : 0;
+  function dupeSummary() {
+    if (!dupe) return "";
+    const where = dupe.scope === "*" ? "all folders (not junk)" : styleLabel(dupe.scope);
+    const n = dupe.groups.length, extra = dupeExtras();
+    return n ? `${n} group${n === 1 ? "" : "s"} of look-alikes in ${where} \xB7 ${extra} extra cop${extra === 1 ? "y" : "ies"}` : `No duplicates in ${where}.`;
+  }
+  function refreshDupeCounts() {
+    const sum = curateTab.querySelector(".curate-dupes-sum");
+    if (sum) sum.textContent = dupeSummary();
+    const all = curateTab.querySelector(".curate-junk-all");
+    if (all) all.textContent = `Junk all extras (${dupeExtras()})`;
+  }
+  function renderDupes() {
+    const wrap = el("div", "curate-dupes");
+    const scope = filter;
+    if (dupeScan) {
+      const p = el("div", "curate-scan");
+      const track = el("div", "curate-scan-track");
+      track.appendChild(el("div", "curate-scan-fill"));
+      p.append(el("span", "curate-scan-text"), track, btn("Cancel", "Stop looking", () => {
+        if (dupeScan) dupeScan.cancelled = true;
+      }));
+      wrap.appendChild(p);
+      queueMicrotask(updateScanProgress);
+      return wrap;
+    }
+    if (!dupe || dupe.scope !== scope) {
+      void scanDupes(scope);
+      return wrap;
+    }
+    const head = el("div", "curate-row curate-dupes-head");
+    const n = dupe.groups.length, extra = dupeExtras();
+    head.append(el("span", "curate-dupes-sum", dupeSummary()));
+    const strict = el("label", "curate-label", "Strictness");
+    const sel = el("select");
+    for (const [label, bits] of STRICTNESS) {
+      const o = el("option", "", label);
+      o.value = String(bits);
+      sel.appendChild(o);
+    }
+    sel.value = String(dupeBits);
+    sel.title = "Strict: near-identical copies only. Loose: also catches lightly edited ones (and more false matches).";
+    sel.addEventListener("change", () => {
+      dupeBits = Number(sel.value);
+      dupe = null;
+      render();
+    });
+    strict.appendChild(sel);
+    head.appendChild(strict);
+    head.appendChild(btn("Rescan", "Look again (after adding or moving images)", () => {
+      dupe = null;
+      render();
+    }));
+    const canJunk = scope !== JUNK;
+    if (n && canJunk) head.appendChild(btn(`Junk all extras (${extra})`, "Move every copy not marked Keep, in every group, to the junk folder", () => void junkExtras(dupe.groups), "curate-junk-btn curate-junk-all"));
+    wrap.appendChild(head);
+    if (n) wrap.appendChild(el("div", "curate-note", "The biggest copy in each group is marked Keep. Click an image to switch Keep on or off; double-click it to zoom in. Junk moves the unkept ones into the junk folder (nothing is deleted)."));
+    dupe.groups.forEach((gr, gi) => {
+      const box = el("div", "curate-dupe-group");
+      const top = el("div", "curate-row");
+      top.appendChild(el("span", "curate-dupe-title", `Group ${gi + 1} \xB7 ${gr.members.length} images`));
+      if (canJunk) top.appendChild(btn("Junk the others", "Move the copies not marked Keep to the junk folder", () => void junkExtras([gr]), "curate-junk-btn"));
+      top.appendChild(btn("Not duplicates", "Hide this group (it comes back on Rescan)", () => {
+        dupe.groups.splice(gi, 1);
+        render();
+      }));
+      const row = el("div", "curate-dupe-row");
+      for (const it of gr.members) {
+        const kept = gr.keep.has(it);
+        const card = el("div", "curate-card curate-dupe-card" + (kept ? " keep" : ""));
+        card.title = `${it.name}
+Click: mark/unmark Keep \xB7 Double-click: zoom in`;
+        const img = el("img");
+        img.alt = "";
+        img.decoding = "async";
+        if (it.thumb) img.src = it.thumb;
+        else void thumbOf(it, () => img.isConnected).then((u) => {
+          img.src = u;
+        }).catch(() => void 0);
+        const res = resLabel(it);
+        res.classList.add("curate-res-card");
+        const tag = el("span", "curate-keep-tag", kept ? "Keep" : "Extra");
+        const foot = el("div", "curate-card-foot");
+        foot.append(el("span", "curate-name", it.name), badge(it.style));
+        const size = el("div", "curate-dupe-meta", it.bytes ? `${(it.bytes / 1024 / 1024).toFixed(2)} MB` : "");
+        const move = styleSelect("\0", (st) => {
+          if (st !== "") {
+            void assign([it], st).then(pruneDupes);
+            return;
+          }
+          void createStyle(false).then((name) => name ? assign([it], name).then(pruneDupes) : render());
+        }, { placeholder: "Move to\u2026" });
+        const newOpt = el("option", "", "+ New artstyle\u2026");
+        newOpt.value = "";
+        move.appendChild(newOpt);
+        move.classList.add("curate-dupe-move");
+        move.title = "Move just this image to an artstyle folder (e.g. a flat-colour or monochrome variant)";
+        for (const o of Array.from(move.options)) if (o.value === it.style) o.disabled = true;
+        move.addEventListener("click", (ev) => ev.stopPropagation());
+        move.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+        card.append(img, res, tag, foot, size, move);
+        let clickTimer = 0;
+        card.addEventListener("click", () => {
+          clearTimeout(clickTimer);
+          clickTimer = window.setTimeout(() => {
+            const on = !gr.keep.has(it);
+            if (on) gr.keep.add(it);
+            else gr.keep.delete(it);
+            card.classList.toggle("keep", on);
+            tag.textContent = on ? "Keep" : "Extra";
+            refreshDupeCounts();
+          }, 220);
+        });
+        card.addEventListener("dblclick", () => {
+          clearTimeout(clickTimer);
+          const fam = gr.members;
+          void urlOf(it).then((u) => showImageLightbox(u, void 0, {
+            count: fam.length,
+            index: fam.indexOf(it),
+            load: (i) => urlOf(fam[i]),
+            label: (i) => `${fam[i].name}${fam[i].w ? ` \xB7 ${fam[i].w}\xD7${fam[i].h}` : ""}${gr.keep.has(fam[i]) ? " \xB7 Keep" : ""}`
+          }));
+        });
+        row.appendChild(card);
+      }
+      box.append(top, row);
+      wrap.appendChild(box);
+    });
+    return wrap;
+  }
+  function step(d) {
+    const vis = visibleItems();
+    const n = index + d;
+    if (n < 0 || n >= vis.length) return;
+    index = n;
+    render();
+  }
+  async function openFolder() {
+    const dir = await pickDatasetFolder();
+    if (!dir) return;
+    const open2 = deps2.getDirHandle();
+    if (open2 && open2.isSameEntry && await open2.isSameEntry(dir).catch(() => false)) {
+      await showConfirmModal("That folder is the dataset you have open. Curate is for a folder of new images: pick the folder they come from instead.", { okLabel: "OK", cancelLabel: "" });
+      return;
+    }
+    try {
+      await openDir(dir, await trackFolder(dir));
+    } catch (err) {
+      toastError("Could not read the folder", err);
+    }
+  }
+  function initCurate(d) {
+    deps2 = d;
+    render();
+    window.addEventListener("keydown", (ev) => {
+      if (!isActive() || !root || view !== "single") return;
+      if (document.querySelector(".confirm-backdrop, .lightbox-backdrop, .picker-backdrop")) return;
+      const t = ev.target;
+      if (t && (t.tagName === "INPUT" && t.type !== "checkbox" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+      if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        step(ev.key === "ArrowLeft" ? -1 : 1);
+      } else if (/^[0-9]$/.test(ev.key) && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+        const st = stackStyles()[Number(ev.key)];
+        const it = visibleItems()[index];
+        if (st === void 0 || !it) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        void assign([it], st, true);
+      }
+    }, true);
   }
 
   // src/renderer/picker-modal.ts
@@ -21954,7 +23649,7 @@ Image: ${entry.imgName}`,
     resetSettingsToDefault();
     const dirHandle = getDirHandle9();
     if (!dirHandle) {
-      document.querySelectorAll("#synthDatTab textarea").forEach((el) => growTextarea(el));
+      document.querySelectorAll("#synthDatTab textarea").forEach((el2) => growTextarea(el2));
       return;
     }
     const saved = await loadSettingsFromFile();
@@ -21966,7 +23661,7 @@ Image: ${entry.imgName}`,
       addLoraRow("", 1);
       addLoraRow("", 0.8);
     }
-    document.querySelectorAll("#synthDatTab textarea").forEach((el) => growTextarea(el));
+    document.querySelectorAll("#synthDatTab textarea").forEach((el2) => growTextarea(el2));
   }
   var POSE_TAGS = /* @__PURE__ */ new Set([
     "standing",
@@ -22426,8 +24121,8 @@ Image: ${entry.imgName}`,
   var lastWd14TagsCsv = "";
   var previewBytes = null;
   var loraCombo = null;
-  function growTextarea(el) {
-    const he = el;
+  function growTextarea(el2) {
+    const he = el2;
     he.style.height = "auto";
     he.style.height = `${he.scrollHeight}px`;
   }
@@ -22564,7 +24259,7 @@ Image: ${entry.imgName}`,
   function openSynthDatPromptPanel() {
     synthDatPromptFieldsDock.style.display = "block";
     btnSynthDatPromptPanelToggle.style.display = "none";
-    synthDatPromptFieldsDock.querySelectorAll("textarea").forEach((el) => growTextarea(el));
+    synthDatPromptFieldsDock.querySelectorAll("textarea").forEach((el2) => growTextarea(el2));
     setTimeout(() => document.addEventListener("mousedown", onDocClickOutsidePromptPanel), 0);
   }
   function closeSynthDatPromptPanel() {
@@ -22654,15 +24349,15 @@ Image: ${entry.imgName}`,
       const btnGroup = document.createElement("div");
       btnGroup.className = "synthdat-tag-assign-btns";
       for (const [dest, label2] of DESTS) {
-        const btn = document.createElement("button");
-        btn.textContent = label2;
-        btn.className = "synthdat-tag-assign-btn" + (tagAssignments.get(tag) === dest ? " active" : "");
-        btn.addEventListener("click", () => {
+        const btn2 = document.createElement("button");
+        btn2.textContent = label2;
+        btn2.className = "synthdat-tag-assign-btn" + (tagAssignments.get(tag) === dest ? " active" : "");
+        btn2.addEventListener("click", () => {
           tagAssignments.set(tag, dest);
           btnGroup.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
-          btn.classList.add("active");
+          btn2.classList.add("active");
         });
-        btnGroup.appendChild(btn);
+        btnGroup.appendChild(btn2);
       }
       row.appendChild(btnGroup);
       synthDatTagAssign.appendChild(row);
@@ -22785,8 +24480,8 @@ Image: ${entry.imgName}`,
       fillDatalist(synthDatLoraDatalist, loraValues);
     }
   }
-  function fieldValue(el) {
-    return (el.value || "").trim();
+  function fieldValue(el2) {
+    return (el2.value || "").trim();
   }
   function buildPositiveTagList() {
     const unified = synthDatUnifiedPromptMode.checked;
@@ -22989,19 +24684,19 @@ Image: ${entry.imgName}`,
     synthDatPickPass1.classList.toggle("active", which === 1);
     synthDatPickPass2.classList.toggle("active", which === 2);
   }
-  function setObjectUrlOn(el, blob) {
-    const prev = el.dataset.objectUrl;
+  function setObjectUrlOn(el2, blob) {
+    const prev = el2.dataset.objectUrl;
     if (prev) URL.revokeObjectURL(prev);
     const url = URL.createObjectURL(blob);
-    el.dataset.objectUrl = url;
-    el.src = url;
+    el2.dataset.objectUrl = url;
+    el2.src = url;
   }
-  function clearObjectUrlOn(el) {
-    const prev = el.dataset.objectUrl;
+  function clearObjectUrlOn(el2) {
+    const prev = el2.dataset.objectUrl;
     if (prev) {
       URL.revokeObjectURL(prev);
-      el.removeAttribute("data-object-url");
-      el.removeAttribute("src");
+      el2.removeAttribute("data-object-url");
+      el2.removeAttribute("src");
     }
   }
   var genQueue = [];
@@ -23277,10 +24972,10 @@ Image: ${entry.imgName}`,
       if (img.naturalWidth > 0) showImageLightbox(img.src);
     });
   }
-  function initSynthDatOverseer(deps3) {
-    getDirHandle9 = deps3.getDirHandle;
-    addEntryFromNewFile = deps3.addEntryFromNewFile;
-    refreshAllUIRef6 = deps3.refreshAllUI;
+  function initSynthDatOverseer(deps4) {
+    getDirHandle9 = deps4.getDirHandle;
+    addEntryFromNewFile = deps4.addEntryFromNewFile;
+    refreshAllUIRef6 = deps4.refreshAllUI;
     loadTemplate();
     fillStaticOptions(synthDatSampler, SAMPLERS, "res_multistep");
     fillStaticOptions(synthDatScheduler, SCHEDULERS, "beta");
@@ -23302,8 +24997,8 @@ Image: ${entry.imgName}`,
       synthDatEffects,
       synthDatExtra
     ];
-    promptFields.forEach((el) => el.addEventListener("input", () => {
-      growTextarea(el);
+    promptFields.forEach((el2) => el2.addEventListener("input", () => {
+      growTextarea(el2);
       scheduleSave();
     }));
     synthDatNegative.addEventListener("input", () => {
@@ -23319,11 +25014,11 @@ Image: ${entry.imgName}`,
         if (w > 0) growTextarea(e.target);
       }
     });
-    [...promptFields, synthDatNegative].forEach((el) => regrow.observe(el));
+    [...promptFields, synthDatNegative].forEach((el2) => regrow.observe(el2));
     let themeRegrowFrame = 0;
     const regrowAllSoon = () => {
       cancelAnimationFrame(themeRegrowFrame);
-      themeRegrowFrame = requestAnimationFrame(() => [...promptFields, synthDatNegative].forEach((el) => growTextarea(el)));
+      themeRegrowFrame = requestAnimationFrame(() => [...promptFields, synthDatNegative].forEach((el2) => growTextarea(el2)));
     };
     new MutationObserver(regrowAllSoon).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "style"] });
     document.fonts.addEventListener("loadingdone", regrowAllSoon);
@@ -23358,7 +25053,7 @@ Image: ${entry.imgName}`,
       synthDatSeed1,
       synthDatSeed2,
       synthDatDenoise2
-    ].forEach((el) => el.addEventListener("change", scheduleSave));
+    ].forEach((el2) => el2.addEventListener("change", scheduleSave));
     synthDatResizeFit.addEventListener("change", () => {
       updateResizedPreview();
       scheduleSave();
@@ -23430,7 +25125,7 @@ Image: ${entry.imgName}`,
     } else {
       synthDatBackendRow.style.display = "none";
     }
-    const datalistOptions = (el) => Array.from(el.options).map((o) => o.value);
+    const datalistOptions = (el2) => Array.from(el2.options).map((o) => o.value);
     attachPickerModal(synthDatDiffModel, "Diffusion model", () => datalistOptions(synthDatUnetDatalist));
     attachPickerModal(synthDatClip, "CLIP / text encoder", () => datalistOptions(synthDatClipDatalist));
     attachPickerModal(synthDatVae, "VAE", () => datalistOptions(synthDatVaeDatalist));
@@ -23454,7 +25149,7 @@ Image: ${entry.imgName}`,
   }
 
   // src/renderer/tag-wiki.ts
-  var POS_KEY = "dts-tag-wiki-pos";
+  var POS_KEY2 = "dts-tag-wiki-pos";
   var CATEGORY_NAMES2 = { 0: "General", 1: "Artist", 3: "Copyright", 4: "Character", 5: "Meta" };
   var win = null;
   var bodyEl;
@@ -23482,7 +25177,7 @@ Image: ${entry.imgName}`,
         handle.removeEventListener("pointerup", up);
         clampIntoView();
         const rr = win.getBoundingClientRect();
-        setJSON(POS_KEY, { left: rr.left, top: rr.top });
+        setJSON(POS_KEY2, { left: rr.left, top: rr.top });
       };
       handle.addEventListener("pointermove", move);
       handle.addEventListener("pointerup", up);
@@ -23494,13 +25189,13 @@ Image: ${entry.imgName}`,
     const at = blocks.findIndex((b) => /^see also:?$/i.test(b.trim()));
     if (at === -1) return { main: text.trim(), seeAlso: [] };
     let end = at + 1;
-    const items = [];
+    const items2 = [];
     while (end < blocks.length && !SECTION_AFTER_SEE_ALSO.test(blocks[end].trim().split("\n")[0])) {
-      for (const line of blocks[end].split("\n")) if (line.trim()) items.push(line.trim());
+      for (const line of blocks[end].split("\n")) if (line.trim()) items2.push(line.trim());
       end++;
     }
     const main = [...blocks.slice(0, at), ...blocks.slice(end)].join("\n\n").trim();
-    return { main, seeAlso: items };
+    return { main, seeAlso: items2 };
   }
   async function showTag(raw) {
     const tag = raw.trim().replace(/_/g, " ");
@@ -23547,17 +25242,17 @@ Image: ${entry.imgName}`,
       list.className = "tag-wiki-seealso-list";
       for (const item of seeAlso) {
         const known = wiki[item.replace(/ /g, "_")] !== void 0 || allTags.has(item.replace(/ /g, "_"));
-        const el = document.createElement(known ? "button" : "span");
-        el.className = known ? "tag-wiki-link" : "tag-wiki-plain";
-        el.textContent = item;
+        const el2 = document.createElement(known ? "button" : "span");
+        el2.className = known ? "tag-wiki-link" : "tag-wiki-plain";
+        el2.textContent = item;
         if (known) {
-          el.type = "button";
-          el.addEventListener("click", () => {
+          el2.type = "button";
+          el2.addEventListener("click", () => {
             inputEl.value = item;
             void showTag(item);
           });
         }
-        list.appendChild(el);
+        list.appendChild(el2);
       }
       rel.appendChild(list);
       bodyEl.appendChild(rel);
@@ -23579,10 +25274,10 @@ Image: ${entry.imgName}`,
     }
   }
   function build() {
-    const el = document.createElement("div");
-    el.className = "tag-wiki-window";
-    el.setAttribute("role", "dialog");
-    el.setAttribute("aria-label", "Tag wiki");
+    const el2 = document.createElement("div");
+    el2.className = "tag-wiki-window";
+    el2.setAttribute("role", "dialog");
+    el2.setAttribute("aria-label", "Tag wiki");
     const head = document.createElement("div");
     head.className = "tag-wiki-head";
     const title = document.createElement("span");
@@ -23614,9 +25309,9 @@ Image: ${entry.imgName}`,
       inputEl.value = tag;
       void showTag(tag);
     });
-    el.append(head, bodyEl, inputEl);
+    el2.append(head, bodyEl, inputEl);
     attachDrag(head);
-    return el;
+    return el2;
   }
   function openTagWiki() {
     if (win) {
@@ -23625,7 +25320,7 @@ Image: ${entry.imgName}`,
     }
     win = build();
     document.body.appendChild(win);
-    const pos = getJSON(POS_KEY, null);
+    const pos = getJSON(POS_KEY2, null);
     if (pos) {
       win.style.left = pos.left + "px";
       win.style.top = pos.top + "px";
@@ -23639,11 +25334,11 @@ Image: ${entry.imgName}`,
   }
   function closeTagWiki() {
     if (!win) return;
-    const el = win;
+    const el2 = win;
     win = null;
     closeAutocomplete();
-    el.classList.remove("panel-visible");
-    setTimeout(() => el.remove(), 160);
+    el2.classList.remove("panel-visible");
+    setTimeout(() => el2.remove(), 160);
   }
   function initTagWiki(button) {
     button.addEventListener("click", () => win ? closeTagWiki() : openTagWiki());
@@ -23676,15 +25371,15 @@ Image: ${entry.imgName}`,
     tagFamilyListArea.classList.remove("review-mode");
   }
   function buildTagIndex() {
-    const index = /* @__PURE__ */ new Map();
+    const index2 = /* @__PURE__ */ new Map();
     for (const e of getEntries6()) {
       if (e.disabled) continue;
       for (const t of e.tags) {
-        if (!index.has(t)) index.set(t, /* @__PURE__ */ new Set());
-        index.get(t).add(e.base);
+        if (!index2.has(t)) index2.set(t, /* @__PURE__ */ new Set());
+        index2.get(t).add(e.base);
       }
     }
-    return index;
+    return index2;
   }
   function wordsOf(tag) {
     return Array.from(new Set(tag.split(" ").filter(Boolean)));
@@ -23788,22 +25483,22 @@ Image: ${entry.imgName}`,
       label.className = "review-flag-tag";
       label.textContent = tag;
       row.appendChild(label);
-      const btn = document.createElement("button");
-      btn.className = "review-done-btn";
-      btn.textContent = "Reviewed";
-      btn.title = stillFlagged ? "Unflag this tag from every image (undoable)" : "Already cleared \u2014 no image lists this tag anymore";
-      btn.disabled = !stillFlagged;
-      btn.addEventListener("click", () => {
+      const btn2 = document.createElement("button");
+      btn2.className = "review-done-btn";
+      btn2.textContent = "Reviewed";
+      btn2.title = stillFlagged ? "Unflag this tag from every image (undoable)" : "Already cleared \u2014 no image lists this tag anymore";
+      btn2.disabled = !stillFlagged;
+      btn2.addEventListener("click", () => {
         reviewedFlaggedTags.add(tag);
         const n = markTagReviewedRef(tag);
         if (n === 0) toast(`No loaded image still lists "${tag}" as flagged for review.`);
         refreshStats();
       });
-      row.appendChild(btn);
+      row.appendChild(btn2);
       tagFrequencyList.appendChild(row);
     }
   }
-  function renderTagFrequencyList(index) {
+  function renderTagFrequencyList(index2) {
     if (reviewFlaggedActive) {
       renderFlaggedReviewList();
       return;
@@ -23813,7 +25508,7 @@ Image: ${entry.imgName}`,
     tagFrequencyList.innerHTML = "";
     if (leftSortMode === "family") {
       const families = /* @__PURE__ */ new Map();
-      for (const [tag] of index) {
+      for (const [tag] of index2) {
         const words = Array.from(new Set(tag.split(" ").filter(Boolean)));
         for (const w of words) {
           if (!families.has(w)) families.set(w, []);
@@ -23863,12 +25558,12 @@ Image: ${entry.imgName}`,
         tagFrequencyList.appendChild(header);
         tags.sort((a, b) => a.localeCompare(b));
         for (const tag of tags) {
-          tagFrequencyList.appendChild(buildFreqRow(tag, index.get(tag).size));
+          tagFrequencyList.appendChild(buildFreqRow(tag, index2.get(tag).size));
         }
       }
       return;
     }
-    let list = Array.from(index.entries());
+    let list = Array.from(index2.entries());
     if (leftSortMode === "alphabetical") {
       list.sort((a, b) => a[0].localeCompare(b[0]) * dir);
     } else {
@@ -23913,14 +25608,14 @@ Image: ${entry.imgName}`,
     refreshStats();
   }
   function refreshStats() {
-    const index = buildTagIndex();
-    lastTagIndex = index;
+    const index2 = buildTagIndex();
+    lastTagIndex = index2;
     const entries = getEntries6();
     const activeEntries = entries.filter((e) => !e.disabled);
     $("cardImages").textContent = String(activeEntries.length);
-    $("cardTags").textContent = String(index.size);
-    renderTagFrequencyList(index);
-    return index;
+    $("cardTags").textContent = String(index2.size);
+    renderTagFrequencyList(index2);
+    return index2;
   }
   function sortEntries(list) {
     const gallerySortMode = getGallerySortMode();
@@ -24008,16 +25703,16 @@ Image: ${entry.imgName}`,
     resetSingleIndex2();
     renderCurrentViewRef3();
   }
-  function initTagIndex(deps3) {
-    getEntries6 = deps3.getEntries;
-    getGalleryFilter = deps3.getGalleryFilter;
-    getGallerySortMode = deps3.getGallerySortMode;
-    getGallerySortDir = deps3.getGallerySortDir;
-    resetSingleIndex2 = deps3.resetSingleIndex;
-    renderCurrentViewRef3 = deps3.renderCurrentView;
-    refreshFilterModeUI = deps3.refreshFilterModeUI;
-    isFilterModeLocked = deps3.isFilterModeLocked;
-    markTagReviewedRef = deps3.markTagReviewed;
+  function initTagIndex(deps4) {
+    getEntries6 = deps4.getEntries;
+    getGalleryFilter = deps4.getGalleryFilter;
+    getGallerySortMode = deps4.getGallerySortMode;
+    getGallerySortDir = deps4.getGallerySortDir;
+    resetSingleIndex2 = deps4.resetSingleIndex;
+    renderCurrentViewRef3 = deps4.renderCurrentView;
+    refreshFilterModeUI = deps4.refreshFilterModeUI;
+    isFilterModeLocked = deps4.isFilterModeLocked;
+    markTagReviewedRef = deps4.markTagReviewed;
     leftSortDirBtn.addEventListener("click", () => {
       leftSortDir = leftSortDir === "asc" ? "desc" : "asc";
       setIconLabel(leftSortDirBtn, leftSortDir === "asc" ? "\u25B2" : "\u25BC");
@@ -24116,7 +25811,7 @@ Image: ${entry.imgName}`,
     { id: "gaze", label: "Gaze", items: [{ label: "Looking at viewer", tag: "looking at viewer" }, { label: "Looking away", tag: "looking away" }, { label: "Looking to the side", tag: "looking to the side" }] }
   ];
   var BREAST_SIZES = ["small breasts", "medium breasts", "large breasts", "gigantic breasts"];
-  var deps2 = null;
+  var deps3 = null;
   var panel = null;
   var currentEntry = null;
   function normTag(t) {
@@ -24146,24 +25841,24 @@ Image: ${entry.imgName}`,
     return allGroups().flatMap((g) => g.items);
   }
   function tick(entry, def) {
-    deps2.addTagToEntry(entry, [def.tag, ...def.adds || []].join(","));
+    deps3.addTagToEntry(entry, [def.tag, ...def.adds || []].join(","));
     for (const other of allItems()) {
       if (other !== def && other.untickedBy?.includes(def.tag) && entry.tags.includes(other.tag)) untick(entry, other);
     }
   }
   function untick(entry, def) {
-    deps2.removeTagFromEntry(entry, def.tag);
+    deps3.removeTagFromEntry(entry, def.tag);
     const stillTicked = allItems().filter((o) => o !== def && entry.tags.includes(o.tag));
     for (const t of def.adds || []) {
       if (def.keep?.includes(t)) continue;
       if (stillTicked.some((o) => o.adds?.includes(t))) continue;
-      if (entry.tags.includes(t)) deps2.removeTagFromEntry(entry, t);
+      if (entry.tags.includes(t)) deps3.removeTagFromEntry(entry, t);
     }
-    for (const t of def.untickRemoves || []) if (entry.tags.includes(t)) deps2.removeTagFromEntry(entry, t);
+    for (const t of def.untickRemoves || []) if (entry.tags.includes(t)) deps3.removeTagFromEntry(entry, t);
   }
   function applyBuiltinRules(entry) {
     const sizes = BREAST_SIZES.some((t) => entry.tags.includes(t));
-    if (!sizes && entry.tags.includes("flat chest") && entry.tags.includes("breasts")) deps2.removeTagFromEntry(entry, "breasts");
+    if (!sizes && entry.tags.includes("flat chest") && entry.tags.includes("breasts")) deps3.removeTagFromEntry(entry, "breasts");
   }
   function field2(box, label, hint, value, placeholder, list) {
     const wrap = document.createElement("label");
@@ -24324,16 +26019,16 @@ Image: ${entry.imgName}`,
     return b;
   }
   function initQuickTag(d) {
-    deps2 = d;
+    deps3 = d;
     panel = document.createElement("div");
     panel.id = "quickTagPanel";
     panel.className = "quicktag-panel";
-    deps2.leftPanel.appendChild(panel);
+    deps3.leftPanel.appendChild(panel);
   }
   function showQuickTag(entry) {
-    if (!deps2 || !panel) return;
+    if (!deps3 || !panel) return;
     currentEntry = entry;
-    deps2.leftPanel.classList.add("quicktag-on");
+    deps3.leftPanel.classList.add("quicktag-on");
     panel.innerHTML = "";
     const title = document.createElement("h3");
     title.className = "panel-title";
@@ -24379,7 +26074,7 @@ Image: ${entry.imgName}`,
           if (cb.checked) tick(entry, def);
           else untick(entry, def);
           applyBuiltinRules(entry);
-          deps2.onChange();
+          deps3.onChange();
         });
         const span = document.createElement("span");
         span.textContent = def.label || def.tag;
@@ -24413,8 +26108,8 @@ Image: ${entry.imgName}`,
     return parts.join("; ");
   }
   function hideQuickTag() {
-    if (!deps2) return;
-    deps2.leftPanel.classList.remove("quicktag-on");
+    if (!deps3) return;
+    deps3.leftPanel.classList.remove("quicktag-on");
   }
 
   // src/renderer/view.ts
@@ -24529,10 +26224,10 @@ Image: ${entry.imgName}`,
     let shown = 0;
     const sentinel = document.createElement("div");
     sentinel.style.height = "1px";
-    const observer = new IntersectionObserver((entries) => {
+    const observer2 = new IntersectionObserver((entries) => {
       if (entries.some((en) => en.isIntersecting)) appendChunkSet();
     }, { rootMargin: "600px" });
-    setObserver(observer);
+    setObserver(observer2);
     function appendChunkSet() {
       if (shown >= list.length) return;
       const frag = document.createDocumentFragment();
@@ -24543,7 +26238,7 @@ Image: ${entry.imgName}`,
         host.appendChild(sentinel);
       } else {
         sentinel.remove();
-        observer.disconnect();
+        observer2.disconnect();
         setObserver(null);
       }
     }
@@ -24557,8 +26252,8 @@ Image: ${entry.imgName}`,
       }
     };
   }
-  function findVerticalScroller(el) {
-    let n = el.parentElement;
+  function findVerticalScroller(el2) {
+    let n = el2.parentElement;
     while (n) {
       const oy = getComputedStyle(n).overflowY;
       if (oy === "scroll" || oy === "auto") return n;
@@ -24571,21 +26266,21 @@ Image: ${entry.imgName}`,
     const scTop = scroller.getBoundingClientRect().top;
     const cards = hoster.children;
     for (const n of Array.from(cards)) {
-      const el = n;
-      if (!(el.classList.contains("card") || el.classList.contains("compact-card"))) continue;
-      const r = el.getBoundingClientRect();
+      const el2 = n;
+      if (!(el2.classList.contains("card") || el2.classList.contains("compact-card"))) continue;
+      const r = el2.getBoundingClientRect();
       if (r.bottom > scTop) {
-        return el.dataset.base ? { base: el.dataset.base, offsetInViewport: r.top - scTop } : null;
+        return el2.dataset.base ? { base: el2.dataset.base, offsetInViewport: r.top - scTop } : null;
       }
     }
     return null;
   }
   function restoreAnchor(hoster, scroller, anchor) {
     if (!anchor) return;
-    const el = hoster.querySelector(`.card[data-base="${CSS.escape(anchor.base)}"], .compact-card[data-base="${CSS.escape(anchor.base)}"]`);
-    if (!el || !scroller) return;
+    const el2 = hoster.querySelector(`.card[data-base="${CSS.escape(anchor.base)}"], .compact-card[data-base="${CSS.escape(anchor.base)}"]`);
+    if (!el2 || !scroller) return;
     const applyAnchor = () => {
-      const err = el.getBoundingClientRect().top - anchor.offsetInViewport - scroller.getBoundingClientRect().top;
+      const err = el2.getBoundingClientRect().top - anchor.offsetInViewport - scroller.getBoundingClientRect().top;
       if (Math.abs(err) > 1) scroller.scrollTop += err;
     };
     applyAnchor();
@@ -24694,10 +26389,10 @@ Image: ${entry.imgName}`,
     img.decoding = "async";
     card.appendChild(img);
     if (e.meta && e.meta.reviewColor) {
-      const badge = document.createElement("div");
-      badge.className = "flag-badge";
-      badge.style.background = e.meta.reviewColor;
-      card.appendChild(badge);
+      const badge2 = document.createElement("div");
+      badge2.className = "flag-badge";
+      badge2.style.background = e.meta.reviewColor;
+      card.appendChild(badge2);
     }
     card.addEventListener("click", (ev) => {
       if (ctxMenuEl) return;
@@ -24829,10 +26524,10 @@ Image: ${entry.imgName}`,
     thumbwrap.appendChild(menuBtn);
     const statusIconsEl = buildStatusIconsEl(e);
     if (e.meta && e.meta.reviewColor) {
-      const badge = document.createElement("div");
-      badge.className = "flag-badge";
-      badge.style.background = e.meta.reviewColor;
-      thumbwrap.appendChild(badge);
+      const badge2 = document.createElement("div");
+      badge2.className = "flag-badge";
+      badge2.style.background = e.meta.reviewColor;
+      thumbwrap.appendChild(badge2);
     }
     if (e.meta && e.meta.locked) {
       const lockBadge = document.createElement("div");
@@ -25266,11 +26961,11 @@ Image: ${entry.imgName}`,
     };
     panel2.addEventListener("change", emitPreview);
     function sectionLabel(text) {
-      const el = document.createElement("div");
-      el.className = "single-name";
-      el.style.marginTop = "10px";
-      el.textContent = text;
-      return el;
+      const el2 = document.createElement("div");
+      el2.className = "single-name";
+      el2.style.marginTop = "10px";
+      el2.textContent = text;
+      return el2;
     }
     function toggleRow(labelText, checked, onChange) {
       const label = document.createElement("label");
@@ -25315,11 +27010,11 @@ Image: ${entry.imgName}`,
     sections.className = "seq-sections";
     panel2.appendChild(sections);
     function newSection(title) {
-      const el = document.createElement("div");
-      el.className = "seq-section";
-      el.appendChild(sectionLabel(title));
-      sections.appendChild(el);
-      return el;
+      const el2 = document.createElement("div");
+      el2.className = "seq-section";
+      el2.appendChild(sectionLabel(title));
+      sections.appendChild(el2);
+      return el2;
     }
     let sec;
     sec = newSection("Text");
@@ -25336,8 +27031,8 @@ Image: ${entry.imgName}`,
     }
     const hasTextRow = toggleRow("Has text", d.hasText, (v) => {
       d.hasText = v;
-      panel2.querySelectorAll(".seq-text-sub").forEach((el) => {
-        el.style.display = v ? "" : "none";
+      panel2.querySelectorAll(".seq-text-sub").forEach((el2) => {
+        el2.style.display = v ? "" : "none";
       });
     });
     const soundRow = toggleRow("Sound effects", d.soundEffects, (v) => {
@@ -25736,10 +27431,10 @@ Image: ${entry.imgName}`,
     nameEl.textContent = e.imgName + (e.width ? ` \xB7 ${e.width}\xD7${e.height}` : "") + ` \xB7 ${e.tags.length} tags`;
     panel2.appendChild(nameEl);
     if (e.disabled) {
-      const badge = document.createElement("div");
-      badge.className = "single-disabled-badge";
-      badge.textContent = "Disabled \u2014 hidden from active dataset";
-      panel2.appendChild(badge);
+      const badge2 = document.createElement("div");
+      badge2.className = "single-disabled-badge";
+      badge2.textContent = "Disabled \u2014 hidden from active dataset";
+      panel2.appendChild(badge2);
     }
     if (e.meta && e.meta.noteAlwaysVisible && e.meta.note) {
       const noteVis = document.createElement("div");
@@ -25795,13 +27490,13 @@ Image: ${entry.imgName}`,
   function capturePanelScroll(host) {
     const panelTop = host.querySelector(".single-panel")?.scrollTop ?? 0;
     const ancestors = [];
-    for (let el = host.parentElement; el; el = el.parentElement) {
-      if (el.scrollTop) ancestors.push([el, el.scrollTop]);
+    for (let el2 = host.parentElement; el2; el2 = el2.parentElement) {
+      if (el2.scrollTop) ancestors.push([el2, el2.scrollTop]);
     }
     return () => {
       const panel2 = host.querySelector(".single-panel");
       if (panel2) panel2.scrollTop = panelTop;
-      for (const [el, top] of ancestors) el.scrollTop = top;
+      for (const [el2, top] of ancestors) el2.scrollTop = top;
     };
   }
   function computeIsolatedTagSet(tagIndex) {
@@ -25822,17 +27517,17 @@ Image: ${entry.imgName}`,
     return bar;
   }
   function buildTagSortToggle(onToggle) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "tagcat-toggle" + (tagSortingActive ? " active" : "");
-    setIconLabel(btn, tagSortingActive ? "\u{1F3F7} Tag sorting: on" : "\u{1F3F7} Tag sorting");
-    btn.title = tagSortingActive ? "Stop grouping tags by category" : "Group tags by prompt-field category (Character, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects, Other)";
-    btn.addEventListener("click", () => {
+    const btn2 = document.createElement("button");
+    btn2.type = "button";
+    btn2.className = "tagcat-toggle" + (tagSortingActive ? " active" : "");
+    setIconLabel(btn2, tagSortingActive ? "\u{1F3F7} Tag sorting: on" : "\u{1F3F7} Tag sorting");
+    btn2.title = tagSortingActive ? "Stop grouping tags by category" : "Group tags by prompt-field category (Character, Body, Face, Clothes, Limbs and Hands, Sexual, Pose, Scene, Effects, Other)";
+    btn2.addEventListener("click", () => {
       tagSortingActive = !tagSortingActive;
       setBool(TAG_SORTING_KEY, tagSortingActive);
       onToggle();
     });
-    return btn;
+    return btn2;
   }
   function buildChipsBlock(entry, tagIndex, onChange) {
     const ordered = orderedTagsForDisplay(entry, tagIndex);
@@ -25851,11 +27546,11 @@ Image: ${entry.imgName}`,
       subjectSelectedTags = /* @__PURE__ */ new Set();
     }
     const validIds = new Set(subjects.map((s) => s.id));
-    const assign = entry.meta?.tagAssign || {};
+    const assign2 = entry.meta?.tagAssign || {};
     const mainTags = [];
     const bySubject = /* @__PURE__ */ new Map();
     for (const tag of [...ordered, ...ghosts.map((g) => g.tag)]) {
-      const sid = assign[tag];
+      const sid = assign2[tag];
       if (sid && validIds.has(sid)) {
         const list = bySubject.get(sid);
         if (list) list.push(tag);
@@ -25919,12 +27614,12 @@ Image: ${entry.imgName}`,
     return wrap;
   }
   function buildCategoryAddButton(entry, cat, host, onChange, subjectId) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "tagcat-add";
-    btn.textContent = "+";
-    btn.title = `Add a tag under ${TAG_CATEGORY_LABELS[cat]}`;
-    btn.addEventListener("click", (ev) => {
+    const btn2 = document.createElement("button");
+    btn2.type = "button";
+    btn2.className = "tagcat-add";
+    btn2.textContent = "+";
+    btn2.title = `Add a tag under ${TAG_CATEGORY_LABELS[cat]}`;
+    btn2.addEventListener("click", (ev) => {
       ev.stopPropagation();
       const existing = host.querySelector(":scope > .tagcat-add-input");
       if (existing) {
@@ -25956,7 +27651,7 @@ Image: ${entry.imgName}`,
       host.querySelector(":scope > .tagcat-head, :scope > .tagsub-sub-head").insertAdjacentElement("afterend", input);
       input.focus();
     });
-    return btn;
+    return btn2;
   }
   function addTagsToCategory(entry, raw, cat, subjectId) {
     const parts = raw.split(",").map((t) => t.trim().replace(/_/g, " ").replace(/\s+/g, " ")).filter(Boolean);
@@ -25984,33 +27679,33 @@ Image: ${entry.imgName}`,
   function nextSubjectId() {
     return "subj-" + Date.now().toString(36) + "-" + (subjectIdCounter++).toString(36);
   }
-  function subjectLabel(subject, index) {
-    return subject.name.trim() || `Character ${index + 1}`;
+  function subjectLabel(subject, index2) {
+    return subject.name.trim() || `Character ${index2 + 1}`;
   }
   function buildAddSubjectButton(entry, onChange) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "tagsub-addsubject";
-    btn.textContent = "\uFF0B Add character";
-    btn.title = "Add an empty character section under Character, then move categories or tags into it";
-    btn.addEventListener("click", () => {
+    const btn2 = document.createElement("button");
+    btn2.type = "button";
+    btn2.className = "tagsub-addsubject";
+    btn2.textContent = "\uFF0B Add character";
+    btn2.title = "Add an empty character section under Character, then move categories or tags into it";
+    btn2.addEventListener("click", () => {
       const meta = ensureEntryMeta(entry);
       const subjects = meta.tagSubjects || (meta.tagSubjects = []);
       subjects.push({ id: nextSubjectId(), name: `Character ${subjects.length + 1}` });
       persistEntryMeta(entry);
       onChange();
     });
-    return btn;
+    return btn2;
   }
   function buildLoadPresetButton(entry, onChange) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "tagsub-addsubject";
-    setIconLabel(btn, "Load character \u25BE");
-    btn.title = "Load a character saved in this dataset; its tags on this image move into its section";
-    btn.addEventListener("click", (ev) => {
+    const btn2 = document.createElement("button");
+    btn2.type = "button";
+    btn2.className = "tagsub-addsubject";
+    setIconLabel(btn2, "Load character \u25BE");
+    btn2.title = "Load a character saved in this dataset; its tags on this image move into its section";
+    btn2.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      document.querySelectorAll(".tagsub-picker").forEach((el) => el.remove());
+      document.querySelectorAll(".tagsub-picker").forEach((el2) => el2.remove());
       const menu = document.createElement("div");
       menu.className = "ctx-menu tagsub-picker";
       const header = document.createElement("div");
@@ -26039,7 +27734,7 @@ Image: ${entry.imgName}`,
         });
       }
       document.body.appendChild(menu);
-      const r = btn.getBoundingClientRect();
+      const r = btn2.getBoundingClientRect();
       positionMenu(menu, r.left, r.bottom + 4);
       const onOutside = (e) => {
         if (!menu.contains(e.target)) {
@@ -26049,7 +27744,7 @@ Image: ${entry.imgName}`,
       };
       setTimeout(() => document.addEventListener("click", onOutside, true), 0);
     });
-    return btn;
+    return btn2;
   }
   function loadSubjectPreset(entry, preset) {
     const meta = ensureEntryMeta(entry);
@@ -26064,14 +27759,14 @@ Image: ${entry.imgName}`,
     const missing = preset.tags.length - present.length;
     toast(`Moved ${present.length} tag${present.length === 1 ? "" : "s"} into ${subjectLabel(subject, subjects.indexOf(subject))}` + (missing ? `; ${missing} saved tag${missing === 1 ? "" : "s"} not on this image ${missing === 1 ? "is" : "are"} offered there.` : "."), 3600);
   }
-  function saveSubjectAsPreset(entry, subject, index, onChange) {
-    const assign = entry.meta?.tagAssign || {};
-    const tags = entry.tags.filter((t) => assign[t] === subject.id);
+  function saveSubjectAsPreset(entry, subject, index2, onChange) {
+    const assign2 = entry.meta?.tagAssign || {};
+    const tags = entry.tags.filter((t) => assign2[t] === subject.id);
     if (!tags.length) {
       toast("Move some tags into this character first, then save it.", 3200);
       return;
     }
-    const preset = upsertSubjectPreset(subjectLabel(subject, index), tags);
+    const preset = upsertSubjectPreset(subjectLabel(subject, index2), tags);
     subject.presetId = preset.id;
     persistEntryMeta(entry);
     toast(`Saved "${preset.name}" (${tags.length} tags) to this dataset. Load it on any image from "Load character".`, 3600);
@@ -26079,10 +27774,10 @@ Image: ${entry.imgName}`,
   }
   function assignTagsToSubject(entry, tags, subjectId) {
     const meta = ensureEntryMeta(entry);
-    const assign = meta.tagAssign || (meta.tagAssign = {});
+    const assign2 = meta.tagAssign || (meta.tagAssign = {});
     for (const t of tags) {
-      if (subjectId) assign[t] = subjectId;
-      else delete assign[t];
+      if (subjectId) assign2[t] = subjectId;
+      else delete assign2[t];
     }
     persistEntryMeta(entry);
   }
@@ -26162,7 +27857,7 @@ Image: ${entry.imgName}`,
     bar.appendChild(clearBtn);
     return bar;
   }
-  function buildSubjectBlock(entry, subject, index, tags, tagIndex, onChange, ghostByTag) {
+  function buildSubjectBlock(entry, subject, index2, tags, tagIndex, onChange, ghostByTag) {
     const block = document.createElement("div");
     block.className = "tagsub-subject";
     block.addEventListener("dragover", (ev) => {
@@ -26190,7 +27885,7 @@ Image: ${entry.imgName}`,
     nameInput.type = "text";
     nameInput.className = "tagsub-name";
     nameInput.value = subject.name;
-    nameInput.placeholder = `Character ${index + 1}`;
+    nameInput.placeholder = `Character ${index2 + 1}`;
     nameInput.title = "Name this character";
     nameInput.setAttribute("aria-label", "Character name");
     nameInput.addEventListener("keydown", (ev) => ev.stopPropagation());
@@ -26206,7 +27901,7 @@ Image: ${entry.imgName}`,
     save.type = "button";
     save.textContent = subject.presetId && subjectPresetById(subject.presetId) ? "Update saved" : "Save";
     save.title = "Save this character and its tags to the dataset, to load on other images";
-    save.addEventListener("click", () => saveSubjectAsPreset(entry, subject, index, onChange));
+    save.addEventListener("click", () => saveSubjectAsPreset(entry, subject, index2, onChange));
     actions.appendChild(save);
     const del = document.createElement("button");
     del.type = "button";
@@ -26486,10 +28181,10 @@ Image: ${entry.imgName}`,
   function modalSourceEl(base) {
     if (!base) return null;
     const sel = `.card[data-base="${CSS.escape(base)}"] .thumbwrap, .compact-card[data-base="${CSS.escape(base)}"]`;
-    const el = document.querySelector(sel);
-    if (el && el.offsetParent) {
-      const r = el.getBoundingClientRect();
-      if (r.bottom > 0 && r.top < window.innerHeight && r.width > 0) return el;
+    const el2 = document.querySelector(sel);
+    if (el2 && el2.offsetParent) {
+      const r = el2.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < window.innerHeight && r.width > 0) return el2;
     }
     return null;
   }
@@ -26744,59 +28439,255 @@ Image: ${entry.imgName}`,
       cleanup();
       if (await commitPixelEdit(entry, rendered.canvas, rendered.mime, "crop-image", `Cropped ${entry.imgName} to ${rendered.nw}\xD7${rendered.nh}`)) toast("Cropped. Undo is in the toolbar or Log.", 2600);
     }
-    async function isolateSelection() {
+    async function saveAsNewImages(canvases, suffix, mime2, summary) {
       const dir = getDirHandleRef();
       if (!dir) {
+        toast("Open a dataset folder first.", 2600);
+        return null;
+      }
+      const dot = (entry.imgName || "").lastIndexOf(".");
+      const ext = dot >= 0 ? (entry.imgName || "").slice(dot) : ".png";
+      const tags = (entry.tags || []).slice();
+      const items2 = [];
+      let n = 1;
+      for (const canvas of canvases) {
+        const blob = await canvasToBlob(canvas, mime2);
+        if (!blob) {
+          toast("Could not encode the edited image.", 3600);
+          break;
+        }
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let base = "", imgName = "";
+        for (; ; n++) {
+          base = `${entry.base}_${suffix}${n}`;
+          imgName = `${base}${ext}`;
+          try {
+            await dir.getFileHandle(imgName);
+          } catch {
+            break;
+          }
+        }
+        n++;
+        try {
+          const imgHandle = await dir.getFileHandle(imgName, { create: true });
+          await writeBytes(imgHandle, bytes);
+          const txtHandle = await dir.getFileHandle(`${base}.txt`, { create: true });
+          await writeBytes(txtHandle, tags.map((t) => t.replace(/ /g, "_")).join(","));
+          const created = await addEntryFromNewFileRef(base, imgHandle, imgName, txtHandle, true, tags, false);
+          if (created) markDirty(created);
+        } catch (err) {
+          toastError("Could not save the new image", err);
+          break;
+        }
+        items2.push({ base, state: { bytes, mime: mime2, tags, imgName, width: canvas.width, height: canvas.height } });
+      }
+      if (items2.length) recordIsolateChange(summary(items2.map((it) => it.state.imgName)), items2);
+      return items2.length === canvases.length ? items2.map((it) => it.state.imgName) : null;
+    }
+    async function isolateSelection() {
+      if (!getDirHandleRef()) {
         toast("Open a dataset folder first.", 2600);
         return;
       }
       const rendered = await renderCropCanvas();
       if (!rendered) return;
-      const blob = await canvasToBlob(rendered.canvas, rendered.mime);
-      if (!blob) {
-        toast("Could not encode the edited image.", 3600);
+      const names = await saveAsNewImages([rendered.canvas], "isolate", rendered.mime, (ns) => `Isolated region of ${entry.imgName} as ${ns[0]}`);
+      renderCurrentView();
+      if (!names) return;
+      cleanup();
+      toast(`Isolated as ${names[0]}. Undo is in the toolbar or Log.`, 2600);
+    }
+    let splitMode = false;
+    const MIN_GAP = 0.02;
+    const lines = { v: [0.5], h: [] };
+    const linesBox = document.createElement("div");
+    linesBox.className = "split-lines";
+    linesBox.style.display = "none";
+    overlay.insertBefore(linesBox, bar);
+    const splitBar = document.createElement("div");
+    splitBar.className = "split-bar";
+    splitBar.style.display = "none";
+    const countInput = (label, title) => {
+      const wrap = document.createElement("label");
+      wrap.textContent = label;
+      wrap.title = title;
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.min = "0";
+      inp.max = "9";
+      inp.step = "1";
+      wrap.appendChild(inp);
+      splitBar.appendChild(wrap);
+      return inp;
+    };
+    const vInput = countInput("Vertical", "Vertical lines (cut left/right)");
+    const hInput = countInput("Horizontal", "Horizontal lines (cut top/bottom)");
+    const resetBtn = document.createElement("button");
+    resetBtn.textContent = "Reset lines";
+    resetBtn.title = "Space the lines evenly again";
+    const splitGoBtn = document.createElement("button");
+    splitGoBtn.className = "primary";
+    const splitBackBtn = document.createElement("button");
+    splitBackBtn.textContent = "Back";
+    splitBackBtn.title = "Back to the crop selection";
+    const splitCancelBtn = document.createElement("button");
+    splitCancelBtn.textContent = "Cancel";
+    splitBar.append(resetBtn, splitGoBtn, splitBackBtn, splitCancelBtn);
+    overlay.appendChild(splitBar);
+    const splitBtn = document.createElement("button");
+    splitBtn.textContent = "Isolate (Split)";
+    splitBtn.title = "Cut the whole image along vertical/horizontal lines into new images (source untouched)";
+    bar.insertBefore(splitBtn, cancelBtn);
+    const even = (k) => Array.from({ length: k }, (_, i) => (i + 1) / (k + 1));
+    function paintLines() {
+      const r = img.getBoundingClientRect(), s = imgSide.getBoundingClientRect();
+      linesBox.style.left = r.left - s.left + "px";
+      linesBox.style.top = r.top - s.top + "px";
+      linesBox.style.width = r.width + "px";
+      linesBox.style.height = r.height + "px";
+      linesBox.replaceChildren();
+      for (const axis of ["v", "h"]) {
+        lines[axis].forEach((f, i) => {
+          const ln = document.createElement("div");
+          ln.className = `split-line split-line-${axis}`;
+          ln.style[axis === "v" ? "left" : "top"] = f * 100 + "%";
+          ln.title = "Drag to move this line";
+          ln.addEventListener("pointerdown", (ev) => startLineDrag(ev, axis, i, ln));
+          linesBox.appendChild(ln);
+        });
+      }
+      const pieces = (lines.v.length + 1) * (lines.h.length + 1);
+      splitGoBtn.textContent = `Split into ${pieces}`;
+      splitGoBtn.disabled = pieces < 2;
+    }
+    function startLineDrag(ev, axis, i, ln) {
+      ev.stopPropagation();
+      ev.preventDefault();
+      try {
+        ln.setPointerCapture(ev.pointerId);
+      } catch {
+      }
+      ln.classList.add("dragging");
+      const move = (e) => {
+        e.stopPropagation();
+        const r = img.getBoundingClientRect();
+        const f = axis === "v" ? (e.clientX - r.left) / r.width : (e.clientY - r.top) / r.height;
+        const lo = (i > 0 ? lines[axis][i - 1] : 0) + MIN_GAP;
+        const hi = (i < lines[axis].length - 1 ? lines[axis][i + 1] : 1) - MIN_GAP;
+        lines[axis][i] = Math.max(lo, Math.min(hi, f));
+        ln.style[axis === "v" ? "left" : "top"] = lines[axis][i] * 100 + "%";
+      };
+      const end = (e) => {
+        ln.classList.remove("dragging");
+        try {
+          ln.releasePointerCapture(e.pointerId);
+        } catch {
+        }
+        ln.removeEventListener("pointermove", move);
+        ln.removeEventListener("pointerup", end);
+        ln.removeEventListener("pointercancel", end);
+      };
+      ln.addEventListener("pointermove", move);
+      ln.addEventListener("pointerup", end);
+      ln.addEventListener("pointercancel", end);
+    }
+    function setCount(axis, inp) {
+      const k = Math.max(0, Math.min(9, Math.round(Number(inp.value) || 0)));
+      inp.value = String(k);
+      lines[axis] = even(k);
+      paintLines();
+    }
+    function setSplitMode(on) {
+      splitMode = on;
+      bar.style.display = on ? "none" : "";
+      splitBar.style.display = on ? "" : "none";
+      linesBox.style.display = on ? "" : "none";
+      overlay.style.cursor = on ? "default" : "crosshair";
+      if (on) {
+        sel.style.display = "none";
+        vInput.value = String(lines.v.length);
+        hInput.value = String(lines.h.length);
+        paintLines();
+      } else {
+        paintSel();
+      }
+    }
+    async function splitImage() {
+      if (!getDirHandleRef()) {
+        toast("Open a dataset folder first.", 2600);
         return;
       }
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      const dot = (entry.imgName || "").lastIndexOf(".");
-      const ext = dot >= 0 ? (entry.imgName || "").slice(dot) : ".png";
-      let base = "", imgName = "";
-      for (let n = 1; ; n++) {
-        base = `${entry.base}_isolate${n}`;
-        imgName = `${base}${ext}`;
-        try {
-          await dir.getFileHandle(imgName);
-        } catch {
-          break;
+      let bmp;
+      try {
+        bmp = await createImageBitmap(await entry.imgHandle.getFile());
+      } catch (err) {
+        toastError("Could not read the image", err);
+        return;
+      }
+      const W = bmp.width, H = bmp.height;
+      const cuts = (fs, size) => [0, ...fs.map((f) => Math.round(f * size)), size];
+      const xs = cuts(lines.v, W), ys = cuts(lines.h, H);
+      const canvases = [];
+      for (let yi = 0; yi < ys.length - 1; yi++) {
+        for (let xi = 0; xi < xs.length - 1; xi++) {
+          const w = xs[xi + 1] - xs[xi], h = ys[yi + 1] - ys[yi];
+          if (w < 8 || h < 8) continue;
+          const c = document.createElement("canvas");
+          c.width = w;
+          c.height = h;
+          const ctx = c.getContext("2d");
+          if (!ctx) {
+            bmp.close();
+            toast("Could not edit the image on this machine.", 3600);
+            return;
+          }
+          ctx.drawImage(bmp, xs[xi], ys[yi], w, h, 0, 0, w, h);
+          canvases.push(c);
         }
       }
-      const tags = (entry.tags || []).slice();
-      try {
-        const imgHandle = await dir.getFileHandle(imgName, { create: true });
-        await writeBytes(imgHandle, bytes);
-        const txtHandle = await dir.getFileHandle(`${base}.txt`, { create: true });
-        await writeBytes(txtHandle, tags.map((t) => t.replace(/ /g, "_")).join(","));
-        const created = await addEntryFromNewFileRef(base, imgHandle, imgName, txtHandle, true, tags, false);
-        if (created) markDirty(created);
-      } catch (err) {
-        toastError("Could not save the isolated image", err);
+      bmp.close();
+      if (canvases.length < 2) {
+        toast("The lines leave fewer than 2 usable pieces.", 3e3);
         return;
       }
-      recordIsolateChange(`Isolated region of ${entry.imgName} as ${imgName}`, base, {
-        bytes,
-        mime: rendered.mime,
-        tags,
-        imgName,
-        width: rendered.nw,
-        height: rendered.nh
-      });
-      cleanup();
+      const names = await saveAsNewImages(canvases, "split", mime, (ns) => `Split ${entry.imgName} into ${ns.length} images (${ns[0]} \u2026 ${ns[ns.length - 1]})`);
       renderCurrentView();
-      toast(`Isolated as ${imgName}. Undo is in the toolbar or Log.`, 2600);
+      if (!names) return;
+      cleanup();
+      toast(`Split into ${names.length} images. Undo is in the toolbar or Log.`, 2800);
+    }
+    splitBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      setSplitMode(true);
+    });
+    splitBackBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      setSplitMode(false);
+    });
+    splitCancelBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      cleanup();
+    });
+    resetBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      lines.v = even(lines.v.length);
+      lines.h = even(lines.h.length);
+      paintLines();
+    });
+    splitGoBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      void splitImage();
+    });
+    vInput.addEventListener("input", () => setCount("v", vInput));
+    hInput.addEventListener("input", () => setCount("h", hInput));
+    for (const inp of [vInput, hInput]) {
+      inp.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+      inp.addEventListener("keydown", (ev) => ev.stopPropagation());
     }
     overlay.addEventListener("pointerdown", (ev) => {
       ev.stopPropagation();
       if (ev.target.closest("button")) return;
+      if (splitMode) return;
       ev.preventDefault();
       try {
         overlay.setPointerCapture(ev.pointerId);
@@ -26954,11 +28845,11 @@ Image: ${entry.imgName}`,
     statusRow.className = "modal-status-row";
     for (const { emoji, state, label, matchedTags } of getEntryStatusIndicators(entry)) {
       const stateText = state === null ? "Not indicated" : state ? "Yes" : "No";
-      const badge = document.createElement("span");
-      badge.className = "modal-status-badge";
-      badge.innerHTML = `${statusTopicIcon(emoji)}${statusStateIcon(state)}<span>${escapeHtml(label)}: ${stateText}</span>`;
-      badge.title = matchedTags.length ? matchedTags.join(", ") : "";
-      statusRow.appendChild(badge);
+      const badge2 = document.createElement("span");
+      badge2.className = "modal-status-badge";
+      badge2.innerHTML = `${statusTopicIcon(emoji)}${statusStateIcon(state)}<span>${escapeHtml(label)}: ${stateText}</span>`;
+      badge2.title = matchedTags.length ? matchedTags.join(", ") : "";
+      statusRow.appendChild(badge2);
     }
     panel2.appendChild(statusRow);
     const modalNavList = filteredEntries();
@@ -27078,8 +28969,8 @@ Image: ${entry.imgName}`,
   }
   function openTagContextMenu(entry, tag, x, y) {
     closeTagContextMenu();
-    const index = buildTagIndex();
-    const set = index.get(tag) || /* @__PURE__ */ new Set();
+    const index2 = buildTagIndex();
+    const set = index2.get(tag) || /* @__PURE__ */ new Set();
     const menu = document.createElement("div");
     menu.className = "ctx-menu";
     const header = document.createElement("div");
@@ -27267,11 +29158,11 @@ Image: ${entry.imgName}`,
     wrap.className = "card-status-icons";
     for (const { emoji, state, label, matchedTags } of getEntryStatusIndicators(e)) {
       const statusText = state === null ? "Not indicated" : state ? "Yes" : "No";
-      const badge = document.createElement("div");
-      badge.className = "status-icon-badge";
-      badge.innerHTML = statusTopicIcon(emoji) + statusStateIcon(state);
-      badge.title = `${label}: ${statusText}` + (matchedTags.length ? `: ${matchedTags.join(", ")}` : "");
-      wrap.appendChild(badge);
+      const badge2 = document.createElement("div");
+      badge2.className = "status-icon-badge";
+      badge2.innerHTML = statusTopicIcon(emoji) + statusStateIcon(state);
+      badge2.title = `${label}: ${statusText}` + (matchedTags.length ? `: ${matchedTags.join(", ")}` : "");
+      wrap.appendChild(badge2);
     }
     return wrap;
   }
@@ -27770,7 +29661,7 @@ Image: ${entry.imgName}`,
   var getRightPanelCollapsedRef = () => false;
   var getHideTagsRef = () => false;
   var seqPanelForcedCollapse = false;
-  function initView(deps3) {
+  function initView(deps4) {
     initQuickTag({
       leftPanel: leftAside,
       addTagToEntry,
@@ -27780,25 +29671,25 @@ Image: ${entry.imgName}`,
         refreshRightPanels();
       }
     });
-    getEntries7 = deps3.getEntries;
-    getEntryByBase3 = deps3.getEntryByBase;
-    getDirHandleRef = deps3.getDirHandle;
-    addEntryFromNewFileRef = deps3.addEntryFromNewFile;
-    getMasterTagModeActive = deps3.getMasterTagModeActive;
-    getCardTagSortMode = deps3.getCardTagSortMode;
-    getGalleryFilter2 = deps3.getGalleryFilter;
-    getIsolatedFlagActive = deps3.getIsolatedFlagActive;
-    getShowTagCountBadges = deps3.getShowTagCountBadges;
-    getShowPastTags = deps3.getShowPastTags;
-    getEntryMeta2 = deps3.getEntryMeta;
-    saveEntryMetaRef2 = deps3.saveEntryMeta;
-    refreshAllUIRef7 = deps3.refreshAllUI;
-    setContainsFilterRef = deps3.setContainsFilter;
-    setExcludesFilterRef = deps3.setExcludesFilter;
-    deleteEntryPermanentlyRef = deps3.deleteEntryPermanently;
-    setRightPanelCollapsedRef = deps3.setRightPanelCollapsed;
-    getRightPanelCollapsedRef = deps3.getRightPanelCollapsed;
-    getHideTagsRef = deps3.getHideTags;
+    getEntries7 = deps4.getEntries;
+    getEntryByBase3 = deps4.getEntryByBase;
+    getDirHandleRef = deps4.getDirHandle;
+    addEntryFromNewFileRef = deps4.addEntryFromNewFile;
+    getMasterTagModeActive = deps4.getMasterTagModeActive;
+    getCardTagSortMode = deps4.getCardTagSortMode;
+    getGalleryFilter2 = deps4.getGalleryFilter;
+    getIsolatedFlagActive = deps4.getIsolatedFlagActive;
+    getShowTagCountBadges = deps4.getShowTagCountBadges;
+    getShowPastTags = deps4.getShowPastTags;
+    getEntryMeta2 = deps4.getEntryMeta;
+    saveEntryMetaRef2 = deps4.saveEntryMeta;
+    refreshAllUIRef7 = deps4.refreshAllUI;
+    setContainsFilterRef = deps4.setContainsFilter;
+    setExcludesFilterRef = deps4.setExcludesFilter;
+    deleteEntryPermanentlyRef = deps4.deleteEntryPermanently;
+    setRightPanelCollapsedRef = deps4.setRightPanelCollapsed;
+    getRightPanelCollapsedRef = deps4.getRightPanelCollapsed;
+    getHideTagsRef = deps4.getHideTags;
     langAutoSelectToggle.addEventListener("change", () => {
       autoSelectNewLanguage = langAutoSelectToggle.checked;
       setBool("dts-lang-autoselect", autoSelectNewLanguage);
@@ -27888,11 +29779,11 @@ Image: ${entry.imgName}`,
     });
     function pageSingle(delta, fromKeyboard = false) {
       const html = document.documentElement;
-      const step = () => {
+      const step2 = () => {
         singleIndex += delta;
         renderSingleView();
       };
-      if (!fromKeyboard && mapPan(delta, "page", singleViewEl, () => singleViewEl, step)) return;
+      if (!fromKeyboard && mapPan(delta, "page", singleViewEl, () => singleViewEl, step2)) return;
       if (fromKeyboard || !html.classList.contains("motion-swipe") || html.classList.contains("motion-off")) {
         singleIndex += delta;
         renderSingleView();
@@ -28149,21 +30040,21 @@ Image: ${entry.imgName}`,
 
   // src/renderer/app-icon.ts
   var APP_ICON_KEY = "dts-app-icon";
-  function initAppIcon(deps3) {
+  function initAppIcon(deps4) {
     const setAppIcon = window.electronAPI?.setAppIcon;
     if (typeof setAppIcon !== "function") {
-      deps3.row.style.display = "none";
+      deps4.row.style.display = "none";
       return { refresh: () => {
       } };
     }
     let current = getString(APP_ICON_KEY) || "";
     function refresh2() {
       const options = [{ value: "", label: "Default" }];
-      for (const opt of Array.from(deps3.themeSelect.options)) {
-        if (opt.value === "custom" || !deps3.isOwned(opt.value)) continue;
+      for (const opt of Array.from(deps4.themeSelect.options)) {
+        if (opt.value === "custom" || !deps4.isOwned(opt.value)) continue;
         options.push({ value: opt.value, label: (opt.textContent || opt.value).replace(/^🔒\s*/, "") });
       }
-      buildPersistentDropdown(deps3.container, options, () => current, (val) => {
+      buildPersistentDropdown(deps4.container, options, () => current, (val) => {
         if (val === current) return;
         current = val;
         setString(APP_ICON_KEY, val);
@@ -28328,12 +30219,12 @@ Image: ${entry.imgName}`,
     });
     const tabHistory = [];
     let navigatingBack = false;
-    const TAB_IDS = ["datasets", "gallery", "master", "stats", "synthdat", "trainflow"];
+    const TAB_IDS = ["datasets", "curate", "gallery", "master", "stats", "synthdat", "trainflow"];
     const currentTabId = () => TAB_IDS.find((t) => tabIsActive(t)) || "gallery";
     let exitConfirmOpen = false;
     function handleBack() {
       const escape = () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
-      const shown = (el) => !!el && el.style.display !== "none" && getComputedStyle(el).display !== "none";
+      const shown = (el2) => !!el2 && el2.style.display !== "none" && getComputedStyle(el2).display !== "none";
       if (closeOpenDropdown()) return true;
       const flyout = Array.from(document.querySelectorAll(".header-cat-flyout")).find(shown);
       if (flyout) {
@@ -28405,10 +30296,11 @@ Image: ${entry.imgName}`,
       }
       appVersionEl.textContent = APP_VERSION ? "v" + APP_VERSION : "";
     })();
-    const TAB_MAP_ORDER = ["datasets", "gallery", "master", "stats", "synthdat", "trainflow"];
+    const TAB_MAP_ORDER = ["datasets", "curate", "gallery", "master", "stats", "synthdat", "trainflow"];
     const onShell = (t) => t === "gallery" || t === "master";
     const tabIsActive = (t) => ({
       datasets: tabDatasetManager,
+      curate: tabCurate,
       gallery: tabGallery,
       master: tabMasterTags,
       stats: tabStats,
@@ -28450,10 +30342,10 @@ Image: ${entry.imgName}`,
     let swallowTabClickUntil = 0;
     tabBarEl.addEventListener("pointerdown", (ev) => {
       if (ev.button !== 0 || ev.pointerType === "touch") return;
-      const btn = ev.target.closest(".tab-btn");
-      if (!btn) return;
+      const btn2 = ev.target.closest(".tab-btn");
+      if (!btn2) return;
       swallowTabClickUntil = performance.now() + 800;
-      btn.click();
+      btn2.click();
     });
     tabBarEl.addEventListener("click", (ev) => {
       if (!ev.isTrusted || performance.now() > swallowTabClickUntil) return;
@@ -28471,7 +30363,7 @@ Image: ${entry.imgName}`,
           if (tabHistory.length > 30) tabHistory.shift();
         }
       }
-      const fadePanes = [datasetManagerTab, statsTab, synthDatTab, trainflowTab, normalRightTools, masterTagPanel];
+      const fadePanes = [datasetManagerTab, curateTab, statsTab, synthDatTab, trainflowTab, normalRightTools, masterTagPanel];
       const renderShell = () => {
         if (onShell(tab)) {
           renderCurrentView();
@@ -28486,8 +30378,10 @@ Image: ${entry.imgName}`,
         tabStats.classList.toggle("active", tab === "stats");
         tabSynthDat.classList.toggle("active", tab === "synthdat");
         tabTrainflow.classList.toggle("active", tab === "trainflow");
+        tabCurate.classList.toggle("active", tab === "curate");
+        curateTab.style.display = tab === "curate" ? "block" : "none";
         datasetManagerTab.style.display = tab === "datasets" ? "block" : "none";
-        galleryTab.style.display = tab === "stats" || tab === "datasets" || tab === "synthdat" || tab === "trainflow" ? "none" : "contents";
+        galleryTab.style.display = tab === "stats" || tab === "datasets" || tab === "synthdat" || tab === "trainflow" || tab === "curate" ? "none" : "contents";
         statsTab.style.display = tab === "stats" ? "block" : "none";
         synthDatTab.style.display = tab === "synthdat" ? "block" : "none";
         trainflowTab.style.display = tab === "trainflow" ? "block" : "none";
@@ -28512,7 +30406,7 @@ Image: ${entry.imgName}`,
         applyState();
         return;
       }
-      const fromTab = tabDatasetManager.classList.contains("active") ? "datasets" : tabMasterTags.classList.contains("active") ? "master" : tabStats.classList.contains("active") ? "stats" : tabSynthDat.classList.contains("active") ? "synthdat" : tabTrainflow.classList.contains("active") ? "trainflow" : "gallery";
+      const fromTab = tabDatasetManager.classList.contains("active") ? "datasets" : tabMasterTags.classList.contains("active") ? "master" : tabStats.classList.contains("active") ? "stats" : tabSynthDat.classList.contains("active") ? "synthdat" : tabTrainflow.classList.contains("active") ? "trainflow" : tabCurate.classList.contains("active") ? "curate" : "gallery";
       if (fromTab === tab) {
         applyState();
         return;
@@ -28520,7 +30414,7 @@ Image: ${entry.imgName}`,
       const regionOf = (t) => {
         if (onShell(fromTab) && onShell(tab)) return document.getElementById("rightPanelContent");
         if (onShell(t)) return document.getElementById("shell");
-        return t === "datasets" ? datasetManagerTab : t === "stats" ? statsTab : t === "trainflow" ? trainflowTab : synthDatTab;
+        return t === "datasets" ? datasetManagerTab : t === "curate" ? curateTab : t === "stats" ? statsTab : t === "trainflow" ? trainflowTab : synthDatTab;
       };
       const dir = Math.sign(TAB_MAP_ORDER.indexOf(tab) - TAB_MAP_ORDER.indexOf(fromTab));
       deferShellRender = true;
@@ -28531,20 +30425,21 @@ Image: ${entry.imgName}`,
         tabStats.classList.toggle("active", tab === "stats");
         tabSynthDat.classList.toggle("active", tab === "synthdat");
         tabTrainflow.classList.toggle("active", tab === "trainflow");
+        tabCurate.classList.toggle("active", tab === "curate");
       }
       if (mapPan(dir, "tab", regionOf(fromTab), () => regionOf(tab), applyState, () => {
         if (tabIsActive(tab)) renderShell();
       })) return;
       deferShellRender = false;
-      const leaving = fadePanes.filter((el) => el.style.display !== "none");
-      leaving.forEach((el) => el.classList.add("tab-fading"));
+      const leaving = fadePanes.filter((el2) => el2.style.display !== "none");
+      leaving.forEach((el2) => el2.classList.add("tab-fading"));
       setTimeout(() => {
         applyState();
-        leaving.forEach((el) => el.classList.remove("tab-fading"));
-        const entering = fadePanes.filter((el) => el.style.display !== "none");
-        entering.forEach((el) => el.classList.add("tab-fading"));
+        leaving.forEach((el2) => el2.classList.remove("tab-fading"));
+        const entering = fadePanes.filter((el2) => el2.style.display !== "none");
+        entering.forEach((el2) => el2.classList.add("tab-fading"));
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          entering.forEach((el) => el.classList.remove("tab-fading"));
+          entering.forEach((el2) => el2.classList.remove("tab-fading"));
         }));
       }, transitionMsOf(fadePanes[0]));
     }
@@ -28572,6 +30467,8 @@ Image: ${entry.imgName}`,
     btnSynthDatBack.addEventListener("click", () => switchTab2("gallery"));
     tabTrainflow.addEventListener("click", () => switchTab2("trainflow"));
     btnTrainflowBack.addEventListener("click", () => switchTab2("gallery"));
+    tabCurate.addEventListener("click", () => switchTab2("curate"));
+    btnCurateBack.addEventListener("click", () => switchTab2("gallery"));
     function toggleDayNightModeAndTrack() {
       if (toggleDayNightMode()) {
         folderStats.night_mode_used = true;
@@ -28671,10 +30568,10 @@ Image: ${entry.imgName}`,
       );
       if (restart) window.electronAPI.restartApp();
     });
-    function setupHeaderCategory(btn, flyout) {
+    function setupHeaderCategory(btn2, flyout) {
       document.body.appendChild(flyout);
-      flyout._headerCatBtn = btn;
-      btn.addEventListener("click", (ev) => {
+      flyout._headerCatBtn = btn2;
+      btn2.addEventListener("click", (ev) => {
         ev.stopPropagation();
         const isOpen = flyout.style.display === "flex";
         document.querySelectorAll(".header-cat-flyout").forEach((f) => {
@@ -28682,7 +30579,7 @@ Image: ${entry.imgName}`,
           f.classList.remove("menu-in");
         });
         if (isOpen) return;
-        const rect = btn.getBoundingClientRect();
+        const rect = btn2.getBoundingClientRect();
         flyout.style.display = "flex";
         flyout.style.left = rect.left + "px";
         flyout.style.top = rect.bottom + 6 + "px";
@@ -28704,8 +30601,8 @@ Image: ${entry.imgName}`,
       if (ev.target === document.documentElement || ev.target === document.body) return;
       let closedAny = false;
       document.querySelectorAll(".header-cat-flyout").forEach((flyout) => {
-        const btn = flyout._headerCatBtn;
-        if (flyout.style.display === "flex" && !flyout.contains(ev.target) && !(btn && btn.contains(ev.target))) {
+        const btn2 = flyout._headerCatBtn;
+        if (flyout.style.display === "flex" && !flyout.contains(ev.target) && !(btn2 && btn2.contains(ev.target))) {
           flyout.style.display = "none";
           flyout.classList.remove("menu-in");
           closedAny = true;
@@ -28797,18 +30694,18 @@ Image: ${entry.imgName}`,
     let tooltipTimer = null;
     let tooltipTarget = null;
     let tooltipMeasureCtx = null;
-    function placeholderOverflowWidth(el) {
+    function placeholderOverflowWidth(el2) {
       if (!tooltipMeasureCtx) tooltipMeasureCtx = document.createElement("canvas").getContext("2d");
-      const cs = getComputedStyle(el);
+      const cs = getComputedStyle(el2);
       tooltipMeasureCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-      const textWidth = tooltipMeasureCtx.measureText(el.placeholder).width;
-      const availWidth = el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+      const textWidth = tooltipMeasureCtx.measureText(el2.placeholder).width;
+      const availWidth = el2.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
       return textWidth > availWidth;
     }
-    function showTooltipBubble(el, tipText) {
+    function showTooltipBubble(el2, tipText) {
       tooltipTimer = setTimeout(() => {
-        if (tooltipTarget !== el) return;
-        const rect = el.getBoundingClientRect();
+        if (tooltipTarget !== el2) return;
+        const rect = el2.getBoundingClientRect();
         tooltipBubble.textContent = tipText;
         tooltipBubble.style.display = "block";
         tooltipBubble.classList.remove("tooltip-bottom-pinned");
@@ -28841,26 +30738,26 @@ Image: ${entry.imgName}`,
         showTooltipBubble(placeholderEl, placeholderEl.placeholder);
         return;
       }
-      const el = target.closest("[title]");
-      if (!el || el === tooltipTarget) return;
+      const el2 = target.closest("[title]");
+      if (!el2 || el2 === tooltipTarget) return;
       if (tooltipTimer !== null) clearTimeout(tooltipTimer);
-      tooltipTarget = el;
-      const tipText = el.getAttribute("title");
+      tooltipTarget = el2;
+      const tipText = el2.getAttribute("title");
       if (!tipText) return;
-      el.dataset.tipStash = tipText;
-      el.removeAttribute("title");
-      showTooltipBubble(el, tipText);
+      el2.dataset.tipStash = tipText;
+      el2.removeAttribute("title");
+      showTooltipBubble(el2, tipText);
     });
     document.addEventListener("mouseout", (ev) => {
       if (isTouchDevice2) return;
-      const el = ev.target.closest("[title], [data-tip-stash], input[placeholder]");
-      if (!el) return;
+      const el2 = ev.target.closest("[title], [data-tip-stash], input[placeholder]");
+      if (!el2) return;
       if (tooltipTimer !== null) clearTimeout(tooltipTimer);
-      if (el.dataset.tipStash) {
-        el.setAttribute("title", el.dataset.tipStash);
-        delete el.dataset.tipStash;
+      if (el2.dataset.tipStash) {
+        el2.setAttribute("title", el2.dataset.tipStash);
+        delete el2.dataset.tipStash;
       }
-      if (tooltipTarget === el) {
+      if (tooltipTarget === el2) {
         tooltipTarget = null;
         tooltipBubble.style.display = "none";
       }
@@ -29109,7 +31006,7 @@ Save your edits first?`,
     async function openFolderHandle3(handle) {
       if (!await confirmDatasetSwitch("Switch datasets anyway without saving?")) return;
       dirHandle = handle;
-      await loadFolder();
+      await loadFolder2();
     }
     initFavorites({
       getDirHandle: () => dirHandle,
@@ -29180,7 +31077,7 @@ Save your edits first?`,
       getEntries: () => entries,
       saveAllDirty: (silent) => saveAllDirty(silent),
       guardUnsavedForReload: guardUnsavedForReload2,
-      reload: () => loadFolder()
+      reload: () => loadFolder2()
     });
     initSynthDatOverseer({
       getDirHandle: () => dirHandle,
@@ -29200,7 +31097,8 @@ Save your edits first?`,
       refreshAllUI: () => refreshAllUI(),
       getUndoStack: () => undoStack,
       getRedoStack: () => redoStack,
-      resolveAffected: (a) => resolveAffected2(a)
+      resolveAffected: (a) => resolveAffected2(a),
+      setUndoRuleTags: (rec, active) => setUndoRuleTags(rec, active)
     });
     initSubjectPresets({ getDirHandle: () => dirHandle });
     initCanonicalTags({
@@ -29216,7 +31114,7 @@ Save your edits first?`,
       getEntries: () => entries,
       getDisabledDirHandle: () => disabledDirHandle,
       getOriginalDirHandle: () => originalDirHandle,
-      reload: () => loadFolder(),
+      reload: () => loadFolder2(),
       guardUnsavedForReload: guardUnsavedForReload2
     });
     initView({
@@ -29256,7 +31154,7 @@ Save your edits first?`,
       fileCatFlyout.classList.remove("menu-in");
       dirHandle = picked;
       try {
-        await loadFolder();
+        await loadFolder2();
         if (entries.length === 0) {
           toast(`"${picked.name}" has no images \u2014 pick a folder with images to tag.`, 4200);
           return;
@@ -29420,7 +31318,7 @@ Save your edits first?`,
     async function applyIsolateDirection(affected, direction) {
       let count = 0;
       for (const a of affected) {
-        const st = typeof a.logId === "number" ? getIsolateState(a.logId) : void 0;
+        const st = typeof a.logId === "number" ? getIsolateState(a.logId, a.base) : void 0;
         if (!st || !dirHandle) continue;
         if (direction === "undo") {
           const e = entryByBase.get(a.base);
@@ -29572,7 +31470,7 @@ Save your edits first?`,
       }
       toast(`Finished disabling ${leftovers.length} image(s) whose root copy was left behind last time.`, 3600);
     }
-    async function loadFolder() {
+    async function loadFolder2() {
       await loadFolderCore();
       applyDatasetBucketSizes();
       window.__dtsDatasetOpened?.();
@@ -29704,7 +31602,7 @@ Save your edits first?`,
       }
       fileCatFlyout.style.display = "none";
       fileCatFlyout.classList.remove("menu-in");
-      await loadFolder();
+      await loadFolder2();
     }
     btnReloadDataset.addEventListener("click", reloadDataset);
     btnAddCurrentDataset.addEventListener("click", () => {
@@ -29763,15 +31661,15 @@ Save your edits first?`,
     const GALLERY_COLUMNS_KEY = "dts-gallery-columns";
     let galleryColumns = "auto";
     function applyGalleryColumnOverride() {
-      const root = document.documentElement;
+      const root2 = document.documentElement;
       if (galleryColumns === "auto") {
-        root.style.removeProperty("--gallery-cols");
-        root.style.removeProperty("--gallery-col-count");
-        root.style.removeProperty("--gallery-col-width");
+        root2.style.removeProperty("--gallery-cols");
+        root2.style.removeProperty("--gallery-col-count");
+        root2.style.removeProperty("--gallery-col-width");
       } else {
-        root.style.setProperty("--gallery-cols", `repeat(${galleryColumns}, 1fr)`);
-        root.style.setProperty("--gallery-col-count", String(galleryColumns));
-        root.style.setProperty("--gallery-col-width", "1px");
+        root2.style.setProperty("--gallery-cols", `repeat(${galleryColumns}, 1fr)`);
+        root2.style.setProperty("--gallery-col-count", String(galleryColumns));
+        root2.style.setProperty("--gallery-col-width", "1px");
       }
     }
     try {
@@ -29996,7 +31894,7 @@ Save your edits first?`,
       }
       return `${stem} ${Date.now()}${ext}`;
     }
-    async function importImagesToDataset(files) {
+    async function importImagesToDataset(files, captions) {
       if (!files || !files.length || !dirHandle) return;
       const activeHandle = dirHandle;
       let added = 0, skipped = 0;
@@ -30011,7 +31909,7 @@ Save your edits first?`,
           await writeBytes(imgHandle, file);
           try {
             const txtHandle = await activeHandle.getFileHandle(imgName.replace(/\.[^.]+$/, "") + ".txt", { create: true });
-            await writeBytes(txtHandle, "");
+            await writeBytes(txtHandle, captions?.get(file) ?? "");
           } catch {
           }
           added++;
@@ -30036,9 +31934,11 @@ Save your edits first?`,
       if (!dirHandle && !await createDatasetForImport()) return;
       await importImagesToDataset(list);
     }
-    async function createDatasetForImport() {
+    async function createDatasetForImport(intro = "No dataset is open. Create a new dataset for these images?") {
       const go = await showConfirmModal(
-        "No dataset is open. Create a new dataset for these images?\n\nYou'll name it, then choose where its folder goes.",
+        `${intro}
+
+You'll name it, then choose where its folder goes.`,
         {
           okLabel: "Create dataset",
           cancelLabel: "Cancel",
@@ -30082,7 +31982,7 @@ Save your edits first?`,
       if (!handle) return false;
       dirHandle = handle;
       try {
-        await loadFolder();
+        await loadFolder2();
       } catch {
         toast("The folder was created but couldn't be opened. Try File \u25B8 Open dataset folder.", 4200);
         dirHandle = null;
@@ -30093,6 +31993,18 @@ Save your edits first?`,
       return true;
     }
     let newDatasetPendingTrack = null;
+    initCurate({
+      getDirHandle: () => dirHandle,
+      addToDataset: async (files, captions, target) => {
+        if (target === "new" || !dirHandle) {
+          if (dirHandle && !await confirmDatasetSwitch("Make a new dataset anyway, discarding them?")) return false;
+          const intro = dirHandle ? `Create a new dataset with these ${files.length} image${files.length === 1 ? "" : "s"}?` : "No dataset is open. Create a new dataset for these images?";
+          if (!await createDatasetForImport(intro)) return false;
+        }
+        await importImagesToDataset(files, captions);
+        return true;
+      }
+    });
     if (!document.getElementById("btnAddImages")) {
       const btnAddImages = document.createElement("button");
       btnAddImages.id = "btnAddImages";

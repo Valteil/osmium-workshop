@@ -2632,12 +2632,165 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
      synthdat-lora-row, the WD14 progress bar), so every theme restyles it with
      no rules of its own beyond layout. Same scroll structure as #synthDatTab:
      the tab doesn't scroll, .trainflow-scroll does. */
+  /* ---------- Curate tab (curate.ts) ----------
+     Same scroll structure as Trainflow: the tab doesn't scroll, .curate-scroll does. */
+  #curateTab{ flex: 1 1 0; min-height: 0; position: relative; transform: translateZ(0); }
+  .curate-scroll{ height: 100%; overflow-y: scroll; padding: 24px; }
+  .curate-body{ display: flex; flex-direction: column; gap: 14px; }
+  .curate-empty{ color: var(--text-muted); max-width: 560px; line-height: 1.5; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+  .curate-toolbar{
+    position: sticky; top: -24px; z-index: 3;
+    margin: 0 -24px; padding: 10px 24px; background: var(--bg-base); border-bottom: 1px solid var(--border-soft);
+  }
+  .curate-row{ display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .curate-folders{ display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .curate-folder-chip{
+    display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 4px 6px 4px 12px;
+    border: 1px solid var(--accent-flair); color: var(--text-primary);
+  }
+  .curate-folder-chip.all, .curate-folder-chip.none{ border-color: var(--border-strong); }
+  .curate-folder-chip.junk{ border-color: var(--accent-danger); color: var(--accent-danger); }
+  .curate-folder-chip.active{ background: var(--accent-manual-dim); }
+  .curate-folder-chip.junk.active{ background: color-mix(in srgb, var(--accent-danger) 22%, var(--bg-panel)); }
+  .curate-folder-n{
+    font-family: var(--mono); font-size: 11px; color: var(--text-muted);
+    background: var(--bg-elevated); border-radius: 999px; padding: 1px 7px;
+  }
+  .curate-sep{ width: 1px; align-self: stretch; margin: 2px 4px; background: var(--border-strong); }
+  .curate-folder{ font-family: var(--mono); color: var(--text-primary); overflow-wrap: anywhere; margin-right: 4px; }
+  .curate-count{ color: var(--text-muted); min-width: 82px; }
+  .curate-label{ display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
+  .curate-seg{ display: inline-flex; }
+  .curate-seg button{ border-radius: 0; }
+  .curate-seg button:first-child{ border-radius: var(--r-ctl) 0 0 var(--r-ctl); }
+  .curate-seg button:last-child{ border-radius: 0 var(--r-ctl) var(--r-ctl) 0; }
+  .curate-seg button.active{ background: var(--accent-manual-dim); color: var(--text-primary); }
+  #curateTab select{
+    font-family: var(--sans); color: var(--text-primary); background: var(--bg-elevated);
+    border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 5px 8px; cursor: pointer;
+  }
+  #curateTab select:focus{ border-color: var(--accent-manual); outline: none; }
+  .curate-junk-btn{ color: var(--accent-danger); }
+  .curate-grid{ position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .curate-grid.dragging{ user-select: none; cursor: crosshair; }
+  .curate-grid.dragging .curate-card{ cursor: crosshair; }
+  /* Duplicates view */
+  .curate-dupes{ display: flex; flex-direction: column; gap: 14px; }
+  .curate-dupes-head{ gap: 10px; }
+  .curate-dupes-sum{ color: var(--text-primary); }
+  .curate-note{ color: var(--text-muted); font-size: 12px; line-height: 1.45; max-width: 760px; }
+  .curate-scan{ display: flex; align-items: center; gap: 12px; max-width: 640px; }
+  .curate-scan-text{ color: var(--text-muted); white-space: nowrap; font-family: var(--mono); font-size: 12px; }
+  .curate-scan-track{ flex: 1; height: 6px; border-radius: 999px; background: var(--bg-elevated); overflow: hidden; }
+  .curate-scan-fill{ height: 100%; width: 0; background: var(--accent-manual); transition: width .2s ease-out; }
+  .curate-dupe-group{
+    display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+    background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: var(--r-panel);
+  }
+  .curate-dupe-title{ font-weight: 600; margin-right: 6px; }
+  .curate-dupe-row{ display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+  .curate-dupe-card{ flex: 0 0 170px; }
+  .curate-dupe-card:not(.keep){ opacity: .72; }
+  .curate-dupe-card.keep{ border-color: var(--accent-success); }
+  .curate-keep-tag{
+    position: absolute; top: 6px; left: 6px; font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
+    background: color-mix(in srgb, var(--bg-base) 82%, transparent); color: var(--accent-danger);
+  }
+  .curate-dupe-card.keep .curate-keep-tag{ color: var(--accent-success); }
+  #curateTab select.curate-dupe-move{ margin: 0 7px 8px; padding: 3px 6px; font-size: 12px; }
+  .curate-dupe-meta{ padding: 0 7px 6px; font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+  .curate-marquee{
+    position: absolute; z-index: 2; pointer-events: none; border-radius: 3px;
+    border: 1px solid var(--accent-manual); background: color-mix(in srgb, var(--accent-manual) 16%, transparent);
+  }
+  .curate-card{
+    position: relative; display: flex; flex-direction: column; min-width: 0; cursor: pointer; user-select: none;
+    background: var(--bg-panel); border: 2px solid transparent; border-radius: var(--r-card); overflow: hidden;
+  }
+  /* A light checkerboard behind the images: a transparent PNG (line art,
+     cut-outs) would otherwise show dark lines on the dark theme = "blank". */
+  .curate-card img, .curate-stage img{
+    background: repeating-conic-gradient(#d9d9d9 0 25%, #f5f5f5 0 50%) 0 0 / 16px 16px;
+  }
+  .curate-card img{ width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; }
+  /* A thumbnail not made yet: an empty tile, not a broken-image icon + alt text. */
+  .curate-card img:not([src]){ visibility: hidden; }
+  .curate-card:has(img:not([src])){ background: var(--bg-elevated); }
+  .curate-card.selected{ border-color: var(--accent-manual); }
+  .curate-check{
+    position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 50%;
+    display: none; align-items: center; justify-content: center; font-size: 12px;
+    background: var(--accent-manual); color: var(--bg-base);
+  }
+  .curate-card.selected .curate-check{ display: flex; }
+  .curate-card-foot{ display: flex; gap: 6px; align-items: center; padding: 5px 7px; min-width: 0; }
+  .curate-name{ flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 11.5px; }
+  .curate-res{ flex-shrink: 0; font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+  .curate-res:empty{ display: none; }
+  .curate-res.low{
+    color: var(--accent-danger); border: 1px solid var(--accent-danger); border-radius: 999px; padding: 0 6px;
+  }
+  .curate-res.low::before{ content: "⚠ "; }
+  .curate-res-card{
+    position: absolute; top: 6px; right: 6px; padding: 1px 6px; border-radius: 999px;
+    color: var(--text-primary); background: color-mix(in srgb, var(--bg-base) 78%, transparent);
+  }
+  .curate-res-card.low{ background: color-mix(in srgb, var(--bg-base) 85%, transparent); }
+  .curate-res-single{ align-self: flex-start; font-size: 12px; }
+  .curate-res-single.low::after{ content: " · low-res"; }
+  .curate-badge{
+    flex-shrink: 0; font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
+    border: 1px solid var(--accent-flair); color: var(--accent-flair);
+  }
+  .curate-badge.none{ border-color: var(--border-strong); color: var(--text-faint); }
+  .curate-badge.junk{ border-color: var(--accent-danger); color: var(--accent-danger); }
+  /* Single: the tab stops scrolling and fills its height — image on the
+     left as large as it fits, the assign column on the right. */
+  #curateTab.curate-single-mode .curate-scroll{ display: flex; flex-direction: column; overflow: hidden; }
+  #curateTab.curate-single-mode .curate-body{ flex: 1 1 0; min-height: 0; }
+  #curateTab.curate-single-mode .curate-toolbar{ position: static; margin: 0; padding: 0 0 10px; }
+  .curate-single{
+    flex: 1 1 0; min-height: 0; display: grid; gap: 14px;
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 250px);
+  }
+  .curate-stage{
+    min-width: 0; min-height: 0; display: flex; justify-content: center; align-items: center;
+    background: var(--bg-panel); border-radius: var(--r-panel); padding: 10px;
+  }
+  .curate-stage img{ max-width: 100%; max-height: 100%; object-fit: contain; cursor: pointer; border-radius: 4px; }
+  .curate-side{ display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .curate-nav{ display: flex; align-items: center; gap: 8px; }
+  .curate-nav button{ flex: 0 0 auto; min-width: 44px; font-size: 18px; line-height: 1; }
+  .curate-pos{ flex: 1; text-align: center; font-family: var(--mono); color: var(--text-muted); }
+  .curate-single-name{ display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .curate-side-title{ margin-top: 4px; color: var(--text-muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; }
+  .curate-stack{ display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; flex: 1 1 auto; }
+  .curate-stack-btn{
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; flex-shrink: 0;
+    border-left: 3px solid var(--accent-flair);
+  }
+  .curate-stack-btn kbd{
+    flex-shrink: 0; min-width: 18px; text-align: center; font-family: var(--mono); font-size: 11px;
+    padding: 1px 4px; border-radius: 4px; border: 1px solid var(--border-strong); color: var(--text-muted);
+  }
+  .curate-stack-btn.none{ border-left-color: var(--border-strong); }
+  .curate-stack-btn.junk{ border-left-color: var(--accent-danger); color: var(--accent-danger); }
+  .curate-stack-btn.current{ background: var(--accent-manual-dim); color: var(--text-primary); }
+  .curate-stack-btn.create{ border-left-color: transparent; border-style: dashed; color: var(--text-muted); }
+  .curate-stack-btn.create.junk{ color: var(--accent-danger); }
+  .curate-side-add{ display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border-soft); }
+
   #trainflowTab{ flex: 1 1 0; min-height: 0; position: relative; transform: translateZ(0); }
   .trainflow-scroll{ height: 100%; overflow-y: scroll; padding: 24px; }
   .trainflow-body{ display: flex; flex-direction: column; gap: 24px; }
   .trainflow-col-run{ flex: 3 1 480px; }
   .trainflow-col-setup{ flex: 2 1 340px; max-width: 520px; }
   .trainflow-grid{ display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  /* Extra image folders: path (shrinks), repeats, remove. */
+  .tf-extra-folders{ display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+  .tf-extra-row{ align-items: center; }
+  .tf-extra-row .synthdat-local-folder{ flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tf-extra-row .tf-extra-repeats{ width: 64px; flex: none; }
 
   /* Trainflow ▸ Advanced: a native <details> disclosure, collapsed by default so
      the one-button path stays obvious. Everything reads theme tokens (bg/border/
@@ -3173,6 +3326,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     opacity: 0; transition: opacity var(--panel-dur) ease;
   }
   .lightbox-backdrop.modal-visible{ opacity: 1; }
+  /* "2 / 3 · name · ← →" when the lightbox steps through a set (LightboxNav). */
+  .lightbox-caption{
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); pointer-events: none;
+    padding: 4px 12px; border-radius: 999px; font-family: var(--mono); font-size: 12px;
+    color: #eee; background: rgba(0,0,0,0.6); white-space: nowrap; max-width: 90vw; overflow: hidden; text-overflow: ellipsis;
+  }
   .lightbox-backdrop img{
     max-width: 92vw; max-height: 92vh; object-fit: contain;
     box-shadow: 0 16px 44px rgba(0,0,0,0.5); border-radius: 4px;
@@ -5027,6 +5186,16 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     padding: 5px 8px;
   }
   .wd14-local-model-row button{ padding: 2px 7px; font-size: 11px; }
+  /* Trainflow checkpoint rows: name grows, size + Send stay right. */
+  #trainflowCheckpoints .wd14-local-model-row > span:first-child{ flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .tf-send-box{ display: flex; flex-direction: column; gap: 6px; min-width: min(460px, 90vw); }
+  .tf-send-label{ font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
+  .tf-send-name{ display: flex; align-items: center; gap: 6px; }
+  .tf-send-name input{ flex: 1; min-width: 0; margin: 0; }
+  .tf-send-name span{ color: var(--text-muted); font-size: 12px; }
+  .tf-send-path{ font-size: 12px; overflow-wrap: anywhere; background: var(--bg-elevated); border-radius: var(--radius); padding: 6px 8px; }
+  .tf-send-dest{ display: flex; gap: 6px; flex-wrap: wrap; }
+  .tf-send-error{ font-size: 12px; color: var(--danger, #e5484d); min-height: 1em; }
   .wd14-download-status{ font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
   /* WD14 review before apply (wd14-tagger.ts showWd14ReviewModal): one card per image, stacked, each
      with its own picture and chip area, like Single mode's cards but independent of the left panel. */
@@ -5854,6 +6023,19 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   display: flex; flex-direction: column; gap: 4px;
   font-size: 11px; color: var(--text-faint);
 }
+/* Training-size preset picker above the Min/Max/Step row, and the line under
+   it saying what a 2:3 / square image becomes (bucket-images.ts). */
+.bucket-preset-row{
+  display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px;
+  font-size: 11px; color: var(--text-faint);
+}
+.bucket-preset-row select{
+  font-family: var(--sans); font-size: 12.5px; color: var(--text-primary);
+  background: var(--bg-elevated); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); padding: 6px 9px; width: 100%; cursor: pointer;
+}
+.bucket-preset-row select:focus{ border-color: var(--accent-manual); outline: none; }
+.bucket-size-hint{ margin: -4px 0 12px; font-size: 11.5px; line-height: 1.45; color: var(--text-muted); }
 
 /* The Prefer GPU toggle reuses the app's checkbox row look; just needs its own
    gap above the Bucket images button. */
@@ -5987,3 +6169,35 @@ html.touch-device #dockDragInstructionsRow{ display: none !important; }
   height: 100%; border-radius: 2px; pointer-events: none;
   background: color-mix(in srgb, var(--text-muted) 70%, transparent);
 }
+
+/* Image card modal: Crop → Isolate (Split) (view.ts startCropMode). The
+   lines box sits exactly over the image; each line is a wide transparent
+   hit strip with a thin visible core. */
+.split-lines{ position: absolute; pointer-events: none; }
+.split-line{ position: absolute; pointer-events: auto; touch-action: none; z-index: 1; }
+.split-line-v{ top: 0; bottom: 0; width: 14px; margin-left: -7px; cursor: ew-resize; }
+.split-line-h{ left: 0; right: 0; height: 14px; margin-top: -7px; cursor: ns-resize; }
+.split-line::before{
+  content: ""; position: absolute; background: #7c6bff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.55);
+}
+.split-line-v::before{ top: 0; bottom: 0; left: 6px; width: 2px; }
+.split-line-h::before{ left: 0; right: 0; top: 6px; height: 2px; }
+.split-line:hover::before, .split-line.dragging::before{ background: #a99cff; }
+.split-line-v:hover::before, .split-line-v.dragging::before{ left: 5px; width: 4px; }
+.split-line-h:hover::before, .split-line-h.dragging::before{ top: 5px; height: 4px; }
+.split-bar{
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2;
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+.split-bar label{
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-panel) 88%, transparent); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); padding: 3px 4px 3px 9px;
+}
+.split-bar input[type="number"]{
+  font-family: var(--sans); font-size: 12.5px; color: var(--text-primary);
+  background: var(--bg-elevated); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); padding: 4px 6px; box-sizing: border-box; width: 52px;
+}
+.split-bar input[type="number"]:focus{ border-color: var(--accent-manual); outline: none; }

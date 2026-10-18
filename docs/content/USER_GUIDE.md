@@ -24,6 +24,7 @@ app to look something up.
 - [Bucket Images](#bucket-images)
 - [Tag Overseer tab](#tag-overseer-tab)
 - [Sequential tagging](#sequential-tagging)
+- [Curate tab](#curate-tab)
 - [Datasets tab](#datasets-tab)
 - [Editing Stats tab](#editing-stats-tab)
 - [SynthDat Overseer tab](#synthdat-overseer-tab)
@@ -171,7 +172,11 @@ additionally offers **⟲/⟳ Rotate** (90° steps) and **✂ Crop**, both of wh
 file in place — confirmed first, logged as their own undoable Edit Log rows, PNG/JPG/WebP only.
 Crop's **Isolate** button instead saves the selected region as a brand-new image
 (`<original>_isolateN`) in the dataset with a copy of the source's tags; the original is
-untouched.
+untouched. **Isolate (Split)** cuts the whole image along lines instead, for sheets and panel
+pages: set how many **Vertical** and **Horizontal** lines you want (mix both for a grid), drag
+any line into place, and **Reset lines** spaces them evenly again. **Split into N** saves every
+piece as a new image (`<original>_splitN`, left to right, top to bottom) with the source's tags;
+the original is untouched, and one Undo removes all the pieces.
 
 **Editing tags:** click a tag chip to open its context menu (filter by it, open its wiki
 definition, flag it for review, explore its keyword family). Type into a card's "+ add tag" field
@@ -331,7 +336,13 @@ standing rules so a cleanup never needs repeating.
 ### Bucket Images
 Crops and resizes every Gallery image to its nearest LoRA training bucket, so your trainer
 doesn't have to. Set **Min side / Max side / Step** (default 512 / 1024 / 64, remembered per
-dataset, and also settable from the Trainflow tab); each image goes to the bucket closest to its aspect ratio. The crop is
+dataset, and also settable from the Trainflow tab); each image goes to the bucket closest to its aspect ratio.
+A bucket's short side is always **Min side**, and Max side caps the long side. The **Training size**
+picker above the fields sets them for you: **≈512** (448 / 704: fast, less detail; a 2:3 image trains at
+448×704), **≈640** (Osmium's default, 512 / 1024: 512×768) or **≈1024** (832 / 1280: more detail,
+slower, more VRAM; 832×1280). The line under the fields says what a 2:3 and a square image become;
+change the fields yourself and it shows Custom. Re-bucketing remakes the copies from the originals, so
+switching sizes is safe. The crop is
 subject-first: a u2net saliency model decides what to keep. It's a one-time ~176 MB download via
 the dock's **⬇ Download model** button. **Prefer GPU** (on by default) runs it on your graphics
 card with an automatic CPU fallback; the log names which one handled each image.
@@ -427,6 +438,65 @@ compact preview as Single view — click it for the fullscreen lightbox for clos
 
 Use it when a whole filter batch — a character, a rating, everything missing "monochrome" —
 needs its indicator tags aligned without opening each card by hand.
+
+---
+
+## Curate tab
+
+For a folder of new images you haven't gone through yet (a download, an artist's gallery dump),
+before anything goes into a dataset. It sits next to the Datasets tab.
+
+- **Your curation folders:** the tab opens on a folder list like the Datasets tab's. The **+**
+  tile picks a new folder to curate; every folder you've curated stays as a tile (with its first
+  image on it), most recent first. Click one to go back to it, right where you left off (Grid or
+  Single, the folder you were viewing, the image you were on), even after restarting the app.
+  Right-click a tile (or its ⋯) to remove it from the list; the folder itself is untouched.
+  **‹ Folders** in the toolbar returns to the list.
+- Once a folder is open you see every image in it. **Grid** shows them all; **Single** shows one
+  at a time, as large as the window allows, with the controls in a column on the right. Move with
+  ← / → or the ‹ › buttons, click the image to zoom in. Double-click a grid image to open it in
+  Single.
+- **Grid:** click images to select them (Shift-click selects a range), or drag a box across them
+  (start anywhere, even on an image; dragging to the top or bottom edge scrolls). A drag adds to
+  what's already selected; **Alt**-drag deselects instead. **Select all** / **Select
+  none** act on what's shown. **Add selected to dataset** copies them into the open dataset, each
+  with its `.txt` caption if it has one (otherwise an empty one), same as File ▸ Add images.
+  **New dataset from selected…** makes a new dataset folder (you name it and pick where it goes)
+  and copies them there instead.
+- **Single:** there's no selecting — every action applies to the image on screen (**Add to
+  dataset**, **New dataset with it…**).
+- **Artstyles:** an artist often has several distinct styles, and mixing them in one dataset gives
+  a muddled LoRA. **Create Artstyle…** makes a folder with that name inside the folder you're
+  curating. Assigning *moves* the image (and its caption) into that folder, and **Unsorted** moves
+  it back to the top. Each image shows which folder it's in.
+- **Resolution:** every image shows its size (on the grid thumbnail's corner, and under the name
+  in Single). Images with both sides under 1024px are flagged in red with ⚠ — at that size
+  they're usually previews or works in progress, and a trainer can't add detail that isn't there.
+- **Duplicates:** the third view finds images that look the same — resized or re-saved copies (PNG
+  vs JPG, different compression), mirrored copies, slight colour changes, watermarks or small crops
+  — and shows them in groups. The folder buttons choose where to look: **All** (every folder except
+  junk) or one artstyle (or junk) on its own. The biggest copy in each group is marked **Keep**;
+  click an image to switch Keep on or off, and double-click it to zoom in; in the zoomed view
+  ← / → step through the other images in its group to compare them. **Junk the
+  others** (one group) or **Junk all extras** (every group) moves the unkept copies to the junk
+  folder (made if needed); nothing is deleted. Each image also has its own **Move to…** picker:
+  a copy that's really a variant (flat colours, monochrome, a sketch pass) can go to an artstyle
+  folder on its own, or to a **+ New artstyle…** made right there. **Strictness**: Strict finds near-identical copies
+  only, Loose also catches lightly edited ones (with more false matches); **Not duplicates** hides
+  a group. Images are fingerprinted once and remembered in `_osmium_curate_hashes.json`, so later
+  scans only look at new or changed files. It compares pixels, not content: the same character in
+  a different pose isn't a duplicate.
+- **Viewing a folder:** the toolbar has one button per folder with its image count — **All**,
+  **Unsorted**, every artstyle, and **Junk** (red). Click one to see only that folder's images, in
+  Grid or Single.
+  - In **Single**, every artstyle is a button in the right column: click one (or press its number:
+    0 = Unsorted, 1–9 = the artstyles) to move the image there and go straight to the next one.
+  - In **Grid**, **Assign to** moves the selected images.
+- **Create junk folder** makes a folder called `junk` (labelled red) for images not worth
+  training on; it then has its own button like any artstyle.
+
+Artstyle names are remembered in `_osmium_curate.json` in the curated folder. Curate won't open
+the dataset you have open (moving files out from under it would break it).
 
 ---
 
@@ -530,6 +600,11 @@ loaded (desktop only). It uses your own
 and `training`) for Python and the trainer; its own app never needs to run, and Osmium's WD14 and
 Bucket Images do the dataset prep.
 
+**Get the trainer:** download `Anima-TrainFlow-Osmium-<version>.zip` from the release, unzip it
+somewhere with about 8 GB free and run its `Install_Requirements.bat` once (it downloads PyTorch and
+the trainer's packages, about 5 GB, at the versions Trainflow is tested with). It's Anima-TrainFlow
+with a newer sd-scripts and the patches Trainflow needs.
+
 **Set up once:** choose the Anima-TrainFlow folder, then pick your own Anima or Janima DiT, Qwen3 text
 encoder and VAE (the fields stay empty until you do). On first loading a folder, Osmium caches it so
 Trainflow can resolve its real path on its own (the folder picker doesn't expose paths); it only asks
@@ -545,6 +620,39 @@ saves latent and text-encoder caches in the dataset (`latent_cache/`, `cache_tex
 them on the next run even after you change images or tags, so after editing a dataset you've trained
 before, press **Clear training cache** (it shows how much is there) before starting again.
 
+**Network type:** **LoRA** (the standard), **LoKr** or **LoHa**. LoKr builds each change from a small
+matrix combined with a low-rank pair (the **LoKr factor** sets the small one's size, 4 by default): at the
+same rank it can capture much richer changes in a quarter of the file, which suits styles. All three
+train the same layers and load in ComfyUI. LoKr usually wants a higher learning rate than LoRA unless you
+use Prodigy.
+
+**LoRA+ ratio** (Advanced ▸ LoRA shape, 0 = off): each layer's second matrix learns this many times
+faster than the first, which often reaches the same result in fewer steps. 16 is the usual value with
+AdamW or Lion. With Prodigy, which sets its own step size, start at 2–4; a high ratio can overshoot. If
+samples burn early, lower the ratio or the learning rate. Works with LoRA, LoKr and LoHa.
+
+**More options** (all off by default):
+
+- **Optimizers:** Prodigy, Prodigy + ScheduleFree (both set their own step size; keep the learning rate
+  at 1.0), AdamW8bit, AdamW, AdamW ScheduleFree (no schedule needed), Lion8bit (use a small learning
+  rate) and Adafactor.
+- **Advanced → LoRA shape:** also train the **modulation layers**. There's also an option to train
+  the **LLM adapter** (Anima's bridge between Qwen3 and the image model), but Anima's model card says
+  not to: the adapter is easy to degrade and affects every image. Leave it off unless you're
+  experimenting.
+- **Advanced → Performance & VRAM:** **torch.compile** per block (faster steps after a one-time compile)
+  or whole model, and **Checkpoint offload**, which moves saved activations to system RAM to use less
+  VRAM. Offload can't be combined with Blocks to swap, so pick one.
+  **Split attention** saves VRAM at batch sizes above 1.
+- **Advanced → Regularisation:** **Shuffle tags** and **Tag dropout** vary the captions each step. Both
+  make the text encoder run every step instead of using its cache, so they cost VRAM and time.
+  **Validation split** holds back a share of the images and reports a **Val loss** next to the training
+  loss. When it stops falling while the training loss keeps dropping, the run is overfitting and an
+  earlier checkpoint is the one to keep.
+- **Extra image folders** (Dataset section): train more folders of captioned images together with the
+  loaded dataset, each with its own repeats (0 = automatic).
+- **Keep states:** with Resume state on, keep only the newest few saved states.
+
 **Start Trainflow** is the only thing that begins work. It saves your tag edits, buckets the dataset
 (originals in `original_images/`; nothing happens if the copies are already right, and new dimensions
 re-make them from the originals), checks that PyTorch can see an NVIDIA GPU, and starts training.
@@ -553,7 +661,28 @@ Progress, speed, ETA, loss, the log, preview images and checkpoints update live.
 **It keeps going without Osmium.** Closing Osmium while training warns you and, if you close anyway,
 training carries on and finishes by itself. Reopen Osmium and open the tab to reconnect. **Stop** ends
 the run for good. Checkpoints and the final LoRA are in the Anima-TrainFlow folder under
-`training/output/<project>/`; **Checkpoints** opens it.
+`training/output/<project>/`; **Checkpoints** opens it. Training the same trigger word again starts a
+new folder (`<project>_2`, `_3`, …, with the LoRA named the same) instead of reusing the old one, so
+there's nothing to clean out first. Continuing a run keeps it in its own folder.
+
+**Send a checkpoint where you use it.** Each checkpoint in the list has **Send…**: give it the name it
+should arrive under, choose a folder (ComfyUI's `loras` folder, say), and it's copied there. **★ Make
+favorite** remembers that folder, so next time it's already picked. A file that's already there is
+never overwritten; you're asked for another name instead.
+
+**Continue training** (when a run ended too early, e.g. step 600 isn't quite there): pick one of the
+project's checkpoints in **Start from**, set **More steps**, and the button becomes **Continue
+training**. Two kinds are listed:
+
+- **From checkpoint weights** — any checkpoint. Its LoRA is loaded and trained further with the
+  settings in Training (rank and alpha come from the file), saved under a new name so nothing is
+  overwritten: continuing `myproj-step00000600` gives `myproj-from600-step…` and `myproj-from1000`.
+  The optimizer and learning-rate schedule start fresh, so it isn't identical to having trained longer.
+- **Exact resume** — only for runs trained with **Resume state** on (Training section). That saves
+  the optimizer, learning-rate schedule and random state next to each checkpoint (a folder about 3× the
+  checkpoint's size, ~265 MB per save at rank 32). Resuming continues that very run with its own settings: the step count
+  carries on (`step00000700`, `00000800`, …) and the project's final LoRA becomes the longer version.
+  A cosine schedule is stretched to the new total, so its learning rate rises again partway.
 
 ---
 
@@ -734,8 +863,13 @@ This guide covers the desktop app. Two siblings share this repo:
     interface, prompt boxes re-fit as you zoom or change theme, and themes bring their fonts.
   - **Upscale with USDU** (desktop and phone): instead of the standard upscale (turning one on
     turns the other off), Ultimate SD Upscale enlarges the image with an upscale model, then
-    redraws it tile by tile with its own checkpoint at low denoise. It upscales the image you
-    generate (the pass-2 image with 2-Pass on) or any image you import (**Upscale this image**).
+    redraws it tile by tile with its own checkpoint at low denoise. Turned on in the generation
+    settings, it upscales each image you generate (the pass-2 image with 2-Pass on). For an image
+    you already have there's the **Upscale** tab (next to Generate): choose the image, it shows
+    large beside the USDU settings (kept separately from the generation ones; click the image to
+    zoom in), and **Upscale this image** queues it. **Save to** picks where the result goes: your
+    output folder's Upscaled folder, or **a folder you choose** (Choose folder…; remembered), where
+    it's saved as `<image>_upscaled.png` and never overwrites anything.
     The tiles' prompt is your image's prompt (optionally without the Global field), WD14 tags, or
     your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
     phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);
@@ -746,6 +880,24 @@ This guide covers the desktop app. Two siblings share this repo:
     trigger and Negative kept), and the tags can be saved as a `.txt` next to the original
     (desktop) or as a copy + `.txt` in a `Tagged` folder of your output folder. Runs the
     ComfyUI-WD14-Tagger node on your ComfyUI or Osmium Comfy.
+  - **Gallery tab** (desktop and phone): the big gallery of your outputs (the phone can switch
+    between its own folder and the PC's). Click an image to open it in the zoomable viewer (arrow
+    keys step through the rest; its settings are beside it, behind Details on the phone).
+    - **Compare** (folded above the gallery; click its header to open it): **Shift-click** a gallery
+      image (**long-press** on the phone) to add it to a slot, or use **Open file…**. The page
+      doesn't scroll; a message and the count on the Compare header confirm it. Click an empty
+      slot's ⊕ first to choose which slot it fills; the dashed + box adds more slots.
+    - **Which two are shown:** click a filled slot to show it on the left, right-click it to show it
+      on the right; with Shift it's the other way round. On the phone, tap = left, long-press =
+      right. In Overlay, left is the bottom image and right is the top one.
+    - **Side by side:** click an image to zoom it; **Shift-click** it (long-press on the phone) and
+      its prompt panel slides up on that side while the other image is pushed away (Shift-click
+      again, ×, Esc or the phone's Back closes it). **Overlay** stacks them; the **Top image**
+      slider under the stage fades the top image from 0 to 100 % live, so you can scrub between the
+      two. Tick **Turn off live overlay preview** to keep the top image solid instead: then press and
+      hold to make it see-through, and the slider sets how much. **Animations** in the Compare bar
+      turns the motion off.
+  - **Gallery panel** (the round button): keeps its folder and scroll when you close it.
   - **Settings & Help:** out of the box the Bridge generates at 1024×1024 with Euler A + Simple, 25
     steps, CFG 4 and seed 0, and pass 2 at seed 1 / 20 steps. Each seed has a behaviour dropdown:
     **Fixed** (the default) reuses the number, **Randomize** rolls a new one each generation, and
