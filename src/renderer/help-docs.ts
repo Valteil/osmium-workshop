@@ -118,7 +118,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       opens ready for the images.</p>
       <h3>Curate a folder first</h3>
       <p>The <b>Curate</b> tab (next to Datasets) is for a folder of new images you haven't sorted
-      yet. <b>Open folder…</b> shows every image in it as a <b>Grid</b>, or one at a time in
+      yet. It opens on your curation folders, like the Datasets tab: <b>+</b> adds a folder, and
+      every folder you've curated stays as a tile — click it to go back to where you left off, even
+      after a restart (<b>‹ Folders</b> returns to the list). An open folder shows every image in it as a <b>Grid</b>, or one at a time in
       <b>Single</b> (← / → or the ‹ › buttons; click the image to zoom). In the grid, click images
       to select them (Shift-click for a range, double-click to open one), then <b>Add selected to
       dataset</b> copies them, and any <code>.txt</code> captions they have, into the open dataset,

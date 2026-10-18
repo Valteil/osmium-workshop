@@ -440,7 +440,13 @@ needs its indicator tags aligned without opening each card by hand.
 For a folder of new images you haven't gone through yet (a download, an artist's gallery dump),
 before anything goes into a dataset. It sits next to the Datasets tab.
 
-- **Open folder…** shows every image in that folder. **Grid** shows them all; **Single** shows one
+- **Your curation folders:** the tab opens on a folder list like the Datasets tab's. The **+**
+  tile picks a new folder to curate; every folder you've curated stays as a tile (with its first
+  image on it), most recent first. Click one to go back to it, right where you left off (Grid or
+  Single, the folder you were viewing, the image you were on), even after restarting the app.
+  Right-click a tile (or its ⋯) to remove it from the list; the folder itself is untouched.
+  **‹ Folders** in the toolbar returns to the list.
+- Once a folder is open you see every image in it. **Grid** shows them all; **Single** shows one
   at a time, as large as the window allows, with the controls in a column on the right. Move with
   ← / → or the ‹ › buttons, click the image to zoom in. Double-click a grid image to open it in
   Single.

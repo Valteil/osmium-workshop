@@ -562,15 +562,21 @@ function svgEl(pathD: string): SVGSVGElement {
 }
 
 function buildFolderIcon(record: DMRecord): HTMLElement {
+  return folderIconEl(record.iconMode === 'image' ? record.iconImageDataUrl ?? undefined : undefined);
+}
+
+// The themed folder graphic, optionally with an image tucked inside it. Also
+// used by the Curate tab's folder list (curate.ts), so both look the same.
+export function folderIconEl(imageDataUrl?: string): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'dm-folder-icon';
   const back = svgEl(FOLDER_BACK_PATH);
   back.classList.add('dm-folder-back');
   wrap.appendChild(back);
-  if (record.iconMode === 'image' && record.iconImageDataUrl){
+  if (imageDataUrl){
     const img = document.createElement('img');
     img.className = 'dm-folder-img';
-    img.src = record.iconImageDataUrl;
+    img.src = imageDataUrl;
     img.alt = '';
     wrap.appendChild(img);
   }

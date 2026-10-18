@@ -10,11 +10,16 @@
 // that subfolder; "Unsorted" moves it back to the folder's root. Artstyle
 // names are kept in <root>/_osmium_curate.json so a style with no images yet
 // survives a reopen; existing subfolders listed there are picked up again.
+// Every folder curated is kept in a folder list like the Datasets tab's (its
+// own IndexedDB, newest first), shown whenever no folder is open: click one
+// to go back to it, where you left off (view, folder filter, position).
 import type { DirHandle, FileHandle } from './types';
 import { isImageFile } from './file-types';
-import { writeBytes } from './fs-access';
-import { pickDatasetFolder } from './folder-picker';
-import { toast, toastError, showConfirmModal, showPromptModal, showImageLightbox } from './shared-ui';
+import { writeBytes, serializeHandle, reviveHandle, isMobileHandle, requestPermission } from './fs-access';
+import { pickDatasetFolder, promptRelinkFolder } from './folder-picker';
+import { toast, toastError, showConfirmModal, showPromptModal, showImageLightbox, addContextMenuItem, positionMenu } from './shared-ui';
+import { openDB, idbGetAll, idbAdd, idbDelete, idbUpdate } from './idb';
+import { folderIconEl } from './dataset-manager';
 import { curateTab, tabCurate } from './dom';
 
 export interface CurateDeps {
@@ -29,6 +34,167 @@ export interface CurateDeps {
 const JUNK = 'junk';
 const STATE_FILE = '_osmium_curate.json';
 const UNSORTED = '';
+
+// ---------------- the folder list ----------------
+
+interface CurateFolder {
+  id: number;
+  name: string;
+  handle: DirHandle;
+  addedAt: number;
+  lastOpenedAt: number;
+  icon?: string;            // small JPEG data URL of its first image
+}
+const DB_NAME = 'osmium-curate-db';
+const STORE = 'folders';
+const POS_KEY = (id: number) => `osmium-curate-pos-${id}`;
+let currentId: number | null = null;   // the list entry of the open folder
+
+const openCurateDB = () => openDB(DB_NAME, 1, STORE);
+
+async function listFolders(): Promise<CurateFolder[]> {
+  const recs = await idbGetAll<CurateFolder>(await openCurateDB(), STORE);
+  // Only the Android shim's plain-object handles need reviving (same as the
+  // Datasets tab); a real desktop handle comes back from IndexedDB as is.
+  for (const r of recs) if (r.handle && isMobileHandle(r.handle)) r.handle = reviveHandle(r.handle);
+  return recs.sort((a, b) => (b.lastOpenedAt || b.addedAt) - (a.lastOpenedAt || a.addedAt));
+}
+
+// The list entry for a folder, added if it's new (matched with isSameEntry
+// where the handle has it, else by name).
+async function trackFolder(dir: DirHandle): Promise<number> {
+  for (const r of await listFolders()) {
+    const same = dir.isSameEntry ? await dir.isSameEntry(r.handle).catch(() => false) : r.name === dir.name;
+    if (same) return r.id;
+  }
+  return Number(await idbAdd(await openCurateDB(), STORE, { name: dir.name, handle: serializeHandle(dir), addedAt: Date.now(), lastOpenedAt: Date.now() }));
+}
+
+// Where the user was in a folder, restored when they come back to it.
+function savePosition(): void {
+  if (currentId === null) return;
+  try { localStorage.setItem(POS_KEY(currentId), JSON.stringify({ view, filter, index })); } catch { /* storage full/blocked */ }
+}
+function restorePosition(id: number): void {
+  try {
+    const p = JSON.parse(localStorage.getItem(POS_KEY(id)) || 'null');
+    if (!p) return;
+    if (p.view === 'grid' || p.view === 'single') view = p.view;
+    if (typeof p.filter === 'string' && (p.filter === '*' || p.filter === UNSORTED || styles.includes(p.filter))) filter = p.filter;
+    if (Number.isInteger(p.index) && p.index >= 0) index = p.index;
+  } catch { /* ignore a bad entry */ }
+}
+
+// The folder's tile picture: its first image, small.
+async function makeIcon(id: number): Promise<void> {
+  const first = items[0];
+  if (!first) return;
+  try {
+    const bmp = await createImageBitmap(await first.handle.getFile());
+    const size = 120;
+    const c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    const k = Math.max(size / bmp.width, size / bmp.height);
+    c.getContext('2d')!.drawImage(bmp, (size - bmp.width * k) / 2, (size - bmp.height * k) / 2, bmp.width * k, bmp.height * k);
+    bmp.close();
+    await idbUpdate(await openCurateDB(), STORE, id, { icon: c.toDataURL('image/jpeg', 0.7) });
+  } catch { /* the plain folder icon is fine */ }
+}
+
+async function openTracked(rec: CurateFolder): Promise<void> {
+  try {
+    if (await requestPermission(rec.handle, 'readwrite') !== 'granted') { toast('Permission was not granted for that folder.'); return; }
+    await openDir(rec.handle, rec.id);
+  } catch {
+    // Moved / renamed / deleted: offer to find it again, once.
+    const again = await promptRelinkFolder(rec.name);
+    if (!again) return;
+    try {
+      await idbUpdate(await openCurateDB(), STORE, rec.id, { handle: serializeHandle(again), name: again.name });
+      await openDir(again, rec.id);
+    } catch (err) {
+      toastError('Could not open that folder either', err);
+    }
+  }
+}
+
+async function openDir(dir: DirHandle, id: number): Promise<void> {
+  savePosition();
+  currentId = null;
+  await loadFolder(dir);
+  currentId = id;
+  restorePosition(id);
+  render();
+  const db = await openCurateDB();
+  await idbUpdate(db, STORE, id, { lastOpenedAt: Date.now() });
+  const rec = (await idbGetAll<CurateFolder>(db, STORE)).find((r) => r.id === id);
+  if (rec && !rec.icon) void makeIcon(id);
+}
+
+function backToFolders(): void {
+  savePosition();
+  closeFolder();
+  currentId = null;
+  render();
+}
+
+let ctxMenu: HTMLElement | null = null;
+function closeCtx(): void {
+  ctxMenu?.remove();
+  ctxMenu = null;
+  document.removeEventListener('click', closeCtx);
+}
+function folderMenu(rec: CurateFolder, x: number, y: number): void {
+  closeCtx();
+  const menu = el('div', 'ctx-menu');
+  menu.appendChild(el('div', 'ctx-header', rec.name));
+  addContextMenuItem(menu, 'Open', () => { closeCtx(); void openTracked(rec); });
+  addContextMenuItem(menu, 'Remove from this list', async () => {
+    closeCtx();
+    const ok = await showConfirmModal(`Remove "${rec.name}" from Curate's folder list?\nThe folder and its files are untouched.`, { okLabel: 'Remove', danger: true });
+    if (!ok) return;
+    await idbDelete(await openCurateDB(), STORE, rec.id);
+    try { localStorage.removeItem(POS_KEY(rec.id)); } catch { /* ignore */ }
+    render();
+  }, { className: 'danger' });
+  document.body.appendChild(menu);
+  positionMenu(menu, x, y);
+  ctxMenu = menu;
+  setTimeout(() => document.addEventListener('click', closeCtx), 0);
+}
+
+async function renderHome(body: HTMLElement): Promise<void> {
+  const intro = el('div', 'curate-empty');
+  intro.append(el('p', '', 'Curate a folder of new images before they go into a dataset: pick the keepers, add them to your dataset or start a new one, and sort an artist\'s different styles into their own folders. Every folder you curate stays here, so you can come back to it anytime and carry on where you left off.'));
+  const grid = el('div', 'dm-grid curate-home');
+  let recs: CurateFolder[] = [];
+  try { recs = await listFolders(); } catch { recs = []; }
+  if (root) return; // a folder opened while this was loading
+  for (const rec of recs) {
+    const tile = el('div', 'dm-tile');
+    tile.tabIndex = 0;
+    tile.title = `${rec.name}\nLast opened ${new Date(rec.lastOpenedAt || rec.addedAt).toLocaleString()}`;
+    tile.appendChild(folderIconEl(rec.icon));
+    tile.appendChild(el('div', 'dm-tile-label', rec.name));
+    const menuBtn = btn('⋯', 'Folder options', () => undefined, 'dm-menu-btn');
+    menuBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const r = menuBtn.getBoundingClientRect();
+      folderMenu(rec, r.left, r.bottom + 4);
+    });
+    tile.appendChild(menuBtn);
+    tile.addEventListener('contextmenu', (ev) => { ev.preventDefault(); folderMenu(rec, ev.clientX, ev.clientY); });
+    tile.addEventListener('click', (ev) => { if (ev.target !== menuBtn) void openTracked(rec); });
+    tile.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') void openTracked(rec); });
+    grid.appendChild(tile);
+  }
+  const add = el('button', 'dm-tile dm-add-tile', '+');
+  add.type = 'button';
+  add.title = 'Curate a new folder';
+  add.addEventListener('click', () => void openFolder());
+  grid.appendChild(add);
+  body.replaceChildren(intro, grid);
+}
 
 interface CurateItem {
   name: string;            // file name
@@ -192,6 +358,15 @@ async function loadFolder(dir: DirHandle): Promise<void> {
   index = 0;
   filter = '*';
   lastClicked = -1;
+  // No render here: callers restore the saved position first (a render
+  // would save this reset position over it).
+}
+
+async function rescan(): Promise<void> {
+  if (!root) return;
+  savePosition();
+  await loadFolder(root);
+  if (currentId !== null) restorePosition(currentId);
   render();
 }
 
@@ -346,13 +521,10 @@ function render(): void {
   body.replaceChildren();
   if (!root) {
     curateTab.classList.remove('curate-single-mode');
-    const empty = el('div', 'curate-empty');
-    empty.append(
-      el('p', '', 'Open a folder of images to look through before they go into a dataset: pick the ones to keep, add them to your dataset or start a new one, and sort an artist\'s different styles into their own folders.'),
-      btn('Open folder…', 'Pick a folder of images to curate', () => void openFolder(), 'primary'));
-    body.appendChild(empty);
+    void renderHome(body);
     return;
   }
+  savePosition();
   // Single fills the tab's height (image | assign column) instead of scrolling.
   curateTab.classList.toggle('curate-single-mode', view === 'single' && items.length > 0);
   body.appendChild(toolbar());
@@ -368,8 +540,8 @@ function render(): void {
 function toolbar(): HTMLElement {
   const bar = el('div', 'curate-toolbar curate-row');
   bar.append(el('span', 'curate-folder', root!.name),
-    btn('Open folder…', 'Curate a different folder', () => void openFolder()),
-    btn('Rescan', 'Re-read the folder from disk', () => { if (root) void loadFolder(root); }));
+    btn('‹ Folders', 'Back to your curation folders (this one stays in the list, where you left off)', backToFolders),
+    btn('Rescan', 'Re-read the folder from disk', () => void rescan()));
   const views = el('div', 'curate-seg');
   views.append(
     btn('Grid', 'All images as a grid', () => { view = 'grid'; render(); }, view === 'grid' ? 'active' : ''),
@@ -559,7 +731,7 @@ async function openFolder(): Promise<void> {
     return;
   }
   try {
-    await loadFolder(dir);
+    await openDir(dir, await trackFolder(dir));
   } catch (err) {
     toastError('Could not read the folder', err);
   }
