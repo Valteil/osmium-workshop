@@ -133,7 +133,7 @@ const SECTIONS: Section[] = [
   ] }
 ];
 
-const idOf = (key: Key): string => 'usdu' + key[0].toUpperCase() + key.slice(1);
+const idOf = (prefix: string, key: Key): string => prefix + key[0].toUpperCase() + key.slice(1);
 const num = (v: string, fallback: number): number => { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback; };
 const int = (v: string, fallback: number): number => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : fallback; };
 
@@ -270,8 +270,14 @@ export function usduSettingsFromPrompt(prompt: Prompt): Partial<UsduSettings> | 
 export interface UsduImportedJob { prompt: Prompt; imageFilename: string; imageBytes: Uint8Array; base: string; }
 
 export interface UsduPanelOptions {
-  // The standard upscale checkbox: the two are mutually exclusive.
-  standardToggle: HTMLInputElement;
+  // 'generation' (default): the settings drawer's panel — on/off toggle, the
+  //   image you generate is upscaled as the last step.
+  // 'imported': the Upscale tab — always on, pick any image and run it.
+  //   Its fields are ids usduImp<Key> (the drawer's are usdu<Key>), so the
+  //   two keep their own settings in the UI-state snapshot.
+  mode?: 'generation' | 'imported';
+  // The standard upscale checkbox ('generation' only): mutually exclusive.
+  standardToggle?: HTMLInputElement;
   getList: (kind: UsduListKind) => string[];
   refreshLists: () => Promise<void> | void;
   // "Upscale this image" (imported source).
@@ -295,15 +301,25 @@ export interface UsduPanel {
 
 export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduPanel {
   const touch = typeof matchMedia === 'function' && matchMedia('(hover: none)').matches;
+  const imported = opts.mode === 'imported';
+  const prefix = imported ? 'usduImp' : 'usdu';
   host.classList.add('usdu-panel');
-  const toggleLabel = document.createElement('label');
-  toggleLabel.className = 'chk-row';
-  toggleLabel.title = 'Upscale with Ultimate SD Upscale instead of the standard pass: the image is enlarged by an upscale model, then redrawn tile by tile with a checkpoint at low denoise, which adds real detail. Slower than the standard upscale. Needs the ComfyUI_UltimateSDUpscale node pack.';
+  if (imported) host.classList.add('usdu-tab');
+  // The drawer's on/off switch; the Upscale tab is always on.
   const toggle = document.createElement('input');
   toggle.type = 'checkbox';
-  toggle.id = 'usduEnabled';
-  toggleLabel.append(toggle, ' Upscale with USDU (Ultimate SD Upscale)');
-  host.appendChild(toggleLabel);
+  if (!imported) {
+    const toggleLabel = document.createElement('label');
+    toggleLabel.className = 'chk-row';
+    toggleLabel.title = 'Upscale every image you generate with Ultimate SD Upscale instead of the standard pass: the image is enlarged by an upscale model, then redrawn tile by tile with a checkpoint at low denoise, which adds real detail. Slower than the standard upscale. Needs the ComfyUI_UltimateSDUpscale node pack.';
+    toggle.id = 'usduEnabled';
+    toggleLabel.append(toggle, ' Upscale with USDU (Ultimate SD Upscale)');
+    host.appendChild(toggleLabel);
+    const hint = document.createElement('div');
+    hint.className = 'muted small usdu-hint';
+    hint.textContent = 'Upscales each image you generate. To upscale an image you already have, use the Upscale tab.';
+    host.appendChild(hint);
+  }
 
   const body = document.createElement('div');
   body.className = 'usdu-body';
@@ -321,6 +337,9 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     grid.className = 'settings-grid';
     body.appendChild(grid);
     for (const def of sec.fields) {
+      // Which image is fixed by where the panel lives (drawer = generated,
+      // Upscale tab = imported), so there's no source picker any more.
+      if (def.key === 'source') continue;
       const row = document.createElement('div');
       row.className = 'usdu-field' + (def.wide || def.type === 'check' ? ' settings-span2' : '');
       row.title = def.tip;
@@ -379,50 +398,72 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
         row.appendChild(el);
       }
       row.appendChild(tip);
-      el.id = idOf(def.key);
+      el.id = idOf(prefix, def.key);
       grid.appendChild(row);
       els.set(def.key, el);
       rows.push({ def, row });
     }
   }
 
-  // Imported image: picked here (bytes read at pick time —
-  // notes/Pitfalls/Android-WebView-Picker-Blob-Preview.md), run by the button.
+  // The Upscale tab's image: picked here (bytes read at pick time —
+  // notes/Pitfalls/Android-WebView-Picker-Blob-Preview.md), previewed from
+  // those bytes, run by the button. The tab lays it out beside the settings.
   const importBox = document.createElement('div');
   importBox.className = 'usdu-import';
-  const pickBtn = document.createElement('button');
-  pickBtn.type = 'button';
-  pickBtn.textContent = 'Choose image…';
-  pickBtn.title = 'The image to upscale (PNG, JPG or WebP). A prompt saved in it is used by "Use my image\'s prompts".';
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.accept = 'image/png,image/jpeg,image/webp';
-  fileInput.hidden = true;
-  const pickedName = document.createElement('div');
-  pickedName.className = 'muted small usdu-picked';
-  pickedName.textContent = 'No image chosen.';
-  const runBtn = document.createElement('button');
-  runBtn.type = 'button';
-  runBtn.className = 'usdu-run';
-  runBtn.textContent = 'Upscale this image';
-  runBtn.title = 'Queue the chosen image for USDU with the settings above. Saved in the Upscaled folder of your output folder.';
-  const btnRow = document.createElement('div');
-  btnRow.className = 'row';
-  btnRow.append(pickBtn, runBtn);
-  importBox.append(btnRow, pickedName, fileInput);
-  // Before the first section (right under "Image to upscale").
-  body.insertBefore(importBox, body.children[2] || null);
-
   let picked: { name: string; bytes: Uint8Array } | null = null;
-  pickBtn.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', async () => {
-    const f = fileInput.files && fileInput.files[0];
-    fileInput.value = '';
-    if (!f) return;
-    picked = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) };
-    pickedName.textContent = f.name;
-  });
-  runBtn.addEventListener('click', () => opts.onRunImported());
+  if (imported) {
+    const title = document.createElement('div');
+    title.className = 'usdu-sec-head';
+    title.textContent = 'Image to upscale';
+    const preview = document.createElement('div');
+    preview.className = 'usdu-preview';
+    const previewImg = document.createElement('img');
+    previewImg.alt = '';
+    previewImg.hidden = true;
+    const empty = document.createElement('div');
+    empty.className = 'muted usdu-preview-empty';
+    empty.textContent = 'Choose an image (PNG, JPG or WebP).';
+    preview.append(previewImg, empty);
+    const pickBtn = document.createElement('button');
+    pickBtn.type = 'button';
+    pickBtn.textContent = 'Choose image…';
+    pickBtn.title = 'The image to upscale (PNG, JPG or WebP). A prompt saved in it is used by "Use my image\'s prompts".';
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/png,image/jpeg,image/webp';
+    fileInput.hidden = true;
+    const pickedName = document.createElement('div');
+    pickedName.className = 'muted small usdu-picked';
+    pickedName.textContent = 'No image chosen.';
+    const runBtn = document.createElement('button');
+    runBtn.type = 'button';
+    runBtn.className = 'usdu-run primary';
+    runBtn.textContent = 'Upscale this image';
+    runBtn.title = 'Queue the chosen image for USDU with these settings. Saved in the Upscaled folder of your output folder.';
+    const btnRow = document.createElement('div');
+    btnRow.className = 'row';
+    btnRow.append(pickBtn, runBtn);
+    importBox.append(title, preview, btnRow, pickedName, fileInput);
+    host.insertBefore(importBox, body);
+    let url = '';
+    pickBtn.addEventListener('click', () => fileInput.click());
+    preview.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      const f = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (!f) return;
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      picked = { name: f.name, bytes };
+      const size = imageSizeOf(bytes);
+      pickedName.textContent = size ? `${f.name} · ${size.width}×${size.height}` : f.name;
+      if (url) URL.revokeObjectURL(url);
+      url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: f.type || 'image/png' }));
+      previewImg.src = url;
+      previewImg.hidden = false;
+      empty.hidden = true;
+    });
+    runBtn.addEventListener('click', () => opts.onRunImported());
+  }
 
   const refreshBtn = document.createElement('button');
   refreshBtn.type = 'button';
@@ -437,6 +478,7 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
   function read(): UsduSettings {
     const s: any = { ...USDU_DEFAULTS };
     for (const [k, el] of els) s[k] = el instanceof HTMLInputElement && el.type === 'checkbox' ? el.checked : el.value;
+    s.source = imported ? 'imported' : 'generated';
     return s as UsduSettings;
   }
   function apply(s: Partial<UsduSettings>): void {
@@ -450,31 +492,35 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     refresh();
   }
   function refresh(): void {
-    body.hidden = !toggle.checked;
+    body.hidden = !imported && !toggle.checked;
     const s = read();
     for (const { def, row } of rows) row.hidden = def.show ? !def.show(s) : false;
-    importBox.hidden = s.source !== 'imported';
   }
   apply(USDU_DEFAULTS);
   host.addEventListener('change', refresh);
 
   function setEnabled(on: boolean): void {
+    if (imported) return;
     toggle.checked = on;
-    if (on && opts.standardToggle.checked) {
-      opts.standardToggle.checked = false;
-      opts.standardToggle.dispatchEvent(new Event('change', { bubbles: true }));
+    const std = opts.standardToggle;
+    if (on && std && std.checked) {
+      std.checked = false;
+      std.dispatchEvent(new Event('change', { bubbles: true }));
     }
     refresh();
   }
-  toggle.addEventListener('change', () => setEnabled(toggle.checked));
-  opts.standardToggle.addEventListener('change', () => {
-    if (opts.standardToggle.checked && toggle.checked) { toggle.checked = false; refresh(); }
-  });
+  if (!imported) {
+    toggle.addEventListener('change', () => setEnabled(toggle.checked));
+    const std = opts.standardToggle;
+    if (std) std.addEventListener('change', () => {
+      if (std.checked && toggle.checked) { toggle.checked = false; refresh(); }
+    });
+  }
 
   return {
-    enabled: () => toggle.checked,
+    enabled: () => !imported && toggle.checked,
     read, apply, setEnabled, refresh,
-    activeForGeneration: () => toggle.checked && read().source === 'generated',
+    activeForGeneration: () => !imported && toggle.checked,
     appendToGeneration(prompt: Prompt): void {
       const s = read();
       // The generation's own prompt nodes are plain strings here, so this is

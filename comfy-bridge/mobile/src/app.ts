@@ -1444,6 +1444,18 @@ declare const BridgeShared: {
     onRunImported: () => { void queueUsduImported(); },
     log
   });
+  // The Upscale tab: the same panel for an image you already have (ids
+  // usduImp*, settings kept apart from the drawer's).
+  const usduImp = BridgeShared.mountUsduPanel($('usduTab'), {
+    mode: 'imported',
+    getList: (kind: string) => kind === 'ckpt' ? usduCkptOptions
+      : kind === 'wd14' ? usduWd14Options
+      : kind === 'upscale' ? BridgeShared.optionsFromDatalist(upscaleModelList)
+      : kind === 'sampler' ? bridgeSamplerOptions : bridgeSchedulerOptions,
+    refreshLists: refreshUsduLists,
+    onRunImported: () => { void queueUsduImported(); },
+    log
+  });
 
   btnSwapReso.addEventListener('click', () => {
     const w = width.value;
@@ -1829,7 +1841,7 @@ declare const BridgeShared: {
   }
 
   async function queueUsduImported() {
-    const j = await usdu.buildImportedJob();
+    const j = await usduImp.buildImportedJob();
     if (!j) return;
     genQueue.push({
       prompt: j.prompt,
@@ -2351,9 +2363,11 @@ declare const BridgeShared: {
   const colEl = $<HTMLElement>('col');
   const metadataView = $<HTMLElement>('metadataView');
   const compareView = $<HTMLElement>('compareView');
+  const usduView = $<HTMLElement>('usduView');
   const metaFileInput = $<HTMLInputElement>('metaFileInput');
   function showTab(tab: string) {
     colEl.hidden = tab !== 'generate';
+    usduView.hidden = tab !== 'upscale';
     metadataView.hidden = tab !== 'metadata';
     compareView.hidden = tab !== 'compare';
     if (tab === 'compare') compare.onShow();
@@ -2450,6 +2464,7 @@ declare const BridgeShared: {
     pass2Fields.style.display = use2Pass.checked ? '' : 'none';
     upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none';
     usdu.refresh();
+    usduImp.refresh();
   }
   var uiSaveTimer: ReturnType<typeof setTimeout> | null = null;
   function scheduleUiSave() {

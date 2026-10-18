@@ -25,6 +25,7 @@
        Metadata (image metadata, LoRA lookup; BridgeShared.mountMetadataTab). -->
   <nav id="appTabs" role="tablist">
     <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
+    <button type="button" role="tab" data-tab="upscale" aria-selected="false">Upscale</button>
     <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
     <button type="button" role="tab" data-tab="compare" aria-selected="false">Gallery</button>
   </nav>
@@ -223,6 +224,8 @@
     </section>
 
   </div>
+  <!-- Upscale tab: USDU for an imported image (BridgeShared.mountUsduPanel, mode 'imported'). -->
+  <div id="usduView" hidden><div id="usduTab"></div></div>
   <!-- Metadata tab (BridgeShared.mountMetadataTab). -->
   <div id="metadataView" hidden>
     <div id="metadataTab" class="meta-tab"></div>

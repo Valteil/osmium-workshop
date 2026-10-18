@@ -21,6 +21,7 @@
          metadata, LoRA lookup; shared/metadata-ui.ts). -->
     <nav id="appTabs" role="tablist">
       <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
+      <button type="button" role="tab" data-tab="upscale" aria-selected="false" title="Upscale an image you already have with USDU (Ultimate SD Upscale)">Upscale</button>
       <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
       <button type="button" role="tab" data-tab="compare" aria-selected="false">Gallery</button>
     </nav>
@@ -256,6 +257,8 @@
     </div>
 
   </div>
+  <!-- Upscale tab: USDU for an imported image; shared/usdu.ts' mountUsduPanel (mode 'imported'). -->
+  <div id="usduView" hidden><div id="usduTab"></div></div>
   <!-- Metadata tab: filled by shared/metadata-ui.ts' mountMetadataTab. -->
   <div id="metadataView" class="meta-tab-scroll" hidden><div id="metadataTab" class="meta-tab"></div></div>
   <!-- Gallery tab: the large gallery + a folded Compare (slots, side by side / overlay); shared/compare.ts. -->

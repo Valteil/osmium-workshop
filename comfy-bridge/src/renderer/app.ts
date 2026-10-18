@@ -500,6 +500,18 @@ const usdu = mountUsduPanel($<HTMLDivElement>('usduPanel'), {
   onRunImported: () => { void queueUsduImported(); },
   log
 });
+// The Upscale tab: the same panel for an image you already have (own ids
+// usduImp*, so its settings are kept apart from the drawer's).
+const usduImp = mountUsduPanel($<HTMLDivElement>('usduTab'), {
+  mode: 'imported',
+  getList: (kind: UsduListKind) => kind === 'ckpt' ? usduCkptOptions
+    : kind === 'wd14' ? usduWd14Options
+    : kind === 'upscale' ? optionsFromDatalist(upscaleModelList)
+    : kind === 'sampler' ? bridgeSamplerOptions : bridgeSchedulerOptions,
+  refreshLists: refreshUsduLists,
+  onRunImported: () => { void queueUsduImported(); },
+  log
+});
 
 // ---------------- Prompt / Negative presets ----------------
 // Prompt presets snapshot every field EXCEPT Negative — a prompt preset is
@@ -850,6 +862,7 @@ function restoreUiState(): void {
   applyUse2PassUI();
   applyUpscaleUI();
   usdu.refresh();
+  usduImp.refresh();
   applyUnifiedPromptModeUI();
   applyBackendUI();
   autoGrowAll();
@@ -1407,7 +1420,7 @@ async function generate(): Promise<void> {
 }
 
 async function queueUsduImported(): Promise<void> {
-  const j = await usdu.buildImportedJob();
+  const j = await usduImp.buildImportedJob();
   if (!j) return;
   genQueue.push({
     host: getHost(),
@@ -1839,8 +1852,10 @@ const appTabs = $<HTMLElement>('appTabs');
 const layoutEl = $<HTMLElement>('layout');
 const metadataView = $<HTMLElement>('metadataView');
 const compareView = $<HTMLElement>('compareView');
+const usduView = $<HTMLElement>('usduView');
 function showTab(tab: string): void {
   layoutEl.style.display = tab === 'generate' ? '' : 'none';
+  usduView.hidden = tab !== 'upscale';
   metadataView.hidden = tab !== 'metadata';
   compareView.hidden = tab !== 'compare';
   if (tab === 'compare') compare.onShow();

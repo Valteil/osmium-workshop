@@ -326,6 +326,24 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .usdu-import{ margin:6px 0 4px; }
 .usdu-import .row{ display:flex; gap:8px; flex-wrap:wrap; }
 .usdu-picked{ margin-top:4px; overflow-wrap:anywhere; }
+.usdu-hint{ margin:2px 0 6px; line-height:1.4; }
+/* The Upscale tab (mode 'imported'): the image on the left as large as it
+   fits, the settings in a column beside it; stacked on a narrow screen. */
+.usdu-tab{ display:grid; grid-template-columns:minmax(0,1fr) minmax(320px,460px); gap:20px; padding:16px; max-width:1500px; margin:0 auto; width:100%; box-sizing:border-box; align-items:start; }
+.usdu-tab .usdu-import{ position:sticky; top:0; margin:0; display:flex; flex-direction:column; gap:8px; min-width:0; }
+.usdu-tab .usdu-sec-head{ margin-top:0; }
+.usdu-tab .usdu-body{ min-width:0; }
+.usdu-tab .usdu-body > .usdu-sec-head:first-child{ margin-top:0; }
+.usdu-preview{ display:flex; align-items:center; justify-content:center; min-height:260px; height:calc(100vh - 230px); background:var(--panel2); border:1px dashed var(--border); border-radius:10px; overflow:hidden; cursor:pointer; }
+.usdu-preview img{ max-width:100%; max-height:100%; object-fit:contain; }
+.usdu-preview img[hidden], .usdu-preview-empty[hidden]{ display:none; }
+.usdu-preview-empty{ padding:20px; text-align:center; }
+.usdu-tab .usdu-run{ font-weight:600; }
+@media (max-width: 760px){
+  .usdu-tab{ grid-template-columns:minmax(0,1fr); padding:12px; gap:12px; }
+  .usdu-tab .usdu-import{ position:static; }
+  .usdu-preview{ height:auto; min-height:200px; max-height:55vh; }
+}
 
 /* ---- WD14 tagging panel (shared/wd14-tag.ts), both shells ---- */
 .wd14-details > summary{ cursor:pointer; list-style:none; }
