@@ -39,7 +39,7 @@ interface CurateItem {
   w?: number; h?: number;  // pixel size, known once the image has loaded
 }
 
-// Images whose longer side is under this are flagged: at that size they're
+// Images with both sides under this are flagged: at that size they're
 // usually previews or WIPs, and a trainer can't add detail that isn't there.
 const LOW_RES = 1024;
 
@@ -52,7 +52,7 @@ function resLabel(it: CurateItem): HTMLElement {
     const low = Math.max(it.w, it.h) < LOW_RES;
     s.textContent = `${it.w}×${it.h}`;
     s.classList.toggle('low', low);
-    s.title = low ? `Low resolution: the longer side is under ${LOW_RES}px (often a preview or WIP)` : '';
+    s.title = low ? `Low resolution: both sides are under ${LOW_RES}px (often a preview or WIP)` : '';
   };
   fill();
   (s as HTMLElement & { fill?: () => void }).fill = fill;
