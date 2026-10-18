@@ -1363,6 +1363,306 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       linear-gradient(var(--accent-flair), var(--accent-flair)) bottom 1px center / 40% 1px no-repeat;
   }
 
+  /* ---- Windows 7 (legendary) — Aero. Segoe UI (Selawik where Windows
+     isn't), a glass title bar with its gloss line and diagonal streaks, a
+     command bar of flat buttons that light up as blue glass, two-tone grey
+     push buttons that take the blue hover quickly and let it go slowly, a
+     default button that breathes, green progress bars with a running glint,
+     Harmony-blue desktop behind the gallery. Every gradient is mixed from
+     the theme vars, so night mode gets a dark Aero instead of a broken one. ---- */
+  html[data-theme="windows-7"]{
+    --bg-base:#f0f0f0; --bg-panel:#ffffff; --bg-elevated:#f7f9fc; --bg-elevated-2:#e9eef4;
+    --border-soft:#d5dfe5; --border-strong:#8e9aa8; --text-primary:#1b1b1b; --text-muted:#4d5d72;
+    --text-faint:#7f8b99; --accent-auto:#b35f00; --accent-auto-dim:#fdf0dc; --accent-manual:#0066cc;
+    --accent-manual-dim:#dcecfc; --accent-danger:#c42b1c; --accent-success:#1e8f2e; --accent-flair:#3a8ee6;
+    --mono: 'JetBrains Mono', Consolas, monospace;
+    --sans: 'Selawik', 'Segoe UI', Tahoma, system-ui, sans-serif;
+    --display: 'Selawik', 'Segoe UI', Tahoma, sans-serif; --head-font: 'Selawik', 'Segoe UI', Tahoma, sans-serif; --tab-font: var(--sans);
+    --radius: 3px; --r-ctl: 3px; --r-chip: 3px; --r-card: 4px; --r-panel: 6px; --r-check: 2px; --r-scroll: 3px;
+    --brand-weight: 400; --brand-track: 0;
+    --head-weight: 400; --head-color: color-mix(in srgb, var(--accent-manual) 45%, var(--text-primary));
+    --btn-weight: 400;
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.16);
+    --icon-stroke: 1.5;
+    /* The Aero glass and the two button faces, mixed once here. */
+    --w7-hi: color-mix(in srgb, var(--bg-panel) 72%, transparent);
+    --w7-glass: linear-gradient(to bottom, color-mix(in srgb, var(--accent-flair) 34%, var(--bg-panel)), color-mix(in srgb, var(--accent-flair) 56%, var(--bg-panel)));
+    --w7-hover: linear-gradient(to bottom, color-mix(in srgb, var(--accent-manual-dim) 45%, var(--bg-panel)) 0%,
+      var(--accent-manual-dim) 49%, color-mix(in srgb, var(--accent-flair) 24%, var(--bg-panel)) 50%,
+      color-mix(in srgb, var(--accent-flair) 38%, var(--bg-panel)) 100%);
+    --w7-press: linear-gradient(to bottom, color-mix(in srgb, var(--accent-flair) 18%, var(--bg-panel)) 0%,
+      color-mix(in srgb, var(--accent-flair) 28%, var(--bg-panel)) 49%, color-mix(in srgb, var(--accent-flair) 46%, var(--bg-panel)) 50%,
+      color-mix(in srgb, var(--accent-flair) 58%, var(--bg-panel)) 100%);
+    --w7-ring: color-mix(in srgb, var(--accent-manual) 55%, var(--bg-panel));
+    --btn-bg: linear-gradient(to bottom, color-mix(in srgb, var(--bg-panel) 82%, var(--bg-base)) 0%,
+      color-mix(in srgb, var(--bg-base) 85%, var(--bg-panel)) 49%, color-mix(in srgb, var(--bg-base) 90%, var(--border-strong)) 50%,
+      color-mix(in srgb, var(--bg-base) 76%, var(--border-strong)) 100%);
+    --btn-bg-hover: var(--w7-hover);
+    --btn-bd-hover: var(--w7-ring);
+    --btn-shadow: inset 0 0 0 1px var(--w7-hi);
+    /* The hover-fill IS the blue glass: full width, faded rather than swept
+       (the transition is restated below). The card lift is Explorer's
+       hover box. */
+    --fx-fill: var(--w7-hover); --fx-o: 1; --fx-w: 1;
+    --fx-card-t: translateY(-2px);
+    --fx-card-s: 0 0 0 1px var(--w7-ring), 0 0 0 3px color-mix(in srgb, var(--accent-flair) 22%, transparent), 0 8px 20px rgba(0,0,0,0.16);
+    --mat: linear-gradient(to bottom, color-mix(in srgb, var(--accent-flair) 9%, transparent), transparent 60%) 0 0 / 100% 100% no-repeat;
+  }
+  /* The desktop: Harmony blue, a bloom of light behind where the logo
+     would be, and the wallpaper's long curved swooshes. Every layer is
+     100%-sized, so the gallery scroll option leaves it still, like a
+     wallpaper. */
+  html[data-theme="windows-7"] #gallery{
+    background-image:
+      radial-gradient(ellipse 34% 40% at 58% 40%, color-mix(in srgb, var(--bg-panel) 50%, transparent), transparent 70%),
+      radial-gradient(ellipse 95% 46% at 40% 108%, transparent 62%, color-mix(in srgb, var(--bg-panel) 30%, transparent) 63% 64%, transparent 67%),
+      radial-gradient(ellipse 110% 58% at 62% 112%, transparent 64%, color-mix(in srgb, var(--bg-panel) 22%, transparent) 65% 66.5%, transparent 69%),
+      radial-gradient(ellipse 120% 80% at 20% 120%, color-mix(in srgb, var(--accent-flair) 30%, transparent), transparent 60%),
+      linear-gradient(160deg, color-mix(in srgb, var(--accent-flair) 34%, var(--bg-base)), color-mix(in srgb, var(--accent-manual) 24%, var(--bg-base)) 55%, color-mix(in srgb, var(--accent-flair) 44%, var(--bg-base)));
+    background-size: 100% 100%;
+  }
+  /* Title bar: Aero glass with the gloss line across its middle and the
+     faint diagonal light streaks; the caption glows white behind it. */
+  html[data-theme="windows-7"] #topbar{
+    border-bottom: 1px solid color-mix(in srgb, var(--accent-flair) 50%, var(--text-primary));
+    background:
+      linear-gradient(to bottom, color-mix(in srgb, var(--bg-panel) 46%, transparent), color-mix(in srgb, var(--bg-panel) 14%, transparent) 50%, transparent 50%),
+      repeating-linear-gradient(115deg, transparent 0 70px, color-mix(in srgb, var(--bg-panel) 16%, transparent) 70px 76px,
+        transparent 76px 130px, color-mix(in srgb, var(--bg-panel) 10%, transparent) 130px 150px, transparent 150px 260px),
+      radial-gradient(ellipse 40% 160% at 14% 0%, color-mix(in srgb, var(--bg-panel) 45%, transparent), transparent 70%),
+      var(--w7-glass);
+    box-shadow: inset 0 1px 0 var(--w7-hi), inset 0 -1px 0 color-mix(in srgb, var(--bg-panel) 35%, transparent);
+  }
+  html[data-theme="windows-7"] .brand,
+  html[data-theme="windows-7"] .app-version{
+    text-shadow: 0 0 6px var(--bg-panel), 0 0 12px var(--bg-panel), 0 0 18px color-mix(in srgb, var(--bg-panel) 70%, transparent);
+  }
+  html[data-theme="windows-7"] .brand span.tag{
+    text-shadow: none; color: var(--text-primary);
+    background: var(--w7-hover); border: 1px solid var(--w7-ring);
+  }
+  /* Command bar: Explorer's pale gradient strip. Its buttons are flat until
+     the pointer finds them, then a rounded blue glass box (::before, inset
+     so it floats inside the bar) fades in fast and out slowly. */
+  html[data-theme="windows-7"] #tabBar{
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--bg-panel) 82%, var(--accent-manual-dim)), color-mix(in srgb, var(--accent-manual-dim) 70%, var(--bg-base)));
+    border-bottom: 1px solid color-mix(in srgb, var(--accent-flair) 30%, var(--border-strong));
+    box-shadow: inset 0 1px 0 var(--w7-hi);
+  }
+  html[data-theme="windows-7"] .tab-btn{ position: relative; isolation: isolate; color: var(--text-primary); border-bottom-color: transparent; }
+  html[data-theme="windows-7"] .tab-btn:hover:not(:disabled){ background: transparent; }
+  html[data-theme="windows-7"] .tab-btn::before{
+    content: ''; position: absolute; inset: 5px 1px; border-radius: 3px; z-index: -1; pointer-events: none;
+    background: var(--w7-hover); box-shadow: 0 0 0 1px var(--w7-ring), inset 0 0 0 1px var(--w7-hi);
+    opacity: 0; transition: opacity 0.6s ease-out;
+  }
+  html[data-theme="windows-7"] .tab-btn:hover:not(:disabled)::before{ opacity: 1; transition-duration: 0.1s; }
+  html[data-theme="windows-7"] .tab-btn.active{ color: var(--text-primary); border-bottom-color: transparent; }
+  html[data-theme="windows-7"] .tab-btn.active::before{
+    opacity: 1; background: var(--w7-press);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-manual) 70%, var(--text-primary)), inset 0 1px 2px color-mix(in srgb, var(--text-primary) 25%, transparent);
+  }
+  /* The tabs have their own glass; the button-wide hover fill would double it. */
+  html[data-theme="windows-7"] .tab-btn::after{ content: none !important; }
+  /* Push buttons: the blue arrives in 0.1s and drains over 0.7s (the fill
+     fades at full width instead of sweeping); pressed is the deeper glass. */
+  html[data-theme="windows-7"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
+    transform: scaleX(1) !important; opacity: 0 !important;
+    transition: opacity 0.7s ease-out !important;
+  }
+  html[data-theme="windows-7"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled):not(.active):not(.on):not(.selected):not([aria-pressed="true"])::after{
+    opacity: 1 !important; transition-duration: 0.1s !important;
+  }
+  html[data-theme="windows-7"] button:active:not(:disabled){ --btn-bg-hover: var(--w7-press); --fx-fill: var(--w7-press); transform: none; }
+  /* The default button: a blue-ringed face; the one in a dialog breathes. */
+  html[data-theme="windows-7"] button.primary{
+    background: var(--btn-bg); color: var(--text-primary); font-weight: 400;
+    border-color: color-mix(in srgb, var(--accent-manual) 70%, var(--text-primary));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 55%, transparent);
+  }
+  html[data-theme="windows-7"] button.primary:hover:not(:disabled){ background: var(--w7-hover); }
+  html[data-theme="windows-7"] .modal-card button.primary,
+  html[data-theme="windows-7"] .confirm-btn-row button.primary{
+    animation: w7DefaultPulse 1.6s ease-in-out infinite alternate; animation-play-state: var(--flair-play);
+  }
+  @keyframes w7DefaultPulse{
+    from{ box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 35%, transparent); }
+    to{ box-shadow: inset 0 0 0 1px var(--accent-flair), inset 0 0 7px 1px color-mix(in srgb, var(--accent-flair) 45%, transparent); }
+  }
+  /* Panels: Control Panel's task panes, a pale blue head fading to white. */
+  html[data-theme="windows-7"] .tool-section,
+  html[data-theme="windows-7"] .settings-section{
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-manual-dim) 60%, var(--bg-panel)), var(--bg-panel) 44px);
+    border-color: color-mix(in srgb, var(--accent-flair) 28%, var(--border-soft));
+    box-shadow: inset 0 1px 0 var(--w7-hi), 0 1px 2px rgba(0,0,0,0.06);
+  }
+  /* Selection: Explorer's blue glass. */
+  html[data-theme="windows-7"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+    background: var(--w7-hover); border-color: var(--w7-ring); color: var(--text-primary);
+  }
+  html[data-theme="windows-7"] .pdrop-item:hover, html[data-theme="windows-7"] .pdrop-item:focus-visible,
+  html[data-theme="windows-7"] .ctx-item:hover, html[data-theme="windows-7"] .ctx-item:focus-visible{
+    background: var(--w7-hover); box-shadow: inset 0 0 0 1px var(--w7-ring);
+  }
+  html[data-theme="windows-7"] .pdrop-item.active{ color: var(--text-primary); }
+  /* Menus: the classic grey sheet with its icon gutter. */
+  html[data-theme="windows-7"] .ctx-menu,
+  html[data-theme="windows-7"] .pdrop-menu,
+  html[data-theme="windows-7"] .header-cat-flyout{
+    background: linear-gradient(90deg, transparent 27px, color-mix(in srgb, var(--border-soft) 90%, var(--text-faint)) 27px 28px, var(--bg-panel) 28px 29px, transparent 29px), var(--bg-base);
+    border-color: color-mix(in srgb, var(--border-strong) 80%, var(--text-faint)); border-radius: 0;
+    box-shadow: 3px 3px 4px rgba(0,0,0,0.22);
+  }
+  /* Windows: dialogs wear the glass frame. */
+  html[data-theme="windows-7"] .modal-card{
+    border-radius: 6px; border-color: color-mix(in srgb, var(--accent-flair) 40%, var(--text-primary));
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent-flair) 48%, transparent),
+      0 0 0 8px color-mix(in srgb, var(--text-primary) 45%, transparent), 0 18px 48px rgba(0,0,0,0.45);
+  }
+  /* Checkboxes: a grey well inside a white rim; checked is a dark tick on
+     it, not a filled square; hover is blue. */
+  html[data-theme="windows-7"] :where(input[type="checkbox"]){
+    border: 1px solid color-mix(in srgb, var(--border-strong) 80%, var(--text-faint));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--border-strong) 32%, var(--bg-panel)), var(--bg-panel));
+    box-shadow: inset 0 0 0 2px var(--bg-panel);
+  }
+  html[data-theme="windows-7"] :where(input[type="checkbox"]:hover:not(:disabled)){
+    border-color: var(--w7-ring);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-flair) 40%, var(--bg-panel)), color-mix(in srgb, var(--accent-flair) 8%, var(--bg-panel)));
+  }
+  html[data-theme="windows-7"] :where(input[type="checkbox"]:checked)::after{
+    border-color: color-mix(in srgb, var(--accent-manual) 40%, var(--text-primary));
+  }
+  /* Scrollbars: the bevelled grey thumb with its grip, blue under the pointer. */
+  html[data-theme="windows-7"] ::-webkit-scrollbar-track{ background: linear-gradient(90deg, color-mix(in srgb, var(--bg-base) 85%, var(--border-strong)), var(--bg-base) 30%); }
+  html[data-theme="windows-7"] ::-webkit-scrollbar-thumb{
+    border: 1px solid color-mix(in srgb, var(--border-strong) 85%, var(--text-faint)); border-radius: 3px;
+    background: repeating-linear-gradient(to bottom, color-mix(in srgb, var(--text-faint) 70%, transparent) 0 1px, var(--bg-panel) 1px 2px) center / 7px 8px no-repeat,
+      linear-gradient(90deg, var(--bg-panel), color-mix(in srgb, var(--bg-base) 70%, var(--border-strong)));
+  }
+  html[data-theme="windows-7"] ::-webkit-scrollbar-thumb:horizontal{
+    background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--text-faint) 70%, transparent) 0 1px, var(--bg-panel) 1px 2px) center / 8px 7px no-repeat,
+      linear-gradient(to bottom, var(--bg-panel), color-mix(in srgb, var(--bg-base) 70%, var(--border-strong)));
+  }
+  html[data-theme="windows-7"] ::-webkit-scrollbar-thumb:hover{ border-color: var(--w7-ring); }
+  /* Progress: the green bar and the glint that runs along it. */
+  html[data-theme="windows-7"] .wd14-progress-track{
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--bg-base) 85%, var(--border-strong)), var(--bg-panel));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-strong) 70%, transparent);
+  }
+  html[data-theme="windows-7"] .wd14-progress-fill{
+    position: relative; overflow: hidden;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-success) 45%, var(--bg-panel)), var(--accent-success) 50%, color-mix(in srgb, var(--accent-success) 80%, var(--bg-panel)));
+  }
+  html[data-theme="windows-7"] .wd14-progress-fill::after{
+    content: ''; position: absolute; inset: 0; width: 40%; pointer-events: none;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg-panel) 65%, transparent), transparent);
+    animation: w7Glint 2.2s linear infinite; animation-play-state: var(--flair-play);
+  }
+  @keyframes w7Glint{ from{ transform: translateX(-100%); } to{ transform: translateX(260%); } }
+  @media (prefers-reduced-motion: reduce){
+    html[data-theme="windows-7"] .wd14-progress-fill::after,
+    html[data-theme="windows-7"] .modal-card button.primary,
+    html[data-theme="windows-7"] .confirm-btn-row button.primary{ animation: none; }
+  }
+
+  /* ---- Frutiger Aero (epic) — the glossy 2000s: sky over grass, bubbles,
+     jelly. Nunito for the lockup and titles over Selawik, pill-shaped
+     aqua-jelly buttons with a wet highlight across their top half, a sky
+     that fades into a meadow behind the gallery with bubbles rising
+     through it, and a light glint that sweeps a button on hover. ---- */
+  html[data-theme="frutiger-aero"]{
+    --bg-base:#eef9f1; --bg-panel:#ffffff; --bg-elevated:#f2fbf8; --bg-elevated-2:#def3f7;
+    --border-soft:#bfe3e8; --border-strong:#7fbfcc; --text-primary:#0f3346; --text-muted:#3d6b7d;
+    --text-faint:#7ea3b0; --accent-auto:#c86400; --accent-auto-dim:#fff0d9; --accent-manual:#0082c8;
+    --accent-manual-dim:#d7f0fb; --accent-danger:#d63a4a; --accent-success:#2f9a2a; --accent-flair:#5cc93b;
+    --mono: 'JetBrains Mono', Consolas, monospace;
+    --sans: 'Selawik', 'Segoe UI', system-ui, sans-serif;
+    --display: 'Nunito', 'Selawik', sans-serif; --head-font: 'Nunito', 'Selawik', sans-serif; --tab-font: var(--sans);
+    --radius: 10px; --r-ctl: 999px; --r-chip: 999px; --r-card: 14px; --r-panel: 14px; --r-check: 5px; --r-scroll: 999px;
+    --brand-weight: 800; --brand-track: -0.01em;
+    --head-weight: 800; --head-color: var(--accent-manual);
+    --btn-weight: 600;
+    --card-shadow: 0 2px 8px color-mix(in srgb, var(--accent-manual) 14%, transparent);
+    --icon-stroke: 1.75;
+    /* The buttons' jelly (face + wet highlight) runs along this; night mode
+       turns it over so the gloss sits at the foot (the user's call). Bars,
+       panels and the sky keep their fixed direction. */
+    --fa-dir: to bottom;
+    --fa-wet: linear-gradient(to bottom, color-mix(in srgb, var(--bg-panel) 85%, transparent), color-mix(in srgb, var(--bg-panel) 25%, transparent) 50%, transparent 52%);
+    --fa-btn-wet: linear-gradient(var(--fa-dir), color-mix(in srgb, var(--bg-panel) 85%, transparent), color-mix(in srgb, var(--bg-panel) 25%, transparent) 50%, transparent 52%);
+    --btn-bg: var(--fa-btn-wet), linear-gradient(var(--fa-dir), color-mix(in srgb, var(--accent-manual) 10%, var(--bg-panel)), color-mix(in srgb, var(--accent-manual) 26%, var(--bg-panel)));
+    --btn-bg-hover: var(--fa-btn-wet), linear-gradient(var(--fa-dir), color-mix(in srgb, var(--accent-manual) 18%, var(--bg-panel)), color-mix(in srgb, var(--accent-manual) 40%, var(--bg-panel)));
+    --btn-bd-hover: var(--accent-manual);
+    --btn-shadow: inset 0 -1px 2px color-mix(in srgb, var(--accent-manual) 25%, transparent), 0 1px 2px color-mix(in srgb, var(--accent-manual) 18%, transparent);
+    --fx-fill: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--bg-panel) 90%, transparent) 50%, transparent 80%); --fx-o: 0.8; --fx-w: 1;
+    --fx-card-t: translateY(-4px) scale(1.01);
+    --fx-card-s: 0 0 0 2px color-mix(in srgb, var(--accent-manual) 45%, transparent), 0 12px 26px color-mix(in srgb, var(--accent-manual) 24%, transparent);
+    --mat: radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--accent-manual) 9%, transparent) 0 6px, transparent 7px) 0 0 / 34px 34px,
+      linear-gradient(to bottom, color-mix(in srgb, var(--accent-manual) 7%, transparent), color-mix(in srgb, var(--accent-flair) 7%, transparent));
+  }
+  html.night-mode[data-theme="frutiger-aero"]{ --fa-dir: to top; }
+  /* A Bliss-style hillside (painted, not the photo): blue sky with soft
+     clouds over a rolling green hill, and bubbles drifting in front — two
+     bubble tiles, each a rim and a catch-light. The scenery is 100%-sized,
+     so the scroll option drifts only the bubbles. */
+  html[data-theme="frutiger-aero"] #gallery{
+    background-image:
+      radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--bg-panel) 80%, transparent) 0 3px, transparent 4px),
+      radial-gradient(circle, transparent 0 15px, color-mix(in srgb, var(--bg-panel) 55%, transparent) 16px 18px, transparent 19px),
+      radial-gradient(circle at 34% 34%, color-mix(in srgb, var(--bg-panel) 75%, transparent) 0 2px, transparent 3px),
+      radial-gradient(circle, transparent 0 7px, color-mix(in srgb, var(--bg-panel) 50%, transparent) 8px 9px, transparent 10px),
+      radial-gradient(ellipse 60% 40% at 34% 64%, color-mix(in srgb, var(--bg-panel) 22%, transparent), transparent 70%),
+      radial-gradient(ellipse 85% 48% at 34% 108%, color-mix(in srgb, var(--accent-flair) 72%, var(--bg-base)) 0 97%, transparent 100%),
+      radial-gradient(ellipse 70% 42% at 96% 112%, color-mix(in srgb, var(--accent-flair) 80%, var(--text-primary)) 0 97%, transparent 100%),
+      radial-gradient(ellipse 16% 6% at 20% 16%, color-mix(in srgb, var(--bg-panel) 75%, transparent), transparent 70%),
+      radial-gradient(ellipse 22% 7% at 30% 20%, color-mix(in srgb, var(--bg-panel) 55%, transparent), transparent 70%),
+      radial-gradient(ellipse 20% 6% at 74% 11%, color-mix(in srgb, var(--bg-panel) 65%, transparent), transparent 70%),
+      linear-gradient(to bottom, color-mix(in srgb, var(--accent-manual) 55%, var(--bg-panel)), color-mix(in srgb, var(--accent-manual) 18%, var(--bg-panel)) 70%);
+    background-size: 220px 240px, 220px 240px, 130px 150px, 130px 150px, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+    background-position: 58px 44px, 50px 36px, 10px 96px, 6px 92px, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+  /* A glossy aqua bar with the wet highlight; a grass line beneath. */
+  html[data-theme="frutiger-aero"] #topbar{
+    background: var(--fa-wet), linear-gradient(to bottom, color-mix(in srgb, var(--accent-manual) 22%, var(--bg-panel)), color-mix(in srgb, var(--accent-manual) 42%, var(--bg-panel)));
+    border-bottom: 3px solid var(--accent-flair);
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--bg-panel) 50%, transparent);
+  }
+  html[data-theme="frutiger-aero"] .brand{ color: var(--text-primary); text-shadow: 0 1px 0 color-mix(in srgb, var(--bg-panel) 80%, transparent); }
+  html[data-theme="frutiger-aero"] .brand span.tag{ background: var(--accent-flair); color: var(--text-primary); text-shadow: none; }
+  html[data-theme="frutiger-aero"] #tabBar{ gap: 6px; background: linear-gradient(to bottom, var(--bg-panel), var(--bg-elevated)); }
+  html[data-theme="frutiger-aero"] .tab-btn{ border-radius: 999px; border-bottom: none; }
+  html[data-theme="frutiger-aero"] .tab-btn.active{
+    color: var(--text-primary);
+    background: var(--fa-btn-wet), linear-gradient(var(--fa-dir), color-mix(in srgb, var(--accent-flair) 55%, var(--bg-panel)), var(--accent-flair));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 70%, var(--text-primary)), 0 2px 6px color-mix(in srgb, var(--accent-flair) 35%, transparent);
+  }
+  html[data-theme="frutiger-aero"] button.primary{
+    background: var(--fa-btn-wet), linear-gradient(var(--fa-dir), color-mix(in srgb, var(--accent-flair) 60%, var(--bg-panel)), var(--accent-flair));
+    border-color: color-mix(in srgb, var(--accent-flair) 65%, var(--text-primary)); color: var(--text-primary);
+  }
+  html[data-theme="frutiger-aero"] button.primary:hover:not(:disabled){
+    background: var(--fa-btn-wet), linear-gradient(var(--fa-dir), color-mix(in srgb, var(--accent-flair) 75%, var(--bg-panel)), color-mix(in srgb, var(--accent-flair) 85%, var(--text-primary)));
+  }
+  html[data-theme="frutiger-aero"] .tool-section,
+  html[data-theme="frutiger-aero"] .settings-section{
+    background: linear-gradient(to bottom, var(--bg-panel), var(--bg-elevated));
+    border-color: var(--border-soft);
+    box-shadow: inset 0 1px 0 var(--bg-panel), 0 3px 10px color-mix(in srgb, var(--accent-manual) 10%, transparent);
+  }
+  html[data-theme="frutiger-aero"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+    background: var(--fa-wet), color-mix(in srgb, var(--accent-manual) 30%, var(--bg-panel)); border-color: var(--accent-manual); color: var(--text-primary);
+  }
+  html[data-theme="frutiger-aero"] :where(input[type="checkbox"]:checked){
+    background: var(--fa-wet), var(--accent-flair); border-color: color-mix(in srgb, var(--accent-flair) 65%, var(--text-primary));
+  }
+  html[data-theme="frutiger-aero"] .wd14-progress-fill{
+    background: var(--fa-wet), linear-gradient(90deg, var(--accent-manual), var(--accent-flair));
+  }
+  html[data-theme="frutiger-aero"] ::-webkit-scrollbar-thumb{
+    background: var(--fa-wet), linear-gradient(90deg, color-mix(in srgb, var(--accent-manual) 35%, var(--bg-panel)), color-mix(in srgb, var(--accent-manual) 55%, var(--bg-panel)));
+  }
+
   /* Light grounds: accent-auto on accent-auto-dim (the brand tag, a
      flagged-for-review chip) falls under 3:1 on every light palette, so
      those two pick up ink from the theme's own text color instead. */
@@ -1372,7 +1672,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="subway"] .chip.chip-flagged-review, html[data-theme="osmium"] .chip.chip-flagged-review,
   html[data-theme="arctic-frost"] .chip.chip-flagged-review, html[data-theme="vintage-paper"] .chip.chip-flagged-review,
   html[data-theme="rose-gold"] .chip.chip-flagged-review, html[data-theme="lavender-fields"] .chip.chip-flagged-review,
-  html[data-theme="candy-pop"] .chip.chip-flagged-review{ color: color-mix(in srgb, var(--accent-auto) 40%, var(--text-primary)); }
+  html[data-theme="candy-pop"] .chip.chip-flagged-review, html[data-theme="windows-7"] .chip.chip-flagged-review,
+  html[data-theme="frutiger-aero"] .chip.chip-flagged-review{ color: color-mix(in srgb, var(--accent-auto) 40%, var(--text-primary)); }
 
   /* ---- Premium hover-fill effect (epic/legendary tier shop themes only) ----
      A button's ::after fills in with the theme's own --fx-fill on hover
@@ -1419,6 +1720,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
+  html[data-theme="windows-7"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
+  html[data-theme="frutiger-aero"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell),
   html.theme-refined:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell){
     /* `overflow: clip`, NOT `hidden`: both clip the ::after flood, but
        `hidden` makes the button a scroll container, which drops a flex
@@ -1432,6 +1735,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
+  html[data-theme="windows-7"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
+  html[data-theme="frutiger-aero"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after,
   html.theme-refined:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell)::after{
     content: ''; position: absolute; left: 0; top: var(--fx-top); width: 100%; height: var(--fx-h);
     background: var(--fx-fill); opacity: var(--fx-o);
@@ -1446,6 +1751,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
+  html[data-theme="windows-7"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
+  html[data-theme="frutiger-aero"]:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after,
   html.theme-refined:not(.suppress-theme-flourishes) button:not(.ghost-close):not(.danger-ghost):not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):hover:not(:disabled)::after{
     transform: scaleX(var(--fx-w));
   }
@@ -1498,6 +1805,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) .card,
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) .card,
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) .card,
+  html[data-theme="windows-7"]:not(.suppress-theme-flourishes) .card,
+  html[data-theme="frutiger-aero"]:not(.suppress-theme-flourishes) .card,
   html.theme-refined:not(.suppress-theme-flourishes) .card{
     transition: transform 0.2s cubic-bezier(.2,.8,.3,1), box-shadow 0.2s ease;
   }
@@ -1506,6 +1815,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="twilight-garden"]:not(.suppress-theme-flourishes) .card:hover,
   html[data-theme="aurora-borealis"]:not(.suppress-theme-flourishes) .card:hover,
   html[data-theme="celestial-gold"]:not(.suppress-theme-flourishes) .card:hover,
+  html[data-theme="windows-7"]:not(.suppress-theme-flourishes) .card:hover,
+  html[data-theme="frutiger-aero"]:not(.suppress-theme-flourishes) .card:hover,
   html.theme-refined:not(.suppress-theme-flourishes) .card:hover{
     transform: var(--fx-card-t);
     box-shadow: var(--fx-card-s);
@@ -3696,7 +4007,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     letter-spacing: var(--btn-track);
     text-transform: var(--btn-case);
     color: var(--text-primary);
-    background: var(--bg-elevated);
+    /* --btn-bg / --btn-bg-hover / --btn-bd-hover / --btn-shadow: an optional
+       button MATERIAL (a gradient, a bevel) for themes whose controls are
+       not a flat fill (Windows 7's two-tone face). Read here, in the base
+       rule, so every classed button (.primary, .danger-ghost, …) that sets
+       its own background still wins; unset, they fall back to the flat look. */
+    background: var(--btn-bg, var(--bg-elevated));
+    box-shadow: var(--btn-shadow, none);
     border: 1px solid var(--border-strong);
     border-radius: var(--r-ctl);
     padding: 7px 13px;
@@ -3714,7 +4031,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     align-items: center;
     justify-content: center;
   }
-  button:hover:not(:disabled) { background: var(--bg-elevated-2); border-color: var(--text-faint); }
+  button:hover:not(:disabled) { background: var(--btn-bg-hover, var(--bg-elevated-2)); border-color: var(--btn-bd-hover, var(--text-faint)); }
 
   /* ---------- Icons ----------
      Every UI icon is <svg class="ic"><use href="#i-…"></svg> from the

@@ -732,11 +732,12 @@ Click the ⚙ button to open Settings. Sections (click each to expand):
 
 ## Themes, Shop & Achievements
 
-26 themes total — 5 free, 21 in the **💰 Shop** (common → legendary, 40–750 Edibits, a small
+28 themes total — 5 free, 23 in the **💰 Shop** (common → legendary, 40–750 Edibits, a small
 in-app currency earned from achievements). Each theme is a whole look, not just a palette: its
 own typefaces, button and tag shapes, panel materials and textures, and active-tab marker (Terminal
 Green is a phosphor CRT, Vintage Paper a letterpress catalogue with index-card tabs, Subway Fresh
-transit signage, and so on); the icons restroke to match. The empty space around an image (card
+transit signage, Windows 7 the Aero desktop with its glass title bar, Frutiger Aero glossy jelly
+buttons over a sunny hillside, and so on); the icons restroke to match. The empty space around an image (card
 thumbnails, Single view, the image card) gets a faint pattern from the same world, like Studio's
 pegboard, Terminal's scanlines or Celestial Gold's star chart. Locked themes are marked 🔒 in
 the theme menu; picking one leaves your current theme on and tells you its Shop price.

@@ -14,5 +14,10 @@ Marcellus SC, Michroma, Nunito, Overpass, Oxanium, Pirata One, Poiret One,
 Saira Stencil One, Schibsted Grotesk, Shippori Mincho, Sora, VT323, Zen Kaku Gothic New,
 Zen Maru Gothic.
 
+**Selawik** (`selawik-*.woff2`) is Microsoft's open Segoe UI fallback, also SIL OFL 1.1,
+from https://github.com/microsoft/Selawik (release 1.01), bundled unmodified. Its
+`@font-face` asks for a locally installed Segoe UI first and only downloads Selawik where
+there is none; no Segoe UI file ships with the app.
+
 The OFL allows these fonts to be used, bundled, and redistributed with software. The
 fonts cannot be sold on their own.

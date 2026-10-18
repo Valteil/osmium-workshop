@@ -55,7 +55,7 @@ function buildPage(){
   const flourishStart = src.indexOf('/* Opening flourish.');
   const flourish = src.slice(flourishStart, src.indexOf('</script>', flourishStart));
   const select = extract(src, '<select id="themeSelect"');
-  const themes = [...select.matchAll(/<option value="([a-z-]+)"[^>]*>([^<]+)<\/option>/g)]
+  const themes = [...select.matchAll(/<option value="([a-z0-9-]+)"[^>]*>([^<]+)<\/option>/g)]
     .filter((m) => m[1] !== 'custom').map((m) => [m[1], m[2].replace(/^\s*🔒\s*/, '').trim()]);
   const imgs = fs.readdirSync(path.join(ROOT, 'docs', 'demo', 'dataset')).filter((f) => /\.png$/i.test(f)).slice(0, 4)
     .map((f) => '/docs/demo/dataset/' + f);

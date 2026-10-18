@@ -1473,7 +1473,9 @@
     { id: "blood-moon", name: "Blood Moon", rarity: "rare", price: 180, swatches: ["#0e0505", "#ff3b3b", "#ffb300"] },
     { id: "twilight-garden", name: "Twilight Garden", rarity: "epic", price: 360, swatches: ["#0c1210", "#4fd68f", "#c9a6ff"] },
     { id: "aurora-borealis", name: "Aurora Borealis", rarity: "legendary", price: 750, swatches: ["#05080f", "#7b5bff", "#5cffb0"] },
-    { id: "celestial-gold", name: "Celestial Gold", rarity: "legendary", price: 750, swatches: ["#0a0810", "#e8c468", "#ffd166"] }
+    { id: "celestial-gold", name: "Celestial Gold", rarity: "legendary", price: 750, swatches: ["#0a0810", "#e8c468", "#ffd166"] },
+    { id: "frutiger-aero", name: "Frutiger Aero", rarity: "epic", price: 360, swatches: ["#eef9f1", "#0082c8", "#5cc93b"] },
+    { id: "windows-7", name: "Windows 7", rarity: "legendary", price: 750, swatches: ["#f0f0f0", "#0066cc", "#3a8ee6"] }
   ];
   var _toHex6Ctx = null;
   function toHex6(colorStr) {
@@ -4695,7 +4697,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       id: "themes",
       title: "Themes, Shop & Achievements",
       html: `
-      <p>26 themes in total \u2014 5 free, 21 in the \u{1F4B0} Shop (common through legendary, priced in
+      <p>28 themes in total \u2014 5 free, 23 in the \u{1F4B0} Shop (common through legendary, priced in
       Edibits, a small in-app currency you earn from achievements). Each theme is a whole look,
       not just a palette: its own typefaces, button and tag shapes, panel materials, and active-tab
       marker, with the icons restroked to match. Even the empty space around an image gets a faint

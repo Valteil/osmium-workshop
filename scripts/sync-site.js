@@ -68,7 +68,7 @@ const css = fs.readFileSync(R('renderer', 'styles.css'), 'utf8');
 const names = {};
 const rendererIndex = fs.readFileSync(R('renderer', 'index.html'), 'utf8');
 const select = rendererIndex.slice(rendererIndex.indexOf('id="themeSelect"'));
-for (const m of select.slice(0, select.indexOf('</select>')).matchAll(/<option value="([a-z-]+)"[^>]*>([^<]+)<\/option>/g)){
+for (const m of select.slice(0, select.indexOf('</select>')).matchAll(/<option value="([a-z0-9-]+)"[^>]*>([^<]+)<\/option>/g)){
   names[m[1]] = m[2].replace(/^\s*🔒\s*/, '').trim();
 }
 const COLOR_VARS = ['--bg-base', '--bg-panel', '--bg-elevated', '--bg-elevated-2', '--border-soft', '--border-strong',
@@ -88,7 +88,7 @@ const studio = css.match(/:root, html\[data-theme="studio"\]\{([\s\S]*?)\n\s*\}/
 if (!studio) throw new Error('sync-site: Studio block not found');
 const studioVars = readBlock(studio[1]);
 themes.push({ id: 'studio', name: names.studio || 'Studio', vars: studioVars });
-for (const m of css.matchAll(/html\[data-theme="([a-z-]+)"\]\{([\s\S]*?)\n\s*\}/g)){
+for (const m of css.matchAll(/html\[data-theme="([a-z0-9-]+)"\]\{([\s\S]*?)\n\s*\}/g)){
   if (m[1] === 'studio') continue; // already read from its :root block above
   const vars = readBlock(m[2]);
   if (!vars['--bg-base']) continue;
@@ -114,7 +114,7 @@ fs.writeFileSync(R('docs', 'assets', 'night-palette.js'),
   '(function(){\n' + rendererIndex.slice(npBegin, npEnd).replace('/* night-palette:begin */', '').trim() + '\n})();\n');
 // Each theme's gallery ground (`html[data-theme="x"] #gallery{...}`): the pattern layers plus any
 // helper vars it declares, so the site can paint and drift the same background (site-theme.js).
-for (const m of css.matchAll(/html\[data-theme="([a-z-]+)"\] #gallery\s*\{([\s\S]*?)\n\s*\}/g)){
+for (const m of css.matchAll(/html\[data-theme="([a-z0-9-]+)"\] #gallery\s*\{([\s\S]*?)\n\s*\}/g)){
   const t = themes.find((x) => x.id === m[1]);
   if (!t) continue;
   const decls = [...m[2].replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(--[\w-]+|background-image|background-size|background-position)\s*:\s*([^;]+);/g)];

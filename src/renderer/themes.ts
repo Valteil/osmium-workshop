@@ -51,7 +51,9 @@ export const PREMIUM_THEMES = [
   { id:'blood-moon', name:'Blood Moon', rarity:'rare', price:180, swatches:['#0e0505','#ff3b3b','#ffb300'] },
   { id:'twilight-garden', name:'Twilight Garden', rarity:'epic', price:360, swatches:['#0c1210','#4fd68f','#c9a6ff'] },
   { id:'aurora-borealis', name:'Aurora Borealis', rarity:'legendary', price:750, swatches:['#05080f','#7b5bff','#5cffb0'] },
-  { id:'celestial-gold', name:'Celestial Gold', rarity:'legendary', price:750, swatches:['#0a0810','#e8c468','#ffd166'] }
+  { id:'celestial-gold', name:'Celestial Gold', rarity:'legendary', price:750, swatches:['#0a0810','#e8c468','#ffd166'] },
+  { id:'frutiger-aero', name:'Frutiger Aero', rarity:'epic', price:360, swatches:['#eef9f1','#0082c8','#5cc93b'] },
+  { id:'windows-7', name:'Windows 7', rarity:'legendary', price:750, swatches:['#f0f0f0','#0066cc','#3a8ee6'] }
 ];
 
 let _toHex6Ctx: CanvasRenderingContext2D | null = null;

@@ -53,6 +53,13 @@
 @font-face{ font-family:'Poiret One'; src:url('poiret-one-400.woff2') format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
 @font-face{ font-family:'Saira Stencil One'; src:url('saira-stencil-one-400.woff2') format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
 @font-face{ font-family:'Schibsted Grotesk'; src:url('schibsted-grotesk-vf.woff2') format('woff2'); font-weight:100 900; font-style:normal; font-display:swap; }
+/* Selawik (Microsoft, OFL 1.1): Segoe UI's metric-compatible open stand-in,
+   the Windows 7 / Frutiger Aero UI face. local() first, so Windows renders
+   the real Segoe UI (same metrics, so the font-fit numbers still hold) and
+   every other platform gets the bundled Selawik. */
+@font-face{ font-family:'Selawik'; src:local('Segoe UI'), local('SegoeUI'), url('selawik-400.woff2') format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face{ font-family:'Selawik'; src:local('Segoe UI Semibold'), local('SegoeUI-Semibold'), url('selawik-600.woff2') format('woff2'); font-weight:600; font-style:normal; font-display:swap; }
+@font-face{ font-family:'Selawik'; src:local('Segoe UI Bold'), local('SegoeUI-Bold'), url('selawik-700.woff2') format('woff2'); font-weight:700; font-style:normal; font-display:swap; }
 @font-face{ font-family:'Shippori Mincho'; src:url('shippori-mincho-500.woff2') format('woff2'); font-weight:500; font-style:normal; font-display:swap; }
 @font-face{ font-family:'Shippori Mincho'; src:url('shippori-mincho-700.woff2') format('woff2'); font-weight:700; font-style:normal; font-display:swap; }
 @font-face{ font-family:'Sora'; src:url('sora-vf.woff2') format('woff2'); font-weight:100 900; font-style:normal; font-display:swap; }

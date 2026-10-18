@@ -1,5 +1,5 @@
 // Theme palettes, ported verbatim from the Osmium Workshop desktop app's
-// renderer/styles.css theme blocks (25 palettes: 4 free + 21 shop-tier).
+// renderer/styles.css theme blocks (27 palettes: 4 free + 23 shop-tier).
 // The palettes are colors plus the theme's fonts (since v2.0.0): the Bridge
 // doesn't carry the shop economy's per-theme flourishes. The one exception
 // is Custom, built in the desktop

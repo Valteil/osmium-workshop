@@ -183,7 +183,9 @@
     'blood-moon':      {L:{node:'dot',  ring:'circle', moon:1},                     P:{s:'drop',    c:[D,F]}},
     'twilight-garden': {L:{node:'dot',  ring:'circle', w:0.9},                      P:{s:'firefly', c:[A,F], glow:1}},
     'aurora-borealis': {L:{node:'dot',  ring:'deca',   w:0.9},                      P:{s:'streak',  c:[S,F,M], glow:1}},
-    'celestial-gold':  {L:{node:'star', ring:'double', w:0.8},                      P:{s:'star',    c:[A,F,T]}}
+    'celestial-gold':  {L:{node:'star', ring:'double', w:0.8},                      P:{s:'star',    c:[A,F,T]}},
+    'frutiger-aero':   {L:{node:'ring', ring:'circle', w:1.1},                      P:{s:'bubble',  c:[M,F], glow:1}},
+    'windows-7':       {L:{node:'dot',  ring:'circle', w:1.05},                     P:{s:'orb',     c:[D,S,M,A], glow:1}}
   };
 
   // ---- the mark: decagon ring, even/odd pentagons, spokes, vertex nodes ----
@@ -269,7 +271,7 @@
     'celestial-gold': 'star', 'solarflare': 'ember', 'bioluminescent': 'plankton',
     'amethyst': 'gem', 'midnight-ocean': 'wave', 'arctic-frost': 'flake', 'retrowave': 'neon',
     'rose-gold': 'jewel', 'toxic-waste': 'hazard', 'lavender-fields': 'bud', 'copper-forge': 'spark',
-    'blood-moon': 'drop', 'aurora-borealis': 'ribbon'
+    'blood-moon': 'drop', 'aurora-borealis': 'ribbon', 'windows-7': 'orb', 'frutiger-aero': 'aqua'
   };
   var TAILC = {
     'osmium': [M, D], 'cyberpunk': [M, D], 'subway': [M, D], 'oriental': [A, D]
@@ -364,6 +366,14 @@
         rot0 = c % 2 ? 25 : -25; css = 'border-radius:999px;box-shadow:0 0 ' + sz * 0.3 + 'px var(--accent-auto);'; bg = 'var(' + pick([A, F]) + ')'; break;
       case 'drop':     // Blood Moon: blood drops
         w = h = sz * 0.62; rot0 = vert ? -45 : 135; css = 'border-radius:50% 50% 50% 0;'; bg = 'var(' + pick([D, F]) + ')'; break;
+      case 'orb':      // Windows 7: the boot screen's four lights, red, green, blue and yellow
+        var oc = 'var(' + pick(P.c) + ')'; w = h = sz * 0.5;
+        css = 'border-radius:50%;box-shadow:0 0 ' + sz * 0.45 + 'px ' + oc + ';';
+        bg = 'radial-gradient(circle at 35% 30%, color-mix(in srgb, ' + oc + ' 35%, #fff) 0 18%, ' + oc + ' 62%)'; break;
+      case 'aqua':     // Frutiger Aero: glossy aqua bubbles with a wet highlight
+        w = h = sz * 0.8; css = 'border-radius:50%;border:' + sz * 0.06 + 'px solid color-mix(in srgb, var(--of-fill) 70%, #fff);';
+        bg = 'radial-gradient(ellipse 55% 35% at 50% 22%, color-mix(in srgb, #fff 85%, transparent) 0 60%, transparent 64%), '
+          + 'radial-gradient(circle at 50% 80%, color-mix(in srgb, var(' + pick([F, M]) + ') 60%, transparent), color-mix(in srgb, var(--of-fill) 20%, transparent) 70%)'; break;
       case 'ribbon':   // Aurora Borealis: glowing aurora ribbons
         if (vert){ w = sz * 0.22; h = sz * 1.15; } else { w = sz * 1.15; h = sz * 0.22; }
         css = 'border-radius:999px;box-shadow:0 0 ' + sz * 0.4 + 'px var(--of-fill);';
@@ -486,7 +496,7 @@
     var RISE = {bubble:1, firefly:1, ember:1, plankton:1, spark:1}, FALL = {petal:1, leaf:1, scrap:1, sprinkle:1, drop:1, bud:1, flake:1};
     var SPIN = {petal:1, leaf:1, scrap:1, sprinkle:1, shard:1, flake:1};
     // Light and air fade out; everything else is a solid piece that shrinks.
-    var FADE = {glyph:1, bubble:1, firefly:1, ember:1, plankton:1, neon:1, spark:1, ribbon:1, wave:1};
+    var FADE = {glyph:1, bubble:1, firefly:1, ember:1, plankton:1, neon:1, spark:1, ribbon:1, wave:1, orb:1, aqua:1};
     var END = outAt + outDur;
     for (var c = 0, born = outAt; born < END; c++, born += WAVE){
       var edge = tailPx(born);                    // the tooth tips: visible from birth
@@ -689,6 +699,8 @@
               <option value="twilight-garden">🔒 Twilight Garden</option>
               <option value="aurora-borealis">🔒 Aurora Borealis</option>
               <option value="celestial-gold">🔒 Celestial Gold</option>
+              <option value="frutiger-aero">🔒 Frutiger Aero</option>
+              <option value="windows-7">🔒 Windows 7</option>
               <option value="custom">Custom…</option>
             </select>
             <button id="btnThemeCustomize" title="Theme Studio: build your own theme with a live preview"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-palette"></use></svg>Theme Studio</button>

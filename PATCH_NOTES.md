@@ -10,6 +10,26 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ---
 
+## v2.0.1 (unreleased)
+
+### Osmium Workshop
+
+- **Windows 7** theme (legendary, 750 Edibits): the Aero desktop. A glass title bar with its gloss
+  line, Explorer's command bar whose tabs light up as blue glass, grey two-tone buttons that take
+  the blue hover quickly and let it fade slowly, a default button that gently pulses in dialogs,
+  green progress bars with a running glint, glass-framed dialogs, Harmony-blue behind the gallery,
+  and the boot screen's four coloured lights in the opening flourish. It uses Segoe UI on Windows
+  and Selawik (Microsoft's open look-alike, now bundled) elsewhere.
+- **Frutiger Aero** theme (epic, 360 Edibits): glossy aqua jelly buttons, grass-green active
+  states, and a sky-over-hillside gallery with bubbles drifting through. In night mode the
+  buttons' gloss turns over.
+
+### Comfy Bridge
+
+- The **Windows 7** and **Frutiger Aero** palettes and faces.
+
+---
+
 ## v2.0.0
 
 ### Osmium Workshop

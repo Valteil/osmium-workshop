@@ -593,7 +593,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     id: 'themes',
     title: 'Themes, Shop & Achievements',
     html: `
-      <p>26 themes in total — 5 free, 21 in the 💰 Shop (common through legendary, priced in
+      <p>28 themes in total — 5 free, 23 in the 💰 Shop (common through legendary, priced in
       Edibits, a small in-app currency you earn from achievements). Each theme is a whole look,
       not just a palette: its own typefaces, button and tag shapes, panel materials, and active-tab
       marker, with the icons restroked to match. Even the empty space around an image gets a faint
