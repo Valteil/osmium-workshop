@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   pickOutputFolder: () => ipcRenderer.invoke('pick-output-folder'),
+  openSaveFolder: (which) => ipcRenderer.invoke('open-save-folder', which),
   // Upscale tab: its own save folder (kept in main, like the output folder).
   usduSaveFolder: () => ipcRenderer.invoke('usdu-save-folder'),
   usduPickSaveFolder: () => ipcRenderer.invoke('usdu-pick-save-folder'),

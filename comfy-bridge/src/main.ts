@@ -353,6 +353,15 @@ ipcMain.handle('usdu-save-to-folder', async (_event, { base, base64 }) => {
   }
 });
 
+// "Open folder" next to the output folder and the Upscale tab's chosen folder.
+// Only ever opens one of the two folders main itself keeps (no path from the renderer).
+ipcMain.handle('open-save-folder', async (_event, which: 'output' | 'upscale') => {
+  const dir = which === 'upscale' ? getUsduSaveFolder() : getPickedOutputFolder();
+  if (!dir || !fs.existsSync(dir)) return { ok: false, error: 'Choose the folder first.' };
+  const err = await shell.openPath(dir);
+  return err ? { ok: false, error: err } : { ok: true };
+});
+
 ipcMain.handle('pick-output-folder', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const res = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] });

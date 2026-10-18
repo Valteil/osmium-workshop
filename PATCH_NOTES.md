@@ -90,6 +90,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **Open folder** (Windows): an **Open** button next to the output folder, and next to the Upscale
+  tab's chosen folder, shows it in File Explorer.
 - **RES4LYF samplers**: if the RES4LYF node pack is installed in your ComfyUI, its samplers
   (`res_2m`, `res_2s`, `res_3s` and the rest) appear in the Sampler picker after the usual ones,
   marked `res4lyf:`, along with its `beta57` and `bong_tangent` schedulers.

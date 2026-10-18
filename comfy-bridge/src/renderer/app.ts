@@ -30,6 +30,7 @@ interface ElectronAPI {
   setZoomFactor(factor: number): void;
   getAppVersion(): Promise<string>;
   pickOutputFolder(): Promise<{ ok: boolean; path?: string }>;
+  openSaveFolder(which: 'output' | 'upscale'): Promise<{ ok: boolean; error?: string }>;
   usduSaveFolder(): Promise<{ ok: boolean; path?: string }>;
   usduPickSaveFolder(): Promise<{ ok: boolean; path?: string; cancelled?: boolean }>;
   usduSaveToFolder(payload: { base: string; base64: string }): Promise<{ ok: boolean; path?: string; error?: string }>;
@@ -510,7 +511,11 @@ const usduImp = mountUsduPanel($<HTMLDivElement>('usduTab'), {
   // "Save to: a folder I choose" — the folder is kept by main (usdu-save-folder).
   saveFolder: {
     get: async () => { const r = await window.electronAPI.usduSaveFolder(); return (r.ok && r.path) || ''; },
-    pick: async () => { const r = await window.electronAPI.usduPickSaveFolder(); return r.ok && r.path ? r.path : null; }
+    pick: async () => { const r = await window.electronAPI.usduPickSaveFolder(); return r.ok && r.path ? r.path : null; },
+    open: async () => {
+      const r = await window.electronAPI.openSaveFolder('upscale');
+      if (!r.ok) log(`Could not open that folder: ${r.error || 'unknown error'}`);
+    }
   },
   getList: (kind: UsduListKind) => kind === 'ckpt' ? usduCkptOptions
     : kind === 'wd14' ? usduWd14Options
@@ -955,11 +960,18 @@ rightResizeHandle.addEventListener('mousedown', (ev) => {
 
 let outputFolder = '';
 const OUTPUT_FOLDER_KEY = 'comfybridge-output-folder';
+// Opens the folder main keeps (main never takes a path from here for this).
+const btnOpenOutputFolder = $<HTMLButtonElement>('btnOpenOutputFolder');
+btnOpenOutputFolder.addEventListener('click', async () => {
+  const r = await window.electronAPI.openSaveFolder('output');
+  if (!r.ok) log(`Could not open the output folder: ${r.error || 'unknown error'}`);
+});
 try {
   const savedOutputFolder = localStorage.getItem(OUTPUT_FOLDER_KEY);
   if (savedOutputFolder) {
     outputFolder = savedOutputFolder;
     outputFolderLabel.textContent = savedOutputFolder;
+    btnOpenOutputFolder.disabled = false;
   }
 } catch {
   /* best effort — private-mode storage */
@@ -969,6 +981,7 @@ btnPickOutputFolder.addEventListener('click', async () => {
   if (!res.ok || !res.path) return;
   outputFolder = res.path;
   outputFolderLabel.textContent = outputFolder;
+  btnOpenOutputFolder.disabled = false;
   try {
     localStorage.setItem(OUTPUT_FOLDER_KEY, outputFolder);
   } catch {

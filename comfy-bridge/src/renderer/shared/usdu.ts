@@ -288,7 +288,8 @@ export interface UsduPanelOptions {
   // The Upscale tab's "Save to: a folder I choose": the shell keeps the folder
   // (desktop: main process; phone: a SAF grant). get() = its label ('' = none
   // yet), pick() = choose one (null = cancelled). Absent = output folder only.
-  saveFolder?: { get(): Promise<string>; pick(): Promise<string | null> };
+  // `open` (desktop only): show the chosen folder in the file manager.
+  saveFolder?: { get(): Promise<string>; pick(): Promise<string | null>; open?(): Promise<void> };
   log: (msg: string) => void;
 }
 
@@ -476,13 +477,25 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
       chooseBtn.type = 'button';
       chooseBtn.textContent = 'Choose folder…';
       chooseBtn.title = 'The folder upscaled images are saved in (named <image>_upscaled.png; nothing is overwritten)';
-      folderRow.append(chooseBtn, folderLabel);
+      folderRow.append(chooseBtn);
+      let openBtn: HTMLButtonElement | null = null;
+      if (sf.open) {
+        const open = sf.open;
+        openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.textContent = 'Open';
+        openBtn.title = 'Open this folder in File Explorer';
+        openBtn.addEventListener('click', () => { void open(); });
+        folderRow.append(openBtn);
+      }
+      folderRow.append(folderLabel);
       row.append(lab, folderRow);
       importBox.insertBefore(row, pickedName.nextSibling);
       const showFolder = (label: string) => {
         saveFolderLabel = label;
         folderLabel.textContent = label || 'No folder chosen yet.';
         folderLabel.title = label;
+        if (openBtn) openBtn.disabled = !label;
       };
       const sync = () => { folderRow.hidden = saveToSel.value !== 'folder'; };
       saveToSel.addEventListener('change', sync);

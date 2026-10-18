@@ -102,7 +102,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     id: 'output',
     title: 'Output and file names',
     html: `
-      <p>Choose output folder sets where saved images go. Everything is saved automatically: both passes when 2-Pass runs, and the upscaled image when upscale is on.</p>
+      <p>Choose output folder sets where saved images go. Everything is saved automatically: both passes when 2-Pass runs, and the upscaled image when upscale is on. <b>Open</b> shows that folder in File Explorer (on Windows; the Upscale tab's own chosen folder has an Open button too).</p>
       <p>The folder button at the bottom right opens the File saving drawer. There, the automatic folders come from your prompt. The rating folder is explicit or safe, and upscaled images go in an Upscaled folder. You cannot edit those.</p>
       <p>The character folder is yours. Tag list matches a Danbooru character by the name you type. OC puts every original character in one folder. Custom uses any folder name you want.</p>
       <p>The filename is built from a fixed list of parts. Tick the ones you want: the character name, the Main LoRA, and the model and sampler details. A number is always added at the end, so nothing is overwritten.</p>
