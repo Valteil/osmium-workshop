@@ -146,6 +146,8 @@ function listImages(dir: string): string[] {
 // initial_state/; it is merged into original_images/ the first time it's seen.
 const ORIGINAL_DIR = 'original_images';
 const LEGACY_ORIGINAL_DIR = 'initial_state';
+// Osmium's quarantine folder (the Disabled view): images in it are not part of the training set.
+const DISABLED_DIR = 'Disabled';
 
 function mergeLegacyOriginals(dir: string): void {
   const legacy = path.join(dir, LEGACY_ORIGINAL_DIR);
@@ -169,8 +171,16 @@ const stemOf = (f: string) => path.basename(f, path.extname(f));
 function planBucketing(dir: string, b: { min: number; max: number; step: number }): BucketItem[] {
   const buckets = getValidBuckets(b.min, b.max, b.step);
   const rootByStem = new Map(listImages(dir).map((f) => [stemOf(f), f] as const));
+  // Disabling an image moves its bucketed copy + caption into Disabled/ but leaves its original here, so an
+  // original with no root copy and a Disabled/ copy is a disabled image: rebuilding it would put it back in
+  // the training set with no caption ("2 images have no .txt caption" after disabling 2).
+  const disabled = new Set(listImages(path.join(dir, DISABLED_DIR)).map(stemOf));
   const items = new Map<string, BucketItem>();
-  for (const f of listImages(path.join(dir, ORIGINAL_DIR))) items.set(stemOf(f), { stem: stemOf(f), src: f, inOriginals: true, root: rootByStem.get(stemOf(f)) });
+  for (const f of listImages(path.join(dir, ORIGINAL_DIR))) {
+    const stem = stemOf(f), root = rootByStem.get(stem);
+    if (!root && disabled.has(stem)) continue;
+    items.set(stem, { stem, src: f, inOriginals: true, root });
+  }
   for (const [stem, f] of rootByStem) if (!items.has(stem)) items.set(stem, { stem, src: f, inOriginals: false, root: f });
   const isWebp = (f: string) => path.extname(f).toLowerCase() === '.webp';
   const todo: BucketItem[] = [];

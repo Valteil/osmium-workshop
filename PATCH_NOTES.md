@@ -14,6 +14,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Osmium Workshop
 
+- **Fixed:** after disabling images in a bucketed dataset, Trainflow's Start (and Bucket Images)
+  re-made the disabled images from `original_images/` back into the dataset, without captions, so
+  Start stopped with "N images have no .txt caption". Disabled images now stay disabled.
 - **Windows 7** theme (legendary, 750 Edibits): the Aero desktop. A glass title bar with its gloss
   line, Explorer's command bar whose tabs light up as blue glass, grey two-tone buttons that take
   the blue hover quickly and let it fade slowly, a default button that gently pulses in dialogs,

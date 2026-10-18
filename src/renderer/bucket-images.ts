@@ -342,7 +342,12 @@ async function run(): Promise<void> {
   // copy and gets overwritten), else the root image itself, which is then moved into original_images/.
   const originalByBase = new Map(originals.map((e) => [e.base, e] as const));
   const rootByBase = new Map(rootEntries.map((e) => [e.base, e] as const));
-  const sources: { entry: Entry; fromOriginals: boolean }[] = originals.map((e) => ({ entry: e, fromOriginals: true }));
+  // A disabled image keeps its original in original_images/ while its bucketed copy + caption sit in
+  // Disabled/: re-making it would drop it back into the Gallery with no caption, so it's skipped.
+  const disabledBases = new Set(entries.filter((e) => e.disabled && !e.original).map((e) => e.base));
+  const sources: { entry: Entry; fromOriginals: boolean }[] = originals
+    .filter((e) => rootByBase.has(e.base) || !disabledBases.has(e.base))
+    .map((e) => ({ entry: e, fromOriginals: true }));
   for (const e of rootEntries) if (!originalByBase.has(e.base)) sources.push({ entry: e, fromOriginals: false });
 
   try {
