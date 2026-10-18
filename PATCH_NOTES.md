@@ -78,6 +78,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **RES4LYF samplers**: if the RES4LYF node pack is installed in your ComfyUI, its samplers
+  (`res_2m`, `res_2s`, `res_3s` and the rest) appear in the Sampler picker after the usual ones,
+  marked `res4lyf:`, along with its `beta57` and `bong_tangent` schedulers.
 - **Gallery tab** (Windows and Android): your generations in a big grid; click one to open it
   (zoom, arrow through the rest, see its settings). A folded **Compare** section above it lines
   images up side by side: Shift-click a gallery image (long-press on the phone) to add it to a
