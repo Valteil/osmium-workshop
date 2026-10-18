@@ -2674,6 +2674,34 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .curate-grid{ position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
   .curate-grid.dragging{ user-select: none; cursor: crosshair; }
   .curate-grid.dragging .curate-card{ cursor: crosshair; }
+  /* Duplicates view */
+  .curate-dupes{ display: flex; flex-direction: column; gap: 14px; }
+  .curate-dupes-head{ gap: 10px; }
+  .curate-dupes-sum{ color: var(--text-primary); }
+  .curate-note{ color: var(--text-muted); font-size: 12px; line-height: 1.45; max-width: 760px; }
+  .curate-scan{ display: flex; align-items: center; gap: 12px; max-width: 640px; }
+  .curate-scan-text{ color: var(--text-muted); white-space: nowrap; font-family: var(--mono); font-size: 12px; }
+  .curate-scan-track{ flex: 1; height: 6px; border-radius: 999px; background: var(--bg-elevated); overflow: hidden; }
+  .curate-scan-fill{ height: 100%; width: 0; background: var(--accent-manual); transition: width .2s ease-out; }
+  .curate-dupe-group{
+    display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+    background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: var(--r-panel);
+  }
+  .curate-dupe-title{ font-weight: 600; margin-right: 6px; }
+  .curate-dupe-row{ display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+  .curate-dupe-card{ flex: 0 0 170px; }
+  .curate-dupe-card:not(.keep){ opacity: .72; }
+  .curate-dupe-card.keep{ border-color: var(--accent-success); }
+  .curate-keep-tag{
+    position: absolute; top: 6px; left: 6px; font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
+    background: color-mix(in srgb, var(--bg-base) 82%, transparent); color: var(--accent-danger);
+  }
+  .curate-dupe-card.keep .curate-keep-tag{ color: var(--accent-success); }
+  .curate-zoom{
+    position: absolute; right: 6px; top: 34px; padding: 2px 7px; font-size: 13px; line-height: 1.2;
+    background: color-mix(in srgb, var(--bg-base) 82%, transparent);
+  }
+  .curate-dupe-meta{ padding: 0 7px 6px; font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
   .curate-marquee{
     position: absolute; z-index: 2; pointer-events: none; border-radius: 3px;
     border: 1px solid var(--accent-manual); background: color-mix(in srgb, var(--accent-manual) 16%, transparent);

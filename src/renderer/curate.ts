@@ -204,6 +204,8 @@ interface CurateItem {
   thumb: string | null;    // small JPEG thumbnail for the grid (revoked on close)
   selected: boolean;
   w?: number; h?: number;  // pixel size, known once the image has loaded
+  hash?: Uint32Array;      // perceptual hash: [dHash hi, lo, mirrored hi, lo]
+  bytes?: number;          // file size (duplicate keeper tie-break)
 }
 
 // Grid thumbnails: decoded off the main thread (createImageBitmap), drawn
@@ -282,7 +284,7 @@ let deps: CurateDeps;
 let root: DirHandle | null = null;
 let styles: string[] = [];          // artstyle names (junk included when made)
 let items: CurateItem[] = [];
-let view: 'grid' | 'single' = 'grid';
+let view: 'grid' | 'single' | 'dupes' = 'grid';
 let index = 0;                      // single view position within visibleItems()
 let filter = '*';                   // '*' all, '' unsorted, else a style
 let lastClicked = -1;               // shift-click range anchor (visible index)
@@ -358,6 +360,10 @@ async function loadFolder(dir: DirHandle): Promise<void> {
   index = 0;
   filter = '*';
   lastClicked = -1;
+  // Duplicate groups belong to the old item list (hashes come back from the cache file).
+  if (dupeScan) dupeScan.cancelled = true;
+  dupe = null;
+  if (view === 'dupes') view = 'grid';
   // No render here: callers restore the saved position first (a render
   // would save this reset position over it).
 }
@@ -529,6 +535,7 @@ function render(): void {
   curateTab.classList.toggle('curate-single-mode', view === 'single' && items.length > 0);
   body.appendChild(toolbar());
   if (!items.length) { body.appendChild(el('div', 'curate-empty', 'No images in this folder.')); return; }
+  if (view === 'dupes') { body.appendChild(renderDupes()); return; }
   const vis = visibleItems();
   if (!vis.length) { body.appendChild(el('div', 'curate-empty', `No images in ${styleLabel(filter)}.`)); return; }
   body.appendChild(view === 'grid' ? renderGrid(vis) : renderSingle(vis));
@@ -545,10 +552,13 @@ function toolbar(): HTMLElement {
   const views = el('div', 'curate-seg');
   views.append(
     btn('Grid', 'All images as a grid', () => { view = 'grid'; render(); }, view === 'grid' ? 'active' : ''),
-    btn('Single', 'One image at a time (← / → to move, 0–9 to assign)', () => { view = 'single'; render(); }, view === 'single' ? 'active' : ''));
+    btn('Single', 'One image at a time (← / → to move, 0–9 to assign)', () => { view = 'single'; render(); }, view === 'single' ? 'active' : ''),
+    btn('Duplicates', 'Find images that look the same (resized, re-saved, mirrored or lightly edited copies) and review them in groups', () => void showDupes(), view === 'dupes' ? 'active' : ''));
   bar.appendChild(views);
+  // In Duplicates the folder buttons pick where to look (each artstyle on
+  // its own, or All = every folder but junk).
   bar.appendChild(folderChips());
-  if (view === 'single') return bar;
+  if (view === 'single' || view === 'dupes') return bar;
 
   const sel = items.filter((it) => it.selected);
   bar.append(el('span', 'curate-sep'), el('span', 'curate-count', `${sel.length} selected`),
@@ -785,6 +795,234 @@ function renderSingle(vis: CurateItem[]): HTMLElement {
   }).catch(() => undefined);
   stage.appendChild(img);
   wrap.append(stage, side);
+  return wrap;
+}
+
+// ---------------- Duplicates ----------------
+// Perceptual hashing (dHash): each image shrunk to 9×8 grey, one bit per
+// neighbouring-pixel comparison = a 64-bit fingerprint that survives resizing,
+// re-saving (PNG/JPG/compression), small colour shifts, watermarks and small
+// crops. A second hash of the mirrored image catches flipped copies. Two
+// images are duplicates when their fingerprints differ in few bits (the
+// Strictness setting). Groups = connected pairs (union-find). Hashes are
+// cached in <root>/_osmium_curate_hashes.json by folder/name + size + date,
+// so a rescan only hashes new or changed files.
+const HASH_FILE = '_osmium_curate_hashes.json';
+const STRICTNESS: [string, number][] = [['Strict', 4], ['Normal', 8], ['Loose', 13]];
+let dupeBits = 8;
+interface DupeGroup { members: CurateItem[]; keep: Set<CurateItem> }
+let dupe: { scope: string; groups: DupeGroup[] } | null = null;
+let dupeScan: { scope: string; done: number; total: number; stage: string; cancelled: boolean } | null = null;
+
+const hashKey = (it: CurateItem, f: File) => `${it.style}/${it.name}|${f.size}|${f.lastModified}`;
+const pop32 = (x: number): number => {
+  x -= (x >>> 1) & 0x55555555;
+  x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+  return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+};
+function hashDistance(a: Uint32Array, b: Uint32Array): number {
+  const same = pop32(a[0] ^ b[0]) + pop32(a[1] ^ b[1]);
+  const mirrored = pop32(a[0] ^ b[2]) + pop32(a[1] ^ b[3]);
+  return Math.min(same, mirrored);
+}
+
+let hashCanvas: CanvasRenderingContext2D | null = null;
+async function computeHash(file: File): Promise<Uint32Array> {
+  const bmp = await createImageBitmap(file, { resizeWidth: 9, resizeHeight: 8, resizeQuality: 'high' });
+  if (!hashCanvas) {
+    const c = document.createElement('canvas');
+    c.width = 9; c.height = 8;
+    hashCanvas = c.getContext('2d', { willReadFrequently: true })!;
+  }
+  hashCanvas.clearRect(0, 0, 9, 8);
+  hashCanvas.drawImage(bmp, 0, 0);
+  bmp.close();
+  const px = hashCanvas.getImageData(0, 0, 9, 8).data;
+  const g = (x: number, y: number) => { const i = (y * 9 + x) * 4; return px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114; };
+  const out = new Uint32Array(4);
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const bit = y * 8 + x, word = bit < 32 ? 0 : 1, shift = bit % 32;
+      if (g(x, y) > g(x + 1, y)) out[word] |= (1 << shift) >>> 0;
+      // The mirrored image's pixel x is this one's 8 - x.
+      if (g(8 - x, y) > g(7 - x, y)) out[2 + word] |= (1 << shift) >>> 0;
+    }
+  }
+  return out;
+}
+
+const scopeItems = (scope: string): CurateItem[] => (scope === '*' ? items.filter((it) => it.style !== JUNK) : items.filter((it) => it.style === scope));
+
+async function scanDupes(scope: string): Promise<void> {
+  if (!root || dupeScan) return;
+  const todo = scopeItems(scope);
+  const scan = { scope, done: 0, total: todo.length, stage: 'Comparing images', cancelled: false };
+  dupeScan = scan;
+  render();
+  let cache: Record<string, string> = {};
+  try { cache = JSON.parse(await (await (await root.getFileHandle(HASH_FILE)).getFile()).text()) || {}; } catch { cache = {}; }
+  let changed = false;
+  const queue = todo.filter((it) => !it.hash);
+  const worker = async () => {
+    for (let it = queue.shift(); it && !scan.cancelled; it = queue.shift()) {
+      try {
+        const f = await it.handle.getFile();
+        it.bytes = f.size;
+        const key = hashKey(it, f);
+        const hit = cache[key];
+        if (hit && /^[0-9a-f]{32}$/.test(hit)) {
+          it.hash = Uint32Array.from([0, 8, 16, 24].map((o) => parseInt(hit.slice(o, o + 8), 16)));
+        } else {
+          it.hash = await computeHash(f);
+          cache[key] = Array.from(it.hash, (n) => n.toString(16).padStart(8, '0')).join('');
+          changed = true;
+        }
+      } catch { /* unreadable image: left out */ }
+      scan.done++;
+      updateScanProgress();
+    }
+  };
+  scan.done = todo.length - queue.length;
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  if (changed && root) {
+    try { await writeBytes(await root.getFileHandle(HASH_FILE, { create: true }), JSON.stringify(cache)); } catch { /* read-only folder: hashes stay in memory */ }
+  }
+  if (scan.cancelled) { dupeScan = null; view = 'grid'; render(); return; }
+  scan.stage = 'Checking sizes';
+  updateScanProgress();
+  const groups = groupDupes(todo);
+  // The keeper is the biggest copy, so every member's size is needed.
+  for (const it of groups.flatMap((gr) => gr.members)) {
+    if (it.w && it.h && it.bytes) continue;
+    try {
+      const f = await it.handle.getFile();
+      it.bytes = f.size;
+      const bmp = await createImageBitmap(f);
+      it.w = bmp.width; it.h = bmp.height;
+      bmp.close();
+    } catch { /* keeps unknown size */ }
+  }
+  for (const gr of groups) gr.keep = new Set([pickKeeper(gr.members)]);
+  dupeScan = null;
+  dupe = { scope, groups };
+  if (view === 'dupes') render();
+}
+
+function groupDupes(list: CurateItem[]): DupeGroup[] {
+  const hashed = list.filter((it) => it.hash);
+  const parent = hashed.map((_, i) => i);
+  const find = (i: number): number => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+  for (let i = 0; i < hashed.length; i++) {
+    for (let j = i + 1; j < hashed.length; j++) {
+      if (hashDistance(hashed[i].hash!, hashed[j].hash!) <= dupeBits) parent[find(i)] = find(j);
+    }
+  }
+  const by = new Map<number, CurateItem[]>();
+  hashed.forEach((it, i) => { const r = find(i); by.set(r, [...(by.get(r) || []), it]); });
+  return [...by.values()].filter((m) => m.length > 1).map((members) => ({ members, keep: new Set<CurateItem>() }));
+}
+
+// Most pixels, then the larger file (less compressed), then not low-res.
+function pickKeeper(members: CurateItem[]): CurateItem {
+  return [...members].sort((a, b) => ((b.w || 0) * (b.h || 0) - (a.w || 0) * (a.h || 0)) || ((b.bytes || 0) - (a.bytes || 0)))[0];
+}
+
+function updateScanProgress(): void {
+  const bar = curateTab.querySelector<HTMLElement>('.curate-scan');
+  if (!bar || !dupeScan) return;
+  bar.querySelector('.curate-scan-text')!.textContent = `${dupeScan.stage}… ${dupeScan.done} / ${dupeScan.total}`;
+  (bar.querySelector('.curate-scan-fill') as HTMLElement).style.width = `${dupeScan.total ? (100 * dupeScan.done) / dupeScan.total : 0}%`;
+}
+
+function showDupes(): void {
+  view = 'dupes';
+  render();
+}
+
+// Moves every unkept copy (in the given groups) to the junk folder.
+async function junkExtras(groups: DupeGroup[]): Promise<void> {
+  const extras = groups.flatMap((gr) => gr.members.filter((m) => !gr.keep.has(m)));
+  if (!extras.length) { toast('Nothing to junk: every image in these groups is marked Keep.', 2600); return; }
+  if (!styles.includes(JUNK) && !(await createStyle(true))) return;
+  await assign(extras, JUNK);
+  // Drop what was junked; a group with one image left isn't a group.
+  if (dupe) {
+    for (const gr of dupe.groups) gr.members = gr.members.filter((m) => m.style !== JUNK || dupe!.scope === JUNK);
+    dupe.groups = dupe.groups.filter((gr) => gr.members.length > 1);
+  }
+  render();
+}
+
+function renderDupes(): HTMLElement {
+  const wrap = el('div', 'curate-dupes');
+  const scope = filter;
+  if (dupeScan) {
+    const p = el('div', 'curate-scan');
+    const track = el('div', 'curate-scan-track');
+    track.appendChild(el('div', 'curate-scan-fill'));
+    p.append(el('span', 'curate-scan-text'), track, btn('Cancel', 'Stop looking', () => { if (dupeScan) dupeScan.cancelled = true; }));
+    wrap.appendChild(p);
+    queueMicrotask(updateScanProgress);
+    return wrap;
+  }
+  if (!dupe || dupe.scope !== scope) { void scanDupes(scope); return wrap; }
+
+  const head = el('div', 'curate-row curate-dupes-head');
+  const n = dupe.groups.length, extra = dupe.groups.reduce((s, gr) => s + gr.members.length - gr.keep.size, 0);
+  head.append(el('span', 'curate-dupes-sum', n ? `${n} group${n === 1 ? '' : 's'} of look-alikes in ${scope === '*' ? 'all folders (not junk)' : styleLabel(scope)} · ${extra} extra cop${extra === 1 ? 'y' : 'ies'}` : `No duplicates in ${scope === '*' ? 'all folders (not junk)' : styleLabel(scope)}.`));
+  const strict = el('label', 'curate-label', 'Strictness');
+  const sel = el('select');
+  for (const [label, bits] of STRICTNESS) { const o = el('option', '', label); o.value = String(bits); sel.appendChild(o); }
+  sel.value = String(dupeBits);
+  sel.title = 'Strict: near-identical copies only. Loose: also catches lightly edited ones (and more false matches).';
+  sel.addEventListener('change', () => {
+    dupeBits = Number(sel.value);
+    // Hashes are kept: regrouping is instant (dupe cleared → rescan uses them).
+    dupe = null;
+    render();
+  });
+  strict.appendChild(sel);
+  head.appendChild(strict);
+  head.appendChild(btn('Rescan', 'Look again (after adding or moving images)', () => { dupe = null; render(); }));
+  const canJunk = scope !== JUNK; // already in junk: nothing to move
+  if (n && canJunk) head.appendChild(btn(`Junk all extras (${extra})`, 'Move every copy not marked Keep, in every group, to the junk folder', () => void junkExtras(dupe!.groups), 'curate-junk-btn'));
+  wrap.appendChild(head);
+  if (n) wrap.appendChild(el('div', 'curate-note', 'The biggest copy in each group is marked Keep. Click an image to switch Keep on or off; click its zoom button to look closely. Junk moves the unkept ones into the junk folder (nothing is deleted).'));
+
+  dupe.groups.forEach((gr, gi) => {
+    const box = el('div', 'curate-dupe-group');
+    const top = el('div', 'curate-row');
+    top.appendChild(el('span', 'curate-dupe-title', `Group ${gi + 1} · ${gr.members.length} images`));
+    if (canJunk) top.appendChild(btn('Junk the others', 'Move the copies not marked Keep to the junk folder', () => void junkExtras([gr]), 'curate-junk-btn'));
+    top.appendChild(btn('Not duplicates', 'Hide this group (it comes back on Rescan)', () => { dupe!.groups.splice(gi, 1); render(); }));
+    const row = el('div', 'curate-dupe-row');
+    for (const it of gr.members) {
+      const kept = gr.keep.has(it);
+      const card = el('div', 'curate-card curate-dupe-card' + (kept ? ' keep' : ''));
+      card.title = `${it.name}\nClick: ${kept ? 'unmark' : 'mark'} Keep`;
+      const img = el('img');
+      img.alt = '';
+      img.decoding = 'async';
+      if (it.thumb) img.src = it.thumb;
+      else void thumbOf(it, () => img.isConnected).then((u) => { img.src = u; }).catch(() => undefined);
+      const res = resLabel(it);
+      res.classList.add('curate-res-card');
+      const tag = el('span', 'curate-keep-tag', kept ? 'Keep' : 'Extra');
+      const zoom = btn('⤢', 'Look closely', () => undefined, 'curate-zoom');
+      zoom.addEventListener('click', (ev) => { ev.stopPropagation(); void urlOf(it).then((u) => showImageLightbox(u)); });
+      const foot = el('div', 'curate-card-foot');
+      foot.append(el('span', 'curate-name', it.name), badge(it.style));
+      const size = el('div', 'curate-dupe-meta', it.bytes ? `${(it.bytes / 1024 / 1024).toFixed(2)} MB` : '');
+      card.append(img, res, tag, zoom, foot, size);
+      card.addEventListener('click', () => {
+        if (gr.keep.has(it)) gr.keep.delete(it); else gr.keep.add(it);
+        render();
+      });
+      row.appendChild(card);
+    }
+    box.append(top, row);
+    wrap.appendChild(box);
+  });
   return wrap;
 }
 

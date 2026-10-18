@@ -137,6 +137,11 @@ export const HELP_SECTIONS: HelpSection[] = [
       folder (labelled red) for images you're throwing out. The toolbar's folder buttons
       (<b>All</b>, <b>Unsorted</b>, each artstyle, <b>Junk</b>, with image counts) show one folder at
       a time.</p>
+      <p><b>Duplicates</b> (the third view) groups images that look the same: resized, re-saved,
+      mirrored or lightly edited copies. The folder buttons pick where to look — every folder but
+      junk, or one artstyle at a time. The biggest copy is marked <b>Keep</b> (click to change, ⤢ to
+      zoom); <b>Junk the others</b> / <b>Junk all extras</b> moves the rest to the junk folder.
+      <b>Strictness</b> sets how alike they must be.</p>
       <h3>What the app writes into your folder</h3>
       <p>None of these touch your images or captions unless you tell them to:</p>
       <ul>

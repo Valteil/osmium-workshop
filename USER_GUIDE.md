@@ -466,6 +466,17 @@ before anything goes into a dataset. It sits next to the Datasets tab.
 - **Resolution:** every image shows its size (on the grid thumbnail's corner, and under the name
   in Single). Images with both sides under 1024px are flagged in red with ⚠ — at that size
   they're usually previews or works in progress, and a trainer can't add detail that isn't there.
+- **Duplicates:** the third view finds images that look the same — resized or re-saved copies (PNG
+  vs JPG, different compression), mirrored copies, slight colour changes, watermarks or small crops
+  — and shows them in groups. The folder buttons choose where to look: **All** (every folder except
+  junk) or one artstyle (or junk) on its own. The biggest copy in each group is marked **Keep**;
+  click an image to switch Keep on or off, and its ⤢ button to zoom in and compare. **Junk the
+  others** (one group) or **Junk all extras** (every group) moves the unkept copies to the junk
+  folder (made if needed); nothing is deleted. **Strictness**: Strict finds near-identical copies
+  only, Loose also catches lightly edited ones (with more false matches); **Not duplicates** hides
+  a group. Images are fingerprinted once and remembered in `_osmium_curate_hashes.json`, so later
+  scans only look at new or changed files. It compares pixels, not content: the same character in
+  a different pose isn't a duplicate.
 - **Viewing a folder:** the toolbar has one button per folder with its image count — **All**,
   **Unsorted**, every artstyle, and **Junk** (red). Click one to see only that folder's images, in
   Grid or Single.
