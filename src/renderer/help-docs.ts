@@ -141,6 +141,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       mirrored or lightly edited copies. The folder buttons pick where to look — every folder but
       junk, or one artstyle at a time. The biggest copy is marked <b>Keep</b> (click to change, ⤢ to
       zoom); <b>Junk the others</b> / <b>Junk all extras</b> moves the rest to the junk folder.
+      Each image's <b>Move to…</b> sends just that copy to an artstyle (or a new one) — for variants
+      like flat-colour or monochrome versions.
       <b>Strictness</b> sets how alike they must be.</p>
       <h3>What the app writes into your folder</h3>
       <p>None of these touch your images or captions unless you tell them to:</p>

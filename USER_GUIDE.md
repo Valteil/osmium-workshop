@@ -472,7 +472,9 @@ before anything goes into a dataset. It sits next to the Datasets tab.
   junk) or one artstyle (or junk) on its own. The biggest copy in each group is marked **Keep**;
   click an image to switch Keep on or off, and its ⤢ button to zoom in and compare. **Junk the
   others** (one group) or **Junk all extras** (every group) moves the unkept copies to the junk
-  folder (made if needed); nothing is deleted. **Strictness**: Strict finds near-identical copies
+  folder (made if needed); nothing is deleted. Each image also has its own **Move to…** picker:
+  a copy that's really a variant (flat colours, monochrome, a sketch pass) can go to an artstyle
+  folder on its own, or to a **+ New artstyle…** made right there. **Strictness**: Strict finds near-identical copies
   only, Loose also catches lightly edited ones (with more false matches); **Not duplicates** hides
   a group. Images are fingerprinted once and remembered in `_osmium_curate_hashes.json`, so later
   scans only look at new or changed files. It compares pixels, not content: the same character in

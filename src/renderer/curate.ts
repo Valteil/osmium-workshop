@@ -945,9 +945,18 @@ async function junkExtras(groups: DupeGroup[]): Promise<void> {
   if (!extras.length) { toast('Nothing to junk: every image in these groups is marked Keep.', 2600); return; }
   if (!styles.includes(JUNK) && !(await createStyle(true))) return;
   await assign(extras, JUNK);
-  // Drop what was junked; a group with one image left isn't a group.
+  pruneDupes();
+}
+
+// After moves: drop images that left the scope (junked, or moved out of the
+// one folder being checked); a group with one image left isn't a group.
+function pruneDupes(): void {
   if (dupe) {
-    for (const gr of dupe.groups) gr.members = gr.members.filter((m) => m.style !== JUNK || dupe!.scope === JUNK);
+    const inScope = (m: CurateItem) => (dupe!.scope === '*' ? m.style !== JUNK : m.style === dupe!.scope);
+    for (const gr of dupe.groups) {
+      gr.members = gr.members.filter(inScope);
+      for (const k of [...gr.keep]) if (!gr.members.includes(k)) gr.keep.delete(k);
+    }
     dupe.groups = dupe.groups.filter((gr) => gr.members.length > 1);
   }
   render();
@@ -1013,7 +1022,21 @@ function renderDupes(): HTMLElement {
       const foot = el('div', 'curate-card-foot');
       foot.append(el('span', 'curate-name', it.name), badge(it.style));
       const size = el('div', 'curate-dupe-meta', it.bytes ? `${(it.bytes / 1024 / 1024).toFixed(2)} MB` : '');
-      card.append(img, res, tag, zoom, foot, size);
+      // One copy can be its own variant (flat colours, monochrome…): move
+      // just this image to an artstyle, the rest of the group stays.
+      const move = styleSelect('\u0000', (st) => {
+        if (st !== '\u0001') { void assign([it], st).then(pruneDupes); return; }
+        void createStyle(false).then((name) => (name ? assign([it], name).then(pruneDupes) : render()));
+      }, { placeholder: 'Move to…' });
+      const newOpt = el('option', '', '+ New artstyle…');
+      newOpt.value = '\u0001';
+      move.appendChild(newOpt);
+      move.classList.add('curate-dupe-move');
+      move.title = 'Move just this image to an artstyle folder (e.g. a flat-colour or monochrome variant)';
+      for (const o of Array.from(move.options)) if (o.value === it.style) o.disabled = true;
+      move.addEventListener('click', (ev) => ev.stopPropagation());
+      move.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+      card.append(img, res, tag, zoom, foot, size, move);
       card.addEventListener('click', () => {
         if (gr.keep.has(it)) gr.keep.delete(it); else gr.keep.add(it);
         render();

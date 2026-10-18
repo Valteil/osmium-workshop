@@ -2701,6 +2701,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     position: absolute; right: 6px; top: 34px; padding: 2px 7px; font-size: 13px; line-height: 1.2;
     background: color-mix(in srgb, var(--bg-base) 82%, transparent);
   }
+  #curateTab select.curate-dupe-move{ margin: 0 7px 8px; padding: 3px 6px; font-size: 12px; }
   .curate-dupe-meta{ padding: 0 7px 6px; font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
   .curate-marquee{
     position: absolute; z-index: 2; pointer-events: none; border-radius: 3px;
