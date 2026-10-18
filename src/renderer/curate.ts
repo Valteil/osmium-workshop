@@ -570,7 +570,15 @@ function toolbar(): HTMLElement {
     btn('Select all', 'Select every image shown', () => { for (const it of visibleItems()) it.selected = true; render(); }),
     btn('Select none', 'Clear the selection', () => { for (const it of items) it.selected = false; render(); }));
   const assignTo = el('label', 'curate-label', 'Assign to');
-  assignTo.appendChild(styleSelect('\u0000', (v) => void assign(sel, v), { placeholder: 'Choose…' }));
+  // Read the selection when a folder is picked: selecting doesn't re-render
+  // the toolbar, so `sel` above is stale (it was empty → nothing moved).
+  const assignSel = styleSelect('\u0000', (v) => {
+    const now = items.filter((it) => it.selected);
+    if (!now.length) { toast('Select some images first.', 2200); assignSel.value = '\u0000'; return; }
+    // Moved images are done with: deselect them so they aren't moved twice.
+    void assign(now, v).then(() => { for (const it of now) if (it.style === v) it.selected = false; render(); });
+  }, { placeholder: 'Choose…' });
+  assignTo.appendChild(assignSel);
   bar.append(assignTo,
     btn('Create artstyle…', 'Make a folder for one of the artist\'s styles, so styles don\'t mix in a dataset', () => void createStyle(false)));
   if (!styles.includes(JUNK)) bar.appendChild(btn('Create junk folder', 'A folder for images that aren\'t worth training on', () => void createStyle(true), 'curate-junk-btn'));
