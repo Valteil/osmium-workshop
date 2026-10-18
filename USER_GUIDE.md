@@ -455,6 +455,9 @@ before anything goes into a dataset. It sits next to the Datasets tab.
   a muddled LoRA. **Create Artstyle…** makes a folder with that name inside the folder you're
   curating. Assigning *moves* the image (and its caption) into that folder, and **Unsorted** moves
   it back to the top. Each image shows which folder it's in.
+- **Resolution:** every image shows its size (on the grid thumbnail's corner, and under the name
+  in Single). Images whose longer side is under 1024px are flagged in red with ⚠ — at that size
+  they're usually previews or works in progress, and a trainer can't add detail that isn't there.
 - **Viewing a folder:** the toolbar has one button per folder with its image count — **All**,
   **Unsorted**, every artstyle, and **Junk** (red). Click one to see only that folder's images, in
   Grid or Single.

@@ -36,6 +36,35 @@ interface CurateItem {
   handle: FileHandle;
   url: string | null;      // object URL once loaded (revoked on close)
   selected: boolean;
+  w?: number; h?: number;  // pixel size, known once the image has loaded
+}
+
+// Images whose longer side is under this are flagged: at that size they're
+// usually previews or WIPs, and a trainer can't add detail that isn't there.
+const LOW_RES = 1024;
+
+// "1920×1080", flagged when small. Filled in when the image loads (the grid's
+// thumbnails are the images themselves), so it starts empty.
+function resLabel(it: CurateItem): HTMLElement {
+  const s = el('span', 'curate-res');
+  const fill = () => {
+    if (!it.w || !it.h) return;
+    const low = Math.max(it.w, it.h) < LOW_RES;
+    s.textContent = `${it.w}×${it.h}`;
+    s.classList.toggle('low', low);
+    s.title = low ? `Low resolution: the longer side is under ${LOW_RES}px (often a preview or WIP)` : '';
+  };
+  fill();
+  (s as HTMLElement & { fill?: () => void }).fill = fill;
+  return s;
+}
+// Records the loaded size and refreshes the label next to it.
+function noteSize(it: CurateItem, img: HTMLImageElement, label: HTMLElement): void {
+  img.addEventListener('load', () => {
+    it.w = img.naturalWidth;
+    it.h = img.naturalHeight;
+    (label as HTMLElement & { fill?: () => void }).fill?.();
+  }, { once: true });
 }
 
 let deps: CurateDeps;
@@ -357,10 +386,15 @@ function renderGrid(vis: CurateItem[]): HTMLElement {
     img.alt = it.name;
     img.draggable = false;
     img.dataset.i = String(i);
+    const res = resLabel(it);
+    noteSize(it, img, res);
     if (it.url) img.src = it.url; else observer!.observe(img);
     const check = el('span', 'curate-check', '✓');
     const foot = el('div', 'curate-card-foot');
     foot.append(el('span', 'curate-name', it.name), badge(it.style));
+    // On the image's corner, so the file name keeps the footer's width.
+    res.classList.add('curate-res-card');
+    card.appendChild(res);
     card.append(img, check, foot);
     card.addEventListener('click', (ev) => {
       if (ev.shiftKey && lastClicked >= 0) {
@@ -395,8 +429,10 @@ function renderSingle(vis: CurateItem[]): HTMLElement {
   nav.append(prev, el('span', 'curate-pos', `${index + 1} / ${vis.length}`), next);
   const name = el('div', 'curate-single-name');
   name.append(el('span', 'curate-name', it.name), badge(it.style));
+  const res = resLabel(it);
   name.title = it.name;
-  side.append(nav, name, el('div', 'curate-side-title', 'Assign to'));
+  res.classList.add('curate-res-single');
+  side.append(nav, name, res, el('div', 'curate-side-title', 'Assign to'));
   const stack = el('div', 'curate-stack');
   stackStyles().forEach((st, k) => {
     const b = btn('', st === it.style ? `Already in ${styleLabel(st)}` : `Move to ${styleLabel(st)} and show the next image (${k})`,
@@ -425,6 +461,7 @@ function renderSingle(vis: CurateItem[]): HTMLElement {
   img.alt = it.name;
   img.draggable = false;
   img.title = 'Click to zoom';
+  noteSize(it, img, res);
   void urlOf(it).then((u) => {
     img.src = u;
     img.addEventListener('click', () => showImageLightbox(u));

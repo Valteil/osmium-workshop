@@ -123,7 +123,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       to select them (Shift-click for a range, double-click to open one), then <b>Add selected to
       dataset</b> copies them, and any <code>.txt</code> captions they have, into the open dataset,
       or <b>New dataset from selected…</b> makes a new dataset folder for them. In Single, those
-      actions apply to the image on screen.</p>
+      actions apply to the image on screen. Each image shows its resolution; one whose longer side
+      is under 1024px is flagged red (usually a preview or WIP).</p>
       <p><b>Artstyles</b> keep an artist's different styles apart, so one style never mixes with
       another in a dataset (train each as its own branch later). <b>Create Artstyle…</b> makes a
       folder of that name inside the opened folder. Assigning <i>moves</i> the image (and its
