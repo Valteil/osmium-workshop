@@ -24,6 +24,7 @@ app to look something up.
 - [Bucket Images](#bucket-images)
 - [Tag Overseer tab](#tag-overseer-tab)
 - [Sequential tagging](#sequential-tagging)
+- [Curate tab](#curate-tab)
 - [Datasets tab](#datasets-tab)
 - [Editing Stats tab](#editing-stats-tab)
 - [SynthDat Overseer tab](#synthdat-overseer-tab)
@@ -431,6 +432,33 @@ compact preview as Single view — click it for the fullscreen lightbox for clos
 
 Use it when a whole filter batch — a character, a rating, everything missing "monochrome" —
 needs its indicator tags aligned without opening each card by hand.
+
+---
+
+## Curate tab
+
+For a folder of new images you haven't gone through yet (a download, an artist's gallery dump),
+before anything goes into a dataset. It sits next to the Datasets tab.
+
+- **Open folder…** shows every image in that folder. **Grid** shows them all; **Single** shows one
+  at a time, with ← / → (or the ‹ Prev / Next › buttons) to move through them and a click on the
+  image to zoom in. Double-click a grid image to open it in Single.
+- **Selecting:** click images in the grid (Shift-click selects a range), or tick **Selected** (or
+  press Space) in Single. **Select all** / **Select none** act on what's shown.
+- **Add selected to dataset** copies the selected images into the open dataset, each with its
+  `.txt` caption if it has one (otherwise an empty one), same as File ▸ Add images. **New dataset
+  from selected…** makes a new dataset folder (you name it and pick where it goes) and copies them
+  in there instead.
+- **Artstyles:** an artist often has several distinct styles, and mixing them in one dataset gives
+  a muddled LoRA. **Create Artstyle…** makes a folder with that name inside the folder you're
+  curating; it then appears under **Assign to:** (and **Assign selected to** in the grid).
+  Assigning *moves* the image (and its caption) into that folder, and **Unsorted** moves it back
+  to the top. Each image shows which folder it's in; **Show** filters to one.
+- **Create junk folder** makes a folder called `junk` (labelled red) for images not worth
+  training on. Once it exists, Single view has a one-click **Junk it**.
+
+Artstyle names are remembered in `_osmium_curate.json` in the curated folder. Curate won't open
+the dataset you have open (moving files out from under it would break it).
 
 ---
 

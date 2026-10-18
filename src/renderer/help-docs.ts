@@ -116,6 +116,19 @@ export const HELP_SECTIONS: HelpSection[] = [
       <code>.txt</code>${isTouchDevice ? ' (you choose which app to pick them from)' : ''}. With no
       dataset open it first offers to create one: name it, choose where its folder goes, and it
       opens ready for the images.</p>
+      <h3>Curate a folder first</h3>
+      <p>The <b>Curate</b> tab (next to Datasets) is for a folder of new images you haven't sorted
+      yet. <b>Open folder…</b> shows every image in it as a <b>Grid</b>, or one at a time in
+      <b>Single</b> (← / → or the arrow buttons; click the image to zoom; Space selects). Click
+      images to select them (Shift-click for a range, double-click to open one), then <b>Add selected
+      to dataset</b> copies them, and any <code>.txt</code> captions they have, into the open dataset,
+      or <b>New dataset from selected…</b> makes a new dataset folder for them.</p>
+      <p><b>Artstyles</b> keep an artist's different styles apart, so one style never mixes with
+      another in a dataset (train each as its own branch later). <b>Create Artstyle…</b> makes a
+      folder of that name inside the opened folder, and it then shows up in <b>Assign to:</b> —
+      assigning <i>moves</i> the image (and its caption) into that folder; <b>Unsorted</b> moves it
+      back. <b>Create junk folder</b> makes a <b>junk</b> folder (labelled red) for images you're
+      throwing out. <b>Show</b> filters the view to one folder.</p>
       <h3>What the app writes into your folder</h3>
       <p>None of these touch your images or captions unless you tell them to:</p>
       <ul>

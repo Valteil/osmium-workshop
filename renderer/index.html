@@ -707,6 +707,7 @@
 
   <nav id="tabBar">
     <button id="tabDatasetManager" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-folder"></use></svg>Datasets</button>
+    <button id="tabCurate" class="tab-btn" title="Look through a folder of new images and pick what goes into a dataset"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-image"></use></svg>Curate</button>
     <button id="tabGallery" class="tab-btn active"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-image"></use></svg>Gallery</button>
     <button id="tabMasterTags" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-telescope"></use></svg>Tag Overseer</button>
     <button id="tabStats" class="tab-btn"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-chart"></use></svg>Editing Stats</button>
@@ -1169,6 +1170,16 @@
       <div id="statsLegend" class="stats-legend"></div>
     </div>
     <div class="stats-totals" id="statsTotals"></div>
+  </div>
+
+  <div id="curateTab" style="display:none;">
+    <div class="curate-scroll">
+    <div class="stats-header">
+      <button id="btnCurateBack" class="ghost-close" title="Back to Gallery">← Back</button>
+      <h2>Curate</h2>
+    </div>
+    <div class="curate-body"></div>
+    </div>
   </div>
 
   <div id="trainflowTab" style="display:none;">

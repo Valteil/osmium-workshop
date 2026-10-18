@@ -20,7 +20,7 @@ import {
   panelsOutsideCloseToggle, btnSettings, favoritesPanel,
   btnAddFavorite, logPanel, appVersionEl, tabGallery, tabMasterTags,
   tabStats, galleryTab, statsTab, btnStatsBack, btnMasterBack, btnGoToTagOverseer, normalRightTools,
-  tabSynthDat, synthDatTab, btnSynthDatBack, tabTrainflow, trainflowTab, btnTrainflowBack,
+  tabSynthDat, synthDatTab, btnSynthDatBack, tabTrainflow, trainflowTab, btnTrainflowBack, tabCurate, curateTab, btnCurateBack,
   tabDatasetManager, datasetManagerTab, dmGrid, dmGridBtn, dmListBtn, dmSortDropdown,
   layoutDropdown, shellEl, btnResetZoom, btnExportAppState, btnViewWd14TransferList, btnRightPanelCollapse, rightPanelResizeHandle,
   powerHighlightToggle,
@@ -81,6 +81,7 @@ import {
 } from './master-tag-control';
 import { initWd14Tagger } from './wd14-tagger';
 import { initTrainflow } from './trainflow';
+import { initCurate } from './curate';
 import { initSynthDatOverseer, loadSynthDatSettingsForFolder, getWd14TransferSets } from './synthdat-overseer';
 import { attachAcChipHover } from './tags-autocomplete';
 import {
@@ -353,7 +354,7 @@ import { setIconLabel } from './icons';
   // root it asks before leaving; confirming calls window.__dtsExitApp.
   const tabHistory: string[] = [];
   let navigatingBack = false;
-  const TAB_IDS = ['datasets', 'gallery', 'master', 'stats', 'synthdat', 'trainflow'];
+  const TAB_IDS = ['datasets', 'curate', 'gallery', 'master', 'stats', 'synthdat', 'trainflow'];
   const currentTabId = (): string => TAB_IDS.find(t => tabIsActive(t)) || 'gallery';
   let exitConfirmOpen = false;
   function handleBack(): boolean {
@@ -436,10 +437,10 @@ import { setIconLabel } from './icons';
   // shift the display swap itself causes. Respects the "Smooth transitions"
   // Settings toggle (`html.motion-off`) by skipping straight to the final
   // state with no delay when it's off.
-  const TAB_MAP_ORDER = ['datasets', 'gallery', 'master', 'stats', 'synthdat', 'trainflow'];
+  const TAB_MAP_ORDER = ['datasets', 'curate', 'gallery', 'master', 'stats', 'synthdat', 'trainflow'];
   const onShell = (t: string) => t === 'gallery' || t === 'master';
   const tabIsActive = (t: string): boolean => ({
-    datasets: tabDatasetManager, gallery: tabGallery, master: tabMasterTags, stats: tabStats, synthdat: tabSynthDat, trainflow: tabTrainflow
+    datasets: tabDatasetManager, curate: tabCurate, gallery: tabGallery, master: tabMasterTags, stats: tabStats, synthdat: tabSynthDat, trainflow: tabTrainflow
   } as Record<string, HTMLElement>)[t]?.classList.contains('active') ?? false;
 
   // Zone preload: the moment the pointer is heading for the tabs (anywhere
@@ -506,7 +507,7 @@ import { setIconLabel } from './icons';
       const from = currentTabId();
       if (from !== tab){ tabHistory.push(from); if (tabHistory.length > 30) tabHistory.shift(); }
     }
-    const fadePanes = [datasetManagerTab, statsTab, synthDatTab, trainflowTab, normalRightTools, masterTagPanel];
+    const fadePanes = [datasetManagerTab, curateTab, statsTab, synthDatTab, trainflowTab, normalRightTools, masterTagPanel];
     // Gallery rebuild (cards differ between Gallery and Tag Overseer mode —
     // the selection checkbox). Only a shell tab shows the gallery; Stats and
     // SynthDat used to rebuild it too, invisibly, on every switch.
@@ -519,8 +520,10 @@ import { setIconLabel } from './icons';
       tabStats.classList.toggle('active', tab === 'stats');
       tabSynthDat.classList.toggle('active', tab === 'synthdat');
       tabTrainflow.classList.toggle('active', tab === 'trainflow');
+      tabCurate.classList.toggle('active', tab === 'curate');
+      curateTab.style.display = (tab === 'curate') ? 'block' : 'none';
       datasetManagerTab.style.display = (tab === 'datasets') ? 'block' : 'none';
-      galleryTab.style.display = (tab === 'stats' || tab === 'datasets' || tab === 'synthdat' || tab === 'trainflow') ? 'none' : 'contents';
+      galleryTab.style.display = (tab === 'stats' || tab === 'datasets' || tab === 'synthdat' || tab === 'trainflow' || tab === 'curate') ? 'none' : 'contents';
       statsTab.style.display = (tab === 'stats') ? 'block' : 'none';
       synthDatTab.style.display = (tab === 'synthdat') ? 'block' : 'none';
       trainflowTab.style.display = (tab === 'trainflow') ? 'block' : 'none';
@@ -590,13 +593,14 @@ import { setIconLabel } from './icons';
       : tabMasterTags.classList.contains('active') ? 'master'
       : tabStats.classList.contains('active') ? 'stats'
       : tabSynthDat.classList.contains('active') ? 'synthdat'
-      : tabTrainflow.classList.contains('active') ? 'trainflow' : 'gallery';
+      : tabTrainflow.classList.contains('active') ? 'trainflow'
+      : tabCurate.classList.contains('active') ? 'curate' : 'gallery';
     // Already on this tab: nothing moves.
     if (fromTab === tab){ applyState(); return; }
     const regionOf = (t: string): HTMLElement | null => {
       if (onShell(fromTab) && onShell(tab)) return document.getElementById('rightPanelContent');
       if (onShell(t)) return document.getElementById('shell');
-      return t === 'datasets' ? datasetManagerTab : t === 'stats' ? statsTab : t === 'trainflow' ? trainflowTab : synthDatTab;
+      return t === 'datasets' ? datasetManagerTab : t === 'curate' ? curateTab : t === 'stats' ? statsTab : t === 'trainflow' ? trainflowTab : synthDatTab;
     };
     const dir = Math.sign(TAB_MAP_ORDER.indexOf(tab) - TAB_MAP_ORDER.indexOf(fromTab));
     // A View Transition freezes the screen while its update runs, so the
@@ -614,6 +618,7 @@ import { setIconLabel } from './icons';
       tabStats.classList.toggle('active', tab === 'stats');
       tabSynthDat.classList.toggle('active', tab === 'synthdat');
       tabTrainflow.classList.toggle('active', tab === 'trainflow');
+      tabCurate.classList.toggle('active', tab === 'curate');
     }
     if (mapPan(dir, 'tab', regionOf(fromTab), () => regionOf(tab), applyState, () => {
       if (tabIsActive(tab)) renderShell();
@@ -661,6 +666,8 @@ import { setIconLabel } from './icons';
   btnSynthDatBack.addEventListener('click', () => switchTab('gallery'));
   tabTrainflow.addEventListener('click', () => switchTab('trainflow'));
   btnTrainflowBack.addEventListener('click', () => switchTab('gallery'));
+  tabCurate.addEventListener('click', () => switchTab('curate'));
+  btnCurateBack.addEventListener('click', () => switchTab('gallery'));
 
   // stats pie/bar toggle wiring moved to ./edit-log.ts (initEditLog)
 
@@ -2622,7 +2629,9 @@ import { setIconLabel } from './icons';
     return `${stem} ${Date.now()}${ext}`;
   }
 
-  async function importImagesToDataset(files: FileList | File[] | null): Promise<void> {
+  // `captions` (Curate): a file's existing .txt caption, written instead of
+  // the empty sidecar.
+  async function importImagesToDataset(files: FileList | File[] | null, captions?: Map<File, string>): Promise<void> {
     if (!files || !files.length || !dirHandle) return;
     const activeHandle = dirHandle;
     let added = 0, skipped = 0;
@@ -2634,7 +2643,7 @@ import { setIconLabel } from './icons';
         await writeBytes(imgHandle, file);
         try {
           const txtHandle = await activeHandle.getFileHandle(imgName.replace(/\.[^.]+$/, '') + '.txt', { create: true });
-          await writeBytes(txtHandle, '');
+          await writeBytes(txtHandle, captions?.get(file) ?? '');
         } catch {
           /* image saved; the empty sidecar is best-effort */
         }
@@ -2670,8 +2679,8 @@ import { setIconLabel } from './icons';
   // natively (mobile-shim.js __dtsCreateDatasetFolder: SAF grants only the
   // picked location, so the plugin makes the subfolder and addresses it
   // through that grant); elsewhere it's the folder picker + getDirectoryHandle.
-  async function createDatasetForImport(): Promise<boolean> {
-    const go = await showConfirmModal('No dataset is open. Create a new dataset for these images?\n\nYou\'ll name it, then choose where its folder goes.',
+  async function createDatasetForImport(intro = 'No dataset is open. Create a new dataset for these images?'): Promise<boolean> {
+    const go = await showConfirmModal(`${intro}\n\nYou'll name it, then choose where its folder goes.`,
       {
         okLabel: 'Create dataset', cancelLabel: 'Cancel',
         warnings: [
@@ -2720,6 +2729,23 @@ import { setIconLabel } from './icons';
   }
   // Offered once the new dataset has images in it (after the import).
   let newDatasetPendingTrack: DirHandle | null = null;
+
+  // Curate tab: its picked images go in through the same import (unique
+  // names, captions kept, reload). 'new' always makes a fresh dataset folder
+  // (switching away from the open one, after the unsaved-changes check).
+  initCurate({
+    getDirHandle: () => dirHandle,
+    addToDataset: async (files, captions, target) => {
+      if (target === 'new' || !dirHandle){
+        if (dirHandle && !(await confirmDatasetSwitch('Make a new dataset anyway, discarding them?'))) return false;
+        const intro = dirHandle ? `Create a new dataset with these ${files.length} image${files.length === 1 ? '' : 's'}?`
+          : 'No dataset is open. Create a new dataset for these images?';
+        if (!(await createDatasetForImport(intro))) return false;
+      }
+      await importImagesToDataset(files, captions);
+      return true;
+    }
+  });
 
   if (!document.getElementById('btnAddImages')){
     const btnAddImages = document.createElement('button');

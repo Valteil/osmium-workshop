@@ -56,6 +56,12 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   dataset and how many images have it. Tick as many as you want and **Delete from all** takes them
   off every image in one go, and one Undo brings them back. Unlike Void it doesn't set up a standing
   rule.
+- **Curate tab**: go through a folder of new images before they go into a dataset. See them all as
+  a grid, or one at a time with the arrow keys, and click to zoom in. Select the keepers and add
+  them to the open dataset (captions come along) or start a new dataset with them. **Artstyles**
+  sort an artist's different styles into their own folders so they never get mixed in one
+  dataset: **Create Artstyle**, then **Assign to** it. A red **junk** folder takes the images
+  you're throwing out.
 - **Isolate (Split)** (Windows, in the image card's Crop): cut a character sheet or a page of
   panels into separate images. Pick how many vertical and horizontal lines you want (mix them for
   a grid), drag each line where it should cut, or **Reset lines** to space them evenly. Every
