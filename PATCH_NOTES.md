@@ -70,6 +70,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   a grid), drag each line where it should cut, or **Reset lines** to space them evenly. Every
   piece is saved as a new image with the original's tags, the original stays as it was, and one
   Undo takes all the pieces back out.
+- **Fixed: Rename all could delete images.** If a rename stopped partway, the files were left with
+  temporary `__dts_rename_tmp_…` names, and running Rename all again could delete some of them.
+  Rename all now checks every file first, puts everything back if it stops partway, and never
+  overwrites or deletes a file by renaming it onto a name that's already taken. **Revert bucketing**
+  no longer deletes the bucketed copy when the original can't be read.
 
 ### Comfy Bridge
 

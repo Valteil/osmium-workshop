@@ -484,8 +484,9 @@ async function revert(): Promise<void> {
         // delete the bucketed copy in the root (skipped if the original itself
         // is the .png we're about to move back over it)
         if (origDir) {
-          try { await dirHandle.removeEntry(stemPng); } catch { /* not present */ }
+          // Read the original first: if it's gone, the bucketed copy is the only one left, so keep it.
           const file = await entry.imgHandle.getFile();
+          try { await dirHandle.removeEntry(stemPng); } catch { /* not present */ }
           const back = await dirHandle.getFileHandle(imgName, { create: true });
           await writeBytes(back, file);
           try { await origDir.removeEntry(imgName); } catch { /* already gone */ }

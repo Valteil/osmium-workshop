@@ -401,8 +401,17 @@ export async function moveEntry(entry: Entry, toDisabled: boolean, opts?: { sile
   }
 }
 
+async function fileExists(dir: DirHandle, name: string): Promise<boolean> {
+  try { await dir.getFileHandle(name, { create: false }); return true; } catch { return false; }
+}
+
+// Copy-then-delete, so two guards matter: renaming a file to its own name must be a no-op (the copy
+// would land on the same file and the delete would then remove it), and an existing target is never
+// overwritten (it would silently replace another image).
 async function renameFileInPlace(dir: DirHandle, oldName: string, newName: string): Promise<import('./types').FileHandle> {
+  if (oldName === newName) return dir.getFileHandle(oldName, { create: false });
   const oldHandle = await dir.getFileHandle(oldName, { create: false });
+  if (await fileExists(dir, newName)) throw new Error(`${newName} already exists.`);
   const file = await oldHandle.getFile();
   const newHandle = await dir.getFileHandle(newName, { create: true });
   await writeBytes(newHandle, file);
@@ -496,69 +505,121 @@ export async function renameAllEntriesSequentially(): Promise<void> {
   });
   const converted = plan.filter(p => p.toPng).length;
 
+  // Every source file must be on disk before anything moves. A stale entry (the folder changed since
+  // it loaded, e.g. a failed earlier run) used to throw partway through and strand files at temp names.
+  for (const p of plan){
+    const missing = !(await fileExists(p.dir, p.oldImgName)) ? p.oldImgName
+      : (p.oldTxtName && !(await fileExists(p.dir, p.oldTxtName))) ? p.oldTxtName : null;
+    if (missing){
+      toast(`${missing} isn't on disk any more — reload the dataset and try again. Nothing was renamed.`, 5200);
+      return;
+    }
+  }
+  // Temp names are unique to this run, so leftovers from an older run can never collide with them.
+  const tmpOf = (i: number, ext: string) => `__dts_rename_${Date.now().toString(36)}_${i}__${ext}`;
+
+  // Phase 1: every file to a unique temp name (WebP converted to PNG on the way, so phase 2 is a
+  // plain rename for everything). A failure here moves the finished ones back: nothing is renamed.
+  const moved: RenamePlanItem[] = [];
   try {
-    // Phase 1: every file to a unique temp name (WebP converted to PNG on
-    // the way, so phase 2 is a plain rename for everything).
     for (let i = 0; i < plan.length; i++){
       const p = plan[i];
       p.entry.imgHandle = p.toPng
-        ? await convertToPngInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__.png`)
-        : await renameFileInPlace(p.dir, p.oldImgName, `__dts_rename_tmp_${i}__${extOf(p.oldImgName)}`);
+        ? await convertToPngInPlace(p.dir, p.oldImgName, tmpOf(i, '.png'))
+        : await renameFileInPlace(p.dir, p.oldImgName, tmpOf(i, extOf(p.oldImgName)));
+      moved.push(p);
       if (p.entry.txtHandle && p.oldTxtName){
-        p.entry.txtHandle = await renameFileInPlace(p.dir, p.oldTxtName, `__dts_rename_tmp_${i}__.txt`);
+        p.entry.txtHandle = await renameFileInPlace(p.dir, p.oldTxtName, tmpOf(i, '.txt'));
       }
     }
-    // Phase 2: every temp name to its real final name.
-    const affected: EditLogAffected[] = [];
-    // Original images are renamed to follow their Gallery copy's new stem (they
-    // live in original_images/, a separate folder, so no temp name is needed).
-    const origDir = getOriginalDirHandle();
-    for (const p of plan){
+  } catch(err){
+    for (const p of moved){
+      try {
+        p.entry.imgHandle = await renameFileInPlace(p.dir, p.entry.imgHandle.name, p.toPng ? `${p.oldBase}.png` : p.oldImgName);
+        if (p.entry.txtHandle && p.oldTxtName) p.entry.txtHandle = await renameFileInPlace(p.dir, p.entry.txtHandle.name, p.oldTxtName);
+      } catch { /* left at its temp name; it still loads as an image */ }
+    }
+    const why = err instanceof Error ? ` (${err.message})` : '';
+    toast(`Rename stopped${why} — the files were put back. Close anything using the folder and try again.`, 5200);
+    refreshAllUIRef();
+    return;
+  }
+
+  // Phase 2: every temp name to its real final name. Each item stands alone: one failure leaves that
+  // file at its temp name (it still loads, and the next Rename all fixes it) and the rest carry on.
+  const affected: EditLogAffected[] = [];
+  const stuck: string[] = [];
+  const renamedPairs: { original: Entry; newBase: string }[] = [];
+  for (const p of plan){
+    try {
       p.entry.imgHandle = await renameFileInPlace(p.dir, p.entry.imgHandle.name, p.newImgName);
       if (p.entry.txtHandle){
         p.entry.txtHandle = await renameFileInPlace(p.dir, p.entry.txtHandle.name, p.newTxtName!);
       }
-      const pairedOriginal = originalByBase.get(p.oldBase);
-      if (origDir && pairedOriginal){
-        const oldOrigName = pairedOriginal.imgName || pairedOriginal.base;
-        const newOrigName = p.newBase + extOf(oldOrigName);
-        try {
-          pairedOriginal.imgHandle = await renameFileInPlace(origDir, oldOrigName, newOrigName);
-          if (pairedOriginal.txtHandle && pairedOriginal.txtName){
-            pairedOriginal.txtHandle = await renameFileInPlace(origDir, pairedOriginal.txtName, `${p.newBase}.txt`);
-          }
-          pairedOriginal.base = p.newBase;
-          pairedOriginal.imgName = newOrigName;
-          pairedOriginal.txtName = `${p.newBase}.txt`;
-          originalByBase.delete(p.oldBase);
-          originalByBase.set(p.newBase, pairedOriginal);
-        } catch { /* leave the original; the next load heals by stem */ }
-      }
-      reindexEntry(p.oldBase, p.newBase);
-      p.entry.base = p.newBase;
-      p.entry.imgName = p.newImgName;
-      p.entry.txtName = `${p.newBase}.txt`;
-      affected.push({
-        base: p.newBase, prevBase: p.oldBase,
-        // A converted WebP undoes to its old name as a .png: the conversion
-        // itself is permanent, only the rename is undoable.
-        prevImgName: p.toPng ? `${p.oldBase}.png` : p.oldImgName, newImgName: p.newImgName,
-        prevTxtName: p.oldTxtName || undefined, newTxtName: p.newTxtName || undefined
-      });
+    } catch {
+      stuck.push(p.oldImgName);
+      continue;
     }
-    const convertedNote = converted ? ` ${converted} WebP image(s) converted to PNG.` : '';
+    const pairedOriginal = originalByBase.get(p.oldBase);
+    if (pairedOriginal) renamedPairs.push({ original: pairedOriginal, newBase: p.newBase });
+    reindexEntry(p.oldBase, p.newBase);
+    p.entry.base = p.newBase;
+    p.entry.imgName = p.newImgName;
+    p.entry.txtName = `${p.newBase}.txt`;
+    affected.push({
+      base: p.newBase, prevBase: p.oldBase,
+      // A converted WebP undoes to its old name as a .png: the conversion
+      // itself is permanent, only the rename is undoable.
+      prevImgName: p.toPng ? `${p.oldBase}.png` : p.oldImgName, newImgName: p.newImgName,
+      prevTxtName: p.oldTxtName || undefined, newTxtName: p.newTxtName || undefined
+    });
+  }
+
+  // Original images follow their Gallery copy's new stem, two-phase like above: renumbering can give
+  // one original another's current name, and a stem that didn't change is left alone.
+  const origDir = getOriginalDirHandle();
+  if (origDir){
+    const pairs = renamedPairs.filter(r => r.original.base !== r.newBase);
+    const staged: { original: Entry; newBase: string; ext: string }[] = [];
+    for (let i = 0; i < pairs.length; i++){
+      const { original, newBase } = pairs[i];
+      const ext = extOf(original.imgName || original.base);
+      try {
+        original.imgHandle = await renameFileInPlace(origDir, original.imgName || original.base, tmpOf(i, ext));
+        if (original.txtHandle && original.txtName){
+          original.txtHandle = await renameFileInPlace(origDir, original.txtName, tmpOf(i, '.txt'));
+        }
+        staged.push({ original, newBase, ext });
+      } catch { stuck.push(`original_images/${original.imgName}`); }
+    }
+    for (const { original, newBase, ext } of staged){
+      try {
+        original.imgHandle = await renameFileInPlace(origDir, original.imgHandle.name, newBase + ext);
+        if (original.txtHandle){
+          original.txtHandle = await renameFileInPlace(origDir, original.txtHandle.name, `${newBase}.txt`);
+        }
+        original.base = newBase;
+        original.imgName = newBase + ext;
+        original.txtName = `${newBase}.txt`;
+      } catch { stuck.push(`original_images/${original.imgName}`); }
+    }
+  }
+
+  const convertedNote = converted ? ` ${converted} WebP image(s) converted to PNG.` : '';
+  if (affected.length){
     pushLogEntry({
       type: 'rename-files',
       summary: `Renamed ${affected.length} image(s) to a simple 1-${ordered.length} sequence.${convertedNote}`,
       affected
     });
-    toast(`Renamed ${affected.length} image(s).${convertedNote}`, 3600);
-    resetSingleIndex();
-    refreshAllUIRef();
-  } catch(err){
-    toast('Something went wrong partway through — check folder permissions. Some files may already be renamed; check the Log panel for what completed.', 4600);
-    refreshAllUIRef();
   }
+  if (stuck.length){
+    toast(`Renamed ${affected.length} image(s); ${stuck.length} couldn't be renamed and kept a temporary name (${stuck.slice(0, 3).join(', ')}${stuck.length > 3 ? '…' : ''}). Run Rename all again to finish.`, 6000);
+  } else {
+    toast(`Renamed ${affected.length} image(s).${convertedNote}`, 3600);
+  }
+  resetSingleIndex();
+  refreshAllUIRef();
 }
 
 // Batch undo/redo for a 'rename-files' log entry (edit-log.ts, injected the
