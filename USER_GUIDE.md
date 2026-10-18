@@ -441,21 +441,25 @@ For a folder of new images you haven't gone through yet (a download, an artist's
 before anything goes into a dataset. It sits next to the Datasets tab.
 
 - **Open folder…** shows every image in that folder. **Grid** shows them all; **Single** shows one
-  at a time, with ← / → (or the ‹ Prev / Next › buttons) to move through them and a click on the
-  image to zoom in. Double-click a grid image to open it in Single.
-- **Selecting:** click images in the grid (Shift-click selects a range), or tick **Selected** (or
-  press Space) in Single. **Select all** / **Select none** act on what's shown.
-- **Add selected to dataset** copies the selected images into the open dataset, each with its
-  `.txt` caption if it has one (otherwise an empty one), same as File ▸ Add images. **New dataset
-  from selected…** makes a new dataset folder (you name it and pick where it goes) and copies them
-  in there instead.
+  at a time, as large as the window allows, with the controls in a column on the right. Move with
+  ← / → or the ‹ › buttons, click the image to zoom in. Double-click a grid image to open it in
+  Single.
+- **Grid:** click images to select them (Shift-click selects a range); **Select all** / **Select
+  none** act on what's shown. **Add selected to dataset** copies them into the open dataset, each
+  with its `.txt` caption if it has one (otherwise an empty one), same as File ▸ Add images.
+  **New dataset from selected…** makes a new dataset folder (you name it and pick where it goes)
+  and copies them there instead.
+- **Single:** there's no selecting — every action applies to the image on screen (**Add to
+  dataset**, **New dataset with it…**).
 - **Artstyles:** an artist often has several distinct styles, and mixing them in one dataset gives
   a muddled LoRA. **Create Artstyle…** makes a folder with that name inside the folder you're
-  curating; it then appears under **Assign to:** (and **Assign selected to** in the grid).
-  Assigning *moves* the image (and its caption) into that folder, and **Unsorted** moves it back
-  to the top. Each image shows which folder it's in; **Show** filters to one.
+  curating. Assigning *moves* the image (and its caption) into that folder, and **Unsorted** moves
+  it back to the top. Each image shows which folder it's in; **Show** filters to one.
+  - In **Single**, every artstyle is a button in the right column: click one (or press its number:
+    0 = Unsorted, 1–9 = the artstyles) to move the image there and go straight to the next one.
+  - In **Grid**, **Assign to** moves the selected images.
 - **Create junk folder** makes a folder called `junk` (labelled red) for images not worth
-  training on. Once it exists, Single view has a one-click **Junk it**.
+  training on; it then has its own button like any artstyle.
 
 Artstyle names are remembered in `_osmium_curate.json` in the curated folder. Curate won't open
 the dataset you have open (moving files out from under it would break it).

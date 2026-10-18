@@ -119,16 +119,18 @@ export const HELP_SECTIONS: HelpSection[] = [
       <h3>Curate a folder first</h3>
       <p>The <b>Curate</b> tab (next to Datasets) is for a folder of new images you haven't sorted
       yet. <b>Open folder…</b> shows every image in it as a <b>Grid</b>, or one at a time in
-      <b>Single</b> (← / → or the arrow buttons; click the image to zoom; Space selects). Click
-      images to select them (Shift-click for a range, double-click to open one), then <b>Add selected
-      to dataset</b> copies them, and any <code>.txt</code> captions they have, into the open dataset,
-      or <b>New dataset from selected…</b> makes a new dataset folder for them.</p>
+      <b>Single</b> (← / → or the ‹ › buttons; click the image to zoom). In the grid, click images
+      to select them (Shift-click for a range, double-click to open one), then <b>Add selected to
+      dataset</b> copies them, and any <code>.txt</code> captions they have, into the open dataset,
+      or <b>New dataset from selected…</b> makes a new dataset folder for them. In Single, those
+      actions apply to the image on screen.</p>
       <p><b>Artstyles</b> keep an artist's different styles apart, so one style never mixes with
       another in a dataset (train each as its own branch later). <b>Create Artstyle…</b> makes a
-      folder of that name inside the opened folder, and it then shows up in <b>Assign to:</b> —
-      assigning <i>moves</i> the image (and its caption) into that folder; <b>Unsorted</b> moves it
-      back. <b>Create junk folder</b> makes a <b>junk</b> folder (labelled red) for images you're
-      throwing out. <b>Show</b> filters the view to one folder.</p>
+      folder of that name inside the opened folder. Assigning <i>moves</i> the image (and its
+      caption) into that folder; <b>Unsorted</b> moves it back. In Single, each artstyle is a
+      button beside the image — click it, or press its number (0 = Unsorted, 1–9 the artstyles), to
+      move the image and go on to the next one. <b>Create junk folder</b> makes a <b>junk</b>
+      folder (labelled red) for images you're throwing out. <b>Show</b> filters to one folder.</p>
       <h3>What the app writes into your folder</h3>
       <p>None of these touch your images or captions unless you tell them to:</p>
       <ul>

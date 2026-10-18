@@ -160,12 +160,17 @@ async function moveItem(it: CurateItem, to: string): Promise<void> {
     await from.removeEntry(stem + '.txt');
   } catch { /* no caption */ }
   await from.removeEntry(it.name);
+  // The cached preview reads the old (now deleted) file: drop it.
+  if (it.url) { URL.revokeObjectURL(it.url); it.url = null; }
   it.name = name;
   it.style = to;
   it.handle = newHandle;
 }
 
-async function assign(targets: CurateItem[], to: string): Promise<void> {
+// `advance` (Single view's assign stack): go on to the next image, for rapid
+// sorting. When the filter hides the image just moved, the next one has
+// already slid into its place, so the index stays.
+async function assign(targets: CurateItem[], to: string, advance = false): Promise<void> {
   if (busy || !targets.length) return;
   busy = true;
   let moved = 0;
@@ -180,10 +185,9 @@ async function assign(targets: CurateItem[], to: string): Promise<void> {
   } finally {
     busy = false;
   }
-  if (moved) toast(`Moved ${moved} image${moved === 1 ? '' : 's'} to ${styleLabel(to)}.`, 2200);
-  // Keep the single view on the same position (the next image slides in
-  // when a filter hides the one just moved).
+  if (moved) toast(`Moved ${moved} image${moved === 1 ? '' : 's'} to ${styleLabel(to)}.`, 1600);
   const vis = visibleItems();
+  if (advance && vis.includes(targets[0])) index++;
   if (index >= vis.length) index = Math.max(0, vis.length - 1);
   render();
 }
@@ -213,8 +217,9 @@ async function createStyle(junk: boolean): Promise<string | null> {
   return name;
 }
 
-async function addSelected(target: 'open' | 'new'): Promise<void> {
-  const sel = items.filter((it) => it.selected);
+// Grid: the selected images; Single: the image on screen.
+async function addSelected(target: 'open' | 'new', only?: CurateItem): Promise<void> {
+  const sel = only ? [only] : items.filter((it) => it.selected);
   if (!sel.length) { toast('Select some images first.', 2200); return; }
   if (busy) return;
   busy = true;
@@ -264,6 +269,7 @@ function render(): void {
   const body = curateTab.querySelector<HTMLElement>('.curate-body')!;
   body.replaceChildren();
   if (!root) {
+    curateTab.classList.remove('curate-single-mode');
     const empty = el('div', 'curate-empty');
     empty.append(
       el('p', '', 'Open a folder of images to look through before they go into a dataset: pick the ones to keep, add them to your dataset or start a new one, and sort an artist\'s different styles into their own folders.'),
@@ -271,6 +277,8 @@ function render(): void {
     body.appendChild(empty);
     return;
   }
+  // Single fills the tab's height (image | assign column) instead of scrolling.
+  curateTab.classList.toggle('curate-single-mode', view === 'single' && items.length > 0);
   body.appendChild(toolbar());
   if (!items.length) { body.appendChild(el('div', 'curate-empty', 'No images in this folder.')); return; }
   const vis = visibleItems();
@@ -278,39 +286,41 @@ function render(): void {
   body.appendChild(view === 'grid' ? renderGrid(vis) : renderSingle(vis));
 }
 
+// One wrapping row: the controls fill the width before a second line starts.
+// The selection controls are Grid-only (in Single, the image on screen is
+// what every action applies to — they live in the side column there).
 function toolbar(): HTMLElement {
-  const bar = el('div', 'curate-toolbar');
-  const head = el('div', 'curate-row');
-  head.append(el('span', 'curate-folder', root!.name),
+  const bar = el('div', 'curate-toolbar curate-row');
+  bar.append(el('span', 'curate-folder', root!.name),
     btn('Open folder…', 'Curate a different folder', () => void openFolder()),
     btn('Rescan', 'Re-read the folder from disk', () => { if (root) void loadFolder(root); }));
   const views = el('div', 'curate-seg');
   views.append(
     btn('Grid', 'All images as a grid', () => { view = 'grid'; render(); }, view === 'grid' ? 'active' : ''),
-    btn('Single', 'One image at a time (← / → to move, Space to select)', () => { view = 'single'; render(); }, view === 'single' ? 'active' : ''));
-  head.appendChild(views);
+    btn('Single', 'One image at a time (← / → to move, 0–9 to assign)', () => { view = 'single'; render(); }, view === 'single' ? 'active' : ''));
+  bar.appendChild(views);
   const show = el('label', 'curate-label', 'Show');
   show.appendChild(styleSelect(filter, (v) => { filter = v; index = 0; lastClicked = -1; render(); }, { all: true }));
-  head.appendChild(show);
-  bar.appendChild(head);
+  bar.appendChild(show);
+  if (view === 'single') return bar;
 
   const sel = items.filter((it) => it.selected);
-  const row = el('div', 'curate-row');
-  row.append(el('span', 'curate-count', `${sel.length} selected`),
+  bar.append(el('span', 'curate-sep'), el('span', 'curate-count', `${sel.length} selected`),
     btn('Select all', 'Select every image shown', () => { for (const it of visibleItems()) it.selected = true; render(); }),
     btn('Select none', 'Clear the selection', () => { for (const it of items) it.selected = false; render(); }));
-  const assignTo = el('label', 'curate-label', 'Assign selected to');
+  const assignTo = el('label', 'curate-label', 'Assign to');
   assignTo.appendChild(styleSelect('\u0000', (v) => void assign(sel, v), { placeholder: 'Choose…' }));
-  row.append(assignTo,
+  bar.append(assignTo,
     btn('Create artstyle…', 'Make a folder for one of the artist\'s styles, so styles don\'t mix in a dataset', () => void createStyle(false)));
-  if (!styles.includes(JUNK)) row.appendChild(btn('Create junk folder', 'A folder for images that aren\'t worth training on', () => void createStyle(true), 'curate-junk-btn'));
-  const add = el('div', 'curate-row curate-add');
-  add.append(
+  if (!styles.includes(JUNK)) bar.appendChild(btn('Create junk folder', 'A folder for images that aren\'t worth training on', () => void createStyle(true), 'curate-junk-btn'));
+  bar.append(el('span', 'curate-sep'),
     btn('Add selected to dataset', 'Copy the selected images (and their captions) into the open dataset', () => void addSelected('open'), 'primary'),
     btn('New dataset from selected…', 'Make a new dataset folder and copy the selected images into it', () => void addSelected('new')));
-  bar.append(row, add);
   return bar;
 }
+
+// Single view's assign keys: 0 = Unsorted, 1–9 = the artstyles in order.
+const stackStyles = (): string[] => [UNSORTED, ...styles];
 
 function renderGrid(vis: CurateItem[]): HTMLElement {
   const grid = el('div', 'curate-grid');
@@ -351,17 +361,48 @@ function renderGrid(vis: CurateItem[]): HTMLElement {
   return grid;
 }
 
+// Two columns: the image as large as the tab allows, and a side column with
+// navigation, one button per artstyle (rapid assigning: a click or its
+// number key moves the image there and goes on to the next), and the
+// dataset actions for this image.
 function renderSingle(vis: CurateItem[]): HTMLElement {
   index = Math.max(0, Math.min(index, vis.length - 1));
   const it = vis[index];
   const wrap = el('div', 'curate-single');
-  const nav = el('div', 'curate-row curate-nav');
-  const prev = btn('‹ Prev', 'Previous image (←)', () => step(-1));
-  const next = btn('Next ›', 'Next image (→)', () => step(1));
+  const side = el('div', 'curate-side');
+  const nav = el('div', 'curate-nav');
+  const prev = btn('‹', 'Previous image (←)', () => step(-1));
+  const next = btn('›', 'Next image (→)', () => step(1));
   prev.disabled = index === 0;
   next.disabled = index >= vis.length - 1;
-  nav.append(prev, el('span', 'curate-pos', `${index + 1} / ${vis.length}`), next,
-    el('span', 'curate-name', it.name), badge(it.style));
+  nav.append(prev, el('span', 'curate-pos', `${index + 1} / ${vis.length}`), next);
+  const name = el('div', 'curate-single-name');
+  name.append(el('span', 'curate-name', it.name), badge(it.style));
+  name.title = it.name;
+  side.append(nav, name, el('div', 'curate-side-title', 'Assign to'));
+  const stack = el('div', 'curate-stack');
+  stackStyles().forEach((st, k) => {
+    const b = btn('', st === it.style ? `Already in ${styleLabel(st)}` : `Move to ${styleLabel(st)} and show the next image (${k})`,
+      () => void assign([it], st, true),
+      'curate-stack-btn' + (st === it.style ? ' current' : '') + (st === JUNK ? ' junk' : st === UNSORTED ? ' none' : ''));
+    if (k <= 9) b.appendChild(el('kbd', '', String(k)));
+    b.append(styleLabel(st));
+    stack.appendChild(b);
+  });
+  stack.appendChild(btn('+ Create Artstyle…', 'Make a folder for one of the artist\'s styles and put this image in it. Artstyles keep an artist\'s styles apart, so a dataset never mixes one with another.', async () => {
+    const n = await createStyle(false);
+    if (n) await assign([it], n, true);
+  }, 'curate-stack-btn create'));
+  if (!styles.includes(JUNK)) stack.appendChild(btn('+ Create junk folder', 'A red folder for images that aren\'t worth training on (this image goes there)', async () => {
+    const n = await createStyle(true);
+    if (n) await assign([it], n, true);
+  }, 'curate-stack-btn create junk'));
+  side.appendChild(stack);
+  const add = el('div', 'curate-side-add');
+  add.append(
+    btn('Add to dataset', 'Copy this image (and its caption) into the open dataset', () => void addSelected('open', it), 'primary'),
+    btn('New dataset with it…', 'Make a new dataset folder and copy this image into it', () => void addSelected('new', it)));
+  side.appendChild(add);
   const stage = el('div', 'curate-stage');
   const img = el('img');
   img.alt = it.name;
@@ -374,27 +415,7 @@ function renderSingle(vis: CurateItem[]): HTMLElement {
     for (const n of [vis[index + 1], vis[index - 1]]) if (n) void urlOf(n).then((nu) => { const p = new Image(); p.src = nu; }).catch(() => undefined);
   }).catch(() => undefined);
   stage.appendChild(img);
-  const acts = el('div', 'curate-row curate-single-acts');
-  const selBox = el('label', 'curate-label');
-  const cb = el('input');
-  cb.type = 'checkbox';
-  cb.checked = it.selected;
-  cb.addEventListener('change', () => { it.selected = cb.checked; render(); });
-  selBox.append(cb, ' Selected (Space)');
-  const assignTo = el('label', 'curate-label', 'Assign to:');
-  assignTo.appendChild(styleSelect(it.style, (v) => void assign([it], v)));
-  acts.append(selBox, assignTo,
-    btn('Create Artstyle…', 'Make a folder for one of the artist\'s styles and put this image in it. Artstyles keep an artist\'s styles apart, so a dataset never mixes one with another.', async () => {
-      const name = await createStyle(false);
-      if (name) await assign([it], name);
-    }));
-  if (!styles.includes(JUNK)) acts.appendChild(btn('Create junk folder', 'A folder for images that aren\'t worth training on (this image goes there)', async () => {
-    const name = await createStyle(true);
-    if (name) await assign([it], name);
-  }, 'curate-junk-btn'));
-  else acts.appendChild(btn('Junk it', 'Move this image to the junk folder', () => void assign([it], JUNK), 'curate-junk-btn'));
-  // Actions above the image: they stay in reach on a short window.
-  wrap.append(nav, acts, stage);
+  wrap.append(stage, side);
   return wrap;
 }
 
@@ -435,13 +456,13 @@ export function initCurate(d: CurateDeps): void {
       ev.preventDefault();
       ev.stopPropagation();
       step(ev.key === 'ArrowLeft' ? -1 : 1);
-    } else if (ev.key === ' ') {
+    } else if (/^[0-9]$/.test(ev.key) && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+      const st = stackStyles()[Number(ev.key)];
       const it = visibleItems()[index];
-      if (!it) return;
+      if (st === undefined || !it) return;
       ev.preventDefault();
       ev.stopPropagation();
-      it.selected = !it.selected;
-      render();
+      void assign([it], st, true);
     }
   }, true);
 }
