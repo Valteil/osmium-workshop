@@ -58,6 +58,10 @@
       "build/icon.png",
       "build/theme-icons/*.ico"
     ],
+    "extraFiles": [
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md"
+    ],
     "directories": {
       "output": "dist"
     },

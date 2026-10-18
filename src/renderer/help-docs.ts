@@ -314,7 +314,10 @@ export const HELP_SECTIONS: HelpSection[] = [
     id: 'step-trainflow',
     title: '8 · Train with Trainflow',
     html: `
-      <p>Trains a LoRA for <b>Anima</b>, or <b>Janima</b>, on the dataset you have loaded. It uses your own
+      <p><b>Get the trainer first:</b> download <code>Anima-TrainFlow-Osmium</code> from the release page,
+      unzip it (about 8 GB free) and run its <code>Install_Requirements.bat</code> once — it downloads
+      PyTorch and the trainer's packages (about 5 GB).</p>
+      <p>Trains a LoRA for <b>Anima</b>, or <b>Janima</b>, on the dataset you have loaded. It uses that
       Anima-TrainFlow folder (the one with <code>python_embeded</code> and <code>training</code>)
       for Python and the trainer, and your own Anima or Janima DiT, Qwen3 and VAE files (choose them once;
       the fields start empty). The first time you open a folder, Osmium caches it so Trainflow can

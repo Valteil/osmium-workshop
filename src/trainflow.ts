@@ -704,10 +704,12 @@ async function bucketDataset(dir: string, b: { min: number; max: number; step: n
   }
 }
 
-function checkCuda(python: string, cwd: string): Promise<boolean> {
+// 'notorch': the trainer's Python has no PyTorch yet — Osmium's Anima-TrainFlow
+// release ships without its packages, so Install_Requirements.bat hasn't been run.
+function checkCuda(python: string, cwd: string): Promise<'ok' | 'nogpu' | 'notorch'> {
   return new Promise((resolve) => {
-    execFile(python, ['-c', 'import torch; print(torch.cuda.is_available())'], { cwd, timeout: 90000, windowsHide: true }, (err, stdout) => {
-      resolve(!err && /True/.test(stdout));
+    execFile(python, ['-c', 'import importlib.util as u, sys\nif u.find_spec("torch") is None: print("NOTORCH"); sys.exit(0)\nimport torch; print(torch.cuda.is_available())'], { cwd, timeout: 90000, windowsHide: true }, (err, stdout) => {
+      resolve(/NOTORCH/.test(stdout) ? 'notorch' : !err && /True/.test(stdout) ? 'ok' : 'nogpu');
     });
   });
 }
@@ -960,7 +962,11 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
   const check = checkDataset(datasetDir!, bucketCfg, true);
   if (!check.ok) return { ok: false, errors: check.errors };
 
-  if (!(await checkCuda(inst.python, inst.scriptsDir))) {
+  const cuda = await checkCuda(inst.python, inst.scriptsDir);
+  if (cuda === 'notorch') {
+    return { ok: false, errors: [`Anima-TrainFlow's Python packages aren't installed yet. Run Install_Requirements.bat in ${inst.root} once (it downloads PyTorch and the trainer's packages, about 5 GB), then press Start again.`] };
+  }
+  if (cuda === 'nogpu') {
     return { ok: false, errors: ['No NVIDIA GPU / CUDA found by PyTorch. Training on CPU isn\'t supported. Update your NVIDIA drivers and try again.'] };
   }
   const attnError = await checkAttentionBackend(s.advAttn, inst.python, inst.scriptsDir);

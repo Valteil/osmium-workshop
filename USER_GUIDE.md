@@ -600,6 +600,11 @@ loaded (desktop only). It uses your own
 and `training`) for Python and the trainer; its own app never needs to run, and Osmium's WD14 and
 Bucket Images do the dataset prep.
 
+**Get the trainer:** download `Anima-TrainFlow-Osmium-<version>.zip` from the release, unzip it
+somewhere with about 8 GB free and run its `Install_Requirements.bat` once (it downloads PyTorch and
+the trainer's packages, about 5 GB, at the versions Trainflow is tested with). It's Anima-TrainFlow
+with a newer sd-scripts and the patches Trainflow needs.
+
 **Set up once:** choose the Anima-TrainFlow folder, then pick your own Anima or Janima DiT, Qwen3 text
 encoder and VAE (the fields stay empty until you do). On first loading a folder, Osmium caches it so
 Trainflow can resolve its real path on its own (the folder picker doesn't expose paths); it only asks
