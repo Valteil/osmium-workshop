@@ -555,7 +555,7 @@ async function runAffected(logEntry: EditLogEntry, a: EditLogAffected, direction
   const count = await applyAffectedDirection(logEntry, a, direction);
   // A missing image's buttons are disabled, so a 0 here means the edit's own
   // data is gone (e.g. a pixel/isolate edit's session-only before/after bytes).
-  if (count === 0){ toast('That edit can no longer be applied.'); return; }
+  if (count === 0){ toast(`Nothing changed: this image is already ${direction === 'undo' ? 'without' : 'with'} that edit (or its data is gone).`, 3600); return; }
   const verb = direction === 'undo' ? 'Undid' : 'Redid';
   pushLogEntry({ type: direction, summary: `${verb} (from log): ${logEntry.summary}`, affected: [a] });
   trackStatRef(direction === 'undo' ? 'undos' : 'redos');
@@ -800,8 +800,10 @@ export function initEditLog(deps: EditLogDeps): void {
     if (editLog.length === 0) return;
     const ok = await showConfirmModal(`Clear all ${editLog.length} log entries for this folder? This cannot be undone.`, { okLabel: 'Clear log', danger: true });
     if (!ok) return;
+    // logIdCounter keeps counting: crop/rotate/isolate undo payloads are keyed by
+    // log id and outlive the log on the undo stack, so restarting at 1 would let a
+    // new edit's payload overwrite one an older Undo still needs.
     editLog = [];
-    logIdCounter = 1;
     updateLogButton();
     saveEditLog();
     renderLogPanel();

@@ -75,6 +75,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   Continue training lists checkpoints from all of them.
 - **Trainflow: Send a checkpoint** to a folder of yours (ComfyUI's `loras`, say) under a name you
   choose, with a favorite folder that's remembered. Nothing already there is overwritten.
+- **Fixed: Undo/Redo and the Log getting out of step.** Undoing an older edit from the Log no longer
+  wipes the tag changes you made after it; only that edit is reversed. After **Rename all**, Undo
+  and the Log's buttons follow the images to their new names instead of acting on whatever image now
+  has the old name. A step that was already undone from the Log no longer blocks Undo for older
+  steps. Clearing the log no longer breaks undoing crops, rotates and splits.
 - **Fixed: Rename all could delete images.** If a rename stopped partway, the files were left with
   temporary `__dts_rename_tmp_…` names, and running Rename all again could delete some of them.
   Rename all now checks every file first, puts everything back if it stops partway, and never

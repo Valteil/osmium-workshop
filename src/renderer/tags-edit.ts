@@ -11,7 +11,7 @@ import { writeBytes } from './fs-access';
 import { btnUndo, btnRedo, btnSave, dirtyCountEl, includeDisabledToggle, autosaveToggle } from './dom';
 import { toast, showConfirmModal } from './shared-ui';
 import { trackStat, checkAchievements, checkVoidThemeAchievements, folderStats, saveFolderStats } from './achievements';
-import { pushLogEntry, editLog, PIXEL_TYPES, ISOLATE_TYPES, REVIEW_TYPES } from './edit-log';
+import { pushLogEntry, editLog, saveEditLog, PIXEL_TYPES, ISOLATE_TYPES, REVIEW_TYPES } from './edit-log';
 import { applyCanonicalRules, registerMergeRule, registerVoidRule, findBlockingRule, saveCanonicalRules } from './canonical-tags';
 
 export let undoStack: ChangeRecord[] = [];
@@ -187,13 +187,15 @@ export function updateDirtyUI(): void {
 }
 
 export function resetImageEdits(entry: Entry): void {
+  // An original_images/ copy shares its Gallery twin's stem: match the flag too.
+  const mine = (a: EditLogAffected) => a.base === entry.base && !!a.original === !!entry.original;
   const relevant = editLog.filter(le =>
-    le.affected && le.affected.some(a => a.base === entry.base && a.prevTags) &&
+    le.affected && le.affected.some(a => mine(a) && a.prevTags) &&
     le.type !== 'restore' && le.type !== 'disable' && le.type !== 'undo' && le.type !== 'redo' && le.type !== 'reset-edits'
   );
   if (relevant.length === 0){ toast('No edit history found for this image yet.'); return; }
   const first = relevant[0];
-  const affectedItem = first.affected.find(a => a.base === entry.base);
+  const affectedItem = first.affected.find(a => mine(a) && a.prevTags);
   const prevTags = entry.tags.slice();
   entry.tags = affectedItem!.prevTags!.slice();
   markDirty(entry);
@@ -278,6 +280,40 @@ export function recordChange(type: string, summary: string, affected: EditLogAff
   return record;
 }
 
+// Files that changed stem (Rename all, or a rename undone/redone from the Log) are
+// still named by their OLD stem in every other record — the undo/redo stacks, older
+// log rows, isolate payload keys — so those would resolve to nothing, or to a
+// different image that now has that name. Rewrite them in one pass (one map, so a
+// permuted renumbering can't chain). `skip` = the rename's own rows, which keep
+// prevBase/base as their own before/after.
+export function remapBases(map: Map<string, string>, skip: EditLogAffected[] = []): void {
+  if (!map.size) return;
+  const skipSet = new Set(skip);
+  const restem = (name: string | undefined, oldBase: string, newBase: string): string | undefined => {
+    if (!name) return name;
+    const i = name.lastIndexOf('.');
+    return (i === -1 ? name : name.slice(0, i)) === oldBase ? newBase + (i === -1 ? '' : name.slice(i)) : name;
+  };
+  const fix = (a: EditLogAffected): void => {
+    if (skipSet.has(a)) return;
+    const next = map.get(a.base);
+    if (next === undefined) return;
+    a.newImgName = restem(a.newImgName, a.base, next);
+    a.newTxtName = restem(a.newTxtName, a.base, next);
+    a.base = next;
+  };
+  for (const r of [...undoStack, ...redoStack]) r.affected.forEach(fix);
+  for (const le of editLog) (le.affected || []).forEach(fix);
+  for (const [key, st] of Array.from(isolateStates)){
+    const bar = key.indexOf('|');
+    const next = map.get(key.slice(bar + 1));
+    if (next === undefined) continue;
+    isolateStates.delete(key);
+    isolateStates.set(`${key.slice(0, bar)}|${next}`, st);
+  }
+  saveEditLog();
+}
+
 // entryByBase maps a stem to the Gallery image, but an original_images/ copy
 // shares that stem — a log entry made on the original says so, and resolves
 // to it instead.
@@ -294,14 +330,23 @@ export function resolveAffected(a: EditLogAffected): Entry | undefined {
   return entryForAffected(a);
 }
 
+// Reverses (or re-applies) only what that edit itself changed: the tags it added
+// come off, the ones it removed go back at their old position. Setting the whole
+// before/after snapshot instead wiped every later edit to the image when an older
+// row was undone from the Log (or the Undo stack ran under a rule sweep / Log
+// action). Counts only images that actually changed.
 export function applyTagDirection(affected: EditLogAffected[], direction: string): number {
   let count = 0;
   for (const a of affected){
     const e = entryForAffected(a);
-    if (!e) continue;
-    const target = direction === 'undo' ? a.prevTags : a.newTags;
-    if (!target) continue;
-    e.tags = target.slice();
+    if (!e || !a.prevTags || !a.newTags) continue;
+    const from = direction === 'undo' ? a.newTags : a.prevTags;
+    const to = direction === 'undo' ? a.prevTags : a.newTags;
+    const drop = new Set(from.filter(t => !to.includes(t)));
+    const tags = e.tags.filter(t => !drop.has(t));
+    to.forEach((t, i) => { if (!from.includes(t) && !tags.includes(t)) tags.splice(Math.min(i, tags.length), 0, t); });
+    if (tags.length === e.tags.length && tags.every((t, i) => t === e.tags[i])) continue;
+    e.tags = tags;
     markDirty(e);
     count++;
   }
@@ -605,6 +650,8 @@ export async function renameAllEntriesSequentially(): Promise<void> {
     }
   }
 
+  // Before this rename's own row is logged: every earlier record follows the new stems.
+  remapBases(new Map(affected.map(a => [a.prevBase!, a.base] as const)));
   const convertedNote = converted ? ` ${converted} WebP image(s) converted to PNG.` : '';
   if (affected.length){
     pushLogEntry({
@@ -640,6 +687,7 @@ export async function applyRenameDirection(affected: EditLogAffected[], directio
     return i === -1 ? '' : name.slice(i);
   };
   let count = 0;
+  const moved = new Map<string, string>();
   for (const a of affected){
     if (!a.prevBase || !a.prevImgName || !a.newImgName) continue;
     const fromBase = direction === 'undo' ? a.base : a.prevBase;
@@ -678,9 +726,12 @@ export async function applyRenameDirection(affected: EditLogAffected[], directio
       reindexEntry(fromBase, toBase);
       entry.base = toBase;
       entry.imgName = toImgName;
+      moved.set(fromBase, toBase);
       count++;
     } catch(err){ /* skip this one, keep going with the rest of the batch */ }
   }
+  // Other records follow the file; the rows applied here keep their own before/after.
+  remapBases(moved, affected);
   return count;
 }
 
@@ -735,11 +786,12 @@ export function initTagsEdit(deps: TagsEditDeps): void {
             ? applyFlaggedReviewDirectionRef(record.affected, 'undo')
             : applyTagDirection(record.affected, 'undo');
       if (count === 0){
-        // Nothing on the loaded images reverted: leave the record on the stack
-        // and don't log a phantom "Undid" entry or bump the stats — the log
-        // and Undo depth must only reflect edits that actually happened.
-        undoStack.push(record);
-        toast('Nothing to undo on the currently loaded images.');
+        // Nothing changed (already undone from the Log, or its images are gone):
+        // no phantom "Undid" row or stat — but the step still moves to Redo, so
+        // a dead record can't sit on top and block every older undo.
+        redoStack.push(record);
+        updateUndoRedoButtons();
+        toast('Nothing changed (already undone, or its images aren\'t loaded). Undo again for the step before it.', 3600);
         return;
       }
       redoStack.push(record);
@@ -769,8 +821,9 @@ export function initTagsEdit(deps: TagsEditDeps): void {
             ? applyFlaggedReviewDirectionRef(record.affected, 'redo')
             : applyTagDirection(record.affected, 'redo');
       if (count === 0){
-        redoStack.push(record);
-        toast('Nothing to redo on the currently loaded images.');
+        undoStack.push(record);
+        updateUndoRedoButtons();
+        toast('Nothing changed (already redone, or its images aren\'t loaded). Redo again for the next step.', 3600);
         return;
       }
       undoStack.push(record);
