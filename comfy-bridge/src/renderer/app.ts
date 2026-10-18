@@ -83,7 +83,7 @@ import {
   showImageLightbox, bytesToBase64, base64ToBytes, refreshGallery
 } from './shared/index';
 import type { StorageBackend, DirEntry } from './shared/storage';
-import { buildSynthDatPrompt } from '../comfy-core';
+import { buildSynthDatPrompt, RES4LYF_PREFIX } from '../comfy-core';
 
 function $<T extends HTMLElement>(id: string): T { return document.getElementById(id) as T; }
 
@@ -769,11 +769,19 @@ attachPickerModal(upscaleModel, 'Upscale model', () => optionsFromDatalist(upsca
 // value off the list ComfyUI actually supports.
 // Desktop note: local disk doesn't hold these lists; they're live node
 // schema, hence the object_info fetch rather than a datalist copy.
-attachPickerModal(sampler, 'Sampler', () => bridgeSamplerOptions);
+// RES4LYF's samplers (when the pack is installed) come after the stock ones,
+// prefixed "res4lyf:" so the prompt builder swaps in its ClownSampler node.
+// USDU keeps the stock list: its node takes a stock sampler name only.
+attachPickerModal(sampler, 'Sampler', () => [...bridgeSamplerOptions, ...bridgeRes4lyfOptions]);
 attachPickerModal(scheduler, 'Scheduler', () => bridgeSchedulerOptions);
 let bridgeSamplerOptions: string[] = [];
+let bridgeRes4lyfOptions: string[] = [];
 let bridgeSchedulerOptions: string[] = [];
 async function refreshSamplerLists(): Promise<void> {
+  // First: asking for ClownSampler loads RES4LYF in the local runner, which also
+  // adds its schedulers (beta57, bong_tangent) to the KSampler list read below.
+  const r4 = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'ClownSampler_Beta', inputName: 'sampler_name' });
+  bridgeRes4lyfOptions = r4.ok && r4.values ? r4.values.filter(v => v !== 'none').map(v => RES4LYF_PREFIX + v) : [];
   const res = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'KSampler', inputName: 'sampler_name' });
   if (res.ok && res.values) bridgeSamplerOptions = res.values;
   const res2 = await window.electronAPI.synthdatGetObjectInfo({ host: getHost(), classType: 'KSampler', inputName: 'scheduler' });
@@ -1753,7 +1761,7 @@ async function applyImportedPrompt(prompt: Record<string, any>): Promise<void> {
 
   logDroppedLoras(await applySavedPromptText(prompt, singleBox));
 
-  setVal(sampler, s('168:167', 'sampler_name'));
+  setVal(sampler, (prompt['168:167']?.class_type === 'ClownSampler_Beta' ? RES4LYF_PREFIX : '') + s('168:167', 'sampler_name'));
   setVal(scheduler, s('158:53', 'scheduler') || s('195', 'scheduler'));
   if (s('158:53', 'steps')) steps1.value = s('158:53', 'steps');
   setVal(cfg1, s('158:54', 'cfg'));

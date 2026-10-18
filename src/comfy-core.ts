@@ -98,6 +98,9 @@ export interface SynthDatPromptConfig {
   upscale?: SynthDatUpscaleConfig;
 }
 
+// Sampler values Comfy Bridge lists from RES4LYF's ClownSampler carry this prefix.
+export const RES4LYF_PREFIX = 'res4lyf:';
+
 export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromptConfig): SynthDatPrompt {
   const prompt: SynthDatPrompt = JSON.parse(JSON.stringify(template));
   const character = [cfg.unified ? cfg.unifiedPrompt : cfg.character, cfg.characterTrigger].filter(Boolean).join(', ');
@@ -205,7 +208,18 @@ export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromp
   // Sampler/scheduler: the template's switch (169) just picks between two
   // hardcoded KSamplerSelect nodes — write the user's choice into the one it's
   // pinned to select (168:167) rather than exposing that switch.
-  prompt['168:167'].inputs.sampler_name = cfg.sampler;
+  // A RES4LYF sampler only exists inside its own ClownSampler node, which
+  // outputs a SAMPLER just like KSamplerSelect, so it takes that node's place
+  // (RES4LYF's defaults: eta 0.5, bongmath on; seeded like pass 1).
+  if (cfg.sampler.startsWith(RES4LYF_PREFIX)) {
+    prompt['168:167'] = {
+      class_type: 'ClownSampler_Beta',
+      inputs: { eta: 0.5, sampler_name: cfg.sampler.slice(RES4LYF_PREFIX.length), seed: parseInt(cfg.seed1, 10) || 0, bongmath: true },
+      _meta: { title: 'ClownSampler (RES4LYF)' }
+    };
+  } else {
+    prompt['168:167'].inputs.sampler_name = cfg.sampler;
+  }
   prompt['158:53'].inputs.scheduler = cfg.scheduler;
   prompt['158:53'].inputs.steps = parseInt(cfg.steps1, 10) || 1;
   prompt['158:54'].inputs.cfg = parseFloat(cfg.cfg1) || 1;

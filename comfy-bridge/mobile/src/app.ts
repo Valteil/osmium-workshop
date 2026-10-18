@@ -32,6 +32,7 @@ interface Window {
 }
 declare const BridgeShared: {
   buildSynthDatPrompt: (template: any, cfg: any) => any;
+  RES4LYF_PREFIX: string;
   parseComboValues: (nodeInfo: any, inputName: string) => string[] | null;
   buildGenInfoPanel: (src: string, onUse: (prompt: Record<string, any>, promptsOnly: boolean) => void, relPath?: string, relocate?: unknown,
     opts?: { loraTools?: any; labels?: { full: string; prompts: string }; info?: { prompt: Record<string, any>; kind: null } | null }) => HTMLElement | null;
@@ -2231,7 +2232,7 @@ declare const BridgeShared: {
 
     logDroppedLoras(await applySavedPromptText(prompt, singleBox));
 
-    setVal(sampler, s('168:167', 'sampler_name'));
+    setVal(sampler, (prompt['168:167']?.class_type === 'ClownSampler_Beta' ? BridgeShared.RES4LYF_PREFIX : '') + s('168:167', 'sampler_name'));
     setVal(scheduler, s('158:53', 'scheduler') || s('195', 'scheduler'));
     if (s('158:53', 'steps')) steps1.value = s('158:53', 'steps');
     setVal(cfg1, s('158:54', 'cfg'));
@@ -2532,11 +2533,18 @@ declare const BridgeShared: {
   // as the model fields — source is the host's KSampler object_info (the
   // canonical ComfyUI lists), fetched once at startup and refreshable via
   // refreshSamplerLists() from the Refresh model lists button.
-  BridgeShared.attachPickerModal(sampler, 'Sampler', () => bridgeSamplerOptions);
+  // RES4LYF's samplers follow the stock ones, prefixed "res4lyf:" (the prompt
+  // builder swaps in its ClownSampler node); USDU keeps the stock list.
+  BridgeShared.attachPickerModal(sampler, 'Sampler', () => [...bridgeSamplerOptions, ...bridgeRes4lyfOptions]);
   BridgeShared.attachPickerModal(scheduler, 'Scheduler', () => bridgeSchedulerOptions);
   let bridgeSamplerOptions: string[] = [];
+  let bridgeRes4lyfOptions: string[] = [];
   let bridgeSchedulerOptions: string[] = [];
   async function refreshSamplerLists() {
+    // First: asking for ClownSampler loads RES4LYF on the home PC's runner,
+    // which also adds its schedulers to the KSampler list read below.
+    const r4 = await comfyGetObjectInfo('ClownSampler_Beta', 'sampler_name');
+    bridgeRes4lyfOptions = r4.ok ? r4.values.filter((v: string) => v !== 'none').map((v: string) => BridgeShared.RES4LYF_PREFIX + v) : [];
     const res = await comfyGetObjectInfo('KSampler', 'sampler_name');
     if (res.ok) bridgeSamplerOptions = res.values;
     const res2 = await comfyGetObjectInfo('KSampler', 'scheduler');

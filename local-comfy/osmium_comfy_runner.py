@@ -361,7 +361,10 @@ def load_nodes():
 # user's custom_nodes the first time a prompt or a model list needs one of
 # their nodes, so startup is unchanged and a missing pack only matters to the
 # feature that uses it.
-OPTIONAL_PACKS = {"UltimateSDUpscale": "ComfyUI_UltimateSDUpscale", "WD14Tagger|pysssss": "ComfyUI-WD14-Tagger"}
+# RES4LYF (2026-10-18): its res_2m/res_2s/... samplers only exist inside its own
+# ClownSampler node, which Comfy Bridge swaps in for KSamplerSelect.
+OPTIONAL_PACKS = {"UltimateSDUpscale": "ComfyUI_UltimateSDUpscale", "WD14Tagger|pysssss": "ComfyUI-WD14-Tagger",
+                  "ClownSampler_Beta": "RES4LYF"}
 _OPTIONAL_TRIED = set()
 _OPTIONAL_LOCK = threading.Lock()
 
