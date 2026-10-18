@@ -637,6 +637,7 @@ function renderGrid(vis: CurateItem[]): HTMLElement {
     card.appendChild(res);
     card.append(img, check, foot);
     card.addEventListener('click', (ev) => {
+      if (dragJustEnded) return; // the click that ends a drag-select
       if (ev.shiftKey && lastClicked >= 0) {
         const [a, b] = [Math.min(lastClicked, i), Math.max(lastClicked, i)];
         for (let k = a; k <= b; k++) setSelected(k, true);
@@ -650,6 +651,79 @@ function renderGrid(vis: CurateItem[]): HTMLElement {
     cards.push(card);
     grid.appendChild(card);
   });
+
+  // ---- Drag selection: press anywhere in the grid (on a card too) and drag
+  // a box; every card it touches is selected, on top of what already was.
+  // Alt-drag deselects instead. Under 6px of movement it's a plain click.
+  // Near the top/bottom edge the grid scrolls, and the box keeps growing.
+  let dragJustEnded = false;
+  const marquee = el('div', 'curate-marquee');
+  let drag: { x0: number; y0: number; x: number; y: number; deselect: boolean; base: boolean[]; boxes: DOMRect[]; on: boolean; id: number } | null = null;
+  let autoScroll = 0;
+  const point = (cx: number, cy: number) => { const g = grid.getBoundingClientRect(); return { x: cx - g.left, y: cy - g.top }; };
+  let lastClient = { x: 0, y: 0 };
+  const apply = () => {
+    if (!drag) return;
+    const p = point(lastClient.x, lastClient.y);
+    drag.x = p.x; drag.y = p.y;
+    const l = Math.min(drag.x0, drag.x), t = Math.min(drag.y0, drag.y);
+    const r = Math.max(drag.x0, drag.x), b = Math.max(drag.y0, drag.y);
+    Object.assign(marquee.style, { left: `${l}px`, top: `${t}px`, width: `${r - l}px`, height: `${b - t}px` });
+    drag.boxes.forEach((c, k) => {
+      const hit = c.left < r && c.right > l && c.top < b && c.bottom > t;
+      const want = hit ? !drag!.deselect : drag!.base[k];
+      if (vis[k].selected !== want) setSelected(k, want);
+    });
+    if (countEl) countEl.textContent = `${items.filter((x) => x.selected).length} selected`;
+  };
+  const tick = () => {
+    if (!drag || !drag.on) { autoScroll = 0; return; }
+    const s = scroller.getBoundingClientRect(), edge = 48;
+    const dy = lastClient.y < s.top + edge ? -(s.top + edge - lastClient.y) : lastClient.y > s.bottom - edge ? lastClient.y - (s.bottom - edge) : 0;
+    if (dy) { scroller.scrollTop += Math.max(-30, Math.min(30, dy / 2)); apply(); }
+    autoScroll = requestAnimationFrame(tick);
+  };
+  grid.addEventListener('pointerdown', (ev) => {
+    if (ev.button !== 0 || ev.pointerType === 'touch') return; // touch scrolls
+    const p = point(ev.clientX, ev.clientY);
+    const g = grid.getBoundingClientRect();
+    drag = {
+      x0: p.x, y0: p.y, x: p.x, y: p.y, deselect: ev.altKey, on: false, id: ev.pointerId,
+      base: vis.map((it) => it.selected),
+      boxes: cards.map((c) => { const r = c.getBoundingClientRect(); return new DOMRect(r.left - g.left, r.top - g.top, r.width, r.height); })
+    };
+    lastClient = { x: ev.clientX, y: ev.clientY };
+  });
+  grid.addEventListener('pointermove', (ev) => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    lastClient = { x: ev.clientX, y: ev.clientY };
+    if (!drag.on) {
+      const p = point(ev.clientX, ev.clientY);
+      if (Math.hypot(p.x - drag.x0, p.y - drag.y0) < 6) return;
+      drag.on = true;
+      try { grid.setPointerCapture(ev.pointerId); } catch { /* best effort */ }
+      grid.classList.add('dragging');
+      grid.appendChild(marquee);
+      autoScroll = requestAnimationFrame(tick);
+    }
+    ev.preventDefault();
+    apply();
+  });
+  const end = (ev: PointerEvent) => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    const was = drag.on;
+    drag = null;
+    cancelAnimationFrame(autoScroll);
+    marquee.remove();
+    grid.classList.remove('dragging');
+    if (was) {
+      // Swallow the click the browser fires after the drag.
+      dragJustEnded = true;
+      setTimeout(() => { dragJustEnded = false; }, 0);
+    }
+  };
+  grid.addEventListener('pointerup', end);
+  grid.addEventListener('pointercancel', end);
   return grid;
 }
 

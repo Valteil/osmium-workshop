@@ -2671,7 +2671,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   #curateTab select:focus{ border-color: var(--accent-manual); outline: none; }
   .curate-junk-btn{ color: var(--accent-danger); }
-  .curate-grid{ display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .curate-grid{ position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .curate-grid.dragging{ user-select: none; cursor: crosshair; }
+  .curate-grid.dragging .curate-card{ cursor: crosshair; }
+  .curate-marquee{
+    position: absolute; z-index: 2; pointer-events: none; border-radius: 3px;
+    border: 1px solid var(--accent-manual); background: color-mix(in srgb, var(--accent-manual) 16%, transparent);
+  }
   .curate-card{
     position: relative; display: flex; flex-direction: column; min-width: 0; cursor: pointer; user-select: none;
     background: var(--bg-panel); border: 2px solid transparent; border-radius: var(--r-card); overflow: hidden;

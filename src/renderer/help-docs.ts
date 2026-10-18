@@ -122,7 +122,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       every folder you've curated stays as a tile — click it to go back to where you left off, even
       after a restart (<b>‹ Folders</b> returns to the list). An open folder shows every image in it as a <b>Grid</b>, or one at a time in
       <b>Single</b> (← / → or the ‹ › buttons; click the image to zoom). In the grid, click images
-      to select them (Shift-click for a range, double-click to open one), then <b>Add selected to
+      to select them (Shift-click for a range, drag a box across several — Alt-drag deselects —
+      double-click to open one), then <b>Add selected to
       dataset</b> copies them, and any <code>.txt</code> captions they have, into the open dataset,
       or <b>New dataset from selected…</b> makes a new dataset folder for them. In Single, those
       actions apply to the image on screen. Each image shows its resolution; one with both sides

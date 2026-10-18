@@ -450,7 +450,9 @@ before anything goes into a dataset. It sits next to the Datasets tab.
   at a time, as large as the window allows, with the controls in a column on the right. Move with
   ← / → or the ‹ › buttons, click the image to zoom in. Double-click a grid image to open it in
   Single.
-- **Grid:** click images to select them (Shift-click selects a range); **Select all** / **Select
+- **Grid:** click images to select them (Shift-click selects a range), or drag a box across them
+  (start anywhere, even on an image; dragging to the top or bottom edge scrolls). A drag adds to
+  what's already selected; **Alt**-drag deselects instead. **Select all** / **Select
   none** act on what's shown. **Add selected to dataset** copies them into the open dataset, each
   with its `.txt` caption if it has one (otherwise an empty one), same as File ▸ Add images.
   **New dataset from selected…** makes a new dataset folder (you name it and pick where it goes)
