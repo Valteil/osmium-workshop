@@ -656,7 +656,9 @@ Progress, speed, ETA, loss, the log, preview images and checkpoints update live.
 **It keeps going without Osmium.** Closing Osmium while training warns you and, if you close anyway,
 training carries on and finishes by itself. Reopen Osmium and open the tab to reconnect. **Stop** ends
 the run for good. Checkpoints and the final LoRA are in the Anima-TrainFlow folder under
-`training/output/<project>/`; **Checkpoints** opens it.
+`training/output/<project>/`; **Checkpoints** opens it. Training the same trigger word again starts a
+new folder (`<project>_2`, `_3`, …, with the LoRA named the same) instead of reusing the old one, so
+there's nothing to clean out first. Continuing a run keeps it in its own folder.
 
 **Continue training** (when a run ended too early, e.g. step 600 isn't quite there): pick one of the
 project's checkpoints in **Start from**, set **More steps**, and the button becomes **Continue

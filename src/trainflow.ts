@@ -767,26 +767,48 @@ function stateStep(dir: string): number {
   } catch { return 0; }
 }
 
+// A trigger's output folders: `<project>` and, from retraining, `<project>_2`, `_3`, …
+function isProjectFolder(project: string, folder: string): boolean {
+  return folder === project || (folder.startsWith(project + '_') && /^\d+$/.test(folder.slice(project.length + 1)));
+}
+function projectFolders(base: string, project: string): string[] {
+  try {
+    return fs.readdirSync(base, { withFileTypes: true }).filter(e => e.isDirectory() && isProjectFolder(project, e.name)).map(e => e.name);
+  } catch { return []; }
+}
+// A fresh run never reuses a folder that already has something in it: retraining the
+// same trigger goes to `<project>_2`, `_3`, … (and its LoRA is named after that folder).
+function freshProjectFolder(base: string, project: string): string {
+  const used = (name: string) => { try { return fs.readdirSync(path.join(base, name)).length > 0; } catch { return false; } };
+  if (!used(project)) return project;
+  let n = 2;
+  while (used(`${project}_${n}`)) n++;
+  return `${project}_${n}`;
+}
+
 function listContinueOptions(trigger: string): TrainflowContinueOption[] {
   const resolved = resolveInstall(readFolder());
   if (!('install' in resolved)) return [];
-  const outDir = path.join(resolved.install.outputBase, sanitizeProject(String(trigger || '')));
-  let entries: fs.Dirent[];
-  try { entries = fs.readdirSync(outDir, { withFileTypes: true }); } catch { return []; }
+  const base = resolved.install.outputBase;
   const out: TrainflowContinueOption[] = [];
-  for (const e of entries) {
-    const full = path.join(outDir, e.name);
-    let mtime = 0;
-    try { mtime = fs.statSync(full).mtimeMs; } catch { continue; }
-    if (e.isFile() && /\.safetensors$/i.test(e.name)) {
-      const m = STEP_FILE_RE.exec(e.name);
-      const run = m ? m[1] : e.name.replace(/\.safetensors$/i, '');
-      const step = m ? Number(m[2]) : configSteps(outDir, run);
-      out.push({ id: 'weights:' + e.name, kind: 'weights', name: e.name, run, step, mtime, outputName: warmStartName(run, step) });
-    } else if (e.isDirectory()) {
-      const m = STATE_DIR_RE.exec(e.name);
-      const step = m ? stateStep(full) : 0;
-      if (m && step) out.push({ id: 'state:' + e.name, kind: 'state', name: e.name, run: m[1], step, mtime, outputName: m[1] });
+  for (const folder of projectFolders(base, sanitizeProject(String(trigger || '')))) {
+    const outDir = path.join(base, folder);
+    let entries: fs.Dirent[];
+    try { entries = fs.readdirSync(outDir, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      const full = path.join(outDir, e.name);
+      let mtime = 0;
+      try { mtime = fs.statSync(full).mtimeMs; } catch { continue; }
+      if (e.isFile() && /\.safetensors$/i.test(e.name)) {
+        const m = STEP_FILE_RE.exec(e.name);
+        const run = m ? m[1] : e.name.replace(/\.safetensors$/i, '');
+        const step = m ? Number(m[2]) : configSteps(outDir, run);
+        out.push({ id: `weights:${folder}/${e.name}`, kind: 'weights', name: e.name, run, step, mtime, outputName: warmStartName(run, step) });
+      } else if (e.isDirectory()) {
+        const m = STATE_DIR_RE.exec(e.name);
+        const step = m ? stateStep(full) : 0;
+        if (m && step) out.push({ id: `state:${folder}/${e.name}`, kind: 'state', name: e.name, run: m[1], step, mtime, outputName: m[1] });
+      }
     }
   }
   return out.sort((a, b) => b.mtime - a.mtime || b.step - a.step);
@@ -799,24 +821,30 @@ interface ContinuePlan {
   step: number;        // its step (0 = unknown)
   outputName: string;  // the new run's output name
   total: number;       // max_train_steps of the new run
+  outDir: string;      // the folder it lives in; the continued run stays there
 }
-// Validates `continueFrom` against the project's output folder. Names are
-// plain entries of that folder only (no paths from the renderer).
-function planContinue(s: TrainflowSettings, outDir: string, scriptsDir: string): { plan?: ContinuePlan; error?: string } {
+// Validates `continueFrom` ("<kind>:<folder>/<name>", or the older "<kind>:<name>"
+// meaning the project's own folder) against the trigger's output folders. Both
+// parts are plain names (no paths from the renderer).
+function planContinue(s: TrainflowSettings, base: string, project: string, scriptsDir: string): { plan?: ContinuePlan; error?: string } {
   const raw = String(s.continueFrom || '');
   if (!raw) return {};
   const more = Math.round(Number(s.continueSteps));
   if (!(more >= 1)) return { error: 'Set how many more steps to train.' };
   const kind = raw.startsWith('weights:') ? 'weights' : raw.startsWith('state:') ? 'state' : null;
-  const name = kind ? plainFileName(raw.slice(kind.length + 1)) : null;
-  if (!kind || !name) return { error: 'Pick what to continue from again.' };
+  const rest = kind ? raw.slice(kind.length + 1) : '';
+  const slash = rest.indexOf('/');
+  const folder = slash === -1 ? project : plainFileName(rest.slice(0, slash));
+  const name = plainFileName(slash === -1 ? rest : rest.slice(slash + 1));
+  if (!kind || !name || !folder || !isProjectFolder(project, folder)) return { error: 'Pick what to continue from again.' };
+  const outDir = path.join(base, folder);
   const full = path.join(outDir, name);
   if (kind === 'weights') {
     const m = STEP_FILE_RE.exec(name);
     if (!/\.safetensors$/i.test(name) || !fs.existsSync(full) || !fs.statSync(full).isFile()) return { error: `Checkpoint not found: ${name}` };
     const run = m ? m[1] : name.replace(/\.safetensors$/i, '');
     const step = m ? Number(m[2]) : configSteps(outDir, run);
-    return { plan: { kind, path: full, run, step, outputName: warmStartName(run, step), total: more } };
+    return { plan: { kind, path: full, run, step, outputName: warmStartName(run, step), total: more, outDir } };
   }
   const m = STATE_DIR_RE.exec(name);
   const step = m ? stateStep(full) : 0;
@@ -827,7 +855,7 @@ function planContinue(s: TrainflowSettings, outDir: string, scriptsDir: string):
   }
   const patchError = resumePatchError(scriptsDir);
   if (patchError) return { error: patchError };
-  return { plan: { kind: 'state', path: full, run, step, outputName: run, total: step + more } };
+  return { plan: { kind: 'state', path: full, run, step, outputName: run, total: step + more, outDir } };
 }
 
 // What the install's sd-scripts supports, read from its source (users may point
@@ -909,10 +937,12 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
     if (typeof p !== 'string' || p.includes('\0') || !p || !fs.existsSync(p) || !fs.statSync(p).isFile()) errors.push(`${label} file not found: ${p || '(not set)'}`);
   }
   if (errors.length) return { ok: false, errors };
-  const project = sanitizeProject(s.trigger);
-  const outDir = path.join(inst.outputBase, project);
-  const { plan, error: planError } = planContinue(s, outDir, inst.scriptsDir);
+  const { plan, error: planError } = planContinue(s, inst.outputBase, sanitizeProject(s.trigger), inst.scriptsDir);
   if (planError) return { ok: false, errors: [planError] };
+  // A continued run stays in its checkpoint's folder; a fresh one gets an unused folder
+  // (and is named after it), so retraining a trigger never mixes into the old run.
+  const outDir = plan ? plan.outDir : path.join(inst.outputBase, freshProjectFolder(inst.outputBase, sanitizeProject(s.trigger)));
+  const project = path.basename(outDir);
   const bucketCfg = { min: s.bucketMin, max: s.bucketMax, step: s.bucketStep };
   const pre = checkDataset(datasetDir!, bucketCfg);
   errors.push(...pre.errors);

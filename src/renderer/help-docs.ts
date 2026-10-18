@@ -330,7 +330,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>Training runs in the background and <b>keeps going if you close Osmium</b>, which warns
       you first. Reopen Osmium and open this tab to see step, speed, ETA, loss, the log, previews
       and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
-      folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.</p>
+      folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.
+      Training the same trigger again starts a new folder (<code>&lt;project&gt;_2</code>, <code>_3</code>, …)
+      instead of reusing the old one; continuing a run keeps it in its own folder.</p>
       <p><b>Network type</b>: LoRA, <b>LoKr</b> or LoHa. LoKr captures much richer changes in a quarter of
       the file at the same rank (good for styles; the <b>LoKr factor</b> is usually 4) and wants a higher
       learning rate than LoRA unless you use Prodigy. <b>LoRA+ ratio</b> (Advanced, 0 = off) makes each

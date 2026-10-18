@@ -70,6 +70,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   a grid), drag each line where it should cut, or **Reset lines** to space them evenly. Every
   piece is saved as a new image with the original's tags, the original stays as it was, and one
   Undo takes all the pieces back out.
+- **Trainflow: retraining a trigger word starts a new folder** (`<name>_2`, `_3`, …, with the LoRA
+  named the same) instead of mixing into the last run's folder, so there's nothing to delete first.
+  Continue training lists checkpoints from all of them.
 - **Fixed: Rename all could delete images.** If a rename stopped partway, the files were left with
   temporary `__dts_rename_tmp_…` names, and running Rename all again could delete some of them.
   Rename all now checks every file first, puts everything back if it stops partway, and never
