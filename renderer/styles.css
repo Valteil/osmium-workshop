@@ -2677,6 +2677,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: var(--bg-panel); border: 2px solid transparent; border-radius: var(--r-card); overflow: hidden;
   }
   .curate-card img{ width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; background: var(--bg-elevated); }
+  /* A thumbnail not made yet: an empty tile, not a broken-image icon + alt text. */
+  .curate-card img:not([src]){ visibility: hidden; }
+  .curate-card:has(img:not([src])){ background: var(--bg-elevated); }
   .curate-card.selected{ border-color: var(--accent-manual); }
   .curate-check{
     position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 50%;

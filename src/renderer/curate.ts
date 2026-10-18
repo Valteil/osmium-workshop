@@ -34,9 +34,54 @@ interface CurateItem {
   name: string;            // file name
   style: string;           // '' = folder root, else the artstyle subfolder
   handle: FileHandle;
-  url: string | null;      // object URL once loaded (revoked on close)
+  url: string | null;      // full image object URL, Single view (revoked on close)
+  thumb: string | null;    // small JPEG thumbnail for the grid (revoked on close)
   selected: boolean;
   w?: number; h?: number;  // pixel size, known once the image has loaded
+}
+
+// Grid thumbnails: decoded off the main thread (createImageBitmap), drawn
+// down to THUMB_W wide and kept as a small JPEG, a few at a time. Showing the
+// full images in the grid made it crawl: hundreds of multi-megapixel images
+// decoded and scaled on every render. The full decode also gives the size.
+const THUMB_W = 320;
+const THUMB_JOBS = 3;
+let thumbActive = 0;
+const thumbQueue: (() => Promise<void>)[] = [];
+function pumpThumbs(): void {
+  while (thumbActive < THUMB_JOBS && thumbQueue.length) {
+    const job = thumbQueue.shift()!;
+    thumbActive++;
+    void job().finally(() => { thumbActive--; pumpThumbs(); });
+  }
+}
+function thumbOf(it: CurateItem, stillWanted: () => boolean): Promise<string> {
+  if (it.thumb) return Promise.resolve(it.thumb);
+  return new Promise((resolve, reject) => {
+    thumbQueue.push(async () => {
+      if (it.thumb) { resolve(it.thumb); return; }
+      // Scrolled past / re-rendered before its turn: skip (asked again if it comes back).
+      if (!stillWanted()) { reject(new Error('stale')); return; }
+      try {
+        const bmp = await createImageBitmap(await it.handle.getFile());
+        it.w = bmp.width;
+        it.h = bmp.height;
+        const k = Math.min(1, THUMB_W / bmp.width);
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(bmp.width * k));
+        c.height = Math.max(1, Math.round(bmp.height * k));
+        c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+        bmp.close();
+        const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.85));
+        if (!blob) throw new Error('Could not make a thumbnail.');
+        it.thumb = URL.createObjectURL(blob);
+        resolve(it.thumb);
+      } catch (err) {
+        reject(err);
+      }
+    });
+    pumpThumbs();
+  });
 }
 
 // Images with both sides under this are flagged: at that size they're
@@ -130,7 +175,7 @@ async function loadFolder(dir: DirHandle): Promise<void> {
   const found: CurateItem[] = [];
   const subdirs = new Map<string, DirHandle>();
   for await (const h of dir.values()) {
-    if (h.kind === 'file' && isImageFile(h.name)) found.push({ name: h.name, style: UNSORTED, handle: h, url: null, selected: false });
+    if (h.kind === 'file' && isImageFile(h.name)) found.push({ name: h.name, style: UNSORTED, handle: h, url: null, thumb: null, selected: false });
     else if (h.kind === 'directory') subdirs.set(h.name, h);
   }
   // A junk folder made earlier counts even if the state file was lost.
@@ -139,7 +184,7 @@ async function loadFolder(dir: DirHandle): Promise<void> {
     const sub = subdirs.get(s);
     if (!sub) continue;
     for await (const h of sub.values()) {
-      if (h.kind === 'file' && isImageFile(h.name)) found.push({ name: h.name, style: s, handle: h, url: null, selected: false });
+      if (h.kind === 'file' && isImageFile(h.name)) found.push({ name: h.name, style: s, handle: h, url: null, thumb: null, selected: false });
     }
   }
   found.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
@@ -151,8 +196,12 @@ async function loadFolder(dir: DirHandle): Promise<void> {
 }
 
 function closeFolder(): void {
-  for (const it of items) if (it.url) URL.revokeObjectURL(it.url);
+  for (const it of items) {
+    if (it.url) URL.revokeObjectURL(it.url);
+    if (it.thumb) URL.revokeObjectURL(it.thumb);
+  }
   items = [];
+  thumbQueue.length = 0;
   root = null;
   observer?.disconnect();
   observer = null;
@@ -370,25 +419,44 @@ const stackStyles = (): string[] => [UNSORTED, ...styles];
 
 function renderGrid(vis: CurateItem[]): HTMLElement {
   const grid = el('div', 'curate-grid');
+  const scroller = curateTab.querySelector<HTMLElement>('.curate-scroll')!;
   observer = new IntersectionObserver((ents) => {
     for (const e of ents) {
       if (!e.isIntersecting) continue;
       const img = e.target as HTMLImageElement;
-      observer?.unobserve(img);
       const it = vis[Number(img.dataset.i)];
-      if (it) void urlOf(it).then((u) => { img.src = u; }).catch(() => undefined);
+      if (!it) continue;
+      observer?.unobserve(img);
+      // Wanted while still in this grid and near the view; otherwise it's
+      // skipped and observed again, so scrolling fast never queues hundreds.
+      const near = () => {
+        if (!img.isConnected) return false;
+        const r = img.getBoundingClientRect(), s = scroller.getBoundingClientRect();
+        return r.bottom > s.top - 600 && r.top < s.bottom + 600;
+      };
+      void thumbOf(it, near).then((u) => {
+        img.src = u;
+        (img.parentElement?.querySelector('.curate-res') as (HTMLElement & { fill?: () => void }) | null)?.fill?.();
+      }).catch(() => { if (img.isConnected && !it.thumb) observer?.observe(img); });
     }
-  }, { root: curateTab.querySelector('.curate-scroll'), rootMargin: '400px' });
+  }, { root: scroller, rootMargin: '400px' });
+  const cards: HTMLElement[] = [];
+  const countEl = curateTab.querySelector<HTMLElement>('.curate-count');
+  // Selecting only touches the cards it changes (not a whole re-render).
+  const setSelected = (k: number, on: boolean) => {
+    vis[k].selected = on;
+    cards[k].classList.toggle('selected', on);
+  };
   vis.forEach((it, i) => {
     const card = el('div', 'curate-card' + (it.selected ? ' selected' : ''));
     card.title = `${it.name}\nClick to select (Shift-click for a range), double-click to open`;
     const img = el('img');
     img.alt = it.name;
     img.draggable = false;
+    img.decoding = 'async';
     img.dataset.i = String(i);
     const res = resLabel(it);
-    noteSize(it, img, res);
-    if (it.url) img.src = it.url; else observer!.observe(img);
+    if (it.thumb) img.src = it.thumb; else observer!.observe(img);
     const check = el('span', 'curate-check', '✓');
     const foot = el('div', 'curate-card-foot');
     foot.append(el('span', 'curate-name', it.name), badge(it.style));
@@ -399,14 +467,15 @@ function renderGrid(vis: CurateItem[]): HTMLElement {
     card.addEventListener('click', (ev) => {
       if (ev.shiftKey && lastClicked >= 0) {
         const [a, b] = [Math.min(lastClicked, i), Math.max(lastClicked, i)];
-        for (let k = a; k <= b; k++) vis[k].selected = true;
+        for (let k = a; k <= b; k++) setSelected(k, true);
       } else {
-        it.selected = !it.selected;
+        setSelected(i, !it.selected);
       }
       lastClicked = i;
-      render();
+      if (countEl) countEl.textContent = `${items.filter((x) => x.selected).length} selected`;
     });
     card.addEventListener('dblclick', () => { index = i; view = 'single'; render(); });
+    cards.push(card);
     grid.appendChild(card);
   });
   return grid;
