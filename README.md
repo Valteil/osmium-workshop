@@ -91,22 +91,6 @@ stay desktop-only.
 
 ---
 
-## Building from source
-
-Needs [Node.js](https://nodejs.org) LTS.
-
-```bash
-npm install
-npm start            # build and run
-npm run refresh-app  # build a portable test copy at the repo root
-npm run dist:zip     # release zip -> Shippable/
-```
-
-Comfy Bridge is the same from `comfy-bridge/`. The Android apps build from `mobile/` and
-`comfy-bridge/mobile/` with Capacitor (`npx cap sync android`, then `gradlew assembleDebug`).
-`node scripts/pack-trainflow.js` packs the Trainflow zip from a local Anima-TrainFlow folder.
-Never edit `main.js`, `preload.js` or `renderer/app.js` by hand: they're build output.
-
 ## License
 
 MIT, see [LICENSE](LICENSE). Third-party code, fonts and models are listed in
