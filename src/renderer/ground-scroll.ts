@@ -221,7 +221,12 @@ export function initGroundScroll(toggle: HTMLInputElement): void {
     // CSS hook: grounds that animate inside their own image (Forest Moss) swap to a frozen copy without it.
     root.classList.toggle('ground-scroll-on', toggle.checked);
     if (!toggle.checked || reduced.matches) return;
-    const p = plan(getComputedStyle(gallery));
+    // A ground that declares `--ground-still: 1` is a picture, not a pattern
+    // (Windows 7's wallpaper, Frutiger Aero's hillside or the user's own
+    // image), so the scroll option leaves it where it is.
+    const cs = getComputedStyle(gallery);
+    if (cs.getPropertyValue('--ground-still').trim() === '1') return;
+    const p = plan(cs);
     if (!p.moving) return;
     gallery.style.backgroundSize = p.sizes.join(', ');
     anim = gallery.animate(

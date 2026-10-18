@@ -621,8 +621,10 @@ export const HELP_SECTIONS: HelpSection[] = [
       ambient animations</b>) let you turn off just one specific motion effect instead of all of
       them. None of these touch a theme's static colors, textures, or glows. <b>Scroll the
       gallery background slowly</b> is the one option that adds motion (off by default): the
-      theme's background pattern behind the gallery drifts gently. Glows and Solar Flare's rings
-      stay still, and Disable ambient animations pauses it.</p>
+      theme's background pattern behind the gallery drifts gently. Glows, Solar Flare's rings and
+      the Windows 7 and Frutiger Aero wallpapers stay still, and Disable ambient animations pauses
+      it. On Frutiger Aero, <b>Frutiger Aero background ▸ Choose image…</b> sets any picture as the
+      gallery wallpaper; <b>Use the hillside</b> goes back.</p>
       <p>When the app opens, a short <b>opening flourish</b> plays in your theme: a sweep of the
       theme's colour carrying its own version of the Osmium mark, trailing the theme's particles as
       it leaves. ${isTouchDevice ? 'Tap' : 'Click or press any key'} to speed it up, or turn it off

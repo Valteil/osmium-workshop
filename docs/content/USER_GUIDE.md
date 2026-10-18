@@ -780,8 +780,12 @@ effect everywhere (whether a theme has it natively or you bought it via Refine T
 off just one specific motion effect app-wide if you'd rather keep the others. None of these touch
 a theme's static colors, textures, or glows. **Scroll the gallery background slowly** is the one
 option that adds motion, and it's off by default: the theme's background pattern behind the
-gallery drifts at a gentle pace (glows and Solar Flare's rings stay still). Disable ambient
-animations pauses it.
+gallery drifts at a gentle pace (glows, Solar Flare's rings, and the Windows 7 and Frutiger Aero
+wallpapers stay still). Disable ambient animations pauses it.
+
+**Frutiger Aero background.** On the Frutiger Aero theme, the same Settings section shows
+**Frutiger Aero background ▸ Choose image…**: any picture you pick fills the gallery like a desktop
+wallpaper (a sunny hillside fits it best). **Use the hillside** goes back to the painted one.
 
 **Opening flourish.** When the app opens, the window dims and a sweep of your theme's colour
 crosses it, carrying that theme's own version of the Osmium mark, then leaves trailing the theme's

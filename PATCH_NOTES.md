@@ -21,8 +21,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   and the boot screen's four coloured lights in the opening flourish. It uses Segoe UI on Windows
   and Selawik (Microsoft's open look-alike, now bundled) elsewhere.
 - **Frutiger Aero** theme (epic, 360 Edibits): glossy aqua jelly buttons, grass-green active
-  states, and a sky-over-hillside gallery with bubbles drifting through. In night mode the
-  buttons' gloss turns over.
+  states, and a sky-over-hillside gallery with bubbles. In night mode the buttons' gloss turns
+  over. **Settings ▸ Frutiger Aero background ▸ Choose image…** sets any picture as its gallery
+  wallpaper.
+- Both themes' gallery backgrounds are wallpapers, so **Scroll the gallery background** leaves
+  them still.
 
 ### Comfy Bridge
 

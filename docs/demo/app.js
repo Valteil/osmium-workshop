@@ -335,6 +335,9 @@
   var noFlourishTiltToggle = $("noFlourishTiltToggle");
   var noFlourishAmbientToggle = $("noFlourishAmbientToggle");
   var groundScrollToggle = $("groundScrollToggle");
+  var btnFaBgPick = $("btnFaBgPick");
+  var btnFaBgClear = $("btnFaBgClear");
+  var faBgInput = $("faBgInput");
   var tagDetailsPanel = $("tagDetailsPanel");
   var tagDetailsTitle = $("tagDetailsTitle");
   var tagDetailsBody = $("tagDetailsBody");
@@ -2391,7 +2394,7 @@
         b.setAttribute("aria-selected", String(on));
         b.tabIndex = on ? 0 : -1;
       });
-      const apply = () => {
+      const apply2 = () => {
         if (!pdoc) return;
         const $p = (id) => pdoc.getElementById(id);
         const set = (id, disp) => {
@@ -2408,12 +2411,12 @@
         $p("masterTagPanel")?.classList.toggle("rt-hidden", tab !== "master");
       };
       if (!animate || document.documentElement.classList.contains("motion-off")) {
-        apply();
+        apply2();
         return;
       }
       frameWrap.classList.add("ts-switching");
       setTimeout(() => {
-        apply();
+        apply2();
         frameWrap.classList.remove("ts-switching");
       }, 110);
     }
@@ -4725,8 +4728,10 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       ambient animations</b>) let you turn off just one specific motion effect instead of all of
       them. None of these touch a theme's static colors, textures, or glows. <b>Scroll the
       gallery background slowly</b> is the one option that adds motion (off by default): the
-      theme's background pattern behind the gallery drifts gently. Glows and Solar Flare's rings
-      stay still, and Disable ambient animations pauses it.</p>
+      theme's background pattern behind the gallery drifts gently. Glows, Solar Flare's rings and
+      the Windows 7 and Frutiger Aero wallpapers stay still, and Disable ambient animations pauses
+      it. On Frutiger Aero, <b>Frutiger Aero background \u25B8 Choose image\u2026</b> sets any picture as the
+      gallery wallpaper; <b>Use the hillside</b> goes back.</p>
       <p>When the app opens, a short <b>opening flourish</b> plays in your theme: a sweep of the
       theme's colour carrying its own version of the Osmium mark, trailing the theme's particles as
       it leaves. ${isTouchDevice ? "Tap" : "Click or press any key"} to speed it up, or turn it off
@@ -5103,7 +5108,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       syncRain(true);
       root2.classList.toggle("ground-scroll-on", toggle.checked);
       if (!toggle.checked || reduced.matches) return;
-      const p = plan(getComputedStyle(gallery));
+      const cs = getComputedStyle(gallery);
+      if (cs.getPropertyValue("--ground-still").trim() === "1") return;
+      const p = plan(cs);
       if (!p.moving) return;
       gallery.style.backgroundSize = p.sizes.join(", ");
       anim = gallery.animate(
@@ -5137,6 +5144,64 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       if (muts.some((m) => m.attributeName !== "class")) refresh2();
     }).observe(root2, { attributes: true, attributeFilter: ["data-theme", "style", "class"] });
     start();
+  }
+
+  // src/renderer/theme-background.ts
+  var KEY2 = "dts-fa-bg";
+  var MAX = 2560;
+  function apply(url) {
+    const root2 = document.documentElement;
+    if (url) {
+      root2.style.setProperty("--fa-user-bg", `url("${url}")`);
+      root2.classList.add("fa-user-bg");
+    } else {
+      root2.style.removeProperty("--fa-user-bg");
+      root2.classList.remove("fa-user-bg");
+    }
+  }
+  async function toDataUrl(file) {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+    const w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    c.getContext("2d").drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    return c.toDataURL("image/jpeg", 0.86);
+  }
+  function initThemeBackground(pickBtn, clearBtn, input) {
+    const sync = () => {
+      clearBtn.disabled = !getString(KEY2);
+    };
+    apply(getString(KEY2));
+    sync();
+    pickBtn.addEventListener("click", () => input.click());
+    input.addEventListener("change", async () => {
+      const file = input.files && input.files[0];
+      input.value = "";
+      if (!file) return;
+      try {
+        const url = await toDataUrl(file);
+        try {
+          localStorage.setItem(KEY2, url);
+        } catch {
+          toast("That image is too large to keep. Try a smaller one.");
+          return;
+        }
+        apply(url);
+        sync();
+        toast("Frutiger Aero background set");
+      } catch {
+        toast("Couldn't read that image");
+      }
+    });
+    clearBtn.addEventListener("click", () => {
+      removeKey(KEY2);
+      apply("");
+      sync();
+      toast("Back to the hillside");
+    });
   }
 
   // src/renderer/achievements.ts
@@ -5563,6 +5628,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     wireFlourishToggle(noFlourishTiltToggle, "dts-no-flourish-tilt", "no-flourish-tilt");
     wireFlourishToggle(noFlourishAmbientToggle, "dts-no-flourish-ambient", "no-flourish-ambient");
     initGroundScroll(groundScrollToggle);
+    initThemeBackground(btnFaBgPick, btnFaBgClear, faBgInput);
     btnFreeEdibits.addEventListener("click", () => {
       const lines = [
         "The shopkeeper begrudgingly hands you some Edibits.",
@@ -22706,7 +22772,7 @@ Click to select (Shift-click for a range), double-click to open`;
       return { x: cx - g.left, y: cy - g.top };
     };
     let lastClient = { x: 0, y: 0 };
-    const apply = () => {
+    const apply2 = () => {
       if (!drag) return;
       const p = point(lastClient.x, lastClient.y);
       drag.x = p.x;
@@ -22730,7 +22796,7 @@ Click to select (Shift-click for a range), double-click to open`;
       const dy = lastClient.y < s.top + edge ? -(s.top + edge - lastClient.y) : lastClient.y > s.bottom - edge ? lastClient.y - (s.bottom - edge) : 0;
       if (dy) {
         scroller.scrollTop += Math.max(-30, Math.min(30, dy / 2));
-        apply();
+        apply2();
       }
       autoScroll = requestAnimationFrame(tick2);
     };
@@ -22770,7 +22836,7 @@ Click to select (Shift-click for a range), double-click to open`;
         autoScroll = requestAnimationFrame(tick2);
       }
       ev.preventDefault();
-      apply();
+      apply2();
     });
     const end = (ev) => {
       if (!drag || ev.pointerId !== drag.id) return;

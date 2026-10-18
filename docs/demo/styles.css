@@ -1410,9 +1410,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   /* The desktop: Harmony blue, a bloom of light behind where the logo
      would be, and the wallpaper's long curved swooshes. Every layer is
-     100%-sized, so the gallery scroll option leaves it still, like a
-     wallpaper. */
+     100%-sized and --ground-still keeps the gallery scroll option off it:
+     a wallpaper doesn't drift. */
   html[data-theme="windows-7"] #gallery{
+    --ground-still: 1;
     background-image:
       radial-gradient(ellipse 34% 40% at 58% 40%, color-mix(in srgb, var(--bg-panel) 50%, transparent), transparent 70%),
       radial-gradient(ellipse 95% 46% at 40% 108%, transparent 62%, color-mix(in srgb, var(--bg-panel) 30%, transparent) 63% 64%, transparent 67%),
@@ -1604,9 +1605,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html.night-mode[data-theme="frutiger-aero"]{ --fa-dir: to top; }
   /* A Bliss-style hillside (painted, not the photo): blue sky with soft
      clouds over a rolling green hill, and bubbles drifting in front — two
-     bubble tiles, each a rim and a catch-light. The scenery is 100%-sized,
-     so the scroll option drifts only the bubbles. */
+     bubble tiles, each a rim and a catch-light. A picture, so it never
+     drifts (--ground-still). Settings can swap in the user's own image. */
   html[data-theme="frutiger-aero"] #gallery{
+    --ground-still: 1;
     background-image:
       radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--bg-panel) 80%, transparent) 0 3px, transparent 4px),
       radial-gradient(circle, transparent 0 15px, color-mix(in srgb, var(--bg-panel) 55%, transparent) 16px 18px, transparent 19px),
@@ -1621,6 +1623,11 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       linear-gradient(to bottom, color-mix(in srgb, var(--accent-manual) 55%, var(--bg-panel)), color-mix(in srgb, var(--accent-manual) 18%, var(--bg-panel)) 70%);
     background-size: 220px 240px, 220px 240px, 130px 150px, 130px 150px, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
     background-position: 58px 44px, 50px 36px, 10px 96px, 6px 92px, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+  /* The user's own picture (Settings ▸ Frutiger Aero background,
+     theme-background.ts), filling the gallery like a desktop wallpaper. */
+  html.fa-user-bg[data-theme="frutiger-aero"] #gallery{
+    background: var(--fa-user-bg) center / cover no-repeat, var(--bg-base);
   }
   /* A glossy aqua bar with the wet highlight; a grass line beneath. */
   html[data-theme="frutiger-aero"] #topbar{
@@ -2100,6 +2107,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .theme-panel-actions{ display: flex; gap: 8px; }
   .theme-panel-actions button{ flex: 1; font-size: 12px; }
   .theme-panel-note{ font-size: 10.5px; color: var(--text-faint); line-height: 1.4; }
+  /* Frutiger Aero's own background picker: only shown on that theme. */
+  .fa-bg-row{ display: none; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
+  html[data-theme="frutiger-aero"] .fa-bg-row{ display: flex; }
+  .fa-bg-row > span{ flex: 1 1 100%; color: var(--text-muted); }
 
   /* ---------- Theme Studio (theme-studio.ts) ----------
      Dim-screen builder for the Custom theme. Its own chrome is the app's

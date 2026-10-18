@@ -122,6 +122,8 @@
     stopGround();
     // 30ms setTimeout, not rAF: a hidden tab pauses rAF.
     planTimer = setTimeout(function(){
+      // A ground that declares --ground-still:1 (a picture, not a pattern) never drifts.
+      if (getComputedStyle(root).getPropertyValue('--ground-still').trim() === '1') return;
       var p = plan(getComputedStyle(root, '::before'));
       if (!p.moving || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
       set('--sg-size', p.size);

@@ -2,12 +2,14 @@ import type { FolderStats, EditLogEntry, DirHandle } from './types';
 import { getJSON, setJSON, getBool, setBool, getInt, setInt } from './storage';
 import { writeBytes } from './fs-access';
 import { initGroundScroll } from './ground-scroll';
+import { initThemeBackground } from './theme-background';
 import {
   walletDisplay, achWallet, shopWallet, achievementsPanel, achList, achPopupsToggle,
   btnAchievements, achCloseBtn, shopPanel, shopList, btnShop, shopCloseBtn,
   btnFreeEdibits, favoritesPanel, logPanel, tagDetailsPanel,
   themeSelect, btnResetEdibits, btnResetAchievements, achievementPopupHost,
-  btnRefineTheme, suppressThemeFlourishesToggle, noFlourishHoverToggle, noFlourishTiltToggle, noFlourishAmbientToggle, groundScrollToggle
+  btnRefineTheme, suppressThemeFlourishesToggle, noFlourishHoverToggle, noFlourishTiltToggle, noFlourishAmbientToggle, groundScrollToggle,
+  btnFaBgPick, btnFaBgClear, faBgInput
 } from './dom';
 import { toast, showPanel, hidePanel, showConfirmModal, escapeHtml } from './shared-ui';
 import { setIconLabel, iconSvg, rarityIcon } from './icons';
@@ -476,6 +478,7 @@ export function initAchievementPanels(): void {
   wireFlourishToggle(noFlourishTiltToggle, 'dts-no-flourish-tilt', 'no-flourish-tilt');
   wireFlourishToggle(noFlourishAmbientToggle, 'dts-no-flourish-ambient', 'no-flourish-ambient');
   initGroundScroll(groundScrollToggle);
+  initThemeBackground(btnFaBgPick, btnFaBgClear, faBgInput);
 
   btnFreeEdibits.addEventListener('click', () => {
     const lines = [
