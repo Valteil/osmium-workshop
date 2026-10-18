@@ -1214,6 +1214,49 @@ export function registerTrainflowHandlers(ipcMain: IpcMain): void {
     if (!rec || !f || !runDirsValid(rec)) return null;
     try { return new Uint8Array(fs.readFileSync(path.join(rec.samplesDir, f))); } catch { return null; }
   });
+  // Send a checkpoint to a folder of the user's (2026-10-18). Destinations are only ever
+  // folders picked in main's own dialog: the favorite lives in trainflow.json, the last
+  // pick in memory; the renderer just says which one. The file must be a .safetensors in
+  // the current run's output folder, and an existing file is never overwritten.
+  const readCfg = (): Record<string, unknown> => { try { return JSON.parse(fs.readFileSync(CONFIG_FILE(), 'utf8')); } catch { return {}; } };
+  const favoriteSendDir = (): string | null => {
+    const f = safeAbsPath(readCfg().sendFolder as string);
+    return f && fs.existsSync(f) && fs.statSync(f).isDirectory() ? f : null;
+  };
+  let pickedSendDir: string | null = null;
+  ipcMain.handle('trainflow-send-dest', () => ({ favorite: favoriteSendDir() }));
+  ipcMain.handle('trainflow-pick-send-dest', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const opts: OpenDialogOptions = { title: 'Send the checkpoint to…', defaultPath: favoriteSendDir() || undefined, properties: ['openDirectory', 'createDirectory'] };
+    const picked = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    if (picked.canceled || !picked.filePaths[0]) return null;
+    pickedSendDir = picked.filePaths[0];
+    return pickedSendDir;
+  });
+  ipcMain.handle('trainflow-set-send-favorite', () => {
+    if (pickedSendDir) fs.writeFileSync(CONFIG_FILE(), JSON.stringify({ ...readCfg(), sendFolder: pickedSendDir }));
+    return { favorite: favoriteSendDir() };
+  });
+  ipcMain.handle('trainflow-send-checkpoint', async (_e, p: { name: string; newName: string; dest: 'favorite' | 'picked' }) => {
+    const rec = readRun();
+    const src = plainFileName(p?.name);
+    if (!rec || !runDirsValid(rec) || !src || !/\.safetensors$/i.test(src)) return { ok: false, error: 'That checkpoint isn\'t in the current run any more.' };
+    const stem = String(p?.newName || '').trim().replace(/\.safetensors$/i, '');
+    const target = plainFileName(stem + '.safetensors');
+    if (!stem || !target || /[<>:"|?*]/.test(stem)) return { ok: false, error: 'Use a plain file name (no \\ / : * ? " < > |).' };
+    const dir = p?.dest === 'picked' ? pickedSendDir : favoriteSendDir();
+    if (!dir) return { ok: false, error: 'Choose a folder first.' };
+    const from = path.join(rec.outDir, src);
+    if (!fs.existsSync(from)) return { ok: false, error: 'That checkpoint isn\'t in the current run any more.' };
+    const to = path.join(dir, target);
+    try {
+      await fs.promises.copyFile(from, to, fs.constants.COPYFILE_EXCL);
+      return { ok: true, path: to };
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') return { ok: false, exists: true, error: `${target} already exists there. Pick another name.` };
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
   ipcMain.handle('trainflow-open', async (_e, what: 'output' | 'dataset' | 'log' | 'folder', datasetPath?: string) => {
     // A record whose dirs don't sit inside the install's output dir is ignored
     // (tampered or from a different install) rather than opened. The refusal is

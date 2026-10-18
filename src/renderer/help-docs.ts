@@ -332,7 +332,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       and checkpoints again. <b>Stop</b> ends the run for good. Results are in the Anima-TrainFlow
       folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.
       Training the same trigger again starts a new folder (<code>&lt;project&gt;_2</code>, <code>_3</code>, …)
-      instead of reusing the old one; continuing a run keeps it in its own folder.</p>
+      instead of reusing the old one; continuing a run keeps it in its own folder.
+      <b>Send…</b> next to a checkpoint copies it to a folder you choose (★ remembers a favorite)
+      under the name you give it; it never overwrites a file that's already there.</p>
       <p><b>Network type</b>: LoRA, <b>LoKr</b> or LoHa. LoKr captures much richer changes in a quarter of
       the file at the same rank (good for styles; the <b>LoKr factor</b> is usually 4) and wants a higher
       learning rate than LoRA unless you use Prodigy. <b>LoRA+ ratio</b> (Advanced, 0 = off) makes each

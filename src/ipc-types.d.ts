@@ -141,6 +141,10 @@ export interface ElectronAPI {
   trainflowClearRun?(): Promise<TrainflowStatus>;
   trainflowGetSample?(name: string): Promise<Uint8Array | null>;
   trainflowOpen?(what: 'output' | 'dataset' | 'log' | 'folder', datasetPath?: string): Promise<{ ok: boolean; refused?: string }>;
+  trainflowSendDest?(): Promise<{ favorite: string | null }>;
+  trainflowPickSendDest?(): Promise<string | null>;
+  trainflowSetSendFavorite?(): Promise<{ favorite: string | null }>;
+  trainflowSendCheckpoint?(p: { name: string; newName: string; dest: 'favorite' | 'picked' }): Promise<{ ok: boolean; path?: string; exists?: boolean; error?: string }>;
   // Is a Trainflow job running (it outlives the app)? Asked by the quit guard.
   trainflowRunning?(): Promise<boolean>;
 

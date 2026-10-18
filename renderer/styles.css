@@ -5186,6 +5186,16 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     padding: 5px 8px;
   }
   .wd14-local-model-row button{ padding: 2px 7px; font-size: 11px; }
+  /* Trainflow checkpoint rows: name grows, size + Send stay right. */
+  #trainflowCheckpoints .wd14-local-model-row > span:first-child{ flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .tf-send-box{ display: flex; flex-direction: column; gap: 6px; min-width: min(460px, 90vw); }
+  .tf-send-label{ font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
+  .tf-send-name{ display: flex; align-items: center; gap: 6px; }
+  .tf-send-name input{ flex: 1; min-width: 0; margin: 0; }
+  .tf-send-name span{ color: var(--text-muted); font-size: 12px; }
+  .tf-send-path{ font-size: 12px; overflow-wrap: anywhere; background: var(--bg-elevated); border-radius: var(--radius); padding: 6px 8px; }
+  .tf-send-dest{ display: flex; gap: 6px; flex-wrap: wrap; }
+  .tf-send-error{ font-size: 12px; color: var(--danger, #e5484d); min-height: 1em; }
   .wd14-download-status{ font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
   /* WD14 review before apply (wd14-tagger.ts showWd14ReviewModal): one card per image, stacked, each
      with its own picture and chip area, like Single mode's cards but independent of the left panel. */

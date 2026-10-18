@@ -660,6 +660,11 @@ the run for good. Checkpoints and the final LoRA are in the Anima-TrainFlow fold
 new folder (`<project>_2`, `_3`, …, with the LoRA named the same) instead of reusing the old one, so
 there's nothing to clean out first. Continuing a run keeps it in its own folder.
 
+**Send a checkpoint where you use it.** Each checkpoint in the list has **Send…**: give it the name it
+should arrive under, choose a folder (ComfyUI's `loras` folder, say), and it's copied there. **★ Make
+favorite** remembers that folder, so next time it's already picked. A file that's already there is
+never overwritten; you're asked for another name instead.
+
 **Continue training** (when a run ended too early, e.g. step 600 isn't quite there): pick one of the
 project's checkpoints in **Start from**, set **More steps**, and the button becomes **Continue
 training**. Two kinds are listed:

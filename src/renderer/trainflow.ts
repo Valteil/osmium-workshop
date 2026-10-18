@@ -6,7 +6,7 @@
 
 import { $ } from './dom';
 import { getJSON, setJSON } from './storage';
-import { showImageLightbox, showConfirmModal, toast } from './shared-ui';
+import { showImageLightbox, showConfirmModal, toast, createModalShell } from './shared-ui';
 import { writeBytes } from './fs-access';
 import { convertAllWebpToPng, BUCKET_DEFAULTS } from './bucket-images';
 import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck, TrainflowContinueOption } from '../shared-types';
@@ -581,9 +581,89 @@ export function initTrainflow(deps: TrainflowDeps): void {
       row.className = 'wd14-local-model-row';
       const name = document.createElement('span'); name.textContent = c.name;
       const size = document.createElement('span'); size.textContent = fmtSize(c.size);
-      row.append(name, size);
+      const send = document.createElement('button');
+      send.type = 'button'; send.className = 'tf-ckpt-send'; send.textContent = 'Send…';
+      send.title = 'Copy this checkpoint to a folder of yours (e.g. ComfyUI\'s loras folder), under a name you choose';
+      send.addEventListener('click', () => { void sendCheckpoint(c.name); });
+      row.append(name, size, send);
       return row;
     }));
+  }
+
+  // Send a checkpoint to a folder, renamed on arrival. Main keeps the folders (the
+  // favorite in trainflow.json, the last pick in memory); this only says which one.
+  async function sendCheckpoint(file: string): Promise<void> {
+    let favorite = (await api.trainflowSendDest!()).favorite;
+    let picked: string | null = null;
+    const { box, close } = createModalShell({ onShow: () => { nameIn.focus(); nameIn.select(); } });
+    box.classList.add('tf-send-box');
+    const msg = document.createElement('div');
+    msg.className = 'confirm-message';
+    msg.textContent = `Send ${file}`;
+    const nameLabel = document.createElement('label');
+    nameLabel.className = 'tf-send-label';
+    nameLabel.textContent = 'Name on arrival';
+    const nameRow = document.createElement('div');
+    nameRow.className = 'tf-send-name';
+    const nameIn = document.createElement('input');
+    nameIn.type = 'text'; nameIn.className = 'dm-prompt-input';
+    nameIn.value = file.replace(/\.safetensors$/i, '');
+    const ext = document.createElement('span'); ext.textContent = '.safetensors';
+    nameRow.append(nameIn, ext);
+    const destLabel = document.createElement('label');
+    destLabel.className = 'tf-send-label';
+    destLabel.textContent = 'To';
+    const destPath = document.createElement('div');
+    destPath.className = 'tf-send-path';
+    const destRow = document.createElement('div');
+    destRow.className = 'tf-send-dest';
+    const choose = document.createElement('button');
+    choose.type = 'button'; choose.textContent = 'Choose folder…';
+    const fav = document.createElement('button');
+    fav.type = 'button'; fav.textContent = '★ Make favorite';
+    fav.title = 'Use this folder by default next time';
+    destRow.append(choose, fav);
+    const err = document.createElement('div');
+    err.className = 'tf-send-error';
+    const btnRow = document.createElement('div');
+    btnRow.className = 'confirm-btn-row';
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    const ok = document.createElement('button');
+    ok.className = 'primary'; ok.textContent = 'Send';
+    btnRow.append(cancel, ok);
+    box.append(msg, nameLabel, nameRow, destLabel, destPath, destRow, err, btnRow);
+
+    const dest = () => picked || favorite;
+    const paint = () => {
+      const d = dest();
+      destPath.textContent = d ? d + (d === favorite ? '  ★' : '') : 'No folder yet. Choose one.';
+      fav.style.display = picked && picked !== favorite ? '' : 'none';
+      ok.disabled = !d;
+    };
+    paint();
+    choose.addEventListener('click', async () => {
+      const p = await api.trainflowPickSendDest!();
+      if (p) { picked = p; err.textContent = ''; paint(); }
+    });
+    fav.addEventListener('click', async () => {
+      favorite = (await api.trainflowSetSendFavorite!()).favorite;
+      paint();
+    });
+    const submit = async () => {
+      if (!dest() || ok.disabled) return;
+      ok.disabled = true;
+      ok.textContent = 'Sending…';
+      const r = await api.trainflowSendCheckpoint!({ name: file, newName: nameIn.value, dest: picked ? 'picked' : 'favorite' });
+      ok.textContent = 'Send';
+      ok.disabled = false;
+      if (!r.ok) { err.textContent = r.error || 'Could not send it.'; if (r.exists) { nameIn.focus(); nameIn.select(); } return; }
+      close();
+      toast(`Sent to ${r.path}`, 4200);
+    };
+    cancel.addEventListener('click', close);
+    ok.addEventListener('click', () => { void submit(); });
+    nameIn.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') void submit(); });
   }
 
   async function refresh(): Promise<void> {
