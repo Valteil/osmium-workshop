@@ -55,7 +55,9 @@ ComfyUI's `custom_nodes` folder. Both can use a running ComfyUI, or (on Windows)
 themselves as **Osmium Comfy**, without a server. WD14 tagging runs on-device and doesn't need ComfyUI.
 
 **Comfy Bridge.** Unzip and run, or sideload the APK on your phone. The phone can use a ComfyUI server
-directly, or go through the desktop Bridge (**Let the phone app use it**).
+directly, or go through the desktop Bridge (**Let the phone app use it**). For extra samplers
+(`res_2m`, `res_2s` and friends), install the separate [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF)
+node pack in your ComfyUI (for example through ComfyUI Manager); Bridge lists them once it's there.
 
 **Updating.** There's no auto-updater: unzip the new version and move your old `data/` folder into
 it. Android updates install over the old APK.
