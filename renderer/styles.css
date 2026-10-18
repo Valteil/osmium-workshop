@@ -1604,16 +1604,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   html.night-mode[data-theme="frutiger-aero"]{ --fa-dir: to top; }
   /* A Bliss-style hillside (painted, not the photo): blue sky with soft
-     clouds over a rolling green hill, and bubbles drifting in front — two
-     bubble tiles, each a rim and a catch-light. A picture, so it never
-     drifts (--ground-still). Settings can swap in the user's own image. */
+     clouds over a rolling green hill, nothing in front of it (no bubbles:
+     the user's call). A picture, so it never drifts (--ground-still), and
+     Settings can swap in the user's own image. */
   html[data-theme="frutiger-aero"] #gallery{
     --ground-still: 1;
     background-image:
-      radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--bg-panel) 80%, transparent) 0 3px, transparent 4px),
-      radial-gradient(circle, transparent 0 15px, color-mix(in srgb, var(--bg-panel) 55%, transparent) 16px 18px, transparent 19px),
-      radial-gradient(circle at 34% 34%, color-mix(in srgb, var(--bg-panel) 75%, transparent) 0 2px, transparent 3px),
-      radial-gradient(circle, transparent 0 7px, color-mix(in srgb, var(--bg-panel) 50%, transparent) 8px 9px, transparent 10px),
       radial-gradient(ellipse 60% 40% at 34% 64%, color-mix(in srgb, var(--bg-panel) 22%, transparent), transparent 70%),
       radial-gradient(ellipse 85% 48% at 34% 108%, color-mix(in srgb, var(--accent-flair) 72%, var(--bg-base)) 0 97%, transparent 100%),
       radial-gradient(ellipse 70% 42% at 96% 112%, color-mix(in srgb, var(--accent-flair) 80%, var(--text-primary)) 0 97%, transparent 100%),
@@ -1621,8 +1617,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       radial-gradient(ellipse 22% 7% at 30% 20%, color-mix(in srgb, var(--bg-panel) 55%, transparent), transparent 70%),
       radial-gradient(ellipse 20% 6% at 74% 11%, color-mix(in srgb, var(--bg-panel) 65%, transparent), transparent 70%),
       linear-gradient(to bottom, color-mix(in srgb, var(--accent-manual) 55%, var(--bg-panel)), color-mix(in srgb, var(--accent-manual) 18%, var(--bg-panel)) 70%);
-    background-size: 220px 240px, 220px 240px, 130px 150px, 130px 150px, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
-    background-position: 58px 44px, 50px 36px, 10px 96px, 6px 92px, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+    background-size: 100% 100%;
+    background-position: 0 0;
   }
   /* The user's own picture (Settings ▸ Frutiger Aero background,
      theme-background.ts), filling the gallery like a desktop wallpaper. */
