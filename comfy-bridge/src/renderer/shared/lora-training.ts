@@ -136,18 +136,24 @@ export function trainingSummary(info: LoraFileInfo): Group[] {
   const module = m.ss_network_module;
   const algo = args.algo || (module ? module.split('.').pop() : undefined);
   const dim = m.ss_network_dim, alpha = m.ss_network_alpha;
-  const res = m['modelspec.resolution'] || m.ss_resolution || (Array.isArray(ds0.resolution) ? (ds0.resolution as unknown[]).join('x') : undefined);
+  // The dataset's own resolution is what trained; modelspec.resolution can be
+  // a trainer default (Anima's sd-scripts writes 512x512 for a 1536 run).
+  const res = (Array.isArray(ds0.resolution) ? (ds0.resolution as unknown[]).join('x') : undefined) || m.ss_resolution || m['modelspec.resolution'];
+  const buckets = ds0.enable_bucket && ds0.min_bucket_reso !== undefined ? `${ds0.min_bucket_reso}–${ds0.max_bucket_reso}` : undefined;
   return [
     { title: 'Model', fields: [
       ['Output name', m.ss_output_name || m['modelspec.title']],
-      ['Base model', m.ss_sd_model_name || m['modelspec.architecture'] || m.ss_base_model_version],
-      ['Architecture', m['modelspec.architecture'] && m.ss_sd_model_name ? m['modelspec.architecture'] : undefined],
+      // modelspec.architecture / prediction_type are SD1 defaults on Anima
+      // runs (stable-diffusion-v1/lora, epsilon), so the ss_* keys win and
+      // prediction stays in All metadata only.
+      ['Base model', m.ss_sd_model_name || m.ss_base_model_version || m['modelspec.architecture']],
+      ['Model type', m.ss_sd_model_name && m.ss_base_model_version ? m.ss_base_model_version : undefined],
       ['Base model hash', (m.ss_new_sd_model_hash || m.ss_sd_model_hash || '').slice(0, 10) || undefined],
       ['VAE', m.ss_vae_name],
       ['Resolution', res],
+      ['Bucket range', buckets],
       ['Clip skip', m.ss_clip_skip],
-      ['Trigger', m['modelspec.trigger_phrase']],
-      ['Prediction', m['modelspec.prediction_type']]
+      ['Trigger', m['modelspec.trigger_phrase']]
     ] },
     { title: 'Training', fields: [
       ['Epoch', of(m.ss_epoch, m.ss_num_epochs)],
