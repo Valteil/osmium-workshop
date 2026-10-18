@@ -24,7 +24,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   training cache** deletes the latent and text-encoder caches the trainer keeps in the dataset, which
   it would otherwise reuse even after you change images or tags.
 - **LoKr and LoHa in Trainflow**, next to LoRA. LoKr packs much richer changes into a quarter of the
-  file at the same rank, which is popular for art styles. Also new: more optimizers (Prodigy +
+  file at the same rank, which is popular for art styles. **LoRA+** (a ratio in Advanced) makes one
+  half of each layer learn faster, often reaching the same result in fewer steps. Also new: more optimizers (Prodigy +
   ScheduleFree, AdamW ScheduleFree, Lion8bit, Adafactor), per-block torch.compile, checkpoint offloading
   to save VRAM, split attention, training the modulation layers, tag shuffling and tag
   dropout, a validation split with its own validation loss, and extra image folders trained alongside

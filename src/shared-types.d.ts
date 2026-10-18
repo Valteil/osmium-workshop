@@ -144,6 +144,7 @@ export interface TrainflowSettings {
   netFactor?: number;           // LoKr factor (-1 = auto balanced; 4 = the common Anima LoKr)
   netTrainLlmAdapter?: boolean; // train_llm_adapter: also the LLM adapter blocks
   netTrainModulation?: boolean; // include the adaLN modulation layers (excluded by default)
+  netLoraPlus?: number;         // LoRA+: loraplus_lr_ratio in network_args (0 = off); the "up"/B side learns this many times faster
   // ---- VRAM / speed (audited against the Anima path; fp8_base/fp8_scaled are
   // force-disabled by anima_train_network.py, so they aren't offered) ----
   advOffloadCkpt?: '' | 'cpu' | 'unsloth'; // unsloth_offload_checkpointing ('cpu' is legacy and runs as unsloth: v0.12's cpu offload is broken for Anima)

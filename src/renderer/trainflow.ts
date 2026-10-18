@@ -46,7 +46,7 @@ const DEFAULTS: TrainflowSettings = {
   advDataloaderWorkers: 4, advVaeChunkSize: 0, advVaeDisableCache: true, advNoHalfVae: false,
   advCaptionDropout: 0.05, advKeepTokens: 1, advRepeats: 0, advSampleSampler: 'euler',
   saveState: false, continueSteps: 400, keepStates: 0,
-  netType: 'lora', netFactor: 4, netTrainLlmAdapter: false, netTrainModulation: false,
+  netType: 'lora', netFactor: 4, netTrainLlmAdapter: false, netTrainModulation: false, netLoraPlus: 0,
   advOffloadCkpt: '', advSplitAttn: false,
   extraFolders: [], captionShuffle: false, captionTagDropout: 0, validationSplit: 0, validateEvery: 0
 };
@@ -76,7 +76,7 @@ const ADV_NUM_FIELDS: [keyof TrainflowSettings, string][] = [
   ['advMaxGradNorm', 'tfAdvMaxGradNorm'], ['advDataloaderWorkers', 'tfAdvDataloaderWorkers'],
   ['advVaeChunkSize', 'tfAdvVaeChunkSize'], ['advCaptionDropout', 'tfAdvCaptionDropout'],
   ['advKeepTokens', 'tfAdvKeepTokens'], ['advRepeats', 'tfAdvRepeats'],
-  ['netFactor', 'tfNetFactor'], ['captionTagDropout', 'tfCaptionTagDropout'], ['validationSplit', 'tfValidationSplit'],
+  ['netFactor', 'tfNetFactor'], ['netLoraPlus', 'tfNetLoraPlus'], ['captionTagDropout', 'tfCaptionTagDropout'], ['validationSplit', 'tfValidationSplit'],
   ['validateEvery', 'tfValidateEvery'], ['keepStates', 'tfKeepStates']
 ];
 const ADV_BOOL_FIELDS: [keyof TrainflowSettings, string][] = [

@@ -330,7 +330,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       folder under <code>training/output/&lt;project&gt;/</code>. The trigger word is used exactly as typed.</p>
       <p><b>Network type</b>: LoRA, <b>LoKr</b> or LoHa. LoKr captures much richer changes in a quarter of
       the file at the same rank (good for styles; the <b>LoKr factor</b> is usually 4) and wants a higher
-      learning rate than LoRA unless you use Prodigy. The <b>Advanced</b> section adds more optimizers,
+      learning rate than LoRA unless you use Prodigy. <b>LoRA+ ratio</b> (Advanced, 0 = off) makes each
+      layer's second matrix learn that many times faster, often reaching the same result in fewer steps:
+      16 with AdamW / Lion, 2–4 with Prodigy. The <b>Advanced</b> section adds more optimizers,
       training the modulation layers (training the LLM adapter is offered too, but Anima's model card
       advises against it), per-block <b>torch.compile</b>, <b>Checkpoint
       offload</b> (less VRAM; not together with Blocks to swap), <b>Shuffle tags</b> / <b>Tag dropout</b>

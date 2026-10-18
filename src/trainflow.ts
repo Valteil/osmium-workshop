@@ -339,6 +339,10 @@ function networkLines(s: TrainflowSettings): string[] {
   if (s.netTrainLlmAdapter) args.push('train_llm_adapter=True');
   // An include pattern wins over the default exclude (network_base / lora_anima).
   if (s.netTrainModulation) args.push(`include_patterns=['.*_modulation.*']`);
+  // LoRA+: the B / "up" side gets LR × ratio (lora_anima, lokr and loha all read
+  // it: network_base._is_plus_param picks each one's B weights).
+  const plus = Number(s.netLoraPlus) || 0;
+  if (plus > 0) args.push(`loraplus_lr_ratio=${Math.min(64, plus)}`);
   return [`network_module = ${tomlStr(module)}`, ...(args.length ? [`network_args = [${args.map(tomlStr).join(', ')}]`] : [])];
 }
 

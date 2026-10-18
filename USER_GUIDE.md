@@ -615,6 +615,11 @@ same rank it can capture much richer changes in a quarter of the file, which sui
 train the same layers and load in ComfyUI. LoKr usually wants a higher learning rate than LoRA unless you
 use Prodigy.
 
+**LoRA+ ratio** (Advanced ▸ LoRA shape, 0 = off): each layer's second matrix learns this many times
+faster than the first, which often reaches the same result in fewer steps. 16 is the usual value with
+AdamW or Lion. With Prodigy, which sets its own step size, start at 2–4; a high ratio can overshoot. If
+samples burn early, lower the ratio or the learning rate. Works with LoRA, LoKr and LoHa.
+
 **More options** (all off by default):
 
 - **Optimizers:** Prodigy, Prodigy + ScheduleFree (both set their own step size; keep the learning rate
