@@ -348,6 +348,14 @@ function networkLines(s: TrainflowSettings): string[] {
 
 // `extra` = lines a continued run adds (network_weights for a warm start).
 // `caps` = what the install's sd-scripts supports (older ones lack per-block compile).
+// The dataset's training resolution, also as a training-level arg. The
+// dataset TOML's own `resolution` still wins for training (config_util's
+// fallback order: dataset > general > argparse), so this only reaches the
+// metadata: sd-scripts writes args.resolution into modelspec.resolution and
+// ss_resolution, and with it unset it wrote its Anima default "1024x1024"
+// whatever the run trained at.
+const resolutionLine = (check: TrainflowDatasetCheck): string => `resolution = ${tomlStr(`${check.baseRes},${check.baseRes}`)}`;
+
 function writeTrainingToml(s: TrainflowSettings, file: string, project: string, outDir: string, promptFile: string, extra: string[] = [], caps: { blockCompile: boolean } = { blockCompile: true }): void {
   const prodigy = selfTuningOptimizer(s.optimizer);
   const optArgs = optimizerArgs(s.optimizer);
@@ -456,7 +464,7 @@ export function renderTomlsForTest(
     const trainingFile = path.join(dir, 'training.toml');
     writeSamplePrompts(s, samplesFile);
     writeDatasetToml(s, datasetFile, check, extras);
-    writeTrainingToml(s, trainingFile, project, outDir, promptFile, extraTrainingLines);
+    writeTrainingToml(s, trainingFile, project, outDir, promptFile, [resolutionLine(check), ...extraTrainingLines]);
     return {
       samplePrompts: fs.readFileSync(samplesFile, 'utf8'),
       datasetToml: fs.readFileSync(datasetFile, 'utf8'),
@@ -945,7 +953,7 @@ async function startTraining(s: TrainflowSettings): Promise<TrainflowStartResult
     writeSamplePrompts(runSettings, promptFile);
     writeDatasetToml(runSettings, datasetToml, check, extras);
     writeTrainingToml(runSettings, trainingToml, outputName, outDir, promptFile,
-      plan ? [`network_weights = ${tomlStr(posix(plan.path))}`, 'dim_from_weights = true'] : [], trainerCaps(inst.scriptsDir));
+      [resolutionLine(check), ...(plan ? [`network_weights = ${tomlStr(posix(plan.path))}`, 'dim_from_weights = true'] : [])], trainerCaps(inst.scriptsDir));
   }
 
   const logFile = path.join(outDir, 'osmium_train.log');
