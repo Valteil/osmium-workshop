@@ -52,6 +52,9 @@ comfy-bridge/mobile/www/shared.css
 comfy-bridge/mobile/www/app.js
 comfy-bridge/Comfy Bridge.exe
 comfy-bridge/LICENSE.electron.txt
+# Copied beside the portable exe by the Bridge build's extraFiles (the sources are the root files).
+comfy-bridge/LICENSE
+comfy-bridge/THIRD_PARTY_NOTICES.md
 comfy-bridge/LICENSES.chromium.html
 comfy-bridge/chrome_100_percent.pak
 comfy-bridge/chrome_200_percent.pak
