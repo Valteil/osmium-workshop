@@ -84,6 +84,12 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   used. Each LoRA can be looked up on **CivitAI** and **CivArchive** (by its file hash when you have
   it, otherwise by name), with preview images, and added to your LoRA stack in one click when it's
   in your folder.
+- **LoRA training metadata** (Windows and Android, in the Metadata tab): see what a LoRA was trained
+  with, laid out like Xypher7's LoRA Metadata Viewer: base model, network type and dim/alpha,
+  optimizer and learning rates, epochs and steps, training time, noise settings, the dataset folders
+  with their image and repeat counts, and the training tags per folder with a filter and a "copy top
+  20" button, plus every raw key. Pick one of your LoRAs; on the phone your PC reads the file from
+  its loras folders. On Windows you can also open any .safetensors file from disk.
 - **Download to PC** (Windows, with Osmium Comfy): a looked-up LoRA can be downloaded straight into
   your ComfyUI loras folder, with a choice of mirrors, a folder browser and a new file name. Files
   are checked against the looked-up hash, and API keys for CivitAI and Hugging Face are saved under

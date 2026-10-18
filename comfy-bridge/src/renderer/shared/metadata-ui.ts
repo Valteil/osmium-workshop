@@ -4,9 +4,10 @@
 // Every value from a file, an image or a website is rendered with
 // textContent; links open only through the shell's openLink (the two sites).
 import {
-  matchLocalLora, normalizeLookup, loraMetaRows, loraStem,
+  matchLocalLora, normalizeLookup, loraStem,
   type LoraRef, type LoraFileInfo, type LookupSite, type LookupKind, type LookupHit
 } from './lora-lookup';
+import { renderTrainingInfo, readSafetensorsFile } from './lora-training';
 import { openDownloadModal, buildDownloadKeysSection, type LoraOp } from './lora-download';
 
 export interface LoraTools {
@@ -57,25 +58,7 @@ async function getFileInfo(tools: LoraTools, local: string): Promise<LoraFileInf
 }
 
 function renderFileInfo(out: HTMLElement, info: LoraFileInfo): void {
-  out.replaceChildren();
-  const rows = loraMetaRows(info);
-  if (!rows.length) out.appendChild(el('div', 'lora-note', 'This file has no training metadata.'));
-  for (const [k, v] of rows) {
-    const r = el('div', 'gen-info-row');
-    r.append(el('span', 'gen-info-k', k), el('span', 'gen-info-v', v));
-    out.appendChild(r);
-  }
-  if (info.top_tags && info.top_tags.length) {
-    out.appendChild(el('div', 'lora-sub', 'Top training tags'));
-    const chips = el('div', 'lora-chips');
-    for (const [tag, count] of info.top_tags.slice(0, 30)) chips.appendChild(el('span', 'lora-chip', `${tag} (${count})`));
-    out.appendChild(chips);
-  }
-  if (info.sha256) {
-    const r = el('div', 'gen-info-row');
-    r.append(el('span', 'gen-info-k', 'SHA-256'), el('span', 'gen-info-v lora-mono', `${info.sha256} (AutoV2 ${info.sha256.slice(0, 10).toUpperCase()})`));
-    out.appendChild(r);
-  }
+  renderTrainingInfo(out, info);
 }
 
 // A hit's preview: a placeholder at once, the image when it arrives (cached
@@ -207,6 +190,67 @@ export interface MetadataTabDeps {
   // The generation details for an image (gen-info's panel with the LoRA tools
   // and the shell's apply buttons), or null when it has none.
   details(src: string): HTMLElement | null;
+  // The desktop: also open any .safetensors on disk (parsed in the renderer).
+  // The phone leaves it off: its LoRAs live on the PC, which reads them.
+  openLoraFile?: boolean;
+}
+
+// LoRA training metadata: one of ComfyUI's LoRAs, read by the runner (on the
+// phone that's the PC: the relay / Persist Comfy's /internal/lora/info), or
+// on the desktop a .safetensors file from anywhere on disk.
+function buildTrainingSection(deps: MetadataTabDeps): HTMLElement {
+  const sec = el('section', 'sec meta-sec');
+  const head = el('div', 'sec-head');
+  head.appendChild(el('span', 'd', 'LoRA training metadata'));
+  sec.appendChild(head);
+  sec.appendChild(el('div', 'muted small', deps.openLoraFile
+    ? 'What a LoRA was trained with: base model, network, optimizer, steps, dataset folders and training tags. Pick one of your LoRAs, or open a .safetensors file.'
+    : 'What a LoRA was trained with: base model, network, optimizer, steps, dataset folders and training tags. The PC reads the file from its loras folders.'));
+  const row = el('div', 'meta-lookup-row');
+  const input = el('input');
+  input.type = 'text';
+  input.placeholder = 'One of your LoRAs…';
+  const dl = el('datalist');
+  dl.id = 'metaTrainLoraNames';
+  input.setAttribute('list', dl.id);
+  const fillList = () => dl.replaceChildren(...deps.tools.localNames().map((n) => { const o = el('option'); o.value = n; return o; }));
+  for (const ev of ['focus', 'pointerdown', 'input']) input.addEventListener(ev, fillList);
+  fillList();
+  const out = el('div', 'meta-lookup-result');
+  const show = async (busy: string, load: () => Promise<LoraFileInfo>) => {
+    out.replaceChildren(el('div', 'lora-note', busy));
+    try { renderTrainingInfo(out, await load()); }
+    catch (err) { out.replaceChildren(el('div', 'lora-note lora-err', err instanceof Error ? err.message : String(err))); }
+  };
+  const go = el('button', '', 'Read');
+  go.type = 'button';
+  go.addEventListener('click', () => {
+    const q = input.value.trim();
+    if (!q) return;
+    const local = matchLocalLora(q, deps.tools.localNames());
+    if (!local) { out.replaceChildren(el('div', 'lora-note lora-err', `"${q}" isn't in your LoRA list (Connect, or Refresh model lists).`)); return; }
+    void show(deps.openLoraFile ? 'Reading the file…' : 'Asking the PC to read the file…', () => getFileInfo(deps.tools, local));
+  });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go.click(); });
+  row.append(input, go, dl);
+  if (deps.openLoraFile) {
+    const file = el('input');
+    file.type = 'file';
+    file.accept = '.safetensors';
+    file.hidden = true;
+    file.addEventListener('change', () => {
+      const f = file.files && file.files[0];
+      file.value = '';
+      if (f) void show('Reading the header…', () => readSafetensorsFile(f));
+    });
+    const openBtn = el('button', '', 'Open file…');
+    openBtn.type = 'button';
+    openBtn.title = 'Open a .safetensors file from anywhere on this PC (its header only; no hash)';
+    openBtn.addEventListener('click', () => file.click());
+    row.append(openBtn, file);
+  }
+  sec.append(row, out);
+  return sec;
 }
 
 export function mountMetadataTab(root: HTMLElement, deps: MetadataTabDeps): void {
@@ -231,6 +275,8 @@ export function mountMetadataTab(root: HTMLElement, deps: MetadataTabDeps): void
     body.append(img, details || el('div', 'gen-info-empty', 'No generation settings in this image.'));
   });
   imgSec.append(openBtn, body);
+  root.appendChild(imgSec);
+  root.appendChild(buildTrainingSection(deps));
   // LoRA lookup
   const loraSec = el('section', 'sec meta-sec');
   const loraHead = el('div', 'sec-head');
@@ -263,6 +309,6 @@ export function mountMetadataTab(root: HTMLElement, deps: MetadataTabDeps): void
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go.click(); });
   row.append(input, go, dl);
   loraSec.append(row, result);
-  root.append(imgSec, loraSec);
+  root.append(loraSec);
   if (deps.tools.canSetKeys && deps.tools.loraOp) root.appendChild(buildDownloadKeysSection(deps.tools.loraOp));
 }

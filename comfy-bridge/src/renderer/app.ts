@@ -1858,6 +1858,7 @@ let metaPicked: PickedImage | null = null;
 mountMetadataTab($<HTMLElement>('metadataTab'), {
   tools: loraTools,
   pickImage: async () => { metaPicked = await pickImageFile(); return metaPicked ? metaPicked.src : null; },
+  openLoraFile: true,
   details: (src) => buildGenInfoPanel(src, (prompt, promptsOnly) => {
     showTab('generate');
     void useGeneration(prompt, promptsOnly, 'the Metadata tab');

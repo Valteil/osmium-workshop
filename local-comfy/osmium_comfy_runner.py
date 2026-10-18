@@ -575,10 +575,11 @@ def gallery_thumb_bytes(abs, side):
 # file is what CivitAI (AutoV2 = its first 10 hex) and CivArchive look up;
 # cached per (path, size, mtime) since hashing reads the whole file.
 LORA_SHA_CACHE = {}
-LORA_META_KEYS = ("ss_output_name", "modelspec.title", "modelspec.architecture", "ss_base_model_version",
-                  "ss_sd_model_name", "modelspec.trigger_phrase", "modelspec.description", "ss_training_comment",
-                  "ss_network_module", "ss_network_dim", "ss_network_alpha", "ss_num_epochs", "ss_epoch",
-                  "ss_steps", "ss_resolution", "modelspec.resolution", "ss_learning_rate", "ss_optimizer")
+# The whole __metadata__ goes back (Comfy Bridge's Training metadata view, after
+# Xypher7/lora-metadata-viewer), each value capped; ss_tag_frequency is sent
+# parsed instead (per folder + overall), not as its raw JSON string.
+LORA_META_VALUE_CAP = 256 * 1024
+LORA_TAGS_PER_FOLDER = 500
 
 
 def lora_info(name):
@@ -600,20 +601,25 @@ def lora_info(name):
                 meta = (header.get("__metadata__") or {}) if isinstance(header, dict) else {}
                 if not isinstance(meta, dict):
                     meta = {}
-                for k in LORA_META_KEYS:
-                    v = meta.get(k)
-                    if v not in (None, "", "None"):
-                        out["meta"][k] = str(v)[:2000]
+                for k, v in meta.items():
+                    if k == "ss_tag_frequency" or v in (None, "", "None"):
+                        continue
+                    out["meta"][str(k)] = str(v)[:LORA_META_VALUE_CAP]
                 # Training tags: ss_tag_frequency = {"<folder>": {"<tag>": count}}.
                 try:
                     freq = json.loads(meta.get("ss_tag_frequency") or "{}")
                     totals = {}
-                    for folder in freq.values():
+                    folders = {}
+                    for fname, folder in (freq or {}).items():
+                        counts = {}
                         for tag, count in (folder or {}).items():
                             t = str(tag).strip()
                             if t:
+                                counts[t] = counts.get(t, 0) + int(count or 0)
                                 totals[t] = totals.get(t, 0) + int(count or 0)
-                    out["top_tags"] = sorted(totals.items(), key=lambda kv: -kv[1])[:40]
+                        folders[str(fname)] = sorted(counts.items(), key=lambda kv: -kv[1])[:LORA_TAGS_PER_FOLDER]
+                    out["top_tags"] = sorted(totals.items(), key=lambda kv: -kv[1])[:LORA_TAGS_PER_FOLDER]
+                    out["tag_frequency"] = folders
                 except (ValueError, TypeError, AttributeError):
                     pass
     key = (path, st.st_size, int(st.st_mtime))

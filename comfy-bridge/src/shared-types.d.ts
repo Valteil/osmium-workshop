@@ -102,12 +102,17 @@ export type TfLrScheduler = '' | 'constant' | 'constant_with_warmup' | 'cosine' 
 export type TfAttn = 'torch' | 'sdpa' | 'xformers' | 'flash';
 export type TfTimestepSampling = 'sigmoid' | 'uniform' | 'sigma' | 'shift' | 'flux_shift';
 export type TfWeighting = 'uniform' | 'none' | 'sigma_sqrt' | 'logit_normal' | 'mode' | 'cosmap';
+// sd-scripts' optimizer_type. A dotted name is imported as module.Class; any
+// name ending in "ScheduleFree" gets sd-scripts' schedule-free handling.
+export type TfOptimizer = 'Prodigy' | 'AdamW8bit' | 'AdamW' | 'AdamWScheduleFree' | 'prodigyplus.ProdigyPlusScheduleFree' | 'Lion8bit' | 'Adafactor';
+// LoRA = networks.lora_anima; LoKr / LoHa = sd-scripts' own networks.lokr / networks.loha.
+export type TfNetworkType = 'lora' | 'lokr' | 'loha';
 export type TfSampleSampler = 'euler' | 'euler_a' | 'ddim' | 'pndm' | 'lms' | 'heun' | 'dpm_2' | 'dpm_2_a' | 'dpmsolver' | 'dpmsolver++' | 'dpmsingle' | 'k_lms' | 'k_euler' | 'k_euler_a' | 'k_dpm_2' | 'k_dpm_2_a';
 
 export interface TrainflowSettings {
   trigger: string; datasetPath: string;
   ditPath: string; qwenPath: string; vaePath: string;
-  rank: number; lr: string; optimizer: 'Prodigy' | 'AdamW8bit' | 'AdamW';
+  rank: number; lr: string; optimizer: TfOptimizer;
   steps: number; saveSteps: number; sampleSteps: number; batchSize: number; gradAcc: number; trainSeed: number;
   // The Bucket Images dock's sizes; Start Trainflow buckets with the same ones.
   bucketMin: number; bucketMax: number; bucketStep: number;
@@ -137,14 +142,54 @@ export interface TrainflowSettings {
   advKeepTokens: number;       // keep_tokens
   advRepeats: number;          // num_repeats; 0 => auto from steps/images
   advSampleSampler: TfSampleSampler;
+  // ---- Network type (2026-10-17). Unset = LoRA, the old TOML. ----
+  netType?: TfNetworkType;
+  netFactor?: number;           // LoKr factor (-1 = auto balanced; 4 = the common Anima LoKr)
+  netTrainLlmAdapter?: boolean; // train_llm_adapter: also the LLM adapter blocks
+  netTrainModulation?: boolean; // include the adaLN modulation layers (excluded by default)
+  // ---- VRAM / speed (audited against the Anima path; fp8_base/fp8_scaled are
+  // force-disabled by anima_train_network.py, so they aren't offered) ----
+  advOffloadCkpt?: '' | 'cpu' | 'unsloth'; // unsloth_offload_checkpointing ('cpu' is legacy and runs as unsloth: v0.12's cpu offload is broken for Anima)
+  advSplitAttn?: boolean;       // split_attn
+  advCompile?: '' | 'block' | 'model'; // per-block --compile (sd-scripts >= v0.11) / --torch_compile; replaces advTorchCompile
+  keepStates?: number;          // keep only the newest N resume states (save_last_n_steps_state); 0 = all
+  // ---- Dataset ----
+  extraFolders?: { path: string; repeats: number }[]; // more image folders (repeats 0 = auto)
+  captionShuffle?: boolean;     // shuffle_caption (keeps the first keep_tokens); turns TE output caching off
+  captionTagDropout?: number;   // caption_tag_dropout_rate; > 0 turns TE output caching off
+  validationSplit?: number;     // 0..0.5 of the images held out for validation loss
+  validateEvery?: number;       // validate_every_n_steps (0 = each epoch)
+  // ---- Continue training (2026-10-17) ----
+  // save_state: the optimizer/scheduler/RNG state beside each checkpoint, so a
+  // run can be resumed exactly later. Off (undefined) = the old TOML.
+  saveState?: boolean;
+  // Where Start begins: unset = a fresh LoRA. 'weights:<file>' = load that
+  // checkpoint's weights and train `continueSteps` more as a new run;
+  // 'state:<dir>' = resume that saved state exactly with the run's own configs.
+  // Names are plain entries of the project's output folder. Not persisted.
+  continueFrom?: string;
+  continueSteps?: number;
+}
+// One thing Start can continue from, listed from the project's output folder.
+export interface TrainflowContinueOption {
+  id: string;            // 'weights:<file>' | 'state:<dir>'
+  kind: 'weights' | 'state';
+  name: string;          // the file or folder name
+  run: string;           // the output name it belongs to
+  step: number;          // 0 = unknown (a final file without configs)
+  mtime: number;
+  outputName: string;    // what the continued run is saved as
 }
 export interface TrainflowRun {
   state: 'running' | 'finished' | 'stopped' | 'failed';
   project: string; outDir: string; startedAt: number;
   step: number; total: number; speed: string; eta: string; elapsed: string; loss?: number;
+  valLoss?: number;  // the last validation average (validation split on)
 }
 export interface TrainflowStatus {
   folder: string; ok: boolean; error?: string;
+  // What the chosen install's sd-scripts can do (read from its source).
+  trainer?: { blockCompile: boolean };
   run: TrainflowRun | null;
   // Set while Start Trainflow is bucketing the dataset (before training launches).
   prep?: { message: string; done: number; total: number };

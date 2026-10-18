@@ -342,25 +342,11 @@ export function normalizeLookup(site: LookupSite, kind: LookupKind, json: any): 
 
 // ---- a LoRA file's own metadata (the runner's lora_info) ---------------------
 
+// The whole safetensors __metadata__ (values capped runner-side) minus
+// ss_tag_frequency, which comes parsed: overall (top_tags) and per folder.
+// lora-training.ts lays it out.
 export interface LoraFileInfo {
   name: string; file: string; size: number; sha256: string;
   meta: Record<string, string>; top_tags: [string, number][];
-}
-
-const META_LABELS: [string, string][] = [
-  ['ss_output_name', 'Output name'], ['modelspec.title', 'Title'], ['modelspec.architecture', 'Architecture'],
-  ['ss_base_model_version', 'Base model'], ['modelspec.trigger_phrase', 'Trigger phrase'], ['ss_network_module', 'Network'],
-  ['ss_network_dim', 'Dim'], ['ss_network_alpha', 'Alpha'], ['ss_num_epochs', 'Epochs'], ['ss_steps', 'Steps'],
-  ['modelspec.resolution', 'Resolution'], ['ss_resolution', 'Resolution'], ['ss_learning_rate', 'Learning rate'],
-  ['ss_optimizer', 'Optimizer'], ['ss_training_comment', 'Comment'], ['modelspec.description', 'Description']
-];
-// The file's metadata as labelled rows, in a fixed order.
-export function loraMetaRows(info: LoraFileInfo): [string, string][] {
-  const rows: [string, string][] = [];
-  const seen = new Set<string>();
-  for (const [k, label] of META_LABELS) {
-    const v = info.meta && info.meta[k];
-    if (v && !seen.has(label)) { rows.push([label, v]); seen.add(label); }
-  }
-  return rows;
+  tag_frequency?: Record<string, [string, number][]>;
 }
