@@ -223,6 +223,8 @@ html.bridge-fx button:not(.theme-item):not(.preview-thumb):not(#galleryFab):not(
 .side-drawer-toggle:hover, .side-drawer-toggle:focus-visible, .side-drawer-toggle.active{ opacity:1; }
 .side-drawer-toggle .bridge-ic{ width:22px; height:22px; }
 .side-drawer-toggle.file-drawer-toggle{ right:80px; }
+/* Only the Generate tab has them (app.ts showTab sets the class). */
+body.off-generate-tab .side-drawer-toggle, body.off-generate-tab #galleryFab{ display:none; }
 .side-drawer-toggle.active{ border-color:var(--accent); color:var(--accent); }
 .side-drawer-backdrop{
   position:fixed; inset:0; z-index:505; background:rgb(0 0 0 / 40%);

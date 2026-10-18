@@ -1901,6 +1901,9 @@ function showTab(tab: string): void {
   usduView.hidden = tab !== 'upscale';
   metadataView.hidden = tab !== 'metadata';
   compareView.hidden = tab !== 'compare';
+  // The floating buttons (settings/file drawers, gallery) belong to Generate only.
+  document.body.classList.toggle('off-generate-tab', tab !== 'generate');
+  if (tab !== 'generate') closeSideDrawers();
   if (tab === 'compare') compare.onShow();
   appTabs.querySelectorAll<HTMLButtonElement>('button[data-tab]').forEach((b) => {
     const on = b.dataset.tab === tab;

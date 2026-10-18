@@ -2409,6 +2409,8 @@ declare const BridgeShared: {
     usduView.hidden = tab !== 'upscale';
     metadataView.hidden = tab !== 'metadata';
     compareView.hidden = tab !== 'compare';
+    // ☰ and the gallery button belong to Generate only (the Log button stays).
+    document.body.classList.toggle('off-generate-tab', tab !== 'generate');
     if (tab === 'compare') compare.onShow();
     appTabs.querySelectorAll<HTMLButtonElement>('button[data-tab]').forEach((b) => {
       const on = b.dataset.tab === tab;
