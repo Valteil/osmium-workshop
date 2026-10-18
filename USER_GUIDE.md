@@ -336,7 +336,13 @@ standing rules so a cleanup never needs repeating.
 ### Bucket Images
 Crops and resizes every Gallery image to its nearest LoRA training bucket, so your trainer
 doesn't have to. Set **Min side / Max side / Step** (default 512 / 1024 / 64, remembered per
-dataset, and also settable from the Trainflow tab); each image goes to the bucket closest to its aspect ratio. The crop is
+dataset, and also settable from the Trainflow tab); each image goes to the bucket closest to its aspect ratio.
+A bucket's short side is always **Min side**, and Max side caps the long side. The **Training size**
+picker above the fields sets them for you: **≈512** (448 / 704: fast, less detail; a 2:3 image trains at
+448×704), **≈640** (Osmium's default, 512 / 1024: 512×768) or **≈1024** (832 / 1280: more detail,
+slower, more VRAM; 832×1280). The line under the fields says what a 2:3 and a square image become;
+change the fields yourself and it shows Custom. Re-bucketing remakes the copies from the originals, so
+switching sizes is safe. The crop is
 subject-first: a u2net saliency model decides what to keep. It's a one-time ~176 MB download via
 the dock's **⬇ Download model** button. **Prefer GPU** (on by default) runs it on your graphics
 card with an automatic CPU fallback; the log names which one handled each image.

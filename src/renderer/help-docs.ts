@@ -290,7 +290,10 @@ export const HELP_SECTIONS: HelpSection[] = [
     html: `
       <p><b>🧺 Bucket Images</b> (in the Gallery's right sidebar) crops and resizes every Gallery
       image to its nearest LoRA training bucket (Min side / Max side / Step, default 512 / 1024 /
-      64, remembered per dataset and also set from the Trainflow tab), so your trainer doesn't have to. The crop keeps the subject using a saliency model (a
+      64, remembered per dataset and also set from the Trainflow tab), so your trainer doesn't have to.
+      A bucket's short side is always Min side; the <b>Training size</b> picker sets the fields for
+      ≈512 (fast, less detail), ≈640 (the default) or ≈1024 (more detail, slower), and the line under
+      them says what a 2:3 and a square image become. The crop keeps the subject using a saliency model (a
       one-time ~176 MB download, ⬇ button in the dock). <b>Prefer GPU</b> runs it on your graphics
       card with an automatic CPU fallback. Originals are never lost: they move to an
       <code>original_images/</code> folder (browse them via the 🖼 Originals view), and every image

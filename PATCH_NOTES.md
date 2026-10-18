@@ -40,7 +40,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   again, and `initial_state/` folders are merged into it), and bucketing again re-makes the copies from
   the originals, so you can try different dimensions as often as you like.
 - **Bucket sizes are remembered per dataset** and start at 512 to 1024 (step 64). Set them in the
-  Bucket Images dock or right in the Trainflow tab; both show the same values.
+  Bucket Images dock or right in the Trainflow tab; both show the same values. A **Training size**
+  picker sets them for you: ≈512 (fast, less detail), ≈640 (the default) or ≈1024 (more detail,
+  slower), with a line saying what a 2:3 and a square image will train at.
 - **WD14 review window, rebuilt**: tagging a batch in Tag Overseer with "Apply automatically" off now
   shows one card per image. Each card keeps its picture on the left and its own tag area on the
   right, with the tags WD14 added tinted so they stand out from the ones already on the image. Drop

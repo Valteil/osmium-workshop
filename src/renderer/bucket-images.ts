@@ -108,6 +108,65 @@ const SIZE_FIELDS: [keyof BucketSizes, string, string][] = [
 ];
 const field = (id: string) => document.getElementById(id) as HTMLInputElement | null;
 
+// Training-size presets (a picker above both copies of the Min/Max/Step fields).
+// A bucket's short side is always exactly Min (getValidBuckets), so the
+// presets pick Min/Max that put a typical 2:3 image near the named pixel
+// budget: ≈512 → 448×704 (≈561²), the default 512–1024 → 512×768 (≈627²),
+// ≈1024 → 832×1280 (≈1032²). Any other Min/Max/Step shows as Custom.
+const SIZE_PRESETS: { id: string; label: string; sizes: BucketSizes }[] = [
+  { id: '512', label: '≈512 — fast, less detail', sizes: { min: 448, max: 704, step: 64 } },
+  { id: 'default', label: '≈640 — Osmium\'s default', sizes: { ...BUCKET_DEFAULTS } },
+  { id: '1024', label: '≈1024 — more detail, slower, more VRAM', sizes: { min: 832, max: 1280, step: 64 } }
+];
+const presetSelects: HTMLSelectElement[] = [];
+const sizeHints: HTMLElement[] = [];
+function currentSizes(): BucketSizes {
+  const v = (k: keyof BucketSizes) => parseInt(field(SIZE_FIELDS.find((f) => f[0] === k)![1])?.value || '', 10) || BUCKET_DEFAULTS[k];
+  return { min: v('min'), max: v('max'), step: v('step') };
+}
+// The picker follows the fields; the hint says what two common shapes become.
+function syncSizeUI(): void {
+  const s = currentSizes();
+  const match = SIZE_PRESETS.find((p) => p.sizes.min === s.min && p.sizes.max === s.max && p.sizes.step === s.step);
+  for (const sel of presetSelects) sel.value = match ? match.id : 'custom';
+  const buckets = getValidBuckets(s.min, Math.max(s.min, s.max), s.step);
+  const [pw, ph] = getBestBucket(2, 3, buckets);
+  const [sw, sh] = getBestBucket(1, 1, buckets);
+  const text = `A 2:3 image trains at ${pw}×${ph} (about ${Math.round(Math.sqrt(pw * ph))}²), a square one at ${sw}×${sh}. Smaller originals are enlarged to fit, which adds no detail.`;
+  for (const h of sizeHints) h.textContent = text;
+}
+function buildSizePresetUI(): void {
+  for (const [, dockId, tfId] of [SIZE_FIELDS[0]]) {
+    for (const id of [dockId, tfId]) {
+      const row = field(id)?.closest('.bucket-params-row');
+      if (!row) continue;
+      const wrap = document.createElement('label');
+      wrap.className = 'bucket-preset-row';
+      wrap.title = 'Pick a training size and the Min / Max / Step below are set for you. A bucket\'s short side is always Min, and Max caps the long side. Change the fields yourself for a custom size.';
+      wrap.appendChild(document.createTextNode('Training size'));
+      const sel = document.createElement('select');
+      for (const p of SIZE_PRESETS) { const o = document.createElement('option'); o.value = p.id; o.textContent = p.label; sel.appendChild(o); }
+      const custom = document.createElement('option');
+      custom.value = 'custom'; custom.textContent = 'Custom (the fields below)';
+      sel.appendChild(custom);
+      sel.addEventListener('change', () => {
+        const p = SIZE_PRESETS.find((x) => x.id === sel.value);
+        if (!p) return;
+        for (const [k, dId, tId] of SIZE_FIELDS) for (const fid of [dId, tId]) { const el = field(fid); if (el) el.value = String(p.sizes[k]); }
+        saveDatasetBucketSizes();
+        syncSizeUI();
+      });
+      wrap.appendChild(sel);
+      row.before(wrap);
+      presetSelects.push(sel);
+      const hint = document.createElement('div');
+      hint.className = 'bucket-size-hint';
+      row.after(hint);
+      sizeHints.push(hint);
+    }
+  }
+}
+
 // Fills both sets of fields from the loaded dataset's saved sizes (or the defaults).
 export function applyDatasetBucketSizes(): void {
   const name = getDirHandle()?.name;
@@ -116,6 +175,7 @@ export function applyDatasetBucketSizes(): void {
     const v = String(saved?.[k] ?? BUCKET_DEFAULTS[k]);
     for (const id of [dockId, tfId]) { const el = field(id); if (el) el.value = v; }
   }
+  syncSizeUI();
 }
 
 function saveDatasetBucketSizes(): void {
@@ -484,12 +544,14 @@ export function initBucketImages(deps: BucketImagesDeps): void {
   bucketGpu.addEventListener('change', () => setJSON(SETTINGS_KEY, { gpu: bucketGpu.checked }));
 
   // Either copy of a size field updates the other and saves for this dataset.
+  buildSizePresetUI();
   for (const [, dockId, tfId] of SIZE_FIELDS) {
     const pair = [field(dockId), field(tfId)];
     pair.forEach((el, i) => el?.addEventListener('input', () => {
       const other = pair[1 - i];
       if (other) other.value = el.value;
       saveDatasetBucketSizes();
+      syncSizeUI();
     }));
   }
   applyDatasetBucketSizes();
