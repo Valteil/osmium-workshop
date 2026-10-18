@@ -14,6 +14,7 @@
 //   save node is '192', so every transport (desktop main, Osmium Comfy runner,
 //   the relay, the phone) uploads and fetches it unchanged.
 import { attachPickerModal } from './picker-modal';
+import { showImageLightbox } from './lightbox';
 import { mergedPromptText } from './gen-info';
 import { foreignSource, imageMetadataTexts, mergePromptFields, normalizeGeneration, splitPromptToFields } from './prompt-import';
 
@@ -267,7 +268,9 @@ export function usduSettingsFromPrompt(prompt: Prompt): Partial<UsduSettings> | 
 
 // ---- panel ----
 
-export interface UsduImportedJob { prompt: Prompt; imageFilename: string; imageBytes: Uint8Array; base: string; }
+// saveTo: 'output' = the output folder's Upscaled/ (as before); 'folder' = the
+// folder chosen in the Upscale tab (the shell saves it there).
+export interface UsduImportedJob { prompt: Prompt; imageFilename: string; imageBytes: Uint8Array; base: string; saveTo: 'output' | 'folder'; }
 
 export interface UsduPanelOptions {
   // 'generation' (default): the settings drawer's panel — on/off toggle, the
@@ -282,6 +285,10 @@ export interface UsduPanelOptions {
   refreshLists: () => Promise<void> | void;
   // "Upscale this image" (imported source).
   onRunImported: () => void;
+  // The Upscale tab's "Save to: a folder I choose": the shell keeps the folder
+  // (desktop: main process; phone: a SAF grant). get() = its label ('' = none
+  // yet), pick() = choose one (null = cancelled). Absent = output folder only.
+  saveFolder?: { get(): Promise<string>; pick(): Promise<string | null> };
   log: (msg: string) => void;
 }
 
@@ -411,6 +418,10 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
   const importBox = document.createElement('div');
   importBox.className = 'usdu-import';
   let picked: { name: string; bytes: Uint8Array } | null = null;
+  const saveToSel = document.createElement('select');
+  let saveFolderLabel = '';
+  let syncSaveTo = (): void => undefined;
+  let pickSaveFolder = async (): Promise<string | null> => null;
   if (imported) {
     const title = document.createElement('div');
     title.className = 'usdu-sec-head';
@@ -422,7 +433,7 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     previewImg.hidden = true;
     const empty = document.createElement('div');
     empty.className = 'muted usdu-preview-empty';
-    empty.textContent = 'Choose an image (PNG, JPG or WebP).';
+    empty.textContent = 'No image yet: use Choose image… below (PNG, JPG or WebP).';
     preview.append(previewImg, empty);
     const pickBtn = document.createElement('button');
     pickBtn.type = 'button';
@@ -444,10 +455,48 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     btnRow.className = 'row';
     btnRow.append(pickBtn, runBtn);
     importBox.append(title, preview, btnRow, pickedName, fileInput);
+    // Where the result goes: the output folder's Upscaled/ (default) or a
+    // folder of the user's choosing (e.g. next to the originals).
+    if (opts.saveFolder) {
+      const sf = opts.saveFolder;
+      const row = document.createElement('div');
+      row.className = 'usdu-saveto';
+      const lab = document.createElement('label');
+      lab.textContent = 'Save to';
+      saveToSel.id = 'usduImpSaveTo';
+      for (const [v, t] of [['output', 'My output folder (Upscaled)'], ['folder', 'A folder I choose']]) {
+        const o = document.createElement('option'); o.value = v; o.textContent = t; saveToSel.appendChild(o);
+      }
+      lab.appendChild(saveToSel);
+      const folderRow = document.createElement('div');
+      folderRow.className = 'row usdu-saveto-folder';
+      const folderLabel = document.createElement('span');
+      folderLabel.className = 'muted small usdu-folder-label';
+      const chooseBtn = document.createElement('button');
+      chooseBtn.type = 'button';
+      chooseBtn.textContent = 'Choose folder…';
+      chooseBtn.title = 'The folder upscaled images are saved in (named <image>_upscaled.png; nothing is overwritten)';
+      folderRow.append(chooseBtn, folderLabel);
+      row.append(lab, folderRow);
+      importBox.insertBefore(row, pickedName.nextSibling);
+      const showFolder = (label: string) => {
+        saveFolderLabel = label;
+        folderLabel.textContent = label || 'No folder chosen yet.';
+        folderLabel.title = label;
+      };
+      const sync = () => { folderRow.hidden = saveToSel.value !== 'folder'; };
+      saveToSel.addEventListener('change', sync);
+      syncSaveTo = sync;
+      chooseBtn.addEventListener('click', async () => { const l = await sf.pick(); if (l !== null) showFolder(l); });
+      pickSaveFolder = async () => { const l = await sf.pick(); if (l !== null) showFolder(l); return l; };
+      void sf.get().then(showFolder).catch(() => showFolder(''));
+      sync();
+    }
     host.insertBefore(importBox, body);
     let url = '';
     pickBtn.addEventListener('click', () => fileInput.click());
-    preview.addEventListener('click', () => fileInput.click());
+    // The preview zooms (the Bridge's lightbox); choosing is the button only.
+    preview.addEventListener('click', () => { if (url) showImageLightbox(url); });
     fileInput.addEventListener('change', async () => {
       const f = fileInput.files && fileInput.files[0];
       fileInput.value = '';
@@ -461,6 +510,8 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
       previewImg.src = url;
       previewImg.hidden = false;
       empty.hidden = true;
+      preview.classList.add('has-image');
+      preview.title = 'Click to zoom in';
     });
     runBtn.addEventListener('click', () => opts.onRunImported());
   }
@@ -492,6 +543,7 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     refresh();
   }
   function refresh(): void {
+    syncSaveTo(); // its value may have come back from the UI-state restore
     body.hidden = !imported && !toggle.checked;
     const s = read();
     for (const { def, row } of rows) row.hidden = def.show ? !def.show(s) : false;
@@ -537,6 +589,11 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     },
     async buildImportedJob(): Promise<UsduImportedJob | null> {
       if (!picked) { opts.log('USDU: choose an image to upscale first.'); return null; }
+      const saveTo: 'output' | 'folder' = opts.saveFolder && saveToSel.value === 'folder' ? 'folder' : 'output';
+      if (saveTo === 'folder' && !saveFolderLabel && !(await pickSaveFolder())) {
+        opts.log('USDU: choose the folder to save in (or switch Save to back to your output folder).');
+        return null;
+      }
       const s = read();
       let positive = '';
       if (s.promptSource === 'own') positive = s.ownPrompt;
@@ -556,7 +613,7 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
       if (!size && s.tileSize !== 'custom') opts.log(`USDU: couldn't read ${picked.name}'s size; using the custom tile size (${s.tileWidth}×${s.tileHeight}).`);
       appendUsduNodes(prompt, ['239', 0], s, positive, '192', 'Upscaled/ComfyBridge_USDU', size);
       const stem = picked.name.replace(/\.[^.]+$/, '');
-      return { prompt, imageFilename: picked.name, imageBytes: picked.bytes, base: stem };
+      return { prompt, imageFilename: picked.name, imageBytes: picked.bytes, base: stem, saveTo };
     }
   };
 }

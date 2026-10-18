@@ -302,6 +302,57 @@ function assertWithinBase(base: string, abs: string): void {
   if (rel === '') return;
   if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('Invalid path.');
 }
+// ---------------- Upscale tab: "Save to a folder I choose" ----------------
+// Same shape as the output folder: the chosen folder lives here only (a
+// userData file), picked through the native dialog; the renderer can read its
+// path for the label, ask to pick another, or hand over bytes + a base name.
+// Names are sanitized here and an existing file is never overwritten.
+const USDU_FOLDER_FILE = () => path.join(app.getPath('userData'), 'comfy-bridge-upscale-folder.txt');
+let usduSaveFolder: string | null = null;
+function getUsduSaveFolder(): string {
+  if (usduSaveFolder === null) {
+    try { usduSaveFolder = fs.readFileSync(USDU_FOLDER_FILE(), 'utf8').trim(); }
+    catch { usduSaveFolder = ''; }
+  }
+  return usduSaveFolder;
+}
+ipcMain.handle('usdu-save-folder', async () => {
+  const f = getUsduSaveFolder();
+  return f && fs.existsSync(f) ? { ok: true, path: f } : { ok: true, path: '' };
+});
+ipcMain.handle('usdu-pick-save-folder', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const res = await dialog.showOpenDialog(win, { title: 'Save upscaled images in…', properties: ['openDirectory', 'createDirectory'] });
+  if (res.canceled || !res.filePaths[0]) return { ok: false, cancelled: true };
+  usduSaveFolder = res.filePaths[0];
+  try {
+    fs.mkdirSync(path.dirname(USDU_FOLDER_FILE()), { recursive: true });
+    fs.writeFileSync(USDU_FOLDER_FILE(), usduSaveFolder);
+  } catch (err) { console.error('[usdu-folder] could not persist:', err && err.message); }
+  return { ok: true, path: usduSaveFolder };
+});
+ipcMain.handle('usdu-save-to-folder', async (_event, { base, base64 }) => {
+  const dir = getUsduSaveFolder();
+  if (!dir || !fs.existsSync(dir)) return { ok: false, error: 'Choose the folder to save in first.' };
+  if (typeof base64 !== 'string' || base64.length > 400 * 1024 * 1024) return { ok: false, error: 'Invalid image.' };
+  const stem = String(base || 'image').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/, '').slice(0, 120) || 'image';
+  try {
+    const bytes = Buffer.from(base64, 'base64');
+    for (let n = 1; n < 10000; n++) {
+      const dest = path.join(dir, `${stem}_upscaled${n === 1 ? '' : '_' + n}.png`);
+      try {
+        fs.writeFileSync(dest, bytes, { flag: 'wx' }); // never overwrites
+        return { ok: true, path: dest };
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      }
+    }
+    return { ok: false, error: 'Too many files with that name.' };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+});
+
 ipcMain.handle('pick-output-folder', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const res = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] });

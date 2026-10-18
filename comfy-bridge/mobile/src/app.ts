@@ -71,7 +71,7 @@ declare const BridgeShared: {
   mountUsduPanel: (host: HTMLElement, opts: any) => {
     enabled: () => boolean; refresh: () => void; setEnabled: (on: boolean) => void; apply: (s: any) => void;
     activeForGeneration: () => boolean; appendToGeneration: (prompt: any) => void;
-    buildImportedJob: () => Promise<{ prompt: any; imageFilename: string; imageBytes: Uint8Array; base: string } | null>;
+    buildImportedJob: () => Promise<{ prompt: any; imageFilename: string; imageBytes: Uint8Array; base: string; saveTo: 'output' | 'folder' } | null>;
   };
   usduSettingsFromPrompt: (prompt: any) => Record<string, any> | null;
   // shared/wd14-tag.ts: WD14 tagging panel (same module as the desktop's).
@@ -1446,8 +1446,28 @@ declare const BridgeShared: {
   });
   // The Upscale tab: the same panel for an image you already have (ids
   // usduImp*, settings kept apart from the drawer's).
+  // "Save to: a folder I choose": a second SAF grant (picked with setRoot:
+  // false, so the output folder stays), remembered here by uri.
+  const USDU_FOLDER_KEY = 'comfybridge-usdu-folder';
+  function usduFolder(): { uri: string; name: string } | null {
+    try { return JSON.parse(localStorage.getItem(USDU_FOLDER_KEY) || 'null'); } catch (e) { return null; }
+  }
   const usduImp = BridgeShared.mountUsduPanel($('usduTab'), {
     mode: 'imported',
+    saveFolder: safPlugin() ? {
+      get: async () => { const f = usduFolder(); return f ? f.name : ''; },
+      pick: async () => {
+        try {
+          const res = await safPlugin().pickFolder({ setRoot: false });
+          const f = { uri: res.uri, name: res.name || 'folder' };
+          try { localStorage.setItem(USDU_FOLDER_KEY, JSON.stringify(f)); } catch (e) { /* best effort */ }
+          return f.name;
+        } catch (e) {
+          if (errMsg(e) !== 'User cancelled') log('Folder pick failed: ' + errMsg(e));
+          return null;
+        }
+      }
+    } : undefined,
     getList: (kind: string) => kind === 'ckpt' ? usduCkptOptions
       : kind === 'wd14' ? usduWd14Options
       : kind === 'upscale' ? BridgeShared.optionsFromDatalist(upscaleModelList)
@@ -1818,6 +1838,8 @@ declare const BridgeShared: {
     naming: SaveNaming;
     // An imported image through USDU: its one output ('192') is the upscale.
     usduOnly?: boolean;
+    // 'folder': the Upscale tab's chosen folder (a second SAF grant).
+    saveTo?: 'output' | 'folder';
   }
   const genQueue: GenJob[] = [];
   let genRunning = false;
@@ -1850,7 +1872,8 @@ declare const BridgeShared: {
       passCount: 1,
       totalStages: 1,
       naming: { relDir: '', base: BridgeShared.safeSegment(j.base) || 'usdu', rating: '', character: '', recognized: '' },
-      usduOnly: true
+      usduOnly: true,
+      saveTo: j.saveTo
     });
     startQueue();
   }
@@ -1957,6 +1980,21 @@ declare const BridgeShared: {
       else saveFailed = true;
       slides.push({ label, bytes });
     };
+    if (job.usduOnly && job.saveTo === 'folder') {
+      const f = usduFolder();
+      let failed = !f;
+      if (res.imageBytes && f) {
+        try {
+          const r = await safPlugin().writeNewFile({ rootUri: f.uri, base: job.naming.base + '_upscaled', ext: 'png', base64: BridgeShared.bytesToBase64(res.imageBytes), mimeType: 'image/png' });
+          log(`Saved ${f.name}/${r.name}`);
+        } catch (e) { failed = true; log('Upscaled, but saving failed: ' + errMsg(e)); }
+        slides.push({ label: 'Upscaled (USDU)', bytes: res.imageBytes });
+      }
+      if (failed) { genStatus.style.display = 'block'; genStatus.textContent = 'Upscaled, but saving failed — see Log for details.'; }
+      finalizeGenNotification(failed ? 'Upscaled, but saving failed' : 'Upscale complete', 'USDU');
+      setPreviewSlides(slides);
+      return;
+    }
     if (job.usduOnly) {
       if (res.imageBytes) await keep('Upscaled (USDU)', res.imageBytes, true);
       lastSavedImages = saved;

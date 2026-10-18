@@ -83,7 +83,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Upscale with USDU** (Windows and Android): Ultimate SD Upscale as the other choice next to the
   normal upscale. It upscales the image you generate (the pass 2 image when 2-Pass is on), and any
   image you already have gets its own **Upscale** tab: choose the image, see it large beside the
-  settings, and press Upscale this image. It redraws the image tile by tile with its own
+  settings (click it to zoom in), and press Upscale this image. The result can go to your output
+  folder or to any folder you choose. It redraws the image tile by tile with its own
   checkpoint, so you get real added detail. Every setting is there with a tooltip, and the tiles' prompt can be the image's own prompt
   (with or without your Global field), WD14 tags, or text you type. Needs the
   ComfyUI_UltimateSDUpscale node pack.

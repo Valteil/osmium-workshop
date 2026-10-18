@@ -30,6 +30,9 @@ interface ElectronAPI {
   setZoomFactor(factor: number): void;
   getAppVersion(): Promise<string>;
   pickOutputFolder(): Promise<{ ok: boolean; path?: string }>;
+  usduSaveFolder(): Promise<{ ok: boolean; path?: string }>;
+  usduPickSaveFolder(): Promise<{ ok: boolean; path?: string; cancelled?: boolean }>;
+  usduSaveToFolder(payload: { base: string; base64: string }): Promise<{ ok: boolean; path?: string; error?: string }>;
   // The picked image's embedded texts (PNG chunks) and its bytes (for JPEG/WebP EXIF).
   importWorkflow(): Promise<{ ok: boolean; cancelled?: boolean; error?: string; texts?: Record<string, string>; bytes?: Uint8Array }>;
   // LoRA lookup (main.ts): file metadata via the runner, the two-site online allowlist, links.
@@ -504,6 +507,11 @@ const usdu = mountUsduPanel($<HTMLDivElement>('usduPanel'), {
 // usduImp*, so its settings are kept apart from the drawer's).
 const usduImp = mountUsduPanel($<HTMLDivElement>('usduTab'), {
   mode: 'imported',
+  // "Save to: a folder I choose" — the folder is kept by main (usdu-save-folder).
+  saveFolder: {
+    get: async () => { const r = await window.electronAPI.usduSaveFolder(); return (r.ok && r.path) || ''; },
+    pick: async () => { const r = await window.electronAPI.usduPickSaveFolder(); return r.ok && r.path ? r.path : null; }
+  },
   getList: (kind: UsduListKind) => kind === 'ckpt' ? usduCkptOptions
     : kind === 'wd14' ? usduWd14Options
     : kind === 'upscale' ? optionsFromDatalist(upscaleModelList)
@@ -1309,7 +1317,8 @@ function buildPromptForComfy(): any {
 // saves under the folder/name its own settings produced.
 // `usduOnly`: an imported image through USDU — its one output ('192') is the
 // upscaled image.
-interface GenJob { host: string; prompt: any; imageFilename: string | null; imageBytes: Uint8Array | null; naming: SaveNaming; usduOnly?: boolean; }
+// `saveTo: 'folder'`: the Upscale tab's chosen folder instead of the output folder.
+interface GenJob { host: string; prompt: any; imageFilename: string | null; imageBytes: Uint8Array | null; naming: SaveNaming; usduOnly?: boolean; saveTo?: 'output' | 'folder'; }
 const genQueue: GenJob[] = [];
 let genRunning = false;
 let genStopped = false;
@@ -1428,7 +1437,8 @@ async function queueUsduImported(): Promise<void> {
     imageFilename: j.imageFilename,
     imageBytes: j.imageBytes,
     naming: { relDir: '', base: safeSegment(j.base) || 'usdu', rating: '', character: '', recognized: '' },
-    usduOnly: true
+    usduOnly: true,
+    saveTo: j.saveTo
   });
   await startQueue();
 }
@@ -1490,6 +1500,18 @@ async function runGenJob(job: GenJob): Promise<void> {
     else saveFailed = true;
     slides.push({ label, bytes });
   };
+  if (job.usduOnly && job.saveTo === 'folder') {
+    // The Upscale tab's chosen folder: main names it <image>_upscaled.png.
+    if (res.imageBytes) {
+      const r = await window.electronAPI.usduSaveToFolder({ base: job.naming.base, base64: bytesToBase64(stampOutputKind(res.imageBytes, 'upscaled')) });
+      if (r.ok) log(`Saved ${r.path}`);
+      else { log(`Upscaled, but saving failed: ${r.error}`); genStatus.style.display = 'block'; genStatus.textContent = 'Upscaled, but saving failed — see Log for details.'; }
+      slides.push({ label: 'Upscaled (USDU)', bytes: res.imageBytes });
+    }
+    lastSavedImages = saved;
+    setPreviewSlides(slides);
+    return;
+  }
   if (job.usduOnly) {
     if (res.imageBytes) await keep('Upscaled (USDU)', res.imageBytes, stampOutputKind(res.imageBytes, 'upscaled'), true);
     lastSavedImages = saved;

@@ -46,6 +46,9 @@ class BridgeStoragePlugin : Plugin() {
         return doc
     }
 
+    // pickFolder({ setRoot: false }) picks a folder WITHOUT making it the save
+    // root (the Upscale tab's "Save to a folder I choose"): the grant is still
+    // persisted, and writeNewFile() addresses it by its uri.
     @PluginMethod
     fun pickFolder(call: PluginCall) {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
@@ -68,11 +71,47 @@ class BridgeStoragePlugin : Plugin() {
             treeUri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         )
-        context.getSharedPreferences(prefsName, 0).edit().putString(uriKey, treeUri.toString()).apply()
+        if (call.getBoolean("setRoot", true) != false) {
+            context.getSharedPreferences(prefsName, 0).edit().putString(uriKey, treeUri.toString()).apply()
+        }
         val dir = DocumentFile.fromTreeUri(context, treeUri)
         val ret = JSObject()
         ret.put("uri", treeUri.toString())
         ret.put("name", dir?.name ?: "folder")
+        call.resolve(ret)
+    }
+
+    // Writes "<base>.<ext>" into a picked (persisted-grant) folder that isn't
+    // the save root, never overwriting: a clash becomes "<base>_2.<ext>", …
+    // Resolves with the name used.
+    @PluginMethod
+    fun writeNewFile(call: PluginCall) {
+        val uriStr = call.getString("rootUri", "") ?: ""
+        val base = (call.getString("base", "image") ?: "image").replace(Regex("[\\\\/:*?\"<>|\\x00-\\x1f]"), "_").take(120)
+        val ext = (call.getString("ext", "png") ?: "png").replace(Regex("[^A-Za-z0-9]"), "").take(8)
+        val base64 = call.getString("base64", "") ?: ""
+        val mimeType = call.getString("mimeType", "image/png") ?: "image/png"
+        if (uriStr.isEmpty()) { call.reject("No folder given"); return }
+        val treeUri = Uri.parse(uriStr)
+        val granted = context.contentResolver.persistedUriPermissions.any {
+            it.uri == treeUri && it.isWritePermission
+        }
+        if (!granted) { call.reject("Permission for this folder is no longer granted — pick it again"); return }
+        val dir = DocumentFile.fromTreeUri(context, treeUri)
+        if (dir == null || !dir.isDirectory) { call.reject("Folder not found"); return }
+        var name = "$base.$ext"
+        var n = 2
+        while (dir.findFile(name) != null) {
+            if (n > 9999) { call.reject("Too many files with that name"); return }
+            name = "${base}_$n.$ext"
+            n++
+        }
+        val file = dir.createFile(mimeType, name) ?: run { call.reject("Could not create $name"); return }
+        val bytes = Base64.decode(base64, Base64.NO_WRAP)
+        context.contentResolver.openOutputStream(file.uri, "w")?.use { it.write(bytes) }
+            ?: run { call.reject("Could not open $name for writing"); return }
+        val ret = JSObject()
+        ret.put("name", file.name ?: name)
         call.resolve(ret)
     }
 

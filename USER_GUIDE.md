@@ -843,8 +843,10 @@ This guide covers the desktop app. Two siblings share this repo:
     redraws it tile by tile with its own checkpoint at low denoise. Turned on in the generation
     settings, it upscales each image you generate (the pass-2 image with 2-Pass on). For an image
     you already have there's the **Upscale** tab (next to Generate): choose the image, it shows
-    large beside the USDU settings (kept separately from the generation ones), and **Upscale this
-    image** queues it; the result goes to the Upscaled folder.
+    large beside the USDU settings (kept separately from the generation ones; click the image to
+    zoom in), and **Upscale this image** queues it. **Save to** picks where the result goes: your
+    output folder's Upscaled folder, or **a folder you choose** (Choose folder…; remembered), where
+    it's saved as `<image>_upscaled.png` and never overwrites anything.
     The tiles' prompt is your image's prompt (optionally without the Global field), WD14 tags, or
     your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
     phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);

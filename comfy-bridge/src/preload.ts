@@ -6,6 +6,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   pickOutputFolder: () => ipcRenderer.invoke('pick-output-folder'),
+  // Upscale tab: its own save folder (kept in main, like the output folder).
+  usduSaveFolder: () => ipcRenderer.invoke('usdu-save-folder'),
+  usduPickSaveFolder: () => ipcRenderer.invoke('usdu-pick-save-folder'),
+  usduSaveToFolder: (payload) => ipcRenderer.invoke('usdu-save-to-folder', payload),
   importWorkflow: () => ipcRenderer.invoke('import-workflow-file'),
   // LoRA lookup (Metadata tab): file metadata via the runner, online search
   // through main's two-site allowlist, links opened only for those sites.
