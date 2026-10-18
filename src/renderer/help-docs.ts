@@ -365,7 +365,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p><b>Locking</b> an image (🔒, in its 3-dot menu) keeps it out of every mass or automatic
       tool — Unify/Void, Master Tags, bulk WD14 — while leaving it fully editable by hand. Use it
       to protect one image from an unattended batch operation without disabling it.</p>
-      ${isTouchDevice ? '<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>' : '<p>Opening a card image also offers <b>⟲/⟳ Rotate</b> and <b>✂ Crop</b> — pixel edits that rewrite the image file in place (confirmed first, logged and undoable in the Log), with Crop\u2019s Isolate button saving the selected region as a NEW dataset image instead of touching the source.</p>'}`
+      ${isTouchDevice ? '<p>Tap an image to open it full-size, zoomable/pannable with pinch and drag, with tag editing right there in the same modal.</p>' : '<p>Opening a card image also offers <b>⟲/⟳ Rotate</b> and <b>✂ Crop</b> — pixel edits that rewrite the image file in place (confirmed first, logged and undoable in the Log), with Crop\u2019s Isolate button saving the selected region as a NEW dataset image instead of touching the source. <b>Isolate (Split)</b> cuts the whole image along vertical and/or horizontal lines (set how many, drag them into place, Reset lines to space them evenly) and saves every piece as a new image \u2014 handy for character sheets and panel pages; one Undo removes them all.</p>'}`
   },
   {
     id: 'image-menu',

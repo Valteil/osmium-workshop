@@ -171,7 +171,11 @@ additionally offers **⟲/⟳ Rotate** (90° steps) and **✂ Crop**, both of wh
 file in place — confirmed first, logged as their own undoable Edit Log rows, PNG/JPG/WebP only.
 Crop's **Isolate** button instead saves the selected region as a brand-new image
 (`<original>_isolateN`) in the dataset with a copy of the source's tags; the original is
-untouched.
+untouched. **Isolate (Split)** cuts the whole image along lines instead, for sheets and panel
+pages: set how many **Vertical** and **Horizontal** lines you want (mix both for a grid), drag
+any line into place, and **Reset lines** spaces them evenly again. **Split into N** saves every
+piece as a new image (`<original>_splitN`, left to right, top to bottom) with the source's tags;
+the original is untouched, and one Undo removes all the pieces.
 
 **Editing tags:** click a tag chip to open its context menu (filter by it, open its wiki
 definition, flag it for review, explore its keyword family). Type into a card's "+ add tag" field

@@ -160,7 +160,8 @@ Help instead — it's rewritten for touch. Comfy Bridge mobile is documented in
 Clicking any image opens a floating, zoomable, pannable card modal without losing your place in
 the grid. On desktop that modal also has **⟲/⟳ Rotate** and **✂ Crop** — real pixel edits that
 rewrite the file (PNG/JPG/WebP), each one confirmed, logged, and undoable. Isolate saves a
-cropped region as a *new* image instead, leaving the source untouched.
+cropped region as a *new* image instead, leaving the source untouched, and Isolate (Split) cuts a
+sheet into several new images along draggable vertical/horizontal lines.
 
 ### Tagging
 - **Chips** (on every card) — click one for filter-by-presence, the Tag Details wiki lookup, a

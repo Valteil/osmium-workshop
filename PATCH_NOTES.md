@@ -56,6 +56,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   dataset and how many images have it. Tick as many as you want and **Delete from all** takes them
   off every image in one go, and one Undo brings them back. Unlike Void it doesn't set up a standing
   rule.
+- **Isolate (Split)** (Windows, in the image card's Crop): cut a character sheet or a page of
+  panels into separate images. Pick how many vertical and horizontal lines you want (mix them for
+  a grid), drag each line where it should cut, or **Reset lines** to space them evenly. Every
+  piece is saved as a new image with the original's tags, the original stays as it was, and one
+  Undo takes all the pieces back out.
 
 ### Comfy Bridge
 

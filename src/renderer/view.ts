@@ -2676,51 +2676,229 @@ function startCropMode(entry: Entry, imgSide: HTMLElement, img: HTMLImageElement
     cleanup();
     if (await commitPixelEdit(entry, rendered.canvas, rendered.mime, 'crop-image', `Cropped ${entry.imgName} to ${rendered.nw}×${rendered.nh}`)) toast('Cropped. Undo is in the toolbar or Log.', 2600);
   }
-  async function isolateSelection(): Promise<void> {
+  // Saves canvases as new images next to the source (`<base>_<suffix><n>`,
+  // first free n each), each with the source's tags; one log entry / undo
+  // step for all of them. Returns the new file names, or null on failure.
+  async function saveAsNewImages(canvases: HTMLCanvasElement[], suffix: string, mime: string, summary: (names: string[]) => string): Promise<string[] | null> {
     const dir = getDirHandleRef();
-    if (!dir) { toast('Open a dataset folder first.', 2600); return; }
-    const rendered = await renderCropCanvas();
-    if (!rendered) return;
-    const blob = await canvasToBlob(rendered.canvas, rendered.mime);
-    if (!blob) { toast('Could not encode the edited image.', 3600); return; }
-    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (!dir) { toast('Open a dataset folder first.', 2600); return null; }
     const dot = (entry.imgName || '').lastIndexOf('.');
     const ext = dot >= 0 ? (entry.imgName || '').slice(dot) : '.png';
-    let base = '', imgName = '';
-    for (let n = 1; ; n++) {
-      base = `${entry.base}_isolate${n}`;
-      imgName = `${base}${ext}`;
-      try {
-        await dir.getFileHandle(imgName);
-      } catch {
-        break; // missing → free to use
-      }
-    }
     const tags = (entry.tags || []).slice();
+    const items: { base: string; state: { bytes: Uint8Array; mime: string; tags: string[]; imgName: string; width: number; height: number } }[] = [];
+    let n = 1;
+    for (const canvas of canvases) {
+      const blob = await canvasToBlob(canvas, mime);
+      if (!blob) { toast('Could not encode the edited image.', 3600); break; }
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let base = '', imgName = '';
+      for (; ; n++) {
+        base = `${entry.base}_${suffix}${n}`;
+        imgName = `${base}${ext}`;
+        try {
+          await dir.getFileHandle(imgName);
+        } catch {
+          break; // missing → free to use
+        }
+      }
+      n++;
+      try {
+        const imgHandle = await dir.getFileHandle(imgName, { create: true });
+        await writeBytes(imgHandle, bytes);
+        const txtHandle = await dir.getFileHandle(`${base}.txt`, { create: true });
+        await writeBytes(txtHandle, tags.map((t) => t.replace(/ /g, '_')).join(','));
+        const created = await addEntryFromNewFileRef(base, imgHandle, imgName, txtHandle, true, tags, false);
+        if (created) markDirty(created);
+      } catch (err) {
+        toastError('Could not save the new image', err);
+        break;
+      }
+      items.push({ base, state: { bytes, mime, tags, imgName, width: canvas.width, height: canvas.height } });
+    }
+    // Whatever was written is logged (and undoable), even after a failure.
+    if (items.length) recordIsolateChange(summary(items.map((it) => it.state.imgName)), items);
+    return items.length === canvases.length ? items.map((it) => it.state.imgName) : null;
+  }
+  async function isolateSelection(): Promise<void> {
+    if (!getDirHandleRef()) { toast('Open a dataset folder first.', 2600); return; }
+    const rendered = await renderCropCanvas();
+    if (!rendered) return;
+    const names = await saveAsNewImages([rendered.canvas], 'isolate', rendered.mime, (ns) => `Isolated region of ${entry.imgName} as ${ns[0]}`);
+    renderCurrentView();
+    if (!names) return;
+    cleanup();
+    toast(`Isolated as ${names[0]}. Undo is in the toolbar or Log.`, 2600);
+  }
+
+  // ---- Isolate (Split): cut the whole image along vertical/horizontal lines
+  // (sheets, comic panels) into (v+1)×(h+1) new images. Lines are fractions
+  // of the image, draggable, kept in order with a small gap; changing a count
+  // or Reset lines spaces them evenly again. The source is untouched.
+  let splitMode = false;
+  const MIN_GAP = 0.02;
+  const lines: { v: number[]; h: number[] } = { v: [0.5], h: [] };
+  const linesBox = document.createElement('div');
+  linesBox.className = 'split-lines';
+  linesBox.style.display = 'none';
+  overlay.insertBefore(linesBox, bar);
+  const splitBar = document.createElement('div');
+  splitBar.className = 'split-bar';
+  splitBar.style.display = 'none';
+  const countInput = (label: string, title: string): HTMLInputElement => {
+    const wrap = document.createElement('label');
+    wrap.textContent = label;
+    wrap.title = title;
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.min = '0';
+    inp.max = '9';
+    inp.step = '1';
+    wrap.appendChild(inp);
+    splitBar.appendChild(wrap);
+    return inp;
+  };
+  const vInput = countInput('Vertical', 'Vertical lines (cut left/right)');
+  const hInput = countInput('Horizontal', 'Horizontal lines (cut top/bottom)');
+  const resetBtn = document.createElement('button');
+  resetBtn.textContent = 'Reset lines';
+  resetBtn.title = 'Space the lines evenly again';
+  const splitGoBtn = document.createElement('button');
+  splitGoBtn.className = 'primary';
+  const splitBackBtn = document.createElement('button');
+  splitBackBtn.textContent = 'Back';
+  splitBackBtn.title = 'Back to the crop selection';
+  const splitCancelBtn = document.createElement('button');
+  splitCancelBtn.textContent = 'Cancel';
+  splitBar.append(resetBtn, splitGoBtn, splitBackBtn, splitCancelBtn);
+  overlay.appendChild(splitBar);
+  const splitBtn = document.createElement('button');
+  splitBtn.textContent = 'Isolate (Split)';
+  splitBtn.title = 'Cut the whole image along vertical/horizontal lines into new images (source untouched)';
+  bar.insertBefore(splitBtn, cancelBtn);
+
+  const even = (k: number): number[] => Array.from({ length: k }, (_, i) => (i + 1) / (k + 1));
+  function paintLines(): void {
+    const r = img.getBoundingClientRect(), s = imgSide.getBoundingClientRect();
+    linesBox.style.left = (r.left - s.left) + 'px';
+    linesBox.style.top = (r.top - s.top) + 'px';
+    linesBox.style.width = r.width + 'px';
+    linesBox.style.height = r.height + 'px';
+    linesBox.replaceChildren();
+    for (const axis of ['v', 'h'] as const) {
+      lines[axis].forEach((f, i) => {
+        const ln = document.createElement('div');
+        ln.className = `split-line split-line-${axis}`;
+        ln.style[axis === 'v' ? 'left' : 'top'] = (f * 100) + '%';
+        ln.title = 'Drag to move this line';
+        ln.addEventListener('pointerdown', (ev) => startLineDrag(ev, axis, i, ln));
+        linesBox.appendChild(ln);
+      });
+    }
+    const pieces = (lines.v.length + 1) * (lines.h.length + 1);
+    splitGoBtn.textContent = `Split into ${pieces}`;
+    splitGoBtn.disabled = pieces < 2;
+  }
+  function startLineDrag(ev: PointerEvent, axis: 'v' | 'h', i: number, ln: HTMLElement): void {
+    ev.stopPropagation();
+    ev.preventDefault();
+    try { ln.setPointerCapture(ev.pointerId); } catch { /* best effort */ }
+    ln.classList.add('dragging');
+    const move = (e: PointerEvent) => {
+      e.stopPropagation();
+      const r = img.getBoundingClientRect();
+      const f = axis === 'v' ? (e.clientX - r.left) / r.width : (e.clientY - r.top) / r.height;
+      const lo = (i > 0 ? lines[axis][i - 1] : 0) + MIN_GAP;
+      const hi = (i < lines[axis].length - 1 ? lines[axis][i + 1] : 1) - MIN_GAP;
+      lines[axis][i] = Math.max(lo, Math.min(hi, f));
+      ln.style[axis === 'v' ? 'left' : 'top'] = (lines[axis][i] * 100) + '%';
+    };
+    const end = (e: PointerEvent) => {
+      ln.classList.remove('dragging');
+      try { ln.releasePointerCapture(e.pointerId); } catch { /* best effort */ }
+      ln.removeEventListener('pointermove', move);
+      ln.removeEventListener('pointerup', end);
+      ln.removeEventListener('pointercancel', end);
+    };
+    ln.addEventListener('pointermove', move);
+    ln.addEventListener('pointerup', end);
+    ln.addEventListener('pointercancel', end);
+  }
+  function setCount(axis: 'v' | 'h', inp: HTMLInputElement): void {
+    const k = Math.max(0, Math.min(9, Math.round(Number(inp.value) || 0)));
+    inp.value = String(k);
+    lines[axis] = even(k);
+    paintLines();
+  }
+  function setSplitMode(on: boolean): void {
+    splitMode = on;
+    bar.style.display = on ? 'none' : '';
+    splitBar.style.display = on ? '' : 'none';
+    linesBox.style.display = on ? '' : 'none';
+    overlay.style.cursor = on ? 'default' : 'crosshair';
+    if (on) {
+      sel.style.display = 'none';
+      vInput.value = String(lines.v.length);
+      hInput.value = String(lines.h.length);
+      paintLines();
+    } else {
+      paintSel();
+    }
+  }
+  async function splitImage(): Promise<void> {
+    if (!getDirHandleRef()) { toast('Open a dataset folder first.', 2600); return; }
+    let bmp: ImageBitmap;
     try {
-      const imgHandle = await dir.getFileHandle(imgName, { create: true });
-      await writeBytes(imgHandle, bytes);
-      const txtHandle = await dir.getFileHandle(`${base}.txt`, { create: true });
-      await writeBytes(txtHandle, tags.map((t) => t.replace(/ /g, '_')).join(','));
-      const created = await addEntryFromNewFileRef(base, imgHandle, imgName, txtHandle, true, tags, false);
-      if (created) markDirty(created);
+      bmp = await createImageBitmap(await entry.imgHandle.getFile());
     } catch (err) {
-      toastError('Could not save the isolated image', err);
+      toastError('Could not read the image', err);
       return;
     }
-    recordIsolateChange(`Isolated region of ${entry.imgName} as ${imgName}`, base, {
-      bytes, mime: rendered.mime, tags, imgName, width: rendered.nw, height: rendered.nh
-    });
-    cleanup();
+    const W = bmp.width, H = bmp.height;
+    const cuts = (fs: number[], size: number) => [0, ...fs.map((f) => Math.round(f * size)), size];
+    const xs = cuts(lines.v, W), ys = cuts(lines.h, H);
+    const canvases: HTMLCanvasElement[] = [];
+    // Reading order: rows top to bottom, left to right within a row.
+    for (let yi = 0; yi < ys.length - 1; yi++) {
+      for (let xi = 0; xi < xs.length - 1; xi++) {
+        const w = xs[xi + 1] - xs[xi], h = ys[yi + 1] - ys[yi];
+        if (w < 8 || h < 8) continue;
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d');
+        if (!ctx) { bmp.close(); toast('Could not edit the image on this machine.', 3600); return; }
+        ctx.drawImage(bmp, xs[xi], ys[yi], w, h, 0, 0, w, h);
+        canvases.push(c);
+      }
+    }
+    bmp.close();
+    if (canvases.length < 2) { toast('The lines leave fewer than 2 usable pieces.', 3000); return; }
+    const names = await saveAsNewImages(canvases, 'split', mime!, (ns) => `Split ${entry.imgName} into ${ns.length} images (${ns[0]} … ${ns[ns.length - 1]})`);
     renderCurrentView();
-    toast(`Isolated as ${imgName}. Undo is in the toolbar or Log.`, 2600);
+    if (!names) return;
+    cleanup();
+    toast(`Split into ${names.length} images. Undo is in the toolbar or Log.`, 2800);
   }
+  splitBtn.addEventListener('click', (ev) => { ev.stopPropagation(); setSplitMode(true); });
+  splitBackBtn.addEventListener('click', (ev) => { ev.stopPropagation(); setSplitMode(false); });
+  splitCancelBtn.addEventListener('click', (ev) => { ev.stopPropagation(); cleanup(); });
+  resetBtn.addEventListener('click', (ev) => { ev.stopPropagation(); lines.v = even(lines.v.length); lines.h = even(lines.h.length); paintLines(); });
+  splitGoBtn.addEventListener('click', (ev) => { ev.stopPropagation(); void splitImage(); });
+  vInput.addEventListener('input', () => setCount('v', vInput));
+  hInput.addEventListener('input', () => setCount('h', hInput));
+  for (const inp of [vInput, hInput]) {
+    inp.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+    inp.addEventListener('keydown', (ev) => ev.stopPropagation());
+  }
+
   overlay.addEventListener('pointerdown', (ev) => {
     // Stop here FIRST, before the button check below: without this, the press
     // bubbles to imgSide's own pan handler, which pointer-captures to imgSide
     // and steals the subsequent click — Apply/Cancel/Isolate silently die.
     ev.stopPropagation();
     if ((ev.target as HTMLElement).closest('button')) return;
+    // Split mode: only the lines (their own handlers) and the bar respond.
+    if (splitMode) return;
     ev.preventDefault();
     try { overlay.setPointerCapture(ev.pointerId); } catch { /* best effort */ }
     const p = toLocal(ev);

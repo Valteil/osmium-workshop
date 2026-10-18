@@ -1835,7 +1835,7 @@ import { setIconLabel } from './icons';
   async function applyIsolateDirection(affected: EditLogAffected[], direction: 'undo' | 'redo'): Promise<number> {
     let count = 0;
     for (const a of affected){
-      const st = typeof a.logId === 'number' ? getIsolateState(a.logId) : undefined;
+      const st = typeof a.logId === 'number' ? getIsolateState(a.logId, a.base) : undefined;
       if (!st || !dirHandle) continue;
       if (direction === 'undo'){
         const e = entryByBase.get(a.base);

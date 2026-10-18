@@ -48,19 +48,21 @@ interface IsolateState {
   height: number;
 }
 
-const isolateStates = new Map<number, IsolateState>();
+// Keyed by log id + base: one Isolate (Split) entry creates several files.
+const isolateStates = new Map<string, IsolateState>();
 
-export function getIsolateState(id: number): IsolateState | undefined {
-  return isolateStates.get(id);
+export function getIsolateState(id: number, base: string): IsolateState | undefined {
+  return isolateStates.get(`${id}|${base}`);
 }
 
-export function recordIsolateChange(summary: string, base: string, state: IsolateState): void {
+// One log entry / undo step for every file a single Isolate or Split created.
+export function recordIsolateChange(summary: string, items: { base: string; state: IsolateState }[]): void {
   // pushLogEntry owns its own copy of affected now, so point at the log row's
   // copy; the global undo record gets an independent row carrying the same id.
-  const logEntry = pushLogEntry({ type: 'isolate-image', summary, affected: [{ base }] });
-  logEntry.affected[0].logId = logEntry.id;
-  isolateStates.set(logEntry.id, state);
-  undoStack.push({ type: 'isolate-image', summary, affected: [{ base, logId: logEntry.id }] });
+  const logEntry = pushLogEntry({ type: 'isolate-image', summary, affected: items.map((it) => ({ base: it.base })) });
+  for (const a of logEntry.affected) a.logId = logEntry.id;
+  for (const it of items) isolateStates.set(`${logEntry.id}|${it.base}`, it.state);
+  undoStack.push({ type: 'isolate-image', summary, affected: items.map((it) => ({ base: it.base, logId: logEntry.id })) });
   redoStack = [];
   updateUndoRedoButtons();
 }
