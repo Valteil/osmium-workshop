@@ -285,8 +285,18 @@ export function hidePanel(el: HTMLElement): void {
 
 // ---------------- Generic full-screen image lightbox ----------------
 
+// A set of images the lightbox can step through with ← / → (e.g. Curate's
+// duplicate groups): `index` is the one shown first, `load(i)` gives image i's
+// URL, `label(i)` its caption.
+export interface LightboxNav {
+  count: number;
+  index: number;
+  load(i: number): Promise<string>;
+  label?(i: number): string;
+}
+
 // onZoom (optional) receives the zoom level as a percentage after each change.
-export function showImageLightbox(src: string, onZoom?: (pct: number) => void): void {
+export function showImageLightbox(src: string, onZoom?: (pct: number) => void, nav?: LightboxNav): void {
   if (!src) return;
   const backdrop = document.createElement('div');
   backdrop.className = 'lightbox-backdrop';
@@ -295,6 +305,15 @@ export function showImageLightbox(src: string, onZoom?: (pct: number) => void): 
   img.draggable = false;
   img.style.transformOrigin = 'center center';
   backdrop.appendChild(img);
+  const caption = document.createElement('div');
+  caption.className = 'lightbox-caption';
+  if (nav && nav.count > 1) backdrop.appendChild(caption);
+  let navIndex = nav ? nav.index : 0;
+  const showCaption = () => {
+    if (!nav) return;
+    caption.textContent = `${navIndex + 1} / ${nav.count}${nav.label ? ' · ' + nav.label(navIndex) : ''}  ·  ← →`;
+  };
+  showCaption();
 
   let scale = 1, panX = 0, panY = 0;
   let dragging = false, didDrag = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0;
@@ -358,8 +377,28 @@ export function showImageLightbox(src: string, onZoom?: (pct: number) => void): 
     backdrop.classList.remove('modal-visible');
     setTimeout(() => backdrop.remove(), 160);
     document.removeEventListener('keydown', onKey);
+    window.removeEventListener('keydown', onNavKey, true);
   }
   function onKey(ev: KeyboardEvent): void { if (ev.key === 'Escape') close(); }
+  // ← / → through the set (wrapping), zoom reset per image. Window capture +
+  // stopPropagation: view.ts' document-level arrows would otherwise also page
+  // the Gallery's Single view behind the lightbox.
+  async function onNavKey(ev: KeyboardEvent): Promise<void> {
+    if (!nav || nav.count < 2 || (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight')) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    navIndex = (navIndex + (ev.key === 'ArrowRight' ? 1 : -1) + nav.count) % nav.count;
+    const want = navIndex;
+    showCaption();
+    try {
+      const url = await nav.load(want);
+      if (want !== navIndex) return; // a later key press won
+      scale = 1; panX = 0; panY = 0;
+      applyTransform();
+      img.src = url;
+    } catch { /* keeps the current image */ }
+  }
+  if (nav && nav.count > 1) window.addEventListener('keydown', onNavKey, true);
   backdrop.addEventListener('click', (ev: MouseEvent) => {
     if (didDrag) { didDrag = false; return; }
     if (ev.target !== backdrop) return;

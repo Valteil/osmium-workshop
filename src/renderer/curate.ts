@@ -228,10 +228,14 @@ function thumbOf(it: CurateItem, stillWanted: () => boolean): Promise<string> {
   return new Promise((resolve, reject) => {
     thumbQueue.push(async () => {
       if (it.thumb) { resolve(it.thumb); return; }
-      // Scrolled past / re-rendered before its turn: skip (asked again if it comes back).
-      if (!stillWanted()) { reject(new Error('stale')); return; }
       try {
-        const bmp = await createImageBitmap(await it.handle.getFile());
+        const file = await it.handle.getFile();
+        // Scrolled past / re-rendered before its turn: skip (asked again if
+        // it comes back). Checked AFTER an await: a job can start the moment
+        // it's queued, while the caller is still building the card, and the
+        // <img> isn't on the page yet (Duplicates' first images never loaded).
+        if (!stillWanted()) { reject(new Error('stale')); return; }
+        const bmp = await createImageBitmap(file);
         it.w = bmp.width;
         it.h = bmp.height;
         const k = Math.min(1, THUMB_W / bmp.width);
@@ -240,7 +244,8 @@ function thumbOf(it: CurateItem, stillWanted: () => boolean): Promise<string> {
         c.height = Math.max(1, Math.round(bmp.height * k));
         c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
         bmp.close();
-        const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.85));
+        // WebP keeps transparency (a JPEG turned transparent line art black).
+        const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/webp', 0.85));
         if (!blob) throw new Error('Could not make a thumbnail.');
         it.thumb = URL.createObjectURL(blob);
         resolve(it.thumb);
@@ -814,7 +819,9 @@ interface DupeGroup { members: CurateItem[]; keep: Set<CurateItem> }
 let dupe: { scope: string; groups: DupeGroup[] } | null = null;
 let dupeScan: { scope: string; done: number; total: number; stage: string; cancelled: boolean } | null = null;
 
-const hashKey = (it: CurateItem, f: File) => `${it.style}/${it.name}|${f.size}|${f.lastModified}`;
+// "v2": hashes taken over white (v1 read transparent pixels as black, so
+// transparent images all looked alike); v1 entries are simply re-hashed.
+const hashKey = (it: CurateItem, f: File) => `v2|${it.style}/${it.name}|${f.size}|${f.lastModified}`;
 const pop32 = (x: number): number => {
   x -= (x >>> 1) & 0x55555555;
   x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
@@ -834,7 +841,9 @@ async function computeHash(file: File): Promise<Uint32Array> {
     c.width = 9; c.height = 8;
     hashCanvas = c.getContext('2d', { willReadFrequently: true })!;
   }
-  hashCanvas.clearRect(0, 0, 9, 8);
+  // Over white, like a viewer shows a transparent image.
+  hashCanvas.fillStyle = '#fff';
+  hashCanvas.fillRect(0, 0, 9, 8);
   hashCanvas.drawImage(bmp, 0, 0);
   bmp.close();
   const px = hashCanvas.getImageData(0, 0, 9, 8).data;
@@ -962,6 +971,21 @@ function pruneDupes(): void {
   render();
 }
 
+const dupeExtras = (): number => (dupe ? dupe.groups.reduce((s, gr) => s + gr.members.length - gr.keep.size, 0) : 0);
+function dupeSummary(): string {
+  if (!dupe) return '';
+  const where = dupe.scope === '*' ? 'all folders (not junk)' : styleLabel(dupe.scope);
+  const n = dupe.groups.length, extra = dupeExtras();
+  return n ? `${n} group${n === 1 ? '' : 's'} of look-alikes in ${where} · ${extra} extra cop${extra === 1 ? 'y' : 'ies'}` : `No duplicates in ${where}.`;
+}
+// After an in-place Keep toggle: the counts in the header follow.
+function refreshDupeCounts(): void {
+  const sum = curateTab.querySelector('.curate-dupes-sum');
+  if (sum) sum.textContent = dupeSummary();
+  const all = curateTab.querySelector('.curate-junk-all');
+  if (all) all.textContent = `Junk all extras (${dupeExtras()})`;
+}
+
 function renderDupes(): HTMLElement {
   const wrap = el('div', 'curate-dupes');
   const scope = filter;
@@ -977,8 +1001,8 @@ function renderDupes(): HTMLElement {
   if (!dupe || dupe.scope !== scope) { void scanDupes(scope); return wrap; }
 
   const head = el('div', 'curate-row curate-dupes-head');
-  const n = dupe.groups.length, extra = dupe.groups.reduce((s, gr) => s + gr.members.length - gr.keep.size, 0);
-  head.append(el('span', 'curate-dupes-sum', n ? `${n} group${n === 1 ? '' : 's'} of look-alikes in ${scope === '*' ? 'all folders (not junk)' : styleLabel(scope)} · ${extra} extra cop${extra === 1 ? 'y' : 'ies'}` : `No duplicates in ${scope === '*' ? 'all folders (not junk)' : styleLabel(scope)}.`));
+  const n = dupe.groups.length, extra = dupeExtras();
+  head.append(el('span', 'curate-dupes-sum', dupeSummary()));
   const strict = el('label', 'curate-label', 'Strictness');
   const sel = el('select');
   for (const [label, bits] of STRICTNESS) { const o = el('option', '', label); o.value = String(bits); sel.appendChild(o); }
@@ -994,9 +1018,9 @@ function renderDupes(): HTMLElement {
   head.appendChild(strict);
   head.appendChild(btn('Rescan', 'Look again (after adding or moving images)', () => { dupe = null; render(); }));
   const canJunk = scope !== JUNK; // already in junk: nothing to move
-  if (n && canJunk) head.appendChild(btn(`Junk all extras (${extra})`, 'Move every copy not marked Keep, in every group, to the junk folder', () => void junkExtras(dupe!.groups), 'curate-junk-btn'));
+  if (n && canJunk) head.appendChild(btn(`Junk all extras (${extra})`, 'Move every copy not marked Keep, in every group, to the junk folder', () => void junkExtras(dupe!.groups), 'curate-junk-btn curate-junk-all'));
   wrap.appendChild(head);
-  if (n) wrap.appendChild(el('div', 'curate-note', 'The biggest copy in each group is marked Keep. Click an image to switch Keep on or off; click its zoom button to look closely. Junk moves the unkept ones into the junk folder (nothing is deleted).'));
+  if (n) wrap.appendChild(el('div', 'curate-note', 'The biggest copy in each group is marked Keep. Click an image to switch Keep on or off; double-click it to zoom in. Junk moves the unkept ones into the junk folder (nothing is deleted).'));
 
   dupe.groups.forEach((gr, gi) => {
     const box = el('div', 'curate-dupe-group');
@@ -1008,7 +1032,7 @@ function renderDupes(): HTMLElement {
     for (const it of gr.members) {
       const kept = gr.keep.has(it);
       const card = el('div', 'curate-card curate-dupe-card' + (kept ? ' keep' : ''));
-      card.title = `${it.name}\nClick: ${kept ? 'unmark' : 'mark'} Keep`;
+      card.title = `${it.name}\nClick: mark/unmark Keep · Double-click: zoom in`;
       const img = el('img');
       img.alt = '';
       img.decoding = 'async';
@@ -1017,8 +1041,6 @@ function renderDupes(): HTMLElement {
       const res = resLabel(it);
       res.classList.add('curate-res-card');
       const tag = el('span', 'curate-keep-tag', kept ? 'Keep' : 'Extra');
-      const zoom = btn('⤢', 'Look closely', () => undefined, 'curate-zoom');
-      zoom.addEventListener('click', (ev) => { ev.stopPropagation(); void urlOf(it).then((u) => showImageLightbox(u)); });
       const foot = el('div', 'curate-card-foot');
       foot.append(el('span', 'curate-name', it.name), badge(it.style));
       const size = el('div', 'curate-dupe-meta', it.bytes ? `${(it.bytes / 1024 / 1024).toFixed(2)} MB` : '');
@@ -1036,10 +1058,31 @@ function renderDupes(): HTMLElement {
       for (const o of Array.from(move.options)) if (o.value === it.style) o.disabled = true;
       move.addEventListener('click', (ev) => ev.stopPropagation());
       move.addEventListener('pointerdown', (ev) => ev.stopPropagation());
-      card.append(img, res, tag, zoom, foot, size, move);
+      card.append(img, res, tag, foot, size, move);
+      // Click = Keep on/off, double-click = zoom. The click waits a moment so
+      // a double-click doesn't also flip Keep twice. Updated in place (no
+      // re-render: the thumbnails would reload).
+      let clickTimer = 0;
       card.addEventListener('click', () => {
-        if (gr.keep.has(it)) gr.keep.delete(it); else gr.keep.add(it);
-        render();
+        clearTimeout(clickTimer);
+        clickTimer = window.setTimeout(() => {
+          const on = !gr.keep.has(it);
+          if (on) gr.keep.add(it); else gr.keep.delete(it);
+          card.classList.toggle('keep', on);
+          tag.textContent = on ? 'Keep' : 'Extra';
+          refreshDupeCounts();
+        }, 220);
+      });
+      card.addEventListener('dblclick', () => {
+        clearTimeout(clickTimer);
+        // ← / → in the lightbox step through this image's duplicate group.
+        const fam = gr.members;
+        void urlOf(it).then((u) => showImageLightbox(u, undefined, {
+          count: fam.length,
+          index: fam.indexOf(it),
+          load: (i) => urlOf(fam[i]),
+          label: (i) => `${fam[i].name}${fam[i].w ? ` · ${fam[i].w}×${fam[i].h}` : ''}${gr.keep.has(fam[i]) ? ' · Keep' : ''}`
+        }));
       });
       row.appendChild(card);
     }

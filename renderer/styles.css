@@ -2697,10 +2697,6 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: color-mix(in srgb, var(--bg-base) 82%, transparent); color: var(--accent-danger);
   }
   .curate-dupe-card.keep .curate-keep-tag{ color: var(--accent-success); }
-  .curate-zoom{
-    position: absolute; right: 6px; top: 34px; padding: 2px 7px; font-size: 13px; line-height: 1.2;
-    background: color-mix(in srgb, var(--bg-base) 82%, transparent);
-  }
   #curateTab select.curate-dupe-move{ margin: 0 7px 8px; padding: 3px 6px; font-size: 12px; }
   .curate-dupe-meta{ padding: 0 7px 6px; font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
   .curate-marquee{
@@ -2711,7 +2707,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     position: relative; display: flex; flex-direction: column; min-width: 0; cursor: pointer; user-select: none;
     background: var(--bg-panel); border: 2px solid transparent; border-radius: var(--r-card); overflow: hidden;
   }
-  .curate-card img{ width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; background: var(--bg-elevated); }
+  /* A light checkerboard behind the images: a transparent PNG (line art,
+     cut-outs) would otherwise show dark lines on the dark theme = "blank". */
+  .curate-card img, .curate-stage img{
+    background: repeating-conic-gradient(#d9d9d9 0 25%, #f5f5f5 0 50%) 0 0 / 16px 16px;
+  }
+  .curate-card img{ width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; }
   /* A thumbnail not made yet: an empty tile, not a broken-image icon + alt text. */
   .curate-card img:not([src]){ visibility: hidden; }
   .curate-card:has(img:not([src])){ background: var(--bg-elevated); }
@@ -3325,6 +3326,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     opacity: 0; transition: opacity var(--panel-dur) ease;
   }
   .lightbox-backdrop.modal-visible{ opacity: 1; }
+  /* "2 / 3 · name · ← →" when the lightbox steps through a set (LightboxNav). */
+  .lightbox-caption{
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); pointer-events: none;
+    padding: 4px 12px; border-radius: 999px; font-family: var(--mono); font-size: 12px;
+    color: #eee; background: rgba(0,0,0,0.6); white-space: nowrap; max-width: 90vw; overflow: hidden; text-overflow: ellipsis;
+  }
   .lightbox-backdrop img{
     max-width: 92vw; max-height: 92vh; object-fit: contain;
     box-shadow: 0 16px 44px rgba(0,0,0,0.5); border-radius: 4px;

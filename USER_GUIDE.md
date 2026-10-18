@@ -470,7 +470,8 @@ before anything goes into a dataset. It sits next to the Datasets tab.
   vs JPG, different compression), mirrored copies, slight colour changes, watermarks or small crops
   — and shows them in groups. The folder buttons choose where to look: **All** (every folder except
   junk) or one artstyle (or junk) on its own. The biggest copy in each group is marked **Keep**;
-  click an image to switch Keep on or off, and its ⤢ button to zoom in and compare. **Junk the
+  click an image to switch Keep on or off, and double-click it to zoom in; in the zoomed view
+  ← / → step through the other images in its group to compare them. **Junk the
   others** (one group) or **Junk all extras** (every group) moves the unkept copies to the junk
   folder (made if needed); nothing is deleted. Each image also has its own **Move to…** picker:
   a copy that's really a variant (flat colours, monochrome, a sketch pass) can go to an artstyle
