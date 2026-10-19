@@ -78,8 +78,9 @@ declare const BridgeShared: {
   // shared/wd14-tag.ts: WD14 tagging panel (same module as the desktop's).
   mountWd14Panel: (host: HTMLElement, opts: any) => { refresh: () => void };
   extractWd14Tags: (record: any) => string | null;
-  // shared/pose-extract.ts: the reference image's pose frame.
-  extractPoseFrame: (run: (prompt: any, imageName: string, bytes: Uint8Array) => Promise<string>, imageName: string, bytes: Uint8Array, log: (msg: string) => void) => Promise<{ bytes: Uint8Array; people: number } | null>;
+  // shared/pose-extract.ts: the reference image's pose + its editor.
+  extractPose: (run: (prompt: any, imageName: string, bytes: Uint8Array) => Promise<string>, imageName: string, bytes: Uint8Array, log: (msg: string) => void) => Promise<{ people: any[]; width: number; height: number } | null>;
+  mountPoseEditor: (host: HTMLElement, onChange: (bytes: Uint8Array) => void) => { show: (pose: any, original: Uint8Array) => void; hide: () => void; flush: () => Promise<void> };
   initTheme: (themes: any, def: any) => void;
   mountThemePicker: (opts: any) => void;
   initTagWiki: (button: HTMLElement) => void;
@@ -1278,6 +1279,8 @@ declare const BridgeShared: {
     if (!bytes.length) { log('That image came back empty (the picker offered ' + String(file.size) + ' bytes) — try picking it again.'); return; }
     refFile = file;
     refBytes = bytes;
+    refOriginal = { name: file.name, bytes };
+    poseEditor.hide();
     refFilename = file.name;
     refFileName.textContent = file.name;
     // Preview from the bytes themselves, not a blob: URL of the picked file.
@@ -1291,23 +1294,32 @@ declare const BridgeShared: {
     refPreview.style.display = 'block';
   });
 
-  // Extract pose (shared/pose-extract.ts): the reference becomes its DWPose
-  // pose frame, same size. Runs through comfyTag (WD14's transport).
+  // Extract pose (shared/pose-extract.ts): DWPose (through comfyTag, WD14's
+  // transport) finds the pose in the picked image; the editor shows it, and
+  // every edit's pose frame becomes the reference. `refOriginal` is the
+  // picked image, so extracting again starts from it, not from a pose frame.
+  let refOriginal: { name: string; bytes: Uint8Array } | null = null;
+  const poseEditor = BridgeShared.mountPoseEditor($('poseEditor'), (bytes: Uint8Array) => {
+    if (!refOriginal) return;
+    refFile = null;
+    refBytes = bytes;
+    refFilename = refOriginal.name.replace(/\.[^.]+$/, '') + '_pose.png';
+    refFileName.textContent = refFilename;
+  });
   const btnExtractPose = $<HTMLButtonElement>('btnExtractPose');
   btnExtractPose.addEventListener('click', async () => {
-    if (!refBytes) { log('Pick a reference image first, then Extract pose.'); return; }
+    const src = refOriginal || (refBytes ? { name: refFilename, bytes: refBytes } : null);
+    if (!src) { log('Pick a reference image first, then Extract pose.'); return; }
     btnExtractPose.disabled = true;
     btnExtractPose.textContent = 'Extracting…';
     try {
-      const name = refFilename;
-      const frame = await BridgeShared.extractPoseFrame(comfyTag, name, refBytes, log);
-      if (!frame) { log('Extract pose: no pose found in ' + name + '.'); return; }
-      refFile = null;
-      refBytes = frame.bytes;
-      refFilename = name.replace(/\.[^.]+$/, '') + '_pose.png';
-      refFileName.textContent = refFilename;
-      refPreview.src = 'data:image/png;base64,' + BridgeShared.bytesToBase64(frame.bytes);
-      log('Extract pose: the reference is now the pose frame (' + frame.people + (frame.people === 1 ? ' person' : ' people') + ').');
+      const pose = await BridgeShared.extractPose(comfyTag, src.name, src.bytes, log);
+      if (!pose) { log('Extract pose: no pose found in ' + src.name + '.'); return; }
+      refOriginal = src;
+      refPreview.style.display = 'none';
+      poseEditor.show(pose, src.bytes);
+      const n = pose.people.length;
+      log('Extract pose: the reference is now the pose frame (' + n + (n === 1 ? ' person' : ' people') + '). Drag points to edit it; pick the image again to go back.');
     } catch (err) {
       log('Extract pose failed: ' + errMsg(err));
     } finally {
@@ -1876,6 +1888,7 @@ declare const BridgeShared: {
   function queueNote(): string { return genQueue.length ? ' · ' + genQueue.length + ' queued' : ''; }
 
   async function generate() {
+    await poseEditor.flush(); // the reference = the last pose edit, not the one before
     if (!skipRefImage.checked && !refBytes) { log('Pick a reference image first (or check "No reference image").'); return; }
     await loadTemplate();
     const passCount = use2Pass.checked ? 2 : 1;
@@ -2128,6 +2141,8 @@ declare const BridgeShared: {
     }
     refFile = null;
     refBytes = null;
+    refOriginal = null;
+    poseEditor.hide();
     refFilename = '';
     refFileName.textContent = '';
     refPreview.removeAttribute('src');

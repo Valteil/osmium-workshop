@@ -352,6 +352,13 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
   .usdu-preview{ height:auto; min-height:200px; max-height:55vh; }
 }
 
+/* ---- Reference pose editor (shared/pose-extract.ts), both shells ---- */
+.pose-editor[hidden]{ display:none; }
+.pose-editor{ display:flex; flex-direction:column; gap:6px; margin-top:6px; }
+.pose-editor-canvas{ display:block; max-width:100%; max-height:60vh; width:auto; height:auto; align-self:center; border-radius:6px; touch-action:none; }
+.pose-editor-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.pose-editor-row .chk-row{ margin:0; }
+
 /* ---- WD14 tagging panel (shared/wd14-tag.ts), both shells ---- */
 .wd14-details > summary{ cursor:pointer; list-style:none; }
 .wd14-details > summary::-webkit-details-marker{ display:none; }

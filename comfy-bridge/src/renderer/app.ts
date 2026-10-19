@@ -24,7 +24,7 @@ import { initHelp } from './help';
 import { mountUsduPanel, usduSettingsFromPrompt, type UsduListKind } from './shared/usdu';
 import { mountWd14Panel, type Wd14SavedImage } from './shared/wd14-tag';
 import { mountCompareTab } from './shared/compare';
-import { extractPoseFrame } from './shared/pose-extract';
+import { extractPose, mountPoseEditor } from './shared/pose-extract';
 export {};
 
 interface ElectronAPI {
@@ -406,6 +406,8 @@ btnPickImage.addEventListener('click', async () => {
   if (!handles || !handles[0]) return;
   const file = await handles[0].getFile();
   refFile = file;
+  refOriginal = file;
+  poseEditor.hide();
   refFilename = file.name;
   refFileName.textContent = file.name;
   const url = URL.createObjectURL(file);
@@ -413,27 +415,35 @@ btnPickImage.addEventListener('click', async () => {
   refPreview.style.display = 'block';
 });
 
-// Extract pose (shared/pose-extract.ts): the reference becomes its DWPose
-// pose frame, same size. Runs through the WD14 tagging transport.
+// Extract pose (shared/pose-extract.ts): DWPose (through the WD14 tagging
+// transport) finds the pose in the picked image; the editor shows it, and
+// every edit's pose frame becomes the reference. `refOriginal` is the picked
+// image, so extracting again starts from it, not from a pose frame.
+let refOriginal: File | null = null;
+const poseEditor = mountPoseEditor($<HTMLDivElement>('poseEditor'), (bytes) => {
+  if (!refOriginal) return;
+  refFile = new File([bytes as BlobPart], refOriginal.name.replace(/\.[^.]+$/, '') + '_pose.png', { type: 'image/png' });
+  refFilename = refFile.name;
+  refFileName.textContent = refFile.name;
+});
 const btnExtractPose = $<HTMLButtonElement>('btnExtractPose');
 btnExtractPose.addEventListener('click', async () => {
-  if (!refFile) { log('Pick a reference image first, then Extract pose.'); return; }
+  const src = refOriginal || refFile;
+  if (!src) { log('Pick a reference image first, then Extract pose.'); return; }
   btnExtractPose.disabled = true;
   btnExtractPose.textContent = 'Extracting…';
   try {
-    const name = refFilename;
-    const frame = await extractPoseFrame(async (prompt, imageName, bytes) => {
-      const r = await window.electronAPI.wd14Tag({ host: getHost(), imageFilename: imageName, imageBytes: bytes, prompt });
+    const bytes = new Uint8Array(await src.arrayBuffer());
+    const pose = await extractPose(async (prompt, imageName, b) => {
+      const r = await window.electronAPI.wd14Tag({ host: getHost(), imageFilename: imageName, imageBytes: b, prompt });
       if (!r.ok || typeof r.tags !== 'string') throw new Error(r.error || 'No pose came back.');
       return r.tags;
-    }, name, new Uint8Array(await refFile.arrayBuffer()), log);
-    if (!frame) { log(`Extract pose: no pose found in ${name}.`); return; }
-    refFile = new File([frame.bytes as BlobPart], name.replace(/\.[^.]+$/, '') + '_pose.png', { type: 'image/png' });
-    refFilename = refFile.name;
-    refFileName.textContent = refFile.name;
-    refPreview.src = URL.createObjectURL(refFile);
-    refPreview.style.display = 'block';
-    log(`Extract pose: the reference is now the pose frame (${frame.people} ${frame.people === 1 ? 'person' : 'people'}).`);
+    }, src.name, bytes, log);
+    if (!pose) { log(`Extract pose: no pose found in ${src.name}.`); return; }
+    refOriginal = src;
+    refPreview.style.display = 'none';
+    poseEditor.show(pose, bytes);
+    log(`Extract pose: the reference is now the pose frame (${pose.people.length} ${pose.people.length === 1 ? 'person' : 'people'}). Drag points to edit it; pick the image again to go back.`);
   } catch (err) {
     log('Extract pose failed: ' + (err instanceof Error ? err.message : String(err)));
   } finally {
@@ -1462,6 +1472,7 @@ previewCarousel.addEventListener('scroll', () => {
 });
 
 async function generate(): Promise<void> {
+  await poseEditor.flush(); // the reference = the last pose edit, not the one before
   if (!skipRefImage.checked && !refFile) { log('Pick a reference image first (or check "No reference image").'); return; }
   // Apply each seed's chosen behaviour to the copy this job queues. The new
   // value is written back so the field and the naming preview show what the
@@ -1656,6 +1667,8 @@ function resetGenerationForm(): void {
   }
   for (const r of [...loraRows]) { loraRows = loraRows.filter(x => x !== r); r.row.remove(); }
   refFile = null;
+  refOriginal = null;
+  poseEditor.hide();
   refFilename = '';
   refFileName.textContent = '';
   refPreview.removeAttribute('src');

@@ -35,7 +35,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - The **Windows 7** and **Frutiger Aero** palettes and faces.
 - **Extract pose** (desktop and phone), next to Pick reference image: finds the people's poses in
   the reference with DWPose and uses the pose frame as the reference instead, for testing poses
-  with Anima LLLite. Needs the comfyui_controlnet_aux node pack.
+  with Anima LLLite. Drag its points to edit it, **Mirror** it, and tick **Display original
+  reference** to see the original dimmed behind it. Needs the comfyui_controlnet_aux node pack.
 
 ---
 
