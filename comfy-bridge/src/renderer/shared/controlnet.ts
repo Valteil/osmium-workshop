@@ -184,7 +184,10 @@ export function parseOpenposeJson(text: string): { people: Person[]; width: numb
 
 // ---- graphs ----
 
-export function buildPoseExtractPrompt(imageName: string, s: ControlNetSettings): Prompt {
+// `wholeImage`: skip DWPose's YOLOX person detector and treat the whole image
+// as one person's box. YOLOX finds nobody in some art (greyscale or sketchy
+// renders), and DWPose then returns no people at all without an error.
+export function buildPoseExtractPrompt(imageName: string, s: ControlNetSettings, wholeImage = false): Prompt {
   return {
     '239': { class_type: 'LoadImage', inputs: { image: imageName, upload: 'image' }, _meta: { title: 'Load Image' } },
     '2': {
@@ -192,7 +195,7 @@ export function buildPoseExtractPrompt(imageName: string, s: ControlNetSettings)
       inputs: {
         image: ['239', 0], detect_hand: s.detectHands ? 'enable' : 'disable', detect_body: 'enable', detect_face: s.detectFace ? 'enable' : 'disable',
         resolution: Math.max(64, Math.round(int(s.detectResolution, 1024) / 64) * 64),
-        bbox_detector: 'yolox_l.onnx', pose_estimator: 'dw-ll_ucoco_384_bs5.torchscript.pt', scale_stick_for_xinsr_cn: 'disable'
+        bbox_detector: wholeImage ? 'None' : 'yolox_l.onnx', pose_estimator: 'dw-ll_ucoco_384_bs5.torchscript.pt', scale_stick_for_xinsr_cn: 'disable'
       },
       _meta: { title: 'DWPose Estimator', capture: true }
     },
@@ -595,9 +598,14 @@ export function mountControlNetTab(host: HTMLElement, opts: ControlNetTabOptions
     const label = extractBtn.textContent;
     extractBtn.textContent = 'Extracting…';
     try {
-      const text = await opts.extractPose(buildPoseExtractPrompt(source.name, read()), source.name, source.bytes);
-      const r = parseOpenposeJson(text);
-      if (!r.people.length) { opts.log(`ControlNet: no people found in ${source.name}.`); return; }
+      let r = parseOpenposeJson(await opts.extractPose(buildPoseExtractPrompt(source.name, read()), source.name, source.bytes));
+      if (!r.people.length) {
+        // The person detector found nobody: try the whole image as one person.
+        opts.log(`ControlNet: the person detector found nobody in ${source.name}; trying the whole image as one person.`);
+        r = parseOpenposeJson(await opts.extractPose(buildPoseExtractPrompt(source.name, read(), true), source.name, source.bytes));
+        r.people = r.people.filter((p) => p.body.some(Boolean));
+      }
+      if (!r.people.length) { opts.log(`ControlNet: no pose found in ${source.name}.`); return; }
       people = r.people;
       selected = 0;
       persist(); render();
