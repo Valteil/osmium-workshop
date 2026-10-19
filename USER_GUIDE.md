@@ -886,6 +886,8 @@ This guide covers the desktop app. Two siblings share this repo:
     in an editor: drag points (a wrist moves its hand, the nose the head; Shift-drag moves the whole
     person), **Mirror**, **Reset**, and **Display original reference** shows the original dimmed
     behind the pose. Every edit becomes the reference. Pick the image again to go back to it.
+    **New pose** opens the editor without a reference image: one standing person at the generation
+    width × height; **+ Person** adds another, **Remove person** removes the one last touched.
   - **WD14 tags** (desktop and phone, under the result): **Tag last generation** tags each saved
     image and can write a same-name `.txt` beside it in the output folder. **Tag an image** tags any
     image you choose; **Use as prompt** sorts the tags into your prompt boxes (Global, Character

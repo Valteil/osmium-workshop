@@ -24,7 +24,7 @@ import { initHelp } from './help';
 import { mountUsduPanel, usduSettingsFromPrompt, type UsduListKind } from './shared/usdu';
 import { mountWd14Panel, type Wd14SavedImage } from './shared/wd14-tag';
 import { mountCompareTab } from './shared/compare';
-import { extractPose, mountPoseEditor } from './shared/pose-extract';
+import { extractPose, mountPoseEditor, newPose } from './shared/pose-extract';
 export {};
 
 interface ElectronAPI {
@@ -421,10 +421,21 @@ btnPickImage.addEventListener('click', async () => {
 // image, so extracting again starts from it, not from a pose frame.
 let refOriginal: File | null = null;
 const poseEditor = mountPoseEditor($<HTMLDivElement>('poseEditor'), (bytes) => {
-  if (!refOriginal) return;
-  refFile = new File([bytes as BlobPart], refOriginal.name.replace(/\.[^.]+$/, '') + '_pose.png', { type: 'image/png' });
-  refFilename = refFile.name;
-  refFileName.textContent = refFile.name;
+  // An extracted pose is named after its image; a New pose is pose.png.
+  const name = refOriginal ? refOriginal.name.replace(/\.[^.]+$/, '') + '_pose.png' : 'pose.png';
+  refFile = new File([bytes as BlobPart], name, { type: 'image/png' });
+  refFilename = name;
+  refFileName.textContent = name;
+});
+// New pose: the editor with no reference image, one standing person at the
+// generation size.
+$<HTMLButtonElement>('btnNewPose').addEventListener('click', () => {
+  refOriginal = null;
+  refPreview.style.display = 'none';
+  skipRefImage.checked = false;
+  applySkipRefImageUI();
+  poseEditor.show(newPose(parseInt(width.value, 10), parseInt(height.value, 10)), null);
+  log(`New pose (${width.value}×${height.value}) is the reference image. Drag points to pose it; + Person adds another.`);
 });
 const btnExtractPose = $<HTMLButtonElement>('btnExtractPose');
 btnExtractPose.addEventListener('click', async () => {

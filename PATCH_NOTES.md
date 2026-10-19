@@ -37,6 +37,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   the reference with DWPose and uses the pose frame as the reference instead, for testing poses
   with Anima LLLite. Drag its points to edit it, **Mirror** it, and tick **Display original
   reference** to see the original dimmed behind it. Needs the comfyui_controlnet_aux node pack.
+- **New pose**, next to it: pose people without a reference image. It starts with one standing
+  person at your generation size; **+ Person** and **Remove person** add and remove figures.
 
 ---
 

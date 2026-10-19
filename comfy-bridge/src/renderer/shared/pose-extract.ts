@@ -144,9 +144,30 @@ const clonePeople = (people: Person[]): Person[] => JSON.parse(JSON.stringify(pe
 const ptsOf = (l: Pts | null): Pt[] => (l || []).filter((q): q is Pt => !!q);
 const allPoints = (p: Person): Pt[] => [...ptsOf(p.body), ...ptsOf(p.lhand), ...ptsOf(p.rhand), ...ptsOf(p.face)];
 
+// A standing figure, body only, centred at `cx` (0–1). Laid out in units of
+// the canvas height so it keeps its proportions on any canvas shape.
+function templatePerson(W: number, H: number, cx: number): Person {
+  const u = H / W;
+  const P = (dx: number, y: number): Pt => ({ x: cx + dx * u, y });
+  return {
+    body: [P(0, 0.15), P(0, 0.24), P(-0.08, 0.24), P(-0.11, 0.37), P(-0.12, 0.49), P(0.08, 0.24), P(0.11, 0.37), P(0.12, 0.49),
+      P(-0.05, 0.51), P(-0.055, 0.69), P(-0.06, 0.87), P(0.05, 0.51), P(0.055, 0.69), P(0.06, 0.87),
+      P(-0.018, 0.135), P(0.018, 0.135), P(-0.04, 0.145), P(0.04, 0.145)],
+    lhand: null, rhand: null, face: null
+  };
+}
+
+// A pose with one standing person, for posing without a reference image.
+export function newPose(width: number, height: number): ExtractedPose {
+  const W = Math.max(64, Math.round(width) || 1024);
+  const H = Math.max(64, Math.round(height) || 1024);
+  return { people: [templatePerson(W, H, 0.5)], width: W, height: H };
+}
+
 export interface PoseEditor {
-  // Shows the editor with an extracted pose over its original image.
-  show: (pose: ExtractedPose, original: Uint8Array) => void;
+  // Shows the editor with a pose; `original` = the image it was extracted
+  // from (null for a pose made from scratch).
+  show: (pose: ExtractedPose, original: Uint8Array | null) => void;
   hide: () => void;
   // Resolves once the last edit's frame has reached onChange.
   flush: () => Promise<void>;
@@ -171,7 +192,15 @@ export function mountPoseEditor(host: HTMLElement, onChange: (bytes: Uint8Array)
   const resetBtn = document.createElement('button');
   resetBtn.type = 'button';
   resetBtn.textContent = 'Reset';
-  resetBtn.title = 'Back to the pose as it was extracted';
+  resetBtn.title = 'Back to the pose as it started';
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.textContent = '+ Person';
+  addBtn.title = 'Add a standing person to the pose';
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.textContent = 'Remove person';
+  removeBtn.title = 'Remove the person you last touched';
   const showLabel = document.createElement('label');
   showLabel.className = 'chk-row';
   showLabel.title = 'Show the original reference, dimmed, behind the pose (only here; it is not sent)';
@@ -179,7 +208,7 @@ export function mountPoseEditor(host: HTMLElement, onChange: (bytes: Uint8Array)
   showOriginal.type = 'checkbox';
   showOriginal.id = 'poseShowOriginal';
   showLabel.append(showOriginal, ' Display original reference');
-  row.append(mirrorBtn, resetBtn, showLabel);
+  row.append(addBtn, removeBtn, mirrorBtn, resetBtn, showLabel);
   const hint = document.createElement('div');
   hint.className = 'muted small';
   hint.textContent = 'Drag a point to move it. A wrist moves its hand, the nose moves the head. Shift-drag moves the whole person.';
@@ -189,6 +218,7 @@ export function mountPoseEditor(host: HTMLElement, onChange: (bytes: Uint8Array)
   let people: Person[] = [];
   let W = 1, H = 1;
   let mirrored = false;
+  let selected = 0; // the person last touched (Remove person acts on it)
   let original: HTMLImageElement | null = null;
   let originalUrl = '';
 
@@ -258,6 +288,7 @@ export function mountPoseEditor(host: HTMLElement, onChange: (bytes: Uint8Array)
     const hit = hitTest(p);
     if (!hit) return;
     e.preventDefault();
+    selected = hit.person;
     drag = { hit, whole: e.shiftKey, last: p };
     canvas.setPointerCapture(e.pointerId);
   });
@@ -289,23 +320,47 @@ export function mountPoseEditor(host: HTMLElement, onChange: (bytes: Uint8Array)
     if (!extracted) return;
     people = clonePeople(extracted.people);
     mirrored = false;
+    selected = 0;
+    render();
+    void commit();
+  });
+  addBtn.addEventListener('click', () => {
+    // Centre first, then alternating right and left of it.
+    const n = people.length;
+    const cx = n === 0 ? 0.5 : Math.min(0.85, Math.max(0.15, 0.5 + 0.2 * Math.ceil(n / 2) * (n % 2 ? 1 : -1)));
+    people.push(templatePerson(W, H, cx));
+    selected = people.length - 1;
+    render();
+    void commit();
+  });
+  removeBtn.addEventListener('click', () => {
+    if (!people.length) return;
+    people.splice(Math.min(selected, people.length - 1), 1);
+    selected = Math.max(0, people.length - 1);
     render();
     void commit();
   });
   showOriginal.addEventListener('change', render);
 
   return {
-    show(pose: ExtractedPose, originalBytes: Uint8Array): void {
+    show(pose: ExtractedPose, originalBytes: Uint8Array | null): void {
       extracted = pose;
       people = clonePeople(pose.people);
       W = pose.width; H = pose.height;
       canvas.width = W; canvas.height = H;
       mirrored = false;
+      selected = 0;
       if (originalUrl) URL.revokeObjectURL(originalUrl);
-      originalUrl = URL.createObjectURL(new Blob([originalBytes as BlobPart]));
-      original = new Image();
-      original.onload = render;
-      original.src = originalUrl;
+      originalUrl = '';
+      original = null;
+      // No original (a pose made from scratch): nothing to display behind it.
+      showLabel.hidden = !originalBytes;
+      if (originalBytes) {
+        originalUrl = URL.createObjectURL(new Blob([originalBytes as BlobPart]));
+        original = new Image();
+        original.onload = render;
+        original.src = originalUrl;
+      }
       host.hidden = false;
       render();
       void commit();

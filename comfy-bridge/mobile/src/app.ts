@@ -80,7 +80,8 @@ declare const BridgeShared: {
   extractWd14Tags: (record: any) => string | null;
   // shared/pose-extract.ts: the reference image's pose + its editor.
   extractPose: (run: (prompt: any, imageName: string, bytes: Uint8Array) => Promise<string>, imageName: string, bytes: Uint8Array, log: (msg: string) => void) => Promise<{ people: any[]; width: number; height: number } | null>;
-  mountPoseEditor: (host: HTMLElement, onChange: (bytes: Uint8Array) => void) => { show: (pose: any, original: Uint8Array) => void; hide: () => void; flush: () => Promise<void> };
+  mountPoseEditor: (host: HTMLElement, onChange: (bytes: Uint8Array) => void) => { show: (pose: any, original: Uint8Array | null) => void; hide: () => void; flush: () => Promise<void> };
+  newPose: (width: number, height: number) => { people: any[]; width: number; height: number };
   initTheme: (themes: any, def: any) => void;
   mountThemePicker: (opts: any) => void;
   initTagWiki: (button: HTMLElement) => void;
@@ -1300,11 +1301,21 @@ declare const BridgeShared: {
   // picked image, so extracting again starts from it, not from a pose frame.
   let refOriginal: { name: string; bytes: Uint8Array } | null = null;
   const poseEditor = BridgeShared.mountPoseEditor($('poseEditor'), (bytes: Uint8Array) => {
-    if (!refOriginal) return;
+    // An extracted pose is named after its image; a New pose is pose.png.
     refFile = null;
     refBytes = bytes;
-    refFilename = refOriginal.name.replace(/\.[^.]+$/, '') + '_pose.png';
+    refFilename = refOriginal ? refOriginal.name.replace(/\.[^.]+$/, '') + '_pose.png' : 'pose.png';
     refFileName.textContent = refFilename;
+  });
+  // New pose: the editor with no reference image, one standing person at the
+  // generation size.
+  $<HTMLButtonElement>('btnNewPose').addEventListener('click', () => {
+    refOriginal = null;
+    refPreview.style.display = 'none';
+    skipRefImage.checked = false;
+    applySkipRefImageUI();
+    poseEditor.show(BridgeShared.newPose(parseInt(width.value, 10), parseInt(height.value, 10)), null);
+    log('New pose (' + width.value + '×' + height.value + ') is the reference image. Drag points to pose it; + Person adds another.');
   });
   const btnExtractPose = $<HTMLButtonElement>('btnExtractPose');
   btnExtractPose.addEventListener('click', async () => {
