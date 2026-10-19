@@ -4661,6 +4661,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .seq-panel .single-name{
     font-size: 13px;
   }
+  /* Single view's right panel: the same Sequential form, live (view.ts
+     applySingleRight). The panel's own width decides one or two columns. */
+  #singleSeqPanel{ padding: 10px 12px 16px; }
+  .single-seq-head{ display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+  .single-seq-note{ font-size: 12px; color: var(--text-faint); }
+  #singleSeqPanel .ach-toggle-row{ padding: 4px 8px; gap: 7px; }
   /* Prev/Next inside the image card modal (view.ts's renderImageCardModal)
      — same shape as #singleNav above, reused here since mobile drops
      Single view (see the viewSingleBtn mobile rule) in favor of always
@@ -4978,6 +4984,20 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .quicktag-item-actions{ opacity: 0.55; }
   .quicktag-line:hover .quicktag-item-actions, .quicktag-item-actions:focus-within{ opacity: 1; }
   .quicktag-add-category{ align-self: flex-start; }
+  /* Drag reorder (quick-tag.ts): a ⋮⋮ handle on each category and quicktag,
+     an accent line where the drop lands. Cursors stay grab/default (the
+     user's Windows cursor scheme has them). */
+  .quicktag-group-name{ flex: 1; min-width: 0; }
+  .quicktag-drag{ cursor: grab; color: var(--text-faint); font-size: 11px; letter-spacing: -2px; padding: 0 4px 0 0; user-select: none; opacity: 0.6; }
+  .quicktag-drag:hover{ opacity: 1; color: var(--text-primary); }
+  .qt-dragging{ opacity: 0.45; }
+  .quicktag-line, .quicktag-group{ position: relative; }
+  .qt-drop-before::before, .qt-drop-after::after{
+    content: ''; position: absolute; left: 0; right: 0; height: 2px; background: var(--accent-flair); border-radius: 1px; pointer-events: none;
+  }
+  .qt-drop-before::before{ top: -3px; }
+  .qt-drop-after::after{ bottom: -3px; }
+  .quicktag-options.qt-drop-into{ outline: 1px dashed var(--accent-flair); outline-offset: 2px; border-radius: 4px; }
   .quicktag-edit-box{ width: min(460px, 92vw); display: flex; flex-direction: column; gap: 10px; }
   .quicktag-edit-field{ display: flex; flex-direction: column; gap: 3px; }
   .quicktag-edit-label{ font-size: 12px; font-weight: 600; color: var(--text-primary); }

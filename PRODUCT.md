@@ -48,7 +48,7 @@ tagging, and direct ComfyUI output syncing — all offline, portable, in one bin
   `_dts_canonical_tags.json`, `_dts_meta.json`) without touching images/captions
   unless explicitly instructed.
 - ComfyUI may be present on the same machine (desktop) or over LAN/Tailscale
-  (mobile/Comfy Bridge) for generation and network tagging; WD14 can also run fully
+  (Comfy Bridge's phone app) for generation and network tagging; WD14 can also run fully
   on-device (models download on first use).
 - Settings, themes, achievements live in `data/` next to the executable — portable,
   resettable, carryable.

@@ -32,8 +32,6 @@ Everything is on the [releases page](https://github.com/Valteil/osmium-workshop/
 | `ComfyBridge-<version>-android.apk` | Comfy Bridge for Android |
 | `ComfyUI-DataSetManagerNodes.zip` | The ComfyUI node pack SynthDat and Comfy Bridge need |
 
-The Osmium Android app is on its own `-android` pre-release.
-
 ## Install
 
 **Osmium Workshop.** Unzip anywhere and run `Osmium Workshop.exe`. Nothing is installed; your
@@ -60,7 +58,7 @@ directly, or go through the desktop Bridge (**Let the phone app use it**). For e
 node pack in your ComfyUI (for example through ComfyUI Manager); Bridge lists them once it's there.
 
 **Updating.** There's no auto-updater: unzip the new version and move your old `data/` folder into
-it. Android updates install over the old APK.
+it. Comfy Bridge's Android app updates install over the old APK.
 
 ---
 
@@ -87,9 +85,6 @@ it. Android updates install over the old APK.
   stack, 2-pass, USDU upscaling, a gallery, image/LoRA metadata, and a phone link to your PC.
 - **Themes.** 26 full themes (5 free, the rest bought with Edibits you earn from achievements), Theme
   Studio for your own, and night mode.
-
-The Android version of Osmium has the same interface in a touch layout; Bucket Images and Trainflow
-stay desktop-only.
 
 ---
 

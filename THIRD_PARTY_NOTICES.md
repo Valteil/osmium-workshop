@@ -10,7 +10,7 @@ build on the following work by others, under these licenses.
 | [Electron](https://www.electronjs.org/) / Chromium | Windows apps | MIT / BSD and others | GitHub Inc. and the Electron contributors; The Chromium Authors. Full texts ship in each zip as `LICENSE.electron.txt` and `LICENSES.chromium.html`. |
 | [onnxruntime-node](https://github.com/microsoft/onnxruntime) | Osmium (WD14, Bucket Images) | MIT | Microsoft Corporation |
 | [ws](https://github.com/websockets/ws) | Osmium, Comfy Bridge | MIT | 2011 Einar Otto Stangvik; 2013 Arnout Kazemier and contributors; 2016 Luigi Pinca and contributors |
-| [Capacitor](https://capacitorjs.com/) (`@capacitor/*`) | Android apps | MIT | 2017-present Drifty Co.; 2025 Ionic |
+| [Capacitor](https://capacitorjs.com/) (`@capacitor/*`) | Comfy Bridge for Android | MIT | 2017-present Drifty Co.; 2025 Ionic |
 | Fonts in `renderer/fonts/` | All apps | SIL Open Font License 1.1 | Their authors; see `renderer/fonts/OFL.md` |
 
 ## Code ported or adapted

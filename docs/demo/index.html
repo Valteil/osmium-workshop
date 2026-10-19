@@ -881,9 +881,12 @@
         <button id="btnRightPanelCollapse" class="panel-collapse-arrow" title="Hide this panel"><svg class="ic" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
         <button id="btnGoToTagOverseer" class="right-panel-header-action" title="Switch to Tag Overseer"><svg class="ic ic-lead" aria-hidden="true"><use href="#i-telescope"></use></svg>Tag Overseer</button>
         <button id="btnMasterBack" class="right-panel-header-action" style="display:none;" title="Back to normal tools">← Gallery tools</button>
+        <!-- Single view only: Sequential controls ⇄ Gallery tools (view.ts applySingleRight). -->
+        <button id="btnSingleRightSwap" class="right-panel-header-action" style="display:none;"></button>
       </div>
 
       <div id="rightPanelContent">
+      <div id="singleSeqPanel" class="rt-hidden"></div>
       <div id="normalRightTools">
       <div class="tool-section" data-dock-id="tagPruner" data-resizable="true">
         <div class="sec-head"><span class="dot manual"></span><span class="t">Tag Pruner</span><button type="button" class="info-btn dock-info-btn" id="infoTagPrunerDesc" title="About Tag Pruner">ⓘ</button></div>

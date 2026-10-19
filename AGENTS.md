@@ -1,7 +1,7 @@
 # Osmium Workshop — agent instructions
 
-Local-first AI dataset tagger (image + `.txt` pairs). Three apps: the desktop manager (`src/`), its
-Android port (`mobile/`), and Comfy Bridge (`comfy-bridge/` + its own `mobile/`). This file is the
+Local-first AI dataset tagger (image + `.txt` pairs). Three apps: the desktop manager (`src/`), Comfy
+Bridge (`comfy-bridge/`) and its Android app (`comfy-bridge/mobile/`). This file is the
 project's **cross-agent** entry point; `CLAUDE.md` mirrors it — keep the two in sync.
 
 ## Before touching anything: read the wiki

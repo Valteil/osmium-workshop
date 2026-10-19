@@ -853,7 +853,7 @@
     </div>
     <div class="wrap hero-grid">
       <div>
-        <span class="kicker-chip"><span class="dot"></span><span data-latest-ver>v1.6.0</span> · Windows portable · Android</span>
+        <span class="kicker-chip"><span class="dot"></span><span data-latest-ver>v1.6.0</span> · Windows portable</span>
         <h1 class="hero-title display">Making datasets could<br><em>be a little more fun</em></h1>
         <p class="hero-sub hero-sub-first" data-plate="on">A dataset manager made for curating training data for Booru-tag based models, with a focus around Anima by Circlestone labs.</p>
         <p class="hero-sub" data-plate="on">Osmium is feature-dense, comes with plenty of QoL features, and contains a slew of comprehensive visual customization to make curating datasets a hobby that doesn't make you scratch your head like a monkey.</p>
@@ -1485,22 +1485,19 @@
         </div>
         <div class="app-list">
           <div class="app-item">
-            <div class="head"><span class="swatch" style="background:var(--ink)"></span><h3>Osmium Workshop — Desktop</h3></div>
+            <div class="head"><span class="swatch" style="background:var(--ink)"></span><h3>Osmium Workshop</h3></div>
             <p>The Dataset manager. Used for tagging images and generating additional material for small datasets.</p>
             <a class="btn btn-ghost btn-sm app-dl" data-dl="osmium-desktop" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download (Windows)</a>
           </div>
           <div class="app-item">
-            <div class="head"><span class="swatch" style="background:var(--green)"></span><h3>Osmium Workshop — Mobile</h3></div>
-            <p>The same app on Android, for tagging on the go. Touch layout, on-device WD14, ComfyUI generation over LAN or Tailscale. Currently in testing.</p>
-            <a class="btn btn-ghost btn-sm app-dl" data-dl="osmium-android" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
+            <div class="head"><span class="swatch" style="background:var(--blue)"></span><h3>Comfy Bridge — Desktop</h3></div>
+            <p>A simpler ComfyUI webUI with one built-in workflow, for when you just want the image without wrangling a node graph. </p>
+            <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-desktop" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Download (Windows)</a>
           </div>
           <div class="app-item">
-            <div class="head"><span class="swatch" style="background:var(--blue)"></span><h3>Comfy Bridge</h3></div>
-            <p>A simpler ComfyUI webUI with one built-in workflow, for when you just want the image without wrangling a node graph. </p>
-            <div class="app-item-ctas">
-              <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-desktop" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Windows</a>
-              <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-android" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
-            </div>
+            <div class="head"><span class="swatch" style="background:var(--green)"></span><h3>Comfy Bridge — Mobile</h3></div>
+            <p>Comfy Bridge on Android: drive your PC's ComfyUI from your phone over LAN or Tailscale, and get the finished images straight back on the phone.</p>
+            <a class="btn btn-ghost btn-sm app-dl" data-dl="cbridge-android" href="https://github.com/Valteil/osmium-workshop/releases/latest" target="_blank" rel="noopener">↓ Android APK</a>
           </div>
         </div>
       </div>
@@ -1916,7 +1913,6 @@
   // latest release alone isn't enough.
   var targets = [
     { attr: 'osmium-desktop', re: /^Osmium\.Workshop-.*-win\.zip$/ },
-    { attr: 'osmium-android', re: /^OsmiumWorkshop-.*-android\.apk$/ },
     { attr: 'cbridge-desktop', re: /^Comfy\.Bridge-.*-win\.zip$/ },
     { attr: 'cbridge-android', re: /^ComfyBridge-.*-android\.apk$/ }
   ];

@@ -1,7 +1,7 @@
 # Osmium Workshop — Start Here
 
 Local-first AI dataset tagger (image + `.txt` pairs). Three apps: desktop manager (`src/`),
-its Android port (`mobile/`), Comfy Bridge (`comfy-bridge/` + its own `mobile/`).
+Comfy Bridge (`comfy-bridge/`) and its Android app (`comfy-bridge/mobile/`).
 
 - Docs: `notes/` vault (gitignored) — **always** start at `notes/Index.md`, read the relevant
   note(s) for the area before changing it, and check `notes/Pitfalls/Index.md`.

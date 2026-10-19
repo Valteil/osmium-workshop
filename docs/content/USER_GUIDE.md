@@ -34,7 +34,7 @@ app to look something up.
 - [Favorites](#favorites)
 - [The Edit Log](#the-edit-log)
 - [Saving your work](#saving-your-work)
-- [The mobile app & Comfy Bridge](#the-mobile-app--comfy-bridge)
+- [Comfy Bridge](#comfy-bridge)
 - [Tips & troubleshooting](#tips--troubleshooting)
 
 ---
@@ -85,8 +85,7 @@ shown as spaces in the app, and captions are saved with spaces (`red hair, smile
 Anima expects.
 
 **File ▸ Add images…** copies more images into the open dataset folder. Each one arrives untagged,
-with an empty `.txt` beside it. On Android it lets you choose which app to pick from (Photos, Files,
-or any file manager you have installed). With no dataset open, it first offers to create one: name it,
+with an empty `.txt` beside it. With no dataset open, it first offers to create one: name it,
 choose where its folder should go, and the new, empty dataset opens ready for the images.
 
 The app also creates a few of its own files/folders inside your dataset folder as you use it —
@@ -141,6 +140,10 @@ which you chose (desktop).
 
   Your own quicktags have ✎ (edit) and × (delete) buttons, and your own categories an ×. Deleting
   never touches tags already on images.
+
+  **Reorder:** drag the **⋮⋮** handle on a quicktag to move it, within its category or into
+  another one, and the handle on a category header to move the whole category. Built-in ones
+  move too; the order is kept for every dataset.
 - **📖 Wiki** (next to Asc/Desc) — opens a small window to look up any tag's definition from the
   bundled wiki, without going through a tag field. Type a tag (suggestions appear beside the window as you type)
   and its definition shows boxed above the field, with its **See also** tags listed below the box;
@@ -414,27 +417,29 @@ bootstrap tags onto untagged imports.
 
 ### Sequential tagging
 
-Started from the **▶ Sequential from first / from selected** buttons under Master Tag Control's
-selection summary, or **▶ Sequential from here** in an image's 3-dot menu. On desktop it takes over
-Single view; on Android it opens as a full-screen panel (Back closes it). Either way it walks your current filter image by image;
-"from selected" starts at your first selected image instead of the top. Each image shows the
-same quick-modify panel:
+Sequential is part of **Single view**: Quicktags on the left, the image and its tags
+in the middle, and the Sequential controls in the right panel, for whichever image Single view
+shows. **Every tick applies to the image right away** (Ctrl+Z undoes it), so you step through
+your filter with Prev / Next. The button at the top of the right panel swaps it for the
+**Gallery tools** and back; Tag Overseer is only available in the gallery views (its tab switches
+Single view back to Grid). **▶ Single from here**, in an image's 3-dot menu or under Master Tag
+Control's selection summary (at the first selected image), opens Single view at that image.
+
+The controls:
 
 - **Text** — has-text toggle plus a Japanese toggle and a list of foreign-language checkboxes
   (add your own with the built-in "+ Add language…" field; custom entries persist across images).
 - **Censorship** — Unspecified / Censored / Uncensored radios; picking Censored reveals type
   checkboxes (Generic, Mosaic, Bar, Blur, Heart — several can be checked at once).
-- **Perspective** — independent checkboxes (Front / Side / Below / Above / Behind); an image can
-  carry several at once.
+- **Perspective** — independent checkboxes (Straight on / Facing viewer / Looking at viewer / Side
+  / Below / Above / Behind, plus POV and Close-up); an image can carry several at once. "From
+  front" is retired as ambiguous: **Straight on** is the camera angle (`straight on`), **Facing
+  viewer** is the body facing the camera (`facing viewer`), **Looking at viewer** is the eyes
+  (`looking at viewer`). An image already tagged `from front` keeps that tag.
 - **Color, Sound, Comic** — Monochrome, Sound effects, Comic, **Multiple views**, and koma-count
   checkboxes, all independent of each other.
 
-Every control prefills from the image's existing tags. Below the image, a **live tag-preview
-strip** shows exactly which indicator tags Confirm will apply (tags new to the image glow) —
-it's only these panel selections, not the image's other tags. **Confirm** applies them, marks
-the image, and advances automatically; your progress is saved per image, and "Exit sequential"
-(or leaving Single view) ends the run without losing completed work. The image is the same
-compact preview as Single view — click it for the fullscreen lightbox for close inspection.
+Every control prefills from the image's existing tags.
 
 Use it when a whole filter batch — a character, a rating, everything missing "monochrome" —
 needs its indicator tags aligned without opening each card by hand.
@@ -791,7 +796,7 @@ wallpaper (a sunny hillside fits it best). **Use the hillside** goes back to the
 crosses it, carrying that theme's own version of the Osmium mark, then leaves trailing the theme's
 particles (cherry petals, phosphor pixels, embers, bubbles, gold leaf…) as the screen comes back to
 full colour. It takes under two seconds. Click, tap or press a key to speed it up, or turn it off
-with **Disable opening flourish** in Settings ▸ Appearance. On phones it runs top to bottom. With
+with **Disable opening flourish** in Settings ▸ Appearance. With
 your system's "reduce motion" setting on, it's a brief fade instead.
 
 **App icon (Windows).** Settings ▸ Appearance ▸ **App icon** sets the app's window and taskbar icon:
@@ -834,26 +839,11 @@ prompts you first; nothing is silently discarded.
 
 ---
 
-## The mobile app & Comfy Bridge
+## Comfy Bridge
 
-This guide covers the desktop app. Two siblings share this repo:
+This guide covers the desktop app. Its sibling shares this repo:
 
-- **Osmium Workshop for Android** (`mobile/`) — the same app as desktop (same themes, Theme
-  Studio, Past Tag Preview, rules and tools), in a touch layout:
-  - Panels become bottom sheets, and tag editing happens in the image modal (tap a card).
-  - Compact view, Single view, Bucket Images and Trainflow are left out. Sequential tagging runs in a
-    full-screen panel instead of Single view.
-  - The folder picker uses Android's own storage access with a persisted grant, and **File ▸ Add
-    images…** can pull from any installed gallery or file-manager app.
-  - WD14 tagging runs either on-device (models download on first use) or through your own
-    ComfyUI instance, like desktop.
-  - The phone's **Back** closes whatever is open first (menus, dialogs, panels, then back through
-    the tabs you visited) and asks before leaving the app.
-  - The in-app ❓ Help is rewritten for touch; read that instead of this guide on mobile.
-  - Released since v1.8.0: each release has an `OsmiumWorkshop-<version>-android.apk`. Install it
-    over any earlier build to keep your data. The Comfy Bridge Android app is
-    `ComfyBridge-<version>-android.apk`.
-- **Comfy Bridge** (`comfy-bridge/`) — an alternate web UI for accessing the ComfyUI backend,
+- **Comfy Bridge** (`comfy-bridge/`, Windows, and Android as `ComfyBridge-<version>-android.apk`) — an alternate web UI for accessing the ComfyUI backend,
   featuring a built-in workflow: no node graph to navigate, every generation saves straight to
   disk (desktop: the folder you pick, remembered between launches; mobile: a picked folder or
   `Documents/`). Both builds share the gallery sidebar (browse subfolders, sort by name/date,
@@ -879,6 +869,15 @@ This guide covers the desktop app. Two siblings share this repo:
     your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
     phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);
     Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
+  - **Extract pose** (desktop and phone, next to Pick reference image): DWPose finds the people in
+    the reference image (the comfyui_controlnet_aux node pack) and the reference becomes their
+    OpenPose-style pose frame, the same size, for Anima LLLite. If its person detector finds nobody
+    (it can miss greyscale or sketchy art), it tries the whole image as one person. The pose shows
+    in an editor: drag points (a wrist moves its hand, the nose the head; Shift-drag moves the whole
+    person), **Mirror**, **Reset**, and **Display original reference** shows the original dimmed
+    behind the pose. Every edit becomes the reference. Pick the image again to go back to it.
+    **New pose** opens the editor without a reference image: one standing person at the generation
+    width × height; **+ Person** adds another, **Remove person** removes the one last touched.
   - **WD14 tags** (desktop and phone, under the result): **Tag last generation** tags each saved
     image and can write a same-name `.txt` beside it in the output folder. **Tag an image** tags any
     image you choose; **Use as prompt** sorts the tags into your prompt boxes (Global, Character

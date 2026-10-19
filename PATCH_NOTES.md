@@ -232,9 +232,7 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ## v1.9.5
 
-Osmium Workshop and Comfy Bridge for Windows, plus the Comfy Bridge Android app. The Osmium
-Android app isn't part of this release. Get it from
-[v1.9.0-android](https://github.com/Valteil/osmium-workshop/releases/tag/v1.9.0-android).
+Osmium Workshop and Comfy Bridge for Windows, plus the Comfy Bridge Android app.
 
 ### Osmium Workshop
 
@@ -369,21 +367,6 @@ app already works with **Let the phone app use it**.
 ---
 
 ## v1.8.0
-
-### Osmium Workshop for Android is released
-
-The phone app leaves testing. It runs the same interface as desktop, generated from the same
-sources, so new desktop features reach it automatically.
-
-- Every theme, Theme Studio, merge/void rules and Past Tag Preview, in a touch layout with
-  bottom-sheet panels and tag editing in the image modal.
-- **Back button** closes the top dialog, menu or sheet, then steps back through the tabs you
-  visited, and asks before exiting.
-- **Add images** opens Android's app chooser, so Photos, Files, Drive or any file manager can
-  supply them.
-- **Sequential tagging** runs in a full-screen panel.
-- ARM64-only APK of about 43 MB, down from 94 MB. It installs over a previous test build and keeps
-  its data. Bucket Images, Compact view and Single view stay desktop-only.
 
 ### Themes
 

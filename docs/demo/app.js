@@ -927,7 +927,7 @@
     };
     showCaption();
     let scale = 1, panX = 0, panY = 0;
-    let dragging = false, didDrag = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0;
+    let dragging2 = false, didDrag = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0;
     const MIN_SCALE = 1, MAX_SCALE = 6;
     function clampPan() {
       const maxX = Math.max(0, img.offsetWidth * (scale - 1) / 2);
@@ -937,7 +937,7 @@
     }
     function applyTransform() {
       img.style.transform = scale === 1 && panX === 0 && panY === 0 ? "" : `translate(${panX}px, ${panY}px) scale(${scale})`;
-      img.style.cursor = scale > 1 ? dragging ? "grabbing" : "grab" : "zoom-out";
+      img.style.cursor = scale > 1 ? dragging2 ? "grabbing" : "grab" : "zoom-out";
     }
     function zoomBy(delta) {
       const prevScale = scale;
@@ -963,7 +963,7 @@
       if (scale <= 1) return;
       ev.preventDefault();
       ev.stopPropagation();
-      dragging = true;
+      dragging2 = true;
       didDrag = false;
       dragStartX = ev.clientX;
       dragStartY = ev.clientY;
@@ -973,7 +973,7 @@
       applyTransform();
     }
     function onPointerMove(ev) {
-      if (!dragging) return;
+      if (!dragging2) return;
       const dx = ev.clientX - dragStartX, dy = ev.clientY - dragStartY;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDrag = true;
       panX = panStartX + dx;
@@ -982,8 +982,8 @@
       applyTransform();
     }
     function onPointerUp(ev) {
-      if (!dragging) return;
-      dragging = false;
+      if (!dragging2) return;
+      dragging2 = false;
       try {
         img.releasePointerCapture(ev.pointerId);
       } catch {
@@ -3666,17 +3666,17 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         head.style.alignItems = "center";
         const controls = document.createElement("span");
         controls.className = "dock-controls";
-        const dragHandle = document.createElement("span");
-        dragHandle.className = "dock-drag-handle";
-        setIconLabel(dragHandle, "\u2630");
-        dragHandle.title = "Drag to reorder this panel";
-        dragHandle.draggable = true;
-        dragHandle.addEventListener("dragstart", (ev) => {
+        const dragHandle2 = document.createElement("span");
+        dragHandle2.className = "dock-drag-handle";
+        setIconLabel(dragHandle2, "\u2630");
+        dragHandle2.title = "Drag to reorder this panel";
+        dragHandle2.draggable = true;
+        dragHandle2.addEventListener("dragstart", (ev) => {
           ev.dataTransfer.setData("text/plain", id);
           ev.dataTransfer.effectAllowed = "move";
           sec.classList.add("dock-dragging");
         });
-        dragHandle.addEventListener("dragend", () => sec.classList.remove("dock-dragging"));
+        dragHandle2.addEventListener("dragend", () => sec.classList.remove("dock-dragging"));
         const collapseBtn = document.createElement("button");
         collapseBtn.className = "dock-collapse-btn";
         collapseBtn.title = "Collapse / expand this panel";
@@ -3688,7 +3688,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
           applyDockCollapse(sec, id, true);
           setIconLabel(collapseBtn, collapseGlyph());
         });
-        controls.appendChild(dragHandle);
+        controls.appendChild(dragHandle2);
         controls.appendChild(collapseBtn);
         head.appendChild(controls);
       }
@@ -4384,16 +4384,24 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     {
       id: "step-sequential",
       title: "6 \xB7 Sequential mode pass",
-      html: `
+      html: isTouchDevice ? `
       <p>Single mode handles composition; Sequential mode is for the technicalities WD14 is
       inconsistent about (perspective especially). In the <b>Tag Overseer</b> tab, use
       <b>\u25B6 Sequential from first / from selected</b> \u2014 walk your current filter image by
-      image ${isTouchDevice ? "in a full-screen panel (Back or Exit sequential leaves it)" : "in Single view"} with a quick-modify panel: text/language (custom languages welcome),
+      image in a full-screen panel (Back or Exit sequential leaves it) with a quick-modify panel: text/language (custom languages welcome),
       censorship state + type checkboxes, multi-select perspective checkboxes, monochrome, sound
-      effects, comic, multiple views, koma count. The image is the same compact preview as
-      Single view (click it for the full-size view). A live tag preview under the image shows
+      effects, comic, multiple views, koma count. A live tag preview under the image shows
       exactly which tags Confirm will apply before you commit; Confirm advances automatically
-      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>`
+      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>` : `
+      <p>Sequential is for the technicalities WD14 is inconsistent about (perspective
+      especially), and it lives in <b>Single view</b>: Quicktags on the left, the image and its
+      tags in the middle, and the Sequential controls in the right panel. Text/language (custom
+      languages welcome), censorship state + types, perspective (Straight on, Facing viewer,
+      Looking at viewer, \u2026), monochrome, sound effects, comic, multiple views and koma. Every tick
+      applies to the image at once (Ctrl+Z undoes it), so step through your filter with
+      Prev / Next. The button at the top of the right panel swaps it for the <b>Gallery tools</b>
+      and back; Tag Overseer is only in the gallery views. <b>\u25B6 Single from here</b> (3-dot menu,
+      or Master Tag Control with images selected) opens Single view at that image.</p>`
     },
     ...isTouchDevice ? [] : [{
       id: "step-bucket",
@@ -9997,7 +10005,8 @@ Originals are kept in ${ORIGINAL_DIR}/ (shown in the Originals view) and the buc
     };
     const originalByBase = new Map(originals.map((e) => [e.base, e]));
     const rootByBase = new Map(rootEntries.map((e) => [e.base, e]));
-    const sources = originals.map((e) => ({ entry: e, fromOriginals: true }));
+    const disabledBases = new Set(entries.filter((e) => e.disabled && !e.original).map((e) => e.base));
+    const sources = originals.filter((e) => rootByBase.has(e.base) || !disabledBases.has(e.base)).map((e) => ({ entry: e, fromOriginals: true }));
     for (const e of rootEntries) if (!originalByBase.has(e.base)) sources.push({ entry: e, fromOriginals: false });
     try {
       for (const { entry, fromOriginals } of sources) {
@@ -10489,10 +10498,12 @@ Delete them too? "Keep them" leaves them in the Gallery.`,
       };
       const seqRow = document.createElement("div");
       seqRow.className = "mtc-btn-row";
-      const seqFirstBtn = makeSeqBtn("Sequential from first", "\u23EE", "Review every gallery image in sort order, confirming detail tags one by one", "first");
-      const seqSelBtn = makeSeqBtn("Sequential from selected", "\u{1F3AF}", "Review from the first selected image in sort order", "selected");
-      seqRow.appendChild(seqFirstBtn);
-      seqRow.appendChild(seqSelBtn);
+      if (document.documentElement.classList.contains("touch-device")) {
+        seqRow.appendChild(makeSeqBtn("Sequential from first", "\u23EE", "Review every gallery image in sort order, confirming detail tags one by one", "first"));
+        seqRow.appendChild(makeSeqBtn("Sequential from selected", "\u{1F3AF}", "Review from the first selected image in sort order", "selected"));
+      } else {
+        seqRow.appendChild(makeSeqBtn("Single from here", "\u{1F3AF}", "Open Single view at the first selected image (Sequential controls in the right panel)", "selected"));
+      }
       masterSelectionSummary.after(seqRow);
     }
     for (const inp of [
@@ -20340,7 +20351,8 @@ Content-Type: application/octet-stream\r
     return { ok: true, promptId };
   }
   function extractWd14Tags(record) {
-    const tags = record && record.outputs && record.outputs["2"] && record.outputs["2"].tags;
+    const out = record && record.outputs && record.outputs["2"];
+    const tags = out && (out.tags || out.openpose_json);
     if (!tags) return null;
     return Array.isArray(tags) ? tags[0] : tags;
   }
@@ -25598,11 +25610,11 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
         header.className = "freq-family-header";
         header.draggable = true;
         header.dataset.word = word;
-        const dragHandle = document.createElement("span");
-        dragHandle.className = "family-drag-handle";
-        setIconLabel(dragHandle, "\u2630");
-        dragHandle.title = "Drag to reorder this family";
-        header.appendChild(dragHandle);
+        const dragHandle2 = document.createElement("span");
+        dragHandle2.className = "family-drag-handle";
+        setIconLabel(dragHandle2, "\u2630");
+        dragHandle2.title = "Drag to reorder this family";
+        header.appendChild(dragHandle2);
         const labelSpan = document.createElement("span");
         labelSpan.textContent = ` \u2014 ${word} (${tags.length}) \u2014`;
         header.appendChild(labelSpan);
@@ -25890,20 +25902,53 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
   }
   function loadStore() {
     const s = getJSON(STORE_KEY, null);
-    return { groups: Array.isArray(s?.groups) ? s.groups : [], extra: s?.extra && typeof s.extra === "object" ? s.extra : {} };
+    const o = s?.order;
+    const order = o && Array.isArray(o.groups) && o.items && typeof o.items === "object" ? o : void 0;
+    return { groups: Array.isArray(s?.groups) ? s.groups : [], extra: s?.extra && typeof s.extra === "object" ? s.extra : {}, order };
   }
   function saveStore(s) {
     setJSON(STORE_KEY, s);
   }
+  var homeOf = /* @__PURE__ */ new WeakMap();
+  var keyOf = (def) => `${homeOf.get(def) || ""}::${def.tag}`;
   function allGroups() {
     const store = loadStore();
-    return [
+    const base = [
       ...BUILTIN_GROUPS.map((g) => ({ ...g, items: [...g.items, ...store.extra[g.id] || []] })),
       ...store.groups.map((g) => ({ ...g, custom: true }))
     ];
+    const pool = /* @__PURE__ */ new Map();
+    for (const g of base) for (const d of g.items) {
+      homeOf.set(d, g.id);
+      pool.set(keyOf(d), d);
+    }
+    const order = store.order;
+    if (!order) return base;
+    const groups2 = base.map((g) => ({ ...g, items: [] }));
+    const byId = new Map(groups2.map((g) => [g.id, g]));
+    const placed = /* @__PURE__ */ new Set();
+    for (const g of groups2) {
+      for (const k of order.items[g.id] || []) {
+        const d = pool.get(k);
+        if (d && !placed.has(k)) {
+          g.items.push(d);
+          placed.add(k);
+        }
+      }
+    }
+    for (const [k, d] of pool) if (!placed.has(k)) byId.get(homeOf.get(d)).items.push(d);
+    const rank = (id) => {
+      const i = order.groups.indexOf(id);
+      return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+    };
+    return groups2.map((g, i) => ({ g, i })).sort((a, b) => rank(a.g.id) - rank(b.g.id) || a.i - b.i).map((x) => x.g);
   }
-  function isCustomItem(groupId, def) {
-    return !BUILTIN_GROUPS.some((g) => g.id === groupId && g.items.includes(def));
+  function isCustomItem(def) {
+    return !BUILTIN_GROUPS.some((g) => g.items.includes(def));
+  }
+  function storedList(store, homeId) {
+    const custom = store.groups.find((g) => g.id === homeId);
+    return custom ? custom.items : store.extra[homeId] ||= [];
   }
   function allItems() {
     return allGroups().flatMap((g) => g.items);
@@ -26030,22 +26075,94 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     const next = await openEditor(group.label, def);
     if (!next) return;
     const store = loadStore();
-    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] || [];
+    const home = homeOf.get(def) || group.id;
+    const list = storedList(store, home);
     const i = list.findIndex((d) => d.tag === def.tag);
     if (i === -1) return;
     list[i] = next;
+    if (store.order && next.tag !== def.tag) {
+      const oldKey = `${home}::${def.tag}`, newKey = `${home}::${next.tag}`;
+      for (const keys of Object.values(store.order.items)) {
+        const j = keys.indexOf(oldKey);
+        if (j !== -1) keys[j] = newKey;
+      }
+    }
     saveStore(store);
     refresh();
   }
-  async function deleteQuickTag(group, def) {
+  async function deleteQuickTag(_group, def) {
     const ok = await showConfirmModal(`Delete the quicktag "${def.label || def.tag}"? Tags already on images stay.`, { okLabel: "Delete", danger: true });
     if (!ok) return;
     const store = loadStore();
-    const list = group.custom ? store.groups.find((g) => g.id === group.id).items : store.extra[group.id] || [];
+    const list = storedList(store, homeOf.get(def) || _group.id);
     const i = list.findIndex((d) => d.tag === def.tag);
     if (i !== -1) list.splice(i, 1);
     saveStore(store);
     refresh();
+  }
+  var dragging = null;
+  function saveLayout(layout) {
+    const store = loadStore();
+    store.order = { groups: layout.map((l) => l.id), items: Object.fromEntries(layout.map((l) => [l.id, l.keys])) };
+    saveStore(store);
+    refresh();
+  }
+  function currentLayout() {
+    return allGroups().map((g) => ({ id: g.id, keys: g.items.map(keyOf) }));
+  }
+  function moveItem2(key, groupId, targetKey, after) {
+    if (key === targetKey) return;
+    const layout = currentLayout();
+    for (const l of layout) {
+      const i = l.keys.indexOf(key);
+      if (i !== -1) l.keys.splice(i, 1);
+    }
+    const dest = layout.find((l) => l.id === groupId);
+    if (!dest) return;
+    const t = targetKey ? dest.keys.indexOf(targetKey) : -1;
+    if (t === -1) dest.keys.push(key);
+    else dest.keys.splice(after ? t + 1 : t, 0, key);
+    saveLayout(layout);
+  }
+  function moveGroup(id, targetId, after) {
+    if (id === targetId) return;
+    const layout = currentLayout();
+    const from = layout.findIndex((l) => l.id === id);
+    if (from === -1) return;
+    const [moved] = layout.splice(from, 1);
+    const t = layout.findIndex((l) => l.id === targetId);
+    if (t === -1) return;
+    layout.splice(after ? t + 1 : t, 0, moved);
+    saveLayout(layout);
+  }
+  function lowerHalf(el2, ev) {
+    const r = el2.getBoundingClientRect();
+    return ev.clientY > r.top + r.height / 2;
+  }
+  function clearDropMarks() {
+    panel?.querySelectorAll(".qt-drop-before, .qt-drop-after, .qt-drop-into").forEach((el2) => el2.classList.remove("qt-drop-before", "qt-drop-after", "qt-drop-into"));
+  }
+  function dragHandle(title, kind, key, source) {
+    const h = document.createElement("span");
+    h.className = "quicktag-drag";
+    h.textContent = "\u22EE\u22EE";
+    h.title = title;
+    h.draggable = true;
+    h.addEventListener("dragstart", (ev) => {
+      dragging = { kind, key };
+      source.classList.add("qt-dragging");
+      if (ev.dataTransfer) {
+        ev.dataTransfer.effectAllowed = "move";
+        ev.dataTransfer.setData("text/plain", key);
+        ev.dataTransfer.setDragImage(source, 12, 12);
+      }
+    });
+    h.addEventListener("dragend", () => {
+      dragging = null;
+      source.classList.remove("qt-dragging");
+      clearDropMarks();
+    });
+    return h;
   }
   async function addCategory() {
     const name = (await showPromptModal("Name the new quicktag category:", { placeholder: "e.g. Eye colour", okLabel: "Add category" }))?.trim();
@@ -26104,7 +26221,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     panel.appendChild(title);
     const note = document.createElement("div");
     note.className = "quicktag-note";
-    note.textContent = "Tick to add the tag to this image, untick to remove it. + adds your own.";
+    note.textContent = "Tick to add the tag to this image, untick to remove it. + adds your own. Drag \u22EE\u22EE to reorder.";
     panel.appendChild(note);
     const has = new Set(entry.tags);
     for (const group of allGroups()) {
@@ -26112,9 +26229,23 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       block.className = "quicktag-group";
       const head = document.createElement("div");
       head.className = "quicktag-group-head";
+      head.appendChild(dragHandle(`Drag to move the ${group.label} category`, "group", group.id, block));
       const name = document.createElement("span");
+      name.className = "quicktag-group-name";
       name.textContent = group.label;
       head.appendChild(name);
+      block.addEventListener("dragover", (ev) => {
+        if (dragging?.kind !== "group") return;
+        ev.preventDefault();
+        clearDropMarks();
+        block.classList.add(lowerHalf(block, ev) ? "qt-drop-after" : "qt-drop-before");
+      });
+      block.addEventListener("drop", (ev) => {
+        if (dragging?.kind !== "group") return;
+        ev.preventDefault();
+        const d = dragging;
+        moveGroup(d.key, group.id, lowerHalf(block, ev));
+      });
       const actions = document.createElement("span");
       actions.className = "quicktag-head-actions";
       actions.appendChild(smallButton("+", `Add a quicktag to ${group.label}`, () => void addQuickTag(group)));
@@ -26123,6 +26254,17 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       block.appendChild(head);
       const row = document.createElement("div");
       row.className = "quicktag-options";
+      row.addEventListener("dragover", (ev) => {
+        if (dragging?.kind !== "item" || ev.target !== row) return;
+        ev.preventDefault();
+        clearDropMarks();
+        row.classList.add("qt-drop-into");
+      });
+      row.addEventListener("drop", (ev) => {
+        if (dragging?.kind !== "item" || ev.target !== row) return;
+        ev.preventDefault();
+        moveItem2(dragging.key, group.id, null, true);
+      });
       if (!group.items.length) {
         const empty = document.createElement("div");
         empty.className = "quicktag-note";
@@ -26132,6 +26274,21 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       for (const def of group.items) {
         const line = document.createElement("div");
         line.className = "quicktag-line";
+        const key = keyOf(def);
+        line.appendChild(dragHandle("Drag to move this quicktag (into another category too)", "item", key, line));
+        line.addEventListener("dragover", (ev) => {
+          if (dragging?.kind !== "item") return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          clearDropMarks();
+          line.classList.add(lowerHalf(line, ev) ? "qt-drop-after" : "qt-drop-before");
+        });
+        line.addEventListener("drop", (ev) => {
+          if (dragging?.kind !== "item") return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          moveItem2(dragging.key, group.id, key, lowerHalf(line, ev));
+        });
         const opt = document.createElement("label");
         opt.className = "ach-toggle-row quicktag-option";
         opt.title = describe(def);
@@ -26148,7 +26305,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
         span.textContent = def.label || def.tag;
         opt.append(cb, span);
         line.appendChild(opt);
-        if (isCustomItem(group.id, def)) {
+        if (isCustomItem(def)) {
           const tools = document.createElement("span");
           tools.className = "quicktag-item-actions";
           tools.appendChild(smallButton("\u270E", "Edit this quicktag", () => void editQuickTag(group, def)));
@@ -26259,6 +26416,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       else {
         hideQuickTag();
         setSingleCompact(false);
+        applySingleRight(null);
         if (mode === "compact") renderCompactGrid();
         else renderGallery();
       }
@@ -26869,7 +27027,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
   var seqQueue = [];
   var seqIdx = 0;
   var seqModal = null;
-  var PERSPECTIVE_OPTIONS = ["from front", "from side", "from below", "from above", "from behind"];
+  var PERSPECTIVE_OPTIONS = ["straight on", "facing viewer", "looking at viewer", "from side", "from below", "from above", "from behind"];
   var PERSPECTIVE_EXTRA_OPTIONS = ["pov", "close-up"];
   function perspectiveOptionTags() {
     return [...PERSPECTIVE_OPTIONS, ...PERSPECTIVE_EXTRA_OPTIONS];
@@ -26903,18 +27061,16 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     beginSequential(list, startIdx);
   }
   function beginSequential(list, startIdx) {
+    if (!document.documentElement.classList.contains("touch-device")) {
+      if (list[startIdx]) openSingleAt(list[startIdx]);
+      return;
+    }
     seqQueue = list;
     seqIdx = startIdx;
     seqActive = true;
-    if (document.documentElement.classList.contains("touch-device")) {
-      closeImageCardModal();
-      seqModal = createModalShell({ boxClassName: "seq-modal-box", onDismiss: () => exitSequentialDetail() });
-      renderSeqModal();
-      return;
-    }
-    seqPanelForcedCollapse = !getRightPanelCollapsedRef();
-    setRightPanelCollapsedRef(true);
-    switchView("single");
+    closeImageCardModal();
+    seqModal = createModalShell({ boxClassName: "seq-modal-box", onDismiss: () => exitSequentialDetail() });
+    renderSeqModal();
   }
   function renderSeqModal() {
     if (!seqModal) return;
@@ -26940,13 +27096,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       const m = seqModal;
       seqModal = null;
       m.close();
-      return;
     }
-    if (seqPanelForcedCollapse) setRightPanelCollapsedRef(false);
-    seqPanelForcedCollapse = false;
-    if (viewMode2 !== "single") return;
-    singleNav.style.display = "flex";
-    renderSingleView();
   }
   function seqDraftFromEntry(entry) {
     const censoredTags = entry.tags.filter((t) => /censor/i.test(t) && !/uncensor/i.test(t));
@@ -26983,11 +27133,12 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
         if (!entry.tags.includes(`${lang} text`)) addTagToEntry(entry, `${lang} text`);
       }
     }
-    for (const tag of entry.tags.filter((t) => /censor/i.test(t))) removeTagFromEntry(entry, tag);
-    if (d.censor === "censored") {
-      const types = d.censorTypes.size ? [...d.censorTypes] : ["censored"];
-      for (const t of types) addTagToEntry(entry, t);
-    } else if (d.censor === "uncensored") addTagToEntry(entry, "uncensored");
+    const wantCensor = d.censor === "censored" ? d.censorTypes.size ? [...d.censorTypes] : ["censored"] : d.censor === "uncensored" ? ["uncensored"] : [];
+    const haveCensor = entry.tags.filter((t) => /censor/i.test(t));
+    if (haveCensor.length !== wantCensor.length || !wantCensor.every((t) => haveCensor.includes(t))) {
+      for (const tag of haveCensor) removeTagFromEntry(entry, tag);
+      for (const t of wantCensor) addTagToEntry(entry, t);
+    }
     for (const p of perspectiveOptionTags()) {
       if (d.perspectives.has(p)) {
         if (!entry.tags.includes(p)) addTagToEntry(entry, p);
@@ -27022,12 +27173,22 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     if (d.koma) tags.push(d.koma);
     return tags;
   }
-  function buildSequentialPanel(panel2, entry, onPreview) {
+  var seqTextOpenFor = "";
+  function buildSequentialPanel(panel2, entry, opts = {}) {
+    const { onPreview, live } = opts;
     const d = seqDraftFromEntry(entry);
+    if (live && seqTextOpenFor === entry.base) d.hasText = true;
     const emitPreview = () => {
-      if (onPreview) onPreview(seqPreviewTags(d));
+      if (live) {
+        applySequentialDraft(entry, d);
+        renderSingleView();
+        refreshRightPanels();
+      } else if (onPreview) onPreview(seqPreviewTags(d));
     };
-    panel2.addEventListener("change", emitPreview);
+    panel2.addEventListener("change", (ev) => {
+      if (ev.target.type === "text") return;
+      emitPreview();
+    });
     function sectionLabel(text) {
       const el2 = document.createElement("div");
       el2.className = "single-name";
@@ -27099,6 +27260,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     }
     const hasTextRow = toggleRow("Has text", d.hasText, (v) => {
       d.hasText = v;
+      seqTextOpenFor = v ? entry.base : "";
       panel2.querySelectorAll(".seq-text-sub").forEach((el2) => {
         el2.style.display = v ? "" : "none";
       });
@@ -27213,6 +27375,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     ], d.koma, (v) => {
       d.koma = v;
     }));
+    if (live) return;
     const confirmBtn = document.createElement("button");
     confirmBtn.className = "primary";
     confirmBtn.style.cssText = "width:100%; margin-top:12px; padding:12px; font-size:15px; font-weight:600;";
@@ -27373,7 +27536,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     if (backBtn) headRow.appendChild(backBtn);
     headRow.appendChild(exitBtn);
     panel2.appendChild(headRow);
-    buildSequentialPanel(panel2, entry, (tags) => {
+    buildSequentialPanel(panel2, entry, { onPreview: (tags) => {
       const fresh = new Set(tags.filter((t) => !entry.tags.includes(t)));
       previewHead.textContent = `Will apply on Confirm \u2014 ${tags.length} tags${fresh.size ? ` (${fresh.size} new)` : ""}`;
       previewChips.innerHTML = "";
@@ -27393,7 +27556,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
         chip.appendChild(label);
         previewChips.appendChild(chip);
       }
-    });
+    } });
     wrap.appendChild(panel2);
     if (stacked) {
       headRow.classList.add("seq-modal-head");
@@ -27447,24 +27610,87 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     bar.appendChild(singleNav);
     return bar;
   }
+  var SINGLE_RIGHT_TOOLS_KEY = "dts-single-right-tools";
+  var singleRightShowsTools = getBool(SINGLE_RIGHT_TOOLS_KEY, false);
+  var singleRightBase = "";
+  function applySingleRight(entry) {
+    const seqEl = document.getElementById("singleSeqPanel");
+    const swap = document.getElementById("btnSingleRightSwap");
+    const on = !!entry && !document.documentElement.classList.contains("touch-device");
+    if (!on) {
+      seqEl.classList.add("rt-hidden");
+      seqEl.innerHTML = "";
+      singleRightBase = "";
+      swap.style.display = "none";
+      if (!getMasterTagModeActive()) {
+        normalRightTools.classList.remove("rt-hidden");
+        btnGoToTagOverseer.style.display = "";
+      }
+      return;
+    }
+    if (getMasterTagModeActive()) leaveTagOverseerRef();
+    btnGoToTagOverseer.style.display = "none";
+    btnMasterBack.style.display = "none";
+    swap.style.display = "";
+    swap.textContent = singleRightShowsTools ? "\u2190 Sequential" : "Gallery tools";
+    swap.title = singleRightShowsTools ? "Back to the Sequential controls for this image" : "Show the Gallery tools (Tag Pruner, Merge/Void, \u2026)";
+    normalRightTools.classList.toggle("rt-hidden", !singleRightShowsTools);
+    seqEl.classList.toggle("rt-hidden", singleRightShowsTools);
+    if (singleRightShowsTools) {
+      seqEl.innerHTML = "";
+      singleRightBase = "";
+      return;
+    }
+    const scroller = document.getElementById("right");
+    const keepScroll = singleRightBase === entry.base && scroller ? scroller.scrollTop : null;
+    if (singleRightBase !== entry.base) seqTextOpenFor = "";
+    singleRightBase = entry.base;
+    seqEl.innerHTML = "";
+    const head = document.createElement("div");
+    head.className = "single-seq-head";
+    const title = document.createElement("div");
+    title.className = "single-name";
+    title.textContent = "Sequential";
+    const note = document.createElement("div");
+    note.className = "single-seq-note";
+    note.textContent = "Ticks apply to this image right away (undo with Ctrl+Z).";
+    head.append(title, note);
+    const panel2 = document.createElement("div");
+    panel2.className = "seq-panel seq-live";
+    buildSequentialPanel(panel2, entry, { live: true });
+    seqEl.append(head, panel2);
+    if (keepScroll !== null && scroller) scroller.scrollTop = keepScroll;
+  }
+  function toggleSingleRight() {
+    singleRightShowsTools = !singleRightShowsTools;
+    setBool(SINGLE_RIGHT_TOOLS_KEY, singleRightShowsTools);
+    renderSingleView();
+  }
+  function openSingleAt(entry) {
+    const list = filteredEntries();
+    const idx = list.findIndex((e) => e.base === entry.base);
+    if (idx < 0) {
+      toast("This image is outside the current filter (e.g. Disabled).");
+      return;
+    }
+    if (masterSelectedImages.size > 1) {
+      masterSelectedImages.clear();
+      masterSelectedImages.add(entry);
+      renderMasterSelectionSummary();
+      toast("Selection narrowed to this image (Single view shows one image).");
+    }
+    singleIndex = idx;
+    if (viewMode2 === "single") renderSingleView();
+    else switchView("single");
+  }
   function renderSingleView() {
     refreshMasterMiniGrid();
     hideQuickTag();
     setSingleCompact(false);
-    if (masterSelectedImages.size > 1 && !seqActive) {
+    if (masterSelectedImages.size > 1) {
+      applySingleRight(null);
       renderMultiCompareView();
       return;
-    }
-    if (seqActive) {
-      const seqEntry = seqQueue[seqIdx];
-      if (!seqEntry) {
-        exitSequentialDetail();
-      } else {
-        singleNav.style.display = "none";
-        singleViewEl.innerHTML = "";
-        singleViewEl.appendChild(buildSeqBody(seqEntry, false));
-        return;
-      }
     }
     const list = filteredEntries();
     if (singleIndex >= list.length) singleIndex = list.length - 1;
@@ -27475,6 +27701,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     const restoreScroll = list[singleIndex]?.base === lastSingleBase ? capturePanelScroll(singleViewEl) : null;
     singleViewEl.innerHTML = "";
     if (list.length === 0) {
+      applySingleRight(null);
       const empty = document.createElement("div");
       empty.className = "single-empty";
       empty.textContent = "No images match the current filter.";
@@ -27484,6 +27711,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     const e = list[singleIndex];
     lastSingleBase = e.base;
     showQuickTag(e);
+    applySingleRight(e);
     setSingleCompact(true);
     singleViewEl.appendChild(buildSingleTopbar());
     const wrap = document.createElement("div");
@@ -29180,7 +29408,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     const censored = censoredTags.length ? true : uncensoredTags.length ? false : null;
     const textTags = e.tags.includes("text") ? ["text", ...getForeignLangTags(e)] : getForeignLangTags(e);
     const hasText = textTags.length > 0;
-    const perspectiveTags = e.tags.filter((t) => t === "from front" || t === "from side" || t === "from below" || t === "from above" || t === "from behind");
+    const perspectiveTags = e.tags.filter((t) => PERSPECTIVE_OPTIONS.includes(t));
     const perspective = perspectiveTags.length > 0 ? true : null;
     return [
       { emoji: "\u{1F441}\uFE0F", state: censored, label: "Censored", matchedTags: censored ? censoredTags : censored === false ? uncensoredTags : [] },
@@ -29300,16 +29528,17 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       closeTagContextMenu();
       tagSingleImageWithWd14(entry);
     }, { title: "Tag this image with WD14 (via ComfyUI)" });
-    addContextMenuItem(menu, "\u25B6 Sequential from here", () => {
+    const touchRun = document.documentElement.classList.contains("touch-device");
+    addContextMenuItem(menu, touchRun ? "\u25B6 Sequential from here" : "\u25B6 Single from here", () => {
       closeTagContextMenu();
       const list = filteredEntries();
       let startIdx = list.findIndex((e) => e.base === entry.base);
       if (startIdx < 0) {
-        toast("Sequential walks the current filter \u2014 this image is outside it (e.g. Disabled).");
+        toast("This image is outside the current filter (e.g. Disabled).");
         return;
       }
       beginSequential(list, startIdx);
-    }, { title: "Enter sequential mode starting at this image (walks the current filter image by image)" });
+    }, { title: touchRun ? "Enter sequential mode starting at this image (walks the current filter image by image)" : "Open Single view at this image (Sequential controls in the right panel)" });
     if (!entry.original) {
       addContextMenuItem(menu, entry.disabled ? "\u21A9 Restore" : "\u{1F5D1} Disable", async () => {
         await moveEntry(entry, !entry.disabled);
@@ -29724,11 +29953,9 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
   }
   var deleteEntryPermanentlyRef = async () => {
   };
-  var setRightPanelCollapsedRef = () => {
-  };
-  var getRightPanelCollapsedRef = () => false;
   var getHideTagsRef = () => false;
-  var seqPanelForcedCollapse = false;
+  var leaveTagOverseerRef = () => {
+  };
   function initView(deps4) {
     initQuickTag({
       leftPanel: leftAside,
@@ -29755,9 +29982,9 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     setContainsFilterRef = deps4.setContainsFilter;
     setExcludesFilterRef = deps4.setExcludesFilter;
     deleteEntryPermanentlyRef = deps4.deleteEntryPermanently;
-    setRightPanelCollapsedRef = deps4.setRightPanelCollapsed;
-    getRightPanelCollapsedRef = deps4.getRightPanelCollapsed;
     getHideTagsRef = deps4.getHideTags;
+    leaveTagOverseerRef = deps4.leaveTagOverseer;
+    document.getElementById("btnSingleRightSwap").addEventListener("click", toggleSingleRight);
     langAutoSelectToggle.addEventListener("change", () => {
       autoSelectNewLanguage = langAutoSelectToggle.checked;
       setBool("dts-lang-autoselect", autoSelectNewLanguage);
@@ -30525,6 +30752,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       }
       overseerExpandedRightPanel = rightAside.classList.contains("right-panel-collapsed");
       if (overseerExpandedRightPanel) applyRightPanelCollapsed(false);
+      if (viewMode2 === "single") switchView("grid", { instant: true });
       switchTab2("master");
     });
     tabStats.addEventListener("click", () => switchTab2("stats"));
@@ -31202,9 +31430,8 @@ Save your edits first?`,
       setContainsFilter: (tag) => setContainsFilter(tag),
       setExcludesFilter: (tag) => setExcludesFilter(tag),
       deleteEntryPermanently: (entry) => deleteEntryPermanently(entry),
-      setRightPanelCollapsed: (collapsed) => applyRightPanelCollapsed(collapsed),
-      getRightPanelCollapsed: () => rightAside.classList.contains("right-panel-collapsed"),
-      getHideTags: () => getBool("dts-hide-tags")
+      getHideTags: () => getBool("dts-hide-tags"),
+      leaveTagOverseer: () => switchTab2("gallery")
     });
     function baseName(name) {
       const i = name.lastIndexOf(".");
