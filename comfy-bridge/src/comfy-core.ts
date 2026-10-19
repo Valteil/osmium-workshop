@@ -94,6 +94,9 @@ export interface SynthDatPromptConfig {
   loraRows: SynthDatLoraRow[];
   skipRefImage: boolean;
   lliteStrength: string; lliteStartPercent: string; lliteEndPercent: string; llitePreserveWrapper: boolean;
+  // The LLLite model (node 240's lllite_name, Comfy Bridge). Optional: blank
+  // keeps the template's.
+  lliteModel?: string;
   resizeFit: string; resizeMethod: string;
   sampler: string; scheduler: string; steps1: string; cfg1: string;
   width: string; height: string; seed1: string;
@@ -198,6 +201,7 @@ export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromp
     prompt['158:53'].inputs.model = [lastStackId, 0];
     prompt['158:54'].inputs.model = [lastStackId, 0];
   } else {
+    if (cfg.lliteModel && cfg.lliteModel.trim()) prompt['240'].inputs.lllite_name = cfg.lliteModel.trim();
     prompt['240'].inputs.strength = parseFloat(cfg.lliteStrength) || 0;
     prompt['240'].inputs.start_percent = parseFloat(cfg.lliteStartPercent) || 0;
     prompt['240'].inputs.end_percent = parseFloat(cfg.lliteEndPercent) || 0;
@@ -323,9 +327,11 @@ export function parseQueueResponse(parsed: any, status: number, noun: string): C
 
 // The WD14Tagger node (id '2') reports its result as `outputs['2'].tags` — a
 // string or a one-element array depending on the node version. Returns null
-// while the result isn't ready yet.
+// while the result isn't ready yet. Comfy Bridge's pose extraction runs a
+// DWPreprocessor as '2' through the same path: its `openpose_json`.
 export function extractWd14Tags(record: any): string | null {
-  const tags = record && record.outputs && record.outputs['2'] && record.outputs['2'].tags;
+  const out = record && record.outputs && record.outputs['2'];
+  const tags = out && (out.tags || out.openpose_json);
   if (!tags) return null;
   return Array.isArray(tags) ? tags[0] : tags;
 }

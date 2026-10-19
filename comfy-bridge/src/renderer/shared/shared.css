@@ -352,6 +352,26 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
   .usdu-preview{ height:auto; min-height:200px; max-height:55vh; }
 }
 
+/* ---- ControlNet tab (shared/controlnet.ts), both shells ----
+   Same shape as the Upscale tab: the pose editor on the left as large as it
+   fits, settings and the result beside it; stacked on a narrow screen. */
+.cn-tab{ display:grid; grid-template-columns:minmax(0,1fr) minmax(320px,460px); gap:20px; padding:16px; max-width:1500px; margin:0 auto; width:100%; box-sizing:border-box; align-items:start; }
+.cn-stage{ position:sticky; top:0; display:flex; flex-direction:column; gap:8px; min-width:0; }
+.cn-side{ min-width:0; display:flex; flex-direction:column; gap:6px; }
+.cn-tab .usdu-sec-head:first-child{ margin-top:0; }
+.cn-canvas-wrap{ display:flex; align-items:center; justify-content:center; height:calc(100vh - 330px); min-height:260px; background:var(--panel2); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.cn-canvas{ max-width:100%; max-height:100%; touch-action:none; display:block; }
+.cn-tools{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.cn-tools .chk-row{ margin:0; }
+.cn-hint{ line-height:1.4; }
+.cn-result{ height:auto; min-height:180px; max-height:50vh; }
+.cn-tab .usdu-field[hidden], .cn-tab .usdu-tip[hidden]{ display:none; }
+@media (max-width: 760px){
+  .cn-tab{ grid-template-columns:minmax(0,1fr); padding:12px 12px 84px; gap:12px; }
+  .cn-stage{ position:static; }
+  .cn-canvas-wrap{ height:auto; min-height:200px; max-height:60vh; }
+}
+
 /* ---- WD14 tagging panel (shared/wd14-tag.ts), both shells ---- */
 .wd14-details > summary{ cursor:pointer; list-style:none; }
 .wd14-details > summary::-webkit-details-marker{ display:none; }

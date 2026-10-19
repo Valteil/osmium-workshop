@@ -365,8 +365,10 @@ def load_nodes():
 # feature that uses it.
 # RES4LYF (2026-10-18): its res_2m/res_2s/... samplers only exist inside its own
 # ClownSampler node, which Comfy Bridge swaps in for KSamplerSelect.
+# comfyui_controlnet_aux (2026-10-19): Comfy Bridge's ControlNet tab extracts
+# poses with its DWPreprocessor.
 OPTIONAL_PACKS = {"UltimateSDUpscale": "ComfyUI_UltimateSDUpscale", "WD14Tagger|pysssss": "ComfyUI-WD14-Tagger",
-                  "ClownSampler_Beta": "RES4LYF"}
+                  "ClownSampler_Beta": "RES4LYF", "DWPreprocessor": "comfyui_controlnet_aux"}
 _OPTIONAL_TRIED = set()
 _OPTIONAL_LOCK = threading.Lock()
 
@@ -1317,11 +1319,13 @@ def saved_image(node_id):
 
 
 def saved_texts(captures):
-    """Text outputs of the captured nodes (a tagger's `tags`), one string each."""
+    """Text outputs of the captured nodes (a tagger's `tags`, DWPreprocessor's
+    `openpose_json`), one string each."""
     outputs = (EXECUTOR.history_result or {}).get("outputs", {})
     out = {}
     for nid in captures:
-        tags = (outputs.get(nid) or {}).get("tags")
+        node_out = outputs.get(nid) or {}
+        tags = node_out.get("tags") or node_out.get("openpose_json")
         if isinstance(tags, list):
             tags = tags[0] if tags else None
         if isinstance(tags, str):

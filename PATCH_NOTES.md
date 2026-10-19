@@ -33,6 +33,15 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 ### Comfy Bridge
 
 - The **Windows 7** and **Frutiger Aero** palettes and faces.
+- **ControlNet tab** (desktop and phone): extract a pose from any image with DWPose (body, hands
+  and face), or start from a standing figure, then drag its points to edit it. Generate with an
+  Illustrious (SDXL) checkpoint and an OpenPose ControlNet, and **Use as Anima reference** hands
+  the result to the Generate tab's reference image, so Anima follows the pose. Needs the
+  comfyui_controlnet_aux node pack and an SDXL OpenPose ControlNet (the in-app Help says where to
+  get one).
+- The reference image section has an **LLLite model** picker, so other Anima LLLite models (pose,
+  lineart) can be used. Blank keeps the workflow's own.
+- The phone's tab bar fits five tabs at 375 px.
 
 ---
 

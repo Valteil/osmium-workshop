@@ -879,6 +879,17 @@ This guide covers the desktop app. Two siblings share this repo:
     your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
     phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);
     Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
+  - **ControlNet tab** (desktop and phone): Anima has no OpenPose ControlNet, so this tab poses an
+    image with an Illustrious (SDXL) checkpoint, and **Use as Anima reference** hands the result to
+    the Generate tab's reference image (Anima LLLite). **Choose image…** + **Extract pose** finds
+    every person's body, hands and face with DWPose (the comfyui_controlnet_aux node pack), or start
+    from **+ Person**. Drag any point to edit: a wrist carries its hand, the nose the head;
+    Shift-drag (or **Move whole person**) moves the whole figure. Pick a checkpoint and an SDXL
+    OpenPose ControlNet in ComfyUI's `models/controlnet`, e.g. NoobAI's
+    (`Laxhar/noob_openpose` on Hugging Face) or xinsir's Union ProMax
+    (`xinsir/controlnet-union-sdxl-1.0`). Results go in the output folder's `ControlNet` folder;
+    **Save pose image** puts the skeleton in `Poses`. The Generate tab's reference section also has
+    an **LLLite model** picker now (blank = the workflow's any-test model).
   - **WD14 tags** (desktop and phone, under the result): **Tag last generation** tags each saved
     image and can write a same-name `.txt` beside it in the output folder. **Tag an image** tags any
     image you choose; **Use as prompt** sorts the tags into your prompt boxes (Global, Character

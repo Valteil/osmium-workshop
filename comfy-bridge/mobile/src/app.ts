@@ -78,6 +78,8 @@ declare const BridgeShared: {
   // shared/wd14-tag.ts: WD14 tagging panel (same module as the desktop's).
   mountWd14Panel: (host: HTMLElement, opts: any) => { refresh: () => void };
   extractWd14Tags: (record: any) => string | null;
+  // shared/controlnet.ts: the ControlNet tab (same module as the desktop's).
+  mountControlNetTab: (host: HTMLElement, opts: any) => { refresh: () => void; showResult: (bytes: Uint8Array) => void };
   initTheme: (themes: any, def: any) => void;
   mountThemePicker: (opts: any) => void;
   initTagWiki: (button: HTMLElement) => void;
@@ -176,6 +178,8 @@ declare const BridgeShared: {
   const lliteStartPercent = $<HTMLInputElement>('lliteStartPercent');
   const lliteEndPercent = $<HTMLInputElement>('lliteEndPercent');
   const llitePreserveWrapper = $<HTMLInputElement>('llitePreserveWrapper');
+  const lliteModel = $<HTMLInputElement>('lliteModel');
+  const lliteModelList = $<HTMLDataListElement>('lliteModelList');
   const resizeFit = $<HTMLSelectElement>('resizeFit');
   const resizeMethod = $<HTMLSelectElement>('resizeMethod');
 
@@ -1478,6 +1482,59 @@ declare const BridgeShared: {
     log
   });
 
+  // ---------------- ControlNet tab (shared/controlnet.ts) ----------------
+  // Pose → Illustrious + ControlNet → the Generate tab's Anima reference
+  // image. Pose extraction rides comfyTag (a '239' → '2' graph whose text
+  // comes back, like WD14's tags).
+  let controlNetOptions: string[] = [];
+  const controlNetTab = BridgeShared.mountControlNetTab($('controlnetTab'), {
+    getList: (kind: string) => kind === 'ckpt' ? usduCkptOptions
+      : kind === 'controlnet' ? controlNetOptions
+      : kind === 'sampler' ? bridgeSamplerOptions : bridgeSchedulerOptions,
+    async refreshLists() {
+      const [ckpts, cns] = await Promise.all([
+        comfyGetObjectInfo('CheckpointLoaderSimple', 'ckpt_name'),
+        comfyGetObjectInfo('ControlNetLoader', 'control_net_name')
+      ]);
+      if (ckpts.ok) usduCkptOptions = ckpts.values;
+      if (cns.ok) controlNetOptions = cns.values;
+      await refreshSamplerLists();
+      log('ControlNet lists refreshed (' + controlNetOptions.length + ' ControlNet model(s)).');
+    },
+    extractPose: (prompt: Record<string, any>, imageName: string, bytes: Uint8Array) => comfyTag(prompt, imageName, bytes),
+    queueGenerate(job: { prompt: Record<string, any>; imageFilename: string; imageBytes: Uint8Array }) {
+      genQueue.push({
+        prompt: job.prompt,
+        imageFilename: job.imageFilename,
+        imageBytes: job.imageBytes,
+        passCount: 1,
+        totalStages: 1,
+        naming: { relDir: 'ControlNet', base: 'controlnet', rating: '', character: '', recognized: '' },
+        controlNet: true
+      });
+      startQueue();
+    },
+    async savePose(bytes: Uint8Array) {
+      const rel = await BridgeShared.nextSavePath(mobileBackend(), 'Poses', 'pose', new Set());
+      await saveBytes(bytes, rel);
+    },
+    // The Generate tab's reference image, from bytes (the tab's result or pose).
+    useAsReference(name: string, bytes: Uint8Array) {
+      refFile = null;
+      refBytes = bytes;
+      refFilename = name;
+      refFileName.textContent = name;
+      refPreview.src = 'data:image/png;base64,' + BridgeShared.bytesToBase64(bytes);
+      refPreview.style.display = 'block';
+      skipRefImage.checked = false;
+      applySkipRefImageUI();
+      scheduleUiSave();
+      showTab('generate');
+      log(name + ' is now the reference image (Anima LLLite' + (lliteModel.value ? ': ' + lliteModel.value : '') + ').');
+    },
+    log
+  });
+
   btnSwapReso.addEventListener('click', () => {
     const w = width.value;
     width.value = height.value;
@@ -1519,12 +1576,16 @@ declare const BridgeShared: {
     if (mainLoraValues.ok) fillDatalist(mainLoraList, mainLoraValues.values);
     if (loraValues.ok) fillDatalist(loraList, loraValues.values);
     if (upscaleValues.ok) fillDatalist(upscaleModelList, upscaleValues.values);
-    const [usduCkpts, usduWd14] = await Promise.all([
+    const [usduCkpts, usduWd14, lliteValues, cnValues] = await Promise.all([
       comfyGetObjectInfo('CheckpointLoaderSimple', 'ckpt_name'),
-      comfyGetObjectInfo('WD14Tagger|pysssss', 'model')
+      comfyGetObjectInfo('WD14Tagger|pysssss', 'model'),
+      comfyGetObjectInfo('DSM Anima LLLite Apply', 'lllite_name'),
+      comfyGetObjectInfo('ControlNetLoader', 'control_net_name')
     ]);
     if (usduCkpts.ok) usduCkptOptions = usduCkpts.values;
     if (usduWd14.ok) usduWd14Options = usduWd14.values;
+    if (lliteValues.ok) fillDatalist(lliteModelList, lliteValues.values);
+    if (cnValues.ok) controlNetOptions = cnValues.values;
     log('Model lists refreshed from ComfyUI.');
     await refreshSamplerLists();
     log('Sampler/scheduler options refreshed.');
@@ -1728,6 +1789,7 @@ declare const BridgeShared: {
       lliteStartPercent: lliteStartPercent.value,
       lliteEndPercent: lliteEndPercent.value,
       llitePreserveWrapper: llitePreserveWrapper.checked,
+      lliteModel: lliteModel.value,
       resizeFit: resizeFit.value,
       resizeMethod: resizeMethod.value,
       sampler: sampler.value,
@@ -1841,6 +1903,8 @@ declare const BridgeShared: {
     usduOnly?: boolean;
     // 'folder': the Upscale tab's chosen folder (a second SAF grant).
     saveTo?: 'output' | 'folder';
+    // The ControlNet tab's Illustrious generation: '192' → ControlNet/.
+    controlNet?: boolean;
   }
   const genQueue: GenJob[] = [];
   let genRunning = false;
@@ -1996,6 +2060,17 @@ declare const BridgeShared: {
       setPreviewSlides(slides);
       return;
     }
+    if (job.controlNet) {
+      if (res.imageBytes) {
+        await keep('ControlNet', res.imageBytes, false);
+        controlNetTab.showResult(res.imageBytes);
+      }
+      lastSavedImages = saved;
+      if (saveFailed) { genStatus.style.display = 'block'; genStatus.textContent = 'Generated, but saving failed — see Log for details.'; }
+      finalizeGenNotification(saveFailed ? 'Generated, but saving failed' : 'Generation complete', 'ControlNet');
+      setPreviewSlides(slides);
+      return;
+    }
     if (job.usduOnly) {
       if (res.imageBytes) await keep('Upscaled (USDU)', res.imageBytes, true);
       lastSavedImages = saved;
@@ -2086,7 +2161,7 @@ declare const BridgeShared: {
     lliteStrength, lliteStartPercent, lliteEndPercent,
     unifiedPrompt, global_, character, characterTrigger, rating, hair, face, chest, body_,
     clothes, limbs, sexual, pose, scene, effects, extra, negative,
-    width, height, sampler, scheduler, steps1, cfg1, seed1, steps2, denoise2, seed2, upscaleModel, upscaleScaleBy
+    width, height, sampler, scheduler, steps1, cfg1, seed1, steps2, denoise2, seed2, upscaleModel, upscaleScaleBy, lliteModel
   ];
   const RESET_CHECKBOXES = [skipRefImage, llitePreserveWrapper, unifiedPromptMode, use2Pass, upscaleEnabled];
   function resetGenerationForm() {
@@ -2221,6 +2296,7 @@ declare const BridgeShared: {
       lliteStartPercent.value = String(prompt['240'].inputs.start_percent != null ? prompt['240'].inputs.start_percent : 0);
       lliteEndPercent.value = String(prompt['240'].inputs.end_percent != null ? prompt['240'].inputs.end_percent : 0);
       llitePreserveWrapper.checked = Boolean(prompt['240'].inputs.preserve_wrapper);
+      if (typeof prompt['240'].inputs.lllite_name === 'string') lliteModel.value = prompt['240'].inputs.lllite_name;
     } else {
       skipRefImage.checked = true;
     }
@@ -2403,10 +2479,12 @@ declare const BridgeShared: {
   const metadataView = $<HTMLElement>('metadataView');
   const compareView = $<HTMLElement>('compareView');
   const usduView = $<HTMLElement>('usduView');
+  const controlnetView = $<HTMLElement>('controlnetView');
   const metaFileInput = $<HTMLInputElement>('metaFileInput');
   function showTab(tab: string) {
     colEl.hidden = tab !== 'generate';
     usduView.hidden = tab !== 'upscale';
+    controlnetView.hidden = tab !== 'controlnet';
     metadataView.hidden = tab !== 'metadata';
     compareView.hidden = tab !== 'compare';
     // ☰ and the gallery button belong to Generate only (the Log button stays).
@@ -2506,6 +2584,7 @@ declare const BridgeShared: {
     upscaleModelRow.style.display = upscaleEnabled.checked ? '' : 'none';
     usdu.refresh();
     usduImp.refresh();
+    controlNetTab.refresh();
   }
   var uiSaveTimer: ReturnType<typeof setTimeout> | null = null;
   function scheduleUiSave() {
@@ -2531,6 +2610,7 @@ declare const BridgeShared: {
   BridgeShared.attachPickerModal(vae, 'VAE', () => BridgeShared.optionsFromDatalist(vaeList));
   BridgeShared.attachPickerModal(mainLora, 'Main LoRA', () => BridgeShared.optionsFromDatalist(mainLoraList));
   BridgeShared.attachPickerModal(upscaleModel, 'Upscale model', () => BridgeShared.optionsFromDatalist(upscaleModelList));
+  BridgeShared.attachPickerModal(lliteModel, 'LLLite model', () => BridgeShared.optionsFromDatalist(lliteModelList));
   // Sampler/scheduler pickers: real option stores, same tap-to-pick modal
   // as the model fields — source is the host's KSampler object_info (the
   // canonical ComfyUI lists), fetched once at startup and refreshable via

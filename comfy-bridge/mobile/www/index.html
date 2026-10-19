@@ -26,6 +26,7 @@
   <nav id="appTabs" role="tablist">
     <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
     <button type="button" role="tab" data-tab="upscale" aria-selected="false">Upscale</button>
+    <button type="button" role="tab" data-tab="controlnet" aria-selected="false">ControlNet</button>
     <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
     <button type="button" role="tab" data-tab="compare" aria-selected="false">Gallery</button>
   </nav>
@@ -201,6 +202,9 @@
 
     <section class="sec" id="lliteSection">
       <div class="sec-head"><span class="d">ControlNet (Anima LLLite)</span></div>
+      <label>LLLite model</label>
+      <input id="lliteModel" type="text" readonly placeholder="Tap to choose… (blank = any-test)">
+      <datalist id="lliteModelList"></datalist>
       <label>Strength</label>
       <input id="lliteStrength" type="number" step="0.05" value="1">
       <label>Start percent</label>
@@ -226,6 +230,8 @@
   </div>
   <!-- Upscale tab: USDU for an imported image (BridgeShared.mountUsduPanel, mode 'imported'). -->
   <div id="usduView" hidden><div id="usduTab"></div></div>
+  <!-- ControlNet tab: pose extract/edit + Illustrious ControlNet generation (BridgeShared.mountControlNetTab). -->
+  <div id="controlnetView" hidden><div id="controlnetTab"></div></div>
   <!-- Metadata tab (BridgeShared.mountMetadataTab). -->
   <div id="metadataView" hidden>
     <div id="metadataTab" class="meta-tab"></div>

@@ -16,6 +16,7 @@ export * from './lora-download';
 export * from './usdu';
 export * from './wd14-tag';
 export * from './compare';
+export * from './controlnet';
 export { initTagWiki, openTagWiki, closeTagWiki } from './tag-wiki';
 export { THEMES, DEFAULT_THEME } from './theme-data';
 // The shared ComfyUI prompt builder (synced from the root app's src/comfy-core.ts)
