@@ -352,13 +352,35 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
   .usdu-preview{ height:auto; min-height:200px; max-height:55vh; }
 }
 
-/* ---- Reference pose editor (shared/pose-extract.ts), both shells ---- */
-.pose-editor[hidden]{ display:none; }
-.pose-editor{ display:flex; flex-direction:column; gap:6px; margin-top:6px; }
-.pose-editor-canvas{ display:block; max-width:100%; max-height:60vh; width:auto; height:auto; align-self:center; border-radius:6px; touch-action:none; }
+/* ---- ControlNet tab: the pose editor (shared/pose-editor.ts), both shells.
+   The canvas as large as fits on the left, its controls in a column beside
+   it; stacked on a narrow screen. ---- */
+.pose-tab{ display:flex; flex-direction:column; gap:12px; padding:16px; max-width:1600px; margin:0 auto; width:100%; box-sizing:border-box; }
+.pose-tab-bar{ display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+.pose-tab-title{ font-weight:600; font-size:15px; }
+.pose-tab-empty{ padding:40px 16px; text-align:center; border:1px dashed var(--border); border-radius:10px; }
+.pose-tab-empty[hidden], .pose-tab > div[hidden]{ display:none; }
+.pose-editor{ display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,400px); gap:16px; align-items:start; }
+.pose-editor-stage{ display:flex; flex-direction:column; gap:6px; min-width:0; position:sticky; top:0; }
+.pose-editor-canvas{ display:block; max-width:100%; max-height:calc(100vh - 220px); width:auto; height:auto; align-self:center; border-radius:6px; touch-action:none; background:#fff; }
+.pose-editor-side{ display:flex; flex-direction:column; gap:12px; min-width:0; }
+.pose-editor-sec{ display:flex; flex-direction:column; gap:6px; }
+.pose-editor-sec[hidden]{ display:none; }
+.pose-editor-sec-head{ font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.pose-editor-part-name{ font-size:13px; }
 .pose-editor-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+@media (max-width: 760px){
+  .pose-tab{ padding:12px 12px 84px; }
+  .pose-editor{ grid-template-columns:minmax(0,1fr); }
+  .pose-editor-stage{ position:static; }
+  .pose-editor-canvas{ max-height:60vh; }
+}
 .pose-editor-row .chk-row{ margin:0; }
 .pose-editor-row .chk-row[hidden]{ display:none; }
+.pose-editor-field{ display:flex; align-items:center; gap:6px; font-size:13px; }
+.pose-editor-field[hidden]{ display:none; }
+.pose-editor-field select{ width:auto; }
+.pose-editor-field input[type=range]{ width:110px; }
 
 /* ---- WD14 tagging panel (shared/wd14-tag.ts), both shells ---- */
 .wd14-details > summary{ cursor:pointer; list-style:none; }

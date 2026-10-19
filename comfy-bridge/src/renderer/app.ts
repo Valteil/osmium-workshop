@@ -24,7 +24,8 @@ import { initHelp } from './help';
 import { mountUsduPanel, usduSettingsFromPrompt, type UsduListKind } from './shared/usdu';
 import { mountWd14Panel, type Wd14SavedImage } from './shared/wd14-tag';
 import { mountCompareTab } from './shared/compare';
-import { extractPose, mountPoseEditor, newPose } from './shared/pose-extract';
+import { extractPose } from './shared/pose-extract';
+import { mountPoseTab } from './shared/pose-editor';
 export {};
 
 interface ElectronAPI {
@@ -407,7 +408,6 @@ btnPickImage.addEventListener('click', async () => {
   const file = await handles[0].getFile();
   refFile = file;
   refOriginal = file;
-  poseEditor.hide();
   refFilename = file.name;
   refFileName.textContent = file.name;
   const url = URL.createObjectURL(file);
@@ -415,53 +415,56 @@ btnPickImage.addEventListener('click', async () => {
   refPreview.style.display = 'block';
 });
 
-// Extract pose (shared/pose-extract.ts): DWPose (through the WD14 tagging
-// transport) finds the pose in the picked image; the editor shows it, and
-// every edit's pose frame becomes the reference. `refOriginal` is the picked
-// image, so extracting again starts from it, not from a pose frame.
+// The ControlNet tab (shared/pose-editor.ts): extract a pose from the picked
+// reference (DWPose, through the WD14 tagging transport) or start a new one,
+// edit it there; every edit's frame becomes the reference image. `refOriginal`
+// is the picked image, so extracting again starts from it, not from a frame.
 let refOriginal: File | null = null;
-const poseEditor = mountPoseEditor($<HTMLDivElement>('poseEditor'), (bytes) => {
-  // An extracted pose is named after its image; a New pose is pose.png.
-  const name = refOriginal ? refOriginal.name.replace(/\.[^.]+$/, '') + '_pose.png' : 'pose.png';
-  refFile = new File([bytes as BlobPart], name, { type: 'image/png' });
-  refFilename = name;
-  refFileName.textContent = name;
+let refPreviewUrl = '';
+const poseTab = mountPoseTab($<HTMLDivElement>('poseTab'), {
+  onChange(bytes) {
+    // An extracted pose is named after its image; a New pose is pose.png.
+    const name = refOriginal ? refOriginal.name.replace(/\.[^.]+$/, '') + '_pose.png' : 'pose.png';
+    refFile = new File([bytes as BlobPart], name, { type: 'image/png' });
+    refFilename = name;
+    refFileName.textContent = name;
+    if (refPreviewUrl) URL.revokeObjectURL(refPreviewUrl);
+    refPreviewUrl = URL.createObjectURL(refFile);
+    refPreview.src = refPreviewUrl;
+    refPreview.style.display = 'block';
+    if (skipRefImage.checked) { skipRefImage.checked = false; applySkipRefImageUI(); }
+  },
+  newPoseSize: () => ({ width: parseInt(width.value, 10), height: parseInt(height.value, 10) }),
+  async extract() {
+    const src = refOriginal || refFile;
+    if (!src) { log('Pick a reference image in the Generate tab first, then extract its pose.'); return null; }
+    try {
+      const bytes = new Uint8Array(await src.arrayBuffer());
+      const pose = await extractPose(async (prompt, imageName, b) => {
+        const r = await window.electronAPI.wd14Tag({ host: getHost(), imageFilename: imageName, imageBytes: b, prompt });
+        if (!r.ok || typeof r.tags !== 'string') throw new Error(r.error || 'No pose came back.');
+        return r.tags;
+      }, src.name, bytes, log);
+      if (!pose) { log(`Extract pose: no pose found in ${src.name}.`); return null; }
+      refOriginal = src;
+      log(`Extract pose: ${pose.people.length} ${pose.people.length === 1 ? 'person' : 'people'} found; the pose frame is now the reference. Pick the image again to go back.`);
+      return { pose, original: bytes };
+    } catch (err) {
+      log('Extract pose failed: ' + (err instanceof Error ? err.message : String(err)));
+      return null;
+    }
+  },
+  back: () => showTab('generate')
 });
-// New pose: the editor with no reference image, one standing person at the
-// generation size.
 $<HTMLButtonElement>('btnNewPose').addEventListener('click', () => {
   refOriginal = null;
-  refPreview.style.display = 'none';
-  skipRefImage.checked = false;
-  applySkipRefImageUI();
-  poseEditor.show(newPose(parseInt(width.value, 10), parseInt(height.value, 10)), null);
-  log(`New pose (${width.value}×${height.value}) is the reference image. Drag points to pose it; + Person adds another.`);
+  poseTab.newPose();
+  showTab('pose');
 });
-const btnExtractPose = $<HTMLButtonElement>('btnExtractPose');
-btnExtractPose.addEventListener('click', async () => {
-  const src = refOriginal || refFile;
-  if (!src) { log('Pick a reference image first, then Extract pose.'); return; }
-  btnExtractPose.disabled = true;
-  btnExtractPose.textContent = 'Extracting…';
-  try {
-    const bytes = new Uint8Array(await src.arrayBuffer());
-    const pose = await extractPose(async (prompt, imageName, b) => {
-      const r = await window.electronAPI.wd14Tag({ host: getHost(), imageFilename: imageName, imageBytes: b, prompt });
-      if (!r.ok || typeof r.tags !== 'string') throw new Error(r.error || 'No pose came back.');
-      return r.tags;
-    }, src.name, bytes, log);
-    if (!pose) { log(`Extract pose: no pose found in ${src.name}.`); return; }
-    refOriginal = src;
-    refPreview.style.display = 'none';
-    poseEditor.show(pose, bytes);
-    log(`Extract pose: the reference is now the pose frame (${pose.people.length} ${pose.people.length === 1 ? 'person' : 'people'}). Drag points to edit it; pick the image again to go back.`);
-  } catch (err) {
-    log('Extract pose failed: ' + (err instanceof Error ? err.message : String(err)));
-  } finally {
-    btnExtractPose.disabled = false;
-    btnExtractPose.textContent = 'Extract pose';
-  }
+$<HTMLButtonElement>('btnExtractPose').addEventListener('click', async () => {
+  if (await poseTab.extract()) showTab('pose');
 });
+$<HTMLButtonElement>('btnEditPose').addEventListener('click', () => showTab('pose'));
 
 // ---------------- Unified prompt toggle ----------------
 
@@ -1483,7 +1486,7 @@ previewCarousel.addEventListener('scroll', () => {
 });
 
 async function generate(): Promise<void> {
-  await poseEditor.flush(); // the reference = the last pose edit, not the one before
+  await poseTab.flush(); // the reference = the last pose edit, not the one before
   if (!skipRefImage.checked && !refFile) { log('Pick a reference image first (or check "No reference image").'); return; }
   // Apply each seed's chosen behaviour to the copy this job queues. The new
   // value is written back so the field and the naming preview show what the
@@ -1679,7 +1682,6 @@ function resetGenerationForm(): void {
   for (const r of [...loraRows]) { loraRows = loraRows.filter(x => x !== r); r.row.remove(); }
   refFile = null;
   refOriginal = null;
-  poseEditor.hide();
   refFilename = '';
   refFileName.textContent = '';
   refPreview.removeAttribute('src');
@@ -1950,9 +1952,11 @@ const layoutEl = $<HTMLElement>('layout');
 const metadataView = $<HTMLElement>('metadataView');
 const compareView = $<HTMLElement>('compareView');
 const usduView = $<HTMLElement>('usduView');
+const poseView = $<HTMLElement>('poseView');
 function showTab(tab: string): void {
   layoutEl.style.display = tab === 'generate' ? '' : 'none';
   usduView.hidden = tab !== 'upscale';
+  poseView.hidden = tab !== 'pose';
   metadataView.hidden = tab !== 'metadata';
   compareView.hidden = tab !== 'compare';
   // The floating buttons (settings/file drawers, gallery) belong to Generate only.

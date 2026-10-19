@@ -44,12 +44,14 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 ### Comfy Bridge
 
 - The **Windows 7** and **Frutiger Aero** palettes and faces.
-- **Extract pose** (desktop and phone), next to Pick reference image: finds the people's poses in
-  the reference with DWPose and uses the pose frame as the reference instead, for testing poses
-  with Anima LLLite. Drag its points to edit it, **Mirror** it, and tick **Display original
-  reference** to see the original dimmed behind it. Needs the comfyui_controlnet_aux node pack.
-- **New pose**, next to it: pose people without a reference image. It starts with one standing
-  person at your generation size; **+ Person** and **Remove person** add and remove figures.
+- **ControlNet tab: a pose editor for the reference image** (desktop and phone). **Extract pose**
+  (DWPose, needs the comfyui_controlnet_aux node pack), **New pose** or **Edit pose** from the
+  reference section open it, and every edit becomes the reference image. Pose a **mannequin**
+  (limbs, hands with fingers, head, feet; what Anima's any-test LLLite follows, since it reads the
+  reference as a picture) or an **OpenPose skeleton**. Drag points (attached parts follow), drag the
+  torso to move a person, click a body part to resize it for perspective (or use the mouse wheel),
+  and shape the figure with Body width, Chest and Length. Mirror, Reset, more people, and the
+  original shown dimmed behind the pose.
 
 ---
 

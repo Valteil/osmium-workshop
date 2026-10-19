@@ -26,6 +26,7 @@
   <nav id="appTabs" role="tablist">
     <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
     <button type="button" role="tab" data-tab="upscale" aria-selected="false">Upscale</button>
+    <button type="button" role="tab" data-tab="pose" aria-selected="false">ControlNet</button>
     <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
     <button type="button" role="tab" data-tab="compare" aria-selected="false">Gallery</button>
   </nav>
@@ -112,11 +113,11 @@
           <button id="btnPickImage">Pick reference image…</button>
           <button id="btnExtractPose">Extract pose</button>
           <button id="btnNewPose">New pose</button>
+          <button id="btnEditPose">Edit pose</button>
           <input id="refFileInput" type="file" accept="image/*" style="display:none">
         </div>
         <span id="refFileName" class="muted"></span>
         <img id="refPreview" style="display:none" class="thumb">
-        <div id="poseEditor"></div>
       </div>
     </section>
 
@@ -229,6 +230,8 @@
   </div>
   <!-- Upscale tab: USDU for an imported image (BridgeShared.mountUsduPanel, mode 'imported'). -->
   <div id="usduView" hidden><div id="usduTab"></div></div>
+  <!-- ControlNet tab: the pose editor (BridgeShared.mountPoseTab). -->
+  <div id="poseView" hidden><div id="poseTab"></div></div>
   <!-- Metadata tab (BridgeShared.mountMetadataTab). -->
   <div id="metadataView" hidden>
     <div id="metadataTab" class="meta-tab"></div>
