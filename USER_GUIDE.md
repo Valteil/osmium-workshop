@@ -424,8 +424,11 @@ same quick-modify panel:
   (add your own with the built-in "+ Add language…" field; custom entries persist across images).
 - **Censorship** — Unspecified / Censored / Uncensored radios; picking Censored reveals type
   checkboxes (Generic, Mosaic, Bar, Blur, Heart — several can be checked at once).
-- **Perspective** — independent checkboxes (Front / Side / Below / Above / Behind); an image can
-  carry several at once.
+- **Perspective** — independent checkboxes (Straight on / Facing viewer / Looking at viewer / Side
+  / Below / Above / Behind, plus POV and Close-up); an image can carry several at once. "From
+  front" is retired as ambiguous: **Straight on** is the camera angle (`straight on`), **Facing
+  viewer** is the body facing the camera (`facing viewer`), **Looking at viewer** is the eyes
+  (`looking at viewer`). An image already tagged `from front` keeps that tag.
 - **Color, Sound, Comic** — Monochrome, Sound effects, Comic, **Multiple views**, and koma-count
   checkboxes, all independent of each other.
 

@@ -860,7 +860,13 @@ let seqQueue: Entry[] = [];
 let seqIdx = 0;
 let seqModal: ModalShell | null = null;
 
-const PERSPECTIVE_OPTIONS = ['from front', 'from side', 'from below', 'from above', 'from behind'];
+// "from front" is retired (the user's call, 2026-10-19: ambiguous between the
+// camera being level with the subject and the subject facing the camera). Its
+// meanings are separate options now: "straight on" (camera angle), "facing
+// viewer" (the body faces the camera) and "looking at viewer" (the eyes do).
+// The panel no longer reads or writes "from front"; an image that has it
+// keeps it.
+const PERSPECTIVE_OPTIONS = ['straight on', 'facing viewer', 'looking at viewer', 'from side', 'from below', 'from above', 'from behind'];
 // Camera-viewpoint tags the panel can assert that aren't "where is the
 // subject's body pointed" angles — POV (subject's-eyes view) and close-up
 // (framing) are composition choices, but the user asked for them right in
@@ -3359,7 +3365,7 @@ function getEntryStatusIndicators(e: Entry): { emoji: string; state: boolean | n
   // either, and unlike Censored there isn't even a plausible opposite tag
   // to infer one from — so this indicator never shows a red X, only a
   // check (a camera angle was called out) or "not indicated" (it wasn't).
-  const perspectiveTags = e.tags.filter(t => t === 'from front' || t === 'from side' || t === 'from below' || t === 'from above' || t === 'from behind');
+  const perspectiveTags = e.tags.filter(t => PERSPECTIVE_OPTIONS.includes(t));
   const perspective = perspectiveTags.length > 0 ? true : null;
   return [
     { emoji: '👁️', state: censored, label: 'Censored', matchedTags: censored ? censoredTags : (censored === false ? uncensoredTags : []) },
