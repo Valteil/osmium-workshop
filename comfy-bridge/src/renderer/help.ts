@@ -33,7 +33,6 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p><b>No reference image</b> turns the whole section off. Tick it for a plain text-to-image run and ignore everything below.</p>
       <p><b>Strength</b> is how hard the reference pushes. 1 is the normal setting. If the output looks trapped by the reference, lower it toward 0.5. If it ignores the reference, raise it past 1.</p>
       <p><b>Start percent</b> and <b>End percent</b> decide when the reference is active. The defaults of 0 and 0.3 mean it steers only the first 30 percent of the steps. That lets the model loose at the end to clean the picture up.</p>
-      <p><b>LLLite model</b> is the Anima LLLite file the reference goes through (ComfyUI's controlnet folder). Blank keeps the workflow's own, anima-lllite-any-test-like-v2, which takes any picture as a loose reference. A pose or lineart LLLite reads that kind of image instead.</p>
       <p><b>Preserve wrapper</b> keeps the tagged prompt wrapped the way this ControlNet expects. Leave it on unless you know why you are turning it off.</p>
       <p><b>Resize fit</b> controls how your reference is fit to the output size. Pad adds empty space, so the framing stays intact. Crop trims the edges so the subject fills the frame. Contain shrinks the whole image to fit inside.</p>
       <p><b>Resize method</b> is the scaling filter. Lanczos is the sharpest and the default. Bilinear and Bicubic are softer, and Nearest keeps hard pixel edges.</p>`
@@ -91,16 +90,6 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>Refresh from disk reloads the upscale models ComfyUI has, without touching the rest of the model lists.</p>
       <p><b>Upscale with USDU</b> is the other choice (turning one on turns the other off). Ultimate SD Upscale enlarges the image with an upscale model, then redraws it tile by tile with a checkpoint of its own at low denoise, which adds real detail. It needs the ComfyUI_UltimateSDUpscale node pack, and the WD14 Tagger pack for "Tag with WD14".</p>
       <p>Here it upscales the image you generate (the pass-2 image when 2-Pass is on). To upscale an image you already have, use the <b>Upscale</b> tab: choose the image (click it to zoom in), check the settings beside it (they're kept separately from these) and press Upscale this image. Its <b>Save to</b> sends the result to your output folder's Upscaled folder or to a folder you choose (saved as &lt;image&gt;_upscaled.png, never overwriting). The prompt for the tiles is your image's prompt (optionally without the Global field, where artist tags live), WD14 tags, or your own text. Hover any setting for what it does; on the phone, tap its name. Results go in the Upscaled folder.</p>`
-  },
-  {
-    id: 'controlnet',
-    title: 'ControlNet tab (poses)',
-    html: `
-      <p>Anima has no OpenPose ControlNet, so the <b>ControlNet</b> tab poses an image with an Illustrious (SDXL) checkpoint first, and <b>Use as Anima reference</b> then hands the result to the Generate tab's reference image, where Anima LLLite follows it.</p>
-      <p><b>Get a pose:</b> Choose image… and <b>Extract pose</b> finds every person's body, hands and face with DWPose (the comfyui_controlnet_aux node pack). Or start from the standing figure (+ Person).</p>
-      <p><b>Edit it:</b> drag any point. A wrist carries its hand and the nose carries the head. Shift-drag, or tick Move whole person, moves the whole figure. Mirror person flips the one you last touched. Width and Height set the canvas, which is also the generated image's size.</p>
-      <p><b>Generate:</b> pick an SDXL / Illustrious checkpoint and an SDXL OpenPose ControlNet (the anima-lllite files in the controlnet folder are for the Generate tab, not this). Control image can also be the chosen image as it is, for a lineart or depth map you made elsewhere. Results go in your output folder's ControlNet folder; Save pose image puts the skeleton in Poses.</p>
-      <p><b>Models</b> (put them in ComfyUI/models/controlnet): NoobAI's OpenPose ControlNet, made for Illustrious-family models (huggingface.co/Laxhar/noob_openpose, openpose_pre.safetensors), or xinsir's ControlNet Union ProMax, which reads poses, lineart, depth and more (huggingface.co/xinsir/controlnet-union-sdxl-1.0, diffusion_pytorch_model_promax.safetensors).</p>`
   },
   {
     id: 'wd14',

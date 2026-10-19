@@ -22,7 +22,6 @@
     <nav id="appTabs" role="tablist">
       <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
       <button type="button" role="tab" data-tab="upscale" aria-selected="false" title="Upscale an image you already have with USDU (Ultimate SD Upscale)">Upscale</button>
-      <button type="button" role="tab" data-tab="controlnet" aria-selected="false" title="Extract or draw a pose, generate with an Illustrious checkpoint + ControlNet, then use the result as the Anima reference image">ControlNet</button>
       <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
       <button type="button" role="tab" data-tab="compare" aria-selected="false">Gallery</button>
     </nav>
@@ -133,9 +132,6 @@
 
       <section class="sec" id="lliteSection">
         <div class="sec-head"><span class="d">ControlNet (Anima LLLite)</span></div>
-        <label title="The LLLite model the reference image is applied with (ComfyUI's controlnet folder). any-test reads any image as a loose reference; a pose or lineart LLLite reads that kind of image. Blank = the workflow's own (anima-lllite-any-test-like-v2).">LLLite model</label>
-        <input id="lliteModel" type="text" readonly placeholder="Tap to choose… (blank = any-test)">
-        <datalist id="lliteModelList"></datalist>
         <label>Strength</label>
         <input id="lliteStrength" type="number" step="0.05" value="1">
         <label>Start percent</label>
@@ -264,8 +260,6 @@
   </div>
   <!-- Upscale tab: USDU for an imported image; shared/usdu.ts' mountUsduPanel (mode 'imported'). -->
   <div id="usduView" hidden><div id="usduTab"></div></div>
-  <!-- ControlNet tab: pose extract/edit + Illustrious ControlNet generation; shared/controlnet.ts. -->
-  <div id="controlnetView" hidden><div id="controlnetTab"></div></div>
   <!-- Metadata tab: filled by shared/metadata-ui.ts' mountMetadataTab. -->
   <div id="metadataView" class="meta-tab-scroll" hidden><div id="metadataTab" class="meta-tab"></div></div>
   <!-- Gallery tab: the large gallery + a folded Compare (slots, side by side / overlay); shared/compare.ts. -->

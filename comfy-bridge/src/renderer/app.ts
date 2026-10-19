@@ -24,7 +24,6 @@ import { initHelp } from './help';
 import { mountUsduPanel, usduSettingsFromPrompt, type UsduListKind } from './shared/usdu';
 import { mountWd14Panel, type Wd14SavedImage } from './shared/wd14-tag';
 import { mountCompareTab } from './shared/compare';
-import { mountControlNetTab, type ControlNetListKind } from './shared/controlnet';
 export {};
 
 interface ElectronAPI {
@@ -163,8 +162,6 @@ const lliteStrength = $<HTMLInputElement>('lliteStrength');
 const lliteStartPercent = $<HTMLInputElement>('lliteStartPercent');
 const lliteEndPercent = $<HTMLInputElement>('lliteEndPercent');
 const llitePreserveWrapper = $<HTMLInputElement>('llitePreserveWrapper');
-const lliteModel = $<HTMLInputElement>('lliteModel');
-const lliteModelList = $<HTMLDataListElement>('lliteModelList');
 const resizeFit = $<HTMLSelectElement>('resizeFit');
 const resizeMethod = $<HTMLSelectElement>('resizeMethod');
 
@@ -529,64 +526,6 @@ const usduImp = mountUsduPanel($<HTMLDivElement>('usduTab'), {
   log
 });
 
-// ---------------- ControlNet tab (shared/controlnet.ts) ----------------
-// Pose → Illustrious + ControlNet → the result becomes the Generate tab's
-// Anima reference image. Pose extraction rides the WD14 tagging transport
-// (a '239' → '2' graph whose text comes back).
-let controlNetOptions: string[] = [];
-async function refreshControlNetLists(): Promise<void> {
-  const [ckpts, cns] = await Promise.all([
-    fetchComboValues('CheckpointLoaderSimple', 'ckpt_name'),
-    fetchComboValues('ControlNetLoader', 'control_net_name')
-  ]);
-  if (ckpts) usduCkptOptions = ckpts;
-  if (cns) controlNetOptions = cns;
-  await refreshSamplerLists();
-  log(`ControlNet lists refreshed (${controlNetOptions.length} ControlNet model(s)).`);
-}
-// The Generate tab's reference image, from bytes (the ControlNet tab's result or pose).
-function useAsReferenceImage(name: string, bytes: Uint8Array): void {
-  refFile = new File([bytes as BlobPart], name, { type: 'image/png' });
-  refFilename = name;
-  refFileName.textContent = name;
-  refPreview.src = URL.createObjectURL(refFile);
-  refPreview.style.display = 'block';
-  skipRefImage.checked = false;
-  applySkipRefImageUI();
-  scheduleUiSave();
-  showTab('generate');
-  log(`${name} is now the reference image (Anima LLLite${lliteModel.value ? ': ' + lliteModel.value : ''}).`);
-}
-const controlNetTab = mountControlNetTab($<HTMLDivElement>('controlnetTab'), {
-  getList: (kind: ControlNetListKind) => kind === 'ckpt' ? usduCkptOptions
-    : kind === 'controlnet' ? controlNetOptions
-    : kind === 'sampler' ? bridgeSamplerOptions : bridgeSchedulerOptions,
-  refreshLists: refreshControlNetLists,
-  async extractPose(prompt, imageName, bytes) {
-    const r = await window.electronAPI.wd14Tag({ host: getHost(), imageFilename: imageName, imageBytes: bytes, prompt });
-    if (!r.ok || typeof r.tags !== 'string') throw new Error(r.error || 'No pose came back.');
-    return r.tags;
-  },
-  queueGenerate(job) {
-    genQueue.push({
-      host: getHost(),
-      prompt: withoutComfyCopy(job.prompt),
-      imageFilename: job.imageFilename,
-      imageBytes: job.imageBytes,
-      naming: { relDir: 'ControlNet', base: 'controlnet', rating: '', character: '', recognized: '' },
-      controlNet: true
-    });
-    void startQueue();
-  },
-  async savePose(bytes) {
-    if (!outputFolder) { log('No output folder chosen — the pose was NOT saved.'); return; }
-    const rel = await nextSavePath(desktopBackend(), 'Poses', 'pose', new Set());
-    await saveBytes(bytes, rel);
-  },
-  useAsReference: useAsReferenceImage,
-  log
-});
-
 // ---------------- Prompt / Negative presets ----------------
 // Prompt presets snapshot every field EXCEPT Negative — a prompt preset is
 // "this character's whole setup," a negative preset is "this negative I
@@ -810,16 +749,12 @@ btnRefreshModels.addEventListener('click', async () => {
   if (loraValues) { loraCombo = loraValues; fillDatalist(loraList, loraValues); }
   if (upscaleValues) fillDatalist(upscaleModelList, upscaleValues);
   log('Model lists refreshed.');
-  const [usduCkpts, usduWd14, lliteValues, cnValues] = await Promise.all([
+  const [usduCkpts, usduWd14] = await Promise.all([
     fetchComboValues('CheckpointLoaderSimple', 'ckpt_name'),
-    fetchComboValues('WD14Tagger|pysssss', 'model'),
-    fetchComboValues('DSM Anima LLLite Apply', 'lllite_name'),
-    fetchComboValues('ControlNetLoader', 'control_net_name')
+    fetchComboValues('WD14Tagger|pysssss', 'model')
   ]);
   if (usduCkpts) usduCkptOptions = usduCkpts;
   if (usduWd14) usduWd14Options = usduWd14;
-  if (lliteValues) fillDatalist(lliteModelList, lliteValues);
-  if (cnValues) controlNetOptions = cnValues;
   await refreshSamplerLists();
   log('Sampler/scheduler options refreshed.');
 });
@@ -832,7 +767,6 @@ attachPickerModal(clip, 'CLIP', () => optionsFromDatalist(clipList));
 attachPickerModal(vae, 'VAE', () => optionsFromDatalist(vaeList));
 attachPickerModal(mainLora, 'Main LoRA', () => optionsFromDatalist(mainLoraList));
 attachPickerModal(upscaleModel, 'Upscale model', () => optionsFromDatalist(upscaleModelList));
-attachPickerModal(lliteModel, 'LLLite model', () => optionsFromDatalist(lliteModelList));
 // Sampler/scheduler pickers — same tap-to-pick modal as the model fields,
 // option source = the host's KSampler object_info (the canonical ComfyUI
 // lists), fetched once at startup and via Refresh model lists. Fields are
@@ -950,7 +884,6 @@ function restoreUiState(): void {
   applyUpscaleUI();
   usdu.refresh();
   usduImp.refresh();
-  controlNetTab.refresh();
   applyUnifiedPromptModeUI();
   applyBackendUI();
   autoGrowAll();
@@ -1379,7 +1312,6 @@ function buildPromptForComfy(): any {
     lliteStartPercent: lliteStartPercent.value,
     lliteEndPercent: lliteEndPercent.value,
     llitePreserveWrapper: llitePreserveWrapper.checked,
-    lliteModel: lliteModel.value,
     resizeFit: resizeFit.value,
     resizeMethod: resizeMethod.value,
     sampler: sampler.value,
@@ -1407,9 +1339,7 @@ function buildPromptForComfy(): any {
 // `usduOnly`: an imported image through USDU — its one output ('192') is the
 // upscaled image.
 // `saveTo: 'folder'`: the Upscale tab's chosen folder instead of the output folder.
-// `controlNet`: the ControlNet tab's Illustrious generation — its one output
-// ('192') saves to ControlNet/ and shows in that tab.
-interface GenJob { host: string; prompt: any; imageFilename: string | null; imageBytes: Uint8Array | null; naming: SaveNaming; usduOnly?: boolean; saveTo?: 'output' | 'folder'; controlNet?: boolean; }
+interface GenJob { host: string; prompt: any; imageFilename: string | null; imageBytes: Uint8Array | null; naming: SaveNaming; usduOnly?: boolean; saveTo?: 'output' | 'folder'; }
 const genQueue: GenJob[] = [];
 let genRunning = false;
 let genStopped = false;
@@ -1603,16 +1533,6 @@ async function runGenJob(job: GenJob): Promise<void> {
     setPreviewSlides(slides);
     return;
   }
-  if (job.controlNet) {
-    if (res.imageBytes) {
-      await keep('ControlNet', res.imageBytes, stampOutputKind(res.imageBytes, 'single'), false);
-      controlNetTab.showResult(res.imageBytes);
-    }
-    lastSavedImages = saved;
-    if (saveFailed) { genStatus.style.display = 'block'; genStatus.textContent = 'Generated, but saving failed — see Log for details.'; }
-    setPreviewSlides(slides);
-    return;
-  }
   if (job.usduOnly) {
     if (res.imageBytes) await keep('Upscaled (USDU)', res.imageBytes, stampOutputKind(res.imageBytes, 'upscaled'), true);
     lastSavedImages = saved;
@@ -1689,7 +1609,7 @@ mountWd14Panel($<HTMLDivElement>('wd14Panel'), {
 // whatever was already sitting in those fields from before the import,
 // silently mixing old and new settings.
 const RESET_TEXT_FIELDS: (HTMLInputElement | HTMLTextAreaElement)[] = [
-  diffModel, clip, vae, mainLora, mainLoraStrength, lliteModel,
+  diffModel, clip, vae, mainLora, mainLoraStrength,
   lliteStrength, lliteStartPercent, lliteEndPercent,
   unifiedPrompt, global_, character, characterTrigger, rating, hair, face, chest, body_,
   clothes, limbs, sexual, pose, scene, effects, extra, negative,
@@ -1844,7 +1764,6 @@ async function applyImportedPrompt(prompt: Record<string, any>): Promise<void> {
     lliteStartPercent.value = String((prompt['240'].inputs.start_percent as number) ?? 0);
     lliteEndPercent.value = String((prompt['240'].inputs.end_percent as number) ?? 0);
     llitePreserveWrapper.checked = Boolean(prompt['240'].inputs.preserve_wrapper);
-    if (typeof prompt['240'].inputs.lllite_name === 'string') lliteModel.value = prompt['240'].inputs.lllite_name;
   } else {
     skipRefImage.checked = true;
   }
@@ -1977,11 +1896,9 @@ const layoutEl = $<HTMLElement>('layout');
 const metadataView = $<HTMLElement>('metadataView');
 const compareView = $<HTMLElement>('compareView');
 const usduView = $<HTMLElement>('usduView');
-const controlnetView = $<HTMLElement>('controlnetView');
 function showTab(tab: string): void {
   layoutEl.style.display = tab === 'generate' ? '' : 'none';
   usduView.hidden = tab !== 'upscale';
-  controlnetView.hidden = tab !== 'controlnet';
   metadataView.hidden = tab !== 'metadata';
   compareView.hidden = tab !== 'compare';
   // The floating buttons (settings/file drawers, gallery) belong to Generate only.
