@@ -31,7 +31,13 @@ interface QuickTagDef {
   untickedBy?: string[];   // ticking any of these tags unticks this quicktag
 }
 interface QuickTagGroup { id: string; label: string; items: QuickTagDef[]; custom?: boolean }
-interface QuickTagStore { groups: QuickTagGroup[]; extra: Record<string, QuickTagDef[]> }
+// The user's drag order (2026-10-19): category ids top to bottom, and per
+// category the quicktags it shows, as item keys (`<home category>::<tag>`).
+// A quicktag dragged into another category is only SHOWN there: its
+// definition stays in its home category's list (built-in, `extra` or a
+// custom category), so edit/delete still find it.
+interface QuickTagOrder { groups: string[]; items: Record<string, string[]> }
+interface QuickTagStore { groups: QuickTagGroup[]; extra: Record<string, QuickTagDef[]>; order?: QuickTagOrder }
 
 const STORE_KEY = 'dts-quicktags';
 
@@ -65,20 +71,51 @@ function normList(s: string): string[] { return Array.from(new Set(s.split(',').
 
 function loadStore(): QuickTagStore {
   const s = getJSON<Partial<QuickTagStore> | null>(STORE_KEY, null);
-  return { groups: Array.isArray(s?.groups) ? s!.groups : [], extra: s?.extra && typeof s.extra === 'object' ? s.extra : {} };
+  const o = s?.order;
+  const order = o && Array.isArray(o.groups) && o.items && typeof o.items === 'object' ? o : undefined;
+  return { groups: Array.isArray(s?.groups) ? s!.groups : [], extra: s?.extra && typeof s.extra === 'object' ? s.extra : {}, order };
 }
 function saveStore(s: QuickTagStore): void { setJSON(STORE_KEY, s); }
 
-// Built-in categories (with any custom items added to them), then custom categories.
+// Each shown quicktag's home category (where its definition is stored).
+const homeOf = new WeakMap<QuickTagDef, string>();
+const keyOf = (def: QuickTagDef): string => `${homeOf.get(def) || ''}::${def.tag}`;
+
+// Built-in categories (with any custom items added to them), then custom
+// categories; then the saved drag order on top. The order only arranges what
+// exists: unknown keys are skipped, and a quicktag or category it doesn't
+// mention keeps its default place (notes/Pitfalls/Drag-Drop-Guard-Checked-
+// Persisted-Order-Not-Dom.md).
 function allGroups(): QuickTagGroup[] {
   const store = loadStore();
-  return [
+  const base: QuickTagGroup[] = [
     ...BUILTIN_GROUPS.map((g) => ({ ...g, items: [...g.items, ...(store.extra[g.id] || [])] })),
     ...store.groups.map((g) => ({ ...g, custom: true }))
   ];
+  const pool = new Map<string, QuickTagDef>();
+  for (const g of base) for (const d of g.items){ homeOf.set(d, g.id); pool.set(keyOf(d), d); }
+  const order = store.order;
+  if (!order) return base;
+  const groups = base.map((g) => ({ ...g, items: [] as QuickTagDef[] }));
+  const byId = new Map(groups.map((g) => [g.id, g]));
+  const placed = new Set<string>();
+  for (const g of groups){
+    for (const k of order.items[g.id] || []){
+      const d = pool.get(k);
+      if (d && !placed.has(k)){ g.items.push(d); placed.add(k); }
+    }
+  }
+  for (const [k, d] of pool) if (!placed.has(k)) byId.get(homeOf.get(d)!)!.items.push(d);
+  const rank = (id: string): number => { const i = order.groups.indexOf(id); return i < 0 ? Number.MAX_SAFE_INTEGER : i; };
+  return groups.map((g, i) => ({ g, i })).sort((a, b) => (rank(a.g.id) - rank(b.g.id)) || (a.i - b.i)).map((x) => x.g);
 }
-function isCustomItem(groupId: string, def: QuickTagDef): boolean {
-  return !BUILTIN_GROUPS.some((g) => g.id === groupId && g.items.includes(def));
+function isCustomItem(def: QuickTagDef): boolean {
+  return !BUILTIN_GROUPS.some((g) => g.items.includes(def));
+}
+// The stored list a quicktag's definition lives in (its home category's).
+function storedList(store: QuickTagStore, homeId: string): QuickTagDef[] {
+  const custom = store.groups.find((g) => g.id === homeId);
+  return custom ? custom.items : (store.extra[homeId] ||= []);
 }
 function allItems(): QuickTagDef[] { return allGroups().flatMap((g) => g.items); }
 
@@ -197,23 +234,92 @@ async function editQuickTag(group: QuickTagGroup, def: QuickTagDef): Promise<voi
   const next = await openEditor(group.label, def);
   if (!next) return;
   const store = loadStore();
-  const list = group.custom ? store.groups.find((g) => g.id === group.id)!.items : (store.extra[group.id] || []);
+  const home = homeOf.get(def) || group.id;
+  const list = storedList(store, home);
   const i = list.findIndex((d) => d.tag === def.tag);
   if (i === -1) return;
   list[i] = next;
+  // A changed tag changes its key: keep its place in the drag order.
+  if (store.order && next.tag !== def.tag){
+    const oldKey = `${home}::${def.tag}`, newKey = `${home}::${next.tag}`;
+    for (const keys of Object.values(store.order.items)){
+      const j = keys.indexOf(oldKey);
+      if (j !== -1) keys[j] = newKey;
+    }
+  }
   saveStore(store);
   refresh();
 }
 
-async function deleteQuickTag(group: QuickTagGroup, def: QuickTagDef): Promise<void> {
+async function deleteQuickTag(_group: QuickTagGroup, def: QuickTagDef): Promise<void> {
   const ok = await showConfirmModal(`Delete the quicktag "${def.label || def.tag}"? Tags already on images stay.`, { okLabel: 'Delete', danger: true });
   if (!ok) return;
   const store = loadStore();
-  const list = group.custom ? store.groups.find((g) => g.id === group.id)!.items : (store.extra[group.id] || []);
+  const list = storedList(store, homeOf.get(def) || _group.id);
   const i = list.findIndex((d) => d.tag === def.tag);
   if (i !== -1) list.splice(i, 1);
   saveStore(store);
   refresh();
+}
+
+// ---- drag reorder ----------------------------------------------------------
+// Drops go before or after the target by which half of it the pointer is
+// over, computed on the list with the dragged one already removed, so it
+// works the same dragging up or down (notes/Pitfalls/Drag-Reorder-
+// Direction-Asymmetric.md).
+let dragging: { kind: 'item' | 'group'; key: string } | null = null;
+
+function saveLayout(layout: { id: string; keys: string[] }[]): void {
+  const store = loadStore();
+  store.order = { groups: layout.map((l) => l.id), items: Object.fromEntries(layout.map((l) => [l.id, l.keys])) };
+  saveStore(store);
+  refresh();
+}
+function currentLayout(): { id: string; keys: string[] }[] {
+  return allGroups().map((g) => ({ id: g.id, keys: g.items.map(keyOf) }));
+}
+function moveItem(key: string, groupId: string, targetKey: string | null, after: boolean): void {
+  if (key === targetKey) return;
+  const layout = currentLayout();
+  for (const l of layout){ const i = l.keys.indexOf(key); if (i !== -1) l.keys.splice(i, 1); }
+  const dest = layout.find((l) => l.id === groupId);
+  if (!dest) return;
+  const t = targetKey ? dest.keys.indexOf(targetKey) : -1;
+  if (t === -1) dest.keys.push(key); else dest.keys.splice(after ? t + 1 : t, 0, key);
+  saveLayout(layout);
+}
+function moveGroup(id: string, targetId: string, after: boolean): void {
+  if (id === targetId) return;
+  const layout = currentLayout();
+  const from = layout.findIndex((l) => l.id === id);
+  if (from === -1) return;
+  const [moved] = layout.splice(from, 1);
+  const t = layout.findIndex((l) => l.id === targetId);
+  if (t === -1) return;
+  layout.splice(after ? t + 1 : t, 0, moved);
+  saveLayout(layout);
+}
+// Which half of `el` the pointer is in.
+function lowerHalf(el: HTMLElement, ev: DragEvent): boolean {
+  const r = el.getBoundingClientRect();
+  return ev.clientY > r.top + r.height / 2;
+}
+function clearDropMarks(): void {
+  panel?.querySelectorAll('.qt-drop-before, .qt-drop-after, .qt-drop-into').forEach((el) => el.classList.remove('qt-drop-before', 'qt-drop-after', 'qt-drop-into'));
+}
+function dragHandle(title: string, kind: 'item' | 'group', key: string, source: HTMLElement): HTMLElement {
+  const h = document.createElement('span');
+  h.className = 'quicktag-drag';
+  h.textContent = '⋮⋮';
+  h.title = title;
+  h.draggable = true;
+  h.addEventListener('dragstart', (ev) => {
+    dragging = { kind, key };
+    source.classList.add('qt-dragging');
+    if (ev.dataTransfer){ ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', key); ev.dataTransfer.setDragImage(source, 12, 12); }
+  });
+  h.addEventListener('dragend', () => { dragging = null; source.classList.remove('qt-dragging'); clearDropMarks(); });
+  return h;
 }
 
 async function addCategory(): Promise<void> {
@@ -272,7 +378,7 @@ export function showQuickTag(entry: Entry): void {
   panel.appendChild(title);
   const note = document.createElement('div');
   note.className = 'quicktag-note';
-  note.textContent = 'Tick to add the tag to this image, untick to remove it. + adds your own.';
+  note.textContent = 'Tick to add the tag to this image, untick to remove it. + adds your own. Drag ⋮⋮ to reorder.';
   panel.appendChild(note);
 
   const has = new Set(entry.tags);
@@ -281,9 +387,24 @@ export function showQuickTag(entry: Entry): void {
     block.className = 'quicktag-group';
     const head = document.createElement('div');
     head.className = 'quicktag-group-head';
+    head.appendChild(dragHandle(`Drag to move the ${group.label} category`, 'group', group.id, block));
     const name = document.createElement('span');
+    name.className = 'quicktag-group-name';
     name.textContent = group.label;
     head.appendChild(name);
+    // A category is a drop target for categories (before/after it).
+    block.addEventListener('dragover', (ev) => {
+      if (dragging?.kind !== 'group') return;
+      ev.preventDefault();
+      clearDropMarks();
+      block.classList.add(lowerHalf(block, ev) ? 'qt-drop-after' : 'qt-drop-before');
+    });
+    block.addEventListener('drop', (ev) => {
+      if (dragging?.kind !== 'group') return;
+      ev.preventDefault();
+      const d = dragging;
+      moveGroup(d.key, group.id, lowerHalf(block, ev));
+    });
     const actions = document.createElement('span');
     actions.className = 'quicktag-head-actions';
     actions.appendChild(smallButton('+', `Add a quicktag to ${group.label}`, () => void addQuickTag(group)));
@@ -292,6 +413,18 @@ export function showQuickTag(entry: Entry): void {
     block.appendChild(head);
     const row = document.createElement('div');
     row.className = 'quicktag-options';
+    // Dropping a quicktag on the category's empty space puts it at the end.
+    row.addEventListener('dragover', (ev) => {
+      if (dragging?.kind !== 'item' || ev.target !== row) return;
+      ev.preventDefault();
+      clearDropMarks();
+      row.classList.add('qt-drop-into');
+    });
+    row.addEventListener('drop', (ev) => {
+      if (dragging?.kind !== 'item' || ev.target !== row) return;
+      ev.preventDefault();
+      moveItem(dragging.key, group.id, null, true);
+    });
     if (!group.items.length){
       const empty = document.createElement('div');
       empty.className = 'quicktag-note';
@@ -301,6 +434,21 @@ export function showQuickTag(entry: Entry): void {
     for (const def of group.items){
       const line = document.createElement('div');
       line.className = 'quicktag-line';
+      const key = keyOf(def);
+      line.appendChild(dragHandle('Drag to move this quicktag (into another category too)', 'item', key, line));
+      line.addEventListener('dragover', (ev) => {
+        if (dragging?.kind !== 'item') return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        clearDropMarks();
+        line.classList.add(lowerHalf(line, ev) ? 'qt-drop-after' : 'qt-drop-before');
+      });
+      line.addEventListener('drop', (ev) => {
+        if (dragging?.kind !== 'item') return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        moveItem(dragging.key, group.id, key, lowerHalf(line, ev));
+      });
       const opt = document.createElement('label');
       opt.className = 'ach-toggle-row quicktag-option';
       opt.title = describe(def);
@@ -316,7 +464,7 @@ export function showQuickTag(entry: Entry): void {
       span.textContent = def.label || def.tag;
       opt.append(cb, span);
       line.appendChild(opt);
-      if (isCustomItem(group.id, def)){
+      if (isCustomItem(def)){
         const tools = document.createElement('span');
         tools.className = 'quicktag-item-actions';
         tools.appendChild(smallButton('✎', 'Edit this quicktag', () => void editQuickTag(group, def)));

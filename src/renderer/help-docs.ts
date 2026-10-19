@@ -273,16 +273,24 @@ export const HELP_SECTIONS: HelpSection[] = [
   {
     id: 'step-sequential',
     title: '6 · Sequential mode pass',
-    html: `
+    html: isTouchDevice ? `
       <p>Single mode handles composition; Sequential mode is for the technicalities WD14 is
       inconsistent about (perspective especially). In the <b>Tag Overseer</b> tab, use
       <b>▶ Sequential from first / from selected</b> — walk your current filter image by
-      image ${isTouchDevice ? 'in a full-screen panel (Back or Exit sequential leaves it)' : 'in Single view'} with a quick-modify panel: text/language (custom languages welcome),
+      image in a full-screen panel (Back or Exit sequential leaves it) with a quick-modify panel: text/language (custom languages welcome),
       censorship state + type checkboxes, multi-select perspective checkboxes, monochrome, sound
-      effects, comic, multiple views, koma count. The image is the same compact preview as
-      Single view (click it for the full-size view). A live tag preview under the image shows
+      effects, comic, multiple views, koma count. A live tag preview under the image shows
       exactly which tags Confirm will apply before you commit; Confirm advances automatically
-      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>`
+      and progress is saved per image. Use it to align indicator tags across a filtered batch.</p>` : `
+      <p>Sequential is for the technicalities WD14 is inconsistent about (perspective
+      especially), and it lives in <b>Single view</b>: Quicktags on the left, the image and its
+      tags in the middle, and the Sequential controls in the right panel. Text/language (custom
+      languages welcome), censorship state + types, perspective (Straight on, Facing viewer,
+      Looking at viewer, …), monochrome, sound effects, comic, multiple views and koma. Every tick
+      applies to the image at once (Ctrl+Z undoes it), so step through your filter with
+      Prev / Next. The button at the top of the right panel swaps it for the <b>Gallery tools</b>
+      and back; Tag Overseer is only in the gallery views. <b>▶ Single from here</b> (3-dot menu,
+      or Master Tag Control with images selected) opens Single view at that image.</p>`
   },
   ...(isTouchDevice ? [] : [{
     id: 'step-bucket',

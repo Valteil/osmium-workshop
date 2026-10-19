@@ -17,6 +17,14 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Fixed:** after disabling images in a bucketed dataset, Trainflow's Start (and Bucket Images)
   re-made the disabled images from `original_images/` back into the dataset, without captions, so
   Start stopped with "N images have no .txt caption". Disabled images now stay disabled.
+- **Single view is now where Sequential lives** (desktop): Quicktags on the left, the image and
+  its tags in the middle, and the Sequential controls in the right panel. Every tick applies to
+  the image right away (undoable); step through with Prev / Next. The button at the top of the
+  right panel switches to the Gallery tools and back. Tag Overseer is only in the gallery views
+  (its tab switches Single view back to Grid). "Sequential from first" is gone, and "from
+  selected" and the 3-dot "Sequential from here" are now **Single from here**.
+- **Quicktags can be reordered:** drag the ⋮⋮ handle on a quicktag (within or between
+  categories) or on a category header. Built-in ones too.
 - **Sequential mode's Perspective:** "Front" is now **Straight on** (writes `straight on`), plus a
   new **Facing viewer** (`facing viewer`) and **Looking at viewer** (`looking at viewer`). "From
   front" is retired as ambiguous; images that already have it keep it. The 🧭 Perspective indicator counts the new tags.

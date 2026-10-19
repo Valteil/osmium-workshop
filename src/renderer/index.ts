@@ -656,6 +656,8 @@ import { setIconLabel } from './icons';
     }
     overseerExpandedRightPanel = rightAside.classList.contains('right-panel-collapsed');
     if (overseerExpandedRightPanel) applyRightPanelCollapsed(false);
+    // Tag Overseer only exists in the gallery views, not Single.
+    if (viewMode === 'single') switchView('grid', { instant: true });
     switchTab('master');
   });
   tabStats.addEventListener('click', () => switchTab('stats'));
@@ -1598,9 +1600,8 @@ import { setIconLabel } from './icons';
     setContainsFilter: (tag) => setContainsFilter(tag),
     setExcludesFilter: (tag) => setExcludesFilter(tag),
     deleteEntryPermanently: (entry) => deleteEntryPermanently(entry),
-    setRightPanelCollapsed: (collapsed) => applyRightPanelCollapsed(collapsed),
-    getRightPanelCollapsed: () => rightAside.classList.contains('right-panel-collapsed'),
-    getHideTags: () => getBool('dts-hide-tags')
+    getHideTags: () => getBool('dts-hide-tags'),
+    leaveTagOverseer: () => switchTab('gallery')
   });
 
   // Achievements/stats/wallet/shop moved to ./achievements.ts

@@ -141,6 +141,10 @@ which you chose (desktop).
 
   Your own quicktags have ✎ (edit) and × (delete) buttons, and your own categories an ×. Deleting
   never touches tags already on images.
+
+  **Reorder:** drag the **⋮⋮** handle on a quicktag to move it, within its category or into
+  another one, and the handle on a category header to move the whole category. Built-in ones
+  move too; the order is kept for every dataset.
 - **📖 Wiki** (next to Asc/Desc) — opens a small window to look up any tag's definition from the
   bundled wiki, without going through a tag field. Type a tag (suggestions appear beside the window as you type)
   and its definition shows boxed above the field, with its **See also** tags listed below the box;
@@ -414,11 +418,18 @@ bootstrap tags onto untagged imports.
 
 ### Sequential tagging
 
-Started from the **▶ Sequential from first / from selected** buttons under Master Tag Control's
-selection summary, or **▶ Sequential from here** in an image's 3-dot menu. On desktop it takes over
-Single view; on Android it opens as a full-screen panel (Back closes it). Either way it walks your current filter image by image;
-"from selected" starts at your first selected image instead of the top. Each image shows the
-same quick-modify panel:
+On desktop, Sequential is part of **Single view**: Quicktags on the left, the image and its tags
+in the middle, and the Sequential controls in the right panel, for whichever image Single view
+shows. **Every tick applies to the image right away** (Ctrl+Z undoes it), so you step through
+your filter with Prev / Next. The button at the top of the right panel swaps it for the
+**Gallery tools** and back; Tag Overseer is only available in the gallery views (its tab switches
+Single view back to Grid). **▶ Single from here**, in an image's 3-dot menu or under Master Tag
+Control's selection summary (at the first selected image), opens Single view at that image.
+
+On Android it's still a run: **▶ Sequential from first / from selected** opens a full-screen
+panel (Back closes it) that walks your current filter image by image, with Confirm.
+
+The controls:
 
 - **Text** — has-text toggle plus a Japanese toggle and a list of foreign-language checkboxes
   (add your own with the built-in "+ Add language…" field; custom entries persist across images).
@@ -432,12 +443,9 @@ same quick-modify panel:
 - **Color, Sound, Comic** — Monochrome, Sound effects, Comic, **Multiple views**, and koma-count
   checkboxes, all independent of each other.
 
-Every control prefills from the image's existing tags. Below the image, a **live tag-preview
-strip** shows exactly which indicator tags Confirm will apply (tags new to the image glow) —
-it's only these panel selections, not the image's other tags. **Confirm** applies them, marks
-the image, and advances automatically; your progress is saved per image, and "Exit sequential"
-(or leaving Single view) ends the run without losing completed work. The image is the same
-compact preview as Single view — click it for the fullscreen lightbox for close inspection.
+Every control prefills from the image's existing tags. In the Android run, a **live tag-preview
+strip** under the image shows exactly which indicator tags Confirm will apply (tags new to the
+image glow), and **Confirm** applies them and advances.
 
 Use it when a whole filter batch — a character, a rating, everything missing "monochrome" —
 needs its indicator tags aligned without opening each card by hand.

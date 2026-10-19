@@ -355,10 +355,15 @@ export function initMasterTagControl(deps: MasterTagControlDeps): void {
       btn.addEventListener('click', () => onStartSequentialRef(from));
       return btn;
     }
-    const seqFirstBtn = makeSeqBtn('Sequential from first', '⏮', 'Review every gallery image in sort order, confirming detail tags one by one', 'first');
-    const seqSelBtn = makeSeqBtn('Sequential from selected', '🎯', 'Review from the first selected image in sort order', 'selected');
-    seqRow.appendChild(seqFirstBtn);
-    seqRow.appendChild(seqSelBtn);
+    // Desktop: Sequential lives in Single view's right panel, so there's no
+    // run to start — "from first" is just Single view, and "from selected"
+    // opens Single view at the first selected image. Touch keeps the run.
+    if (document.documentElement.classList.contains('touch-device')){
+      seqRow.appendChild(makeSeqBtn('Sequential from first', '⏮', 'Review every gallery image in sort order, confirming detail tags one by one', 'first'));
+      seqRow.appendChild(makeSeqBtn('Sequential from selected', '🎯', 'Review from the first selected image in sort order', 'selected'));
+    } else {
+      seqRow.appendChild(makeSeqBtn('Single from here', '🎯', 'Open Single view at the first selected image (Sequential controls in the right panel)', 'selected'));
+    }
     masterSelectionSummary.after(seqRow);
   }
 

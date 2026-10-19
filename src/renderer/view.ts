@@ -13,7 +13,7 @@ import {
   viewGridBtn, viewCompactBtn, viewSingleBtn, viewDisabledBtn, viewOriginalsBtn, btnUnlockAll, btnHideTags, btnRenameAllImages, singlePrevBtn, singleNextBtn,
   galleryGrid, compactGrid, compactCompareArea, compareCount, compactCompareTable, btnClearCompare,
   singleViewEl, singleNav, singlePos, imageCardModal, modalCardInner,
-  langAutoSelectToggle, filterMatchCount, leftAside
+  langAutoSelectToggle, filterMatchCount, leftAside, normalRightTools, btnGoToTagOverseer, btnMasterBack
 } from './dom';
 import { initQuickTag, showQuickTag, hideQuickTag } from './quick-tag';
 import { toast, toastError, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox, addContextMenuItem, transitionMsOf, mapPan, createModalShell } from './shared-ui';
@@ -139,7 +139,7 @@ export function switchView(mode: ViewMode, opts?: { instant?: boolean }): void {
     singleViewEl.style.display = mode === 'single' ? 'block' : 'none';
     singleNav.style.display = mode === 'single' ? 'flex' : 'none';
     if (mode === 'single') renderSingleView();
-    else { hideQuickTag(); setSingleCompact(false); if (mode === 'compact') renderCompactGrid(); else renderGallery(); }
+    else { hideQuickTag(); setSingleCompact(false); applySingleRight(null); if (mode === 'compact') renderCompactGrid(); else renderGallery(); }
   };
 
   const html = document.documentElement;
@@ -897,22 +897,19 @@ export function startSequentialDetail(from: 'first' | 'selected'): void {
 }
 
 // Shared by every entry point (Master Tag Control's buttons, the 3-dot menu).
+// The run itself is touch only (a modal); on desktop the Sequential controls
+// live in Single view's right panel, so this opens Single view there.
 function beginSequential(list: Entry[], startIdx: number): void {
+  if (!document.documentElement.classList.contains('touch-device')){
+    if (list[startIdx]) openSingleAt(list[startIdx]);
+    return;
+  }
   seqQueue = list;
   seqIdx = startIdx;
   seqActive = true;
-  if (document.documentElement.classList.contains('touch-device')){
-    closeImageCardModal();
-    seqModal = createModalShell({ boxClassName: 'seq-modal-box', onDismiss: () => exitSequentialDetail() });
-    renderSeqModal();
-    return;
-  }
-  // Collapse the right sidebar for the run so the image + controls own the
-  // full width. Remember the pre-run state (only force-expand on exit what
-  // WE collapsed) so restoring never fights a user's own choice.
-  seqPanelForcedCollapse = !getRightPanelCollapsedRef();
-  setRightPanelCollapsedRef(true);
-  switchView('single');
+  closeImageCardModal();
+  seqModal = createModalShell({ boxClassName: 'seq-modal-box', onDismiss: () => exitSequentialDetail() });
+  renderSeqModal();
 }
 
 function renderSeqModal(): void {
@@ -934,12 +931,7 @@ export function exitSequentialDetail(): void {
   seqActive = false;
   seqQueue = [];
   seqIdx = 0;
-  if (seqModal){ const m = seqModal; seqModal = null; m.close(); return; }
-  if (seqPanelForcedCollapse) setRightPanelCollapsedRef(false);
-  seqPanelForcedCollapse = false;
-  if (viewMode !== 'single') return;
-  singleNav.style.display = 'flex';
-  renderSingleView();
+  if (seqModal){ const m = seqModal; seqModal = null; m.close(); }
 }
 
 interface SeqDraft {
@@ -1000,12 +992,16 @@ function applySequentialDraft(entry: Entry, d: SeqDraft): void {
   // state is written back. Types are NOT mutually exclusive: several may be
   // checked at once; an empty checked set under Censored falls back to the
   // generic tag so the state can't silently unwrite itself.
-  for (const tag of entry.tags.filter((t) => /censor/i.test(t))) removeTagFromEntry(entry, tag);
-  if (d.censor === 'censored'){
-    const types = d.censorTypes.size ? [...d.censorTypes] : ['censored'];
-    for (const t of types) addTagToEntry(entry, t);
+  // Skipped when the image already has exactly the wanted tags: Single
+  // view's live panel applies on every tick, and a strip-and-re-add there
+  // would log undo steps for a section nobody touched.
+  const wantCensor = d.censor === 'censored' ? (d.censorTypes.size ? [...d.censorTypes] : ['censored'])
+    : d.censor === 'uncensored' ? ['uncensored'] : [];
+  const haveCensor = entry.tags.filter((t) => /censor/i.test(t));
+  if (haveCensor.length !== wantCensor.length || !wantCensor.every((t) => haveCensor.includes(t))){
+    for (const tag of haveCensor) removeTagFromEntry(entry, tag);
+    for (const t of wantCensor) addTagToEntry(entry, t);
   }
-  else if (d.censor === 'uncensored') addTagToEntry(entry, 'uncensored');
   // Perspective — independent checkboxes, not exclusive: one image can
   // legitimately carry several (e.g. a collage with front and side views).
   // Covers the extra composition options (pov / close-up) too.
@@ -1054,13 +1050,35 @@ function seqPreviewTags(d: SeqDraft): string[] {
   return tags;
 }
 
-function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tags: string[]) => void): void {
+// Single view's right panel shows this form `live`: every tick applies to
+// the image at once (undoable, like Quicktags) and the view re-renders from
+// the real tags. Without `live` it's the touch modal's draft + Confirm.
+interface SeqPanelOptions { onPreview?: (tags: string[]) => void; live?: boolean; }
+// "Has text" with nothing under it yet writes no tag, so a live re-render
+// would untick it again before a language can be picked: remember that it
+// was ticked for this image.
+let seqTextOpenFor = '';
+function buildSequentialPanel(panel: HTMLElement, entry: Entry, opts: SeqPanelOptions = {}): void {
+  const { onPreview, live } = opts;
   const d = seqDraftFromEntry(entry);
-  // Live preview feed: every checkbox/radio change bubbles a 'change' event
-  // to the panel, so one listener keeps the chip strip current (the Add-
-  // language button isn't a checkbox, so it emits explicitly instead).
-  const emitPreview = () => { if (onPreview) onPreview(seqPreviewTags(d)); };
-  panel.addEventListener('change', emitPreview);
+  if (live && seqTextOpenFor === entry.base) d.hasText = true;
+  // Every checkbox/radio change bubbles a 'change' event to the panel, so
+  // one listener handles it (the Add-language button isn't a checkbox, so it
+  // calls emitPreview itself). Live: apply now. Otherwise: refresh the
+  // "will apply" chip strip.
+  const emitPreview = () => {
+    if (live){
+      applySequentialDraft(entry, d);
+      renderSingleView();
+      refreshRightPanels();
+    } else if (onPreview) onPreview(seqPreviewTags(d));
+  };
+  // A text field's 'change' fires on blur; in live mode that re-render would
+  // eat the click on Add that caused the blur.
+  panel.addEventListener('change', (ev) => {
+    if ((ev.target as HTMLInputElement).type === 'text') return;
+    emitPreview();
+  });
 
   function sectionLabel(text: string): HTMLElement {
     const el = document.createElement('div');
@@ -1139,6 +1157,7 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
   }
   const hasTextRow = toggleRow('Has text', d.hasText, (v) => {
     d.hasText = v;
+    seqTextOpenFor = v ? entry.base : '';
     panel.querySelectorAll('.seq-text-sub').forEach((el) => { (el as HTMLElement).style.display = v ? '' : 'none'; });
   });
   // Sound effects sits right beside Has text (per user spec, not buried
@@ -1260,6 +1279,7 @@ function buildSequentialPanel(panel: HTMLElement, entry: Entry, onPreview?: (tag
     ...KOMA_OPTIONS.map((k) => ({ value: k, label: k }))
   ], d.koma, (v) => { d.koma = v; }));
 
+  if (live) return;
   const confirmBtn = document.createElement('button');
   confirmBtn.className = 'primary';
   confirmBtn.style.cssText = 'width:100%; margin-top:12px; padding:12px; font-size:15px; font-weight:600;';
@@ -1445,7 +1465,7 @@ function buildSeqBody(entry: Entry, stacked: boolean): HTMLElement {
   // Same .chip/.chiprow classes the gallery cards use, so the preview
   // looks identical — glowing (chip-match) entries are new tags Confirm
   // is about to add, plain ones are already on the image.
-  buildSequentialPanel(panel, entry, (tags) => {
+  buildSequentialPanel(panel, entry, { onPreview: (tags) => {
     const fresh = new Set(tags.filter((t) => !entry.tags.includes(t)));
     previewHead.textContent = `Will apply on Confirm — ${tags.length} tags${fresh.size ? ` (${fresh.size} new)` : ''}`;
     previewChips.innerHTML = '';
@@ -1468,7 +1488,7 @@ function buildSeqBody(entry: Entry, stacked: boolean): HTMLElement {
       chip.appendChild(label);
       previewChips.appendChild(chip);
     }
-  });
+  } });
   wrap.appendChild(panel);
   // Stacked: counter/Back/Exit head the whole modal, above the image.
   if (stacked){ headRow.classList.add('seq-modal-head'); wrap.prepend(headRow); }
@@ -1536,28 +1556,98 @@ function buildSingleTopbar(): HTMLElement {
   return bar;
 }
 
-function renderSingleView(){
-  refreshMasterMiniGrid();
-  // Image Quicktagging (./quick-tag.ts) and the compact layout own the view
-  // only while this shows ONE ordinary image; re-applied below once known.
-  hideQuickTag();
-  setSingleCompact(false);
-  if (masterSelectedImages.size > 1 && !seqActive){
-    renderMultiCompareView();
+// ---- Single view's right panel (desktop) ----
+// While Single shows one ordinary image the right panel holds the Sequential
+// controls for it (live), and the header button swaps between them and the
+// Gallery tools. Tag Overseer isn't available in Single view: its header
+// button is hidden, and arriving here from it switches back to Gallery.
+// Everything else (Grid, multi-compare, an empty filter) gets the panel back
+// as it was.
+const SINGLE_RIGHT_TOOLS_KEY = 'dts-single-right-tools';
+let singleRightShowsTools = getBool(SINGLE_RIGHT_TOOLS_KEY, false);
+let singleRightBase = '';
+function applySingleRight(entry: Entry | null): void {
+  const seqEl = document.getElementById('singleSeqPanel')!;
+  const swap = document.getElementById('btnSingleRightSwap') as HTMLButtonElement;
+  const on = !!entry && !document.documentElement.classList.contains('touch-device');
+  if (!on){
+    seqEl.classList.add('rt-hidden');
+    seqEl.innerHTML = '';
+    singleRightBase = '';
+    swap.style.display = 'none';
+    if (!getMasterTagModeActive()){
+      normalRightTools.classList.remove('rt-hidden');
+      btnGoToTagOverseer.style.display = '';
+    }
     return;
   }
-  if (seqActive){
-    const seqEntry = seqQueue[seqIdx];
-    if (!seqEntry){
-      exitSequentialDetail();
-    } else {
-      // Takeover: the panel becomes the sequential quick-modify form.
-      // singleNav stays hidden throughout — Confirm is the only way forward.
-      singleNav.style.display = 'none';
-      singleViewEl.innerHTML = '';
-      singleViewEl.appendChild(buildSeqBody(seqEntry, false));
-      return;
-    }
+  if (getMasterTagModeActive()) leaveTagOverseerRef();
+  btnGoToTagOverseer.style.display = 'none';
+  btnMasterBack.style.display = 'none';
+  swap.style.display = '';
+  swap.textContent = singleRightShowsTools ? '← Sequential' : 'Gallery tools';
+  swap.title = singleRightShowsTools ? 'Back to the Sequential controls for this image' : 'Show the Gallery tools (Tag Pruner, Merge/Void, …)';
+  normalRightTools.classList.toggle('rt-hidden', !singleRightShowsTools);
+  seqEl.classList.toggle('rt-hidden', singleRightShowsTools);
+  if (singleRightShowsTools){ seqEl.innerHTML = ''; singleRightBase = ''; return; }
+  // Same image again (a tick, a tag edit): keep the panel's scroll.
+  const scroller = document.getElementById('right'); // #right itself scrolls
+  const keepScroll = singleRightBase === entry!.base && scroller ? scroller.scrollTop : null;
+  if (singleRightBase !== entry!.base) seqTextOpenFor = '';
+  singleRightBase = entry!.base;
+  seqEl.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'single-seq-head';
+  const title = document.createElement('div');
+  title.className = 'single-name';
+  title.textContent = 'Sequential';
+  const note = document.createElement('div');
+  note.className = 'single-seq-note';
+  note.textContent = 'Ticks apply to this image right away (undo with Ctrl+Z).';
+  head.append(title, note);
+  const panel = document.createElement('div');
+  panel.className = 'seq-panel seq-live';
+  buildSequentialPanel(panel, entry!, { live: true });
+  seqEl.append(head, panel);
+  if (keepScroll !== null && scroller) scroller.scrollTop = keepScroll;
+}
+function toggleSingleRight(): void {
+  singleRightShowsTools = !singleRightShowsTools;
+  setBool(SINGLE_RIGHT_TOOLS_KEY, singleRightShowsTools);
+  renderSingleView();
+}
+
+// "Single from here" (the 3-dot menu, Master Tag Control): Single view at
+// this image. More than one selected image would turn Single view into the
+// multi-image compare table, so the selection is narrowed to this one.
+export function openSingleAt(entry: Entry): void {
+  const list = filteredEntries();
+  const idx = list.findIndex((e) => e.base === entry.base);
+  if (idx < 0){ toast('This image is outside the current filter (e.g. Disabled).'); return; }
+  if (masterSelectedImages.size > 1){
+    masterSelectedImages.clear();
+    masterSelectedImages.add(entry);
+    renderMasterSelectionSummary();
+    toast('Selection narrowed to this image (Single view shows one image).');
+  }
+  singleIndex = idx;
+  if (viewMode === 'single') renderSingleView(); else switchView('single');
+}
+
+function renderSingleView(){
+  refreshMasterMiniGrid();
+  // Image Quicktagging (./quick-tag.ts), the compact layout and the right
+  // panel's Sequential controls own the view only while this shows ONE
+  // ordinary image; re-applied below once known.
+  hideQuickTag();
+  setSingleCompact(false);
+  // The right panel is only reset on the paths that leave a single image:
+  // clearing it here first, then rebuilding, would reset its scroll and
+  // forget a ticked-but-empty "Has text" on every live tick.
+  if (masterSelectedImages.size > 1){
+    applySingleRight(null);
+    renderMultiCompareView();
+    return;
   }
   const list = filteredEntries();
   if (singleIndex >= list.length) singleIndex = list.length - 1;
@@ -1573,6 +1663,7 @@ function renderSingleView(){
     ? capturePanelScroll(singleViewEl) : null;
   singleViewEl.innerHTML = '';
   if (list.length === 0){
+    applySingleRight(null);
     const empty = document.createElement('div');
     empty.className = 'single-empty';
     empty.textContent = 'No images match the current filter.';
@@ -1583,6 +1674,7 @@ function renderSingleView(){
   const e = list[singleIndex];
   lastSingleBase = e.base;
   showQuickTag(e);
+  applySingleRight(e);
   setSingleCompact(true);
   singleViewEl.appendChild(buildSingleTopbar());
 
@@ -3518,16 +3610,20 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     tagSingleImageWithWd14(entry);
   }, { title: 'Tag this image with WD14 (via ComfyUI)' });
 
-  addContextMenuItem(menu, '▶ Sequential from here', () => {
+  // Desktop: Single view at this image (its right panel has the Sequential
+  // controls). Touch: the Sequential modal run, as before.
+  const touchRun = document.documentElement.classList.contains('touch-device');
+  addContextMenuItem(menu, touchRun ? '▶ Sequential from here' : '▶ Single from here', () => {
     closeTagContextMenu();
     const list = filteredEntries();
     let startIdx = list.findIndex((e) => e.base === entry.base);
     // A Disabled image isn't in filteredEntries() — sequential walks the
     // active gallery, so fall back to the top rather than silently doing
     // nothing from an unexpected context.
-    if (startIdx < 0){ toast('Sequential walks the current filter — this image is outside it (e.g. Disabled).'); return; }
+    if (startIdx < 0){ toast('This image is outside the current filter (e.g. Disabled).'); return; }
     beginSequential(list, startIdx);
-  }, { title: 'Enter sequential mode starting at this image (walks the current filter image by image)' });
+  }, { title: touchRun ? 'Enter sequential mode starting at this image (walks the current filter image by image)'
+    : 'Open Single view at this image (Sequential controls in the right panel)' });
 
   // Originals are managed by the Bucket Images dock's Revert, not Disable.
   if (!entry.original){
@@ -3993,10 +4089,8 @@ let setExcludesFilterRef: (tag: string) => void = () => {};
 function setContainsFilter(tag: string): void { setContainsFilterRef(tag); }
 function setExcludesFilter(tag: string): void { setExcludesFilterRef(tag); }
 let deleteEntryPermanentlyRef: (entry: Entry) => Promise<void> = async () => {};
-let setRightPanelCollapsedRef: (collapsed: boolean) => void = () => {};
-let getRightPanelCollapsedRef: () => boolean = () => false;
 let getHideTagsRef: () => boolean = () => false;
-let seqPanelForcedCollapse = false;
+let leaveTagOverseerRef: () => void = () => {};
 
 interface ViewDeps {
   getEntries: () => Entry[];
@@ -4016,13 +4110,11 @@ interface ViewDeps {
   setContainsFilter: (tag: string) => void;
   setExcludesFilter: (tag: string) => void;
   deleteEntryPermanently: (entry: Entry) => Promise<void>;
-  // Sequential mode auto-manages the right sidebar: collapse it while the
-  // sequential panel is up (frees the width for the image+controls), restore
-  // on exit. Injected since #right's own collapse state lives in index.ts.
-  setRightPanelCollapsed: (collapsed: boolean) => void;
-  getRightPanelCollapsed: () => boolean;
   // Hide-tags toolbar mode (buildCard/buildCompactCard skip chips + input).
   getHideTags: () => boolean;
+  // Back to the Gallery tab from Tag Overseer (switchTab lives in index.ts):
+  // Tag Overseer isn't available in Single view.
+  leaveTagOverseer: () => void;
 }
 
 export function initView(deps: ViewDeps): void {
@@ -4047,9 +4139,9 @@ export function initView(deps: ViewDeps): void {
   setContainsFilterRef = deps.setContainsFilter;
   setExcludesFilterRef = deps.setExcludesFilter;
   deleteEntryPermanentlyRef = deps.deleteEntryPermanently;
-  setRightPanelCollapsedRef = deps.setRightPanelCollapsed;
-  getRightPanelCollapsedRef = deps.getRightPanelCollapsed;
   getHideTagsRef = deps.getHideTags;
+  leaveTagOverseerRef = deps.leaveTagOverseer;
+  document.getElementById('btnSingleRightSwap')!.addEventListener('click', toggleSingleRight);
 
   langAutoSelectToggle.addEventListener('change', () => {
     autoSelectNewLanguage = langAutoSelectToggle.checked;
