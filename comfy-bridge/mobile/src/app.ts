@@ -78,6 +78,8 @@ declare const BridgeShared: {
   // shared/wd14-tag.ts: WD14 tagging panel (same module as the desktop's).
   mountWd14Panel: (host: HTMLElement, opts: any) => { refresh: () => void };
   extractWd14Tags: (record: any) => string | null;
+  // shared/pose-extract.ts: the reference image's pose frame.
+  extractPoseFrame: (run: (prompt: any, imageName: string, bytes: Uint8Array) => Promise<string>, imageName: string, bytes: Uint8Array, log: (msg: string) => void) => Promise<{ bytes: Uint8Array; people: number } | null>;
   initTheme: (themes: any, def: any) => void;
   mountThemePicker: (opts: any) => void;
   initTagWiki: (button: HTMLElement) => void;
@@ -1287,6 +1289,31 @@ declare const BridgeShared: {
     const mime = sniffImageMime(bytes) || (file.type || '').split(';')[0] || 'image/png';
     refPreview.src = 'data:' + mime + ';base64,' + BridgeShared.bytesToBase64(bytes);
     refPreview.style.display = 'block';
+  });
+
+  // Extract pose (shared/pose-extract.ts): the reference becomes its DWPose
+  // pose frame, same size. Runs through comfyTag (WD14's transport).
+  const btnExtractPose = $<HTMLButtonElement>('btnExtractPose');
+  btnExtractPose.addEventListener('click', async () => {
+    if (!refBytes) { log('Pick a reference image first, then Extract pose.'); return; }
+    btnExtractPose.disabled = true;
+    btnExtractPose.textContent = 'Extracting…';
+    try {
+      const name = refFilename;
+      const frame = await BridgeShared.extractPoseFrame(comfyTag, name, refBytes, log);
+      if (!frame) { log('Extract pose: no pose found in ' + name + '.'); return; }
+      refFile = null;
+      refBytes = frame.bytes;
+      refFilename = name.replace(/\.[^.]+$/, '') + '_pose.png';
+      refFileName.textContent = refFilename;
+      refPreview.src = 'data:image/png;base64,' + BridgeShared.bytesToBase64(frame.bytes);
+      log('Extract pose: the reference is now the pose frame (' + frame.people + (frame.people === 1 ? ' person' : ' people') + ').');
+    } catch (err) {
+      log('Extract pose failed: ' + errMsg(err));
+    } finally {
+      btnExtractPose.disabled = false;
+      btnExtractPose.textContent = 'Extract pose';
+    }
   });
 
   // The magic numbers of the formats the editor actually feeds through here.

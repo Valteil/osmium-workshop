@@ -879,6 +879,11 @@ This guide covers the desktop app. Two siblings share this repo:
     your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
     phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);
     Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
+  - **Extract pose** (desktop and phone, next to Pick reference image): DWPose finds the people in
+    the reference image (the comfyui_controlnet_aux node pack) and the reference becomes their
+    OpenPose-style pose frame, the same size, for Anima LLLite. If its person detector finds nobody
+    (it can miss greyscale or sketchy art), it tries the whole image as one person. Pick the image
+    again to go back to it.
   - **WD14 tags** (desktop and phone, under the result): **Tag last generation** tags each saved
     image and can write a same-name `.txt` beside it in the output folder. **Tag an image** tags any
     image you choose; **Use as prompt** sorts the tags into your prompt boxes (Global, Character

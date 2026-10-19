@@ -30,6 +30,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     title: 'Reference image (ControlNet)',
     html: `
       <p>A reference image makes the result follow the pose, shape or layout of another picture. Pick the image, and the workflow feeds it through Anima LLLite, the ControlNet built for Anima.</p>
+      <p><b>Extract pose</b> finds the people in the reference with DWPose (the comfyui_controlnet_aux node pack) and swaps the reference for its OpenPose-style pose frame, the same size. If the detector finds nobody (it can miss greyscale or sketchy art), it tries the whole image as one person. Pick the image again to go back to it.</p>
       <p><b>No reference image</b> turns the whole section off. Tick it for a plain text-to-image run and ignore everything below.</p>
       <p><b>Strength</b> is how hard the reference pushes. 1 is the normal setting. If the output looks trapped by the reference, lower it toward 0.5. If it ignores the reference, raise it past 1.</p>
       <p><b>Start percent</b> and <b>End percent</b> decide when the reference is active. The defaults of 0 and 0.3 mean it steers only the first 30 percent of the steps. That lets the model loose at the end to clean the picture up.</p>

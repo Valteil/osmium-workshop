@@ -33,6 +33,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 ### Comfy Bridge
 
 - The **Windows 7** and **Frutiger Aero** palettes and faces.
+- **Extract pose** (desktop and phone), next to Pick reference image: finds the people's poses in
+  the reference with DWPose and uses the pose frame as the reference instead, for testing poses
+  with Anima LLLite. Needs the comfyui_controlnet_aux node pack.
 
 ---
 

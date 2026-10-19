@@ -323,9 +323,11 @@ export function parseQueueResponse(parsed: any, status: number, noun: string): C
 
 // The WD14Tagger node (id '2') reports its result as `outputs['2'].tags` — a
 // string or a one-element array depending on the node version. Returns null
-// while the result isn't ready yet.
+// while the result isn't ready yet. Comfy Bridge's pose extraction runs a
+// DWPreprocessor as '2' through the same path: its `openpose_json`.
 export function extractWd14Tags(record: any): string | null {
-  const tags = record && record.outputs && record.outputs['2'] && record.outputs['2'].tags;
+  const out = record && record.outputs && record.outputs['2'];
+  const tags = out && (out.tags || out.openpose_json);
   if (!tags) return null;
   return Array.isArray(tags) ? tags[0] : tags;
 }

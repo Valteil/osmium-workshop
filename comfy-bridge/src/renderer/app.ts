@@ -24,6 +24,7 @@ import { initHelp } from './help';
 import { mountUsduPanel, usduSettingsFromPrompt, type UsduListKind } from './shared/usdu';
 import { mountWd14Panel, type Wd14SavedImage } from './shared/wd14-tag';
 import { mountCompareTab } from './shared/compare';
+import { extractPoseFrame } from './shared/pose-extract';
 export {};
 
 interface ElectronAPI {
@@ -410,6 +411,35 @@ btnPickImage.addEventListener('click', async () => {
   const url = URL.createObjectURL(file);
   refPreview.src = url;
   refPreview.style.display = 'block';
+});
+
+// Extract pose (shared/pose-extract.ts): the reference becomes its DWPose
+// pose frame, same size. Runs through the WD14 tagging transport.
+const btnExtractPose = $<HTMLButtonElement>('btnExtractPose');
+btnExtractPose.addEventListener('click', async () => {
+  if (!refFile) { log('Pick a reference image first, then Extract pose.'); return; }
+  btnExtractPose.disabled = true;
+  btnExtractPose.textContent = 'Extracting…';
+  try {
+    const name = refFilename;
+    const frame = await extractPoseFrame(async (prompt, imageName, bytes) => {
+      const r = await window.electronAPI.wd14Tag({ host: getHost(), imageFilename: imageName, imageBytes: bytes, prompt });
+      if (!r.ok || typeof r.tags !== 'string') throw new Error(r.error || 'No pose came back.');
+      return r.tags;
+    }, name, new Uint8Array(await refFile.arrayBuffer()), log);
+    if (!frame) { log(`Extract pose: no pose found in ${name}.`); return; }
+    refFile = new File([frame.bytes as BlobPart], name.replace(/\.[^.]+$/, '') + '_pose.png', { type: 'image/png' });
+    refFilename = refFile.name;
+    refFileName.textContent = refFile.name;
+    refPreview.src = URL.createObjectURL(refFile);
+    refPreview.style.display = 'block';
+    log(`Extract pose: the reference is now the pose frame (${frame.people} ${frame.people === 1 ? 'person' : 'people'}).`);
+  } catch (err) {
+    log('Extract pose failed: ' + (err instanceof Error ? err.message : String(err)));
+  } finally {
+    btnExtractPose.disabled = false;
+    btnExtractPose.textContent = 'Extract pose';
+  }
 });
 
 // ---------------- Unified prompt toggle ----------------
