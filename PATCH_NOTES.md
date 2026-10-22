@@ -10,7 +10,7 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ---
 
-## v2.0.1 (unreleased)
+## v2.0.0
 
 ### Osmium Workshop
 
@@ -25,7 +25,7 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   selected" and the 3-dot "Sequential from here" are now **Single from here**.
 - **Quicktags can be reordered:** drag the ⋮⋮ handle on a quicktag (within or between
   categories) or on a category header. Built-in ones too.
-- **Sequential mode's Perspective:** "Front" is now **Straight on** (writes `straight on`), plus a
+- **Sequential mode's Perspective:** "Front" is now **Straight-on** (writes `straight-on`), plus a
   new **Facing viewer** (`facing viewer`) and **Looking at viewer** (`looking at viewer`). "From
   front" is retired as ambiguous; images that already have it keep it. The 🧭 Perspective indicator counts the new tags.
 - **Windows 7** theme (legendary, 750 Edibits): the Aero desktop. A glass title bar with its gloss
@@ -40,25 +40,6 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   wallpaper.
 - Both themes' gallery backgrounds are wallpapers, so **Scroll the gallery background** leaves
   them still.
-
-### Comfy Bridge
-
-- The **Windows 7** and **Frutiger Aero** palettes and faces.
-- **ControlNet tab: a pose editor for the reference image** (desktop and phone). **Extract pose**
-  (DWPose, needs the comfyui_controlnet_aux node pack), **New pose** or **Edit pose** from the
-  reference section open it, and every edit becomes the reference image. Pose a **mannequin**
-  (limbs, hands with fingers, head, feet; what Anima's any-test LLLite follows, since it reads the
-  reference as a picture) or an **OpenPose skeleton**. Drag points (attached parts follow), drag the
-  torso to move a person, click a body part to resize it for perspective (or use the mouse wheel),
-  and shape the figure with Body width, Chest and Length. Mirror, Reset, more people, and the
-  original shown dimmed behind the pose.
-
----
-
-## v2.0.0
-
-### Osmium Workshop
-
 - **Trainflow tab** (Windows): trains a LoRA for Anima on the dataset you have loaded, using an
   Anima-TrainFlow folder and your own Anima files. Get the trainer from this release
   (`Anima-TrainFlow-Osmium-2.0.0.zip`): unzip it and run its `Install_Requirements.bat` once, which
@@ -137,6 +118,15 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- The **Windows 7** and **Frutiger Aero** palettes and faces.
+- **ControlNet tab: a pose editor for the reference image** (desktop and phone). **Extract pose**
+  (DWPose, needs the comfyui_controlnet_aux node pack), **New pose** or **Edit pose** from the
+  reference section open it, and every edit becomes the reference image. Pose a **mannequin**
+  (limbs, hands with fingers, head, feet; what Anima's any-test LLLite follows, since it reads the
+  reference as a picture) or an **OpenPose skeleton**. Drag points (attached parts follow), drag the
+  torso to move a person, click a body part to resize it for perspective (or use the mouse wheel),
+  and shape the figure with Body width, Chest and Length. Mirror, Reset, more people, and the
+  original shown dimmed behind the pose.
 - **Open folder** (Windows): an **Open** button next to the output folder, and next to the Upscale
   tab's chosen folder, shows it in File Explorer.
 - **RES4LYF samplers**: if the RES4LYF node pack is installed in your ComfyUI, its samplers

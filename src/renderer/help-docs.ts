@@ -285,7 +285,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p>Sequential is for the technicalities WD14 is inconsistent about (perspective
       especially), and it lives in <b>Single view</b>: Quicktags on the left, the image and its
       tags in the middle, and the Sequential controls in the right panel. Text/language (custom
-      languages welcome), censorship state + types, perspective (Straight on, Facing viewer,
+      languages welcome), censorship state + types, perspective (Straight-on, Facing viewer,
       Looking at viewer, …), monochrome, sound effects, comic, multiple views and koma. Every tick
       applies to the image at once (Ctrl+Z undoes it), so step through your filter with
       Prev / Next. The button at the top of the right panel swaps it for the <b>Gallery tools</b>

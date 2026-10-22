@@ -4396,7 +4396,7 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       <p>Sequential is for the technicalities WD14 is inconsistent about (perspective
       especially), and it lives in <b>Single view</b>: Quicktags on the left, the image and its
       tags in the middle, and the Sequential controls in the right panel. Text/language (custom
-      languages welcome), censorship state + types, perspective (Straight on, Facing viewer,
+      languages welcome), censorship state + types, perspective (Straight-on, Facing viewer,
       Looking at viewer, \u2026), monochrome, sound effects, comic, multiple views and koma. Every tick
       applies to the image at once (Ctrl+Z undoes it), so step through your filter with
       Prev / Next. The button at the top of the right panel swaps it for the <b>Gallery tools</b>
@@ -27027,7 +27027,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
   var seqQueue = [];
   var seqIdx = 0;
   var seqModal = null;
-  var PERSPECTIVE_OPTIONS = ["straight on", "facing viewer", "looking at viewer", "from side", "from below", "from above", "from behind"];
+  var PERSPECTIVE_OPTIONS = ["straight-on", "facing viewer", "looking at viewer", "from side", "from below", "from above", "from behind"];
   var PERSPECTIVE_EXTRA_OPTIONS = ["pov", "close-up"];
   function perspectiveOptionTags() {
     return [...PERSPECTIVE_OPTIONS, ...PERSPECTIVE_EXTRA_OPTIONS];
