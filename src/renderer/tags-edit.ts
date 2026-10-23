@@ -687,6 +687,82 @@ export async function renameAllEntriesSequentially(): Promise<void> {
   refreshAllUIRef();
 }
 
+// Swaps two images' file names (image + .txt each), the original_images/ twins
+// included so the stem pairing Bucket Images and Trainflow rely on holds. Each
+// image keeps its own extension. Two-phase through temp names, rolled back if
+// phase 1 fails. Not logged / undoable: swap again to reverse it.
+export async function swapImageNames(a: Entry, b: Entry): Promise<boolean> {
+  const dirHandle = getDirHandle();
+  if (!dirHandle){ toast('Open a dataset folder first.'); return false; }
+  const origDir = getOriginalDirHandle();
+  const extOf = (name: string): string => {
+    const i = name.lastIndexOf('.');
+    return i === -1 ? '' : name.slice(i);
+  };
+  const dirOf = (e: Entry): DirHandle | null => e.original ? origDir : (e.disabled ? getDisabledDirHandle() : dirHandle);
+  const twinOf = (e: Entry): Entry | undefined => getEntries().find(o => o.original && o !== e && o.base === e.base);
+  const moves: { entry: Entry; dir: DirHandle; newBase: string; oldBase: string; oldImg: string; oldTxt: string | null }[] = [];
+  for (const [from, to] of [[a, b], [b, a]] as const){
+    for (const e of [from, twinOf(from)]){
+      if (!e) continue;
+      const dir = dirOf(e);
+      if (!dir){ toast('A folder this swap needs isn\'t available. Nothing was renamed.'); return false; }
+      moves.push({
+        entry: e, dir, newBase: to.base, oldBase: e.base,
+        oldImg: e.imgName || e.base,
+        oldTxt: e.txtHandle ? (e.txtName || `${e.base}.txt`) : null
+      });
+    }
+  }
+  for (const m of moves){
+    const missing = !(await fileExists(m.dir, m.oldImg)) ? m.oldImg
+      : (m.oldTxt && !(await fileExists(m.dir, m.oldTxt))) ? m.oldTxt : null;
+    if (missing){ toast(`${missing} isn't on disk any more — reload the dataset and try again. Nothing was renamed.`, 5200); return false; }
+  }
+  const tmp = (i: number, ext: string) => `__dts_swap_${Date.now().toString(36)}_${i}__${ext}`;
+  const done: number[] = [];
+  try {
+    for (let i = 0; i < moves.length; i++){
+      const m = moves[i];
+      m.entry.imgHandle = await renameFileInPlace(m.dir, m.oldImg, tmp(i, extOf(m.oldImg)));
+      if (m.oldTxt) m.entry.txtHandle = await renameFileInPlace(m.dir, m.oldTxt, tmp(i, '.txt'));
+      done.push(i);
+    }
+  } catch(err){
+    for (const i of done){
+      const m = moves[i];
+      try {
+        m.entry.imgHandle = await renameFileInPlace(m.dir, m.entry.imgHandle.name, m.oldImg);
+        if (m.oldTxt) m.entry.txtHandle = await renameFileInPlace(m.dir, m.entry.txtHandle!.name, m.oldTxt);
+      } catch { /* left at its temp name; it still loads as an image */ }
+    }
+    toast(`Swap stopped${err instanceof Error ? ` (${err.message})` : ''} — the files were put back.`, 5200);
+    return false;
+  }
+  const stuck: string[] = [];
+  for (const m of moves){
+    const img = m.newBase + extOf(m.oldImg);
+    try {
+      m.entry.imgHandle = await renameFileInPlace(m.dir, m.entry.imgHandle.name, img);
+      if (m.oldTxt) m.entry.txtHandle = await renameFileInPlace(m.dir, m.entry.txtHandle!.name, `${m.newBase}.txt`);
+    } catch { stuck.push(m.oldImg); continue; }
+    m.entry.imgName = img;
+    if (m.oldTxt) m.entry.txtName = `${m.newBase}.txt`;
+  }
+  // Base-keyed state follows the swap (via a placeholder so neither key is overwritten).
+  const [baseA, baseB] = [a.base, b.base];
+  reindexEntry(baseA, `__swap_${baseA}`);
+  reindexEntry(baseB, baseA);
+  reindexEntry(`__swap_${baseA}`, baseB);
+  for (const m of moves) m.entry.base = m.newBase;
+  remapBases(new Map([[baseA, baseB], [baseB, baseA]]));
+  if (stuck.length) toast(`Swapped, but ${stuck.length} file(s) kept a temporary name (${stuck.slice(0, 3).join(', ')}). Rename all fixes that.`, 6000);
+  else toast(`Swapped the names of ${a.imgName} and ${b.imgName}.`, 3600);
+  resetSingleIndex();
+  refreshAllUIRef();
+  return true;
+}
+
 // Batch undo/redo for a 'rename-files' log entry (edit-log.ts, injected the
 // same way applyTagDirection/moveEntry already are there — this file can't
 // be imported back from edit-log.ts, which this file itself imports

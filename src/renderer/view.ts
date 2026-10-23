@@ -19,7 +19,7 @@ import { initQuickTag, showQuickTag, hideQuickTag } from './quick-tag';
 import { toast, toastError, showConfirmModal, positionMenu, attachLongPress, attachPinchZoom, showInfoModal, escapeHtml, showImageLightbox, addContextMenuItem, transitionMsOf, mapPan, createModalShell } from './shared-ui';
 import type { ModalShell } from './shared-ui';
 import { trackStat, checkAchievements, folderStats, saveFolderStats } from './achievements';
-import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially, isWebpName } from './tags-edit';
+import { markDirty, recordChange, recordPixelChange, recordIsolateChange, addTagToEntry, removeTagFromEntry, removeAllTagsFromEntry, resetImageEdits, moveEntry, renameAllEntriesSequentially, swapImageNames, isWebpName } from './tags-edit';
 import { openTagDetails } from './tag-details';
 import { attachTagAutocomplete, attachPickAutocomplete, closeAutocomplete } from './tags-autocomplete';
 import { buildTagIndex, refreshStats, filteredEntries, passesFilter } from './tag-index';
@@ -3669,6 +3669,15 @@ function openTransferTagsModal(source: Entry): void {
     grid.appendChild(none);
   }
 
+  const swapRow = document.createElement('label');
+  swapRow.style.cssText = 'display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12px;';
+  swapRow.title = 'Exchange the file names of this image and the one picked (their .txt files and originals follow). Needs exactly one target.';
+  const swapCb = document.createElement('input');
+  swapCb.type = 'checkbox';
+  swapCb.addEventListener('change', updateGo);
+  swapRow.append(swapCb, document.createTextNode('Also swap image names (pick exactly one target)'));
+  box.appendChild(swapRow);
+
   const foot = document.createElement('div');
   foot.style.cssText = 'display:flex; justify-content:flex-end; gap:8px; margin-top:12px;';
   const cancel = document.createElement('button');
@@ -3676,19 +3685,31 @@ function openTransferTagsModal(source: Entry): void {
   cancel.addEventListener('click', close);
   const go = document.createElement('button');
   go.type = 'button'; go.className = 'primary';
-  go.addEventListener('click', () => {
+  go.addEventListener('click', async () => {
     const tags = source.tags.filter(t => chosenTags.has(t));
-    if (!tags.length || !targets.size) return;
-    for (const t of targets) addTagToEntry(t, tags.join(', '));
-    toast(`Copied ${tags.length} tag${tags.length === 1 ? '' : 's'} to ${targets.size} image${targets.size === 1 ? '' : 's'}.`);
+    const swap = swapCb.checked && targets.size === 1;
+    if (!targets.size || (!tags.length && !swap)) return;
+    const target = [...targets][0];
+    if (tags.length){
+      for (const t of targets) addTagToEntry(t, tags.join(', '));
+      toast(`Copied ${tags.length} tag${tags.length === 1 ? '' : 's'} to ${targets.size} image${targets.size === 1 ? '' : 's'}.`);
+    }
     close();
+    if (swap) await swapImageNames(source, target);
     renderCurrentView();
   });
   foot.append(cancel, go);
   box.appendChild(foot);
   function updateGo(): void {
-    go.disabled = !chosenTags.size || !targets.size;
-    go.textContent = targets.size ? `Transfer ${chosenTags.size} tag${chosenTags.size === 1 ? '' : 's'} to ${targets.size} image${targets.size === 1 ? '' : 's'}` : 'Transfer';
+    const canSwap = targets.size === 1;
+    swapCb.disabled = !canSwap;
+    if (!canSwap) swapCb.checked = false;
+    const swap = swapCb.checked;
+    go.disabled = !targets.size || (!chosenTags.size && !swap);
+    const parts: string[] = [];
+    if (chosenTags.size) parts.push(`${chosenTags.size} tag${chosenTags.size === 1 ? '' : 's'}`);
+    if (swap) parts.push('swap names');
+    go.textContent = targets.size && parts.length ? `Transfer ${parts.join(' + ')} (${targets.size} image${targets.size === 1 ? '' : 's'})` : 'Transfer';
   }
   paintTags(); updateGo();
 }
@@ -3755,11 +3776,11 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     await deleteEntryPermanentlyRef(entry);
   }, { title: 'Permanently delete this image and its tags from disk — cannot be undone', className: 'ctx-item-danger' });
 
-  if (!entry.original && entry.tags.length){
+  if (!entry.original){
     addContextMenuItem(menu, '🏷 Transfer tags', () => {
       closeTagContextMenu();
       openTransferTagsModal(entry);
-    }, { title: 'Copy some or all of this image\'s tags onto other images' });
+    }, { title: 'Copy some or all of this image\'s tags onto other images, or swap names with one' });
   }
 
   // Read-only history: every logged edit that touched this image, newest first.
