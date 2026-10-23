@@ -350,6 +350,21 @@ async function run(): Promise<void> {
     .map((e) => ({ entry: e, fromOriginals: true }));
   for (const e of rootEntries) if (!originalByBase.has(e.base)) sources.push({ entry: e, fromOriginals: false });
 
+  // The active images' captions win: each original's .txt is overwritten with its Gallery copy's,
+  // whether or not the image needs re-bucketing.
+  let captionsSynced = 0;
+  for (const o of originals) {
+    const cur = rootByBase.get(o.base);
+    if (!cur || !cur.txtHandle) continue;
+    try {
+      const txtBlob = await cur.txtHandle.getFile();
+      const origTxt = await origDir.getFileHandle(`${o.base}.txt`, { create: true });
+      await writeBytes(origTxt, txtBlob);
+      captionsSynced++;
+    } catch { /* caption copy is best-effort */ }
+  }
+  if (captionsSynced) log(`Copied the tags of ${captionsSynced} image(s) onto their originals.`);
+
   try {
     for (const { entry, fromOriginals } of sources) {
       const filename = entry.imgName || entry.base;

@@ -203,6 +203,21 @@ function planBucketing(dir: string, b: { min: number; max: number; step: number 
   return todo;
 }
 
+// The active images' captions win: every original's .txt in original_images/ is overwritten with the
+// caption of the image in the dataset root that shares its stem (bucketing, or not). Disabled images
+// have no root copy, so their originals keep what they have. Mirrored by the Bucket Images dock.
+function syncOriginalCaptions(dir: string): void {
+  const origDir = path.join(dir, ORIGINAL_DIR);
+  const originals = new Set(listImages(origDir).map(stemOf));
+  for (const f of listImages(dir)) {
+    const stem = stemOf(f);
+    if (!originals.has(stem)) continue;
+    const txt = path.join(dir, stem + '.txt');
+    if (!fs.existsSync(txt)) continue;
+    try { fs.copyFileSync(txt, path.join(origDir, stem + '.txt')); } catch { /* best-effort */ }
+  }
+}
+
 function verifyBuckets(dir: string, b: { min: number; max: number; step: number }): TrainflowBucketReport {
   mergeLegacyOriginals(dir);
   const buckets = getValidBuckets(b.min, b.max, b.step);
@@ -675,6 +690,7 @@ let prep: TrainflowStatus['prep'];
 // duplicates anything. Returns an error string, or '' when done.
 async function bucketDataset(dir: string, b: { min: number; max: number; step: number }): Promise<string> {
   mergeLegacyOriginals(dir);
+  syncOriginalCaptions(dir);
   const todo = planBucketing(dir, b);
   if (!todo.length) return '';
   try {
