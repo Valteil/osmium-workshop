@@ -3589,6 +3589,110 @@ function openNoteEditor(entry: Entry): void {
   setTimeout(() => document.addEventListener('click', onDocClickCloseMenu), 0);
 }
 
+// Right-click ▸ "Transfer tags": copy chosen tags from this image onto one or
+// more other images. Tags are ticked on top (all by default), targets are
+// picked from a thumbnail grid of the current view. Each target goes through
+// addTagToEntry, so it is undoable and standing merge/void rules still apply.
+function openTransferTagsModal(source: Entry): void {
+  const { box, close } = createModalShell({ boxClassName: 'transfer-tags-box' });
+  box.style.maxWidth = '720px';
+  box.style.width = '92vw';
+
+  const head = document.createElement('div');
+  head.className = 'info-modal-title';
+  head.textContent = `Transfer tags from ${source.imgName || source.base}`;
+  box.appendChild(head);
+
+  const chosenTags = new Set<string>(source.tags);
+  const targets = new Set<Entry>();
+
+  const tagsWrap = document.createElement('div');
+  tagsWrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px; margin:8px 0; max-height:130px; overflow:auto;';
+  box.appendChild(tagsWrap);
+  const tagBtns = new Map<string, HTMLButtonElement>();
+  for (const tag of source.tags){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = tag;
+    b.style.cssText = 'padding:2px 8px; font-size:12px; min-height:0; border-radius:10px;';
+    b.addEventListener('click', () => {
+      if (chosenTags.has(tag)) chosenTags.delete(tag); else chosenTags.add(tag);
+      paintTags(); updateGo();
+    });
+    tagBtns.set(tag, b);
+    tagsWrap.appendChild(b);
+  }
+  function paintTags(): void {
+    for (const [tag, b] of tagBtns){
+      const on = chosenTags.has(tag);
+      b.style.background = on ? 'var(--accent-manual)' : '';
+      b.style.color = on ? '#fff' : '';
+      b.style.opacity = on ? '1' : '0.55';
+    }
+  }
+
+  const toolRow = document.createElement('div');
+  toolRow.style.cssText = 'display:flex; gap:6px; align-items:center; margin-bottom:6px; font-size:12px; color:var(--text-muted);';
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button'; allBtn.textContent = 'All tags'; allBtn.style.cssText = 'padding:2px 8px; font-size:11px; min-height:0;';
+  allBtn.addEventListener('click', () => { source.tags.forEach(t => chosenTags.add(t)); paintTags(); updateGo(); });
+  const noneBtn = document.createElement('button');
+  noneBtn.type = 'button'; noneBtn.textContent = 'None'; noneBtn.style.cssText = allBtn.style.cssText;
+  noneBtn.addEventListener('click', () => { chosenTags.clear(); paintTags(); updateGo(); });
+  toolRow.append(allBtn, noneBtn, document.createTextNode('Then pick the image(s) to copy them to:'));
+  box.appendChild(toolRow);
+
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:6px; max-height:46vh; overflow:auto; padding:2px;';
+  box.appendChild(grid);
+  for (const e of filteredEntries()){
+    if (e === source || e.original) continue;
+    const cell = document.createElement('div');
+    cell.className = 'master-mini-cell';
+    cell.title = e.imgName || e.base;
+    const img = document.createElement('img');
+    img.src = e.objectUrl;
+    img.loading = 'lazy';
+    img.draggable = false;
+    cell.appendChild(img);
+    cell.addEventListener('click', () => {
+      if (targets.has(e)) targets.delete(e); else targets.add(e);
+      cell.classList.toggle('selected', targets.has(e));
+      updateGo();
+    });
+    grid.appendChild(cell);
+  }
+  if (!grid.children.length){
+    const none = document.createElement('div');
+    none.style.cssText = 'color:var(--text-muted); font-size:12px; padding:12px;';
+    none.textContent = 'No other images in the current view.';
+    grid.appendChild(none);
+  }
+
+  const foot = document.createElement('div');
+  foot.style.cssText = 'display:flex; justify-content:flex-end; gap:8px; margin-top:12px;';
+  const cancel = document.createElement('button');
+  cancel.type = 'button'; cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', close);
+  const go = document.createElement('button');
+  go.type = 'button'; go.className = 'primary';
+  go.addEventListener('click', () => {
+    const tags = source.tags.filter(t => chosenTags.has(t));
+    if (!tags.length || !targets.size) return;
+    for (const t of targets) addTagToEntry(t, tags.join(', '));
+    toast(`Copied ${tags.length} tag${tags.length === 1 ? '' : 's'} to ${targets.size} image${targets.size === 1 ? '' : 's'}.`);
+    close();
+    renderCurrentView();
+  });
+  foot.append(cancel, go);
+  box.appendChild(foot);
+  function updateGo(): void {
+    go.disabled = !chosenTags.size || !targets.size;
+    go.textContent = targets.size ? `Transfer ${chosenTags.size} tag${chosenTags.size === 1 ? '' : 's'} to ${targets.size} image${targets.size === 1 ? '' : 's'}` : 'Transfer';
+  }
+  paintTags(); updateGo();
+}
+
 function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
   if (!entry.meta) entry.meta = {};
   closeTagContextMenu();
@@ -3650,6 +3754,13 @@ function openImageOptionsMenu(entry: Entry, x: number, y: number): void {
     if (!ok) return;
     await deleteEntryPermanentlyRef(entry);
   }, { title: 'Permanently delete this image and its tags from disk — cannot be undone', className: 'ctx-item-danger' });
+
+  if (!entry.original && entry.tags.length){
+    addContextMenuItem(menu, '🏷 Transfer tags', () => {
+      closeTagContextMenu();
+      openTransferTagsModal(entry);
+    }, { title: 'Copy some or all of this image\'s tags onto other images' });
+  }
 
   // Read-only history: every logged edit that touched this image, newest first.
   addContextMenuItem(menu, '📜 Show all edits associated with this image', () => {

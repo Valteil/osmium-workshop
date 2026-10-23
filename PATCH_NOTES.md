@@ -14,6 +14,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Osmium Workshop
 
+- **Transfer tags:** right-click an image (or use its 3-dot menu) and pick **Transfer tags** to copy
+  some or all of its tags onto other images. Untick the tags you don't want, pick the target
+  images from the grid, and it adds them (undoable).
 - **Fixed:** deleting an image for good now deletes its original in `original_images/` too. Before,
   the leftover original made a later Rename all fail partway, and the next bucketing brought the
   deleted images back with their old tags while wiping the tags of some you kept. Rename all also
