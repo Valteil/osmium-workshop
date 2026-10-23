@@ -10,6 +10,17 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ---
 
+## v2.0.1 (unreleased)
+
+### Osmium Workshop
+
+- **Fixed:** deleting an image for good now deletes its original in `original_images/` too. Before,
+  the leftover original made a later Rename all fail partway, and the next bucketing brought the
+  deleted images back with their old tags while wiping the tags of some you kept. Rename all also
+  moves a leftover original out of the way when it sits on a number it needs.
+
+---
+
 ## v2.0.0
 
 ### Osmium Workshop

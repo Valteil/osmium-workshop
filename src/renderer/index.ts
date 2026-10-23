@@ -1775,6 +1775,19 @@ import { setIconLabel } from './icons';
     try { await sourceDir.removeEntry(entry.imgName!); } catch(e){}
     try { await sourceDir.removeEntry(entry.txtName!); } catch(e){}
 
+    // Its original in original_images/ goes too. Left behind, the original is an orphan: Trainflow and
+    // Bucket Images re-make it into the dataset (with its old tags), and Rename all collides with it.
+    if (!entry.original && originalDirHandle){
+      const twin = entries.find(o => o.original && o.base === entry.base);
+      if (twin){
+        try { await originalDirHandle.removeEntry(twin.imgName!); } catch(e){}
+        try { await originalDirHandle.removeEntry(twin.txtName!); } catch(e){}
+        entries.splice(entries.indexOf(twin), 1);
+        masterSelectedImages.delete(twin);
+        try { URL.revokeObjectURL(twin.objectUrl); } catch(e){}
+      }
+    }
+
     const idx = entries.indexOf(entry);
     if (idx !== -1) entries.splice(idx, 1);
     entryByBase.delete(entry.base);

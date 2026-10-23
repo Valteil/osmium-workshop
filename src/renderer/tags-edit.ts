@@ -624,6 +624,24 @@ export async function renameAllEntriesSequentially(): Promise<void> {
   // one original another's current name, and a stem that didn't change is left alone.
   const origDir = getOriginalDirHandle();
   if (origDir){
+    // An orphan original (its image was deleted before deletes took the original with them) can sit on
+    // a stem a paired original is about to take; the rename would then fail and leave the pair out of
+    // step, and Trainflow would re-make the wrong picture from the orphan. Step orphans aside first.
+    const galleryBases = new Set(getEntries().filter(e => !e.original).map(e => e.base));
+    const targetBases = new Set(renamedPairs.map(r => r.newBase));
+    let orphanSeq = 0;
+    for (const o of getEntries()){
+      if (!o.original || galleryBases.has(o.base) || !targetBases.has(o.base)) continue;
+      const newBase = `${o.base}_orphan${++orphanSeq}`;
+      const oldName = o.imgName || o.base;
+      try {
+        o.imgHandle = await renameFileInPlace(origDir, oldName, newBase + extOf(oldName));
+        if (o.txtHandle && o.txtName) o.txtHandle = await renameFileInPlace(origDir, o.txtName, `${newBase}.txt`);
+        o.imgName = newBase + extOf(oldName);
+        o.txtName = `${newBase}.txt`;
+        o.base = newBase;
+      } catch { stuck.push(`original_images/${oldName}`); }
+    }
     const pairs = renamedPairs.filter(r => r.original.base !== r.newBase);
     const staged: { original: Entry; newBase: string; ext: string }[] = [];
     for (let i = 0; i < pairs.length; i++){
