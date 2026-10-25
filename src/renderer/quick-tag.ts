@@ -304,7 +304,7 @@ function lowerHalf(el: HTMLElement, ev: DragEvent): boolean {
   const r = el.getBoundingClientRect();
   return ev.clientY > r.top + r.height / 2;
 }
-// A quicktag sharing its row with others (columns) drops before/after by the
+// A quicktag sharing its row with others drops before/after by the
 // pointer's left/right half instead, marked with a vertical line (qt-side).
 function afterHalf(line: HTMLElement, ev: DragEvent): boolean {
   const row = line.parentElement;
@@ -485,7 +485,6 @@ export function showQuickTag(entry: Entry): void {
     }
     block.appendChild(row);
     panel.appendChild(block);
-    fitColumns(row);
   }
 
   const addCat = document.createElement('button');
@@ -494,18 +493,6 @@ export function showQuickTag(entry: Entry): void {
   addCat.textContent = '+ Add category';
   addCat.addEventListener('click', () => void addCategory());
   panel.appendChild(addCat);
-}
-
-// Columns as wide as the group's widest line at its natural size, so short
-// options sit side by side and long ones keep a column each.
-function fitColumns(row: HTMLElement): void {
-  const lines = row.querySelectorAll<HTMLElement>('.quicktag-line');
-  if (!lines.length) return;
-  row.classList.add('qt-measuring');
-  let widest = 0;
-  lines.forEach((l) => { widest = Math.max(widest, l.offsetWidth); });
-  row.classList.remove('qt-measuring');
-  if (widest) row.style.setProperty('--qt-col', `${Math.ceil(widest)}px`);
 }
 
 function describe(def: QuickTagDef): string {

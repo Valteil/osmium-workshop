@@ -4972,10 +4972,12 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
     color: var(--accent-flair); border-bottom: 1px solid var(--border-soft); padding-bottom: 3px;
   }
-  /* Options flow into as many columns as fit: quick-tag.ts measures the
-     group's widest line into --qt-col (falls back to one column). */
-  .quicktag-options{ display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--qt-col, 100%)), 1fr)); gap: 4px 6px; }
-  .quicktag-options.qt-measuring > .quicktag-line{ width: max-content; }
+  /* Options sit side by side when they fit: each box is only as wide as its
+     checkbox + label (no dead space, the user's call) and wraps when the row
+     is full. */
+  .quicktag-options{ display: flex; flex-wrap: wrap; gap: 4px 6px; }
+  .quicktag-options > .quicktag-line{ flex: 0 1 auto; max-width: 100%; }
+  .quicktag-options > .quicktag-note{ flex-basis: 100%; }
   /* Custom quicktags: "+" on every category header (and × on custom
      categories), ✎/× on custom items, "+ Add category" at the bottom. */
   .quicktag-group-head{ display: flex; align-items: center; justify-content: space-between; gap: 6px; }
@@ -4984,8 +4986,14 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .quicktag-mini.quicktag-del:hover{ border-color: var(--accent-danger); color: var(--accent-danger); }
   .quicktag-line{ display: flex; align-items: center; gap: 6px; }
   .quicktag-line > .quicktag-option{ flex: 1; min-width: 0; }
-  .quicktag-item-actions{ opacity: 0.55; }
-  .quicktag-line:hover .quicktag-item-actions, .quicktag-item-actions:focus-within{ opacity: 1; }
+  /* ✎/× float over the option's right end on hover, so they don't widen the
+     line and push the options out of side-by-side columns. */
+  .quicktag-item-actions{
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    padding: 2px; border-radius: var(--radius); background: var(--bg-elevated);
+    opacity: 0; pointer-events: none; transition: opacity 0.12s ease;
+  }
+  .quicktag-line:hover .quicktag-item-actions, .quicktag-item-actions:focus-within{ opacity: 1; pointer-events: auto; }
   .quicktag-add-category{ align-self: flex-start; }
   /* Drag reorder (quick-tag.ts): a ⋮⋮ handle on each category and quicktag,
      an accent line where the drop lands. Cursors stay grab/default (the

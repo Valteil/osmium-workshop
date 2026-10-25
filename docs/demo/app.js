@@ -26439,7 +26439,6 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       }
       block.appendChild(row);
       panel.appendChild(block);
-      fitColumns(row);
     }
     const addCat = document.createElement("button");
     addCat.type = "button";
@@ -26447,17 +26446,6 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     addCat.textContent = "+ Add category";
     addCat.addEventListener("click", () => void addCategory());
     panel.appendChild(addCat);
-  }
-  function fitColumns(row) {
-    const lines = row.querySelectorAll(".quicktag-line");
-    if (!lines.length) return;
-    row.classList.add("qt-measuring");
-    let widest = 0;
-    lines.forEach((l) => {
-      widest = Math.max(widest, l.offsetWidth);
-    });
-    row.classList.remove("qt-measuring");
-    if (widest) row.style.setProperty("--qt-col", `${Math.ceil(widest)}px`);
   }
   function describe(def) {
     const parts = [`Writes "${def.tag}"`];
