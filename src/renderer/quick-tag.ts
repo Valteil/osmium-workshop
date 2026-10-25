@@ -19,7 +19,7 @@
 
 import type { Entry } from './types';
 import { getJSON, setJSON } from './storage';
-import { createModalShell, showConfirmModal, showPromptModal, toast } from './shared-ui';
+import { createModalShell, showConfirmModal, showPromptModal, toast, addContextMenuItem, positionMenu } from './shared-ui';
 import { attachFillAutocomplete, attachPickAutocomplete } from './tags-autocomplete';
 
 interface QuickTagDef {
@@ -475,11 +475,8 @@ export function showQuickTag(entry: Entry): void {
       opt.append(cb, span);
       line.appendChild(opt);
       if (isCustomItem(def)){
-        const tools = document.createElement('span');
-        tools.className = 'quicktag-item-actions';
-        tools.appendChild(smallButton('✎', 'Edit this quicktag', () => void editQuickTag(group, def)));
-        tools.appendChild(smallButton('×', 'Delete this quicktag', () => void deleteQuickTag(group, def), 'quicktag-del'));
-        line.appendChild(tools);
+        opt.title += '\nRight-click to edit or delete';
+        opt.addEventListener('contextmenu', (ev) => { ev.preventDefault(); itemMenu(group, def, ev.clientX, ev.clientY); });
       }
       row.appendChild(line);
     }
@@ -493,6 +490,29 @@ export function showQuickTag(entry: Entry): void {
   addCat.textContent = '+ Add category';
   addCat.addEventListener('click', () => void addCategory());
   panel.appendChild(addCat);
+}
+
+// Right-click menu on a custom quicktag: Edit / Delete.
+let ctxMenu: HTMLElement | null = null;
+function closeCtx(): void {
+  ctxMenu?.remove();
+  ctxMenu = null;
+  document.removeEventListener('click', closeCtx);
+}
+function itemMenu(group: QuickTagGroup, def: QuickTagDef, x: number, y: number): void {
+  closeCtx();
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  const head = document.createElement('div');
+  head.className = 'ctx-header';
+  head.textContent = def.label || def.tag;
+  menu.appendChild(head);
+  addContextMenuItem(menu, 'Edit', () => { closeCtx(); void editQuickTag(group, def); });
+  addContextMenuItem(menu, 'Delete', () => { closeCtx(); void deleteQuickTag(group, def); }, { className: 'danger' });
+  document.body.appendChild(menu);
+  positionMenu(menu, x, y);
+  ctxMenu = menu;
+  setTimeout(() => document.addEventListener('click', closeCtx), 0);
 }
 
 function describe(def: QuickTagDef): string {

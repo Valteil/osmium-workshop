@@ -249,7 +249,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       unless another size is still ticked. With only Flat left ticked, <code>breasts</code> is
       removed too. Each category's <b>+</b> adds your own quicktag (kept for every dataset), with
       optional rules: tags it also adds, which of those stay after unticking, tags unticking also
-      removes, and tags that untick it. <b>+ Add category</b> adds a category.</p>
+      removes, and tags that untick it. Right-click one of your own to edit or delete it.
+      <b>+ Add category</b> adds a category. Options sit side by side when they fit.</p>
       <p>To edit tags: ${isTouchDevice ? 'tap' : 'click'} a chip to open its menu (filter by it, look up its wiki definition,
       flag it for review, explore its keyword family), type into a card's "+ add tag" box and
       press Enter to add one (separate several with commas, e.g. "1girl, red eyes, plump", to add

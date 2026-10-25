@@ -138,7 +138,7 @@ which you chose (desktop).
   - **Unticking also removes:** other tags taken off with it.
   - **Unticked by:** ticking any of these tags unticks it.
 
-  Your own quicktags have ✎ (edit) and × (delete) buttons, and your own categories an ×. Deleting
+  Right-click one of your own quicktags to edit or delete it; your own categories have an ×. Deleting
   never touches tags already on images.
 
   **Reorder:** drag the **⋮⋮** handle on a quicktag to move it, within its category or into

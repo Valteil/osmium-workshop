@@ -4360,7 +4360,8 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
       unless another size is still ticked. With only Flat left ticked, <code>breasts</code> is
       removed too. Each category's <b>+</b> adds your own quicktag (kept for every dataset), with
       optional rules: tags it also adds, which of those stay after unticking, tags unticking also
-      removes, and tags that untick it. <b>+ Add category</b> adds a category.</p>
+      removes, and tags that untick it. Right-click one of your own to edit or delete it.
+      <b>+ Add category</b> adds a category. Options sit side by side when they fit.</p>
       <p>To edit tags: ${isTouchDevice ? "tap" : "click"} a chip to open its menu (filter by it, look up its wiki definition,
       flag it for review, explore its keyword family), type into a card's "+ add tag" box and
       press Enter to add one (separate several with commas, e.g. "1girl, red eyes, plump", to add
@@ -26429,11 +26430,11 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
         opt.append(cb, span);
         line.appendChild(opt);
         if (isCustomItem(def)) {
-          const tools = document.createElement("span");
-          tools.className = "quicktag-item-actions";
-          tools.appendChild(smallButton("\u270E", "Edit this quicktag", () => void editQuickTag(group, def)));
-          tools.appendChild(smallButton("\xD7", "Delete this quicktag", () => void deleteQuickTag(group, def), "quicktag-del"));
-          line.appendChild(tools);
+          opt.title += "\nRight-click to edit or delete";
+          opt.addEventListener("contextmenu", (ev) => {
+            ev.preventDefault();
+            itemMenu(group, def, ev.clientX, ev.clientY);
+          });
         }
         row.appendChild(line);
       }
@@ -26446,6 +26447,33 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     addCat.textContent = "+ Add category";
     addCat.addEventListener("click", () => void addCategory());
     panel.appendChild(addCat);
+  }
+  var ctxMenu2 = null;
+  function closeCtx2() {
+    ctxMenu2?.remove();
+    ctxMenu2 = null;
+    document.removeEventListener("click", closeCtx2);
+  }
+  function itemMenu(group, def, x, y) {
+    closeCtx2();
+    const menu = document.createElement("div");
+    menu.className = "ctx-menu";
+    const head = document.createElement("div");
+    head.className = "ctx-header";
+    head.textContent = def.label || def.tag;
+    menu.appendChild(head);
+    addContextMenuItem(menu, "Edit", () => {
+      closeCtx2();
+      void editQuickTag(group, def);
+    });
+    addContextMenuItem(menu, "Delete", () => {
+      closeCtx2();
+      void deleteQuickTag(group, def);
+    }, { className: "danger" });
+    document.body.appendChild(menu);
+    positionMenu(menu, x, y);
+    ctxMenu2 = menu;
+    setTimeout(() => document.addEventListener("click", closeCtx2), 0);
   }
   function describe(def) {
     const parts = [`Writes "${def.tag}"`];

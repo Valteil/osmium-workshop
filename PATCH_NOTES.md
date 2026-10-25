@@ -22,8 +22,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   each original's tags with the tags of its active image, even when every image is already
   bucketed.
 - **Quicktags take less room:** in Single view, a category's checkboxes sit side by side when
-  they fit the panel, each only as wide as its label, instead of one long list. A custom
-  quicktag's ✎ / × show when you hover it.
+  they fit the panel, each only as wide as its label, instead of one long list. Right-click
+  one of your own quicktags to edit or delete it (the ✎ / × buttons are gone).
 - **Fixed:** deleting an image for good now deletes its original in `original_images/` too. Before,
   the leftover original made a later Rename all fail partway, and the next bucketing brought the
   deleted images back with their old tags while wiping the tags of some you kept. Rename all also
