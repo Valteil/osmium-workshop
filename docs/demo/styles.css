@@ -4972,7 +4972,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
     color: var(--accent-flair); border-bottom: 1px solid var(--border-soft); padding-bottom: 3px;
   }
-  .quicktag-options{ display: flex; flex-direction: column; gap: 4px; }
+  /* Options flow into as many columns as fit: quick-tag.ts measures the
+     group's widest line into --qt-col (falls back to one column). */
+  .quicktag-options{ display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--qt-col, 100%)), 1fr)); gap: 4px 6px; }
+  .quicktag-options.qt-measuring > .quicktag-line{ width: max-content; }
   /* Custom quicktags: "+" on every category header (and × on custom
      categories), ✎/× on custom items, "+ Add category" at the bottom. */
   .quicktag-group-head{ display: flex; align-items: center; justify-content: space-between; gap: 6px; }
@@ -4997,6 +5000,9 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   .qt-drop-before::before{ top: -3px; }
   .qt-drop-after::after{ bottom: -3px; }
+  .qt-side.qt-drop-before::before, .qt-side.qt-drop-after::after{ top: 0; bottom: 0; width: 2px; height: auto; }
+  .qt-side.qt-drop-before::before{ left: -4px; right: auto; }
+  .qt-side.qt-drop-after::after{ right: -4px; left: auto; }
   .quicktag-options.qt-drop-into{ outline: 1px dashed var(--accent-flair); outline-offset: 2px; border-radius: 4px; }
   .quicktag-edit-box{ width: min(460px, 92vw); display: flex; flex-direction: column; gap: 10px; }
   .quicktag-edit-field{ display: flex; flex-direction: column; gap: 3px; }

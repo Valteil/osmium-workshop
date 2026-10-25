@@ -7472,6 +7472,23 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     }
     const origDir = getOriginalDirHandle();
     if (origDir) {
+      const galleryBases = new Set(getEntries2().filter((e) => !e.original).map((e) => e.base));
+      const targetBases = new Set(renamedPairs.map((r) => r.newBase));
+      let orphanSeq = 0;
+      for (const o of getEntries2()) {
+        if (!o.original || galleryBases.has(o.base) || !targetBases.has(o.base)) continue;
+        const newBase = `${o.base}_orphan${++orphanSeq}`;
+        const oldName = o.imgName || o.base;
+        try {
+          o.imgHandle = await renameFileInPlace(origDir, oldName, newBase + extOf(oldName));
+          if (o.txtHandle && o.txtName) o.txtHandle = await renameFileInPlace(origDir, o.txtName, `${newBase}.txt`);
+          o.imgName = newBase + extOf(oldName);
+          o.txtName = `${newBase}.txt`;
+          o.base = newBase;
+        } catch {
+          stuck.push(`original_images/${oldName}`);
+        }
+      }
       const pairs = renamedPairs.filter((r) => r.original.base !== r.newBase);
       const staged = [];
       for (let i = 0; i < pairs.length; i++) {
@@ -7517,6 +7534,91 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
     }
     resetSingleIndex();
     refreshAllUIRef3();
+  }
+  async function swapImageNames(a, b) {
+    const dirHandle = getDirHandle4();
+    if (!dirHandle) {
+      toast("Open a dataset folder first.");
+      return false;
+    }
+    const origDir = getOriginalDirHandle();
+    const extOf = (name) => {
+      const i = name.lastIndexOf(".");
+      return i === -1 ? "" : name.slice(i);
+    };
+    const dirOf2 = (e) => e.original ? origDir : e.disabled ? getDisabledDirHandle() : dirHandle;
+    const twinOf = (e) => getEntries2().find((o) => o.original && o !== e && o.base === e.base);
+    const moves = [];
+    for (const [from, to] of [[a, b], [b, a]]) {
+      for (const e of [from, twinOf(from)]) {
+        if (!e) continue;
+        const dir = dirOf2(e);
+        if (!dir) {
+          toast("A folder this swap needs isn't available. Nothing was renamed.");
+          return false;
+        }
+        moves.push({
+          entry: e,
+          dir,
+          newBase: to.base,
+          oldBase: e.base,
+          oldImg: e.imgName || e.base,
+          oldTxt: e.txtHandle ? e.txtName || `${e.base}.txt` : null
+        });
+      }
+    }
+    for (const m of moves) {
+      const missing = !await fileExists(m.dir, m.oldImg) ? m.oldImg : m.oldTxt && !await fileExists(m.dir, m.oldTxt) ? m.oldTxt : null;
+      if (missing) {
+        toast(`${missing} isn't on disk any more \u2014 reload the dataset and try again. Nothing was renamed.`, 5200);
+        return false;
+      }
+    }
+    const tmp = (i, ext) => `__dts_swap_${Date.now().toString(36)}_${i}__${ext}`;
+    const done = [];
+    try {
+      for (let i = 0; i < moves.length; i++) {
+        const m = moves[i];
+        m.entry.imgHandle = await renameFileInPlace(m.dir, m.oldImg, tmp(i, extOf(m.oldImg)));
+        if (m.oldTxt) m.entry.txtHandle = await renameFileInPlace(m.dir, m.oldTxt, tmp(i, ".txt"));
+        done.push(i);
+      }
+    } catch (err) {
+      for (const i of done) {
+        const m = moves[i];
+        try {
+          m.entry.imgHandle = await renameFileInPlace(m.dir, m.entry.imgHandle.name, m.oldImg);
+          if (m.oldTxt) m.entry.txtHandle = await renameFileInPlace(m.dir, m.entry.txtHandle.name, m.oldTxt);
+        } catch {
+        }
+      }
+      toast(`Swap stopped${err instanceof Error ? ` (${err.message})` : ""} \u2014 the files were put back.`, 5200);
+      return false;
+    }
+    const stuck = [];
+    for (const m of moves) {
+      const img = m.newBase + extOf(m.oldImg);
+      try {
+        m.entry.imgHandle = await renameFileInPlace(m.dir, m.entry.imgHandle.name, img);
+        if (m.oldTxt) m.entry.txtHandle = await renameFileInPlace(m.dir, m.entry.txtHandle.name, `${m.newBase}.txt`);
+      } catch {
+        stuck.push(m.oldImg);
+        continue;
+      }
+      m.entry.imgName = img;
+      if (m.oldTxt) m.entry.txtName = `${m.newBase}.txt`;
+    }
+    const [baseA, baseB] = [a.base, b.base];
+    reindexEntry(baseA, `__swap_${baseA}`);
+    reindexEntry(baseB, baseA);
+    reindexEntry(`__swap_${baseA}`, baseB);
+    for (const m of moves) m.entry.base = m.newBase;
+    remapBases(/* @__PURE__ */ new Map([[baseA, baseB], [baseB, baseA]]));
+    if (stuck.length) toast(`Swapped, but ${stuck.length} file(s) kept a temporary name (${stuck.slice(0, 3).join(", ")}). Rename all fixes that.`, 6e3);
+    else toast(`Swapped the names of ${a.imgName} and ${b.imgName}.`, 3600);
+    resetSingleIndex();
+    refreshAllUIRef3();
+    return true;
   }
   async function applyRenameDirection(affected, direction) {
     const dirHandle = getDirHandle4();
@@ -10008,6 +10110,19 @@ Originals are kept in ${ORIGINAL_DIR}/ (shown in the Originals view) and the buc
     const disabledBases = new Set(entries.filter((e) => e.disabled && !e.original).map((e) => e.base));
     const sources = originals.filter((e) => rootByBase.has(e.base) || !disabledBases.has(e.base)).map((e) => ({ entry: e, fromOriginals: true }));
     for (const e of rootEntries) if (!originalByBase.has(e.base)) sources.push({ entry: e, fromOriginals: false });
+    let captionsSynced = 0;
+    for (const o of originals) {
+      const cur = rootByBase.get(o.base);
+      if (!cur || !cur.txtHandle) continue;
+      try {
+        const txtBlob = await cur.txtHandle.getFile();
+        const origTxt = await origDir.getFileHandle(`${o.base}.txt`, { create: true });
+        await writeBytes(origTxt, txtBlob);
+        captionsSynced++;
+      } catch {
+      }
+    }
+    if (captionsSynced) log(`Copied the tags of ${captionsSynced} image(s) onto their originals.`);
     try {
       for (const { entry, fromOriginals } of sources) {
         const filename = entry.imgName || entry.base;
@@ -26139,6 +26254,14 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     const r = el2.getBoundingClientRect();
     return ev.clientY > r.top + r.height / 2;
   }
+  function afterHalf(line, ev) {
+    const row = line.parentElement;
+    const side = !!row && line.offsetWidth < row.clientWidth - 1;
+    line.classList.toggle("qt-side", side);
+    if (!side) return lowerHalf(line, ev);
+    const r = line.getBoundingClientRect();
+    return ev.clientX > r.left + r.width / 2;
+  }
   function clearDropMarks() {
     panel?.querySelectorAll(".qt-drop-before, .qt-drop-after, .qt-drop-into").forEach((el2) => el2.classList.remove("qt-drop-before", "qt-drop-after", "qt-drop-into"));
   }
@@ -26281,13 +26404,13 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
           ev.preventDefault();
           ev.stopPropagation();
           clearDropMarks();
-          line.classList.add(lowerHalf(line, ev) ? "qt-drop-after" : "qt-drop-before");
+          line.classList.add(afterHalf(line, ev) ? "qt-drop-after" : "qt-drop-before");
         });
         line.addEventListener("drop", (ev) => {
           if (dragging?.kind !== "item") return;
           ev.preventDefault();
           ev.stopPropagation();
-          moveItem2(dragging.key, group.id, key, lowerHalf(line, ev));
+          moveItem2(dragging.key, group.id, key, afterHalf(line, ev));
         });
         const opt = document.createElement("label");
         opt.className = "ach-toggle-row quicktag-option";
@@ -26316,6 +26439,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       }
       block.appendChild(row);
       panel.appendChild(block);
+      fitColumns(row);
     }
     const addCat = document.createElement("button");
     addCat.type = "button";
@@ -26323,6 +26447,17 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     addCat.textContent = "+ Add category";
     addCat.addEventListener("click", () => void addCategory());
     panel.appendChild(addCat);
+  }
+  function fitColumns(row) {
+    const lines = row.querySelectorAll(".quicktag-line");
+    if (!lines.length) return;
+    row.classList.add("qt-measuring");
+    let widest = 0;
+    lines.forEach((l) => {
+      widest = Math.max(widest, l.offsetWidth);
+    });
+    row.classList.remove("qt-measuring");
+    if (widest) row.style.setProperty("--qt-col", `${Math.ceil(widest)}px`);
   }
   function describe(def) {
     const parts = [`Writes "${def.tag}"`];
@@ -29514,6 +29649,137 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     positionMenu(menu, window.innerWidth / 2 - 140, window.innerHeight / 2 - 100);
     setTimeout(() => document.addEventListener("click", onDocClickCloseMenu), 0);
   }
+  function openTransferTagsModal(source) {
+    const { box, close } = createModalShell({ boxClassName: "transfer-tags-box" });
+    box.style.maxWidth = "720px";
+    box.style.width = "92vw";
+    const head = document.createElement("div");
+    head.className = "info-modal-title";
+    head.textContent = `Transfer tags from ${source.imgName || source.base}`;
+    box.appendChild(head);
+    const chosenTags = new Set(source.tags);
+    const targets = /* @__PURE__ */ new Set();
+    const tagsWrap = document.createElement("div");
+    tagsWrap.style.cssText = "display:flex; flex-wrap:wrap; gap:4px; margin:8px 0; max-height:130px; overflow:auto;";
+    box.appendChild(tagsWrap);
+    const tagBtns = /* @__PURE__ */ new Map();
+    for (const tag of source.tags) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = tag;
+      b.style.cssText = "padding:2px 8px; font-size:12px; min-height:0; border-radius:10px;";
+      b.addEventListener("click", () => {
+        if (chosenTags.has(tag)) chosenTags.delete(tag);
+        else chosenTags.add(tag);
+        paintTags();
+        updateGo();
+      });
+      tagBtns.set(tag, b);
+      tagsWrap.appendChild(b);
+    }
+    function paintTags() {
+      for (const [tag, b] of tagBtns) {
+        const on = chosenTags.has(tag);
+        b.style.background = on ? "var(--accent-manual)" : "";
+        b.style.color = on ? "#fff" : "";
+        b.style.opacity = on ? "1" : "0.55";
+      }
+    }
+    const toolRow = document.createElement("div");
+    toolRow.style.cssText = "display:flex; gap:6px; align-items:center; margin-bottom:6px; font-size:12px; color:var(--text-muted);";
+    const allBtn = document.createElement("button");
+    allBtn.type = "button";
+    allBtn.textContent = "All tags";
+    allBtn.style.cssText = "padding:2px 8px; font-size:11px; min-height:0;";
+    allBtn.addEventListener("click", () => {
+      source.tags.forEach((t) => chosenTags.add(t));
+      paintTags();
+      updateGo();
+    });
+    const noneBtn = document.createElement("button");
+    noneBtn.type = "button";
+    noneBtn.textContent = "None";
+    noneBtn.style.cssText = allBtn.style.cssText;
+    noneBtn.addEventListener("click", () => {
+      chosenTags.clear();
+      paintTags();
+      updateGo();
+    });
+    toolRow.append(allBtn, noneBtn, document.createTextNode("Then pick the image(s) to copy them to:"));
+    box.appendChild(toolRow);
+    const grid = document.createElement("div");
+    grid.style.cssText = "display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:6px; max-height:46vh; overflow:auto; padding:2px;";
+    box.appendChild(grid);
+    for (const e of filteredEntries()) {
+      if (e === source || e.original) continue;
+      const cell = document.createElement("div");
+      cell.className = "master-mini-cell";
+      cell.title = e.imgName || e.base;
+      const img = document.createElement("img");
+      img.src = e.objectUrl;
+      img.loading = "lazy";
+      img.draggable = false;
+      cell.appendChild(img);
+      cell.addEventListener("click", () => {
+        if (targets.has(e)) targets.delete(e);
+        else targets.add(e);
+        cell.classList.toggle("selected", targets.has(e));
+        updateGo();
+      });
+      grid.appendChild(cell);
+    }
+    if (!grid.children.length) {
+      const none = document.createElement("div");
+      none.style.cssText = "color:var(--text-muted); font-size:12px; padding:12px;";
+      none.textContent = "No other images in the current view.";
+      grid.appendChild(none);
+    }
+    const swapRow = document.createElement("label");
+    swapRow.style.cssText = "display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12px;";
+    swapRow.title = "Exchange the file names of this image and the one picked (their .txt files and originals follow). Needs exactly one target.";
+    const swapCb = document.createElement("input");
+    swapCb.type = "checkbox";
+    swapCb.addEventListener("change", updateGo);
+    swapRow.append(swapCb, document.createTextNode("Also swap image names (pick exactly one target)"));
+    box.appendChild(swapRow);
+    const foot = document.createElement("div");
+    foot.style.cssText = "display:flex; justify-content:flex-end; gap:8px; margin-top:12px;";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", close);
+    const go = document.createElement("button");
+    go.type = "button";
+    go.className = "primary";
+    go.addEventListener("click", async () => {
+      const tags = source.tags.filter((t) => chosenTags.has(t));
+      const swap = swapCb.checked && targets.size === 1;
+      if (!targets.size || !tags.length && !swap) return;
+      const target = [...targets][0];
+      if (tags.length) {
+        for (const t of targets) addTagToEntry(t, tags.join(", "));
+        toast(`Copied ${tags.length} tag${tags.length === 1 ? "" : "s"} to ${targets.size} image${targets.size === 1 ? "" : "s"}.`);
+      }
+      close();
+      if (swap) await swapImageNames(source, target);
+      renderCurrentView();
+    });
+    foot.append(cancel, go);
+    box.appendChild(foot);
+    function updateGo() {
+      const canSwap = targets.size === 1;
+      swapCb.disabled = !canSwap;
+      if (!canSwap) swapCb.checked = false;
+      const swap = swapCb.checked;
+      go.disabled = !targets.size || !chosenTags.size && !swap;
+      const parts = [];
+      if (chosenTags.size) parts.push(`${chosenTags.size} tag${chosenTags.size === 1 ? "" : "s"}`);
+      if (swap) parts.push("swap names");
+      go.textContent = targets.size && parts.length ? `Transfer ${parts.join(" + ")} (${targets.size} image${targets.size === 1 ? "" : "s"})` : "Transfer";
+    }
+    paintTags();
+    updateGo();
+  }
   function openImageOptionsMenu(entry, x, y) {
     if (!entry.meta) entry.meta = {};
     closeTagContextMenu();
@@ -29554,6 +29820,12 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       if (!ok) return;
       await deleteEntryPermanentlyRef(entry);
     }, { title: "Permanently delete this image and its tags from disk \u2014 cannot be undone", className: "ctx-item-danger" });
+    if (!entry.original) {
+      addContextMenuItem(menu, "\u{1F3F7} Transfer tags", () => {
+        closeTagContextMenu();
+        openTransferTagsModal(entry);
+      }, { title: "Copy some or all of this image's tags onto other images, or swap names with one" });
+    }
     addContextMenuItem(menu, "\u{1F4DC} Show all edits associated with this image", () => {
       closeTagContextMenu();
       openImageEditsModal(entry);
@@ -31558,6 +31830,25 @@ Save your edits first?`,
       try {
         await sourceDir.removeEntry(entry.txtName);
       } catch (e) {
+      }
+      if (!entry.original && originalDirHandle) {
+        const twin = entries.find((o) => o.original && o.base === entry.base);
+        if (twin) {
+          try {
+            await originalDirHandle.removeEntry(twin.imgName);
+          } catch (e) {
+          }
+          try {
+            await originalDirHandle.removeEntry(twin.txtName);
+          } catch (e) {
+          }
+          entries.splice(entries.indexOf(twin), 1);
+          masterSelectedImages.delete(twin);
+          try {
+            URL.revokeObjectURL(twin.objectUrl);
+          } catch (e) {
+          }
+        }
       }
       const idx = entries.indexOf(entry);
       if (idx !== -1) entries.splice(idx, 1);

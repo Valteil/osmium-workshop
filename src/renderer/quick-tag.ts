@@ -304,6 +304,16 @@ function lowerHalf(el: HTMLElement, ev: DragEvent): boolean {
   const r = el.getBoundingClientRect();
   return ev.clientY > r.top + r.height / 2;
 }
+// A quicktag sharing its row with others (columns) drops before/after by the
+// pointer's left/right half instead, marked with a vertical line (qt-side).
+function afterHalf(line: HTMLElement, ev: DragEvent): boolean {
+  const row = line.parentElement;
+  const side = !!row && line.offsetWidth < row.clientWidth - 1;
+  line.classList.toggle('qt-side', side);
+  if (!side) return lowerHalf(line, ev);
+  const r = line.getBoundingClientRect();
+  return ev.clientX > r.left + r.width / 2;
+}
 function clearDropMarks(): void {
   panel?.querySelectorAll('.qt-drop-before, .qt-drop-after, .qt-drop-into').forEach((el) => el.classList.remove('qt-drop-before', 'qt-drop-after', 'qt-drop-into'));
 }
@@ -441,13 +451,13 @@ export function showQuickTag(entry: Entry): void {
         ev.preventDefault();
         ev.stopPropagation();
         clearDropMarks();
-        line.classList.add(lowerHalf(line, ev) ? 'qt-drop-after' : 'qt-drop-before');
+        line.classList.add(afterHalf(line, ev) ? 'qt-drop-after' : 'qt-drop-before');
       });
       line.addEventListener('drop', (ev) => {
         if (dragging?.kind !== 'item') return;
         ev.preventDefault();
         ev.stopPropagation();
-        moveItem(dragging.key, group.id, key, lowerHalf(line, ev));
+        moveItem(dragging.key, group.id, key, afterHalf(line, ev));
       });
       const opt = document.createElement('label');
       opt.className = 'ach-toggle-row quicktag-option';
@@ -475,6 +485,7 @@ export function showQuickTag(entry: Entry): void {
     }
     block.appendChild(row);
     panel.appendChild(block);
+    fitColumns(row);
   }
 
   const addCat = document.createElement('button');
@@ -483,6 +494,18 @@ export function showQuickTag(entry: Entry): void {
   addCat.textContent = '+ Add category';
   addCat.addEventListener('click', () => void addCategory());
   panel.appendChild(addCat);
+}
+
+// Columns as wide as the group's widest line at its natural size, so short
+// options sit side by side and long ones keep a column each.
+function fitColumns(row: HTMLElement): void {
+  const lines = row.querySelectorAll<HTMLElement>('.quicktag-line');
+  if (!lines.length) return;
+  row.classList.add('qt-measuring');
+  let widest = 0;
+  lines.forEach((l) => { widest = Math.max(widest, l.offsetWidth); });
+  row.classList.remove('qt-measuring');
+  if (widest) row.style.setProperty('--qt-col', `${Math.ceil(widest)}px`);
 }
 
 function describe(def: QuickTagDef): string {

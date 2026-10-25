@@ -21,6 +21,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Bucketing copies tags onto the originals:** Bucket Images and Trainflow's Start now overwrite
   each original's tags with the tags of its active image, even when every image is already
   bucketed.
+- **Quicktags take less room:** in Single view, a category's checkboxes sit side by side in
+  columns when they fit the panel, instead of one long list.
 - **Fixed:** deleting an image for good now deletes its original in `original_images/` too. Before,
   the leftover original made a later Rename all fail partway, and the next bucketing brought the
   deleted images back with their old tags while wiping the tags of some you kept. Rename all also
