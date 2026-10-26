@@ -7,17 +7,20 @@
 // anima_regional/, built on Sen-sou/Comfyui-Anima-Regional-Conditioning):
 // it patches the model the CFG guider samples with so, for the first part of
 // the steps (Layout), each box's image tokens attend only to that box's
-// prompt. The rest of the steps run on the whole-image prompt alone, which is
+// prompt. The rest of the steps run on the whole-picture prompt alone, which is
 // what keeps the result one picture instead of a collage. Cohesion, in order
 // of effect:
 // - Layout share: regions steer composition only; details finish globally.
-// - The style (the Generate tab's Global field + Character trigger, i.e. the
-//   artist / LoRA trigger) and the scene prompt are added to every box and to
-//   the area no box covers. A box only hears its own text during the layout
-//   steps, so a trigger missing from a box means the LoRA's style is missing
-//   there.
-// - The whole-image prompt mentions every box, so the later global steps keep
-//   what the boxes placed.
+// - Fixed text scopes (one rule per field, no switches; the UI labels each
+//   field with its scope, and the guide uses the same words):
+//     Style (the Generate tab's Global + Character trigger) and Scene go into
+//     every box, the empty area (no box) and the whole picture. A box only
+//     hears its own text during the layout steps, so a LoRA trigger missing
+//     from a box means the LoRA's look is missing there.
+//     Whole picture only (counts like 2girls, interactions) goes into the
+//     whole picture only: in a box, "2girls" makes that box draw two.
+//     Each box's prompt goes into that box and the whole picture, so the
+//     finishing steps keep what the boxes placed.
 // - Separation is soft (self-attention masking, 0.2), and Blend mixes some of
 //   the unpatched prediction back in.
 
@@ -36,10 +39,10 @@ export type OverlapMode = 'blend' | 'top';
 export interface RegionalSettings {
   layoutStart: number; layoutEnd: number; focus: number; separation: number; blend: number;
   bgMode: BackgroundMode; bgStrength: number; crossEvery: number; selfEvery: number; overlap: OverlapMode;
-  styleInRegions: boolean; sceneInRegions: boolean; regionsInWhole: boolean;
 }
 export interface RegionalState extends RegionalSettings {
-  scene: string;
+  scene: string; // every box + the empty area + the whole picture
+  wholeOnly: string; // the whole picture only (counts, interactions)
   regions: RegionBox[];
   active: boolean; // the Generate tab uses the layout instead of its prompt boxes
   underlay: boolean; // the last result behind the boxes (tab only)
@@ -49,8 +52,7 @@ export const REGIONAL_DEFAULTS: RegionalSettings = {
   layoutStart: 0, layoutEnd: 0.35, focus: 1, separation: 0.2, blend: 0.1,
   // bgStrength 0.3, not upstream's 1: a hard background mask on the thin gaps
   // between boxes painted coloured-square artefacts there (GPU, 2026-10-26).
-  bgMode: 'uncovered_only', bgStrength: 0.3, crossEvery: 1, selfEvery: 1, overlap: 'blend',
-  styleInRegions: true, sceneInRegions: true, regionsInWhole: true
+  bgMode: 'uncovered_only', bgStrength: 0.3, crossEvery: 1, selfEvery: 1, overlap: 'blend'
 };
 
 const STORE_KEY = 'comfybridge-regional';
@@ -106,6 +108,7 @@ function sanitizeState(s: any): RegionalState {
   const layoutStart = clamp(num(s.layoutStart, D.layoutStart), 0, 0.95);
   return {
     scene: typeof s.scene === 'string' ? s.scene : '',
+    wholeOnly: typeof s.wholeOnly === 'string' ? s.wholeOnly : '',
     regions: Array.isArray(s.regions) ? s.regions.filter((r: any) => r && typeof r === 'object').map(sanitizeBox) : [],
     active: !!s.active,
     underlay: bool(s.underlay, false),
@@ -118,10 +121,7 @@ function sanitizeState(s: any): RegionalState {
     bgStrength: clamp(num(s.bgStrength, D.bgStrength), 0, 1),
     crossEvery: Math.round(clamp(num(s.crossEvery, D.crossEvery), 1, 8)),
     selfEvery: Math.round(clamp(num(s.selfEvery, D.selfEvery), 1, 8)),
-    overlap: s.overlap === 'top' || s.overlap === 'blend' ? s.overlap : D.overlap,
-    styleInRegions: bool(s.styleInRegions, D.styleInRegions),
-    sceneInRegions: bool(s.sceneInRegions, D.sceneInRegions),
-    regionsInWhole: bool(s.regionsInWhole, D.regionsInWhole)
+    overlap: s.overlap === 'top' || s.overlap === 'blend' ? s.overlap : D.overlap
   };
 }
 function loadState(): RegionalState {
@@ -133,14 +133,14 @@ function loadState(): RegionalState {
 
 // ---- prompt text + graph ----
 
-// The layout's part of the whole-image prompt. The shell sends it as the
+// The layout's part of the whole-picture prompt. The shell sends it as the
 // unified prompt, so the Global field and Character trigger (the style) still
 // go around it the usual way (nodes 21 and 11).
 export function regionalWholePrompt(s: RegionalState): string {
-  return joinParts([s.scene, ...(s.regionsInWhole ? s.regions.map(r => r.prompt) : [])]);
+  return joinParts([s.scene, s.wholeOnly, ...s.regions.map(r => r.prompt)]);
 }
-function boxText(s: RegionalState, style: string, r: RegionBox): string {
-  return joinParts([s.styleInRegions ? style : '', s.sceneInRegions ? s.scene : '', r.prompt]);
+function boxText(style: string, s: RegionalState, r: RegionBox): string {
+  return joinParts([style, s.scene, r.prompt]);
 }
 
 // Puts the regional node between the model and the CFG guider ('158:54',
@@ -153,13 +153,13 @@ export function appendRegionalNodes(prompt: Prompt, s: RegionalState, style: str
   if (!guider || !encode) throw new Error('Regional prompt: the workflow has no CFG guider (158:54) or positive encode (52).');
   const entries: any[] = s.regions.filter(r => r.prompt.trim()).map(r => ({
     x: +r.x.toFixed(4), y: +r.y.toFixed(4), w: +r.w.toFixed(4), h: +r.h.toFixed(4),
-    text: boxText(s, style, r),
+    text: boxText(style, s, r),
     weight: r.weight,
     spread: r.spread,
     prompt: r.prompt // the box's own words, for Import Generation
   }));
   // The layout's own fields, for Import Generation. No `text`, so the node skips it.
-  entries.push({ bridge: { scene: s.scene, styleInRegions: s.styleInRegions, sceneInRegions: s.sceneInRegions, regionsInWhole: s.regionsInWhole } });
+  entries.push({ bridge: { scene: s.scene, wholeOnly: s.wholeOnly } });
   prompt[REGIONAL_NODE_ID] = {
     class_type: REGIONAL_NODE_CLASS,
     inputs: {
@@ -199,8 +199,8 @@ export function regionalStateFromPrompt(prompt: Prompt): RegionalState | null {
   return sanitizeState({
     // Layouts saved before the meta entry: the background was the scene.
     scene: typeof meta.scene === 'string' ? meta.scene : (typeof inp.background_text === 'string' ? inp.background_text : ''),
+    wholeOnly: meta.wholeOnly,
     regions, active: true,
-    styleInRegions: meta.styleInRegions, sceneInRegions: meta.sceneInRegions, regionsInWhole: meta.regionsInWhole,
     layoutStart: inp.layout_start, layoutEnd: inp.layout_end, focus: inp.region_focus, separation: inp.separation,
     blend: inp.blend, bgMode: inp.background_mode, bgStrength: inp.background_strength,
     crossEvery: inp.cross_every_n_blocks, selfEvery: inp.self_every_n_blocks, overlap: inp.overlap_mode
@@ -251,7 +251,6 @@ export interface RegionalController {
 
 interface BoxView { root: HTMLDivElement; label: HTMLSpanElement; halo: HTMLDivElement; }
 type NumKey = 'layoutStart' | 'layoutEnd' | 'focus' | 'separation' | 'blend' | 'bgStrength' | 'crossEvery' | 'selfEvery';
-type BoolKey = 'styleInRegions' | 'sceneInRegions' | 'regionsInWhole';
 
 export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts: RegionalOptions): RegionalController {
   let st = loadState();
@@ -334,35 +333,54 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     'Drag a box to move it, an edge or corner to resize. Click a box to select it: Delete removes it, the arrow keys nudge it (Shift = more), Ctrl+D duplicates it. Boxes may overlap.'));
 
   const side = el('div', 'rg-side');
+  // Each text field says where its text goes (SCOPE), in the same words the guide uses.
+  const secHead = (label: string, scope: string): HTMLDivElement => {
+    const h = el('div', 'rg-sec-head');
+    h.append(document.createTextNode(label + ' '), el('span', 'rg-scope', scope));
+    return h;
+  };
+  const SCOPE_ALL = 'every box · empty area · whole picture';
+  const SCOPE_WHOLE = 'never in a box';
   // Style: the Generate tab's own Global + Character trigger fields, edited in place.
   const styleSec = el('div', 'rg-sec');
-  styleSec.append(el('div', 'rg-sec-head', 'Style (from the prompt boxes)'));
+  styleSec.append(secHead('Style', SCOPE_ALL));
   const sceneSec = el('div', 'rg-sec');
+  const SCENE_HINT = 'Quality, rating, setting, lighting (e.g. masterpiece, safe, sunset beach, warm light)';
+  const SCENE_TIP = 'Goes into every box, the empty area and the whole picture. No counts or subjects here: every box would draw them.';
   const sceneTa = el('textarea', 'rg-scene');
-  sceneTa.rows = 3;
-  sceneTa.placeholder = 'Quality, rating, setting, lighting… (e.g. masterpiece, safe, sunset beach, warm light). Counts like 1girl go in the boxes.';
-  sceneTa.title = 'The whole image: added to every box (setting, lighting) and fills the area no box covers.';
-  sceneSec.append(el('label', 'rg-sec-head', 'Whole image'), sceneTa);
+  sceneTa.rows = 2;
+  sceneTa.placeholder = SCENE_HINT;
+  sceneTa.title = SCENE_TIP;
+  sceneSec.append(secHead('Scene', SCOPE_ALL), sceneTa);
+  const wholeSec = el('div', 'rg-sec');
+  const WHOLE_HINT = 'Counts and interactions (e.g. 2girls, looking at each other, holding hands)';
+  const WHOLE_TIP = 'Only the whole picture (the finishing steps) gets this, never a box, so 2girls here doesn\'t make every box draw two.';
+  const wholeTa = el('textarea', 'rg-scene');
+  wholeTa.rows = 1;
+  wholeTa.placeholder = WHOLE_HINT;
+  wholeTa.title = WHOLE_TIP;
+  wholeSec.append(secHead('Whole picture only', SCOPE_WHOLE), wholeTa);
   const listSec = el('div', 'rg-sec');
   const listHead = el('div', 'rg-sec-head', 'Boxes');
+  const listScope = el('div', 'rg-scope', 'Each box: that box only (and the whole picture). Start a subject with its count: 1girl, …');
   const list = el('div', 'rg-list');
-  listSec.append(listHead, list);
+  listSec.append(listHead, listScope, list);
 
   const adv = el('details', 'rg-adv');
   adv.append(el('summary', 'rg-sec-head', 'Blending'));
-  const advNote = el('div', 'muted small', 'Style uneven between boxes? Put the artist / LoRA trigger in Style, then raise Blend a little. Subjects merging? Raise Separation or Layout ends. Junk in the gaps between boxes? Lower Background.');
+  const advNote = el('div', 'muted small', 'Defaults are tested. LoRA look uneven across boxes? Trigger in Style, then raise Blend a little. Subjects merging? Raise Separation or Layout ends. Junk in the empty area? Lower Empty-area strength.');
   adv.append(advNote);
   const sliders = {} as Record<NumKey, { input: HTMLInputElement; out: HTMLSpanElement; fmt: (v: number) => string }>;
   const pct = (v: number): string => Math.round(v * 100) + '%';
   const sliderDefs: [NumKey, string, string, number, number, number, (v: number) => string][] = [
-    ['layoutEnd', 'Layout ends', 'The share of the steps the boxes steer. After that, the whole-image prompt finishes the picture as one image. Higher = boxes followed more strictly, lower = more natural blending.', 0.05, 1, 0.05, pct],
+    ['layoutEnd', 'Layout ends', 'The share of the steps the boxes steer (the layout steps). After that, the whole picture is finished as one image. Higher = boxes followed more strictly, lower = more natural blending.', 0.05, 1, 0.05, pct],
     ['layoutStart', 'Layout starts', 'Steps before the boxes start steering. Keep at 0: the composition is decided in the first steps, and even 10% let two boxes merge into one person in testing.', 0, 0.9, 0.05, pct],
-    ['focus', 'Box focus', 'How strictly each box hears only its own prompt during the layout steps. 1 = strictly; lower lets the whole prompt in.', 0, 1, 0.05, (v) => v.toFixed(2)],
-    ['separation', 'Separation', 'Keeps regions from mixing into each other. At 0 two subjects merge into one; too high gives seams and uneven style. 0.2 is the tested middle.', 0, 1, 0.05, (v) => v.toFixed(2)],
-    ['blend', 'Blend', 'Mixes the plain whole-image result into every layout step, so lighting, style and LoRA look match across boxes.', 0, 1, 0.05, (v) => v.toFixed(2)],
-    ['bgStrength', 'Background', 'How strongly the area no box covers is held to the style + whole-image prompt. Keep it low: at 1 the thin gaps between boxes filled with artefacts in testing.', 0, 1, 0.05, (v) => v.toFixed(2)],
+    ['focus', 'Box focus', 'How strictly each box hears only its own prompt during the layout steps. 1 = strictly; lower lets the other boxes\' text in.', 0, 1, 0.05, (v) => v.toFixed(2)],
+    ['separation', 'Separation', 'Keeps boxes from mixing into each other. At 0 two subjects merge into one; too high gives seams and uneven style. 0.2 is the tested middle.', 0, 1, 0.05, (v) => v.toFixed(2)],
+    ['blend', 'Blend', 'Mixes the plain whole-picture result into every layout step, so lighting, style and the LoRA look match across boxes.', 0, 1, 0.05, (v) => v.toFixed(2)],
+    ['bgStrength', 'Empty-area strength', 'How firmly the empty area (no box) is held to Style + Scene during the layout steps. Keep it low: at 1 the thin gaps between boxes filled with artefacts in testing.', 0, 1, 0.05, (v) => v.toFixed(2)],
     ['crossEvery', 'Focus every', 'Route box prompts in every Nth transformer block (1 = all). Higher = lighter touch.', 1, 8, 1, (v) => v === 1 ? 'all' : '1/' + v],
-    ['selfEvery', 'Separate every', 'Keep regions apart in every Nth transformer block (1 = all). Higher = softer edges.', 1, 8, 1, (v) => v === 1 ? 'all' : '1/' + v]
+    ['selfEvery', 'Separate every', 'Keep boxes apart in every Nth transformer block (1 = all). Higher = softer edges.', 1, 8, 1, (v) => v === 1 ? 'all' : '1/' + v]
   ];
   for (const [key, label, tip, min, max, step, fmt] of sliderDefs) {
     const row = el('label', 'rg-slider');
@@ -383,10 +401,10 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     });
   }
   const bgRow = el('label', 'rg-slider');
-  bgRow.title = 'Where the style + whole-image prompt applies during the layout steps. Everywhere also turns Separation off, so subjects tend to merge.';
+  bgRow.title = 'Where Style + Scene alone steer during the layout steps. "Everywhere" also turns Separation off, so subjects tend to merge.';
   const bgSel = el('select');
-  bgSel.append(new Option('Only where no box is', 'uncovered_only'), new Option('Everywhere (no separation)', 'global'), new Option('Nowhere', 'disabled'));
-  bgRow.append(el('span', '', 'Whole prompt'), bgSel, el('span'));
+  bgSel.append(new Option('Empty area only', 'uncovered_only'), new Option('Everywhere (no separation)', 'global'), new Option('Off', 'disabled'));
+  bgRow.append(el('span', '', 'Empty-area prompt'), bgSel, el('span'));
   adv.append(bgRow);
   bgSel.addEventListener('change', () => { st.bgMode = bgSel.value as BackgroundMode; save(); });
   const ovRow = el('label', 'rg-slider');
@@ -396,22 +414,9 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   ovRow.append(el('span', '', 'Overlaps'), ovSel, el('span'));
   adv.append(ovRow);
   ovSel.addEventListener('change', () => { st.overlap = ovSel.value as OverlapMode; save(); });
-  const checks = {} as Record<BoolKey, HTMLInputElement>;
-  const chk = (key: BoolKey, text: string, tip: string): void => {
-    const row = el('label', 'chk-row rg-chk');
-    row.title = tip;
-    const c = el('input'); c.type = 'checkbox';
-    row.append(c, document.createTextNode(' ' + text));
-    adv.append(row);
-    checks[key] = c;
-    c.addEventListener('change', () => { st[key] = c.checked; save(); renderNote(); });
-  };
-  chk('styleInRegions', 'Add the style to every box', 'Every box gets the Global field + Character trigger (artist, LoRA trigger), so the LoRA\'s look reaches every region. Leave on.');
-  chk('sceneInRegions', 'Add the whole-image prompt to every box', 'Every box also gets the whole-image prompt (setting, lighting), so regions match. Turn off only if a box should look different.');
-  chk('regionsInWhole', 'Mention every box in the whole-image prompt', 'The steps after the layout see every box\'s prompt too, so what the boxes placed stays. Turn off if box contents bleed across the image.');
   const resetBtn = button('Reset blending', 'Back to the tested defaults');
   adv.append(resetBtn);
-  side.append(styleSec, sceneSec, listSec, adv);
+  side.append(styleSec, sceneSec, wholeSec, listSec, adv);
   body.append(stageWrap, side);
   tabHost.append(bar, body);
 
@@ -427,13 +432,19 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   const cardMini = el('div', 'rg-mini');
   cardMini.title = 'Edit layout';
   const cardStyle = el('div', 'rg-sec');
+  cardStyle.append(secHead('Style', SCOPE_ALL));
   const cardScene = el('textarea', 'rg-scene');
   cardScene.rows = 2;
-  cardScene.placeholder = sceneTa.placeholder;
-  cardScene.title = sceneTa.title;
+  cardScene.placeholder = SCENE_HINT;
+  cardScene.title = SCENE_TIP;
+  const cardWhole = el('textarea', 'rg-scene');
+  cardWhole.rows = 1;
+  cardWhole.placeholder = WHOLE_HINT;
+  cardWhole.title = WHOLE_TIP;
   const cardList = el('div', 'rg-list rg-card-list');
   const cardNote = el('div', 'muted small rg-card-note');
-  cardHost.append(cardHead, cardMini, cardStyle, el('label', '', 'Whole image'), cardScene, cardList, cardNote);
+  cardHost.append(cardHead, cardMini, cardStyle, secHead('Scene', SCOPE_ALL), cardScene,
+    secHead('Whole picture only', SCOPE_WHOLE), cardWhole, el('div', 'rg-sec-head', 'Boxes'), cardList, cardNote);
 
   // Style proxies: the real fields stay the source (presets, import, save all
   // keep working); these write into them and follow them.
@@ -649,13 +660,14 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   function renderNote(): void {
     const p = problemText();
     let note = p;
-    if (!p && !styleText()) note = 'Tip: put the artist / LoRA trigger in Global or Character trigger above, so every box gets the same style.';
-    cardNote.textContent = note || 'Generate uses this layout. The whole-image prompt finishes the picture after the layout steps.';
+    if (!p && !styleText()) note = 'Tip: put the artist / LoRA trigger in Style above, so every box gets the same look.';
+    cardNote.textContent = note || 'Generate uses this layout: the boxes steer the layout steps, then the whole picture is finished as one image.';
     cardNote.classList.toggle('rg-warn', !!p);
   }
 
   function renderCard(): void {
     if (document.activeElement !== cardScene) cardScene.value = st.scene;
+    if (document.activeElement !== cardWhole) cardWhole.value = st.wholeOnly;
     cardList.textContent = '';
     st.regions.forEach((r, i) => cardList.append(regionRow(r, i, true)));
     renderMini();
@@ -670,7 +682,6 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     }
     bgSel.value = st.bgMode;
     ovSel.value = st.overlap;
-    for (const key of Object.keys(checks) as BoolKey[]) checks[key].checked = st[key];
   }
 
   function renderUndo(): void {
@@ -681,6 +692,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   function renderAll(): void {
     applySize();
     if (document.activeElement !== sceneTa) sceneTa.value = st.scene;
+    if (document.activeElement !== wholeTa) wholeTa.value = st.wholeOnly;
     syncStyle();
     renderUnderlay();
     renderStage();
@@ -862,14 +874,17 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   });
 
   // ===== controls =====
-  const onScene = (from: HTMLTextAreaElement, other: HTMLTextAreaElement) => () => {
-    st.scene = from.value;
-    if (document.activeElement !== other) other.value = st.scene;
+  // The tab's and the card's copies of the same field write the same state.
+  const onText = (key: 'scene' | 'wholeOnly', from: HTMLTextAreaElement, other: HTMLTextAreaElement) => () => {
+    st[key] = from.value;
+    if (document.activeElement !== other) other.value = st[key];
     save();
     renderNote();
   };
-  sceneTa.addEventListener('input', onScene(sceneTa, cardScene));
-  cardScene.addEventListener('input', onScene(cardScene, sceneTa));
+  sceneTa.addEventListener('input', onText('scene', sceneTa, cardScene));
+  cardScene.addEventListener('input', onText('scene', cardScene, sceneTa));
+  wholeTa.addEventListener('input', onText('wholeOnly', wholeTa, cardWhole));
+  cardWhole.addEventListener('input', onText('wholeOnly', cardWhole, wholeTa));
 
   const sizeChanged = (): void => {
     const w = parseInt(wIn.value, 10), h = parseInt(hIn.value, 10);
@@ -970,7 +985,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     setStatus: (text) => { statusLine.textContent = text; statusLine.hidden = !text; },
     problem: problemText,
     wholePrompt: () => regionalWholePrompt(st),
-    namingText: () => joinParts([styleText(), st.scene, ...st.regions.map(r => r.prompt)]),
+    namingText: () => joinParts([styleText(), st.scene, st.wholeOnly, ...st.regions.map(r => r.prompt)]),
     appendToGeneration: (prompt) => appendRegionalNodes(prompt, st, styleText()),
     useFromPrompt: (prompt) => {
       const s = regionalStateFromPrompt(prompt);

@@ -16,17 +16,18 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 - **Regional prompt** (new **Regional** tab, desktop and phone; it replaces the ControlNet tab and
   its pose editor): draw boxes over your image and give each one its own prompt, so you choose what
-  goes where (two characters side by side, a prop in a corner). Drag to draw, move and resize;
-  ready-made layouts, duplicate, undo/redo, a strength per box, a **spread** per box (a small box
-  can mean "about here" instead of "exactly this big"), a choice of what wins where boxes overlap,
-  and the last result shown behind the boxes to line them up. A short **How to use** guide is
-  built into the tab. Your Global field and Character trigger (the artist and LoRA trigger)
-  go to every box, so a style LoRA looks the same everywhere. **Generate** right from the tab, or
-  **Use in Generate**: the Generate tab's prompt boxes are swapped for the layout until you go back.
-  The boxes only steer the first part of the steps, and the whole-image prompt finishes the picture
-  so it comes out as one image; every blending setting is exposed. Regional images bring their
-  layout back with Import Generation. For Anima models; with your own ComfyUI server, update the
-  ComfyUI-DataSetManagerNodes pack (Osmium Comfy has it built in).
+  goes where (two characters side by side, a prop in a corner). The boxes steer the first part of
+  the steps, then the whole picture is finished as one image. Every text field shows where it goes:
+  **Style** (your Global field and Character trigger, i.e. artist and LoRA trigger) and **Scene**
+  go into every box, so a style LoRA looks the same everywhere; **Whole picture only** takes counts
+  like `2girls` without every box drawing two. Ready-made layouts, duplicate, undo/redo, a
+  strength and a **spread** per box (a small box can mean "roughly here" instead of "exactly this
+  big"), a choice of what wins where boxes overlap, the last result shown behind the boxes, and
+  every blending setting. **Generate** right from the tab, or **Use in Generate**: the Generate
+  tab's prompt boxes are swapped for the layout until you go back. A short **How to use** guide is
+  built into the tab. Regional images bring their layout back with Import Generation. For Anima
+  models; with your own ComfyUI server, update the ComfyUI-DataSetManagerNodes pack (Osmium Comfy
+  has it built in).
 - **USDU upscaling frees VRAM:** the generation models are unloaded before Ultimate SD Upscale
   starts (when generating with USDU on, and in the Upscale tab), and the upscale models are
   unloaded before your next generation, so the two never sit in VRAM together. With your own

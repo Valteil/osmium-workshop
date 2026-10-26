@@ -402,6 +402,8 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .rg-status{ flex-basis:100%; text-align:right; }
 .rg-status[hidden]{ display:none; }
 .rg-icon-btn:disabled{ opacity:.4; }
+.rg-scope{ font-weight:normal; text-transform:none; letter-spacing:0; font-size:11px; color:var(--muted); opacity:.85; }
+.rg-sec-head .rg-scope::before{ content:"· "; }
 .rg-style-label{ font-size:12px; color:var(--muted); }
 .rg-dims{ flex:1; min-width:0; }
 .rg-weight{ grid-template-columns:70px minmax(0,1fr) 40px; font-size:12px; }

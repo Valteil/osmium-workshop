@@ -869,30 +869,28 @@ This guide covers the desktop app. Its sibling shares this repo:
     your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
     phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);
     Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
-  - **Regional prompt (the Regional tab, desktop and phone).** Place things in parts of the
-    picture: drag on the canvas (your generation's size) to draw a box and say what goes in it, or
-    start from a ready-made **Layout** (two side by side, top and bottom, …). Drag a box to move it,
-    an edge or corner to resize it; Delete, the arrow keys, Ctrl+D (duplicate) and Ctrl+Z / Ctrl+Y
-    (undo / redo) work on the selected box. Each box has a **Strength** (lower = it blends more) and a
-    **Spread** (0% = a hard edge; higher = "about here": the thing can grow past a small box into the
-    free space around it). Where boxes overlap, both prompts mix, or with **Overlaps → Top box wins**
-    the box lower in the list (▲ ▼) takes the overlap. **? How to use** in the tab opens a short
-    guide (it opens by itself the first time).
-    - **Style** is your Global field and Character trigger (put the artist tags and the LoRA
-      trigger there): every box gets it, so a style LoRA reaches every region. **Whole image** is
-      quality, rating, setting and lighting; it goes to every box too and fills the area no box
-      covers. Counts like `1girl` go in the boxes.
-    - **Generate** in the tab (or **Use in Generate**) runs the layout: the Generate tab's prompt
-      boxes are replaced by a card with the same prompts until you press **Back to normal prompt**.
-      **Show the last result behind the boxes** helps line them up with what came out.
-    - **Blending:** the boxes only steer the first part of the steps (Layout starts/ends, 0–35%);
-      the whole-image prompt, which mentions every box, finishes the picture so it stays one image.
-      Separation, Box focus, Blend and the rest are there for tuning (hover each one). If the style
-      is uneven between boxes, put the trigger in Style and raise Blend a little; if subjects merge
-      into one, keep Separation at 0.2 or more and Layout starts at 0; if junk shows in the gaps
-      between boxes, lower Background.
-    - Works with Anima models. Needs the ComfyUI-DataSetManagerNodes pack from this release on a
-      ComfyUI server; Osmium Comfy has it built in.
+  - **Regional prompt (the Regional tab, desktop and phone).** Place subjects in parts of the
+    picture: draw boxes on a canvas the size of your generation (or pick a **Layout…** preset) and
+    give each its own prompt. During the **layout steps** (the first 35% by default) each box's
+    prompt applies only inside it; then the **whole picture** is finished with one prompt, so the
+    result reads as one image. Anima models only.
+    - **Where text goes** (each field shows its scope): **Style** (your Global + Character trigger:
+      artist tags, LoRA trigger) and **Scene** (quality, rating, setting, lighting) go into every
+      box, the empty area (where no box is) and the whole picture. **Whole picture only** (counts like
+      `2girls`, interactions) goes into the whole picture only. Each **box** holds one subject,
+      count first (`1girl, red hair`), and also goes into the whole picture.
+    - **Boxes:** drag to draw, move and resize; arrows nudge, Delete removes, Ctrl+D duplicates,
+      Ctrl+Z / Ctrl+Y undo/redo. Per box: **Strength** (lower if it looks pasted on), **Spread** (0%
+      = hard edge; higher = "roughly here", so a small box sets position without shrinking the
+      subject) and ▲ ▼ order, used by **Overlaps → Top box wins** (the default mixes both prompts in
+      an overlap).
+    - **Generate** in the tab runs the layout; **Use in Generate** swaps the Generate tab's prompt
+      boxes for a layout card until **Back to normal prompt** (nothing is cleared). Importing a
+      regional image restores its layout.
+    - **Blending** has the tuning settings, with tested defaults. **? How to use** in the tab
+      explains each one and lists fixes for common problems (it opens by itself the first time).
+    - Needs the ComfyUI-DataSetManagerNodes pack from this release on a ComfyUI server; Osmium Comfy
+      has it built in.
   - **WD14 tags** (desktop and phone, under the result): **Tag last generation** tags each saved
     image and can write a same-name `.txt` beside it in the output folder. **Tag an image** tags any
     image you choose; **Use as prompt** sorts the tags into your prompt boxes (Global, Character

@@ -1,16 +1,18 @@
 // The Regional tab's own guide (both shells; the phone has no general Help).
 // Written for someone who already generates: only what's specific to this
-// tab (where text goes, the controls, the settings, fixes), kept short. Keep
-// it in sync with shared/regional.ts whenever a control is added or renamed.
+// tab (where text goes, the controls, the settings, fixes), kept short. Uses
+// the tab's own words (Style, Scene, Whole picture only, box, empty area,
+// layout steps, whole picture). Keep it in sync with shared/regional.ts
+// whenever a control is added or renamed.
 
 const SECTIONS: { id: string; title: string; html: string }[] = [
   {
     id: 'how',
     title: 'How it works',
     html: `
-      <p>Each box's prompt is applied only inside that box during the first part of the steps
-      (<b>Layout ends</b>, 35% by default), when composition is decided. The rest of the steps run on
-      the whole-image prompt, so the result reads as one picture. Anima models only.</p>
+      <p>During the <b>layout steps</b> (the first 35% by default), each box's prompt applies only inside
+      that box. Then the <b>whole picture</b> is finished with one prompt, so the result reads as one image.
+      Anima models only.</p>
       <p>Draw boxes, fill them in, then <b>Generate</b> here, or <b>Use in Generate</b> to hand the
       layout to the Generate tab (its prompt boxes are swapped for a layout card until <b>Back to normal
       prompt</b>; nothing is cleared). Models, LoRAs, sampler, Negative and saving work as usual.</p>`
@@ -19,15 +21,17 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
     id: 'text',
     title: 'Where text goes',
     html: `
+      <p>Every field has one fixed scope, shown next to its name.</p>
       <table class="rgg-table">
-        <tr><th>Field</th><th>Put</th><th>Avoid</th></tr>
-        <tr><td><b>Style</b> (your Global + Character trigger)</td><td>Artist tags, LoRA trigger</td><td>Subjects</td></tr>
-        <tr><td><b>Whole image</b></td><td>Quality, rating, setting, lighting</td><td>Counts (<code>2girls</code>), one character's details</td></tr>
-        <tr><td><b>Box</b></td><td>That subject only, count first: <code>1girl, red hair, waving</code></td><td>Setting, style</td></tr>
+        <tr><th>Field</th><th>Goes into</th><th>Put</th></tr>
+        <tr><td><b>Style</b><br>(your Global + Character trigger)</td><td>every box · empty area · whole picture</td><td>Artist tags, LoRA trigger</td></tr>
+        <tr><td><b>Scene</b></td><td>every box · empty area · whole picture</td><td>Quality, rating, setting, lighting</td></tr>
+        <tr><td><b>Whole picture only</b></td><td>whole picture only</td><td>Counts and interactions: <code>2girls</code>, <code>looking at each other</code></td></tr>
+        <tr><td><b>A box</b></td><td>that box · whole picture</td><td>That subject, count first: <code>1girl, red hair, waving</code></td></tr>
       </table>
-      <p>Style and Whole image are added to every box and to the empty area, and every box's prompt is
-      added to the whole-image prompt (the three Blending tick boxes). So a count in Whole image puts
-      that many people in each box, and a LoRA trigger in a single box only styles that box.</p>`
+      <p>So: subjects and their counts never go in Style or Scene (every box would draw them), and the
+      overall count (<code>2girls</code>) goes in Whole picture only. The <b>empty area</b> is wherever
+      no box is.</p>`
   },
   {
     id: 'controls',
@@ -41,7 +45,7 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
           <b>⇄</b> swaps width/height and turns the boxes with it.</li>
         <li><b>Strength</b> (per box): how strictly the box keeps to its prompt. Lower if it looks pasted on.</li>
         <li><b>Spread</b> (per box): 0% = hard edge, the subject is sized to the box. Higher = "roughly here":
-          the prompt reaches into free space around the box (dashed outline), so a small box sets position
+          the prompt reaches into the empty area around the box (dashed outline), so a small box sets position
           without shrinking the subject.</li>
         <li><b>Overlaps</b> (Blending): <i>Mix both prompts</i> suits a box inside a box (a hat on a head);
           <i>Top box wins</i> gives the overlap to the box lower in the list (▲ ▼), for something in front of something else.</li>
@@ -54,14 +58,14 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
     html: `
       <p>Defaults are tested; <b>Reset blending</b> restores them.</p>
       <table class="rgg-table">
-        <tr><td><b>Layout ends</b> 35%</td><td>How long boxes steer. Raise if boxes are ignored.</td></tr>
+        <tr><td><b>Layout ends</b> 35%</td><td>How long the layout steps last. Raise if boxes are ignored.</td></tr>
         <tr><td><b>Layout starts</b> 0%</td><td>Keep at 0: a late start lets subjects merge.</td></tr>
-        <tr><td><b>Box focus</b> 1</td><td>Cross-attention routing strength.</td></tr>
-        <tr><td><b>Separation</b> 0.2</td><td>Self-attention separation between boxes. 0 merges subjects; high gives seams.</td></tr>
-        <tr><td><b>Blend</b> 0.1</td><td>Mixes in the unregioned prediction for consistent style/lighting.</td></tr>
-        <tr><td><b>Background</b> 0.3</td><td>How firmly the empty area follows Whole image. High causes junk in gaps.</td></tr>
-        <tr><td><b>Focus / Separate every</b></td><td>Apply routing to every Nth block only, for a lighter touch.</td></tr>
-        <tr><td><b>Whole prompt</b></td><td>Keep "Only where no box is"; "Everywhere" disables separation.</td></tr>
+        <tr><td><b>Box focus</b> 1</td><td>How strictly a box hears only its own prompt.</td></tr>
+        <tr><td><b>Separation</b> 0.2</td><td>Keeps boxes apart. 0 merges subjects; high gives seams.</td></tr>
+        <tr><td><b>Blend</b> 0.1</td><td>Mixes in the plain whole-picture result for consistent style and lighting.</td></tr>
+        <tr><td><b>Empty-area strength</b> 0.3</td><td>How firmly the empty area follows Style + Scene. High causes junk there.</td></tr>
+        <tr><td><b>Empty-area prompt</b></td><td>Keep "Empty area only"; "Everywhere" turns Separation off.</td></tr>
+        <tr><td><b>Focus / Separate every</b></td><td>Apply to every Nth block only, for a lighter touch.</td></tr>
       </table>`
   },
   {
@@ -70,11 +74,11 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
     html: `
       <table class="rgg-table rgg-fix">
         <tr><td>Subjects merge into one</td><td>Separation ≥ 0.2, Layout starts 0, a count in each box; raise Layout ends to ~0.45.</td></tr>
-        <tr><td>Subject duplicated / in the wrong box</td><td>Move counts and character details out of Whole image.</td></tr>
+        <tr><td>Subject duplicated / in the wrong box</td><td>Move counts and subject details out of Style and Scene (overall count → Whole picture only).</td></tr>
         <tr><td>A box is ignored</td><td>Raise Layout ends; check the box has text.</td></tr>
-        <tr><td>LoRA style uneven across boxes</td><td>Trigger in Style, not a box; then Blend ~0.2.</td></tr>
+        <tr><td>LoRA look uneven across boxes</td><td>Trigger in Style, not a box; then Blend ~0.2.</td></tr>
         <tr><td>Pasted-on look / hard edges</td><td>Lower the box's Strength (~0.6), add Spread, or Separation ~0.15.</td></tr>
-        <tr><td>Junk in the gaps between boxes</td><td>Lower Background, or make boxes touch.</td></tr>
+        <tr><td>Junk in the empty area between boxes</td><td>Lower Empty-area strength, or make boxes touch.</td></tr>
         <tr><td>Subject squashed into a small box</td><td>Spread 20–30%, or a bigger box.</td></tr>
         <tr><td>Overlap looks like a mix</td><td>Overlaps → Top box wins; front box lower in the list.</td></tr>
         <tr><td>Error mentions <code>DSMAnimaRegionalPrompt</code></td><td>Server: update ComfyUI-DataSetManagerNodes and restart ComfyUI. Osmium Comfy with Persist on: close its console once.</td></tr>

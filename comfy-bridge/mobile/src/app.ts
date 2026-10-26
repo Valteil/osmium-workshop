@@ -1319,8 +1319,8 @@ declare const BridgeShared: {
     showRegional: () => showTab('regional'),
     // The style every box gets: the artist / LoRA trigger fields, edited in place.
     styleFields: [
-      { label: 'Global (artist, style)', el: global_, tip: "The Generate tab's Global field: artist and style tags. Added to every box and the whole prompt, so the style (and a LoRA keyed on it) reaches every region." },
-      { label: 'Character trigger (LoRA trigger)', el: characterTrigger, tip: "The Generate tab's Character trigger: the LoRA's trigger words. Added to every box and the whole prompt." }
+      { label: 'Global (artist, style)', el: global_, tip: "The Generate tab's Global field: artist and style tags. Goes into every box, the empty area and the whole picture." },
+      { label: 'Character trigger (LoRA trigger)', el: characterTrigger, tip: "The Generate tab's Character trigger: the LoRA's trigger words. Goes into every box, the empty area and the whole picture." }
     ],
     generate: () => { void generate(); },
     // The final image of the last generation (its last slide). Read lazily:
@@ -1749,7 +1749,7 @@ declare const BridgeShared: {
     // Thin adapter over the shared builder (BridgeShared.buildSynthDatPrompt,
     // bundled from comfy-bridge/src/comfy-core.ts — the same source the desktop
     // apps use). All graph logic lives there so it can't drift.
-    // Regional: the layout's whole-image prompt goes in as the unified prompt,
+    // Regional: the layout's whole-picture prompt goes in as the unified prompt,
     // so the prompt boxes' own text stays out; Global and the trigger (the
     // style, shown in the regional card) go around it as usual.
     const rg = regional.active();
