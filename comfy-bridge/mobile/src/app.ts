@@ -82,7 +82,7 @@ declare const BridgeShared: {
   extractWd14Tags: (record: any) => string | null;
   // shared/regional.ts: the Regional tab + its Generate-tab card.
   mountRegional: (tabHost: HTMLElement, cardHost: HTMLElement, opts: any) => {
-    active: () => boolean; exit: () => void; refresh: () => void; setStatus: (text: string) => void; problem: () => string;
+    active: () => boolean; exit: () => void; refresh: () => void; shown: () => void; setStatus: (text: string) => void; problem: () => string;
     wholePrompt: () => string; namingText: () => string;
     appendToGeneration: (prompt: any) => void; useFromPrompt: (prompt: any) => boolean;
   };
@@ -2471,7 +2471,7 @@ declare const BridgeShared: {
     colEl.hidden = tab !== 'generate';
     usduView.hidden = tab !== 'upscale';
     regionalView.hidden = tab !== 'regional';
-    if (tab === 'regional') regional.refresh();
+    if (tab === 'regional') regional.shown();
     metadataView.hidden = tab !== 'metadata';
     compareView.hidden = tab !== 'compare';
     // ☰ and the gallery button belong to Generate only (the Log button stays).

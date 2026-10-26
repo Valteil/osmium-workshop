@@ -873,7 +873,11 @@ This guide covers the desktop app. Its sibling shares this repo:
     picture: drag on the canvas (your generation's size) to draw a box and say what goes in it, or
     start from a ready-made **Layout** (two side by side, top and bottom, …). Drag a box to move it,
     an edge or corner to resize it; Delete, the arrow keys, Ctrl+D (duplicate) and Ctrl+Z / Ctrl+Y
-    (undo / redo) work on the selected box. Each box has a **Strength** (lower = it blends more).
+    (undo / redo) work on the selected box. Each box has a **Strength** (lower = it blends more) and a
+    **Spread** (0% = a hard edge; higher = "about here": the thing can grow past a small box into the
+    free space around it). Where boxes overlap, both prompts mix, or with **Overlaps → Top box wins**
+    the box lower in the list (▲ ▼) takes the overlap. **? How to use** in the tab opens a
+    step-by-step guide (it opens by itself the first time).
     - **Style** is your Global field and Character trigger (put the artist tags and the LoRA
       trigger there): every box gets it, so a style LoRA reaches every region. **Whole image** is
       quality, rating, setting and lighting; it goes to every box too and fills the area no box

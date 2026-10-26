@@ -21,16 +21,21 @@
 // - Separation is soft (self-attention masking, 0.2), and Blend mixes some of
 //   the unpatched prediction back in.
 
+import { showRegionalGuide } from './regional-guide';
+
 type Prompt = Record<string, any>;
 
 export const REGIONAL_NODE_ID = 'regional';
 export const REGIONAL_NODE_CLASS = 'DSMAnimaRegionalPrompt';
 
 export type BackgroundMode = 'uncovered_only' | 'global' | 'disabled';
-export interface RegionBox { id: string; x: number; y: number; w: number; h: number; prompt: string; weight: number; }
+// weight: the upstream region strength; spread: how far (fraction of the image's long side) the
+// box's prompt reaches into the free area around it, fading out (0 = the box is a hard edge).
+export interface RegionBox { id: string; x: number; y: number; w: number; h: number; prompt: string; weight: number; spread: number; }
+export type OverlapMode = 'blend' | 'top';
 export interface RegionalSettings {
   layoutStart: number; layoutEnd: number; focus: number; separation: number; blend: number;
-  bgMode: BackgroundMode; bgStrength: number; crossEvery: number; selfEvery: number;
+  bgMode: BackgroundMode; bgStrength: number; crossEvery: number; selfEvery: number; overlap: OverlapMode;
   styleInRegions: boolean; sceneInRegions: boolean; regionsInWhole: boolean;
 }
 export interface RegionalState extends RegionalSettings {
@@ -44,11 +49,12 @@ export const REGIONAL_DEFAULTS: RegionalSettings = {
   layoutStart: 0, layoutEnd: 0.35, focus: 1, separation: 0.2, blend: 0.1,
   // bgStrength 0.3, not upstream's 1: a hard background mask on the thin gaps
   // between boxes painted coloured-square artefacts there (GPU, 2026-10-26).
-  bgMode: 'uncovered_only', bgStrength: 0.3, crossEvery: 1, selfEvery: 1,
+  bgMode: 'uncovered_only', bgStrength: 0.3, crossEvery: 1, selfEvery: 1, overlap: 'blend',
   styleInRegions: true, sceneInRegions: true, regionsInWhole: true
 };
 
 const STORE_KEY = 'comfybridge-regional';
+const GUIDE_SEEN_KEY = 'comfybridge-regional-guide-seen';
 const COLORS = ['#e8505b', '#3d8bfd', '#f5a623', '#2bb673', '#a259ff', '#14b8c4', '#f06bc4', '#8a9a1f'];
 const MIN_BOX = 0.03; // a drag smaller than this (of the image) is a click, not a box
 const BG_MODES: BackgroundMode[] = ['uncovered_only', 'global', 'disabled'];
@@ -89,7 +95,8 @@ function sanitizeBox(r: any): RegionBox {
     id: typeof r.id === 'string' && r.id ? r.id : newId(),
     x, y, w: clamp(num(r.w, 0.2), MIN_BOX, 1 - x), h: clamp(num(r.h, 0.2), MIN_BOX, 1 - y),
     prompt: typeof r.prompt === 'string' ? r.prompt : '',
-    weight: clamp(num(r.weight, 1), 0.05, 1)
+    weight: clamp(num(r.weight, 1), 0.05, 1),
+    spread: clamp(num(r.spread, 0), 0, 0.5)
   };
 }
 function sanitizeState(s: any): RegionalState {
@@ -111,6 +118,7 @@ function sanitizeState(s: any): RegionalState {
     bgStrength: clamp(num(s.bgStrength, D.bgStrength), 0, 1),
     crossEvery: Math.round(clamp(num(s.crossEvery, D.crossEvery), 1, 8)),
     selfEvery: Math.round(clamp(num(s.selfEvery, D.selfEvery), 1, 8)),
+    overlap: s.overlap === 'top' || s.overlap === 'blend' ? s.overlap : D.overlap,
     styleInRegions: bool(s.styleInRegions, D.styleInRegions),
     sceneInRegions: bool(s.sceneInRegions, D.sceneInRegions),
     regionsInWhole: bool(s.regionsInWhole, D.regionsInWhole)
@@ -147,6 +155,7 @@ export function appendRegionalNodes(prompt: Prompt, s: RegionalState, style: str
     x: +r.x.toFixed(4), y: +r.y.toFixed(4), w: +r.w.toFixed(4), h: +r.h.toFixed(4),
     text: boxText(s, style, r),
     weight: r.weight,
+    spread: r.spread,
     prompt: r.prompt // the box's own words, for Import Generation
   }));
   // The layout's own fields, for Import Generation. No `text`, so the node skips it.
@@ -168,7 +177,8 @@ export function appendRegionalNodes(prompt: Prompt, s: RegionalState, style: str
       background_strength: s.bgStrength,
       layout_start: s.layoutStart,
       cross_every_n_blocks: s.crossEvery,
-      self_every_n_blocks: s.selfEvery
+      self_every_n_blocks: s.selfEvery,
+      overlap_mode: s.overlap
     },
     _meta: { title: 'Regional prompt' }
   };
@@ -193,7 +203,7 @@ export function regionalStateFromPrompt(prompt: Prompt): RegionalState | null {
     styleInRegions: meta.styleInRegions, sceneInRegions: meta.sceneInRegions, regionsInWhole: meta.regionsInWhole,
     layoutStart: inp.layout_start, layoutEnd: inp.layout_end, focus: inp.region_focus, separation: inp.separation,
     blend: inp.blend, bgMode: inp.background_mode, bgStrength: inp.background_strength,
-    crossEvery: inp.cross_every_n_blocks, selfEvery: inp.self_every_n_blocks
+    crossEvery: inp.cross_every_n_blocks, selfEvery: inp.self_every_n_blocks, overlap: inp.overlap_mode
   });
 }
 
@@ -225,6 +235,8 @@ export interface RegionalController {
   exit: () => void;
   // The Generate tab's width/height changed, or a new image finished.
   refresh: () => void;
+  // The tab was just opened: refresh, and the guide on the very first visit.
+  shown: () => void;
   // The generation status line, mirrored into the tab ('' hides it).
   setStatus: (text: string) => void;
   problem: () => string;
@@ -237,7 +249,7 @@ export interface RegionalController {
   useFromPrompt: (prompt: Prompt) => boolean;
 }
 
-interface BoxView { root: HTMLDivElement; label: HTMLSpanElement; }
+interface BoxView { root: HTMLDivElement; label: HTMLSpanElement; halo: HTMLDivElement; }
 type NumKey = 'layoutStart' | 'layoutEnd' | 'focus' | 'separation' | 'blend' | 'bgStrength' | 'crossEvery' | 'selfEvery';
 type BoolKey = 'styleInRegions' | 'sceneInRegions' | 'regionsInWhole';
 
@@ -295,7 +307,9 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   const clearBtn = button('Clear', 'Remove every box');
   const useBtn = button('Use in Generate', 'Switch the Generate tab to this layout (its prompt boxes come back with "Back to normal prompt")');
   const genBtn = button('Generate', 'Generate with this layout now (turns the layout on in the Generate tab too)', 'rg-primary');
-  actions.append(tplSel, undoBtn, redoBtn, clearBtn, useBtn, genBtn);
+  const guideBtn = button('? How to use', 'Step-by-step guide to this tab: what to type where, every control, and fixes for common problems', 'rg-guide-btn');
+  guideBtn.addEventListener('click', () => showRegionalGuide());
+  actions.append(guideBtn, tplSel, undoBtn, redoBtn, clearBtn, useBtn, genBtn);
   const statusLine = el('div', 'muted small rg-status');
   statusLine.hidden = true;
   bar.append(titleBox, sizeRow, actions, statusLine);
@@ -375,6 +389,13 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   bgRow.append(el('span', '', 'Whole prompt'), bgSel, el('span'));
   adv.append(bgRow);
   bgSel.addEventListener('change', () => { st.bgMode = bgSel.value as BackgroundMode; save(); });
+  const ovRow = el('label', 'rg-slider');
+  ovRow.title = 'Where boxes overlap: both prompts mix there (good for a box inside a box, like a hat on a person), or the box later in the list takes the overlap (an object in front of another).';
+  const ovSel = el('select');
+  ovSel.append(new Option('Mix both prompts', 'blend'), new Option('Top box wins', 'top'));
+  ovRow.append(el('span', '', 'Overlaps'), ovSel, el('span'));
+  adv.append(ovRow);
+  ovSel.addEventListener('change', () => { st.overlap = ovSel.value as OverlapMode; save(); });
   const checks = {} as Record<BoolKey, HTMLInputElement>;
   const chk = (key: BoolKey, text: string, tip: string): void => {
     const row = el('label', 'chk-row rg-chk');
@@ -465,6 +486,19 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     v.root.style.top = r.y * 100 + '%';
     v.root.style.width = r.w * 100 + '%';
     v.root.style.height = r.h * 100 + '%';
+    // Spread: how far the box's pull reaches (long-side units, like the node), drawn as a
+    // rounded dashed outline around it.
+    v.halo.hidden = !(r.spread > 0);
+    if (r.spread > 0) {
+      const { width, height } = opts.getSize();
+      const long = Math.max(width, height) || 1;
+      const ex = r.spread * long / (width || 1), ey = r.spread * long / (height || 1);
+      v.halo.style.left = (r.x - ex) * 100 + '%';
+      v.halo.style.top = (r.y - ey) * 100 + '%';
+      v.halo.style.width = (r.w + 2 * ex) * 100 + '%';
+      v.halo.style.height = (r.h + 2 * ey) * 100 + '%';
+      v.halo.style.borderRadius = `${(ex / (r.w + 2 * ex)) * 100}% / ${(ey / (r.h + 2 * ey)) * 100}%`;
+    }
   }
 
   function boxCaption(r: RegionBox, i: number): string {
@@ -473,7 +507,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   }
 
   function renderStage(): void {
-    for (const [id, v] of views) if (indexOf(id) < 0) { v.root.remove(); views.delete(id); }
+    for (const [id, v] of views) if (indexOf(id) < 0) { v.root.remove(); v.halo.remove(); views.delete(id); }
     st.regions.forEach((r, i) => {
       let v = views.get(r.id);
       if (!v) {
@@ -486,13 +520,16 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
           h.dataset.handle = hnd;
           root.append(h);
         }
-        stage.append(root);
-        v = { root, label };
+        const halo = el('div', 'rg-halo');
+        stage.append(halo, root);
+        v = { root, label, halo };
         views.set(r.id, v);
       }
       v.root.style.setProperty('--rg-color', COLORS[i % COLORS.length]);
       v.root.style.setProperty('--rg-alpha', String(Math.round(8 + 18 * r.weight)) + '%');
       v.root.style.zIndex = String(r.id === selected ? 50 : 10 + i);
+      v.halo.style.setProperty('--rg-color', COLORS[i % COLORS.length]);
+      v.halo.classList.toggle('selected', r.id === selected);
       v.root.classList.toggle('selected', r.id === selected);
       v.root.classList.toggle('empty', !r.prompt.trim());
       v.label.textContent = boxCaption(r, i);
@@ -525,6 +562,14 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     const dims = el('span', 'muted small rg-dims', `${px(r.w, size.width)}×${px(r.h, size.height)} at ${px(r.x, size.width)}, ${px(r.y, size.height)}`);
     head.append(sw, dims);
     if (!inCard) {
+      // Order matters where boxes overlap with "Top box wins": later = on top.
+      const back = button('▲', 'Move up the list: behind the boxes after it', 'rg-icon-btn');
+      const front = button('▼', 'Move down the list: in front of the boxes before it', 'rg-icon-btn');
+      back.disabled = i === 0;
+      front.disabled = i === st.regions.length - 1;
+      back.addEventListener('click', (e) => { e.stopPropagation(); moveBox(r.id, -1); });
+      front.addEventListener('click', (e) => { e.stopPropagation(); moveBox(r.id, 1); });
+      head.append(back, front);
       const dup = button('⧉', 'Duplicate this box (Ctrl+D)', 'rg-icon-btn');
       dup.addEventListener('click', (e) => { e.stopPropagation(); duplicateBox(r.id); });
       head.append(dup);
@@ -564,7 +609,23 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
         if (v) v.root.style.setProperty('--rg-alpha', String(Math.round(8 + 18 * box.weight)) + '%');
         save();
       });
-      row.append(wRow);
+      const sRow = el('label', 'rg-slider rg-weight');
+      sRow.title = 'How far this box\'s prompt reaches into the free area around it, fading out. 0 = the box is a hard edge; higher = the box marks roughly where the element goes and it can grow past the box.';
+      const sIn = el('input');
+      sIn.type = 'range'; sIn.min = '0'; sIn.max = '0.5'; sIn.step = '0.02'; sIn.value = String(r.spread);
+      const sOut = el('span', 'rg-slider-val', Math.round(r.spread * 100) + '%');
+      sRow.append(el('span', '', 'Spread'), sIn, sOut);
+      sIn.addEventListener('pointerdown', () => checkpoint());
+      sIn.addEventListener('input', () => {
+        const box = st.regions.find(b => b.id === r.id);
+        if (!box) return;
+        box.spread = clamp(parseFloat(sIn.value), 0, 0.5);
+        sOut.textContent = Math.round(box.spread * 100) + '%';
+        const v = views.get(box.id);
+        if (v) placeBox(v, box);
+        save();
+      });
+      row.append(wRow, sRow);
     }
     return row;
   }
@@ -608,6 +669,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
       s.out.textContent = s.fmt(st[key]);
     }
     bgSel.value = st.bgMode;
+    ovSel.value = st.overlap;
     for (const key of Object.keys(checks) as BoolKey[]) checks[key].checked = st[key];
   }
 
@@ -651,6 +713,17 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     renderStage(); renderList(); renderCard();
   }
 
+  function moveBox(id: string, by: number): void {
+    const i = indexOf(id), j = i + by;
+    if (i < 0 || j < 0 || j >= st.regions.length) return;
+    checkpoint();
+    const [box] = st.regions.splice(i, 1);
+    st.regions.splice(j, 0, box);
+    save();
+    renderStage(); renderList(); renderCard();
+    select(id, false);
+  }
+
   function duplicateBox(id: string): void {
     const src = st.regions.find(b => b.id === id);
     if (!src) return;
@@ -688,7 +761,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
       drag = { kind: handle ? 'resize' : 'move', id: box.id, handle, startX: fx, startY: fy, orig: { ...box }, pointerId: e.pointerId, before };
       select(box.id, false);
     } else {
-      const box: RegionBox = { id: newId(), x: fx, y: fy, w: 0, h: 0, prompt: '', weight: 1 };
+      const box: RegionBox = { id: newId(), x: fx, y: fy, w: 0, h: 0, prompt: '', weight: 1, spread: 0 };
       st.regions.push(box);
       drag = { kind: 'draw', id: box.id, handle: '', startX: fx, startY: fy, orig: { ...box }, pointerId: e.pointerId, before };
       selected = box.id;
@@ -824,7 +897,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     checkpoint();
     st.regions = t.boxes.map(([x, y, w, h], i) => {
       const old = st.regions[i];
-      return { id: old ? old.id : newId(), x, y, w, h, prompt: old ? old.prompt : '', weight: old ? old.weight : 1 };
+      return { id: old ? old.id : newId(), x, y, w, h, prompt: old ? old.prompt : '', weight: old ? old.weight : 1, spread: old ? old.spread : 0 };
     });
     selected = null;
     save();
@@ -888,6 +961,12 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     state: () => st,
     exit: () => setActive(false),
     refresh: () => { applySize(); syncStyle(); renderUnderlay(); renderList(); renderNote(); },
+    shown: () => {
+      applySize(); syncStyle(); renderUnderlay(); renderList(); renderNote();
+      let seen = true;
+      try { seen = localStorage.getItem(GUIDE_SEEN_KEY) === '1'; localStorage.setItem(GUIDE_SEEN_KEY, '1'); } catch { /* storage off: don't nag */ }
+      if (!seen) showRegionalGuide();
+    },
     setStatus: (text) => { statusLine.textContent = text; statusLine.hidden = !text; },
     problem: problemText,
     wholePrompt: () => regionalWholePrompt(st),

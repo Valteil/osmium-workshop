@@ -1952,7 +1952,7 @@ function showTab(tab: string): void {
   layoutEl.style.display = tab === 'generate' ? '' : 'none';
   usduView.hidden = tab !== 'upscale';
   regionalView.hidden = tab !== 'regional';
-  if (tab === 'regional') regional.refresh();
+  if (tab === 'regional') regional.shown();
   metadataView.hidden = tab !== 'metadata';
   compareView.hidden = tab !== 'compare';
   // The floating buttons (settings/file drawers, gallery) belong to Generate only.
