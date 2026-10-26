@@ -10,7 +10,7 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ---
 
-## v2.0.1 (unreleased)
+## v2.0.0
 
 ### Osmium Workshop
 
@@ -23,18 +23,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   bucketed.
 - **Quicktags take less room:** in Single view, a category's checkboxes sit side by side when
   they fit the panel, each only as wide as its label, instead of one long list. Right-click
-  one of your own quicktags to edit or delete it (the ✎ / × buttons are gone).
+  one of your own quicktags to edit or delete it.
 - **Fixed:** deleting an image for good now deletes its original in `original_images/` too. Before,
   the leftover original made a later Rename all fail partway, and the next bucketing brought the
   deleted images back with their old tags while wiping the tags of some you kept. Rename all also
   moves a leftover original out of the way when it sits on a number it needs.
-
----
-
-## v2.0.0
-
-### Osmium Workshop
-
 - **Fixed:** after disabling images in a bucketed dataset, Trainflow's Start (and Bucket Images)
   re-made the disabled images from `original_images/` back into the dataset, without captions, so
   Start stopped with "N images have no .txt caption". Disabled images now stay disabled.
