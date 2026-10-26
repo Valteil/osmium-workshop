@@ -14,6 +14,17 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **Regional prompt** (new **Regional** tab, desktop and phone; it replaces the ControlNet tab and
+  its pose editor): draw boxes over your image and give each one its own prompt, so you choose what
+  goes where (two characters side by side, a prop in a corner). Drag to draw, move and resize;
+  ready-made layouts, duplicate, undo/redo, a strength per box, and the last result shown behind
+  the boxes to line them up. Your Global field and Character trigger (the artist and LoRA trigger)
+  go to every box, so a style LoRA looks the same everywhere. **Generate** right from the tab, or
+  **Use in Generate**: the Generate tab's prompt boxes are swapped for the layout until you go back.
+  The boxes only steer the first part of the steps, and the whole-image prompt finishes the picture
+  so it comes out as one image; every blending setting is exposed. Regional images bring their
+  layout back with Import Generation. For Anima models; with your own ComfyUI server, update the
+  ComfyUI-DataSetManagerNodes pack (Osmium Comfy has it built in).
 - **USDU upscaling frees VRAM:** the generation models are unloaded before Ultimate SD Upscale
   starts (when generating with USDU on, and in the Upscale tab), and the upscale models are
   unloaded before your next generation, so the two never sit in VRAM together. With your own

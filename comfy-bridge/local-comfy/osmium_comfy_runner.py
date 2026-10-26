@@ -207,7 +207,7 @@ TESTED_COMFY_VERSION = "0.37.0"
 # (UpscaleModelLoader + ImageUpscaleWithModel -> SaveImage 192_upscaled).
 CORE_EXTRAS = ["nodes_custom_sampler.py", "nodes_primitive.py", "nodes_preview_any.py", "nodes_upscale_model.py"]
 DSM_SUBPACKAGES = ["anima_lllite", "rgthree_subset", "impact_switch", "easy_lora_names", "was_text_nodes",
-                   "danbooru_character_detect"]
+                   "danbooru_character_detect", "anima_regional"]
 
 # Attention backend, the app's "Attention" setting (--attention). ComfyUI picks
 # sage > flash > xformers > pytorch from its flags; the VAE keeps xformers
@@ -350,7 +350,10 @@ def load_nodes():
     if not os.path.isdir(PACK_DIR):
         raise RuntimeError(f"ComfyUI-DataSetManagerNodes is not installed in {os.path.dirname(PACK_DIR)}")
     parent = types.ModuleType("osmium_dsm")
-    parent.__path__ = [PACK_DIR]
+    # The runner's own folder is the fallback: anima_regional (Comfy Bridge's
+    # Regional tab) ships beside this file, so an installed pack that predates
+    # it still works. The installed pack's copy wins when it has one.
+    parent.__path__ = [PACK_DIR, os.path.dirname(os.path.abspath(__file__))]
     sys.modules["osmium_dsm"] = parent
     for sub in DSM_SUBPACKAGES:
         mod = importlib.import_module(f"osmium_dsm.{sub}")

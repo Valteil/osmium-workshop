@@ -869,22 +869,26 @@ This guide covers the desktop app. Its sibling shares this repo:
     your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
     phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);
     Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
-  - **Poses (the ControlNet tab, desktop and phone).** Next to Pick reference image, **Extract
-    pose** finds the people in the reference with DWPose (the comfyui_controlnet_aux node pack;
-    if its person detector finds nobody, it tries the whole image as one person), **New pose**
-    starts from one standing person at the generation size, and **Edit pose** opens the tab. Every
-    edit in the tab becomes the reference image; pick the image again to go back to it.
-    - **Style:** **Mannequin** (default: a solid figure with limbs, hands with fingers, a head with
-      eye marks and feet, on white; Anima's any-test LLLite reads the reference as a picture, so a
-      body is what it follows) or **OpenPose skeleton** (for pose ControlNets).
-    - **Posing:** drag a point; with **Move attached parts** on, a shoulder, elbow, hip, knee or
-      finger joint brings what hangs off it. Drag the torso to move the whole person.
-    - **Sizes for perspective:** click a body part to select it (head, torso, each breast, upper
-      arm, forearm, hand, thigh, calf, foot), then set its **Size**, or use the mouse wheel over it.
-      **Body width** thickens the whole figure; **Chest** and **Length** shape the breasts (longer
-      ones hang toward the bottom of the image, so they hang right on a figure leaning forward).
-    - **+ Person**, **Remove person**, **Mirror**, **Reset**, and **Display original reference**
-      (the original dimmed behind the pose, editor only).
+  - **Regional prompt (the Regional tab, desktop and phone).** Place things in parts of the
+    picture: drag on the canvas (your generation's size) to draw a box and say what goes in it, or
+    start from a ready-made **Layout** (two side by side, top and bottom, …). Drag a box to move it,
+    an edge or corner to resize it; Delete, the arrow keys, Ctrl+D (duplicate) and Ctrl+Z / Ctrl+Y
+    (undo / redo) work on the selected box. Each box has a **Strength** (lower = it blends more).
+    - **Style** is your Global field and Character trigger (put the artist tags and the LoRA
+      trigger there): every box gets it, so a style LoRA reaches every region. **Whole image** is
+      quality, rating, setting and lighting; it goes to every box too and fills the area no box
+      covers. Counts like `1girl` go in the boxes.
+    - **Generate** in the tab (or **Use in Generate**) runs the layout: the Generate tab's prompt
+      boxes are replaced by a card with the same prompts until you press **Back to normal prompt**.
+      **Show the last result behind the boxes** helps line them up with what came out.
+    - **Blending:** the boxes only steer the first part of the steps (Layout starts/ends, 0–35%);
+      the whole-image prompt, which mentions every box, finishes the picture so it stays one image.
+      Separation, Box focus, Blend and the rest are there for tuning (hover each one). If the style
+      is uneven between boxes, put the trigger in Style and raise Blend a little; if subjects merge
+      into one, keep Separation at 0.2 or more and Layout starts at 0; if junk shows in the gaps
+      between boxes, lower Background.
+    - Works with Anima models. Needs the ComfyUI-DataSetManagerNodes pack from this release on a
+      ComfyUI server; Osmium Comfy has it built in.
   - **WD14 tags** (desktop and phone, under the result): **Tag last generation** tags each saved
     image and can write a same-name `.txt` beside it in the output folder. **Tag an image** tags any
     image you choose; **Use as prompt** sorts the tags into your prompt boxes (Global, Character

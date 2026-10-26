@@ -24,8 +24,7 @@ import { initHelp } from './help';
 import { mountUsduPanel, usduSettingsFromPrompt, type UsduListKind } from './shared/usdu';
 import { mountWd14Panel, type Wd14SavedImage } from './shared/wd14-tag';
 import { mountCompareTab } from './shared/compare';
-import { extractPose } from './shared/pose-extract';
-import { mountPoseTab } from './shared/pose-editor';
+import { mountRegional } from './shared/regional';
 export {};
 
 interface ElectronAPI {
@@ -407,7 +406,6 @@ btnPickImage.addEventListener('click', async () => {
   if (!handles || !handles[0]) return;
   const file = await handles[0].getFile();
   refFile = file;
-  refOriginal = file;
   refFilename = file.name;
   refFileName.textContent = file.name;
   const url = URL.createObjectURL(file);
@@ -415,56 +413,41 @@ btnPickImage.addEventListener('click', async () => {
   refPreview.style.display = 'block';
 });
 
-// The ControlNet tab (shared/pose-editor.ts): extract a pose from the picked
-// reference (DWPose, through the WD14 tagging transport) or start a new one,
-// edit it there; every edit's frame becomes the reference image. `refOriginal`
-// is the picked image, so extracting again starts from it, not from a frame.
-let refOriginal: File | null = null;
-let refPreviewUrl = '';
-const poseTab = mountPoseTab($<HTMLDivElement>('poseTab'), {
-  onChange(bytes) {
-    // An extracted pose is named after its image; a New pose is pose.png.
-    const name = refOriginal ? refOriginal.name.replace(/\.[^.]+$/, '') + '_pose.png' : 'pose.png';
-    refFile = new File([bytes as BlobPart], name, { type: 'image/png' });
-    refFilename = name;
-    refFileName.textContent = name;
-    if (refPreviewUrl) URL.revokeObjectURL(refPreviewUrl);
-    refPreviewUrl = URL.createObjectURL(refFile);
-    refPreview.src = refPreviewUrl;
-    refPreview.style.display = 'block';
-    if (skipRefImage.checked) { skipRefImage.checked = false; applySkipRefImageUI(); }
+// The Regional tab (shared/regional.ts): boxes over the generation's size,
+// a prompt per box. While its layout is in use (body.regional-on), its card
+// stands in for the Generate tab's prompt boxes, which keep their text for
+// when the user goes back to them.
+const regional = mountRegional($<HTMLDivElement>('regionalTab'), $<HTMLDivElement>('regionalCard'), {
+  getSize: () => ({ width: parseInt(width.value, 10), height: parseInt(height.value, 10) }),
+  setSize(w, h) {
+    width.value = String(w);
+    height.value = String(h);
+    for (const el of [width, height]) { el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); }
   },
-  newPoseSize: () => ({ width: parseInt(width.value, 10), height: parseInt(height.value, 10) }),
-  async extract() {
-    const src = refOriginal || refFile;
-    if (!src) { log('Pick a reference image in the Generate tab first, then extract its pose.'); return null; }
-    try {
-      const bytes = new Uint8Array(await src.arrayBuffer());
-      const pose = await extractPose(async (prompt, imageName, b) => {
-        const r = await window.electronAPI.wd14Tag({ host: getHost(), imageFilename: imageName, imageBytes: b, prompt });
-        if (!r.ok || typeof r.tags !== 'string') throw new Error(r.error || 'No pose came back.');
-        return r.tags;
-      }, src.name, bytes, log);
-      if (!pose) { log(`Extract pose: no pose found in ${src.name}.`); return null; }
-      refOriginal = src;
-      log(`Extract pose: ${pose.people.length} ${pose.people.length === 1 ? 'person' : 'people'} found; the pose frame is now the reference. Pick the image again to go back.`);
-      return { pose, original: bytes };
-    } catch (err) {
-      log('Extract pose failed: ' + (err instanceof Error ? err.message : String(err)));
-      return null;
-    }
+  showGenerate: () => showTab('generate'),
+  showRegional: () => showTab('regional'),
+  // The style every box gets: the artist / LoRA trigger fields, edited in place.
+  styleFields: [
+    { label: 'Global (artist, style)', el: global_, tip: "The Generate tab's Global field: artist and style tags. Added to every box and the whole prompt, so the style (and a LoRA keyed on it) reaches every region." },
+    { label: 'Character trigger (LoRA trigger)', el: characterTrigger, tip: "The Generate tab's Character trigger: the LoRA's trigger words. Added to every box and the whole prompt." }
+  ],
+  generate: () => { void generate(); },
+  // The final image of the last generation (its last slide). Read lazily:
+  // previewSlideUrls is declared further down.
+  lastImage: () => { try { return previewSlideUrls.length ? previewSlideUrls[previewSlideUrls.length - 1] : null; } catch { return null; } },
+  onActiveChange(on) {
+    document.body.classList.toggle('regional-on', on);
+    if (on) autoGrowAll();
+    refreshSavePreview();
+    log(on ? 'Regional prompt on: Generate uses the Regional tab\'s layout.' : 'Regional prompt off: back to the prompt boxes.');
   },
-  back: () => showTab('generate')
+  log
 });
-$<HTMLButtonElement>('btnNewPose').addEventListener('click', () => {
-  refOriginal = null;
-  poseTab.newPose();
-  showTab('pose');
-});
-$<HTMLButtonElement>('btnExtractPose').addEventListener('click', async () => {
-  if (await poseTab.extract()) showTab('pose');
-});
-$<HTMLButtonElement>('btnEditPose').addEventListener('click', () => showTab('pose'));
+document.body.classList.toggle('regional-on', regional.active());
+for (const el of [width, height]) el.addEventListener('change', () => regional.refresh());
+// The Regional tab shows the generation's progress too (its Generate button).
+new MutationObserver(() => regional.setStatus(genStatus.style.display === 'none' ? '' : genStatus.textContent || ''))
+  .observe(genStatus, { childList: true, characterData: true, subtree: true, attributes: true });
 
 // ---------------- Unified prompt toggle ----------------
 
@@ -1083,13 +1066,16 @@ function joinRel(...parts: string[]): string { return parts.filter(Boolean).join
 
 // The text the rating folder is read from: the Rating field, or the unified
 // prompt in unified mode (it has no separate Rating field).
-function ratingText(): string { return unifiedPromptMode.checked ? unifiedPrompt.value : rating.value; }
+function ratingText(): string {
+  if (regional.active()) return regional.namingText();
+  return unifiedPromptMode.checked ? unifiedPrompt.value : rating.value;
+}
 
 async function currentNaming(): Promise<SaveNaming> {
   // Only pull the tag vocabulary when there is actually a Character field to
   // match against. On a fresh open that field is empty, so skipping the lookup
   // here is what keeps startup clear of all_tags' ~1.2s parse-and-map.
-  const characterField = fieldValue(character);
+  const characterField = regional.active() ? regional.namingText() : fieldValue(character);
   let recognized = '';
   if (characterField) {
     try { recognized = safeSegment(recognizeCharacter(characterField, await characterIndex())); } catch { /* tag list unavailable */ }
@@ -1312,6 +1298,7 @@ async function loadTemplate(): Promise<any> {
 
 function buildPrompt(): any {
   const prompt = buildPromptForComfy();
+  if (regional.active()) regional.appendToGeneration(prompt);
   if (usdu.activeForGeneration()) usdu.appendToGeneration(prompt);
   return withoutComfyCopy(prompt);
 }
@@ -1336,13 +1323,17 @@ function buildPromptForComfy(): any {
   // Thin adapter over the shared builder (comfy-core.ts, synced from the root
   // app) — reads this app's UI into SynthDatPromptConfig. All graph logic lives
   // there so it can't drift from the root app's SynthDat Overseer.
+  // Regional: the layout's whole-image prompt goes in as the unified prompt,
+  // so the prompt boxes' own text stays out; Global and the trigger (the
+  // style, shown in the regional card) go around it as usual.
+  const rg = regional.active();
   return buildSynthDatPrompt(template, {
-    unified: unifiedPromptMode.checked,
+    unified: rg || unifiedPromptMode.checked,
     global: fieldValue(global_),
     rating: fieldValue(rating),
     character: fieldValue(character),
     characterTrigger: fieldValue(characterTrigger),
-    unifiedPrompt: fieldValue(unifiedPrompt),
+    unifiedPrompt: rg ? regional.wholePrompt() : fieldValue(unifiedPrompt),
     hair: fieldValue(hair),
     face: fieldValue(face),
     chest: fieldValue(chest),
@@ -1473,6 +1464,7 @@ function setPreviewSlides(slides: { label: string; bytes: Uint8Array }[]): void 
     });
   }
   previewCarousel.scrollLeft = 0;
+  regional.refresh(); // the tab's "last result" underlay
 }
 
 let previewScrollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1486,7 +1478,7 @@ previewCarousel.addEventListener('scroll', () => {
 });
 
 async function generate(): Promise<void> {
-  await poseTab.flush(); // the reference = the last pose edit, not the one before
+  if (regional.active() && regional.problem()) { log(regional.problem()); return; }
   if (!skipRefImage.checked && !refFile) { log('Pick a reference image first (or check "No reference image").'); return; }
   // Apply each seed's chosen behaviour to the copy this job queues. The new
   // value is written back so the field and the naming preview show what the
@@ -1616,6 +1608,7 @@ btnGenerate.addEventListener('click', generate);
 let lastSavedImages: Wd14SavedImage[] = [];
 let wd14TagModels: string[] = [];
 async function useTagsAsPrompt(tags: string): Promise<void> {
+  regional.exit(); // the tags go into the prompt boxes, so those are what Generate uses
   if (unifiedPromptMode.checked) {
     unifiedPrompt.value = tags;
   } else {
@@ -1681,7 +1674,6 @@ function resetGenerationForm(): void {
   }
   for (const r of [...loraRows]) { loraRows = loraRows.filter(x => x !== r); r.row.remove(); }
   refFile = null;
-  refOriginal = null;
   refFilename = '';
   refFileName.textContent = '';
   refPreview.removeAttribute('src');
@@ -1879,6 +1871,9 @@ async function useGeneration(prompt: Record<string, any>, promptsOnly: boolean, 
       await applyImportedPrompt(prompt);
       log(`Loaded generation settings from ${from}.`);
     }
+    // A regional image brings its layout back (and uses it); anything else
+    // turns the layout off so the prompt it just loaded is the one in use.
+    if (regional.useFromPrompt(prompt)) log(`Loaded the regional layout from ${from} (Regional tab).`);
   } catch (err) {
     log(`Loading from ${from} failed: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -1952,11 +1947,12 @@ const layoutEl = $<HTMLElement>('layout');
 const metadataView = $<HTMLElement>('metadataView');
 const compareView = $<HTMLElement>('compareView');
 const usduView = $<HTMLElement>('usduView');
-const poseView = $<HTMLElement>('poseView');
+const regionalView = $<HTMLElement>('regionalView');
 function showTab(tab: string): void {
   layoutEl.style.display = tab === 'generate' ? '' : 'none';
   usduView.hidden = tab !== 'upscale';
-  poseView.hidden = tab !== 'pose';
+  regionalView.hidden = tab !== 'regional';
+  if (tab === 'regional') regional.refresh();
   metadataView.hidden = tab !== 'metadata';
   compareView.hidden = tab !== 'compare';
   // The floating buttons (settings/file drawers, gallery) belong to Generate only.

@@ -43,3 +43,18 @@ fs.writeFileSync(path.join(runnerDir, runner),
   '# scripts/sync-comfy-core.js. Edit the root file and re-run the sync.\n' +
   fs.readFileSync(path.join(__dirname, '..', 'local-comfy', runner), 'utf8'));
 console.log(`Synced local-comfy/${runner} -> comfy-bridge/local-comfy/${runner}`);
+
+// The DSM pack's anima_regional (Comfy Bridge's Regional tab) beside both
+// runners: the runner falls back to it when the installed pack predates it.
+// Copied verbatim (the vendored nodes.py stays byte-identical to upstream).
+{
+  const src = path.join(__dirname, '..', 'ComfyUI-dependencies', 'custom_nodes', 'ComfyUI-DataSetManagerNodes', 'anima_regional');
+  for (const dir of [path.join(__dirname, '..', 'local-comfy'), runnerDir]) {
+    const dest = path.join(dir, 'anima_regional');
+    fs.mkdirSync(dest, { recursive: true });
+    for (const f of ['__init__.py', 'nodes.py', 'dsm_regional_prompt.py', 'LICENSE']) {
+      fs.copyFileSync(path.join(src, f), path.join(dest, f));
+    }
+  }
+  console.log('Synced the DSM pack\'s anima_regional/ -> local-comfy/ and comfy-bridge/local-comfy/');
+}

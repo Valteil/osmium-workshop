@@ -80,10 +80,12 @@ declare const BridgeShared: {
   // shared/wd14-tag.ts: WD14 tagging panel (same module as the desktop's).
   mountWd14Panel: (host: HTMLElement, opts: any) => { refresh: () => void };
   extractWd14Tags: (record: any) => string | null;
-  // shared/pose-extract.ts: the reference image's pose + its editor.
-  extractPose: (run: (prompt: any, imageName: string, bytes: Uint8Array) => Promise<string>, imageName: string, bytes: Uint8Array, log: (msg: string) => void) => Promise<{ people: any[]; width: number; height: number } | null>;
-  // shared/pose-editor.ts: the ControlNet tab's pose editor.
-  mountPoseTab: (host: HTMLElement, opts: any) => { newPose: () => void; extract: () => Promise<boolean>; hasPose: () => boolean; flush: () => Promise<void> };
+  // shared/regional.ts: the Regional tab + its Generate-tab card.
+  mountRegional: (tabHost: HTMLElement, cardHost: HTMLElement, opts: any) => {
+    active: () => boolean; exit: () => void; refresh: () => void; setStatus: (text: string) => void; problem: () => string;
+    wholePrompt: () => string; namingText: () => string;
+    appendToGeneration: (prompt: any) => void; useFromPrompt: (prompt: any) => boolean;
+  };
   initTheme: (themes: any, def: any) => void;
   mountThemePicker: (opts: any) => void;
   initTagWiki: (button: HTMLElement) => void;
@@ -814,7 +816,10 @@ declare const BridgeShared: {
   function charMode(): CharMode { return charModeOC.checked ? 'oc' : charModeCustom.checked ? 'custom' : 'tag'; }
   // The text the rating folder is read from: the Rating field, or the unified
   // prompt in unified mode (it has no separate Rating field).
-  function ratingText(): string { return unifiedPromptMode.checked ? unifiedPrompt.value : rating.value; }
+  function ratingText(): string {
+    if (regional.active()) return regional.namingText();
+    return unifiedPromptMode.checked ? unifiedPrompt.value : rating.value;
+  }
   // fieldValue() is defined near the presets.
 
   interface SaveNaming { relDir: string; base: string; rating: string; character: string; recognized: string; }
@@ -823,7 +828,7 @@ declare const BridgeShared: {
     // Only pull the ~25MB Danbooru tag list when there is actually a
     // Character field to match against (the same startup-shaped guard as the
     // desktop's — see the Startup-Eager-Data-Parse-Blocks-Input pitfall).
-    const characterField = fieldValue(character);
+    const characterField = regional.active() ? regional.namingText() : fieldValue(character);
     let recognized = '';
     if (characterField) {
       try { recognized = BridgeShared.safeSegment(BridgeShared.recognizeCharacter(characterField, await BridgeShared.characterIndex())); } catch (e) { /* tag list unavailable */ }
@@ -1286,7 +1291,6 @@ declare const BridgeShared: {
     if (!bytes.length) { log('That image came back empty (the picker offered ' + String(file.size) + ' bytes) — try picking it again.'); return; }
     refFile = file;
     refBytes = bytes;
-    refOriginal = { name: file.name, bytes };
     refFilename = file.name;
     refFileName.textContent = file.name;
     // Preview from the bytes themselves, not a blob: URL of the picked file.
@@ -1300,49 +1304,41 @@ declare const BridgeShared: {
     refPreview.style.display = 'block';
   });
 
-  // The ControlNet tab (shared/pose-editor.ts): extract a pose from the
-  // picked reference (DWPose, through comfyTag) or start a new one, edit it
-  // there; every edit's frame becomes the reference image. `refOriginal` is
-  // the picked image, so extracting again starts from it, not from a frame.
-  let refOriginal: { name: string; bytes: Uint8Array } | null = null;
-  const poseTab = BridgeShared.mountPoseTab($('poseTab'), {
-    onChange(bytes: Uint8Array) {
-      // An extracted pose is named after its image; a New pose is pose.png.
-      refFile = null;
-      refBytes = bytes;
-      refFilename = refOriginal ? refOriginal.name.replace(/\.[^.]+$/, '') + '_pose.png' : 'pose.png';
-      refFileName.textContent = refFilename;
-      refPreview.src = 'data:image/png;base64,' + BridgeShared.bytesToBase64(bytes);
-      refPreview.style.display = 'block';
-      if (skipRefImage.checked) { skipRefImage.checked = false; applySkipRefImageUI(); }
+  // The Regional tab (shared/regional.ts): boxes over the generation's size,
+  // a prompt per box. While its layout is in use (body.regional-on), its card
+  // stands in for the Generate tab's prompt boxes, which keep their text for
+  // when the user goes back to them.
+  const regional = BridgeShared.mountRegional($('regionalTab'), $('regionalCard'), {
+    getSize: () => ({ width: parseInt(width.value, 10), height: parseInt(height.value, 10) }),
+    setSize(w: number, h: number) {
+      width.value = String(w);
+      height.value = String(h);
+      for (const el of [width, height]) { el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); }
     },
-    newPoseSize: () => ({ width: parseInt(width.value, 10), height: parseInt(height.value, 10) }),
-    async extract() {
-      const src = refOriginal || (refBytes ? { name: refFilename, bytes: refBytes } : null);
-      if (!src) { log('Pick a reference image in the Generate tab first, then extract its pose.'); return null; }
-      try {
-        const pose = await BridgeShared.extractPose(comfyTag, src.name, src.bytes, log);
-        if (!pose) { log('Extract pose: no pose found in ' + src.name + '.'); return null; }
-        refOriginal = src;
-        const n = pose.people.length;
-        log('Extract pose: ' + n + (n === 1 ? ' person' : ' people') + ' found; the pose frame is now the reference. Pick the image again to go back.');
-        return { pose, original: src.bytes };
-      } catch (err) {
-        log('Extract pose failed: ' + errMsg(err));
-        return null;
-      }
+    showGenerate: () => showTab('generate'),
+    showRegional: () => showTab('regional'),
+    // The style every box gets: the artist / LoRA trigger fields, edited in place.
+    styleFields: [
+      { label: 'Global (artist, style)', el: global_, tip: "The Generate tab's Global field: artist and style tags. Added to every box and the whole prompt, so the style (and a LoRA keyed on it) reaches every region." },
+      { label: 'Character trigger (LoRA trigger)', el: characterTrigger, tip: "The Generate tab's Character trigger: the LoRA's trigger words. Added to every box and the whole prompt." }
+    ],
+    generate: () => { void generate(); },
+    // The final image of the last generation (its last slide). Read lazily:
+    // previewSlideUrls is declared further down.
+    lastImage: () => { try { return previewSlideUrls.length ? previewSlideUrls[previewSlideUrls.length - 1] : null; } catch { return null; } },
+    onActiveChange(on: boolean) {
+      document.body.classList.toggle('regional-on', on);
+      if (on) autoGrowAll();
+      void refreshSavePreview();
+      log(on ? 'Regional prompt on: Generate uses the Regional tab\'s layout.' : 'Regional prompt off: back to the prompt boxes.');
     },
-    back: () => showTab('generate')
+    log
   });
-  $<HTMLButtonElement>('btnNewPose').addEventListener('click', () => {
-    refOriginal = null;
-    poseTab.newPose();
-    showTab('pose');
-  });
-  $<HTMLButtonElement>('btnExtractPose').addEventListener('click', async () => {
-    if (await poseTab.extract()) showTab('pose');
-  });
-  $<HTMLButtonElement>('btnEditPose').addEventListener('click', () => showTab('pose'));
+  document.body.classList.toggle('regional-on', regional.active());
+  for (const el of [width, height]) el.addEventListener('change', () => regional.refresh());
+  // The Regional tab shows the generation's progress too (its Generate button).
+  new MutationObserver(() => regional.setStatus(genStatus.style.display === 'none' ? '' : genStatus.textContent || ''))
+    .observe(genStatus, { childList: true, characterData: true, subtree: true, attributes: true });
 
   // The magic numbers of the formats the editor actually feeds through here.
   // Audio/video/DICOM etc. render nothing, so only a recognized family or an
@@ -1753,13 +1749,17 @@ declare const BridgeShared: {
     // Thin adapter over the shared builder (BridgeShared.buildSynthDatPrompt,
     // bundled from comfy-bridge/src/comfy-core.ts — the same source the desktop
     // apps use). All graph logic lives there so it can't drift.
+    // Regional: the layout's whole-image prompt goes in as the unified prompt,
+    // so the prompt boxes' own text stays out; Global and the trigger (the
+    // style, shown in the regional card) go around it as usual.
+    const rg = regional.active();
     const prompt = BridgeShared.buildSynthDatPrompt(template, {
-      unified: unifiedPromptMode.checked,
+      unified: rg || unifiedPromptMode.checked,
       global: fieldValue(global_),
       rating: fieldValue(rating),
       character: fieldValue(character),
       characterTrigger: fieldValue(characterTrigger),
-      unifiedPrompt: fieldValue(unifiedPrompt),
+      unifiedPrompt: rg ? regional.wholePrompt() : fieldValue(unifiedPrompt),
       hair: fieldValue(hair),
       face: fieldValue(face),
       chest: fieldValue(chest),
@@ -1798,6 +1798,7 @@ declare const BridgeShared: {
       steps2: steps2.value,
       upscale: { enabled: upscaleEnabled.checked && !usdu.enabled(), model: upscaleModel.value, scaleBy: upscaleScaleBy.value }
     });
+    if (rg) regional.appendToGeneration(prompt);
     if (usdu.activeForGeneration()) usdu.appendToGeneration(prompt);
     return prompt;
   }
@@ -1865,6 +1866,7 @@ declare const BridgeShared: {
       });
     }
     previewCarousel.scrollLeft = 0;
+    regional.refresh(); // the tab's "last result" underlay
   }
 
   let previewScrollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1904,7 +1906,7 @@ declare const BridgeShared: {
   function queueNote(): string { return genQueue.length ? ' · ' + genQueue.length + ' queued' : ''; }
 
   async function generate() {
-    await poseTab.flush(); // the reference = the last pose edit, not the one before
+    if (regional.active() && regional.problem()) { log(regional.problem()); return; }
     if (!skipRefImage.checked && !refBytes) { log('Pick a reference image first (or check "No reference image").'); return; }
     await loadTemplate();
     const passCount = use2Pass.checked ? 2 : 1;
@@ -2095,6 +2097,7 @@ declare const BridgeShared: {
     return poll.value;
   }
   async function useTagsAsPrompt(tags: string) {
+    regional.exit(); // the tags go into the prompt boxes, so those are what Generate uses
     if (unifiedPromptMode.checked) {
       unifiedPrompt.value = tags;
     } else {
@@ -2157,7 +2160,6 @@ declare const BridgeShared: {
     }
     refFile = null;
     refBytes = null;
-    refOriginal = null;
     refFilename = '';
     refFileName.textContent = '';
     refPreview.removeAttribute('src');
@@ -2340,6 +2342,9 @@ declare const BridgeShared: {
         await applyImportedPrompt(prompt);
         log('Loaded generation settings from ' + from + '.');
       }
+      // A regional image brings its layout back (and uses it); anything else
+      // turns the layout off so the prompt it just loaded is the one in use.
+      if (regional.useFromPrompt(prompt)) log('Loaded the regional layout from ' + from + ' (Regional tab).');
     } catch (err) {
       log('Loading from ' + from + ' failed: ' + errMsg(err));
     }
@@ -2460,12 +2465,13 @@ declare const BridgeShared: {
   const metadataView = $<HTMLElement>('metadataView');
   const compareView = $<HTMLElement>('compareView');
   const usduView = $<HTMLElement>('usduView');
-  const poseView = $<HTMLElement>('poseView');
+  const regionalView = $<HTMLElement>('regionalView');
   const metaFileInput = $<HTMLInputElement>('metaFileInput');
   function showTab(tab: string) {
     colEl.hidden = tab !== 'generate';
     usduView.hidden = tab !== 'upscale';
-    poseView.hidden = tab !== 'pose';
+    regionalView.hidden = tab !== 'regional';
+    if (tab === 'regional') regional.refresh();
     metadataView.hidden = tab !== 'metadata';
     compareView.hidden = tab !== 'compare';
     // ☰ and the gallery button belong to Generate only (the Log button stays).

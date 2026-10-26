@@ -22,7 +22,7 @@
     <nav id="appTabs" role="tablist">
       <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
       <button type="button" role="tab" data-tab="upscale" aria-selected="false" title="Upscale an image you already have with USDU (Ultimate SD Upscale)">Upscale</button>
-      <button type="button" role="tab" data-tab="pose" aria-selected="false" title="Pose editor: pose a mannequin (or OpenPose skeleton) that becomes the Generate tab's reference image">ControlNet</button>
+      <button type="button" role="tab" data-tab="regional" aria-selected="false" title="Regional prompt: draw boxes over the image and prompt each one; Generate then uses the layout">Regional</button>
       <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
       <button type="button" role="tab" data-tab="compare" aria-selected="false">Gallery</button>
     </nav>
@@ -99,9 +99,6 @@
         <div id="refImageSection">
           <div class="row">
             <button id="btnPickImage">Pick reference image…</button>
-            <button id="btnExtractPose" title="Find the people's poses in the reference image (DWPose, the comfyui_controlnet_aux node pack) and edit them in the ControlNet tab; the pose frame becomes the reference. Pick the image again to go back.">Extract pose</button>
-            <button id="btnNewPose" title="Make a pose without a reference image (one standing person at the generation size) and edit it in the ControlNet tab. It becomes the reference image.">New pose</button>
-            <button id="btnEditPose" title="Open the ControlNet tab's pose editor">Edit pose</button>
             <span id="refFileName" class="muted"></span>
           </div>
           <img id="refPreview" style="display:none" class="thumb">
@@ -164,6 +161,9 @@
 
       <section class="sec">
         <div class="sec-head"><span class="d">Prompt</span></div>
+        <!-- Regional prompt in use: this card replaces the prompt boxes (shared/regional.ts). -->
+        <div id="regionalCard"></div>
+        <div class="normal-prompt">
         <div class="row">
           <select id="promptPresetSelect"><option value="">(choose a preset)</option></select>
           <button id="btnLoadPromptPreset">Load</button>
@@ -199,6 +199,7 @@
         </div>
         <label>Character trigger</label>
         <textarea id="characterTrigger" rows="1"></textarea>
+        </div>
         <label>Negative</label>
         <textarea id="negative" rows="2"></textarea>
         <div class="row">
@@ -264,8 +265,8 @@
   </div>
   <!-- Upscale tab: USDU for an imported image; shared/usdu.ts' mountUsduPanel (mode 'imported'). -->
   <div id="usduView" hidden><div id="usduTab"></div></div>
-  <!-- ControlNet tab: the pose editor; its frame is the Generate tab's reference image (shared/pose-editor.ts). -->
-  <div id="poseView" hidden><div id="poseTab"></div></div>
+  <!-- Regional tab: boxes + a prompt per box; Generate uses the layout (shared/regional.ts). -->
+  <div id="regionalView" hidden><div id="regionalTab"></div></div>
   <!-- Metadata tab: filled by shared/metadata-ui.ts' mountMetadataTab. -->
   <div id="metadataView" class="meta-tab-scroll" hidden><div id="metadataTab" class="meta-tab"></div></div>
   <!-- Gallery tab: the large gallery + a folded Compare (slots, side by side / overlay); shared/compare.ts. -->

@@ -12,6 +12,7 @@ build on the following work by others, under these licenses.
 | [ws](https://github.com/websockets/ws) | Osmium, Comfy Bridge | MIT | 2011 Einar Otto Stangvik; 2013 Arnout Kazemier and contributors; 2016 Luigi Pinca and contributors |
 | [Capacitor](https://capacitorjs.com/) (`@capacitor/*`) | Comfy Bridge for Android | MIT | 2017-present Drifty Co.; 2025 Ionic |
 | Fonts in `renderer/fonts/` | All apps | SIL Open Font License 1.1 | Their authors; see `renderer/fonts/OFL.md` |
+| [Comfyui-Anima-Regional-Conditioning](https://github.com/Sen-sou/Comfyui-Anima-Regional-Conditioning) (`local-comfy/anima_regional/nodes.py`, also in the node pack) | Osmium, Comfy Bridge (Osmium Comfy's regional prompt) | MIT (its `LICENSE` beside it) | 2026 Vikas Vishwakarma |
 
 ## Code ported or adapted
 

@@ -312,6 +312,8 @@ body.off-generate-tab .side-drawer-toggle, body.off-generate-tab #galleryFab{ di
 #appTabs button:focus-visible{ outline:1px solid var(--accent); }
 #usduView{ flex:1; overflow:auto; }
 #usduView[hidden]{ display:none; }
+#regionalView{ flex:1; overflow:auto; }
+#regionalView[hidden]{ display:none; }
 #metadataView{ flex:1; overflow:auto; }
 #metadataView[hidden]{ display:none; }
 #compareView{ flex:1; overflow:auto; }

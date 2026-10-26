@@ -26,7 +26,7 @@
   <nav id="appTabs" role="tablist">
     <button type="button" role="tab" data-tab="generate" class="active" aria-selected="true">Generate</button>
     <button type="button" role="tab" data-tab="upscale" aria-selected="false">Upscale</button>
-    <button type="button" role="tab" data-tab="pose" aria-selected="false">ControlNet</button>
+    <button type="button" role="tab" data-tab="regional" aria-selected="false">Regional</button>
     <button type="button" role="tab" data-tab="metadata" aria-selected="false">Metadata</button>
     <button type="button" role="tab" data-tab="compare" aria-selected="false">Gallery</button>
   </nav>
@@ -111,9 +111,6 @@
       <div id="refImageSection">
         <div class="row">
           <button id="btnPickImage">Pick reference image…</button>
-          <button id="btnExtractPose">Extract pose</button>
-          <button id="btnNewPose">New pose</button>
-          <button id="btnEditPose">Edit pose</button>
           <input id="refFileInput" type="file" accept="image/*" style="display:none">
         </div>
         <span id="refFileName" class="muted"></span>
@@ -123,6 +120,9 @@
 
     <section class="sec">
       <div class="sec-head"><span class="d">Prompt</span></div>
+      <!-- Regional prompt in use: this card replaces the prompt boxes (BridgeShared.mountRegional). -->
+      <div id="regionalCard"></div>
+      <div class="normal-prompt">
       <div class="row">
         <select id="promptPresetSelect"><option value="">(choose a preset)</option></select>
       </div>
@@ -160,6 +160,7 @@
       </div>
       <label>Character trigger</label>
       <textarea id="characterTrigger" rows="1"></textarea>
+      </div>
 
       <label>Negative</label>
       <textarea id="negative" rows="2"></textarea>
@@ -230,8 +231,8 @@
   </div>
   <!-- Upscale tab: USDU for an imported image (BridgeShared.mountUsduPanel, mode 'imported'). -->
   <div id="usduView" hidden><div id="usduTab"></div></div>
-  <!-- ControlNet tab: the pose editor (BridgeShared.mountPoseTab). -->
-  <div id="poseView" hidden><div id="poseTab"></div></div>
+  <!-- Regional tab: boxes + a prompt per box; Generate uses the layout (BridgeShared.mountRegional). -->
+  <div id="regionalView" hidden><div id="regionalTab"></div></div>
   <!-- Metadata tab (BridgeShared.mountMetadataTab). -->
   <div id="metadataView" hidden>
     <div id="metadataTab" class="meta-tab"></div>

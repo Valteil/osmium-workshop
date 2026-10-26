@@ -31,6 +31,7 @@ subfolder's own header comment (top of its `nodes.py`) for exactly what was kept
 | `impact_switch/` | `DSM Switch (Any)` (upstream: `ImpactSwitch`) | [ltdrdata/ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) — 1 of 100+ nodes | **GPLv3** |
 | `easy_lora_names/` | `DSM Lora Name` (upstream: `easy loraNames`) | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) — 1 of 100+ nodes | **GPLv3** |
 | `unload_models/` | `DSM Unload Models (pass-through)` (`DSMUnloadModels`) | Bespoke node built for this project (Comfy Bridge's USDU upscale: frees VRAM before upscaling) — no upstream repo | — (part of this project) |
+| `anima_regional/` | `DSM Anima Regional Prompt (boxes)` (`DSMAnimaRegionalPrompt`, bespoke front end), `DSM Anima Conditioning Region`, `DSM Apply Anima Regional Conditioning Patch` (upstream: `AnimaConditioningRegion`, `ApplyAnimaRegionalConditioningPatch`) | [Sen-sou/Comfyui-Anima-Regional-Conditioning](https://github.com/Sen-sou/Comfyui-Anima-Regional-Conditioning) — bundled in full (`nodes.py` unmodified); Comfy Bridge's Regional tab drives the box node | MIT |
 | `models/controlnet/` | `anima-lllite-any-test-like-v2.safetensors` (not a node — the ControlNet-LLLite weights file itself) | [kohya-ss/Anima-LLLite](https://huggingface.co/kohya-ss/Anima-LLLite) on Hugging Face | see that page |
 
 **License note:** because this pack redistributes GPLv3-licensed code (`impact_switch/`,

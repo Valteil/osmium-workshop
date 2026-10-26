@@ -48,6 +48,10 @@ from .unload_models import (
     NODE_CLASS_MAPPINGS as _unload_classes,
     NODE_DISPLAY_NAME_MAPPINGS as _unload_names,
 )
+from .anima_regional import (
+    NODE_CLASS_MAPPINGS as _regional_classes,
+    NODE_DISPLAY_NAME_MAPPINGS as _regional_names,
+)
 
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
@@ -59,6 +63,7 @@ for _classes, _names in (
     (_impact_classes, _impact_names),
     (_easy_classes, _easy_names),
     (_unload_classes, _unload_names),
+    (_regional_classes, _regional_names),
 ):
     NODE_CLASS_MAPPINGS.update(_classes)
     NODE_DISPLAY_NAME_MAPPINGS.update(_names)
