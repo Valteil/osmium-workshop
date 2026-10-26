@@ -18,8 +18,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   its pose editor): draw boxes over your image and give each one its own prompt, so you choose what
   goes where (two characters side by side, a prop in a corner). The boxes steer the first part of
   the steps, then the whole picture is finished as one image. Every text field shows where it goes:
-  **Style** (your Global field: artist tags and style-LoRA triggers) and **Scene** go into every
-  box, so a style LoRA looks the same everywhere; a character LoRA's trigger goes in that
+  **Style** (your Global field: artist tags and style-LoRA triggers) goes into every box, so a
+  style LoRA looks the same everywhere; **Scene** (the setting) surrounds the boxes, whose edges
+  blend into it; a character LoRA's trigger goes in that
   character's box; **Whole picture only** takes counts
   like `2girls` without every box drawing two. Ready-made layouts, duplicate, undo/redo, a
   strength and a **spread** per box (a small box can mean "roughly here" instead of "exactly this

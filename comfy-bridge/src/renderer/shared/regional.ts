@@ -14,9 +14,13 @@
 // - Fixed text scopes (one rule per field, no switches; the UI labels each
 //   field with its scope, and the guide uses the same words):
 //     Style (the Generate tab's Global field: artist tags, style-LoRA
-//     triggers) and Scene go into every box, the empty area (no box) and the
-//     whole picture. A box only hears its own text during the layout steps,
-//     so a style trigger missing from a box means that look is missing there.
+//     triggers) goes into every box, the empty area (no box) and the whole
+//     picture. A box only hears its own text during the layout steps, so a
+//     style trigger missing from a box means that look is missing there.
+//     Scene (setting, lighting) goes into the empty area and the whole picture,
+//     NOT the boxes: a box that also hears "beach, sunset" paints its own beach
+//     and sun, a panel with a seam at the box edge (GPU, 2026-10-26). With soft
+//     edges, each box's border band blends into the empty area instead.
 //     The Character trigger field (character-LoRA triggers) is NOT used while
 //     a layout is on: in every box it would turn every subject into that
 //     character. Its trigger goes in that character's box; the tab and the
@@ -43,6 +47,7 @@ export type OverlapMode = 'blend' | 'top';
 export interface RegionalSettings {
   layoutStart: number; layoutEnd: number; focus: number; separation: number; blend: number;
   bgMode: BackgroundMode; bgStrength: number; crossEvery: number; selfEvery: number; overlap: OverlapMode;
+  softEdges: number;
 }
 export interface RegionalState extends RegionalSettings {
   scene: string; // every box + the empty area + the whole picture
@@ -56,7 +61,10 @@ export const REGIONAL_DEFAULTS: RegionalSettings = {
   layoutStart: 0, layoutEnd: 0.35, focus: 1, separation: 0.2, blend: 0.1,
   // bgStrength 0.3, not upstream's 1: a hard background mask on the thin gaps
   // between boxes painted coloured-square artefacts there (GPU, 2026-10-26).
-  bgMode: 'uncovered_only', bgStrength: 0.3, crossEvery: 1, selfEvery: 1, overlap: 'blend'
+  bgMode: 'uncovered_only', bgStrength: 0.3, crossEvery: 1, selfEvery: 1, overlap: 'blend',
+  // Soft edges 0.06: without them Separation made every box compose its own scene (side-by-side
+  // panels, a flat fill behind a subject); 0.10 merged the subjects again (GPU, 2026-10-26).
+  softEdges: 0.06
 };
 
 const STORE_KEY = 'comfybridge-regional';
@@ -125,7 +133,8 @@ function sanitizeState(s: any): RegionalState {
     bgStrength: clamp(num(s.bgStrength, D.bgStrength), 0, 1),
     crossEvery: Math.round(clamp(num(s.crossEvery, D.crossEvery), 1, 8)),
     selfEvery: Math.round(clamp(num(s.selfEvery, D.selfEvery), 1, 8)),
-    overlap: s.overlap === 'top' || s.overlap === 'blend' ? s.overlap : D.overlap
+    overlap: s.overlap === 'top' || s.overlap === 'blend' ? s.overlap : D.overlap,
+    softEdges: clamp(num(s.softEdges, D.softEdges), 0, 0.3)
   };
 }
 function loadState(): RegionalState {
@@ -143,8 +152,8 @@ function loadState(): RegionalState {
 export function regionalWholePrompt(s: RegionalState): string {
   return joinParts([s.scene, s.wholeOnly, ...s.regions.map(r => r.prompt)]);
 }
-function boxText(style: string, s: RegionalState, r: RegionBox): string {
-  return joinParts([style, s.scene, r.prompt]);
+function boxText(style: string, r: RegionBox): string {
+  return joinParts([style, r.prompt]);
 }
 
 // Puts the regional node between the model and the CFG guider ('158:54',
@@ -157,7 +166,7 @@ export function appendRegionalNodes(prompt: Prompt, s: RegionalState, style: str
   if (!guider || !encode) throw new Error('Regional prompt: the workflow has no CFG guider (158:54) or positive encode (52).');
   const entries: any[] = s.regions.filter(r => r.prompt.trim()).map(r => ({
     x: +r.x.toFixed(4), y: +r.y.toFixed(4), w: +r.w.toFixed(4), h: +r.h.toFixed(4),
-    text: boxText(style, s, r),
+    text: boxText(style, r),
     weight: r.weight,
     spread: r.spread,
     prompt: r.prompt // the box's own words, for Import Generation
@@ -182,7 +191,8 @@ export function appendRegionalNodes(prompt: Prompt, s: RegionalState, style: str
       layout_start: s.layoutStart,
       cross_every_n_blocks: s.crossEvery,
       self_every_n_blocks: s.selfEvery,
-      overlap_mode: s.overlap
+      overlap_mode: s.overlap,
+      soft_edges: s.softEdges
     },
     _meta: { title: 'Regional prompt' }
   };
@@ -207,7 +217,8 @@ export function regionalStateFromPrompt(prompt: Prompt): RegionalState | null {
     regions, active: true,
     layoutStart: inp.layout_start, layoutEnd: inp.layout_end, focus: inp.region_focus, separation: inp.separation,
     blend: inp.blend, bgMode: inp.background_mode, bgStrength: inp.background_strength,
-    crossEvery: inp.cross_every_n_blocks, selfEvery: inp.self_every_n_blocks, overlap: inp.overlap_mode
+    crossEvery: inp.cross_every_n_blocks, selfEvery: inp.self_every_n_blocks, overlap: inp.overlap_mode,
+    softEdges: typeof inp.soft_edges === 'number' ? inp.soft_edges : 0
   });
 }
 
@@ -257,7 +268,7 @@ export interface RegionalController {
 }
 
 interface BoxView { root: HTMLDivElement; label: HTMLSpanElement; halo: HTMLDivElement; }
-type NumKey = 'layoutStart' | 'layoutEnd' | 'focus' | 'separation' | 'blend' | 'bgStrength' | 'crossEvery' | 'selfEvery';
+type NumKey = 'layoutStart' | 'layoutEnd' | 'focus' | 'separation' | 'softEdges' | 'blend' | 'bgStrength' | 'crossEvery' | 'selfEvery';
 
 export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts: RegionalOptions): RegionalController {
   let st = loadState();
@@ -347,6 +358,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     return h;
   };
   const SCOPE_ALL = 'every box · empty area · whole picture';
+  const SCOPE_SCENE = 'empty area · whole picture';
   const SCOPE_WHOLE = 'never in a box';
   // Style: the Generate tab's own Global + Character trigger fields, edited in place.
   const styleSec = el('div', 'rg-sec');
@@ -355,12 +367,12 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   triggerWarnTab.hidden = true;
   const sceneSec = el('div', 'rg-sec');
   const SCENE_HINT = 'Quality, rating, setting, lighting (e.g. masterpiece, safe, sunset beach, warm light)';
-  const SCENE_TIP = 'Goes into every box, the empty area and the whole picture. No counts or subjects here: every box would draw them.';
+  const SCENE_TIP = 'Goes into the empty area and the whole picture; the boxes blend into it at their edges. Not into the boxes, so each box doesn\'t paint its own scene.';
   const sceneTa = el('textarea', 'rg-scene');
   sceneTa.rows = 2;
   sceneTa.placeholder = SCENE_HINT;
   sceneTa.title = SCENE_TIP;
-  sceneSec.append(secHead('Scene', SCOPE_ALL), sceneTa);
+  sceneSec.append(secHead('Scene', SCOPE_SCENE), sceneTa);
   const wholeSec = el('div', 'rg-sec');
   const WHOLE_HINT = 'Counts and interactions (e.g. 2girls, looking at each other, holding hands)';
   const WHOLE_TIP = 'Only the whole picture (the finishing steps) gets this, never a box, so 2girls here doesn\'t make every box draw two.';
@@ -371,7 +383,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   wholeSec.append(secHead('Whole picture only', SCOPE_WHOLE), wholeTa);
   const listSec = el('div', 'rg-sec');
   const listHead = el('div', 'rg-sec-head', 'Boxes');
-  const listScope = el('div', 'rg-scope', 'Each box: that box only (and the whole picture). Start a subject with its count: 1girl, …');
+  const listScope = el('div', 'rg-scope', 'Each box: that subject only, count first (1girl, …); no setting. Goes into that box and the whole picture.');
   const list = el('div', 'rg-list');
   listSec.append(listHead, listScope, list);
 
@@ -386,6 +398,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     ['layoutStart', 'Layout starts', 'Steps before the boxes start steering. Keep at 0: the composition is decided in the first steps, and even 10% let two boxes merge into one person in testing.', 0, 0.9, 0.05, pct],
     ['focus', 'Box focus', 'How strictly each box hears only its own prompt during the layout steps. 1 = strictly; lower lets the other boxes\' text in.', 0, 1, 0.05, (v) => v.toFixed(2)],
     ['separation', 'Separation', 'Keeps boxes from mixing into each other. At 0 two subjects merge into one; too high gives seams and uneven style. 0.2 is the tested middle.', 0, 1, 0.05, (v) => v.toFixed(2)],
+    ['softEdges', 'Soft edges', 'A band inside each box, along its edges, where Separation fades out so the box\'s background joins the picture around it instead of becoming its own panel. The subject in the middle stays separate. Too wide (0.10+) lets subjects merge.', 0, 0.3, 0.01, (v) => v.toFixed(2)],
     ['blend', 'Blend', 'Mixes the plain whole-picture result into every layout step, so lighting, style and the LoRA look match across boxes.', 0, 1, 0.05, (v) => v.toFixed(2)],
     ['bgStrength', 'Empty-area strength', 'How firmly the empty area (no box) is held to Style + Scene during the layout steps. Keep it low: at 1 the thin gaps between boxes filled with artefacts in testing.', 0, 1, 0.05, (v) => v.toFixed(2)],
     ['crossEvery', 'Focus every', 'Route box prompts in every Nth transformer block (1 = all). Higher = lighter touch.', 1, 8, 1, (v) => v === 1 ? 'all' : '1/' + v],
@@ -452,7 +465,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   cardWhole.title = WHOLE_TIP;
   const cardList = el('div', 'rg-list rg-card-list');
   const cardNote = el('div', 'muted small rg-card-note');
-  cardHost.append(cardHead, cardMini, cardStyle, secHead('Scene', SCOPE_ALL), cardScene,
+  cardHost.append(cardHead, cardMini, cardStyle, secHead('Scene', SCOPE_SCENE), cardScene,
     secHead('Whole picture only', SCOPE_WHOLE), cardWhole, el('div', 'rg-sec-head', 'Boxes'), cardList, cardNote);
 
   // Style proxies: the real fields stay the source (presets, import, save all

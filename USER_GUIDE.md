@@ -875,8 +875,9 @@ This guide covers the desktop app. Its sibling shares this repo:
     prompt applies only inside it; then the **whole picture** is finished with one prompt, so the
     result reads as one image. Anima models only.
     - **Where text goes** (each field shows its scope): **Style** (your Global field: artist tags,
-      style-LoRA triggers) and **Scene** (quality, rating, setting, lighting) go into every
-      box, the empty area (where no box is) and the whole picture. **Whole picture only** (counts like
+      style-LoRA triggers) goes into every box, the empty area (where no box is) and the whole
+      picture. **Scene** (quality, rating, setting, lighting) goes into the empty area and the
+      whole picture; each box's edges blend into it (**Soft edges**), so boxes don't become panels. **Whole picture only** (counts like
       `2girls`, interactions) goes into the whole picture only. Each **box** holds one subject,
       count first (`1girl, red hair`), plus a character LoRA's trigger if it has one, and also
       goes into the whole picture. The Character trigger field isn't used with a layout.

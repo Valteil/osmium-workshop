@@ -25,15 +25,16 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
       <table class="rgg-table">
         <tr><th>Field</th><th>Goes into</th><th>Put</th></tr>
         <tr><td><b>Style</b><br>(your Global field)</td><td>every box · empty area · whole picture</td><td>Artist tags, style-LoRA triggers</td></tr>
-        <tr><td><b>Scene</b></td><td>every box · empty area · whole picture</td><td>Quality, rating, setting, lighting</td></tr>
+        <tr><td><b>Scene</b></td><td>empty area · whole picture</td><td>Quality, rating, setting, lighting</td></tr>
         <tr><td><b>Whole picture only</b></td><td>whole picture only</td><td>Counts and interactions: <code>2girls</code>, <code>looking at each other</code></td></tr>
-        <tr><td><b>A box</b></td><td>that box · whole picture</td><td>That subject, count first: <code>1girl, red hair, waving</code>; a character LoRA's trigger goes here, in that character's box</td></tr>
+        <tr><td><b>A box</b></td><td>that box · whole picture</td><td>That subject only, count first: <code>1girl, red hair, waving</code>; a character LoRA's trigger goes here. No setting.</td></tr>
       </table>
       <p>The Generate tab's <b>Character trigger</b> field isn't used with a layout (in every box it would
       turn every subject into that character); the tab warns if it holds text.</p>
-      <p>So: subjects and their counts never go in Style or Scene (every box would draw them), and the
-      overall count (<code>2girls</code>) goes in Whole picture only. The <b>empty area</b> is wherever
-      no box is.</p>`
+      <p>Boxes hold only their subject (plus Style); the setting lives in Scene, and each box's edges
+      blend into it (<b>Soft edges</b>). A setting inside a box makes that box paint its own scene, a
+      panel with a seam. Subjects and counts never go in Style or Scene; the overall count
+      (<code>2girls</code>) goes in Whole picture only. The <b>empty area</b> is wherever no box is.</p>`
   },
   {
     id: 'controls',
@@ -64,6 +65,7 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
         <tr><td><b>Layout starts</b> 0%</td><td>Keep at 0: a late start lets subjects merge.</td></tr>
         <tr><td><b>Box focus</b> 1</td><td>How strictly a box hears only its own prompt.</td></tr>
         <tr><td><b>Separation</b> 0.2</td><td>Keeps boxes apart. 0 merges subjects; high gives seams.</td></tr>
+        <tr><td><b>Soft edges</b> 0.06</td><td>A band along each box's edges where Separation fades, so the box joins the background. 0 = panels; 0.10+ merges subjects.</td></tr>
         <tr><td><b>Blend</b> 0.1</td><td>Mixes in the plain whole-picture result for consistent style and lighting.</td></tr>
         <tr><td><b>Empty-area strength</b> 0.3</td><td>How firmly the empty area follows Style + Scene. High causes junk there.</td></tr>
         <tr><td><b>Empty-area prompt</b></td><td>Keep "Empty area only"; "Everywhere" turns Separation off.</td></tr>
@@ -81,6 +83,7 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
         <tr><td>Style-LoRA look uneven across boxes</td><td>Its trigger in Style (Global), not a box; then Blend ~0.2.</td></tr>
         <tr><td>Character LoRA shows up in the wrong box, or in both</td><td>Its trigger only in that character's box; lower the LoRA's weight if it still bleeds (a LoRA applies to the whole model).</td></tr>
         <tr><td>Pasted-on look / hard edges</td><td>Lower the box's Strength (~0.6), add Spread, or Separation ~0.15.</td></tr>
+        <tr><td>A box looks like its own panel, or has a flat fill behind the subject</td><td>Take the setting out of the box (it belongs in Scene); keep Soft edges at ~0.06.</td></tr>
         <tr><td>Junk in the empty area between boxes</td><td>Lower Empty-area strength, or make boxes touch.</td></tr>
         <tr><td>Subject squashed into a small box</td><td>Spread 20–30%, or a bigger box.</td></tr>
         <tr><td>Overlap looks like a mix</td><td>Overlaps → Top box wins; front box lower in the list.</td></tr>
