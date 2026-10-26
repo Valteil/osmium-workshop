@@ -53,6 +53,8 @@ declare const BridgeShared: {
   parseQueueResponse: (parsed: any, status: number, noun: string) => { ok: boolean; promptId?: string; error?: string };
   uploadImage: (t: any, host: string, filename: string, bytes: Uint8Array, label?: string) => Promise<{ ok: boolean; ref?: string; error?: string }>;
   queuePrompt: (t: any, host: string, prompt: any, clientId: string, opts?: any) => Promise<{ ok: boolean; promptId?: string; error?: string }>;
+  dropUnloadIfMissing: (t: any, host: string, prompt: any) => Promise<void>;
+  freeAfterUsdu: (t: any, host: string, prompt: any, state: { lastUsdu: boolean }) => Promise<void>;
   pollHistory: (t: any, host: string, promptId: string, opts: any) => Promise<{ ok: boolean; value?: any; error?: string; interrupted?: boolean }>;
   extractPngTextChunks: (bytes: Uint8Array, inflate?: (d: Uint8Array) => Uint8Array) => Record<string, string>;
   bytesToBase64: (bytes: Uint8Array) => string;
@@ -1102,6 +1104,8 @@ declare const BridgeShared: {
     };
   }
 
+  // Whether the last job left USDU's models loaded (BridgeShared.freeAfterUsdu).
+  const usduVram = { lastUsdu: false };
   async function comfyQueueAndFetch(imageFilename: string | null, imageBytes: Uint8Array | null, prompt: Record<string, any>): Promise<GenResult> {
     let ws: WebSocket | null = null;
     const gen = { cancelled: false, abort: new AbortController() };
@@ -1209,6 +1213,8 @@ declare const BridgeShared: {
         });
       } catch (err) { console.error('[comfy-bridge] preview websocket setup failed:', err); }
 
+      await BridgeShared.dropUnloadIfMissing(t, getHost(), prompt);
+      await BridgeShared.freeAfterUsdu(t, getHost(), prompt, usduVram);
       const queue = await BridgeShared.queuePrompt(t, getHost(), prompt, clientId, { extraData: { preview_method: 'taesd' }, noun: 'generation' });
       if (!queue.ok) return { ok: false, error: queue.error };
       const promptId = queue.promptId!;

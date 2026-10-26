@@ -10,6 +10,17 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ---
 
+## v2.0.1 (unreleased)
+
+### Comfy Bridge
+
+- **USDU upscaling frees VRAM:** the generation models are unloaded before Ultimate SD Upscale
+  starts (when generating with USDU on, and in the Upscale tab), and the upscale models are
+  unloaded before your next generation, so the two never sit in VRAM together. With your own
+  ComfyUI server, update the ComfyUI-DataSetManagerNodes pack for the first half.
+
+---
+
 ## v2.0.0
 
 ### Osmium Workshop

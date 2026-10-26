@@ -355,6 +355,26 @@ def load_nodes():
         nodes.NODE_CLASS_MAPPINGS.update(getattr(mod, "NODE_CLASS_MAPPINGS", {}))
     # What the pack's __init__ would have done: its bundled ControlNet weights.
     folder_paths.add_model_folder_path("controlnet", os.path.join(PACK_DIR, "models", "controlnet"))
+    # Comfy Bridge's pass-through before USDU (the pack's unload_models, kept
+    # here too so an installed pack that predates it still has it).
+    nodes.NODE_CLASS_MAPPINGS["DSMUnloadModels"] = UnloadModels
+
+
+class UnloadModels:
+    """IMAGE in, IMAGE out: unloads every model from VRAM before what follows."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"image": ("IMAGE",)}}
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "run"
+    CATEGORY = "DataSetManager"
+
+    def run(self, image):
+        comfy.model_management.unload_all_models()
+        comfy.model_management.soft_empty_cache()
+        return (image,)
 
 
 # Optional packs (Comfy Bridge's USDU upscale, 2026-10-17): loaded from the
@@ -1279,8 +1299,24 @@ def cmd_node_info(req):
     return {"ok": True, "input": out}
 
 
+LAST_USDU = False
+
+
 def cmd_generate(req):
-    global EXECUTOR
+    global EXECUTOR, LAST_USDU
+    # After a USDU upscale, a new generation first frees the VRAM its models
+    # hold (they stay cached in RAM). The other way round, the graph's own
+    # DSMUnloadModels runs before USDU. Same rule as comfy-core.ts's
+    # freeAfterUsdu for a ComfyUI server.
+    graph = req["prompt"] or {}
+    has_usdu = any(isinstance(n, dict) and n.get("class_type") == "UltimateSDUpscale" for n in graph.values())
+    is_generation = "176" in graph
+    if LAST_USDU and is_generation:
+        comfy.model_management.unload_all_models()
+        comfy.model_management.soft_empty_cache()
+        say("Unloaded the upscale models before generating.")
+    if has_usdu or is_generation:
+        LAST_USDU = has_usdu
     prompt, captures = prepare(req["prompt"])
     ref_path = None
     if req.get("image_b64") and "239" in prompt:

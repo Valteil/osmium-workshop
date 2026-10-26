@@ -30,6 +30,7 @@ subfolder's own header comment (top of its `nodes.py`) for exactly what was kept
 | `rgthree_subset/` | `DSM Image Resize`, `DSM Lora Loader Stack` (upstream: `Image Resize (rgthree)`, `Lora Loader Stack (rgthree)`) | [rgthree/rgthree-comfy](https://github.com/rgthree/rgthree-comfy) — 2 of ~50+ nodes | MIT |
 | `impact_switch/` | `DSM Switch (Any)` (upstream: `ImpactSwitch`) | [ltdrdata/ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) — 1 of 100+ nodes | **GPLv3** |
 | `easy_lora_names/` | `DSM Lora Name` (upstream: `easy loraNames`) | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) — 1 of 100+ nodes | **GPLv3** |
+| `unload_models/` | `DSM Unload Models (pass-through)` (`DSMUnloadModels`) | Bespoke node built for this project (Comfy Bridge's USDU upscale: frees VRAM before upscaling) — no upstream repo | — (part of this project) |
 | `models/controlnet/` | `anima-lllite-any-test-like-v2.safetensors` (not a node — the ControlNet-LLLite weights file itself) | [kohya-ss/Anima-LLLite](https://huggingface.co/kohya-ss/Anima-LLLite) on Hugging Face | see that page |
 
 **License note:** because this pack redistributes GPLv3-licensed code (`impact_switch/`,

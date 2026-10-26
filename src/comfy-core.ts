@@ -424,6 +424,46 @@ export async function queuePrompt(t: ComfyTransport, host: string, prompt: unkno
   return parseQueueResponse(safeJson(decodeUtf8(res.body)), res.status, opts.noun || 'request');
 }
 
+// Comfy Bridge's VRAM step before USDU: a pass-through (IMAGE in, IMAGE out)
+// that unloads every model. In the DSM node pack and built into Osmium Comfy's
+// runner; a ComfyUI whose pack predates it runs the graph without it, its
+// consumers wired straight to its input.
+export const UNLOAD_NODE_CLASS = 'DSMUnloadModels';
+export async function dropUnloadIfMissing(t: ComfyTransport, host: string, prompt: Record<string, any>): Promise<void> {
+  const ids = Object.keys(prompt).filter((id) => prompt[id] && prompt[id].class_type === UNLOAD_NODE_CLASS);
+  if (!ids.length) return;
+  try {
+    const res = await t.request(host, `/object_info/${UNLOAD_NODE_CLASS}`, { timeoutMs: 6000 });
+    if (res.status === 200 && safeJson(decodeUtf8(res.body))[UNLOAD_NODE_CLASS]) return;
+  } catch { /* unreachable: treat as missing, the /prompt call reports the real error */ }
+  for (const id of ids) {
+    const source = prompt[id].inputs.image;
+    delete prompt[id];
+    for (const node of Object.values(prompt)) {
+      const inputs = node && node.inputs;
+      if (!inputs) continue;
+      for (const [k, v] of Object.entries(inputs)) {
+        if (Array.isArray(v) && v[0] === id) inputs[k] = source;
+      }
+    }
+  }
+}
+
+// The other way round: after a USDU upscale, a new generation first frees
+// the VRAM the upscale's models hold (POST /free, unload only, so ComfyUI
+// keeps them cached in RAM). `state` is the caller's own memory of the last
+// job. Osmium Comfy's runner applies the same rule itself (cmd_generate).
+export async function freeAfterUsdu(t: ComfyTransport, host: string, prompt: Record<string, any>, state: { lastUsdu: boolean }): Promise<void> {
+  const hasUsdu = Object.values(prompt).some((n) => n && n.class_type === 'UltimateSDUpscale');
+  const isGeneration = !!prompt['176'];
+  if (state.lastUsdu && isGeneration) {
+    const body = new TextEncoder().encode(JSON.stringify({ unload_models: true }));
+    try { await t.request(host, '/free', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': body.length }, body, timeoutMs: 10000 }); }
+    catch { /* best effort */ }
+  }
+  if (hasUsdu || isGeneration) state.lastUsdu = hasUsdu;
+}
+
 export interface ComfyPollOptions<T> {
   deadlineMs: number;
   intervalMs?: number;

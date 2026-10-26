@@ -16,7 +16,7 @@ const http = require('http');
 const https = require('https');
 const WS = require('ws');
 const { randomUUID } = require('crypto');
-import { parseComboValues, uploadImage, queuePrompt, pollHistory, extractWd14Tags, extractPngTextChunks as extractPngChunks } from './comfy-core';
+import { parseComboValues, uploadImage, queuePrompt, dropUnloadIfMissing, freeAfterUsdu, pollHistory, extractWd14Tags, extractPngTextChunks as extractPngChunks } from './comfy-core';
 import type { ComfyTransport } from './comfy-core';
 import {
   configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop, localLogs, onLocalLogs,
@@ -716,6 +716,8 @@ ipcMain.handle('synthdat-get-object-info', async (event, { host, classType, inpu
 });
 
 let activeGen: { cancelled: boolean; ws: any } | null = null;
+// Whether the last job left USDU's models loaded (comfy-core's freeAfterUsdu).
+const usduVram = { lastUsdu: false };
 
 ipcMain.handle('synthdat-stop-generation', async (event, host) => {
   if (host === LOCAL_COMFY_HOST) { localStop(); return { ok: true }; }
@@ -884,6 +886,8 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
       });
     } catch (err) { console.error('[comfy-bridge] preview websocket setup failed:', err && err.message); }
 
+    await dropUnloadIfMissing(nodeComfyTransport, host, prompt);
+    await freeAfterUsdu(nodeComfyTransport, host, prompt, usduVram);
     const queue = await queuePrompt(nodeComfyTransport, host, prompt, clientId, { extraData: { preview_method: 'taesd' }, noun: 'generation' });
     if (!queue.ok) return queue;
     const promptId = queue.promptId;

@@ -44,6 +44,10 @@ from .easy_lora_names import (
     NODE_CLASS_MAPPINGS as _easy_classes,
     NODE_DISPLAY_NAME_MAPPINGS as _easy_names,
 )
+from .unload_models import (
+    NODE_CLASS_MAPPINGS as _unload_classes,
+    NODE_DISPLAY_NAME_MAPPINGS as _unload_names,
+)
 
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
@@ -54,6 +58,7 @@ for _classes, _names in (
     (_rgthree_classes, _rgthree_names),
     (_impact_classes, _impact_names),
     (_easy_classes, _easy_names),
+    (_unload_classes, _unload_names),
 ):
     NODE_CLASS_MAPPINGS.update(_classes)
     NODE_DISPLAY_NAME_MAPPINGS.update(_names)

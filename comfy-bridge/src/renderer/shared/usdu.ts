@@ -13,6 +13,7 @@
 // - an imported image: a standalone graph whose LoadImage is '239' and whose
 //   save node is '192', so every transport (desktop main, Osmium Comfy runner,
 //   the relay, the phone) uploads and fetches it unchanged.
+import { UNLOAD_NODE_CLASS } from '../../comfy-core';
 import { attachPickerModal } from './picker-modal';
 import { showImageLightbox } from './lightbox';
 import { mergedPromptText } from './gen-info';
@@ -174,7 +175,12 @@ export function imageSizeOf(b: Uint8Array): ImageSize | null {
 // `inputSize` = the image's size, for "Match the input image" tiles.
 export function appendUsduNodes(prompt: Prompt, image: unknown, s: UsduSettings, positive: string, saveId: string, filenamePrefix: unknown, inputSize: ImageSize | null): void {
   const d = USDU_DEFAULTS;
-  prompt['usdu_ckpt'] = { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: s.ckpt.trim() || d.ckpt }, _meta: { title: 'USDU Checkpoint' } };
+  // Free the VRAM first: a pass-through that unloads every model (the
+  // generation's Anima ones) once the image exists, so USDU has the GPU to
+  // itself. Dropped on a ComfyUI without the node (dropUnloadIfMissing).
+  prompt['usdu_unload'] = { class_type: UNLOAD_NODE_CLASS, inputs: { image }, _meta: { title: 'Unload models' } };
+  image = ['usdu_unload', 0];
+  prompt['usdu_ckpt'] ={ class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: s.ckpt.trim() || d.ckpt }, _meta: { title: 'USDU Checkpoint' } };
   prompt['usdu_upmodel'] = { class_type: 'UpscaleModelLoader', inputs: { model_name: s.upscaleModel.trim() || d.upscaleModel }, _meta: { title: 'USDU Upscale Model' } };
   let posText: unknown = positive;
   if (s.promptSource === 'wd14') {
