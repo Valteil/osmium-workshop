@@ -24,11 +24,13 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
       <p>Every field has one fixed scope, shown next to its name.</p>
       <table class="rgg-table">
         <tr><th>Field</th><th>Goes into</th><th>Put</th></tr>
-        <tr><td><b>Style</b><br>(your Global + Character trigger)</td><td>every box · empty area · whole picture</td><td>Artist tags, LoRA trigger</td></tr>
+        <tr><td><b>Style</b><br>(your Global field)</td><td>every box · empty area · whole picture</td><td>Artist tags, style-LoRA triggers</td></tr>
         <tr><td><b>Scene</b></td><td>every box · empty area · whole picture</td><td>Quality, rating, setting, lighting</td></tr>
         <tr><td><b>Whole picture only</b></td><td>whole picture only</td><td>Counts and interactions: <code>2girls</code>, <code>looking at each other</code></td></tr>
-        <tr><td><b>A box</b></td><td>that box · whole picture</td><td>That subject, count first: <code>1girl, red hair, waving</code></td></tr>
+        <tr><td><b>A box</b></td><td>that box · whole picture</td><td>That subject, count first: <code>1girl, red hair, waving</code>; a character LoRA's trigger goes here, in that character's box</td></tr>
       </table>
+      <p>The Generate tab's <b>Character trigger</b> field isn't used with a layout (in every box it would
+      turn every subject into that character); the tab warns if it holds text.</p>
       <p>So: subjects and their counts never go in Style or Scene (every box would draw them), and the
       overall count (<code>2girls</code>) goes in Whole picture only. The <b>empty area</b> is wherever
       no box is.</p>`
@@ -76,7 +78,8 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
         <tr><td>Subjects merge into one</td><td>Separation ≥ 0.2, Layout starts 0, a count in each box; raise Layout ends to ~0.45.</td></tr>
         <tr><td>Subject duplicated / in the wrong box</td><td>Move counts and subject details out of Style and Scene (overall count → Whole picture only).</td></tr>
         <tr><td>A box is ignored</td><td>Raise Layout ends; check the box has text.</td></tr>
-        <tr><td>LoRA look uneven across boxes</td><td>Trigger in Style, not a box; then Blend ~0.2.</td></tr>
+        <tr><td>Style-LoRA look uneven across boxes</td><td>Its trigger in Style (Global), not a box; then Blend ~0.2.</td></tr>
+        <tr><td>Character LoRA shows up in the wrong box, or in both</td><td>Its trigger only in that character's box; lower the LoRA's weight if it still bleeds (a LoRA applies to the whole model).</td></tr>
         <tr><td>Pasted-on look / hard edges</td><td>Lower the box's Strength (~0.6), add Spread, or Separation ~0.15.</td></tr>
         <tr><td>Junk in the empty area between boxes</td><td>Lower Empty-area strength, or make boxes touch.</td></tr>
         <tr><td>Subject squashed into a small box</td><td>Spread 20–30%, or a bigger box.</td></tr>

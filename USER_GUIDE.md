@@ -874,11 +874,12 @@ This guide covers the desktop app. Its sibling shares this repo:
     give each its own prompt. During the **layout steps** (the first 35% by default) each box's
     prompt applies only inside it; then the **whole picture** is finished with one prompt, so the
     result reads as one image. Anima models only.
-    - **Where text goes** (each field shows its scope): **Style** (your Global + Character trigger:
-      artist tags, LoRA trigger) and **Scene** (quality, rating, setting, lighting) go into every
+    - **Where text goes** (each field shows its scope): **Style** (your Global field: artist tags,
+      style-LoRA triggers) and **Scene** (quality, rating, setting, lighting) go into every
       box, the empty area (where no box is) and the whole picture. **Whole picture only** (counts like
       `2girls`, interactions) goes into the whole picture only. Each **box** holds one subject,
-      count first (`1girl, red hair`), and also goes into the whole picture.
+      count first (`1girl, red hair`), plus a character LoRA's trigger if it has one, and also
+      goes into the whole picture. The Character trigger field isn't used with a layout.
     - **Boxes:** drag to draw, move and resize; arrows nudge, Delete removes, Ctrl+D duplicates,
       Ctrl+Z / Ctrl+Y undo/redo. Per box: **Strength** (lower if it looks pasted on), **Spread** (0%
       = hard edge; higher = "roughly here", so a small box sets position without shrinking the

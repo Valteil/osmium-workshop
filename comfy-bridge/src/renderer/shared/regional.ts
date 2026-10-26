@@ -13,10 +13,14 @@
 // - Layout share: regions steer composition only; details finish globally.
 // - Fixed text scopes (one rule per field, no switches; the UI labels each
 //   field with its scope, and the guide uses the same words):
-//     Style (the Generate tab's Global + Character trigger) and Scene go into
-//     every box, the empty area (no box) and the whole picture. A box only
-//     hears its own text during the layout steps, so a LoRA trigger missing
-//     from a box means the LoRA's look is missing there.
+//     Style (the Generate tab's Global field: artist tags, style-LoRA
+//     triggers) and Scene go into every box, the empty area (no box) and the
+//     whole picture. A box only hears its own text during the layout steps,
+//     so a style trigger missing from a box means that look is missing there.
+//     The Character trigger field (character-LoRA triggers) is NOT used while
+//     a layout is on: in every box it would turn every subject into that
+//     character. Its trigger goes in that character's box; the tab and the
+//     card say so when the field isn't empty.
 //     Whole picture only (counts like 2girls, interactions) goes into the
 //     whole picture only: in a box, "2girls" makes that box draw two.
 //     Each box's prompt goes into that box and the whole picture, so the
@@ -217,6 +221,9 @@ export interface RegionalOptions {
   // The Generate tab's style fields (Global, Character trigger): shown in the
   // card and the tab, edited in place, and added to every box.
   styleFields: { label: string; el: HTMLTextAreaElement | HTMLInputElement; tip: string }[];
+  // The Generate tab's Character trigger: not used while a layout is on (the
+  // shell leaves it out); the tab and the card warn when it holds text.
+  unusedTrigger?: HTMLTextAreaElement | HTMLInputElement;
   // Switch tabs.
   showGenerate: () => void;
   showRegional: () => void;
@@ -344,6 +351,8 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   // Style: the Generate tab's own Global + Character trigger fields, edited in place.
   const styleSec = el('div', 'rg-sec');
   styleSec.append(secHead('Style', SCOPE_ALL));
+  const triggerWarnTab = el('div', 'muted small rg-warn');
+  triggerWarnTab.hidden = true;
   const sceneSec = el('div', 'rg-sec');
   const SCENE_HINT = 'Quality, rating, setting, lighting (e.g. masterpiece, safe, sunset beach, warm light)';
   const SCENE_TIP = 'Goes into every box, the empty area and the whole picture. No counts or subjects here: every box would draw them.';
@@ -469,6 +478,13 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     for (const p of styleProxies) if (p.proxy !== except && document.activeElement !== p.proxy) p.proxy.value = p.field.value;
   }
   for (const f of opts.styleFields) f.el.addEventListener('input', () => syncStyle());
+  if (opts.unusedTrigger) opts.unusedTrigger.addEventListener('input', () => renderNote());
+  // The style proxies were appended after the warning; keep the warning last.
+  styleSec.append(triggerWarnTab);
+  function triggerWarning(): string {
+    const t = opts.unusedTrigger ? opts.unusedTrigger.value.trim() : '';
+    return t ? `Character trigger "${t.length > 40 ? t.slice(0, 40) + '…' : t}" isn't used with a layout: put a character LoRA's trigger in that character's box.` : '';
+  }
 
   // ===== rendering =====
   const views = new Map<string, BoxView>();
@@ -660,9 +676,13 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   function renderNote(): void {
     const p = problemText();
     let note = p;
-    if (!p && !styleText()) note = 'Tip: put the artist / LoRA trigger in Style above, so every box gets the same look.';
+    const tw = triggerWarning();
+    triggerWarnTab.textContent = tw;
+    triggerWarnTab.hidden = !tw;
+    if (!p && tw) note = tw;
+    else if (!p && !styleText()) note = 'Tip: artist tags and style-LoRA triggers go in Style (Global), so every box gets the same look.';
     cardNote.textContent = note || 'Generate uses this layout: the boxes steer the layout steps, then the whole picture is finished as one image.';
-    cardNote.classList.toggle('rg-warn', !!p);
+    cardNote.classList.toggle('rg-warn', !!p || !!tw);
   }
 
   function renderCard(): void {

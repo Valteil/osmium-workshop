@@ -426,11 +426,13 @@ const regional = mountRegional($<HTMLDivElement>('regionalTab'), $<HTMLDivElemen
   },
   showGenerate: () => showTab('generate'),
   showRegional: () => showTab('regional'),
-  // The style every box gets: the artist / LoRA trigger fields, edited in place.
+  // The style every box gets: Global (artist tags, style-LoRA triggers),
+  // edited in place. Character trigger is left out in regional mode (a
+  // character LoRA's trigger belongs in that character's box).
   styleFields: [
-    { label: 'Global (artist, style)', el: global_, tip: "The Generate tab's Global field: artist and style tags. Goes into every box, the empty area and the whole picture." },
-    { label: 'Character trigger (LoRA trigger)', el: characterTrigger, tip: "The Generate tab's Character trigger: the LoRA's trigger words. Goes into every box, the empty area and the whole picture." }
+    { label: 'Global (artist tags, style-LoRA triggers)', el: global_, tip: "The Generate tab's Global field. Goes into every box, the empty area and the whole picture." }
   ],
+  unusedTrigger: characterTrigger,
   generate: () => { void generate(); },
   // The final image of the last generation (its last slide). Read lazily:
   // previewSlideUrls is declared further down.
@@ -1324,15 +1326,15 @@ function buildPromptForComfy(): any {
   // app) — reads this app's UI into SynthDatPromptConfig. All graph logic lives
   // there so it can't drift from the root app's SynthDat Overseer.
   // Regional: the layout's whole-picture prompt goes in as the unified prompt,
-  // so the prompt boxes' own text stays out; Global and the trigger (the
-  // style, shown in the regional card) go around it as usual.
+  // so the prompt boxes' own text stays out; Global (the style, shown in
+  // the regional card) goes around it as usual. No Character trigger here.
   const rg = regional.active();
   return buildSynthDatPrompt(template, {
     unified: rg || unifiedPromptMode.checked,
     global: fieldValue(global_),
     rating: fieldValue(rating),
     character: fieldValue(character),
-    characterTrigger: fieldValue(characterTrigger),
+    characterTrigger: rg ? '' : fieldValue(characterTrigger),
     unifiedPrompt: rg ? regional.wholePrompt() : fieldValue(unifiedPrompt),
     hair: fieldValue(hair),
     face: fieldValue(face),
