@@ -65,6 +65,17 @@ _orig_self_bias = _up._build_flux_self_attention_bias
 FLOOR = -12.0  # nodes.py's penalty scale for a fully blocked pair
 
 
+def _outside_dist(rect, h, w, device):
+    """[h, w]: distance from the box (long-side units), 0 inside it."""
+    x0, y0, x1, y1 = rect[:4]
+    long_side = float(max(h, w))
+    ys = (torch.arange(h, device=device, dtype=torch.float32) + 0.5) / h
+    xs = (torch.arange(w, device=device, dtype=torch.float32) + 0.5) / w
+    dy = torch.clamp(torch.maximum(y0 - ys, ys - y1), min=0.0) * (h / long_side)
+    dx = torch.clamp(torch.maximum(x0 - xs, xs - x1), min=0.0) * (w / long_side)
+    return torch.sqrt(dy[:, None] ** 2 + dx[None, :] ** 2)
+
+
 def _halo(rect, t, h, w, device):
     """[t*h*w] in 0-1: 1 at the box's edge, 0 inside it and from `spread` away (long-side units)."""
     x0, y0, x1, y1, spread = rect
@@ -111,12 +122,19 @@ def _spreads(masks):
     if masks.shape[1] != t * h * w or masks.shape[0] != len(rects) + 1:
         return None
     covered = masks[1:].any(dim=0)
+    if not any(r[4] > 0 for r in rects):
+        return []
+    # Each free token belongs to its nearest box only, so two halos never share a token: when
+    # two spreading boxes faced each other, the shared gap heard both prompts and the subjects
+    # merged (GPU, 2026-10-26).
+    dists = torch.stack([_outside_dist(r, h, w, masks.device).reshape(-1).repeat(t) for r in rects])
+    nearest = dists.argmin(dim=0)
     out = []
     for i, rect in enumerate(rects):
         if rect[4] <= 0:
             continue
         halo = _halo(rect, t, h, w, masks.device)
-        rows = (halo > 0) & ~covered  # only free area; other boxes stay theirs
+        rows = (halo > 0) & ~covered & (nearest == i)  # free area nearest this box; other boxes stay theirs
         if rows.any():
             out.append((i + 1, halo, rows))
     return out
@@ -193,6 +211,30 @@ def _self_bias(masks, base_mode, mask_strength, device, dtype, slot_strengths=No
             sc = (1.0 - band[r]).to(b.dtype)
             b[r[:, None], t_idx[None, :]] = _relax(b[r[:, None], t_idx[None, :]], sc[:, None])
             b[t_idx[:, None], r[None, :]] = _relax(b[t_idx[:, None], r[None, :]], sc[None, :])
+    # Halos inherit their box's separation (scaled by the halo): halo tokens are free area, and
+    # free tokens all see each other, so two spreading boxes grew one figure across the gap
+    # between them (GPU, 2026-10-26). Penalise halo A <-> (box B + halo B) like box A <-> box B.
+    if spreads:
+        sep = FLOOR * float(mask_strength)
+        member = {slot: (m[slot].to(b.dtype), torch.where(rows, halo, torch.zeros_like(halo)).to(b.dtype))
+                  for slot, halo, rows in spreads}
+        for slot in range(1, m.shape[0]):
+            if slot not in member:
+                member[slot] = (m[slot].to(b.dtype), torch.zeros(m.shape[1], dtype=b.dtype, device=b.device))
+        for a_slot, (_a_core, a_halo) in member.items():
+            if not (a_halo > 0).any():
+                continue
+            ra = (a_halo > 0).nonzero(as_tuple=True)[0]
+            for b_slot, (b_core, b_halo) in member.items():
+                if b_slot == a_slot:
+                    continue
+                other = torch.maximum(b_core, b_halo)
+                cb = (other > 0).nonzero(as_tuple=True)[0]
+                if cb.numel() == 0:
+                    continue
+                pen = sep * a_halo[ra][:, None] * other[cb][None, :]
+                b[ra[:, None], cb[None, :]] = torch.minimum(b[ra[:, None], cb[None, :]], pen)
+                b[cb[:, None], ra[None, :]] = torch.minimum(b[cb[:, None], ra[None, :]], pen.t())
     for slot, halo, rows in spreads or []:
         hi = rows.nonzero(as_tuple=True)[0]
         ci = m[slot].nonzero(as_tuple=True)[0]

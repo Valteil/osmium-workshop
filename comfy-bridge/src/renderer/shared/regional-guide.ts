@@ -49,9 +49,11 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
         <li><b>Strength</b> (per box): how strictly the box keeps to its prompt. Lower if it looks pasted on.</li>
         <li><b>Spread</b> (per box): 0% = hard edge, the subject is sized to the box. Higher = "roughly here":
           the prompt reaches into the empty area around the box (dashed outline), so a small box sets position
-          without shrinking the subject.</li>
-        <li><b>Overlaps</b> (Blending): <i>Mix both prompts</i> suits a box inside a box (a hat on a head);
-          <i>Top box wins</i> gives the overlap to the box lower in the list (▲ ▼), for something in front of something else.</li>
+          without shrinking the subject. Two boxes can both spread toward each other; the gap is shared
+          out by distance and they stay separate subjects (they just sit closer).</li>
+        <li><b>Overlaps</b> (Blending): <i>Mix both prompts</i> (default) suits a box inside a box (a hat on a head);
+          <i>Top box wins</i> gives the overlap to the box lower in the list (▲ ▼), for something in front of something else.
+          With Top box wins, draw the front box tight around the object: spare room in it gets painted as a prop.</li>
         <li><b>Show the last result behind the boxes</b> to line boxes up with a previous output.</li>
       </ul>`
   },
@@ -87,6 +89,7 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
         <tr><td>Junk in the empty area between boxes</td><td>Lower Empty-area strength, or make boxes touch.</td></tr>
         <tr><td>Subject squashed into a small box</td><td>Spread 20–30%, or a bigger box.</td></tr>
         <tr><td>Overlap looks like a mix</td><td>Overlaps → Top box wins; front box lower in the list.</td></tr>
+        <tr><td>A stray prop or panel appears in a small front box</td><td>Shrink that box to the object's outline, or go back to Mix both prompts.</td></tr>
         <tr><td>Error mentions <code>DSMAnimaRegionalPrompt</code></td><td>Server: update ComfyUI-DataSetManagerNodes and restart ComfyUI. Osmium Comfy with Persist on: close its console once.</td></tr>
         <tr><td>"supports only Anima models"</td><td>Use an Anima diffusion model.</td></tr>
       </table>
