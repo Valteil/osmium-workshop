@@ -19,7 +19,7 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   goes where (two characters side by side, a prop in a corner). Drag to draw, move and resize;
   ready-made layouts, duplicate, undo/redo, a strength per box, a **spread** per box (a small box
   can mean "about here" instead of "exactly this big"), a choice of what wins where boxes overlap,
-  and the last result shown behind the boxes to line them up. A step-by-step **How to use** guide is
+  and the last result shown behind the boxes to line them up. A short **How to use** guide is
   built into the tab. Your Global field and Character trigger (the artist and LoRA trigger)
   go to every box, so a style LoRA looks the same everywhere. **Generate** right from the tab, or
   **Use in Generate**: the Generate tab's prompt boxes are swapped for the layout until you go back.

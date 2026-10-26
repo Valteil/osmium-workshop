@@ -307,7 +307,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   const clearBtn = button('Clear', 'Remove every box');
   const useBtn = button('Use in Generate', 'Switch the Generate tab to this layout (its prompt boxes come back with "Back to normal prompt")');
   const genBtn = button('Generate', 'Generate with this layout now (turns the layout on in the Generate tab too)', 'rg-primary');
-  const guideBtn = button('? How to use', 'Step-by-step guide to this tab: what to type where, every control, and fixes for common problems', 'rg-guide-btn');
+  const guideBtn = button('? How to use', 'Short guide: what text goes where, the controls and settings, and fixes', 'rg-guide-btn');
   guideBtn.addEventListener('click', () => showRegionalGuide());
   actions.append(guideBtn, tplSel, undoBtn, redoBtn, clearBtn, useBtn, genBtn);
   const statusLine = el('div', 'muted small rg-status');

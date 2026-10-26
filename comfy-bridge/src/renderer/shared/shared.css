@@ -380,7 +380,7 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .rg-guide-btn{ font-weight:600; }
 /* The Regional guide (shared/regional-guide.ts) */
 .rgg-overlay{ position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:24px; box-sizing:border-box; }
-.rgg-panel{ background:var(--panel, #1e1d27); color:var(--text, #e8e6f0); border:1px solid var(--border); border-radius:10px; width:min(900px, 100%); max-height:100%; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.5); }
+.rgg-panel{ background:var(--panel, #1e1d27); color:var(--text, #e8e6f0); border:1px solid var(--border); border-radius:10px; width:min(760px, 100%); max-height:100%; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.5); }
 .rgg-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border); }
 .rgg-title{ font-weight:600; font-size:16px; }
 .rgg-close{ min-width:0; padding:2px 10px; }
@@ -389,9 +389,6 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .rgg-body{ overflow:auto; padding:4px 20px 16px; line-height:1.55; font-size:14px; }
 .rgg-body h3{ margin:18px 0 6px; font-size:15px; }
 .rgg-body code{ background:var(--panel2, rgba(127,127,127,.15)); padding:0 4px; border-radius:3px; }
-.rgg-steps li{ margin-bottom:8px; }
-.rgg-note{ color:var(--muted); }
-.rgg-small{ font-size:12px; color:var(--muted); font-weight:normal; }
 .rgg-table{ border-collapse:collapse; width:100%; margin:8px 0; font-size:13px; }
 .rgg-table th, .rgg-table td{ border:1px solid var(--border); padding:6px 8px; text-align:left; vertical-align:top; }
 .rgg-table th{ background:var(--panel2, rgba(127,127,127,.12)); }

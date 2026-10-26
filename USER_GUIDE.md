@@ -876,8 +876,8 @@ This guide covers the desktop app. Its sibling shares this repo:
     (undo / redo) work on the selected box. Each box has a **Strength** (lower = it blends more) and a
     **Spread** (0% = a hard edge; higher = "about here": the thing can grow past a small box into the
     free space around it). Where boxes overlap, both prompts mix, or with **Overlaps → Top box wins**
-    the box lower in the list (▲ ▼) takes the overlap. **? How to use** in the tab opens a
-    step-by-step guide (it opens by itself the first time).
+    the box lower in the list (▲ ▼) takes the overlap. **? How to use** in the tab opens a short
+    guide (it opens by itself the first time).
     - **Style** is your Global field and Character trigger (put the artist tags and the LoRA
       trigger there): every box gets it, so a style LoRA reaches every region. **Whole image** is
       quality, rating, setting and lighting; it goes to every box too and fills the area no box
