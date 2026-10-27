@@ -25,7 +25,7 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
       <table class="rgg-table">
         <tr><th>Field</th><th>Goes into</th><th>Put</th></tr>
         <tr><td><b>Style</b><br>(your Global field)</td><td>every box · empty area · whole picture</td><td>Artist tags, style-LoRA triggers</td></tr>
-        <tr><td><b>Scene</b></td><td>empty area · whole picture</td><td>Quality, rating, setting, lighting</td></tr>
+        <tr><td><b>Scene</b></td><td>empty area · whole picture (every box too, with the Panels preset)</td><td>Quality, rating, setting, lighting</td></tr>
         <tr><td><b>Whole picture only</b></td><td>whole picture only</td><td>Counts and interactions: <code>2girls</code>, <code>looking at each other</code></td></tr>
         <tr><td><b>A box</b></td><td>that box · whole picture</td><td>That subject only, count first: <code>1girl, red hair, waving</code>; a character LoRA's trigger goes here. No setting.</td></tr>
       </table>
@@ -35,6 +35,22 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
       blend into it (<b>Soft edges</b>). A setting inside a box makes that box paint its own scene, a
       panel with a seam. Subjects and counts never go in Style or Scene; the overall count
       (<code>2girls</code>) goes in Whole picture only. The <b>empty area</b> is wherever no box is.</p>`
+  },
+  {
+    id: 'presets',
+    title: 'Presets',
+    html: `
+      <p>Pick the one that matches the picture you want (<b>Preset</b>, above Blending). Each sets all
+      Blending settings (and Spread, for Roughly here); changing any of them afterwards makes it Custom.</p>
+      <table class="rgg-table">
+        <tr><th>Preset</th><th>For</th><th>Draw the boxes</th></tr>
+        <tr><td><b>Balanced</b></td><td>Separate subjects in one shared scene (default)</td><td>Around each subject</td></tr>
+        <tr><td><b>Roughly here</b></td><td>Boxes set where, not how big</td><td>Small is fine; each box spreads into the space around it</td></tr>
+        <tr><td><b>Strict boxes</b></td><td>Subjects sized and held to their boxes</td><td>The size you want each subject</td></tr>
+        <tr><td><b>Panels</b></td><td>Diptychs, comic panels, split screens: a hard split, each box its own scene</td><td>One box per panel; Scene goes into every box</td></tr>
+        <tr><td><b>Interaction</b></td><td>Subjects touching (holding hands, leaning)</td><td>Touching, <b>not overlapping</b>; the interaction goes in Whole picture only</td></tr>
+        <tr><td><b>Layered</b></td><td>An object in front of a subject</td><td>Front box tight around the object, lower in the list</td></tr>
+      </table>`
   },
   {
     id: 'controls',
@@ -61,7 +77,7 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
     id: 'blending',
     title: 'Blending settings',
     html: `
-      <p>Defaults are tested; <b>Reset blending</b> restores them.</p>
+      <p>The values below are Balanced's; each preset sets its own. <b>Reset to preset</b> restores the selected one.</p>
       <table class="rgg-table">
         <tr><td><b>Layout ends</b> 35%</td><td>How long the layout steps last. Raise if boxes are ignored.</td></tr>
         <tr><td><b>Layout starts</b> 0%</td><td>Keep at 0: a late start lets subjects merge.</td></tr>

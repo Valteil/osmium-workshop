@@ -25,7 +25,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   like `2girls` without every box drawing two. Ready-made layouts, duplicate, undo/redo, a
   strength and a **spread** per box (a small box can mean "roughly here" instead of "exactly this
   big"), a choice of what wins where boxes overlap, the last result shown behind the boxes, and
-  every blending setting. **Generate** right from the tab, or **Use in Generate**: the Generate
+  every blending setting, with presets for the kind of picture (Balanced, Roughly here, Strict
+  boxes, Panels for diptychs and comic panels, Interaction, Layered). **Generate** right from the tab, or **Use in Generate**: the Generate
   tab's prompt boxes are swapped for the layout until you go back. A short **How to use** guide is
   built into the tab. Regional images bring their layout back with Import Generation. For Anima
   models; with your own ComfyUI server, update the ComfyUI-DataSetManagerNodes pack (Osmium Comfy

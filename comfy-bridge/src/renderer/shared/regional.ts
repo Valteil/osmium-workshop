@@ -48,24 +48,61 @@ export interface RegionalSettings {
   layoutStart: number; layoutEnd: number; focus: number; separation: number; blend: number;
   bgMode: BackgroundMode; bgStrength: number; crossEvery: number; selfEvery: number; overlap: OverlapMode;
   softEdges: number;
+  // Panels preset only: Scene also goes into every box, so each box paints its own scene.
+  sceneInBoxes: boolean;
+  // Spread given to new boxes (and to every box when a preset is picked).
+  boxSpread: number;
 }
+export type PresetId = 'balanced' | 'roughly' | 'strict' | 'panels' | 'interaction' | 'layered';
 export interface RegionalState extends RegionalSettings {
   scene: string; // every box + the empty area + the whole picture
   wholeOnly: string; // the whole picture only (counts, interactions)
+  preset: PresetId | 'custom'; // the preset the settings came from ('custom' once one is changed)
   regions: RegionBox[];
   active: boolean; // the Generate tab uses the layout instead of its prompt boxes
   underlay: boolean; // the last result behind the boxes (tab only)
 }
 
-export const REGIONAL_DEFAULTS: RegionalSettings = {
+// Presets: whole settings sets for a use case, each GPU-checked on that use case (2026-10-27,
+// notes/Apps/Comfy-Bridge.md "Presets"). Balanced is the default. Only Panels changes where text
+// goes (Scene into every box), and the scope labels say so while it's on.
+const BASE: RegionalSettings = {
   layoutStart: 0, layoutEnd: 0.35, focus: 1, separation: 0.2, blend: 0.1,
   // bgStrength 0.3, not upstream's 1: a hard background mask on the thin gaps
   // between boxes painted coloured-square artefacts there (GPU, 2026-10-26).
   bgMode: 'uncovered_only', bgStrength: 0.3, crossEvery: 1, selfEvery: 1, overlap: 'blend',
   // Soft edges 0.06: without them Separation made every box compose its own scene (side-by-side
   // panels, a flat fill behind a subject); 0.10 merged the subjects again (GPU, 2026-10-26).
-  softEdges: 0.06
+  softEdges: 0.06,
+  sceneInBoxes: false,
+  boxSpread: 0
 };
+export const REGIONAL_PRESETS: { id: PresetId; name: string; tip: string; values: RegionalSettings }[] = [
+  { id: 'balanced', name: 'Balanced',
+    tip: 'Separate subjects in one shared scene. Each subject stays in its box; the box edges blend into the background.',
+    values: { ...BASE } },
+  { id: 'roughly', name: 'Roughly here',
+    tip: 'Boxes mark where a subject goes, not how big it is: every box spreads into the free space around it. Subjects stay separate but may sit closer than their boxes.',
+    values: { ...BASE, boxSpread: 0.2 } },
+  { id: 'strict', name: 'Strict boxes',
+    tip: 'Subjects sized and kept inside their boxes, still in one shared scene: the boxes steer for longer.',
+    // Separation 0.25 + soft edges 0.04 split the background into panels again (GPU, 2026-10-27);
+    // only the longer layout keeps one scene.
+    values: { ...BASE, layoutEnd: 0.45 } },
+  { id: 'panels', name: 'Panels (diptych, comic)',
+    tip: 'A hard, intended split: each box is its own panel with its own scene (Scene goes into every box), with a clean seam between boxes. For diptychs, comic panels, split screens.',
+    // Empty-area strength 0.1: at 0.3 the gutters between panels filled with stripes.
+    values: { ...BASE, layoutEnd: 0.5, separation: 0.35, softEdges: 0, blend: 0, bgStrength: 0.1, sceneInBoxes: true } },
+  { id: 'interaction', name: 'Interaction',
+    tip: 'Subjects that touch: holding hands, leaning on each other. Draw the boxes touching but not overlapping (an overlap mixes the two descriptions into one person), and put the interaction ("holding hands") in Whole picture only.',
+    // Separation 0.12 or overlapping boxes merged the two subjects (seed 42); touching boxes at
+    // 0.16 held hands as two distinct people on three seeds (GPU, 2026-10-27).
+    values: { ...BASE, layoutEnd: 0.3, separation: 0.16, blend: 0.15 } },
+  { id: 'layered', name: 'Layered (in front)',
+    tip: 'An object in front of a subject: where boxes overlap, the box lower in the list wins. Draw the front box tight around the object.',
+    values: { ...BASE, overlap: 'top' } }
+];
+export const REGIONAL_DEFAULTS: RegionalSettings = REGIONAL_PRESETS[0].values;
 
 const STORE_KEY = 'comfybridge-regional';
 const GUIDE_SEEN_KEY = 'comfybridge-regional-guide-seen';
@@ -134,7 +171,10 @@ function sanitizeState(s: any): RegionalState {
     crossEvery: Math.round(clamp(num(s.crossEvery, D.crossEvery), 1, 8)),
     selfEvery: Math.round(clamp(num(s.selfEvery, D.selfEvery), 1, 8)),
     overlap: s.overlap === 'top' || s.overlap === 'blend' ? s.overlap : D.overlap,
-    softEdges: clamp(num(s.softEdges, D.softEdges), 0, 0.3)
+    softEdges: clamp(num(s.softEdges, D.softEdges), 0, 0.3),
+    sceneInBoxes: bool(s.sceneInBoxes, D.sceneInBoxes),
+    boxSpread: clamp(num(s.boxSpread, D.boxSpread), 0, 0.5),
+    preset: s.preset === 'custom' || REGIONAL_PRESETS.some(pr => pr.id === s.preset) ? s.preset : 'balanced'
   };
 }
 function loadState(): RegionalState {
@@ -152,8 +192,8 @@ function loadState(): RegionalState {
 export function regionalWholePrompt(s: RegionalState): string {
   return joinParts([s.scene, s.wholeOnly, ...s.regions.map(r => r.prompt)]);
 }
-function boxText(style: string, r: RegionBox): string {
-  return joinParts([style, r.prompt]);
+function boxText(style: string, s: RegionalState, r: RegionBox): string {
+  return joinParts([style, s.sceneInBoxes ? s.scene : '', r.prompt]);
 }
 
 // Puts the regional node between the model and the CFG guider ('158:54',
@@ -166,13 +206,13 @@ export function appendRegionalNodes(prompt: Prompt, s: RegionalState, style: str
   if (!guider || !encode) throw new Error('Regional prompt: the workflow has no CFG guider (158:54) or positive encode (52).');
   const entries: any[] = s.regions.filter(r => r.prompt.trim()).map(r => ({
     x: +r.x.toFixed(4), y: +r.y.toFixed(4), w: +r.w.toFixed(4), h: +r.h.toFixed(4),
-    text: boxText(style, r),
+    text: boxText(style, s, r),
     weight: r.weight,
     spread: r.spread,
     prompt: r.prompt // the box's own words, for Import Generation
   }));
   // The layout's own fields, for Import Generation. No `text`, so the node skips it.
-  entries.push({ bridge: { scene: s.scene, wholeOnly: s.wholeOnly } });
+  entries.push({ bridge: { scene: s.scene, wholeOnly: s.wholeOnly, preset: s.preset, sceneInBoxes: s.sceneInBoxes } });
   prompt[REGIONAL_NODE_ID] = {
     class_type: REGIONAL_NODE_CLASS,
     inputs: {
@@ -214,6 +254,8 @@ export function regionalStateFromPrompt(prompt: Prompt): RegionalState | null {
     // Layouts saved before the meta entry: the background was the scene.
     scene: typeof meta.scene === 'string' ? meta.scene : (typeof inp.background_text === 'string' ? inp.background_text : ''),
     wholeOnly: meta.wholeOnly,
+    preset: typeof meta.preset === 'string' ? meta.preset : 'custom',
+    sceneInBoxes: meta.sceneInBoxes === true,
     regions, active: true,
     layoutStart: inp.layout_start, layoutEnd: inp.layout_end, focus: inp.region_focus, separation: inp.separation,
     blend: inp.blend, bgMode: inp.background_mode, bgStrength: inp.background_strength,
@@ -372,7 +414,8 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   sceneTa.rows = 2;
   sceneTa.placeholder = SCENE_HINT;
   sceneTa.title = SCENE_TIP;
-  sceneSec.append(secHead('Scene', SCOPE_SCENE), sceneTa);
+  const sceneHeadTab = secHead('Scene', SCOPE_SCENE);
+  sceneSec.append(sceneHeadTab, sceneTa);
   const wholeSec = el('div', 'rg-sec');
   const WHOLE_HINT = 'Counts and interactions (e.g. 2girls, looking at each other, holding hands)';
   const WHOLE_TIP = 'Only the whole picture (the finishing steps) gets this, never a box, so 2girls here doesn\'t make every box draw two.';
@@ -386,6 +429,18 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   const listScope = el('div', 'rg-scope', 'Each box: that subject only, count first (1girl, …); no setting. Goes into that box and the whole picture.');
   const list = el('div', 'rg-list');
   listSec.append(listHead, listScope, list);
+
+  const presetSec = el('div', 'rg-sec');
+  const presetSel = el('select', 'rg-preset');
+  presetSel.title = 'A tested set of settings for a kind of picture. Changing any setting afterwards makes it Custom.';
+  for (const pr of REGIONAL_PRESETS) presetSel.append(new Option(pr.name, pr.id));
+  presetSel.append(new Option('Custom', 'custom'));
+  const presetTip = el('div', 'muted small');
+  presetSec.append(el('div', 'rg-sec-head', 'Preset'), presetSel, presetTip);
+  presetSel.addEventListener('change', () => {
+    if (presetSel.value !== 'custom') applyPreset(presetSel.value as PresetId);
+    else { st.preset = 'custom'; save(); renderSettings(); }
+  });
 
   const adv = el('details', 'rg-adv');
   adv.append(el('summary', 'rg-sec-head', 'Blending'));
@@ -418,6 +473,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
       // Layout start stays before its end.
       if (key === 'layoutStart' && st.layoutEnd < st.layoutStart + 0.05) st.layoutEnd = Math.min(1, st.layoutStart + 0.05);
       if (key === 'layoutEnd' && st.layoutStart > st.layoutEnd - 0.05) st.layoutStart = Math.max(0, st.layoutEnd - 0.05);
+      st.preset = 'custom';
       renderSettings();
       save();
     });
@@ -428,24 +484,25 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   bgSel.append(new Option('Empty area only', 'uncovered_only'), new Option('Everywhere (no separation)', 'global'), new Option('Off', 'disabled'));
   bgRow.append(el('span', '', 'Empty-area prompt'), bgSel, el('span'));
   adv.append(bgRow);
-  bgSel.addEventListener('change', () => { st.bgMode = bgSel.value as BackgroundMode; save(); });
+  bgSel.addEventListener('change', () => { st.bgMode = bgSel.value as BackgroundMode; st.preset = 'custom'; save(); renderSettings(); });
   const ovRow = el('label', 'rg-slider');
   ovRow.title = 'Where boxes overlap: both prompts mix there (good for a box inside a box, like a hat on a person), or the box later in the list takes the overlap (an object in front of another).';
   const ovSel = el('select');
   ovSel.append(new Option('Mix both prompts', 'blend'), new Option('Top box wins', 'top'));
   ovRow.append(el('span', '', 'Overlaps'), ovSel, el('span'));
   adv.append(ovRow);
-  ovSel.addEventListener('change', () => { st.overlap = ovSel.value as OverlapMode; save(); });
-  const resetBtn = button('Reset blending', 'Back to the tested defaults');
+  ovSel.addEventListener('change', () => { st.overlap = ovSel.value as OverlapMode; st.preset = 'custom'; save(); renderSettings(); });
+  const resetBtn = button('Reset to preset', 'Back to the selected preset\'s settings (Balanced when on Custom)');
   adv.append(resetBtn);
-  side.append(styleSec, sceneSec, wholeSec, listSec, adv);
+  side.append(styleSec, sceneSec, wholeSec, listSec, presetSec, adv);
   body.append(stageWrap, side);
   tabHost.append(bar, body);
 
   // ===== Generate-tab card =====
   cardHost.classList.add('rg-card');
   const cardHead = el('div', 'rg-card-head');
-  cardHead.append(el('span', 'rg-card-title', 'Regional prompt'));
+  const cardPreset = el('span', 'muted small rg-card-preset');
+  cardHead.append(el('span', 'rg-card-title', 'Regional prompt'), cardPreset);
   const cardBtns = el('div', 'rg-row');
   const editBtn = button('Edit layout', 'Open the Regional tab');
   const exitBtn = button('Back to normal prompt', 'Stop using the layout; the prompt boxes come back as you left them. The layout is kept in the Regional tab.');
@@ -465,7 +522,8 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
   cardWhole.title = WHOLE_TIP;
   const cardList = el('div', 'rg-list rg-card-list');
   const cardNote = el('div', 'muted small rg-card-note');
-  cardHost.append(cardHead, cardMini, cardStyle, secHead('Scene', SCOPE_SCENE), cardScene,
+  const sceneHeadCard = secHead('Scene', SCOPE_SCENE);
+  cardHost.append(cardHead, cardMini, cardStyle, sceneHeadCard, cardScene,
     secHead('Whole picture only', SCOPE_WHOLE), cardWhole, el('div', 'rg-sec-head', 'Boxes'), cardList, cardNote);
 
   // Style proxies: the real fields stay the source (presets, import, save all
@@ -715,6 +773,19 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     }
     bgSel.value = st.bgMode;
     ovSel.value = st.overlap;
+    presetSel.value = st.preset;
+    const pr = REGIONAL_PRESETS.find(x => x.id === st.preset);
+    presetTip.textContent = pr ? pr.tip : 'Custom settings. Pick a preset to start from a tested set again.';
+    cardPreset.textContent = 'Preset: ' + (pr ? pr.name : 'Custom');
+    // Panels puts Scene into every box; the labels say where the text goes.
+    const sceneScope = st.sceneInBoxes ? SCOPE_ALL : SCOPE_SCENE;
+    for (const h of [sceneHeadTab, sceneHeadCard]) {
+      const span = h.querySelector('.rg-scope');
+      if (span) span.textContent = sceneScope;
+    }
+    listScope.textContent = st.sceneInBoxes
+      ? 'Each box: its own panel. Subject, count first, plus Scene (and Style). Goes into that box and the whole picture.'
+      : 'Each box: that subject only, count first (1girl, …); no setting. Goes into that box and the whole picture.';
   }
 
   function renderUndo(): void {
@@ -806,7 +877,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
       drag = { kind: handle ? 'resize' : 'move', id: box.id, handle, startX: fx, startY: fy, orig: { ...box }, pointerId: e.pointerId, before };
       select(box.id, false);
     } else {
-      const box: RegionBox = { id: newId(), x: fx, y: fy, w: 0, h: 0, prompt: '', weight: 1, spread: 0 };
+      const box: RegionBox = { id: newId(), x: fx, y: fy, w: 0, h: 0, prompt: '', weight: 1, spread: st.boxSpread };
       st.regions.push(box);
       drag = { kind: 'draw', id: box.id, handle: '', startX: fx, startY: fy, orig: { ...box }, pointerId: e.pointerId, before };
       selected = box.id;
@@ -945,7 +1016,7 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     checkpoint();
     st.regions = t.boxes.map(([x, y, w, h], i) => {
       const old = st.regions[i];
-      return { id: old ? old.id : newId(), x, y, w, h, prompt: old ? old.prompt : '', weight: old ? old.weight : 1, spread: old ? old.spread : 0 };
+      return { id: old ? old.id : newId(), x, y, w, h, prompt: old ? old.prompt : '', weight: old ? old.weight : 1, spread: old ? old.spread : st.boxSpread };
     });
     selected = null;
     save();
@@ -963,10 +1034,19 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     opts.log('Regional: cleared every box (Undo brings them back).');
   });
   resetBtn.addEventListener('click', () => {
-    Object.assign(st, REGIONAL_DEFAULTS);
-    save();
-    renderSettings(); renderCard();
+    applyPreset(st.preset === 'custom' ? 'balanced' : st.preset);
   });
+  // A preset sets every Blending setting, Scene's scope, and every box's Spread (undoable).
+  function applyPreset(id: PresetId): void {
+    const pr = REGIONAL_PRESETS.find(x => x.id === id);
+    if (!pr) return;
+    checkpoint();
+    Object.assign(st, pr.values);
+    st.preset = id;
+    for (const r of st.regions) r.spread = pr.values.boxSpread;
+    save();
+    renderAll();
+  }
   underlayChk.addEventListener('change', () => {
     st.underlay = underlayChk.checked;
     save();

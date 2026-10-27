@@ -889,7 +889,12 @@ This guide covers the desktop app. Its sibling shares this repo:
     - **Generate** in the tab runs the layout; **Use in Generate** swaps the Generate tab's prompt
       boxes for a layout card until **Back to normal prompt** (nothing is cleared). Importing a
       regional image restores its layout.
-    - **Blending** has the tuning settings, with tested defaults. **? How to use** in the tab
+    - **Preset** picks a tested set of settings for the kind of picture: **Balanced** (default:
+      separate subjects in one scene), **Roughly here** (boxes set position, not size), **Strict
+      boxes** (subjects held to their boxes), **Panels** (diptychs and comic panels: a hard split,
+      each box its own scene), **Interaction** (subjects touching; draw the boxes touching, not
+      overlapping) and **Layered** (an object in front of a subject).
+    - **Blending** has the tuning settings; changing one makes the preset Custom. **? How to use** in the tab
       explains each one and lists fixes for common problems (it opens by itself the first time).
     - Needs the ComfyUI-DataSetManagerNodes pack from this release on a ComfyUI server; Osmium Comfy
       has it built in.
