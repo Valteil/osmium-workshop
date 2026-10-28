@@ -84,7 +84,7 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
         <tr><td><b>Box focus</b> 1</td><td>How strictly a box hears only its own prompt.</td></tr>
         <tr><td><b>Separation</b> 0.2</td><td>Keeps boxes apart. 0 merges subjects; high gives seams.</td></tr>
         <tr><td><b>Soft edges</b> 0.06</td><td>A band along each box's edges where Separation fades, so the box joins the background. 0 = panels; 0.10+ merges subjects.</td></tr>
-        <tr><td><b>Blend</b> 0.1</td><td>Mixes in the plain whole-picture result for consistent style and lighting.</td></tr>
+        <tr><td><b>Blend</b> 0.4</td><td>Mixes in the plain whole-picture result for consistent style and lighting (a style LoRA's look). Lower for stricter boxes.</td></tr>
         <tr><td><b>Empty-area strength</b> 0.3</td><td>How firmly the empty area follows Style + Scene. High causes junk there.</td></tr>
         <tr><td><b>Empty-area prompt</b></td><td>Keep "Empty area only"; "Everywhere" turns Separation off.</td></tr>
         <tr><td><b>Focus / Separate every</b></td><td>Apply to every Nth block only, for a lighter touch.</td></tr>
@@ -98,7 +98,7 @@ const SECTIONS: { id: string; title: string; html: string }[] = [
         <tr><td>Subjects merge into one</td><td>Separation ≥ 0.2, Layout starts 0, a count in each box; raise Layout ends to ~0.45.</td></tr>
         <tr><td>Subject duplicated / in the wrong box</td><td>Move counts and subject details out of Style and Scene (overall count → Whole picture only).</td></tr>
         <tr><td>A box is ignored</td><td>Raise Layout ends; check the box has text.</td></tr>
-        <tr><td>Style-LoRA look uneven across boxes</td><td>Its trigger in Style (Global), not a box; then Blend ~0.2.</td></tr>
+        <tr><td>Style-LoRA look uneven across boxes</td><td>Its trigger in Style (Global), not a box; keep Blend at ~0.4 (raise it if colour words in a box beat the style).</td></tr>
         <tr><td>Character LoRA shows up in the wrong box, or in both</td><td>Its trigger only in that character's box; lower the LoRA's weight if it still bleeds (a LoRA applies to the whole model).</td></tr>
         <tr><td>Pasted-on look / hard edges</td><td>Lower the box's Strength (~0.6), add Spread, or Separation ~0.15.</td></tr>
         <tr><td>A box looks like its own panel, or has a flat fill behind the subject</td><td>Take the setting out of the box (it belongs in Scene); keep Soft edges at ~0.06.</td></tr>

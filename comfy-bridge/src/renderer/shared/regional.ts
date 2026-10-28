@@ -67,7 +67,11 @@ export interface RegionalState extends RegionalSettings {
 // notes/Apps/Comfy-Bridge.md "Presets"). Balanced is the default. Only Panels changes where text
 // goes (Scene into every box), and the scope labels say so while it's on.
 const BASE: RegionalSettings = {
-  layoutStart: 0, layoutEnd: 0.35, focus: 1, separation: 0.2, blend: 0.1,
+  // Blend 0.4, not 0.1: during the layout steps a box only hears its own short prompt, where a
+  // colour word ("blonde hair") outweighs a style LoRA's "(monochrome:2), sketch"; at 0.1 the
+  // boxes came out coloured and cleaner-lined than the plain picture. 0.4 kept the LoRA look and
+  // both subjects in their boxes (920×1224, seeds 42/7, GPU 2026-10-28).
+  layoutStart: 0, layoutEnd: 0.35, focus: 1, separation: 0.2, blend: 0.4,
   // bgStrength 0.3, not upstream's 1: a hard background mask on the thin gaps
   // between boxes painted coloured-square artefacts there (GPU, 2026-10-26).
   bgMode: 'uncovered_only', bgStrength: 0.3, crossEvery: 1, selfEvery: 1, overlap: 'blend',
@@ -180,7 +184,11 @@ function sanitizeState(s: any): RegionalState {
 function loadState(): RegionalState {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    return sanitizeState(raw ? JSON.parse(raw) : {});
+    const s = sanitizeState(raw ? JSON.parse(raw) : {});
+    // A saved preset takes its current values, so a retuned preset (Blend 0.1 → 0.4) reaches
+    // layouts saved before; Custom keeps what was saved.
+    const pr = REGIONAL_PRESETS.find(x => x.id === s.preset);
+    return pr ? { ...s, ...pr.values } : s;
   } catch { return sanitizeState({}); }
 }
 
