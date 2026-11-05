@@ -1657,6 +1657,8 @@ declare const BridgeShared: {
     };
   }
   function applyPromptFields(fields: Record<string, any>) {
+    // Locked prompt boxes keep their text (prompt-locks.ts).
+    const restoreLocked = BridgeShared.keepLockedPrompts();
     unifiedPromptMode.checked = !!fields.unifiedPromptMode;
     unifiedPrompt.value = fields.unifiedPrompt || '';
     global_.value = fields.global || ''; character.value = fields.character || '';
@@ -1665,6 +1667,7 @@ declare const BridgeShared: {
     body_.value = fields.body || ''; clothes.value = fields.clothes || ''; limbs.value = fields.limbs || '';
     sexual.value = fields.sexual || ''; pose.value = fields.pose || ''; scene.value = fields.scene || '';
     effects.value = fields.effects || ''; extra.value = fields.extra || '';
+    restoreLocked();
     applyUnifiedPromptModeUI();
   }
 
@@ -1727,6 +1730,7 @@ declare const BridgeShared: {
   btnLoadNegativePreset.addEventListener('click', () => {
     const name = negativePresetSelect.value;
     if (!name) { log('Pick a negative preset to load first.'); return; }
+    if (BridgeShared.isPromptLocked(negative)) { log('Negative is locked: unlock it to load a negative preset.'); return; }
     const data = readPresets();
     if (data.negativePresets[name] === undefined) { log('Preset not found.'); return; }
     negative.value = data.negativePresets[name];

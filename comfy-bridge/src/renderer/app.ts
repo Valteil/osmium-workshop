@@ -610,6 +610,8 @@ function snapshotPromptFields(): Record<string, string | boolean> {
 }
 
 function applyPromptFields(fields: Record<string, string | boolean>): void {
+  // Locked prompt boxes keep their text (prompt-locks.ts).
+  const restoreLocked = keepLockedPrompts();
   unifiedPromptMode.checked = !!fields.unifiedPromptMode;
   unifiedPrompt.value = String(fields.unifiedPrompt || '');
   global_.value = String(fields.global || '');
@@ -627,6 +629,7 @@ function applyPromptFields(fields: Record<string, string | boolean>): void {
   scene.value = String(fields.scene || '');
   effects.value = String(fields.effects || '');
   extra.value = String(fields.extra || '');
+  restoreLocked();
   const mode = String(fields.charMode || 'tag');
   charModeTag.checked = mode === 'tag';
   charModeOC.checked = mode === 'oc';
@@ -689,6 +692,7 @@ btnSaveNegativePreset.addEventListener('click', async () => {
 btnLoadNegativePreset.addEventListener('click', async () => {
   const name = negativePresetSelect.value;
   if (!name) { log('Pick a negative preset to load first.'); return; }
+  if (isPromptLocked(negative)) { log('Negative is locked: unlock it to load a negative preset.'); return; }
   const res = await window.electronAPI.loadPreset({ kind: 'negative', name });
   if (res.ok) { negative.value = String(res.value || ''); autoGrow(negative); log(`Loaded negative preset "${name}".`); }
   else log(res.error || 'Could not load negative preset.');
