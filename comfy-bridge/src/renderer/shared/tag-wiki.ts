@@ -10,8 +10,15 @@
 //
 // Data: the same bundled files as Osmium (renderer/data/*.gzdat, copied in
 // at build time by scripts/copy-wiki-data.js), loaded on first use.
+//
+// The header's Groups button opens a sidebar of Danbooru's tag groups (Hair
+// styles, Posture, …) laid out like Danbooru's "tag groups" index; a group
+// opens in the main area as headings + tag links. Same as Osmium's; data:
+// wiki_groups.json.gzdat (Osmium's scripts/build-wiki-groups.js). On a phone
+// the sidebar sits above the main area instead of beside it.
 
 const POS_KEY = 'comfybridge-tag-wiki-pos';
+const SIDE_KEY = 'comfybridge-tag-wiki-side';
 const NOTES_KEY = 'comfybridge-custom-tag-notes';
 const CATEGORY_NAMES: Record<number, string> = { 0: 'General', 1: 'Artist', 3: 'Copyright', 4: 'Character', 5: 'Meta' };
 
@@ -29,6 +36,16 @@ function wikiData(): Promise<Record<string, string>> {
   return wikiP ??= fetchGzipJson('./data/wiki.json.gzdat')
     .then((d) => d as Record<string, string>)
     .catch((err) => { console.error('wiki.json.gzdat load failed:', err); return {}; });
+}
+
+// Tag group pages + their index (shape: Osmium's scripts/build-wiki-groups.js).
+type GroupPart = string | [string, string];
+type GroupLine = ['h' | 'li' | 'p', number, GroupPart[]];
+interface WikiGroups { index: GroupLine[]; pages: Record<string, { title: string; updated: string; lines: GroupLine[] }> }
+let groupsP: Promise<WikiGroups> | null = null;
+function wikiGroups(): Promise<WikiGroups> {
+  return groupsP ??= (fetchGzipJson('./data/wiki_groups.json.gzdat') as Promise<WikiGroups>)
+    .catch((err) => { console.error('wiki_groups.json.gzdat load failed:', err); return { index: [], pages: {} }; });
 }
 
 // Yield to the event loop so the UI stays responsive while the big vocabulary
@@ -72,6 +89,15 @@ let win: HTMLElement | null = null;
 let bodyEl: HTMLElement;
 let inputEl: HTMLInputElement;
 let acEl: HTMLElement | null = null;
+let sideEl: HTMLElement;
+let sideBtn: HTMLButtonElement;
+let activeGroup = '';
+
+// "tag group:Hair styles" / "tag_group:hair_styles" -> "hair_styles", else ''.
+function groupKeyOf(text: string): string {
+  const m = text.trim().match(/^tag[ _]group:\s*(.+)$/i);
+  return m ? m[1].trim().toLowerCase().replace(/\s+/g, '_') : '';
+}
 
 function clampIntoView(): void {
   if (!win) return;
@@ -130,7 +156,10 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: s
 async function showTag(raw: string): Promise<void> {
   const tag = raw.trim().replace(/_/g, ' ');
   if (!tag) return;
+  const asGroup = groupKeyOf(tag);
+  if (asGroup && (await wikiGroups()).pages[asGroup]) { void showGroup(asGroup); return; }
   closeSuggestions();
+  markActiveGroup('');
   bodyEl.innerHTML = '';
   bodyEl.appendChild(el('div', 'tag-wiki-tag', tag));
   const loading = bodyEl.appendChild(el('div', 'tag-wiki-note', 'Loading…'));
@@ -154,7 +183,11 @@ async function showTag(raw: string): Promise<void> {
     const rel = el('div', 'tag-wiki-seealso');
     rel.appendChild(el('div', 'tag-wiki-seealso-head', 'See also'));
     const list = el('div', 'tag-wiki-seealso-list');
+    // "Tag group:…" items open that group.
+    const groups = seeAlso.some((s) => groupKeyOf(s)) ? await wikiGroups() : null;
     for (const item of seeAlso) {
+      const gk = groupKeyOf(item);
+      if (gk && groups && groups.pages[gk]) { list.appendChild(groupLink(groups.pages[gk].title, gk)); continue; }
       const k = item.replace(/ /g, '_');
       if (wiki[k] !== undefined || tags.has(k)) {
         const link = el('button', 'tag-wiki-link', item);
@@ -179,6 +212,101 @@ async function showTag(raw: string): Promise<void> {
     save.addEventListener('click', () => { setCustomNote(tag, ta.value); void showTag(tag); });
     bodyEl.append(ta, save);
   }
+}
+
+// ---- tag groups -------------------------------------------------------------
+function groupLink(label: string, key: string): HTMLButtonElement {
+  const b = el('button', 'tag-wiki-link tag-wiki-grouplink', label);
+  b.type = 'button';
+  b.addEventListener('click', () => { void showGroup(key); });
+  return b;
+}
+
+// A group page's [[link]]: another group opens that group, a known tag opens
+// its definition, anything else (list_of_… pages) is plain text.
+function partEl(target: string, label: string, groups: WikiGroups, known: (k: string) => boolean): Node {
+  const gk = groupKeyOf(target);
+  if (gk && groups.pages[gk]) return groupLink(label, gk);
+  if (!gk && known(target)) {
+    const b = el('button', 'tag-wiki-link', label);
+    b.type = 'button';
+    b.addEventListener('click', () => { inputEl.value = target.replace(/_/g, ' '); void showTag(target); });
+    return b;
+  }
+  return el('span', 'tag-wiki-plain', label);
+}
+
+async function showGroup(key: string): Promise<void> {
+  closeSuggestions();
+  markActiveGroup(key);
+  // The first open also waits for the definitions + vocabulary (which links are tags).
+  bodyEl.replaceChildren(el('div', 'tag-wiki-note', 'Loading…'));
+  const [groups, wiki, tags] = await Promise.all([wikiGroups(), wikiData(), allTags()]);
+  const page = groups.pages[key];
+  if (!page) return;
+  const known = (k: string) => wiki[k] !== undefined || tags.has(k);
+  const meta = el('div', 'tag-wiki-meta');
+  meta.appendChild(el('span', '', 'Tag group'));
+  if (page.updated) meta.appendChild(el('span', '', `Danbooru, ${page.updated}`));
+  const list = el('div', 'tag-wiki-group');
+  for (const [kind, depth, parts] of page.lines) {
+    const row = el('div', kind === 'h' ? `tag-wiki-group-h${depth >= 5 ? ' sub' : ''}` : kind === 'li' ? 'tag-wiki-group-li' : 'tag-wiki-group-p');
+    if (kind === 'li') row.style.paddingLeft = `${(depth - 1) * 14}px`;
+    for (const p of parts) row.appendChild(typeof p === 'string' ? document.createTextNode(p) : partEl(p[0], p[1], groups, known));
+    list.appendChild(row);
+  }
+  bodyEl.replaceChildren(el('div', 'tag-wiki-tag', page.title), meta, list);
+  bodyEl.scrollTop = 0;
+}
+
+function markActiveGroup(key: string): void {
+  activeGroup = key;
+  if (!sideEl) return;
+  for (const b of sideEl.querySelectorAll<HTMLElement>('[data-group]')) b.classList.toggle('active', b.dataset.group === key);
+}
+
+// The sidebar: the index page's headings and its group links, nested as on
+// Danbooru; groups the index doesn't link come last under "Other groups".
+let sideBuilt = false;
+async function fillSide(): Promise<void> {
+  if (sideBuilt) return;
+  sideBuilt = true;
+  const groups = await wikiGroups();
+  sideEl.innerHTML = '';
+  const listed = new Set<string>();
+  const addItem = (key: string, label: string, depth: number) => {
+    const b = groupLink(label, key);
+    b.className = 'tag-wiki-side-item';
+    b.dataset.group = key;
+    b.style.paddingLeft = `${6 + (depth - 1) * 12}px`;
+    sideEl.appendChild(b);
+    listed.add(key);
+  };
+  let pendingHead = '';
+  for (const [kind, depth, parts] of groups.index) {
+    if (kind === 'h') { pendingHead = parts.map((p) => (typeof p === 'string' ? p : p[1])).join('').trim(); continue; }
+    if (kind !== 'li') continue;
+    for (const p of parts) {
+      if (typeof p === 'string') continue;
+      const key = groupKeyOf(p[0]);
+      if (!key || !groups.pages[key] || listed.has(key)) continue;
+      if (pendingHead) { sideEl.appendChild(el('div', 'tag-wiki-side-head', pendingHead)); pendingHead = ''; }
+      addItem(key, p[1], depth);
+    }
+  }
+  const rest = Object.keys(groups.pages).filter((k) => !listed.has(k)).sort();
+  if (rest.length) { sideEl.appendChild(el('div', 'tag-wiki-side-head', 'Other groups')); for (const k of rest) addItem(k, groups.pages[k].title, 1); }
+  if (!listed.size) sideEl.appendChild(el('div', 'tag-wiki-plain', 'No tag groups bundled.'));
+  markActiveGroup(activeGroup);
+}
+
+function setSide(open: boolean): void {
+  win?.classList.toggle('with-side', open);
+  sideBtn.classList.toggle('active', open);
+  sideBtn.setAttribute('aria-pressed', String(open));
+  writeJSON(SIDE_KEY, open);
+  if (open) void fillSide();
+  clampIntoView();
 }
 
 // ---- suggestions ------------------------------------------------------------
@@ -278,7 +406,17 @@ function build(): HTMLElement {
   close.type = 'button';
   close.title = 'Close';
   close.addEventListener('click', closeTagWiki);
-  head.append(title, close);
+  sideBtn = el('button', 'tag-wiki-side-btn', 'Groups');
+  sideBtn.type = 'button';
+  sideBtn.title = 'Tag groups (Hair styles, Posture, …)';
+  sideBtn.addEventListener('click', () => setSide(!win?.classList.contains('with-side')));
+  const tools = el('div', 'tag-wiki-head-tools');
+  tools.append(sideBtn, close);
+  head.append(title, tools);
+
+  sideEl = el('nav', 'tag-wiki-side');
+  sideEl.setAttribute('aria-label', 'Tag groups');
+  sideBuilt = false;
 
   bodyEl = el('div', 'tag-wiki-body');
   bodyEl.appendChild(el('div', 'tag-wiki-def greyed', 'Type a tag below to read its definition.'));
@@ -292,7 +430,11 @@ function build(): HTMLElement {
     else if (ev.key === 'Escape') closeSuggestions();
   });
 
-  w.append(head, bodyEl, inputEl);
+  const main = el('div', 'tag-wiki-main');
+  main.append(bodyEl, inputEl);
+  const cols = el('div', 'tag-wiki-cols');
+  cols.append(sideEl, main);
+  w.append(head, cols);
   attachDrag(head);
   return w;
 }
@@ -301,6 +443,7 @@ export function openTagWiki(): void {
   if (win) { inputEl.focus(); return; }
   win = build();
   document.body.appendChild(win);
+  setSide(readJSON<boolean>(SIDE_KEY, false));
   const pos = readJSON<{ left: number; top: number } | null>(POS_KEY, null);
   if (pos) { win.style.left = pos.left + 'px'; win.style.top = pos.top + 'px'; }
   else {

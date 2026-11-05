@@ -22,6 +22,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **Tag groups in the Wiki window** (desktop and phone): the same **Groups** sidebar as Osmium's.
+  Pick a group (Hair styles, Posture, …) to see its tags by section, and click a tag to read it. On
+  the phone the group list sits above the page.
 - **Regional prompt** (new **Regional** tab, desktop and phone; it replaces the ControlNet tab and
   its pose editor): draw boxes over your image and give each one its own prompt, so you choose what
   goes where (two characters side by side, a prop in a corner). The boxes steer the first part of
