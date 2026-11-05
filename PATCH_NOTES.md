@@ -12,6 +12,14 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ## v2.0.1 (unreleased)
 
+### Osmium Workshop
+
+- **Tag groups in the Wiki window:** a **Groups** button in the Wiki window's title bar opens a
+  sidebar of Danbooru's 100 tag groups (Hair styles, Posture, Colors, Attire, …), sorted the way
+  Danbooru's own tag group index is. Pick one to see its tags by section; click a tag to read its
+  definition, or a related group to open it. A tag's **See also** "Tag group:" entries open the
+  group too, and typing `tag group:hair styles` in the lookup works.
+
 ### Comfy Bridge
 
 - **Regional prompt** (new **Regional** tab, desktop and phone; it replaces the ControlNet tab and

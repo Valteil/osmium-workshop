@@ -45,6 +45,20 @@ export async function ensureWikiDataLoaded(): Promise<Record<string, string>> {
   return wikiData;
 }
 
+// Danbooru's tag group pages + their index, for the Wiki window's sidebar
+// (scripts/build-wiki-groups.js documents the shape). Loaded on first use.
+export type WikiGroupPart = string | [string, string];
+export type WikiGroupLine = ['h' | 'li' | 'p', number, WikiGroupPart[]];
+export interface WikiGroups {
+  index: WikiGroupLine[];
+  pages: Record<string, { title: string; updated: string; lines: WikiGroupLine[] }>;
+}
+let wikiGroups: Promise<WikiGroups> | null = null;
+export function ensureWikiGroupsLoaded(): Promise<WikiGroups> {
+  return wikiGroups ??= (fetchGzipJson('./data/wiki_groups.json.gzdat') as Promise<WikiGroups>)
+    .catch((err) => { console.error('wiki_groups.json.gzdat load failed:', err); return { index: [], pages: {} }; });
+}
+
 export async function ensureAllTagsLoaded(): Promise<Map<string, { category: number; count: number }>> {
   if (allTagsMap) return allTagsMap;
   try {

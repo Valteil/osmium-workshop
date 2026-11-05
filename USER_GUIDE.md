@@ -147,7 +147,9 @@ which you chose (desktop).
 - **📖 Wiki** (next to Asc/Desc) — opens a small window to look up any tag's definition from the
   bundled wiki, without going through a tag field. Type a tag (suggestions appear beside the window as you type)
   and its definition shows boxed above the field, with its **See also** tags listed below the box;
-  click one to read that tag's definition. Drag the window by its title; it stays open until you
+  click one to read that tag's definition. **Groups** in its title bar opens a sidebar of Danbooru's
+  tag groups (Hair styles, Posture, Colors, …); pick one to see its tags by section and click a tag to
+  read it. Drag the window by its title; it stays open until you
   close it with ×.
 - **❌ Disabled** — images you've moved out of the active set. Use it for maybes you don't want
   to delete.

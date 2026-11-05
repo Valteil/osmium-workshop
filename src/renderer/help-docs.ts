@@ -380,7 +380,9 @@ export const HELP_SECTIONS: HelpSection[] = [
         <li><b>Single</b> — the pass-five step above, with Image Quicktagging and Tag sorting.</li>
         <li><b>📖 Wiki</b> (next to Asc/Desc) — a small window for looking up any tag's definition.
         Type a tag, pick a suggestion, and its definition shows boxed above the field, with its
-        See also tags below (click one to open it). Drag it by its title; it stays open until you
+        See also tags below (click one to open it). <b>Groups</b> in its title bar opens a sidebar
+        of Danbooru's tag groups (Hair styles, Posture, Colors, …): pick one to see its tags by
+        section, and click a tag to read it. Drag it by its title; it stays open until you
         close it.</li>
         <li><b>❌ Disabled</b> — the images you've moved out of the active set.</li>
         ${isTouchDevice ? '' : `<li><b>🖼 Originals</b> — the pre-bucketing originals kept by Bucket Images. Their tags can be

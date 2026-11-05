@@ -8,19 +8,37 @@
 // Definitions come from tag-details.ts's bundled data (same source as the
 // Tag Details panel and the autocomplete hover card); a tag with no official
 // entry offers the same "write your own description" note.
+//
+// The header's Groups button opens a sidebar of Danbooru's tag groups (Hair
+// styles, Posture, …), laid out like Danbooru's own "tag groups" index; a
+// group opens in the main area as headings + tag links. Data:
+// wiki_groups.json.gzdat (scripts/build-wiki-groups.js).
 
 import { getJSON, setJSON } from './storage';
 import { toast } from './shared-ui';
 import { setIconLabel } from './icons';
 import { attachLookupAutocomplete, closeAutocomplete } from './tags-autocomplete';
-import { ensureWikiDataLoaded, ensureAllTagsLoaded, getCustomTagNote, setCustomTagNote } from './tag-details';
+import {
+  ensureWikiDataLoaded, ensureAllTagsLoaded, ensureWikiGroupsLoaded, getCustomTagNote, setCustomTagNote,
+  type WikiGroupLine, type WikiGroups
+} from './tag-details';
 
 const POS_KEY = 'dts-tag-wiki-pos';
+const SIDE_KEY = 'dts-tag-wiki-side';
 const CATEGORY_NAMES: Record<number, string> = { 0: 'General', 1: 'Artist', 3: 'Copyright', 4: 'Character', 5: 'Meta' };
 
 let win: HTMLElement | null = null;
 let bodyEl: HTMLElement;
 let inputEl: HTMLInputElement;
+let sideEl: HTMLElement;
+let sideBtn: HTMLButtonElement;
+let activeGroup = '';
+
+// "tag group:Hair styles" / "tag_group:hair_styles" -> "hair_styles", else ''.
+function groupKeyOf(text: string): string {
+  const m = text.trim().match(/^tag[ _]group:\s*(.+)$/i);
+  return m ? m[1].trim().toLowerCase().replace(/\s+/g, '_') : '';
+}
 
 function clampIntoView(): void {
   if (!win) return;
@@ -75,7 +93,10 @@ function splitSeeAlso(text: string): { main: string; seeAlso: string[] } {
 async function showTag(raw: string): Promise<void> {
   const tag = raw.trim().replace(/_/g, ' ');
   if (!tag) return;
+  const asGroup = groupKeyOf(tag);
+  if (asGroup && (await ensureWikiGroupsLoaded()).pages[asGroup]){ void showGroup(asGroup); return; }
   closeAutocomplete();
+  markActiveGroup('');
   bodyEl.innerHTML = '';
   const title = document.createElement('div');
   title.className = 'tag-wiki-tag';
@@ -109,7 +130,9 @@ async function showTag(raw: string): Promise<void> {
   bodyEl.appendChild(defEl);
   if (seeAlso.length){
     // Related tags sit unboxed under the definition; known ones are links
-    // that open their own definition here.
+    // that open their own definition here, and "Tag group:…" items open that
+    // group.
+    const groups = seeAlso.some((s) => groupKeyOf(s)) ? await ensureWikiGroupsLoaded() : null;
     const rel = document.createElement('div');
     rel.className = 'tag-wiki-seealso';
     const head = document.createElement('div');
@@ -119,6 +142,11 @@ async function showTag(raw: string): Promise<void> {
     const list = document.createElement('div');
     list.className = 'tag-wiki-seealso-list';
     for (const item of seeAlso){
+      const gk = groupKeyOf(item);
+      if (gk && groups && groups.pages[gk]){
+        list.appendChild(groupLink(groups.pages[gk].title, gk));
+        continue;
+      }
       const known = wiki[item.replace(/ /g, '_')] !== undefined || allTags.has(item.replace(/ /g, '_'));
       const el = document.createElement(known ? 'button' : 'span');
       el.className = known ? 'tag-wiki-link' : 'tag-wiki-plain';
@@ -146,6 +174,137 @@ async function showTag(raw: string): Promise<void> {
   }
 }
 
+// ---- Tag groups ----------------------------------------------------------
+
+function groupLink(label: string, key: string): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'tag-wiki-link tag-wiki-grouplink';
+  b.textContent = label;
+  b.addEventListener('click', () => { void showGroup(key); });
+  return b;
+}
+
+// A group page's [[link]]: another group opens that group, a known tag opens
+// its definition, anything else (list_of_… pages, typos) is plain text.
+function partEl(target: string, label: string, groups: WikiGroups, known: (k: string) => boolean): Node {
+  const gk = groupKeyOf(target);
+  if (gk && groups.pages[gk]) return groupLink(label, gk);
+  if (!gk && known(target)){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tag-wiki-link';
+    b.textContent = label;
+    b.addEventListener('click', () => { inputEl.value = target.replace(/_/g, ' '); void showTag(target); });
+    return b;
+  }
+  const s = document.createElement('span');
+  s.className = 'tag-wiki-plain';
+  s.textContent = label;
+  return s;
+}
+
+function renderGroupLines(into: HTMLElement, lines: WikiGroupLine[], groups: WikiGroups, known: (k: string) => boolean): void {
+  for (const [kind, depth, parts] of lines){
+    const row = document.createElement('div');
+    row.className = kind === 'h' ? `tag-wiki-group-h${depth >= 5 ? ' sub' : ''}` : kind === 'li' ? 'tag-wiki-group-li' : 'tag-wiki-group-p';
+    if (kind === 'li') row.style.paddingLeft = `${(depth - 1) * 14}px`;
+    for (const p of parts) row.appendChild(typeof p === 'string' ? document.createTextNode(p) : partEl(p[0], p[1], groups, known));
+    into.appendChild(row);
+  }
+}
+
+async function showGroup(key: string): Promise<void> {
+  closeAutocomplete();
+  markActiveGroup(key);
+  // The first open also waits for the whole definitions file (which links are tags).
+  const loading = document.createElement('div');
+  loading.className = 'stats-empty';
+  loading.textContent = 'Loading…';
+  bodyEl.replaceChildren(loading);
+  const [groups, wiki, allTags] = await Promise.all([ensureWikiGroupsLoaded(), ensureWikiDataLoaded(), ensureAllTagsLoaded()]);
+  const page = groups.pages[key];
+  if (!page) return;
+  const known = (k: string) => wiki[k] !== undefined || allTags.has(k);
+  bodyEl.innerHTML = '';
+  const title = document.createElement('div');
+  title.className = 'tag-wiki-tag';
+  title.textContent = page.title;
+  const meta = document.createElement('div');
+  meta.className = 'tag-details-meta';
+  const kind = document.createElement('span');
+  kind.textContent = 'Tag group';
+  meta.appendChild(kind);
+  if (page.updated){ const u = document.createElement('span'); u.textContent = `Danbooru, ${page.updated}`; meta.appendChild(u); }
+  const list = document.createElement('div');
+  list.className = 'tag-wiki-group';
+  renderGroupLines(list, page.lines, groups, known);
+  bodyEl.append(title, meta, list);
+  bodyEl.scrollTop = 0;
+  markActiveGroup(key);
+}
+
+function markActiveGroup(key: string): void {
+  activeGroup = key;
+  if (!sideEl) return;
+  for (const b of sideEl.querySelectorAll<HTMLElement>('[data-group]')) b.classList.toggle('active', b.dataset.group === key);
+}
+
+// The sidebar: the index page's headings and its group links, nested as on
+// Danbooru; groups the index doesn't link come last under "Other groups".
+let sideBuilt = false;
+async function fillSide(): Promise<void> {
+  if (sideBuilt) return;
+  sideBuilt = true;
+  const groups = await ensureWikiGroupsLoaded();
+  sideEl.innerHTML = '';
+  const listed = new Set<string>();
+  const addItem = (key: string, label: string, depth: number) => {
+    const b = groupLink(label, key);
+    b.className = 'tag-wiki-side-item';
+    b.dataset.group = key;
+    b.style.paddingLeft = `${6 + (depth - 1) * 12}px`;
+    sideEl.appendChild(b);
+    listed.add(key);
+  };
+  const addHead = (text: string) => {
+    const h = document.createElement('div');
+    h.className = 'tag-wiki-side-head';
+    h.textContent = text;
+    sideEl.appendChild(h);
+  };
+  let pendingHead = '';
+  for (const [kind, depth, parts] of groups.index){
+    if (kind === 'h'){ pendingHead = parts.map((p) => (typeof p === 'string' ? p : p[1])).join('').trim(); continue; }
+    if (kind !== 'li') continue;
+    for (const p of parts){
+      if (typeof p === 'string') continue;
+      const key = groupKeyOf(p[0]);
+      if (!key || !groups.pages[key] || listed.has(key)) continue;
+      if (pendingHead){ addHead(pendingHead); pendingHead = ''; }
+      addItem(key, p[1], depth);
+    }
+  }
+  const rest = Object.keys(groups.pages).filter((k) => !listed.has(k)).sort();
+  if (rest.length){ addHead('Other groups'); for (const k of rest) addItem(k, groups.pages[k].title, 1); }
+  if (!listed.size){
+    const empty = document.createElement('div');
+    empty.className = 'tag-wiki-plain';
+    empty.textContent = 'No tag groups bundled.';
+    sideEl.appendChild(empty);
+  }
+  markActiveGroup(activeGroup);
+}
+
+function setSide(open: boolean): void {
+  win?.classList.toggle('with-side', open);
+  sideBtn.classList.toggle('active', open);
+  sideBtn.setAttribute('aria-pressed', String(open));
+  setJSON(SIDE_KEY, open);
+  if (open) void fillSide();
+  clampIntoView();
+}
+
 function build(): HTMLElement {
   const el = document.createElement('div');
   el.className = 'tag-wiki-window';
@@ -163,7 +322,21 @@ function build(): HTMLElement {
   close.title = 'Close';
   close.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg>';
   close.addEventListener('click', closeTagWiki);
-  head.append(title, close);
+  sideBtn = document.createElement('button');
+  sideBtn.type = 'button';
+  sideBtn.className = 'tag-wiki-side-btn';
+  sideBtn.title = 'Tag groups (Hair styles, Posture, …)';
+  sideBtn.innerHTML = '<svg class="ic ic-lead" aria-hidden="true"><use href="#i-menu"></use></svg>Groups';
+  sideBtn.addEventListener('click', () => setSide(!win?.classList.contains('with-side')));
+  const tools = document.createElement('div');
+  tools.className = 'tag-wiki-head-tools';
+  tools.append(sideBtn, close);
+  head.append(title, tools);
+
+  sideEl = document.createElement('nav');
+  sideEl.className = 'tag-wiki-side';
+  sideEl.setAttribute('aria-label', 'Tag groups');
+  sideBuilt = false;
 
   bodyEl = document.createElement('div');
   bodyEl.className = 'tag-wiki-body tag-details-body';
@@ -181,7 +354,13 @@ function build(): HTMLElement {
   });
   attachLookupAutocomplete(inputEl, (tag) => { inputEl.value = tag; void showTag(tag); });
 
-  el.append(head, bodyEl, inputEl);
+  const main = document.createElement('div');
+  main.className = 'tag-wiki-main';
+  main.append(bodyEl, inputEl);
+  const cols = document.createElement('div');
+  cols.className = 'tag-wiki-cols';
+  cols.append(sideEl, main);
+  el.append(head, cols);
   attachDrag(head);
   return el;
 }
@@ -190,6 +369,7 @@ export function openTagWiki(): void {
   if (win){ inputEl.focus(); return; }
   win = build();
   document.body.appendChild(win);
+  setSide(getJSON<boolean>(SIDE_KEY, false));
   const pos = getJSON<{ left: number; top: number } | null>(POS_KEY, null);
   if (pos){ win.style.left = pos.left + 'px'; win.style.top = pos.top + 'px'; }
   else {
