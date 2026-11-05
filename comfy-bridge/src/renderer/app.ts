@@ -563,6 +563,7 @@ const usduImp = mountUsduPanel($<HTMLDivElement>('usduTab'), {
     : kind === 'sampler' ? bridgeSamplerOptions : bridgeSchedulerOptions,
   refreshLists: refreshUsduLists,
   onRunImported: () => { void queueUsduImported(); },
+  gallery: () => outputFolder ? desktopBackend() : null,
   log
 });
 

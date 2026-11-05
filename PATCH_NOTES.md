@@ -22,6 +22,10 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **Upscale tab picks from your gallery** (desktop and phone): **Choose image…** now shows the
+  images in your output folder and its subfolders as thumbnails, with a filter box. **Use native
+  file select** in the picker opens the usual file dialog for any other image. With no output
+  folder chosen yet, the file dialog opens straight away.
 - **Tag groups in the Wiki window** (desktop and phone): the same **Groups** sidebar as Osmium's.
   Pick a group (Hair styles, Posture, …) to see its tags by section, and click a tag to read it. On
   the phone the group list sits above the page.

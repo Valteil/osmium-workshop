@@ -121,6 +121,18 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .picker-row:last-child{border-bottom:none;}
 .picker-row.picked{color:var(--accent);font-weight:600;}
 .picker-clear{color:var(--muted);}
+/* Gallery image picker (gallery-pick.ts): the Upscale tab's "Choose image…". */
+.gpick-box{width:min(860px,96vw);height:84vh;}
+.gpick-list{flex:1;min-height:0;}
+.gpick-folder{font-size:12px;font-weight:600;color:var(--muted);margin:10px 2px 6px;overflow-wrap:anywhere;}
+.gpick-folder:first-child{margin-top:0;}
+.gpick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;}
+.gpick-cell{display:flex;flex-direction:column;gap:4px;padding:4px;min-height:0;background:var(--panel2,var(--panel));color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;text-align:left;}
+.gpick-cell:hover,.gpick-cell:focus-visible{border-color:var(--accent);}
+.gpick-cell img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:5px;background:var(--panel);}
+.gpick-name{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gpick-foot{display:flex;justify-content:flex-end;padding-top:10px;margin-top:8px;border-top:1px solid var(--border);}
+@media (max-width:600px){.gpick-grid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;}}
 .picker-empty{padding:11px 10px;font-size:13px;color:var(--muted);}
 
 /* Generic image lightbox — screen-dimming backdrop, image pannable/zoomable

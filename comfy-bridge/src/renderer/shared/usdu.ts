@@ -16,6 +16,8 @@
 import { UNLOAD_NODE_CLASS } from '../../comfy-core';
 import { attachPickerModal } from './picker-modal';
 import { showImageLightbox } from './lightbox';
+import { openGalleryImagePicker } from './gallery-pick';
+import type { StorageBackend } from './storage';
 import { mergedPromptText } from './gen-info';
 import { foreignSource, imageMetadataTexts, mergePromptFields, normalizeGeneration, splitPromptToFields } from './prompt-import';
 
@@ -296,6 +298,10 @@ export interface UsduPanelOptions {
   // yet), pick() = choose one (null = cancelled). Absent = output folder only.
   // `open` (desktop only): show the chosen folder in the file manager.
   saveFolder?: { get(): Promise<string>; pick(): Promise<string | null>; open?(): Promise<void> };
+  // The Upscale tab's "Choose image…" picks from the output folder (root and
+  // subfolders) through this backend; null (no folder yet) or absent = the
+  // OS file dialog straight away. The picker offers "Use native file select".
+  gallery?: () => StorageBackend | null;
   log: (msg: string) => void;
 }
 
@@ -445,7 +451,7 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     const pickBtn = document.createElement('button');
     pickBtn.type = 'button';
     pickBtn.textContent = 'Choose image…';
-    pickBtn.title = 'The image to upscale (PNG, JPG or WebP). A prompt saved in it is used by "Use my image\'s prompts".';
+    pickBtn.title = 'The image to upscale (PNG, JPG or WebP): from your output folder, or any file via "Use native file select". A prompt saved in it is used by "Use my image\'s prompts".';
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/png,image/jpeg,image/webp';
@@ -513,25 +519,31 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     }
     host.insertBefore(importBox, body);
     let url = '';
-    pickBtn.addEventListener('click', () => fileInput.click());
+    pickBtn.addEventListener('click', () => {
+      const backend = opts.gallery ? opts.gallery() : null;
+      if (!backend) { fileInput.click(); return; }
+      openGalleryImagePicker(backend, (p) => setPicked(p.name, p.bytes, p.mime), () => fileInput.click());
+    });
     // The preview zooms (the Bridge's lightbox); choosing is the button only.
     preview.addEventListener('click', () => { if (url) showImageLightbox(url); });
     fileInput.addEventListener('change', async () => {
       const f = fileInput.files && fileInput.files[0];
       fileInput.value = '';
       if (!f) return;
-      const bytes = new Uint8Array(await f.arrayBuffer());
-      picked = { name: f.name, bytes };
+      setPicked(f.name, new Uint8Array(await f.arrayBuffer()), f.type);
+    });
+    function setPicked(name: string, bytes: Uint8Array, mime: string): void {
+      picked = { name, bytes };
       const size = imageSizeOf(bytes);
-      pickedName.textContent = size ? `${f.name} · ${size.width}×${size.height}` : f.name;
+      pickedName.textContent = size ? `${name} · ${size.width}×${size.height}` : name;
       if (url) URL.revokeObjectURL(url);
-      url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: f.type || 'image/png' }));
+      url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime || 'image/png' }));
       previewImg.src = url;
       previewImg.hidden = false;
       empty.hidden = true;
       preview.classList.add('has-image');
       preview.title = 'Click to zoom in';
-    });
+    }
     runBtn.addEventListener('click', () => opts.onRunImported());
   }
 
