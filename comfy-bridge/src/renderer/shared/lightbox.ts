@@ -55,7 +55,8 @@ export function closeLightbox(): boolean {
 // screen) puts an "Info" button in instead and only builds the panel on tap;
 // stepping rebuilds it while it is showing.
 export type LightboxInfo = (src: string, close: () => void) => HTMLElement | null;
-export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo, infoDeferred?: boolean): void {
+// `onStep` hears each image ← / → moves to (the result carousel follows it).
+export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo, infoDeferred?: boolean, onStep?: (src: string) => void): void {
   if (!src) return;
   closeLightbox();
   const backdrop = document.createElement('div');
@@ -195,6 +196,7 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
     panY = 0;
     applyTransform();
     if (info && (!infoDeferred || infoShown)) renderInfo();
+    onStep?.(next);
   }
   function onKey(ev: KeyboardEvent): void {
     if (ev.key === 'Escape') close();

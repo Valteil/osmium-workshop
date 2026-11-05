@@ -95,7 +95,7 @@ declare const BridgeShared: {
   mountGallerySidebar: (backend: any, label: any, opts?: any) => any;
   galleryBack: () => boolean;
   compareBack: () => boolean;
-  showImageLightbox: (src: string, siblings?: () => string[], info?: (src: string, close: () => void) => HTMLElement | null, infoDeferred?: boolean) => void;
+  showImageLightbox: (src: string, siblings?: () => string[], info?: (src: string, close: () => void) => HTMLElement | null, infoDeferred?: boolean, onStep?: (src: string) => void) => void;
   THEMES: any;
   DEFAULT_THEME: any;
 };
@@ -1857,7 +1857,11 @@ declare const BridgeShared: {
       label.textContent = s.label;
       const img = document.createElement('img');
       img.src = previewSlideUrls[i];
-      img.addEventListener('click', () => BridgeShared.showImageLightbox(img.src));
+      // ← / → in the lightbox step through this generation's slides; the carousel follows.
+      img.addEventListener('click', () => BridgeShared.showImageLightbox(img.src, () => previewSlideUrls, undefined, false, (src) => {
+        const j = previewSlideUrls.indexOf(src);
+        if (j >= 0) previewCarousel.scrollTo({ left: j * previewCarousel.clientWidth });
+      }));
       slide.appendChild(label);
       slide.appendChild(img);
       previewCarousel.appendChild(slide);

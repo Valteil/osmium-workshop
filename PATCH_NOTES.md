@@ -24,6 +24,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **Fixed:** with a result open in the zoom view, ← / → now switch between Pass 1, Pass 2 and
+  Upscaled in the zoom view itself (they used to change only the preview behind it).
 - **Mouse Back / Forward buttons:** in the Wiki window they step through the tags and groups
   you've opened. In the Upscale tab's image picker they step through the folders you've opened
   (Back with nothing left closes the picker). In the gallery, Forward now re-opens the folder

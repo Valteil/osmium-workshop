@@ -1453,7 +1453,11 @@ function setPreviewSlides(slides: { label: string; bytes: Uint8Array }[]): void 
     label.textContent = s.label;
     const img = document.createElement('img');
     img.src = previewSlideUrls[i];
-    img.addEventListener('click', () => showImageLightbox(img.src));
+    // ← / → in the lightbox step through this generation's slides (pass 1, pass 2, upscaled).
+    img.addEventListener('click', () => showImageLightbox(img.src, () => previewSlideUrls, undefined, false, (src) => {
+      const j = previewSlideUrls.indexOf(src);
+      if (j >= 0) previewCarousel.scrollTo({ left: j * previewCarousel.clientWidth });
+    }));
     slide.appendChild(label);
     slide.appendChild(img);
     previewCarousel.appendChild(slide);
