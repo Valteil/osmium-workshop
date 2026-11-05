@@ -75,7 +75,8 @@ export const HELP_SECTIONS: HelpSection[] = [
       <p><b>Character trigger</b> is the activation word for a trained LoRA, when it has one. It is added after the character text.</p>
       <p><b>Negative</b> is what you do not want in the image. A sensible default is already filled in, so you can leave it alone.</p>
       <p>Prompt presets save a whole setup under a name and load it again later. Negative presets save just the negative text, which is handy when one negative works across many characters.</p>
-      <p>To start over, the <b>Clear all prompt fields</b> button above the fields empties every prompt box in one click, in either mode, along with the Character trigger. The Negative box is left alone.</p>`
+      <p>To start over, the <b>Clear all prompt fields</b> button above the fields empties every prompt box in one click, in either mode, along with the Character trigger. The Negative box is left alone.</p>
+      <p>The <b>lock</b> beside a prompt box's name keeps that box as it is: <b>Clear all prompt fields</b> skips it, and loading a generation back in (full settings or prompts only, from the gallery, Import Generation or the Metadata tab) leaves its text alone. Click it again to unlock.</p>`
   },
   {
     id: 'sampling',

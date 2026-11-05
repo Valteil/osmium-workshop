@@ -610,3 +610,10 @@ body.regional-on .normal-prompt{ display:none !important; }
 @media (prefers-reduced-motion: reduce){
   .cmp-side, .cmp-panel{ transition-property:opacity; }
 }
+
+/* Locked prompt fields (prompt-locks.ts): a lock on the box's label. */
+.prompt-lock-label{display:flex;align-items:center;gap:6px;}
+button.prompt-lock{display:inline-flex;align-items:center;justify-content:center;padding:2px;min-width:0;min-height:0;width:auto;margin:0;border:0;background:none;box-shadow:none;color:var(--muted);opacity:.55;font-size:12px;line-height:1;cursor:pointer;}
+button.prompt-lock:hover{opacity:1;}
+button.prompt-lock.on{color:var(--accent);opacity:1;}
+textarea.prompt-locked{border-color:var(--accent);}

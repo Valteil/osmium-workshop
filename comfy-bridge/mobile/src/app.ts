@@ -70,6 +70,9 @@ declare const BridgeShared: {
   nextFileNumber: (backend: any) => Promise<number>;
   optionsFromDatalist: (datalist: any) => string[];
   attachPickerModal: (input: any, title: string, getOptions: () => any) => void;
+  initPromptLocks: (boxes: HTMLTextAreaElement[]) => void;
+  isPromptLocked: (box: HTMLTextAreaElement) => boolean;
+  keepLockedPrompts: () => () => void;
   // shared/usdu.ts: the USDU panel + graph (same module as the desktop's).
   mountUsduPanel: (host: HTMLElement, opts: any) => {
     enabled: () => boolean; refresh: () => void; setEnabled: (on: boolean) => void; apply: (s: any) => void;
@@ -196,6 +199,9 @@ declare const BridgeShared: {
   const clothes = $<HTMLTextAreaElement>('clothes'), limbs = $<HTMLTextAreaElement>('limbs'), sexual = $<HTMLTextAreaElement>('sexual'), pose = $<HTMLTextAreaElement>('pose');
   const scene = $<HTMLTextAreaElement>('scene'), effects = $<HTMLTextAreaElement>('effects'), extra = $<HTMLTextAreaElement>('extra');
   const characterTrigger = $<HTMLTextAreaElement>('characterTrigger'), negative = $<HTMLTextAreaElement>('negative');
+  // Locked prompt boxes keep their text through imports (prompt-locks.ts).
+  BridgeShared.initPromptLocks([unifiedPrompt, global_, character, rating, hair, face, chest, body_,
+    clothes, limbs, sexual, pose, scene, effects, extra, characterTrigger, negative]);
 
   const width = $<HTMLInputElement>('width'), height = $<HTMLInputElement>('height'), btnSwapReso = $<HTMLButtonElement>('btnSwapReso');
   const sampler = $<HTMLInputElement>('sampler'), scheduler = $<HTMLInputElement>('scheduler');
@@ -2231,7 +2237,9 @@ declare const BridgeShared: {
   // "Use these prompts" (gallery info panel): only the prompt fields change;
   // models, LoRAs, sampler, seeds, size, passes and upscale stay as they are.
   async function applyImportedPromptsOnly(prompt: Record<string, any>) {
+    const restoreLocked = BridgeShared.keepLockedPrompts();
     logDroppedLoras(await applySavedPromptText(prompt, unifiedPromptMode.checked));
+    restoreLocked();
     autoGrowAll();
     void refreshSavePreview();
     scheduleUiSave();
@@ -2248,6 +2256,8 @@ declare const BridgeShared: {
     if (BridgeShared.foreignSource(prompt)) { await applyForeignGeneration(prompt); return; }
     // The user's prompt-box mode, before the reset puts it back to its default.
     const singleBox = unifiedPromptMode.checked;
+    // Locked prompt boxes survive the reset and the import (prompt-locks.ts).
+    const restoreLocked = BridgeShared.keepLockedPrompts();
     resetGenerationForm();
     const inp = (id: string) => (prompt[id] && prompt[id].inputs) || {};
     const s = (id: string, key: string) => { const v = inp(id)[key]; return v == null ? '' : String(v); };
@@ -2292,6 +2302,7 @@ declare const BridgeShared: {
     }
 
     logDroppedLoras(await applySavedPromptText(prompt, singleBox));
+    restoreLocked();
 
     setVal(sampler, (prompt['168:167']?.class_type === 'ClownSampler_Beta' ? BridgeShared.RES4LYF_PREFIX : '') + s('168:167', 'sampler_name'));
     setVal(scheduler, s('158:53', 'scheduler') || s('195', 'scheduler'));

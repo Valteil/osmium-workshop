@@ -82,7 +82,8 @@ export {};
 
 import {
   mountGallerySidebar, attachPickerModal, optionsFromDatalist,
-  showImageLightbox, bytesToBase64, base64ToBytes, refreshGallery
+  showImageLightbox, bytesToBase64, base64ToBytes, refreshGallery,
+  initPromptLocks, isPromptLocked, keepLockedPrompts
 } from './shared/index';
 import type { StorageBackend, DirEntry } from './shared/storage';
 import { buildSynthDatPrompt, RES4LYF_PREFIX } from '../comfy-core';
@@ -706,7 +707,7 @@ btnDeleteNegativePreset.addEventListener('click', async () => {
 // reuse across characters", the same reason presets treat the two separately.
 // The same prompt fields are also enumerated by snapshotPromptFields /
 // applyPromptFields / RESET_TEXT_FIELDS; a new prompt field must join all
-// four lists. A programmatic .value write fires no 'input', so re-fit the
+// four lists (and the initPromptLocks list in both shells). A programmatic .value write fires no 'input', so re-fit the
 // textareas, re-run the save preview (the rating/character naming folders
 // read these fields) and snapshot the UI state by hand.
 const btnClearPromptFields = $<HTMLButtonElement>('btnClearPromptFields');
@@ -714,12 +715,15 @@ const PROMPT_TEXT_FIELDS: HTMLTextAreaElement[] = [
   unifiedPrompt, global_, character, rating, hair, face, chest, body_,
   clothes, limbs, sexual, pose, scene, effects, extra, characterTrigger
 ];
+// A locked box (prompt-locks.ts) keeps its text here and through imports.
+initPromptLocks([...PROMPT_TEXT_FIELDS, negative]);
 btnClearPromptFields.addEventListener('click', () => {
-  for (const el of PROMPT_TEXT_FIELDS) el.value = '';
+  let kept = 0;
+  for (const el of PROMPT_TEXT_FIELDS) { if (isPromptLocked(el)) kept++; else el.value = ''; }
   autoGrowAll();
   void refreshSavePreview();
   scheduleUiSave();
-  log('Cleared all prompt fields (Negative kept).');
+  log(kept ? `Cleared the prompt fields (Negative and ${kept} locked kept).` : 'Cleared all prompt fields (Negative kept).');
 });
 
 function initPresets(): void { refreshPresetLists(); }
@@ -1752,7 +1756,9 @@ function logDroppedLoras(loras: string[]): void {
 // "Use these prompts" (gallery info panel): only the prompt fields change;
 // models, LoRAs, sampler, seeds, size, passes and upscale stay as they are.
 async function applyImportedPromptsOnly(prompt: Record<string, any>): Promise<void> {
+  const restoreLocked = keepLockedPrompts();
   logDroppedLoras(await applySavedPromptText(prompt, unifiedPromptMode.checked));
+  restoreLocked();
   applyUnifiedPromptModeUI();
   autoGrowAll();
   scheduleUiSave();
@@ -1775,6 +1781,8 @@ async function applyImportedPrompt(prompt: Record<string, any>): Promise<void> {
   if (foreignSource(prompt)) { await applyForeignGeneration(prompt); return; }
   // The user's prompt-box mode, before the reset puts it back to its default.
   const singleBox = unifiedPromptMode.checked;
+  // Locked prompt boxes survive the reset and the import (prompt-locks.ts).
+  const restoreLocked = keepLockedPrompts();
   resetGenerationForm();
   const inp = (id: string): Record<string, unknown> => (prompt[id] && prompt[id].inputs) || {};
   const s = (id: string, key: string): string => { const v = inp(id)[key]; return v == null ? '' : String(v); };
@@ -1823,6 +1831,7 @@ async function applyImportedPrompt(prompt: Record<string, any>): Promise<void> {
   }
 
   logDroppedLoras(await applySavedPromptText(prompt, singleBox));
+  restoreLocked();
 
   setVal(sampler, (prompt['168:167']?.class_type === 'ClownSampler_Beta' ? RES4LYF_PREFIX : '') + s('168:167', 'sampler_name'));
   setVal(scheduler, s('158:53', 'scheduler') || s('195', 'scheduler'));
