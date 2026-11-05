@@ -3,9 +3,36 @@
 // "Choose image…" (both shells). Thumbnails load lazily as they scroll in.
 // The footer's "Use native file select" closes this and hands over to the
 // caller's own <input type=file> (`onNative`, called inside the click so the
-// browser still counts it as a user gesture).
-import type { StorageBackend } from './storage';
-import { scanImages, groupByFolder, base64ToBytes } from './storage';
+// browser still counts it as a user gesture). Sort: newest first by default,
+// per folder, remembered in `comfybridge-gpick-sort` (the gallery's compare).
+import type { StorageBackend, DirEntry } from './storage';
+import { isGalleryImage, groupByFolder, base64ToBytes } from './storage';
+import { compareNames, type GallerySortMode } from './gallery';
+
+const SORT_KEY = 'comfybridge-gpick-sort';
+const SORTS: [GallerySortMode, string][] = [
+  ['date-desc', 'Newest first'], ['date-asc', 'Oldest first'],
+  ['name-asc', 'Name ↓'], ['name-desc', 'Name ↑'],
+];
+
+// scanImages() with each image's mtime, for date sorting.
+async function scanWithDates(backend: StorageBackend): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  async function walk(relDir: string): Promise<void> {
+    let entries: DirEntry[];
+    try { entries = await backend.listDir(relDir); } catch { return; }
+    const subdirs: string[] = [];
+    for (const f of entries) {
+      if (!f || !f.name) continue;
+      const rel = relDir ? relDir + '/' + f.name : f.name;
+      if (f.kind === 'directory') subdirs.push(rel);
+      else if (f.kind === 'file' && isGalleryImage(f.name)) out.set(rel, Number(f.mtime) || 0);
+    }
+    for (const sub of subdirs) await walk(sub);
+  }
+  await walk('');
+  return out;
+}
 
 export interface GalleryPick { name: string; rel: string; bytes: Uint8Array; mime: string; }
 
@@ -32,6 +59,14 @@ export function openGalleryImagePicker(
   search.type = 'text';
   search.placeholder = 'Filter by name or folder…';
   search.className = 'picker-search';
+  const sortSel = document.createElement('select');
+  sortSel.className = 'gpick-sort';
+  sortSel.title = 'Sort the images in each folder';
+  for (const [v, t] of SORTS) { const o = document.createElement('option'); o.value = v; o.textContent = t; sortSel.appendChild(o); }
+  try { const v = localStorage.getItem(SORT_KEY); if (v && SORTS.some(([k]) => k === v)) sortSel.value = v; } catch { /* best effort */ }
+  const tools = document.createElement('div');
+  tools.className = 'gpick-tools';
+  tools.append(search, sortSel);
   const list = document.createElement('div');
   list.className = 'picker-list gpick-list';
   const foot = document.createElement('div');
@@ -41,7 +76,7 @@ export function openGalleryImagePicker(
   nativeBtn.textContent = 'Use native file select';
   nativeBtn.title = 'Pick any image with the standard file dialog instead';
   foot.appendChild(nativeBtn);
-  box.append(head, search, list, foot);
+  box.append(head, tools, list, foot);
   backdrop.appendChild(box);
 
   let closed = false;
@@ -82,6 +117,7 @@ export function openGalleryImagePicker(
   }
 
   let all: string[] = [];
+  let dates = new Map<string, number>();
   function render(): void {
     io.disconnect();
     thumbs.clear();
@@ -95,7 +131,9 @@ export function openGalleryImagePicker(
       list.appendChild(empty);
       return;
     }
+    const mode = sortSel.value as GallerySortMode;
     for (const g of groupByFolder(rels)) {
+      g.items.sort((a, b) => compareNames(a, b, mode, dates.get(a) || 0, dates.get(b) || 0));
       const h = document.createElement('div');
       h.className = 'gpick-folder';
       h.textContent = g.key || 'Output folder';
@@ -124,6 +162,11 @@ export function openGalleryImagePicker(
   }
 
   search.addEventListener('input', render);
+  sortSel.addEventListener('change', () => {
+    try { localStorage.setItem(SORT_KEY, sortSel.value); } catch { /* best effort */ }
+    render();
+    list.scrollTop = 0;
+  });
   backdrop.addEventListener('click', (ev) => { if (ev.target === backdrop) close(); });
   closeBtn.addEventListener('click', close);
   nativeBtn.addEventListener('click', () => { close(); onNative(); });
@@ -134,9 +177,10 @@ export function openGalleryImagePicker(
   list.appendChild(loading);
   document.body.appendChild(backdrop);
   requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));
-  void scanImages(backend).then((rels) => {
+  void scanWithDates(backend).then((found) => {
     if (closed) return;
-    all = rels;
+    dates = found;
+    all = [...found.keys()];
     render();
   }).catch((e) => {
     if (closed) return;

@@ -391,7 +391,7 @@ interface BrowserState {
 
 // Name compare is numeric-aware (N.png orders by N); date compare falls
 // back to name on ties or missing mtimes.
-function compareNames(a: string, b: string, mode: GallerySortMode, mtimeA: number, mtimeB: number): number {
+export function compareNames(a: string, b: string, mode: GallerySortMode, mtimeA: number, mtimeB: number): number {
   if (mode === 'date-desc' || mode === 'date-asc') {
     if (mtimeA !== mtimeB) return mode === 'date-desc' ? mtimeB - mtimeA : mtimeA - mtimeB;
   }
