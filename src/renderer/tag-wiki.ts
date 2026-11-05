@@ -34,6 +34,25 @@ let sideEl: HTMLElement;
 let sideBtn: HTMLButtonElement;
 let activeGroup = '';
 
+// Pages visited in this window, for the mouse's Back / Forward side buttons
+// (3 / 4, over the window). Reset when the window opens.
+type WikiPage = { kind: 'tag' | 'group'; key: string };
+let navBack: WikiPage[] = [];
+let navFwd: WikiPage[] = [];
+let navCur: WikiPage | null = null;
+function navVisit(p: WikiPage): void {
+  if (navCur && !(navCur.kind === p.kind && navCur.key === p.key)){ navBack.push(navCur); navFwd = []; }
+  navCur = p;
+}
+function navStep(dir: -1 | 1): void {
+  const p = (dir < 0 ? navBack : navFwd).pop();
+  if (!p) return;
+  if (navCur) (dir < 0 ? navFwd : navBack).push(navCur);
+  navCur = p;
+  if (p.kind === 'group') void showGroup(p.key, true);
+  else { inputEl.value = p.key; void showTag(p.key, true); }
+}
+
 // "tag group:Hair styles" / "tag_group:hair_styles" -> "hair_styles", else ''.
 function groupKeyOf(text: string): string {
   const m = text.trim().match(/^tag[ _]group:\s*(.+)$/i);
@@ -90,11 +109,12 @@ function splitSeeAlso(text: string): { main: string; seeAlso: string[] } {
   return { main, seeAlso: items };
 }
 
-async function showTag(raw: string): Promise<void> {
+async function showTag(raw: string, fromHistory = false): Promise<void> {
   const tag = raw.trim().replace(/_/g, ' ');
   if (!tag) return;
   const asGroup = groupKeyOf(tag);
-  if (asGroup && (await ensureWikiGroupsLoaded()).pages[asGroup]){ void showGroup(asGroup); return; }
+  if (asGroup && (await ensureWikiGroupsLoaded()).pages[asGroup]){ void showGroup(asGroup, fromHistory); return; }
+  if (!fromHistory) navVisit({ kind: 'tag', key: tag });
   closeAutocomplete();
   markActiveGroup('');
   bodyEl.innerHTML = '';
@@ -214,7 +234,8 @@ function renderGroupLines(into: HTMLElement, lines: WikiGroupLine[], groups: Wik
   }
 }
 
-async function showGroup(key: string): Promise<void> {
+async function showGroup(key: string, fromHistory = false): Promise<void> {
+  if (!fromHistory) navVisit({ kind: 'group', key });
   closeAutocomplete();
   markActiveGroup(key);
   // The first open also waits for the whole definitions file (which links are tags).
@@ -362,12 +383,19 @@ function build(): HTMLElement {
   cols.append(sideEl, main);
   el.append(head, cols);
   attachDrag(head);
+  el.addEventListener('mouseup', (ev) => {
+    if (ev.button !== 3 && ev.button !== 4) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    navStep(ev.button === 3 ? -1 : 1);
+  });
   return el;
 }
 
 export function openTagWiki(): void {
   if (win){ inputEl.focus(); return; }
   win = build();
+  navBack = []; navFwd = []; navCur = null;
   document.body.appendChild(win);
   setSide(getJSON<boolean>(SIDE_KEY, false));
   const pos = getJSON<{ left: number; top: number } | null>(POS_KEY, null);

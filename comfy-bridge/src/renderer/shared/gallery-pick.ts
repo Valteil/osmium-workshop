@@ -11,6 +11,7 @@ import type { StorageBackend, DirEntry } from './storage';
 import { isGalleryImage, groupByFolder, base64ToBytes } from './storage';
 import { compareNames, type GallerySortMode } from './gallery';
 import { bridgeIcon } from './icons';
+import { NavHistory, onSideButtons } from './nav-history';
 
 const SORT_KEY = 'comfybridge-gpick-sort';
 const SORTS: [GallerySortMode, string][] = [
@@ -140,7 +141,21 @@ export function openGalleryImagePicker(
     io.observe(cell);
     return cell;
   }
-  function openDir(dir: string): void { cwd = dir; render(); list.scrollTop = 0; }
+  // Folders visited, for the mouse's Back / Forward side buttons. Back with
+  // nothing left closes the picker (as the gallery sidebar's Back does).
+  const nav = new NavHistory<string>((a, b) => a === b);
+  nav.visit('');
+  function openDir(dir: string, fromHistory = false): void {
+    if (!fromHistory) nav.visit(dir);
+    cwd = dir;
+    if (search.value) search.value = '';
+    render();
+    list.scrollTop = 0;
+  }
+  onSideButtons(backdrop, () => {
+    const d = nav.goBack();
+    if (d === null) close(); else openDir(d, true);
+  }, () => { const d = nav.goForward(); if (d !== null) openDir(d, true); });
   function empty(text: string): void {
     const e = document.createElement('div');
     e.className = 'picker-empty';

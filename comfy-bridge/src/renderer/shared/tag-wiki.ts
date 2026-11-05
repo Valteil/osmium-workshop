@@ -17,6 +17,8 @@
 // wiki_groups.json.gzdat (Osmium's scripts/build-wiki-groups.js). On a phone
 // the sidebar sits above the main area instead of beside it.
 
+import { NavHistory, onSideButtons } from './nav-history';
+
 const POS_KEY = 'comfybridge-tag-wiki-pos';
 const SIDE_KEY = 'comfybridge-tag-wiki-side';
 const NOTES_KEY = 'comfybridge-custom-tag-notes';
@@ -153,11 +155,21 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: s
   return e;
 }
 
-async function showTag(raw: string): Promise<void> {
+// Pages visited in this window, for the mouse's Back / Forward side buttons.
+type WikiPage = { kind: 'tag' | 'group'; key: string };
+const samePage = (a: WikiPage, b: WikiPage) => a.kind === b.kind && a.key === b.key;
+let nav = new NavHistory<WikiPage>(samePage);
+function showPage(p: WikiPage): void {
+  if (p.kind === 'group') void showGroup(p.key, true);
+  else { inputEl.value = p.key; void showTag(p.key, true); }
+}
+
+async function showTag(raw: string, fromHistory = false): Promise<void> {
   const tag = raw.trim().replace(/_/g, ' ');
   if (!tag) return;
   const asGroup = groupKeyOf(tag);
-  if (asGroup && (await wikiGroups()).pages[asGroup]) { void showGroup(asGroup); return; }
+  if (asGroup && (await wikiGroups()).pages[asGroup]) { void showGroup(asGroup, fromHistory); return; }
+  if (!fromHistory) nav.visit({ kind: 'tag', key: tag });
   closeSuggestions();
   markActiveGroup('');
   bodyEl.innerHTML = '';
@@ -236,7 +248,8 @@ function partEl(target: string, label: string, groups: WikiGroups, known: (k: st
   return el('span', 'tag-wiki-plain', label);
 }
 
-async function showGroup(key: string): Promise<void> {
+async function showGroup(key: string, fromHistory = false): Promise<void> {
+  if (!fromHistory) nav.visit({ kind: 'group', key });
   closeSuggestions();
   markActiveGroup(key);
   // The first open also waits for the definitions + vocabulary (which links are tags).
@@ -436,12 +449,14 @@ function build(): HTMLElement {
   cols.append(sideEl, main);
   w.append(head, cols);
   attachDrag(head);
+  onSideButtons(w, () => { const p = nav.goBack(); if (p) showPage(p); }, () => { const p = nav.goForward(); if (p) showPage(p); });
   return w;
 }
 
 export function openTagWiki(): void {
   if (win) { inputEl.focus(); return; }
   win = build();
+  nav = new NavHistory<WikiPage>(samePage);
   document.body.appendChild(win);
   setSide(readJSON<boolean>(SIDE_KEY, false));
   const pos = readJSON<{ left: number; top: number } | null>(POS_KEY, null);

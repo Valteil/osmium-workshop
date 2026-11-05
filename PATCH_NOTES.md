@@ -19,9 +19,15 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   Danbooru's own tag group index is. Pick one to see its tags by section; click a tag to read its
   definition, or a related group to open it. A tag's **See also** "Tag group:" entries open the
   group too, and typing `tag group:hair styles` in the lookup works.
+- **Mouse Back / Forward in the Wiki window:** the side buttons go back and forward through the
+  tags and groups you've opened.
 
 ### Comfy Bridge
 
+- **Mouse Back / Forward buttons:** in the Wiki window they step through the tags and groups
+  you've opened. In the Upscale tab's image picker they step through the folders you've opened
+  (Back with nothing left closes the picker). In the gallery, Forward now re-opens the folder
+  Back just left.
 - **Upscale tab picks from your gallery** (desktop and phone): **Choose image…** now shows the
   images in your output folder as thumbnails. Subfolders always sit on top as folder buttons
   (with how many images each holds); click one to open it, and use the path above to go back.

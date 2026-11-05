@@ -270,8 +270,10 @@ export function mountGallerySidebar(
   const sources = opts?.sources && opts.sources.length > 1 ? opts.sources : null;
   let srcIdx = 0;
   let relDir = '';
+  // Folders Back left (deepest last), for the mouse's Forward side button.
+  const fwdDirs: string[] = [];
   let sortMode: GallerySortMode = loadSortMode();
-  const browserState = (): BrowserState => ({ getDir: () => relDir, setDir: (d: string) => { relDir = d; }, getSort: () => sortMode, setSort: (s: GallerySortMode) => { sortMode = s; } });
+  const browserState = (): BrowserState => ({ getDir: () => relDir, setDir: (d: string) => { relDir = d; fwdDirs.length = 0; }, getSort: () => sortMode, setSort: (s: GallerySortMode) => { sortMode = s; } });
   function renderSourceSwitch(): void {
     if (!sources) return;
     let row = sidebar.querySelector<HTMLElement>('.gallery-source-row');
@@ -290,6 +292,7 @@ export function mountGallerySidebar(
         if (i === srcIdx) return;
         srcIdx = i;
         relDir = '';           // a different save root: go to its top
+        fwdDirs.length = 0;
         galleryRenderToken++; // stop any in-flight render of the old source
         renderSourceSwitch();
         void render();
@@ -356,6 +359,7 @@ export function mountGallerySidebar(
     if (!sidebar.classList.contains('open')) return false;
     if (closeLightbox()) return true;
     if (navigable && relDir) {
+      fwdDirs.push(relDir);
       relDir = relDir.includes('/') ? relDir.slice(0, relDir.lastIndexOf('/')) : '';
       void render();
       return true;
@@ -370,10 +374,14 @@ export function mountGallerySidebar(
     ev.preventDefault();
     galleryBack();
   });
-  // The mouse's Back side button (button 3), also while an image is open.
+  // The mouse's Back side button (button 3), also while an image is open;
+  // Forward (button 4) re-opens the folder Back left.
   window.addEventListener('mouseup', (ev) => {
-    if (ev.button !== 3) return;
-    if (galleryBack()) ev.preventDefault();
+    if (ev.button === 3) { if (galleryBack()) ev.preventDefault(); return; }
+    if (ev.button !== 4 || !sidebar.classList.contains('open') || isLightboxOpen() || !fwdDirs.length) return;
+    ev.preventDefault();
+    relDir = fwdDirs.pop() as string;
+    void render();
   });
   activeRefresh = (): void => {
     if (!sidebar.classList.contains('open')) return;
