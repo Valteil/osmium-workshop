@@ -9,6 +9,7 @@ import {
 } from './lora-lookup';
 import { renderTrainingInfo, readSafetensorsFile } from './lora-training';
 import { openDownloadModal, buildDownloadKeysSection, type LoraOp } from './lora-download';
+import { openPickerModal } from './picker-modal';
 
 export interface LoraTools {
   // ComfyUI's LoRA list as the app knows it (the LoRA stack's options).
@@ -207,15 +208,18 @@ function buildTrainingSection(deps: MetadataTabDeps): HTMLElement {
     ? 'What a LoRA was trained with: base model, network, optimizer, steps, dataset folders and training tags. Pick one of your LoRAs, or open a .safetensors file.'
     : 'What a LoRA was trained with: base model, network, optimizer, steps, dataset folders and training tags. The PC reads the file from its loras folders.'));
   const row = el('div', 'meta-lookup-row');
+  // Only your own LoRAs can be read, so the box is a tap-to-pick field (the
+  // Generate tab's picker modal, not a native datalist: that one rebuilt on
+  // every focus/keystroke and opened or not at random, and barely works in
+  // the Android WebView). Picking reads it straight away.
   const input = el('input');
   input.type = 'text';
-  input.placeholder = 'One of your LoRAs…';
-  const dl = el('datalist');
-  dl.id = 'metaTrainLoraNames';
-  input.setAttribute('list', dl.id);
-  const fillList = () => dl.replaceChildren(...deps.tools.localNames().map((n) => { const o = el('option'); o.value = n; return o; }));
-  for (const ev of ['focus', 'pointerdown', 'input']) input.addEventListener(ev, fillList);
-  fillList();
+  input.readOnly = true;
+  input.placeholder = 'Pick one of your LoRAs…';
+  input.addEventListener('click', () => openPickerModal('LoRA', deps.tools.localNames(), input.value, (v) => {
+    input.value = v;
+    if (v) go.click();
+  }));
   const out = el('div', 'meta-lookup-result');
   const show = async (busy: string, load: () => Promise<LoraFileInfo>) => {
     out.replaceChildren(el('div', 'lora-note', busy));
@@ -231,8 +235,7 @@ function buildTrainingSection(deps: MetadataTabDeps): HTMLElement {
     if (!local) { out.replaceChildren(el('div', 'lora-note lora-err', `"${q}" isn't in your LoRA list (Connect, or Refresh model lists).`)); return; }
     void show(deps.openLoraFile ? 'Reading the file…' : 'Asking the PC to read the file…', () => getFileInfo(deps.tools, local));
   });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go.click(); });
-  row.append(input, go, dl);
+  row.append(input, go);
   if (deps.openLoraFile) {
     const file = el('input');
     file.type = 'file';
@@ -287,15 +290,15 @@ export function mountMetadataTab(root: HTMLElement, deps: MetadataTabDeps): void
   const input = el('input');
   input.type = 'text';
   input.placeholder = 'Your LoRA, or a name to search…';
-  const listId = 'metaLoraNames';
-  const dl = el('datalist');
-  dl.id = listId;
-  input.setAttribute('list', listId);
-  // Suggestions = your LoRA list, refreshed whenever the box is used (the
-  // list can change after a Connect / Refresh model lists).
-  const fillList = () => dl.replaceChildren(...deps.tools.localNames().map((n) => { const o = el('option'); o.value = n; return o; }));
-  for (const ev of ['focus', 'pointerdown', 'input']) input.addEventListener(ev, fillList);
-  fillList();
+  // Free text (any name, or a pasted hash), plus a button for your own LoRAs
+  // in the picker modal (read fresh each time: the list changes after a
+  // Connect / Refresh model lists). Picking looks it up straight away.
+  const pick = el('button', '', 'Your LoRAs…');
+  pick.type = 'button';
+  pick.addEventListener('click', () => openPickerModal('LoRA', deps.tools.localNames(), input.value, (v) => {
+    input.value = v;
+    if (v) go.click();
+  }));
   const result = el('div', 'meta-lookup-result');
   const go = el('button', '', 'Look up');
   go.type = 'button';
@@ -307,7 +310,7 @@ export function mountMetadataTab(root: HTMLElement, deps: MetadataTabDeps): void
     result.replaceChildren(buildLoraSection([isHash ? { name: q, hash: q.toLowerCase() } : { name: q }], deps.tools));
   });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go.click(); });
-  row.append(input, go, dl);
+  row.append(input, pick, go);
   loraSec.append(row, result);
   root.append(loraSec);
   if (deps.tools.canSetKeys && deps.tools.loraOp) root.appendChild(buildDownloadKeysSection(deps.tools.loraOp));

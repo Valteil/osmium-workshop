@@ -35,6 +35,10 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   starts (when generating with USDU on, and in the Upscale tab), and the upscale models are
   unloaded before your next generation, so the two never sit in VRAM together. With your own
   ComfyUI server, update the ComfyUI-DataSetManagerNodes pack for the first half.
+- **Fixed:** the Metadata tab's LoRA lists opened only some of the time. **LoRA training
+  metadata** is now a tap-to-pick field (the same list as the Generate tab's model fields) and reads
+  the LoRA you pick; **LoRA lookup** has a **Your LoRAs…** button that looks the pick up, and its
+  box still takes any name or a pasted hash.
 
 ---
 
