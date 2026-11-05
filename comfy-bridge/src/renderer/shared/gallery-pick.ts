@@ -4,10 +4,13 @@
 // The footer's "Use native file select" closes this and hands over to the
 // caller's own <input type=file> (`onNative`, called inside the click so the
 // browser still counts it as a user gesture). Sort: newest first by default,
-// per folder, remembered in `comfybridge-gpick-sort` (the gallery's compare).
+// remembered in `comfybridge-gpick-sort` (the gallery's compare). It browses
+// one folder at a time: subfolders always sit on top, then that folder's
+// images; typing a filter searches every folder instead.
 import type { StorageBackend, DirEntry } from './storage';
 import { isGalleryImage, groupByFolder, base64ToBytes } from './storage';
 import { compareNames, type GallerySortMode } from './gallery';
+import { bridgeIcon } from './icons';
 
 const SORT_KEY = 'comfybridge-gpick-sort';
 const SORTS: [GallerySortMode, string][] = [
@@ -118,50 +121,117 @@ export function openGalleryImagePicker(
 
   let all: string[] = [];
   let dates = new Map<string, number>();
+  let cwd = ''; // the folder being browsed ('' = the output folder itself)
+
+  function imageCell(rel: string): HTMLButtonElement {
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'gpick-cell';
+    cell.title = rel;
+    const img = document.createElement('img');
+    img.alt = '';
+    img.decoding = 'async';
+    const cap = document.createElement('span');
+    cap.className = 'gpick-name';
+    cap.textContent = rel.slice(rel.lastIndexOf('/') + 1);
+    cell.append(img, cap);
+    cell.addEventListener('click', () => { void choose(rel); });
+    thumbs.set(cell, rel);
+    io.observe(cell);
+    return cell;
+  }
+  function openDir(dir: string): void { cwd = dir; render(); list.scrollTop = 0; }
+  function empty(text: string): void {
+    const e = document.createElement('div');
+    e.className = 'picker-empty';
+    e.textContent = text;
+    list.appendChild(e);
+  }
+
   function render(): void {
     io.disconnect();
     thumbs.clear();
     list.innerHTML = '';
+    const mode = sortSel.value as GallerySortMode;
+    const byMode = (a: string, b: string) => compareNames(a, b, mode, dates.get(a) || 0, dates.get(b) || 0);
     const q = search.value.trim().toLowerCase();
-    const rels = q ? all.filter((r) => r.toLowerCase().includes(q)) : all;
-    if (!rels.length) {
-      const empty = document.createElement('div');
-      empty.className = 'picker-empty';
-      empty.textContent = q ? 'No matches.' : 'No images in your output folder yet.';
-      list.appendChild(empty);
+    if (q) {
+      // Filtering searches every folder, grouped by folder.
+      const rels = all.filter((r) => r.toLowerCase().includes(q));
+      if (!rels.length) { empty('No matches.'); return; }
+      for (const g of groupByFolder(rels)) {
+        const h = document.createElement('div');
+        h.className = 'gpick-folder';
+        h.textContent = g.key || 'Output folder';
+        const grid = document.createElement('div');
+        grid.className = 'gpick-grid';
+        for (const rel of g.items.sort(byMode)) grid.appendChild(imageCell(rel));
+        list.append(h, grid);
+      }
       return;
     }
-    const mode = sortSel.value as GallerySortMode;
-    for (const g of groupByFolder(rels)) {
-      g.items.sort((a, b) => compareNames(a, b, mode, dates.get(a) || 0, dates.get(b) || 0));
-      const h = document.createElement('div');
-      h.className = 'gpick-folder';
-      h.textContent = g.key || 'Output folder';
+    // Browsing: the path, then this folder's subfolders (always first), then its images.
+    const crumb = document.createElement('div');
+    crumb.className = 'gpick-crumb';
+    const parts = cwd ? cwd.split('/') : [];
+    const seg = (label: string, dir: string, current: boolean) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'gpick-crumb-seg';
+      b.textContent = label;
+      b.disabled = current;
+      b.addEventListener('click', () => openDir(dir));
+      crumb.appendChild(b);
+    };
+    seg('Output folder', '', !parts.length);
+    parts.forEach((p, i) => {
+      crumb.append(' › ');
+      seg(p, parts.slice(0, i + 1).join('/'), i === parts.length - 1);
+    });
+    list.appendChild(crumb);
+    const prefix = cwd ? cwd + '/' : '';
+    const sub = new Map<string, number>();
+    const here: string[] = [];
+    for (const rel of all) {
+      if (!rel.startsWith(prefix)) continue;
+      const rest = rel.slice(prefix.length);
+      const slash = rest.indexOf('/');
+      if (slash < 0) here.push(rel);
+      else { const d = rest.slice(0, slash); sub.set(d, (sub.get(d) || 0) + 1); }
+    }
+    if (!sub.size && !here.length) { empty(cwd ? 'No images in this folder.' : 'No images in your output folder yet.'); return; }
+    if (sub.size) {
+      const dirs = document.createElement('div');
+      dirs.className = 'gpick-dirs';
+      const names = [...sub.keys()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+      if (mode === 'name-desc') names.reverse();
+      for (const d of names) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'gpick-dir';
+        b.innerHTML = bridgeIcon('folder');
+        const label = document.createElement('span');
+        label.className = 'gpick-dir-name';
+        label.textContent = d;
+        const count = document.createElement('span');
+        count.className = 'gpick-dir-count';
+        count.textContent = String(sub.get(d));
+        b.append(label, count);
+        b.title = `Open ${prefix + d} (${sub.get(d)} image${sub.get(d) === 1 ? '' : 's'} inside)`;
+        b.addEventListener('click', () => openDir(prefix + d));
+        dirs.appendChild(b);
+      }
+      list.appendChild(dirs);
+    }
+    if (here.length) {
       const grid = document.createElement('div');
       grid.className = 'gpick-grid';
-      for (const rel of g.items) {
-        const cell = document.createElement('button');
-        cell.type = 'button';
-        cell.className = 'gpick-cell';
-        const name = rel.slice(rel.lastIndexOf('/') + 1);
-        cell.title = rel;
-        const img = document.createElement('img');
-        img.alt = '';
-        img.decoding = 'async';
-        const cap = document.createElement('span');
-        cap.className = 'gpick-name';
-        cap.textContent = name;
-        cell.append(img, cap);
-        cell.addEventListener('click', () => { void choose(rel); });
-        thumbs.set(cell, rel);
-        io.observe(cell);
-        grid.appendChild(cell);
-      }
-      list.append(h, grid);
+      for (const rel of here.sort(byMode)) grid.appendChild(imageCell(rel));
+      list.appendChild(grid);
     }
   }
 
-  search.addEventListener('input', render);
+  search.addEventListener('input', () => { render(); list.scrollTop = 0; });
   sortSel.addEventListener('change', () => {
     try { localStorage.setItem(SORT_KEY, sortSel.value); } catch { /* best effort */ }
     render();

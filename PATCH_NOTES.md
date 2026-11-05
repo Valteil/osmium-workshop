@@ -23,8 +23,10 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 ### Comfy Bridge
 
 - **Upscale tab picks from your gallery** (desktop and phone): **Choose image…** now shows the
-  images in your output folder and its subfolders as thumbnails, with a filter box and a sort menu
-  (newest first by default, oldest first, or by name; it remembers your choice). **Use native
+  images in your output folder as thumbnails. Subfolders always sit on top as folder buttons
+  (with how many images each holds); click one to open it, and use the path above to go back.
+  The filter box searches every folder, and a sort menu orders the images (newest first by
+  default, oldest first, or by name; it remembers your choice). **Use native
   file select** in the picker opens the usual file dialog for any other image. With no output
   folder chosen yet, the file dialog opens straight away.
 - **Tag groups in the Wiki window** (desktop and phone): the same **Groups** sidebar as Osmium's.
