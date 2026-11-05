@@ -1534,6 +1534,7 @@ declare const BridgeShared: {
       : kind === 'sampler' ? bridgeSamplerOptions : bridgeSchedulerOptions,
     refreshLists: refreshUsduLists,
     onRunImported: () => { void queueUsduImported(); },
+    gallery: () => mobileBackend(),
     log
   });
 
