@@ -51,6 +51,9 @@
         <button id="btnFindPc" type="button" title="Search this phone's network (its hotspot, or the Wi-Fi it's on) for a PC running Comfy Bridge's phone sharing, and connect to it">Find PC</button>
         <button id="connInfoBtn" class="info-btn" type="button" title="Connection help">ⓘ</button>
       </div>
+      <div class="row">
+        <button id="btnUnloadAll" type="button" title="Unloads every model ComfyUI holds on the GPU (generation, upscale, WD14…) and frees the VRAM. The Log shows VRAM free before → after. The next job loads its models again.">Unload all models</button>
+      </div>
       <!-- The port Find PC searches: the PC's "Let the phone app use it"
            port (Comfy Bridge's default 8189), not ComfyUI's own 8188. -->
       <div class="row">
@@ -112,6 +115,7 @@
       <div id="refImageSection">
         <div class="row">
           <button id="btnPickImage">Pick reference image…</button>
+          <button id="btnRefWd14" type="button" title="Tag the picked image with WD14 (works for ControlNet and image to image). The tags show in the WD14 tags section, where you can edit them, use them as the prompt or save them.">Tag with WD14</button>
           <input id="refFileInput" type="file" accept="image/*" style="display:none">
         </div>
         <span id="refFileName" class="muted"></span>

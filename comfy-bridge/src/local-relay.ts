@@ -24,7 +24,7 @@
 import * as http from 'http';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
-import { ensureLocalStarted, localNodeInputs, localGenerate, localStop, localLogs, onLocalLogs, localGalleryThumb } from './comfy-local';
+import { ensureLocalStarted, localNodeInputs, localGenerate, localStop, localLogs, onLocalLogs, localGalleryThumb, localUnload } from './comfy-local';
 import type { ComfyLocalEventSink } from './comfy-local';
 const WS = require('ws');
 
@@ -261,6 +261,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     return;
   }
   if (req.method === 'POST' && p === '/interrupt') { localStop(); sendJson(res, 200, {}); return; }
+  // The phone's "Unload all models" (and freeAfterUsdu): the runner's unload,
+  // answered with its before/after VRAM.
+  if (req.method === 'POST' && p === '/free') { sendJson(res, 200, await localUnload()); return; }
   if (p === '/internal/logs/raw') {
     const logs = await localLogs();
     const entries = logs.ok ? logs.entries : [{ t: '', m: (logs.error || 'Osmium Comfy isn\'t running.') + '\n' }];

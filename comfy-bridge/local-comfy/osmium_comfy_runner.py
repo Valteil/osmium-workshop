@@ -1109,6 +1109,20 @@ class ShareServer:
             comfy.model_management.interrupt_current_processing(True)
             return web.json_response({})
 
+        # ComfyUI's /free, as the phone's "Unload all models" sends it. Runs
+        # on the job thread (behind a running generation) and answers with
+        # the runner's before/after VRAM.
+        async def free(_request):
+            pid = str(uuid.uuid4())
+            JOBS.put({"cmd": "unload", "_http": pid, "_client": ""})
+            for _ in range(1200):  # up to 10 min behind a generation
+                rec = self.history.get(pid)
+                if rec is not None:
+                    self.history.pop(pid, None)
+                    return web.json_response({k: v for k, v in rec.items() if k != "_raw"})
+                await asyncio.sleep(0.5)
+            return web.json_response({"ok": False, "error": "Timed out waiting for the running job."})
+
         async def logs_raw(_request):
             return web.json_response({"entries": list(app.logger.get_logs() or []), "size": {}})
 
@@ -1149,6 +1163,7 @@ class ShareServer:
         webapp.router.add_get("/history/{pid}", history)
         webapp.router.add_get("/view", view)
         webapp.router.add_post("/interrupt", interrupt)
+        webapp.router.add_post("/free", free)
         webapp.router.add_get("/internal/logs/raw", logs_raw)
         webapp.router.add_route("PATCH", "/internal/logs/subscribe", logs_subscribe)
         webapp.router.add_get("/internal/gallery/list", gallery_list_route)
@@ -1185,6 +1200,9 @@ class ShareServer:
 
     def finish(self, pid, reply):
         """A phone job's result -> its /history record (+ images for /view)."""
+        if reply.get("_raw"):  # /free: the route returns the reply itself
+            self.history[pid] = reply
+            return
         if not reply.get("ok"):
             self.history[pid] = {"status": {"status_str": "error", "completed": False,
                                             "messages": [["execution_error", {"exception_message": reply.get("error", "")}]]},
@@ -1324,9 +1342,10 @@ def cmd_generate(req):
     )
     is_generation = "176" in graph
     if LAST_USDU and is_generation:
+        before = vram_state()
         comfy.model_management.unload_all_models()
         comfy.model_management.soft_empty_cache()
-        say("Unloaded the upscale models before generating.")
+        say("Unloaded the upscale models before generating. " + vram_line(before, vram_state()))
     if has_usdu or is_generation:
         LAST_USDU = has_usdu
     prompt, captures = prepare(req["prompt"])
@@ -1413,13 +1432,40 @@ def run_prompt(prompt, captures):
             "texts": texts}
 
 
+def vram_state():
+    """Free/total VRAM (bytes) and how many models ComfyUI holds on the GPU."""
+    out = {"loaded": len(getattr(comfy.model_management, "current_loaded_models", []) or [])}
+    try:
+        import torch
+        if torch.cuda.is_available():
+            free, total = torch.cuda.mem_get_info()
+            out.update(free=int(free), total=int(total))
+    except Exception:
+        pass
+    return out
+
+
+def vram_line(before, after):
+    gb = lambda s: f"{s['free'] / 1024 ** 3:.1f}" if "free" in s else "?"
+    total = f" of {after['total'] / 1024 ** 3:.1f} GB" if "total" in after else " GB"
+    return (f"VRAM free {gb(before)} -> {gb(after)}{total}; "
+            f"models on the GPU {before['loaded']} -> {after['loaded']}")
+
+
 def cmd_unload(_req):
-    global EXECUTOR
+    # The "Unload all models" button (and the old disconnect path): frees the
+    # VRAM every loaded model holds and reports before/after, so the user can
+    # see it worked. `_raw`: the share server hands this reply back as-is.
+    global EXECUTOR, LAST_USDU
+    before = vram_state()
     comfy.model_management.unload_all_models()
     EXECUTOR = None
+    LAST_USDU = False
+    gc.collect()
     comfy.model_management.soft_empty_cache()
-    say("Models unloaded.")
-    return {"ok": True}
+    after = vram_state()
+    say("Models unloaded. " + vram_line(before, after))
+    return {"ok": True, "_raw": True, "before": before, "after": after}
 
 
 COMMANDS = {

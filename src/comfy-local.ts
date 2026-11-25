@@ -394,6 +394,13 @@ async function runGenerate(sender: ComfyLocalEventSink, prompt: SynthDatPrompt, 
   }
 }
 
+// "Unload all models" (Comfy Bridge): the runner's `unload` (waits behind a
+// running job) with its before/after VRAM.
+export async function localUnload(): Promise<{ ok: boolean; error?: string; before?: any; after?: any }> {
+  const r = await request('unload');
+  return r.ok ? { ok: true, before: r.before, after: r.after } : { ok: false, error: r.error };
+}
+
 export function localStop(): void {
   // Sent straight to the runner (not via request()): it must not wait behind
   // the running generation, and it must not start a runner that isn't there.

@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   synthdatGetObjectInfo: (payload) => ipcRenderer.invoke('synthdat-get-object-info', payload),
   synthdatQueueAndFetch: (payload) => ipcRenderer.invoke('synthdat-queue-and-fetch', payload),
   synthdatStopGeneration: (host) => ipcRenderer.invoke('synthdat-stop-generation', host),
+  comfyUnloadAll: (host) => ipcRenderer.invoke('comfy-unload-all', host),
   wd14Tag: (payload) => ipcRenderer.invoke('wd14-tag', payload),
   wd14PickImage: () => ipcRenderer.invoke('wd14-pick-image'),
   wd14SaveTxtBeside: (payload) => ipcRenderer.invoke('wd14-save-txt-beside', payload),

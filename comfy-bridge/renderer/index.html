@@ -89,6 +89,7 @@
           <input id="host" type="text" placeholder="http://127.0.0.1:8188" value="http://127.0.0.1:8188">
           <button id="btnConnect">Test</button>
           <button id="btnRefreshModels">Refresh model lists</button>
+          <button id="btnUnloadAll" type="button" title="Unloads every model ComfyUI holds on the GPU (generation, upscale, WD14…) and frees the VRAM. The Log shows VRAM free before → after. The next job loads its models again.">Unload all models</button>
         </div>
         <div id="connStatus" class="status-line" style="display:none"></div>
       </section>
@@ -100,6 +101,7 @@
         <div id="refImageSection">
           <div class="row">
             <button id="btnPickImage">Pick reference image…</button>
+            <button id="btnRefWd14" type="button" title="Tag the picked image with WD14 (works for ControlNet and image to image). The tags show in the WD14 tags section, where you can edit them, use them as the prompt or save them.">Tag with WD14</button>
             <span id="refFileName" class="muted"></span>
           </div>
           <img id="refPreview" style="display:none" class="thumb">

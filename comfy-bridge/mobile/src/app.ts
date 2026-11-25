@@ -55,6 +55,8 @@ declare const BridgeShared: {
   queuePrompt: (t: any, host: string, prompt: any, clientId: string, opts?: any) => Promise<{ ok: boolean; promptId?: string; error?: string }>;
   dropUnloadIfMissing: (t: any, host: string, prompt: any) => Promise<void>;
   freeAfterUsdu: (t: any, host: string, prompt: any, state: { lastUsdu: boolean }) => Promise<void>;
+  unloadAllModels: (t: any, host: string) => Promise<any>;
+  describeUnload: (r: any) => string;
   pollHistory: (t: any, host: string, promptId: string, opts: any) => Promise<{ ok: boolean; value?: any; error?: string; interrupted?: boolean }>;
   extractPngTextChunks: (bytes: Uint8Array, inflate?: (d: Uint8Array) => Uint8Array) => Record<string, string>;
   bytesToBase64: (bytes: Uint8Array) => string;
@@ -82,7 +84,7 @@ declare const BridgeShared: {
   };
   usduSettingsFromPrompt: (prompt: any) => Record<string, any> | null;
   // shared/wd14-tag.ts: WD14 tagging panel (same module as the desktop's).
-  mountWd14Panel: (host: HTMLElement, opts: any) => { refresh: () => void };
+  mountWd14Panel: (host: HTMLElement, opts: any) => { refresh: () => void; tagImage: (img: { name: string; bytes: Uint8Array }) => Promise<string> };
   extractWd14Tags: (record: any) => string | null;
   // shared/regional.ts: the Regional tab + its Generate-tab card.
   mountRegional: (tabHost: HTMLElement, cardHost: HTMLElement, opts: any) => {
@@ -1587,6 +1589,20 @@ declare const BridgeShared: {
     height.value = w;
   });
 
+  // Frees the GPU on demand (the PC's relay / share server answer with the
+  // runner's before/after VRAM; a ComfyUI server's /system_stats is read).
+  const btnUnloadAll = $<HTMLButtonElement>('btnUnloadAll');
+  btnUnloadAll.addEventListener('click', async () => {
+    btnUnloadAll.disabled = true;
+    btnUnloadAll.textContent = 'Unloading…';
+    try {
+      const r = await BridgeShared.unloadAllModels(comfyTransport(), getHost());
+      if (r.ok) usduVram.lastUsdu = false;
+      log(BridgeShared.describeUnload(r));
+    } catch (e) { log('Unload failed: ' + errMsg(e)); }
+    finally { btnUnloadAll.disabled = false; btnUnloadAll.textContent = 'Unload all models'; }
+  });
+
   // ---------------- Connection test ----------------
 
   btnConnect.addEventListener('click', async () => {
@@ -2187,7 +2203,7 @@ declare const BridgeShared: {
     scheduleUiSave();
     log('Used the WD14 tags as the prompt (Global, Character trigger and Negative kept).');
   }
-  BridgeShared.mountWd14Panel($('wd14Panel'), {
+  const wd14Panel = BridgeShared.mountWd14Panel($('wd14Panel'), {
     tag: comfyTag,
     getModels: () => wd14TagModels.length ? wd14TagModels : usduWd14Options,
     async refreshModels() {
@@ -2199,6 +2215,13 @@ declare const BridgeShared: {
     writeOutput: (relPath: string, base64: string, mime: string) => mobileBackend().writeImage(relPath, base64, mime),
     usePrompt: (tags: string) => { void useTagsAsPrompt(tags); },
     log
+  });
+  // The Generate tab's reference / start image (ControlNet or image to
+  // image) straight into the WD14 panel's "Tag an image". Same as desktop.
+  $<HTMLButtonElement>('btnRefWd14').addEventListener('click', async () => {
+    if (!refBytes) { log('Pick the reference image first.'); return; }
+    const tags = await wd14Panel.tagImage({ name: refFilename, bytes: refBytes });
+    if (tags) log(`Tagged ${refFilename} with WD14 (see WD14 tags).`);
   });
 
   // ---------------- Import generation ----------------

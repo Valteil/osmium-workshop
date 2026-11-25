@@ -498,6 +498,48 @@ export async function freeAfterUsdu(t: ComfyTransport, host: string, prompt: Rec
   if (hasUsdu || isGeneration) state.lastUsdu = hasUsdu;
 }
 
+// Comfy Bridge's "Unload all models" button: POST /free (unload + free
+// memory) and report VRAM before/after so the user can see it worked.
+// Osmium Comfy's runner (its share server, or the desktop relay) answers
+// /free with its own before/after; a ComfyUI server answers {}, so its
+// /system_stats is read around the call instead.
+export interface VramSnapshot { free?: number; total?: number; loaded?: number; }
+export interface UnloadResult { ok: boolean; error?: string; before?: VramSnapshot; after?: VramSnapshot; }
+async function vramFromStats(t: ComfyTransport, host: string): Promise<VramSnapshot | undefined> {
+  try {
+    const r = await t.request(host, '/system_stats', { timeoutMs: 8000 });
+    const d = safeJson(new TextDecoder().decode(r.body));
+    const dev = d && Array.isArray(d.devices) ? d.devices.find((x: any) => typeof x.vram_free === 'number') : null;
+    return dev ? { free: dev.vram_free, total: dev.vram_total } : undefined;
+  } catch { return undefined; }
+}
+export async function unloadAllModels(t: ComfyTransport, host: string): Promise<UnloadResult> {
+  const before = await vramFromStats(t, host);
+  const body = new TextEncoder().encode(JSON.stringify({ unload_models: true, free_memory: true }));
+  let reply: any;
+  try {
+    const r = await t.request(host, '/free', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': body.length }, body, timeoutMs: 600000 });
+    if (r.status >= 400) return { ok: false, error: `The server refused /free (HTTP ${r.status}).` };
+    reply = safeJson(new TextDecoder().decode(r.body));
+  } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  if (reply && reply.ok === false) return { ok: false, error: reply.error || 'Unload failed.' };
+  if (reply && reply.after) return { ok: true, before: reply.before, after: reply.after };
+  // A ComfyUI server frees on its next idle tick, not inside the request.
+  await new Promise((res) => setTimeout(res, 1500));
+  return { ok: true, before, after: await vramFromStats(t, host) };
+}
+
+// "VRAM free 2.1 → 13.8 of 16.0 GB; models on the GPU 3 → 0" (what is known).
+export function describeUnload(r: UnloadResult): string {
+  if (!r.ok) return `Unload failed: ${r.error || 'unknown error'}`;
+  const gb = (n?: number) => typeof n === 'number' ? (n / 1024 ** 3).toFixed(1) : '?';
+  const b = r.before || {}, a = r.after || {};
+  const parts: string[] = [];
+  if (typeof a.free === 'number') parts.push(`VRAM free ${gb(b.free)} → ${gb(a.free)}${typeof a.total === 'number' ? ` of ${gb(a.total)}` : ''} GB`);
+  if (typeof a.loaded === 'number') parts.push(`models on the GPU ${b.loaded ?? '?'} → ${a.loaded}`);
+  return 'Models unloaded.' + (parts.length ? ' ' + parts.join('; ') + '.' : ' (The server reports no VRAM figures.)');
+}
+
 export interface ComfyPollOptions<T> {
   deadlineMs: number;
   intervalMs?: number;

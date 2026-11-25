@@ -24,6 +24,13 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **Tag the reference image with WD14** (desktop and phone): **Tag with WD14** next to Pick
+  reference image tags the picked picture (ControlNet or image to image alike). The tags land in
+  the WD14 tags section, which opens, ready to edit, copy, use as the prompt or save.
+- **Unload all models** (desktop and phone, next to the connection buttons): frees every model
+  ComfyUI holds on the GPU and logs VRAM free before → after and how many models were loaded, so
+  you can see it worked. Osmium Comfy's automatic unload (after an upscale, before the next
+  generation) now logs the same numbers.
 - **Image to image** (desktop and phone): tick **Image to image** in the Reference image section
   and pick a picture. Pass 1 starts from it instead of an empty canvas — it is resized to your
   output size and redrawn at **Strength** (0.3 keeps most of it, 0.5 balances, 0.8 and up redraws

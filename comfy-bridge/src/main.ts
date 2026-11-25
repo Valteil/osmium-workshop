@@ -16,11 +16,11 @@ const http = require('http');
 const https = require('https');
 const WS = require('ws');
 const { randomUUID } = require('crypto');
-import { parseComboValues, uploadImage, queuePrompt, dropUnloadIfMissing, freeAfterUsdu, pollHistory, extractWd14Tags, extractPngTextChunks as extractPngChunks } from './comfy-core';
+import { parseComboValues, uploadImage, queuePrompt, dropUnloadIfMissing, freeAfterUsdu, unloadAllModels, pollHistory, extractWd14Tags, extractPngTextChunks as extractPngChunks } from './comfy-core';
 import type { ComfyTransport } from './comfy-core';
 import {
   configureComfyLocal, registerComfyLocalHandlers, LOCAL_COMFY_HOST, localObjectInfo, localGenerate, localStop, localLogs, onLocalLogs,
-  localPersistEnabled, localIsPersistentConnection, localSetShare, ensureLocalStarted, localGalleryThumb, localLoraInfo, localLoraOp
+  localPersistEnabled, localIsPersistentConnection, localSetShare, ensureLocalStarted, localGalleryThumb, localLoraInfo, localLoraOp, localUnload
 } from './comfy-local';
 import { startRelay, stopRelay, relayState, relayAddresses, initRelayGallery } from './local-relay';
 
@@ -721,6 +721,12 @@ ipcMain.handle('synthdat-get-object-info', async (event, { host, classType, inpu
 let activeGen: { cancelled: boolean; ws: any } | null = null;
 // Whether the last job left USDU's models loaded (comfy-core's freeAfterUsdu).
 const usduVram = { lastUsdu: false };
+
+ipcMain.handle('comfy-unload-all', async (_event, host) => {
+  usduVram.lastUsdu = false; // nothing is left loaded to free before the next generation
+  if (host === LOCAL_COMFY_HOST) return localUnload();
+  return unloadAllModels(nodeComfyTransport, host);
+});
 
 ipcMain.handle('synthdat-stop-generation', async (event, host) => {
   if (host === LOCAL_COMFY_HOST) { localStop(); return { ok: true }; }

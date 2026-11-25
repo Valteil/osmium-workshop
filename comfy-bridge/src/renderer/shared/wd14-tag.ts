@@ -80,7 +80,13 @@ const TIPS = {
   exclude: 'Comma-separated tags the tagger must never output.'
 };
 
-export interface Wd14Panel { refresh: () => void; }
+export interface Wd14Panel {
+  refresh: () => void;
+  // Loads an image the shell already has (the Generate tab's reference /
+  // start image) into "Tag an image", opens the panel and tags it. Resolves
+  // with the tags, or '' when tagging failed (already logged).
+  tagImage: (img: Wd14PickedImage) => Promise<string>;
+}
 
 export function mountWd14Panel(host: HTMLElement, opts: Wd14PanelOptions): Wd14Panel {
   const touch = typeof matchMedia === 'function' && matchMedia('(hover: none)').matches;
@@ -215,13 +221,14 @@ export function mountWd14Panel(host: HTMLElement, opts: Wd14PanelOptions): Wd14P
     fileInput.value = '';
     if (f) setPicked({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
   });
-  tagBtn.addEventListener('click', async () => {
-    if (!picked) { opts.log('WD14: choose an image first.'); return; }
+  const tagPicked = async (): Promise<string> => {
+    if (!picked) { opts.log('WD14: choose an image first.'); return ''; }
     tagBtn.disabled = true; tagBtn.textContent = 'Tagging…';
-    try { tagsBox.value = await tagOne(picked.name, picked.bytes); }
-    catch (e) { opts.log(`WD14: ${e instanceof Error ? e.message : String(e)}`); }
+    try { tagsBox.value = await tagOne(picked.name, picked.bytes); return tagsBox.value; }
+    catch (e) { opts.log(`WD14: ${e instanceof Error ? e.message : String(e)}`); return ''; }
     finally { tagBtn.disabled = false; tagBtn.textContent = 'Tag it'; }
-  });
+  };
+  tagBtn.addEventListener('click', () => { void tagPicked(); });
   const currentTags = () => tagsBox.value.trim();
   copyBtn.addEventListener('click', async () => {
     if (!currentTags()) return;
@@ -262,5 +269,15 @@ export function mountWd14Panel(host: HTMLElement, opts: Wd14PanelOptions): Wd14P
   }
 
   host.append(grid, refreshRow, genHead, genRow, genTxtLabel, genOut, impHead, impRow, pickedName, fileInput, tagsBox, actRow);
-  return { refresh: () => { /* fields are plain; nothing to re-derive */ } };
+  return {
+    refresh: () => { /* fields are plain; nothing to re-derive */ },
+    async tagImage(img) {
+      if (tagBtn.disabled) { opts.log('WD14: already tagging, wait for it to finish.'); return ''; }
+      setPicked(img);
+      const details = host.closest('details');
+      if (details) details.open = true;
+      impHead.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      return tagPicked();
+    }
+  };
 }

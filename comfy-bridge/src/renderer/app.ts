@@ -51,6 +51,7 @@ interface ElectronAPI {
   synthdatGetObjectInfo(payload: { host: string; classType: string; inputName: string }): Promise<{ ok: boolean; values?: string[]; error?: string }>;
   synthdatQueueAndFetch(payload: { host: string; imageFilename: string | null; imageBytes: Uint8Array | null; prompt: any }): Promise<{ ok: boolean; imageBytes?: Uint8Array; pass1ImageBytes?: Uint8Array; upscaledImageBytes?: Uint8Array; error?: string; interrupted?: boolean; saveRel?: string; pass1SaveRel?: string; upscaledSaveRel?: string }>;
   synthdatStopGeneration(host: string): Promise<{ ok: boolean }>;
+  comfyUnloadAll(host: string): Promise<UnloadResult>;
   wd14Tag(payload: { host: string; imageFilename: string; imageBytes: Uint8Array; prompt: any }): Promise<{ ok: boolean; tags?: string; error?: string }>;
   wd14PickImage(): Promise<{ ok: boolean; token?: string; name?: string; bytes?: Uint8Array; error?: string }>;
   wd14SaveTxtBeside(payload: { token: string; text: string; overwrite: boolean }): Promise<{ ok: boolean; exists?: boolean; error?: string; path?: string }>;
@@ -86,7 +87,7 @@ import {
   initPromptLocks, isPromptLocked, keepLockedPrompts
 } from './shared/index';
 import type { StorageBackend, DirEntry } from './shared/storage';
-import { buildSynthDatPrompt, RES4LYF_PREFIX } from '../comfy-core';
+import { buildSynthDatPrompt, RES4LYF_PREFIX, describeUnload, type UnloadResult } from '../comfy-core';
 
 function $<T extends HTMLElement>(id: string): T { return document.getElementById(id) as T; }
 
@@ -816,6 +817,16 @@ async function fetchComboValues(classType: string, inputName: string): Promise<s
   if (!res.ok) { log(res.error || `Could not load ${classType}'s ${inputName} list from ComfyUI.`); return null; }
   return res.values || [];
 }
+
+// Frees the GPU on demand, and shows whether the unload really freed VRAM.
+const btnUnloadAll = $<HTMLButtonElement>('btnUnloadAll');
+btnUnloadAll.addEventListener('click', async () => {
+  btnUnloadAll.disabled = true;
+  btnUnloadAll.textContent = 'Unloading…';
+  try { log(describeUnload(await window.electronAPI.comfyUnloadAll(getHost()))); }
+  catch (e) { log(`Unload failed: ${e instanceof Error ? e.message : String(e)}`); }
+  finally { btnUnloadAll.disabled = false; btnUnloadAll.textContent = 'Unload all models'; }
+});
 
 btnRefreshModels.addEventListener('click', async () => {
   const [unetValues, clipValues, vaeValues, mainLoraValues, loraValues, upscaleValues] = await Promise.all([
@@ -1695,7 +1706,7 @@ async function useTagsAsPrompt(tags: string): Promise<void> {
   scheduleUiSave();
   log('Used the WD14 tags as the prompt (Global, Character trigger and Negative kept).');
 }
-mountWd14Panel($<HTMLDivElement>('wd14Panel'), {
+const wd14Panel = mountWd14Panel($<HTMLDivElement>('wd14Panel'), {
   async tag(prompt, imageName, bytes) {
     const r = await window.electronAPI.wd14Tag({ host: getHost(), imageFilename: imageName, imageBytes: bytes, prompt });
     if (!r.ok || typeof r.tags !== 'string') throw new Error(r.error || 'Tagging failed.');
@@ -1719,6 +1730,13 @@ mountWd14Panel($<HTMLDivElement>('wd14Panel'), {
   saveNextToOriginal: (token, text, overwrite) => window.electronAPI.wd14SaveTxtBeside({ token, text, overwrite }),
   usePrompt: (tags) => { void useTagsAsPrompt(tags); },
   log
+});
+// The Generate tab's reference / start image (ControlNet or image to image)
+// straight into the WD14 panel's "Tag an image".
+$<HTMLButtonElement>('btnRefWd14').addEventListener('click', async () => {
+  if (!refFile) { log('Pick the reference image first.'); return; }
+  const tags = await wd14Panel.tagImage({ name: refFilename, bytes: new Uint8Array(await refFile.arrayBuffer()) });
+  if (tags) log(`Tagged ${refFilename} with WD14 (see WD14 tags).`);
 });
 
 // ---------------- Import generation ----------------
