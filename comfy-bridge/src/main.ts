@@ -322,7 +322,7 @@ ipcMain.handle('usdu-save-folder', async () => {
 });
 ipcMain.handle('usdu-pick-save-folder', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  const res = await dialog.showOpenDialog(win, { title: 'Save upscaled images in…', properties: ['openDirectory', 'createDirectory'] });
+  const res = await dialog.showOpenDialog(win, { title: 'Save upscaled or redrawn images in…', properties: ['openDirectory', 'createDirectory'] });
   if (res.canceled || !res.filePaths[0]) return { ok: false, cancelled: true };
   usduSaveFolder = res.filePaths[0];
   try {
@@ -331,15 +331,18 @@ ipcMain.handle('usdu-pick-save-folder', async (event) => {
   } catch (err) { console.error('[usdu-folder] could not persist:', err && err.message); }
   return { ok: true, path: usduSaveFolder };
 });
-ipcMain.handle('usdu-save-to-folder', async (_event, { base, base64 }) => {
+ipcMain.handle('usdu-save-to-folder', async (_event, { base, base64, suffix }) => {
   const dir = getUsduSaveFolder();
   if (!dir || !fs.existsSync(dir)) return { ok: false, error: 'Choose the folder to save in first.' };
   if (typeof base64 !== 'string' || base64.length > 400 * 1024 * 1024) return { ok: false, error: 'Invalid image.' };
+  // Fixed vocabulary: a tiled upscale vs an image-to-image redraw. Anything
+  // else falls back to the upscale suffix.
+  const tag = suffix === 'redrawn' ? 'redrawn' : 'upscaled';
   const stem = String(base || 'image').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/, '').slice(0, 120) || 'image';
   try {
     const bytes = Buffer.from(base64, 'base64');
     for (let n = 1; n < 10000; n++) {
-      const dest = path.join(dir, `${stem}_upscaled${n === 1 ? '' : '_' + n}.png`);
+      const dest = path.join(dir, `${stem}_${tag}${n === 1 ? '' : '_' + n}.png`);
       try {
         fs.writeFileSync(dest, bytes, { flag: 'wx' }); // never overwrites
         return { ok: true, path: dest };
@@ -809,7 +812,7 @@ ipcMain.handle('synthdat-queue-and-fetch', async (event, { host, imageFilename, 
   let ws: any = null;
   try {
     if (imageBytes && prompt['239']) {
-      const upload = await uploadImage(nodeComfyTransport, host, imageFilename, imageBytes, 'Reference image');
+      const upload = await uploadImage(nodeComfyTransport, host, imageFilename, imageBytes, 'Image');
       if (!upload.ok) return upload;
       prompt['239'].inputs.image = upload.ref;
     }

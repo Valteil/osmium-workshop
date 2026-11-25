@@ -99,6 +99,12 @@ export interface SynthDatPromptConfig {
   width: string; height: string; seed1: string;
   use2Pass: boolean; seed2: string; denoise2: string; steps2: string;
   upscale?: SynthDatUpscaleConfig;
+  // Comfy Bridge's image to image: pass 1 starts from the picked reference
+  // image encoded to a latent (VAEEncode, node 47:46's VAE) instead of the
+  // empty latent. `denoise` is pass 1's BasicScheduler denoise (0.05-1), i.e.
+  // how much of the picture is redrawn. The ControlNet (LLLite) branch is
+  // dropped in this mode, since the image is the start, not a guide.
+  img2img?: { enabled: boolean; denoise: string };
 }
 
 // Sampler values Comfy Bridge lists from RES4LYF's ClownSampler carry this prefix.
@@ -182,8 +188,8 @@ export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromp
     prompt['195'].inputs.model = [lastStackId, 0];
   }
 
-  if (cfg.skipRefImage) {
-    // No reference image: remove the ControlNet path (LoadImage + AnimaLLLiteApply
+  if (cfg.skipRefImage && !(cfg.img2img && cfg.img2img.enabled)) {
+    // No image: remove the ControlNet path (LoadImage + AnimaLLLiteApply
     // + the switch) from the graph rather than flipping DSM Switch (Any)'s
     // `select` — ComfyUI resolves what to run from the graph's edges, so a
     // connected-but-unselected branch still executes. Image Resize (238) and
@@ -197,6 +203,32 @@ export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromp
     delete prompt['246'];
     prompt['158:53'].inputs.model = [lastStackId, 0];
     prompt['158:54'].inputs.model = [lastStackId, 0];
+  } else if (cfg.img2img && cfg.img2img.enabled) {
+    // Image to image: the picked image (239, resized to the output size by
+    // 238) becomes pass 1's starting latent instead of an empty one. It
+    // replaces the ControlNet path rather than feeding it: drop the LLLite
+    // branch and wire the model straight through, then encode 238's image
+    // with the workflow's own VAE and hand that latent to the sampler. The
+    // pass-1 denoise is the redraw strength. `164` is SamplerCustomAdvanced
+    // (its latent_image is 170, the EmptyLatentImage); the 2nd pass still
+    // starts from 164's output as usual.
+    prompt['238'].inputs.fit = cfg.resizeFit;
+    prompt['238'].inputs.method = cfg.resizeMethod;
+    delete prompt['240'];
+    delete prompt['243'];
+    prompt['158:53'].inputs.model = [lastStackId, 0];
+    prompt['158:54'].inputs.model = [lastStackId, 0];
+    prompt['i2i_encode'] = {
+      class_type: 'VAEEncode',
+      inputs: { pixels: ['238', 0], vae: ['47:46', 0] },
+      _meta: { title: 'Image to image' }
+    };
+    prompt['164'].inputs.latent_image = ['i2i_encode', 0];
+    delete prompt['170'];
+    const i2iDenoise = parseFloat(cfg.img2img.denoise);
+    prompt['158:53'].inputs.denoise = Number.isFinite(i2iDenoise)
+      ? Math.min(1, Math.max(0.05, i2iDenoise))
+      : 0.6;
   } else {
     prompt['240'].inputs.strength = parseFloat(cfg.lliteStrength) || 0;
     prompt['240'].inputs.start_percent = parseFloat(cfg.lliteStartPercent) || 0;
@@ -452,12 +484,14 @@ export async function dropUnloadIfMissing(t: ComfyTransport, host: string, promp
   }
 }
 
-// The other way round: after a USDU upscale, a new generation first frees
-// the VRAM the upscale's models hold (POST /free, unload only, so ComfyUI
-// keeps them cached in RAM). `state` is the caller's own memory of the last
-// job. Osmium Comfy's runner applies the same rule itself (cmd_generate).
+// The other way round: after a USDU upscale or an image-to-image redraw, a
+// new generation first frees the VRAM those own models hold (POST /free,
+// unload only, so ComfyUI keeps them cached in RAM). `state` is the caller's
+// own memory of the last job. Osmium Comfy's runner applies the same rule
+// itself (cmd_generate). Both methods count: an image-to-image redraw at
+// Upscale by 1 loads its own checkpoint too.
 export async function freeAfterUsdu(t: ComfyTransport, host: string, prompt: Record<string, any>, state: { lastUsdu: boolean }): Promise<void> {
-  const hasUsdu = Object.values(prompt).some((n) => n && n.class_type === 'UltimateSDUpscale');
+  const hasUsdu = Object.values(prompt).some((n) => n && (n.class_type === 'UltimateSDUpscale' || n.class_type === 'KSampler' && n._meta && n._meta.redrawOnly));
   const isGeneration = !!prompt['176'];
   if (state.lastUsdu && isGeneration) {
     const body = new TextEncoder().encode(JSON.stringify({ unload_models: true }));

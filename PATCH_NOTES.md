@@ -24,6 +24,19 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **Image to image** (desktop and phone): tick **Image to image** in the Reference image section
+  and pick a picture. Pass 1 starts from it instead of an empty canvas — it is resized to your
+  output size and redrawn at **Strength** (0.3 keeps most of it, 0.5 balances, 0.8 and up redraws
+  most of it). Use it instead of ControlNet when you want the original's details kept. The
+  ControlNet (LLLite) block is off while it's on, and **No image** is the plain text-to-image run.
+  **Match the image's shape** sets Width × Height to the picture's proportions (about the same
+  size as now), so nothing gets padded or cropped before the redraw.
+- **Image to image for upscaling**: set **Upscale by** to 1 in the USDU panel (in the generation
+  settings or the Upscale tab) and it no longer upscales — the whole picture is redrawn once by
+  the checkpoint at the Denoise, at its own size, with no tiles. 2 or more still does the tile-by-
+  tile USDU upscale. Handy for cleaning or restyling dataset pictures with a non-Anima model: the
+  redrawn copy saves next to the normal images (a `_redrawn` name in a folder you choose), not in
+  an Upscaled folder.
 - **Fixed:** with a result open in the zoom view, ← / → now switch between Pass 1, Pass 2 and
   Upscaled in the zoom view itself (they used to change only the preview behind it).
 - **Mouse Back / Forward buttons:** in the Wiki window they step through the tags and groups

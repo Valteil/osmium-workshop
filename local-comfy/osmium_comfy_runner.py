@@ -1307,12 +1307,19 @@ LAST_USDU = False
 
 def cmd_generate(req):
     global EXECUTOR, LAST_USDU
-    # After a USDU upscale, a new generation first frees the VRAM its models
-    # hold (they stay cached in RAM). The other way round, the graph's own
-    # DSMUnloadModels runs before USDU. Same rule as comfy-core.ts's
-    # freeAfterUsdu for a ComfyUI server.
+    # After a USDU upscale or an image-to-image redraw, a new generation first
+    # frees the VRAM its own models hold (they stay cached in RAM). The other
+    # way round, the graph's own DSMUnloadModels runs before USDU / the redraw
+    # checkpoint. Same rule as comfy-core.ts's freeAfterUsdu for a ComfyUI
+    # server: Upscale by 1 (imgup_*) loads a checkpoint of its own too.
     graph = req["prompt"] or {}
-    has_usdu = any(isinstance(n, dict) and n.get("class_type") == "UltimateSDUpscale" for n in graph.values())
+    has_usdu = any(
+        isinstance(n, dict) and (
+            n.get("class_type") == "UltimateSDUpscale"
+            or (n.get("class_type") == "KSampler" and isinstance(n.get("_meta"), dict) and n["_meta"].get("redrawOnly"))
+        )
+        for n in graph.values()
+    )
     is_generation = "176" in graph
     if LAST_USDU and is_generation:
         comfy.model_management.unload_all_models()

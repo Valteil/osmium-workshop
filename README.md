@@ -82,7 +82,8 @@ it. Comfy Bridge's Android app updates install over the old APK.
   to accept or reject.
 - **Edit Log.** Every change is logged with undo/redo, per image or for the whole edit.
 - **Comfy Bridge.** A no-node-graph generation UI for the same workflow, on Windows and Android: LoRA
-  stack, 2-pass, USDU upscaling, a gallery, image/LoRA metadata, and a phone link to your PC.
+  stack, 2-pass, image-to-image (generation and upscaling) and USDU upscaling, a gallery,
+  image/LoRA metadata, and a phone link to your PC.
 - **Themes.** 26 full themes (5 free, the rest bought with Edibits you earn from achievements), Theme
   Studio for your own, and night mode.
 

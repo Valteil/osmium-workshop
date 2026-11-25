@@ -858,19 +858,30 @@ This guide covers the desktop app. Its sibling shares this repo:
     slide-out panel and the file-saving toggles in a second one, both opening from the left; click
     their button again (or outside them) to close. The header **Zoom** slider scales the whole
     interface, prompt boxes re-fit as you zoom or change theme, and themes bring their fonts.
-  - **Upscale with USDU** (desktop and phone): instead of the standard upscale (turning one on
-    turns the other off), Ultimate SD Upscale enlarges the image with an upscale model, then
-    redraws it tile by tile with its own checkpoint at low denoise. Turned on in the generation
-    settings, it upscales each image you generate (the pass-2 image with 2-Pass on). For an image
-    you already have there's the **Upscale** tab (next to Generate): choose the image, it shows
-    large beside the USDU settings (kept separately from the generation ones; click the image to
-    zoom in), and **Upscale this image** queues it. **Save to** picks where the result goes: your
-    output folder's Upscaled folder, or **a folder you choose** (Choose folder…; remembered), where
-    it's saved as `<image>_upscaled.png` and never overwrites anything.
-    The tiles' prompt is your image's prompt (optionally without the Global field), WD14 tags, or
-    your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
-    phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);
-    Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
+  - **Image to image** (desktop and phone): in the Reference image section, tick **Image to
+    image** and pick the picture. Pass 1 starts from it instead of an empty canvas — it is resized
+    to the output size, encoded with the model's VAE, and redrawn at **Strength** (0.3 keeps most
+    of it, 0.5 balances, 0.8+ redraws most of it). Use it instead of ControlNet when you want the
+    original's details kept; the ControlNet (LLLite) block is off while it's on. **No image** is
+    the plain text-to-image run.
+  - **Upscale / redraw with USDU** (desktop and phone): instead of the standard upscale (turning
+    one on turns the other off), **Upscale by** picks the method. **2 or more** is Ultimate SD
+    Upscale: the image is enlarged with an upscale model, then redrawn tile by tile with its own
+    checkpoint at low denoise. **1 is image to image**: nothing is enlarged and there are no
+    tiles; the whole picture is encoded and redrawn once by the checkpoint at the Denoise (the
+    same path as the Generate tab's image-to-image mode), which is how you clean or restyle a
+    picture without USDU's tiles. Turned on in the generation settings, it runs on each image you
+    generate (the pass-2 image with 2-Pass on). For an image you already have there's the
+    **Upscale** tab (next to Generate): choose the image, it shows large beside the settings
+    (kept separately from the generation ones; click the image to zoom in), and
+    **Upscale / redraw this image** queues it. **Save to** picks where the result goes: your
+    output folder (an Upscaled folder for a real upscale) or **a folder you choose** (Choose
+    folder…; remembered), where it's saved as `<image>_upscaled.png` or
+    `<image>_redrawn.png` and never overwrites anything.
+    The prompt is your image's prompt (optionally without the Global field), WD14 tags, or your
+    own text. Every setting is exposed; hover one for what it does (tap its name on the phone).
+    Needs the ComfyUI_UltimateSDUpscale node pack for the tiled mode (and ComfyUI-WD14-Tagger for
+    WD14); Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
   - **Regional prompt (the Regional tab, desktop and phone).** Place subjects in parts of the
     picture: draw boxes on a canvas the size of your generation (or pick a **Layout…** preset) and
     give each its own prompt. During the **layout steps** (the first 35% by default) each box's

@@ -27,15 +27,13 @@ export const HELP_SECTIONS: HelpSection[] = [
   },
   {
     id: 'reference',
-    title: 'Reference image (ControlNet)',
+    title: 'Reference image / image to image',
     html: `
-      <p>A reference image makes the result follow the pose, shape or layout of another picture. Pick the image, and the workflow feeds it through Anima LLLite, the ControlNet built for Anima.</p>
-      <p><b>No reference image</b> turns the whole section off. Tick it for a plain text-to-image run and ignore everything below.</p>
-      <p><b>Strength</b> is how hard the reference pushes. 1 is the normal setting. If the output looks trapped by the reference, lower it toward 0.5. If it ignores the reference, raise it past 1.</p>
-      <p><b>Start percent</b> and <b>End percent</b> decide when the reference is active. The defaults of 0 and 0.3 mean it steers only the first 30 percent of the steps. That lets the model loose at the end to clean the picture up.</p>
-      <p><b>Preserve wrapper</b> keeps the tagged prompt wrapped the way this ControlNet expects. Leave it on unless you know why you are turning it off.</p>
-      <p><b>Resize fit</b> controls how your reference is fit to the output size. Pad adds empty space, so the framing stays intact. Crop trims the edges so the subject fills the frame. Contain shrinks the whole image to fit inside.</p>
-      <p><b>Resize method</b> is the scaling filter. Lanczos is the sharpest and the default. Bilinear and Bicubic are softer, and Nearest keeps hard pixel edges.</p>`
+      <p>One picked picture, two jobs — the modes are exclusive.</p>
+      <p><b>Image to image</b> starts pass 1 from the picture instead of an empty canvas: it is resized to the output size, encoded with the model's VAE, and the generation redraws it. Use it instead of ControlNet when you want the original's details kept — ControlNet follows the picture's shape but redraws its texture. <b>Strength</b> is how much is redrawn: 0.3 keeps almost all of it, 0.5 balances, 0.8 and up redraws most of it. With it on, the ControlNet (LLLite) block below is off.</p>
+      <p><b>No image</b> turns the whole section off for a plain text-to-image run. With image to image off, the picked picture is a <b>ControlNet reference</b> instead: the workflow feeds it through Anima LLLite, the ControlNet built for Anima.</p>
+      <p><b>Strength</b>, <b>Start percent</b> and <b>End percent</b> (the ControlNet block) are how hard the reference pushes and when. 1 is the normal strength; 0 and 0.3 mean it steers the first 30 percent of the steps, then lets the model finish. <b>Preserve wrapper</b> keeps the tagged prompt the way this ControlNet expects; leave it on.</p>
+      <p><b>Resize fit</b> controls how the picked picture is fit to the output size in both modes. Pad adds empty space so the framing stays intact. Crop trims the edges so the subject fills the frame. Contain shrinks the whole image to fit inside. <b>Resize method</b> is the scaling filter: Lanczos is the sharpest and the default, Bilinear and Bicubic are softer, and Nearest keeps hard pixel edges.</p>`
   },
   {
     id: 'regional',
@@ -93,13 +91,15 @@ export const HELP_SECTIONS: HelpSection[] = [
   },
   {
     id: 'upscale',
-    title: 'Upscale',
+    title: 'Upscale / image to image',
     html: `
       <p>Turn this on to enlarge the finished image with a separate upscale model. Pick the model, then use Scale by to trim the result back to the size you want.</p>
       <p>Many upscale models multiply by 4, so a Scale by of 0.5 brings that back to a 2x increase. For a 1024 pixel image, that gives you 2048.</p>
       <p>Refresh from disk reloads the upscale models ComfyUI has, without touching the rest of the model lists.</p>
-      <p><b>Upscale with USDU</b> is the other choice (turning one on turns the other off). Ultimate SD Upscale enlarges the image with an upscale model, then redraws it tile by tile with a checkpoint of its own at low denoise, which adds real detail. It needs the ComfyUI_UltimateSDUpscale node pack, and the WD14 Tagger pack for "Tag with WD14".</p>
-      <p>Here it upscales the image you generate (the pass-2 image when 2-Pass is on). To upscale an image you already have, use the <b>Upscale</b> tab: choose the image (click it to zoom in), check the settings beside it (they're kept separately from these) and press Upscale this image. Its <b>Save to</b> sends the result to your output folder's Upscaled folder or to a folder you choose (saved as &lt;image&gt;_upscaled.png, never overwriting). The prompt for the tiles is your image's prompt (optionally without the Global field, where artist tags live), WD14 tags, or your own text. Hover any setting for what it does; on the phone, tap its name. Results go in the Upscaled folder.</p>`
+      <p><b>Upscale or redraw with USDU</b> is the other choice (turning one on turns the other off). Its <b>Upscale by</b> picks what happens:</p>
+      <p><b>Upscale by 2 or more</b> is Ultimate SD Upscale: the image is enlarged with the upscale model, then redrawn tile by tile with a checkpoint of its own at low denoise, which adds real detail. It needs the ComfyUI_UltimateSDUpscale node pack, and the WD14 Tagger pack for "Tag with WD14".</p>
+      <p><b>Upscale by 1 is image to image:</b> nothing is enlarged and there are no tiles. The whole picture is encoded to a latent and redrawn once by the checkpoint at the Denoise (redraw strength) — the same path as the Generate tab's image-to-image mode. At 0.2–0.3 it cleans the picture and keeps it; higher values change more. This is the way to run a picture through another model (an Illustrious-family checkpoint, say) without USDU touching its details. The upscale model is not used in this mode, and the redrawn copy saves next to the normal images instead of in an Upscaled folder.</p>
+      <p>Here it works on the image you generate (the pass-2 image when 2-Pass is on). To run an image you already have, use the <b>Upscale</b> tab: choose the image (click it to zoom in), check the settings beside it (they're kept separately from these) and press <b>Upscale / redraw this image</b>. Its <b>Save to</b> sends the result to your output folder (or its Upscaled folder for a real upscale) or to a folder you choose (saved as &lt;image&gt;_upscaled.png or &lt;image&gt;_redrawn.png, never overwriting). The prompt for the redraw is your image's prompt (optionally without the Global field, where artist tags live), WD14 tags, or your own text. Hover any setting for what it does; on the phone, tap its name. Results go in the Upscaled folder for an upscale.</p>`
   },
   {
     id: 'wd14',

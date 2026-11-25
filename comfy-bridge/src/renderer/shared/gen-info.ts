@@ -14,13 +14,14 @@ import {
   joinNameParts, fileBaseName, safeSegment
 } from './file-naming';
 
-export type OutputKind = 'single' | 'pass1' | 'pass2' | 'upscaled';
+export type OutputKind = 'single' | 'pass1' | 'pass2' | 'upscaled' | 'redrawn';
 const OUTPUT_KEY = 'comfybridge_output';
 const OUTPUT_LABEL: Record<OutputKind, string> = {
   single: 'Single pass',
   pass1: 'Pass 1 (before the 2nd pass)',
   pass2: 'Pass 2 (refined)',
   upscaled: 'Upscaled',
+  redrawn: 'Redrawn (image to image)',
 };
 
 // ---- PNG tEXt stamping ----

@@ -106,8 +106,9 @@
     </section>
 
     <section class="sec">
-      <div class="sec-head"><span class="d">Reference image (ControlNet)</span></div>
-      <label class="chk-row"><input id="skipRefImage" type="checkbox"> No reference image (skip ControlNet)</label>
+      <div class="sec-head"><span class="d">Reference image / image to image</span></div>
+      <label class="chk-row" title="No image at all: a plain text-to-image run. Ticking it turns image to image off."><input id="skipRefImage" type="checkbox"> No image (plain text to image)</label>
+      <label class="chk-row" title="Start pass 1 from this image instead of an empty latent: it is resized to the output size and VAE-encoded, then the generation redraws it at the strength below. Use this instead of ControlNet to keep the original's details."><input id="img2imgMode" type="checkbox"> Image to image (start from this image)</label>
       <div id="refImageSection">
         <div class="row">
           <button id="btnPickImage">Pick reference image…</button>
@@ -115,6 +116,25 @@
         </div>
         <span id="refFileName" class="muted"></span>
         <img id="refPreview" style="display:none" class="thumb">
+        <div id="img2imgRow" style="display:none">
+          <label>Strength (how much it redraws)</label>
+          <input id="img2imgDenoise" type="number" step="0.05" min="0.05" max="1" value="0.6">
+          <div class="muted small">0.3 keeps most of the image, 0.5 balances, 0.8 and up redraws almost all of it.</div>
+          <button id="btnImg2imgMatch" type="button" title="Sets Width × Height to the picture's shape (about the same pixel count as now, rounded to 8), so Resize fit has no padding bars or cropped edges to redraw.">Match the image's shape</button>
+        </div>
+        <label>Resize fit</label>
+        <select id="resizeFit">
+          <option value="pad">Pad</option>
+          <option value="crop">Crop</option>
+          <option value="contain">Contain</option>
+        </select>
+        <label>Resize method</label>
+        <select id="resizeMethod">
+          <option value="lanczos">Lanczos</option>
+          <option value="bilinear">Bilinear</option>
+          <option value="nearest">Nearest</option>
+          <option value="bicubic">Bicubic</option>
+        </select>
       </div>
     </section>
 
@@ -213,19 +233,6 @@
       <label>End percent</label>
       <input id="lliteEndPercent" type="number" step="0.05" value="0.3">
       <label class="chk-row"><input id="llitePreserveWrapper" type="checkbox" checked> Preserve wrapper</label>
-      <label>Resize fit</label>
-      <select id="resizeFit">
-        <option value="pad">Pad</option>
-        <option value="crop">Crop</option>
-        <option value="contain">Contain</option>
-      </select>
-      <label>Resize method</label>
-      <select id="resizeMethod">
-        <option value="lanczos">Lanczos</option>
-        <option value="bilinear">Bilinear</option>
-        <option value="nearest">Nearest</option>
-        <option value="bicubic">Bicubic</option>
-      </select>
     </section>
 
   </div>

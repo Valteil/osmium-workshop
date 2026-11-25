@@ -2,8 +2,9 @@
 
 Single vertical scrollable page (no desktop 3-column layout), same generation
 feature set as the desktop app: full prompt fields, prompt/negative presets,
-models/LoRA stack, ControlNet, 1-Pass/2-Pass (both saved), optional
-model-based upscale — each saved as its own distinct file (see "Result
+models/LoRA stack, reference image (ControlNet) or image-to-image start,
+1-Pass/2-Pass (both saved), optional model-based upscale or image-to-image
+redraw (Upscale by 1) — each saved as its own distinct file (see "Result
 preview" below), not collapsed into one.
 
 ## Same save naming as the desktop (File saving)

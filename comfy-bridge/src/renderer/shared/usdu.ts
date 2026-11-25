@@ -1,10 +1,16 @@
-// USDU (Ultimate SD Upscale) — the alternative to the standard upscale pass.
-// One module for both shells: the settings panel (built here so desktop and
-// mobile can't drift — notes/Pitfalls/Forked-Copy-Drifts.md), the graph
-// builder, and the prompt-source logic. Graph shape follows the user's
-// reference workflow: LoadImage/decoded image → UltimateSDUpscale with its own
-// CheckpointLoaderSimple + UpscaleModelLoader, positive from the image's
-// prompt / WD14Tagger|pysssss / the user's text, own negative → SaveImage.
+// USDU (Ultimate SD Upscale) / image-to-image — the alternative to the
+// standard upscale pass. One module for both shells: the settings panel (built
+// here so desktop and mobile can't drift — notes/Pitfalls/Forked-Copy-Drifts.md),
+// the graph builders, and the prompt-source logic. Graph shape follows the
+// user's reference workflow: LoadImage/decoded image → UltimateSDUpscale with
+// its own CheckpointLoaderSimple + UpscaleModelLoader, positive from the
+// image's prompt / WD14Tagger|pysssss / the user's text, own negative →
+// SaveImage.
+//
+// "Upscale by 1" means the user wants image to image (the maintainer's rule):
+// nothing is enlarged, so the whole image is VAE-encoded and redrawn once by
+// the checkpoint at the panel's denoise — the same image → latent path as the
+// Generate tab's image-to-image mode. Above 1 the tiled USDU graph runs.
 //
 // Two ways in, same nodes:
 // - after a generation: appended to the Bridge workflow, fed from the final
@@ -58,26 +64,31 @@ interface FieldDef {
 }
 interface Section { head: string; tip?: string; fields: FieldDef[]; }
 
+// The maintainer's rule: Upscale by 1 is the user asking for image to image
+// (no enlargement, one whole-image redraw), not a 1:1 tiled USDU pass.
+const byOf = (s: UsduSettings): number => { const n = parseFloat(s.upscaleBy); return Number.isFinite(n) ? n : 2; };
+export const isImg2img = (s: UsduSettings): boolean => byOf(s) === 1;
+
 const SECTIONS: Section[] = [
   { head: 'Input', fields: [
     { key: 'source', type: 'select', label: 'Image to upscale', wide: true,
       options: [['generated', 'The image I generate'], ['imported', 'An image I import']],
-      tip: 'The image I generate: every generation is upscaled as its last step (the pass-2 image when 2-Pass is on, since that is the final one). An image I import: pick any image below and press Upscale this image; generating is not involved.' }
+      tip: 'The image I generate: every generation is upscaled as its last step (the pass-2 image when 2-Pass is on, since that is the final one). An image I import: pick any image below and press Upscale / redraw this image; generating is not involved.' }
   ] },
   { head: 'Models', fields: [
     { key: 'ckpt', type: 'pick', list: 'ckpt', label: 'Checkpoint', wide: true,
-      tip: 'The checkpoint that redraws each tile (an SDXL / Illustrious-family model from ComfyUI\'s checkpoints folder). It is separate from the generation model: USDU loads its own, which is why an Illustrious model works here. Default: Janku 6.9.' },
-    { key: 'upscaleModel', type: 'pick', list: 'upscale', label: 'Upscale model', wide: true,
-      tip: 'The upscaler (ESRGAN-style) that enlarges the image before the tiles are redrawn. Its own scale does not matter: the result is resized to "Upscale by". Default: 4xNomosUni_span_multijpg.' },
+      tip: 'The checkpoint that redraws the image (or each tile). An SDXL / Illustrious-family model from ComfyUI\'s checkpoints folder works here, so image to image can use a different model from the generation. Default: Janku 6.9.' },
+    { key: 'upscaleModel', type: 'pick', list: 'upscale', label: 'Upscale model', wide: true, show: (s) => !isImg2img(s),
+      tip: 'The upscaler (ESRGAN-style) that enlarges the image before the tiles are redrawn. Its own scale does not matter: the result is resized to "Upscale by". Not used when Upscale by is 1 (image to image). Default: 4xNomosUni_span_multijpg.' },
     { key: 'upscaleBy', type: 'number', step: '0.05', min: '0.05', max: '4', label: 'Upscale by',
-      tip: 'How much bigger the final image is than the input (2 = twice the width and height). 0.05 to 4.' }
+      tip: 'How much bigger the result is than the input (2 = twice the width and height). 1 means image to image: nothing is enlarged, the whole image is just redrawn by the checkpoint at the denoise below (for cleaning an image instead of upscaling it).' }
   ] },
   { head: 'Sampling', fields: [
     { key: 'seed', type: 'number', step: '1', min: '0', label: 'Seed', tip: 'The noise seed for the tile redraw. Same seed + same settings = same result.' },
     { key: 'steps', type: 'number', step: '1', min: '1', label: 'Steps', tip: 'Sampling steps for each tile. At a low denoise only the last part of them actually runs, so more steps mostly means finer control.' },
     { key: 'cfg', type: 'number', step: '0.1', min: '0', label: 'CFG', tip: 'How strongly each tile follows the prompt. Illustrious models usually like 3 to 6.' },
-    { key: 'denoise', type: 'number', step: '0.01', min: '0', max: '1', label: 'Denoise',
-      tip: 'How much each tile is redrawn. 0.2–0.3 adds detail and keeps the image; higher values change more and can draw new things into a tile (extra faces, hands).' },
+    { key: 'denoise', type: 'number', step: '0.01', min: '0', max: '1', label: 'Denoise (redraw strength)',
+      tip: 'How much is redrawn. With Upscale by 1 (image to image) the whole picture is redrawn: 0.2–0.3 cleans it and keeps it, higher values change more; 0.5–0.8 is a real restyle. Above 1 it applies per tile: 0.2–0.3 adds detail to the upscale, higher can draw new things into a tile.' },
     { key: 'sampler', type: 'pick', list: 'sampler', label: 'Sampler', tip: 'The sampler for the tile redraw (the list is your ComfyUI\'s). Default: res_multistep.' },
     { key: 'scheduler', type: 'pick', list: 'scheduler', label: 'Scheduler', tip: 'The noise schedule for the tile redraw. Default: beta.' }
   ] },
@@ -225,6 +236,57 @@ export function appendUsduNodes(prompt: Prompt, image: unknown, s: UsduSettings,
   prompt[saveId] = { class_type: 'SaveImage', inputs: { filename_prefix: filenamePrefix, images: ['usdu', 0] }, _meta: { title: 'USDU Upscaled' } };
 }
 
+// Image-to-image (Upscale by 1): the whole image is VAE-encoded and redrawn
+// once by `s.ckpt` at `s.denoise`, so the path is image → latent → image.
+// No upscale model and no tiles: the image keeps its own size (an ImageScale
+// after the decode puts back any pixels the VAE's /8 grid padded on).
+export function appendImg2imgNodes(prompt: Prompt, image: unknown, s: UsduSettings, positive: string, saveId: string, filenamePrefix: unknown, inputSize: ImageSize | null): void {
+  const d = USDU_DEFAULTS;
+  // Same VRAM rule as USDU: the generation's models are unloaded before the
+  // redraw checkpoint loads (the runner / a ComfyUI without the node handles
+  // it the same way as for USDU).
+  prompt['imgup_unload'] = { class_type: UNLOAD_NODE_CLASS, inputs: { image }, _meta: { title: 'Unload models' } };
+  image = ['imgup_unload', 0];
+  prompt['imgup_ckpt'] = { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: s.ckpt.trim() || d.ckpt }, _meta: { title: 'Image to image Checkpoint' } };
+  let posText: unknown = positive;
+  if (s.promptSource === 'wd14') {
+    prompt['imgup_wd14'] = {
+      class_type: 'WD14Tagger|pysssss',
+      inputs: {
+        image, model: s.wd14Model.trim() || d.wd14Model,
+        threshold: num(s.wd14Threshold, 0.35), character_threshold: num(s.wd14CharThreshold, 0.85),
+        replace_underscore: !!s.wd14ReplaceUnderscore, trailing_comma: false, exclude_tags: s.wd14Exclude || ''
+      },
+      _meta: { title: 'Image to image WD14 Tagger' }
+    };
+    posText = ['imgup_wd14', 0];
+  }
+  prompt['imgup_pos'] = { class_type: 'CLIPTextEncode', inputs: { text: posText, clip: ['imgup_ckpt', 1] }, _meta: { title: 'Image to image Positive' } };
+  prompt['imgup_neg'] = { class_type: 'CLIPTextEncode', inputs: { text: s.negative, clip: ['imgup_ckpt', 1] }, _meta: { title: 'Image to image Negative' } };
+  prompt['imgup_encode'] = { class_type: 'VAEEncode', inputs: { pixels: image, vae: ['imgup_ckpt', 2] }, _meta: { title: 'Image to image encode' } };
+  prompt['imgup_sample'] = {
+    class_type: 'KSampler',
+    inputs: {
+      model: ['imgup_ckpt', 0], positive: ['imgup_pos', 0], negative: ['imgup_neg', 0],
+      latent_image: ['imgup_encode', 0], seed: int(s.seed, 0), steps: int(s.steps, 15), cfg: num(s.cfg, 4),
+      sampler_name: s.sampler.trim() || d.sampler, scheduler: s.scheduler.trim() || d.scheduler, denoise: num(s.denoise, 0.25)
+    },
+    _meta: { title: 'Image to image', redrawOnly: true }
+  };
+  prompt['imgup_decode'] = { class_type: 'VAEDecode', inputs: { samples: ['imgup_sample', 0], vae: ['imgup_ckpt', 2] }, _meta: { title: 'Image to image decode' } };
+  let decoded: unknown = ['imgup_decode', 0];
+  if (inputSize) {
+    // Keeps the source's exact pixel size (the VAE works on an /8 grid).
+    prompt['imgup_scale'] = {
+      class_type: 'ImageScale',
+      inputs: { upscale_method: 'lanczos', width: Math.max(8, inputSize.width), height: Math.max(8, inputSize.height), crop: 'disabled', image: decoded },
+      _meta: { title: 'Image to image size' }
+    };
+    decoded = ['imgup_scale', 0];
+  }
+  prompt[saveId] = { class_type: 'SaveImage', inputs: { filename_prefix: filenamePrefix, images: decoded }, _meta: { title: 'Image to image' } };
+}
+
 // The positive text from a Bridge-shaped prompt (a built generation, or an
 // imported image's normalized one). Foreign images keep everything in node
 // 11, so their Global part is found by the Import splitter.
@@ -238,29 +300,38 @@ export async function usduPromptText(prompt: Prompt | null, excludeGlobal: boole
   return mergedPromptText({ ...prompt, '21': undefined });
 }
 
-// The settings a saved generation used (its `usdu` node), for Import.
+// The settings a saved generation used (its `usdu` / `imgup_*` nodes), for
+// Import. Upscale by 1 (image to image) is recorded as such, since a redraw
+// graph has no upscale_by input.
 export function usduSettingsFromPrompt(prompt: Prompt): Partial<UsduSettings> | null {
-  const n = prompt && prompt['usdu'] && prompt['usdu'].inputs;
+  const img = prompt && prompt['imgup_sample'] && prompt['imgup_sample'].inputs;
+  const n = (img || (prompt && prompt['usdu'] && prompt['usdu'].inputs)) as Record<string, any> | undefined;
   if (!n) return null;
   const out: Partial<UsduSettings> = {};
   const str = (v: unknown): string | undefined => (typeof v === 'number' || typeof v === 'string') ? String(v) : undefined;
   const set = <K extends Key>(k: K, v: UsduSettings[K] | undefined) => { if (v !== undefined) out[k] = v; };
-  set('upscaleBy', str(n.upscale_by)); set('seed', str(n.seed)); set('steps', str(n.steps)); set('cfg', str(n.cfg));
-  set('sampler', str(n.sampler_name)); set('scheduler', str(n.scheduler)); set('denoise', str(n.denoise)); set('modeType', str(n.mode_type));
-  set('maskBlur', str(n.mask_blur)); set('tilePadding', str(n.tile_padding)); set('seamFixMode', str(n.seam_fix_mode));
-  set('seamFixDenoise', str(n.seam_fix_denoise)); set('seamFixWidth', str(n.seam_fix_width)); set('seamFixMaskBlur', str(n.seam_fix_mask_blur));
-  set('seamFixPadding', str(n.seam_fix_padding)); set('batchSize', str(n.batch_size));
-  if (typeof n.force_uniform_tiles === 'boolean') out.forceUniformTiles = n.force_uniform_tiles;
-  if (typeof n.tiled_decode === 'boolean') out.tiledDecode = n.tiled_decode;
-  // "Match the input" is recorded as plain numbers, so a saved run comes back
-  // as Custom with the sizes it used, unless it was marked.
-  if (Array.isArray(n.tile_width) || (prompt['usdu']._meta && prompt['usdu']._meta.tileSize === 'source')) out.tileSize = 'source';
-  else { out.tileSize = 'custom'; set('tileWidth', str(n.tile_width)); set('tileHeight', str(n.tile_height)); }
-  set('ckpt', str(prompt['usdu_ckpt'] && prompt['usdu_ckpt'].inputs.ckpt_name));
-  set('upscaleModel', str(prompt['usdu_upmodel'] && prompt['usdu_upmodel'].inputs.model_name));
-  const neg = prompt['usdu_neg'] && prompt['usdu_neg'].inputs.text;
+  set('seed', str(n.seed)); set('steps', str(n.steps)); set('cfg', str(n.cfg));
+  set('sampler', str(n.sampler_name)); set('scheduler', str(n.scheduler)); set('denoise', str(n.denoise));
+  const ckptId = img ? 'imgup_ckpt' : 'usdu_ckpt';
+  set('ckpt', str(prompt[ckptId] && prompt[ckptId].inputs.ckpt_name));
+  if (img) {
+    out.upscaleBy = '1';
+  } else {
+    set('upscaleBy', str(n.upscale_by)); set('modeType', str(n.mode_type));
+    set('maskBlur', str(n.mask_blur)); set('tilePadding', str(n.tile_padding)); set('seamFixMode', str(n.seam_fix_mode));
+    set('seamFixDenoise', str(n.seam_fix_denoise)); set('seamFixWidth', str(n.seam_fix_width)); set('seamFixMaskBlur', str(n.seam_fix_mask_blur));
+    set('seamFixPadding', str(n.seam_fix_padding)); set('batchSize', str(n.batch_size));
+    if (typeof n.force_uniform_tiles === 'boolean') out.forceUniformTiles = n.force_uniform_tiles;
+    if (typeof n.tiled_decode === 'boolean') out.tiledDecode = n.tiled_decode;
+    // "Match the input" is recorded as plain numbers, so a saved run comes back
+    // as Custom with the sizes it used, unless it was marked.
+    if (Array.isArray(n.tile_width) || (prompt['usdu']._meta && prompt['usdu']._meta.tileSize === 'source')) out.tileSize = 'source';
+    else { out.tileSize = 'custom'; set('tileWidth', str(n.tile_width)); set('tileHeight', str(n.tile_height)); }
+    set('upscaleModel', str(prompt['usdu_upmodel'] && prompt['usdu_upmodel'].inputs.model_name));
+  }
+  const neg = prompt[img ? 'imgup_neg' : 'usdu_neg'] && prompt[img ? 'imgup_neg' : 'usdu_neg'].inputs.text;
   if (typeof neg === 'string') out.negative = neg;
-  const w = prompt['usdu_wd14'] && prompt['usdu_wd14'].inputs;
+  const w = prompt[img ? 'imgup_wd14' : 'usdu_wd14'] && prompt[img ? 'imgup_wd14' : 'usdu_wd14'].inputs;
   if (w) {
     out.promptSource = 'wd14';
     set('wd14Model', str(w.model)); set('wd14Threshold', str(w.threshold)); set('wd14CharThreshold', str(w.character_threshold));
@@ -268,7 +339,7 @@ export function usduSettingsFromPrompt(prompt: Prompt): Partial<UsduSettings> | 
     if (typeof w.exclude_tags === 'string') out.wd14Exclude = w.exclude_tags;
   } else {
     // Which text it was can't be told from the graph; keep it as the user's own.
-    const pos = prompt['usdu_pos'] && prompt['usdu_pos'].inputs.text;
+    const pos = prompt[img ? 'imgup_pos' : 'usdu_pos'] && prompt[img ? 'imgup_pos' : 'usdu_pos'].inputs.text;
     if (typeof pos === 'string') { out.promptSource = 'own'; out.ownPrompt = pos; }
   }
   return out;
@@ -276,9 +347,10 @@ export function usduSettingsFromPrompt(prompt: Prompt): Partial<UsduSettings> | 
 
 // ---- panel ----
 
-// saveTo: 'output' = the output folder's Upscaled/ (as before); 'folder' = the
-// folder chosen in the Upscale tab (the shell saves it there).
-export interface UsduImportedJob { prompt: Prompt; imageFilename: string; imageBytes: Uint8Array; base: string; saveTo: 'output' | 'folder'; }
+// saveTo: 'output' = the output folder (Upscaled/ for a tiled upscale, the
+// folder itself for an image-to-image redraw); 'folder' = the folder chosen in
+// the Upscale tab (the shell saves it there).
+export interface UsduImportedJob { prompt: Prompt; imageFilename: string; imageBytes: Uint8Array; base: string; saveTo: 'output' | 'folder'; img2img: boolean; }
 
 export interface UsduPanelOptions {
   // 'generation' (default): the settings drawer's panel — on/off toggle, the
@@ -291,7 +363,7 @@ export interface UsduPanelOptions {
   standardToggle?: HTMLInputElement;
   getList: (kind: UsduListKind) => string[];
   refreshLists: () => Promise<void> | void;
-  // "Upscale this image" (imported source).
+  // "Upscale / redraw this image" (imported source).
   onRunImported: () => void;
   // The Upscale tab's "Save to: a folder I choose": the shell keeps the folder
   // (desktop: main process; phone: a SAF grant). get() = its label ('' = none
@@ -313,6 +385,9 @@ export interface UsduPanel {
   // Re-run show/hide after values were set without a change event
   // (UI-state restore).
   refresh: () => void;
+  // Upscale by 1: the panels run the whole-image image-to-image graph instead
+  // of USDU's tiling (the shells use it for the output folder/labels).
+  isImg2img: () => boolean;
   // On (and source = generated): append to a built Bridge generation.
   activeForGeneration: () => boolean;
   appendToGeneration: (prompt: Prompt) => void;
@@ -331,13 +406,13 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
   if (!imported) {
     const toggleLabel = document.createElement('label');
     toggleLabel.className = 'chk-row';
-    toggleLabel.title = 'Upscale every image you generate with Ultimate SD Upscale instead of the standard pass: the image is enlarged by an upscale model, then redrawn tile by tile with a checkpoint at low denoise, which adds real detail. Slower than the standard upscale. Needs the ComfyUI_UltimateSDUpscale node pack.';
+    toggleLabel.title = 'Runs a redraw step after every image you generate, instead of the standard upscale. Upscale by 2 or more: Ultimate SD Upscale enlarges the image with an upscale model, then redraws it tile by tile with a checkpoint at low denoise. Upscale by 1: image to image — nothing is enlarged and there are no tiles; the whole image is encoded to a latent and redrawn once by the checkpoint (cleaning it instead of upscaling it). Needs the ComfyUI_UltimateSDUpscale node pack for the tiled mode.';
     toggle.id = 'usduEnabled';
-    toggleLabel.append(toggle, ' Upscale with USDU (Ultimate SD Upscale)');
+    toggleLabel.append(toggle, ' Upscale or redraw with USDU');
     host.appendChild(toggleLabel);
     const hint = document.createElement('div');
     hint.className = 'muted small usdu-hint';
-    hint.textContent = 'Upscales each image you generate. To upscale an image you already have, use the Upscale tab.';
+    hint.textContent = 'Runs after each image you generate. Upscale by 1 redraws it at its own size (image to image); above 1, USDU enlarges it and redraws tile by tile. To run an image you already have, use the Upscale tab.';
     host.appendChild(hint);
   }
 
@@ -347,6 +422,13 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
 
   const els = new Map<Key, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>();
   const rows: { def: FieldDef; row: HTMLElement }[] = [];
+  // Whole sections to drop in image-to-image mode (Upscale by 1): USDU's
+  // tiling and seam fix don't exist there.
+  const sectionEls: { name: string; head: HTMLElement; grid: HTMLElement }[] = [];
+  const redrawHint = document.createElement('div');
+  redrawHint.className = 'muted small usdu-hint';
+  redrawHint.textContent = 'Image to image (Upscale by 1): nothing is enlarged and there are no tiles. The checkpoint redraws the whole image at the denoise, at its own size.';
+  body.appendChild(redrawHint);
 
   for (const sec of SECTIONS) {
     const head = document.createElement('div');
@@ -356,6 +438,7 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     const grid = document.createElement('div');
     grid.className = 'settings-grid';
     body.appendChild(grid);
+    sectionEls.push({ name: sec.head, head, grid });
     for (const def of sec.fields) {
       // Which image is fixed by where the panel lives (drawer = generated,
       // Upscale tab = imported), so there's no source picker any more.
@@ -438,7 +521,7 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
   if (imported) {
     const title = document.createElement('div');
     title.className = 'usdu-sec-head';
-    title.textContent = 'Image to upscale';
+    title.textContent = 'Image to upscale / redraw';
     const preview = document.createElement('div');
     preview.className = 'usdu-preview';
     const previewImg = document.createElement('img');
@@ -462,8 +545,8 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     const runBtn = document.createElement('button');
     runBtn.type = 'button';
     runBtn.className = 'usdu-run primary';
-    runBtn.textContent = 'Upscale this image';
-    runBtn.title = 'Queue the chosen image for USDU with these settings. Saved in the Upscaled folder of your output folder.';
+    runBtn.textContent = 'Upscale / redraw this image';
+    runBtn.title = 'Queue the chosen image with these settings. Upscale by above 1 saves an upscaled copy in the Upscaled folder; Upscale by 1 redraws it at its own size (image to image).';
     const btnRow = document.createElement('div');
     btnRow.className = 'row';
     btnRow.append(pickBtn, runBtn);
@@ -578,9 +661,20 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
     body.hidden = !imported && !toggle.checked;
     const s = read();
     for (const { def, row } of rows) row.hidden = def.show ? !def.show(s) : false;
+    // Upscale by 1 = image to image: no tiles, no seam fix, no upscale model.
+    const img2img = isImg2img(s);
+    redrawHint.hidden = !img2img;
+    for (const se of sectionEls) {
+      const hide = img2img && (se.name === 'Tiles' || se.name === 'Seam fix');
+      se.head.hidden = hide;
+      se.grid.hidden = hide;
+    }
   }
   apply(USDU_DEFAULTS);
   host.addEventListener('change', refresh);
+  // Typing "1" into Upscale by should reveal the image-to-image shape right
+  // away, not only after the field loses focus.
+  host.addEventListener('input', refresh);
 
   function setEnabled(on: boolean): void {
     if (imported) return;
@@ -603,29 +697,34 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
   return {
     enabled: () => !imported && toggle.checked,
     read, apply, setEnabled, refresh,
+    isImg2img: () => isImg2img(read()),
     activeForGeneration: () => !imported && toggle.checked,
     appendToGeneration(prompt: Prompt): void {
       const s = read();
+      const img2img = isImg2img(s);
       // The generation's own prompt nodes are plain strings here, so this is
       // synchronous (the foreign-image split never applies).
       const positive = s.promptSource === 'own' ? s.ownPrompt
         : s.promptSource === 'image' ? mergedPromptText(s.excludeGlobal ? { ...prompt, '21': undefined } : prompt) : '';
       // Named like the standard upscale: '222' (File Namer 4 Upscaler) with
-      // "Upscaled" in slot c (notes/Features/SynthDat-Node-Map.md).
-      let prefix: unknown = 'Upscaled/ComfyBridge';
-      if (prompt['222']) { prompt['222'].inputs.text_c = 'Upscaled'; prefix = ['222', 0]; }
+      // "Upscaled" (or "Redrawn" for image to image) in its free slot c
+      // (notes/Features/SynthDat-Node-Map.md).
+      let prefix: unknown = img2img ? 'Redrawn/ComfyBridge_img2img' : 'Upscaled/ComfyBridge';
+      if (prompt['222']) { prompt['222'].inputs.text_c = img2img ? 'Redrawn' : 'Upscaled'; prefix = ['222', 0]; }
       // Pass 2 keeps pass 1's size, so the final image is the set width × height.
       const size = { width: int(String(prompt['174:171'] && prompt['174:171'].inputs.value), 1024), height: int(String(prompt['174:172'] && prompt['174:172'].inputs.value), 1024) };
-      appendUsduNodes(prompt, prompt['192'].inputs.images, s, positive, '192_upscaled', prefix, size);
+      if (img2img) appendImg2imgNodes(prompt, prompt['192'].inputs.images, s, positive, '192_upscaled', prefix, size);
+      else appendUsduNodes(prompt, prompt['192'].inputs.images, s, positive, '192_upscaled', prefix, size);
     },
     async buildImportedJob(): Promise<UsduImportedJob | null> {
-      if (!picked) { opts.log('USDU: choose an image to upscale first.'); return null; }
+      if (!picked) { opts.log('Choose an image to upscale or redraw first.'); return null; }
       const saveTo: 'output' | 'folder' = opts.saveFolder && saveToSel.value === 'folder' ? 'folder' : 'output';
       if (saveTo === 'folder' && !saveFolderLabel && !(await pickSaveFolder())) {
-        opts.log('USDU: choose the folder to save in (or switch Save to back to your output folder).');
+        opts.log('Choose the folder to save in (or switch Save to back to your output folder).');
         return null;
       }
       const s = read();
+      const img2img = isImg2img(s);
       let positive = '';
       if (s.promptSource === 'own') positive = s.ownPrompt;
       else if (s.promptSource === 'image') {
@@ -633,7 +732,7 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
         try { saved = normalizeGeneration(imageMetadataTexts(picked.bytes)); } catch { saved = null; }
         positive = await usduPromptText(saved, s.excludeGlobal);
         if (!positive) {
-          opts.log(`USDU: ${picked.name} has no saved prompt. Pick "Tag with WD14" or "Use my own prompt".`);
+          opts.log(`${picked.name} has no saved prompt. Pick "Tag with WD14" or "Use my own prompt".`);
           return null;
         }
       }
@@ -641,10 +740,15 @@ export function mountUsduPanel(host: HTMLElement, opts: UsduPanelOptions): UsduP
         '239': { class_type: 'LoadImage', inputs: { image: picked.name, upload: 'image' }, _meta: { title: 'Load Image' } }
       };
       const size = imageSizeOf(picked.bytes);
-      if (!size && s.tileSize !== 'custom') opts.log(`USDU: couldn't read ${picked.name}'s size; using the custom tile size (${s.tileWidth}×${s.tileHeight}).`);
-      appendUsduNodes(prompt, ['239', 0], s, positive, '192', 'Upscaled/ComfyBridge_USDU', size);
+      if (img2img) {
+        if (!size) opts.log(`Couldn't read ${picked.name}'s size, so the result keeps the VAE's size.`);
+        appendImg2imgNodes(prompt, ['239', 0], s, positive, '192', 'Redrawn/ComfyBridge_img2img', size);
+      } else {
+        if (!size && s.tileSize !== 'custom') opts.log(`USDU: couldn't read ${picked.name}'s size; using the custom tile size (${s.tileWidth}×${s.tileHeight}).`);
+        appendUsduNodes(prompt, ['239', 0], s, positive, '192', 'Upscaled/ComfyBridge_USDU', size);
+      }
       const stem = picked.name.replace(/\.[^.]+$/, '');
-      return { prompt, imageFilename: picked.name, imageBytes: picked.bytes, base: stem, saveTo };
+      return { prompt, imageFilename: picked.name, imageBytes: picked.bytes, base: stem, saveTo, img2img };
     }
   };
 }

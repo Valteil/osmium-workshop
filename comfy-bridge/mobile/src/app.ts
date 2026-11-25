@@ -76,8 +76,9 @@ declare const BridgeShared: {
   // shared/usdu.ts: the USDU panel + graph (same module as the desktop's).
   mountUsduPanel: (host: HTMLElement, opts: any) => {
     enabled: () => boolean; refresh: () => void; setEnabled: (on: boolean) => void; apply: (s: any) => void;
+    isImg2img: () => boolean;
     activeForGeneration: () => boolean; appendToGeneration: (prompt: any) => void;
-    buildImportedJob: () => Promise<{ prompt: any; imageFilename: string; imageBytes: Uint8Array; base: string; saveTo: 'output' | 'folder' } | null>;
+    buildImportedJob: () => Promise<{ prompt: any; imageFilename: string; imageBytes: Uint8Array; base: string; saveTo: 'output' | 'folder'; img2img: boolean } | null>;
   };
   usduSettingsFromPrompt: (prompt: any) => Record<string, any> | null;
   // shared/wd14-tag.ts: WD14 tagging panel (same module as the desktop's).
@@ -165,6 +166,9 @@ declare const BridgeShared: {
   const btnDefaultFolder = $<HTMLButtonElement>('btnDefaultFolder');
 
   const skipRefImage = $<HTMLInputElement>('skipRefImage');
+  const img2imgMode = $<HTMLInputElement>('img2imgMode');
+  const img2imgDenoise = $<HTMLInputElement>('img2imgDenoise');
+  const img2imgRow = $('img2imgRow');
   const refImageSection = $('refImageSection');
   const btnPickImage = $<HTMLButtonElement>('btnPickImage');
   const refFileInput = $<HTMLInputElement>('refFileInput');
@@ -901,7 +905,12 @@ declare const BridgeShared: {
     if (n.rating) line(n.rating, 'auto', depth++);
     if (n.character) line(n.character, 'user', depth++);
     line(BridgeShared.previewFileName(n.base), 'file', depth);
-    if ((upscaleEnabled.checked && upscaleModel.value.trim()) || usdu.activeForGeneration()) {
+    if (usdu.enabled() && usdu.isImg2img()) {
+      const up = document.createElement('div');
+      up.className = 'muted small';
+      up.textContent = 'Redrawn copy: the same name next to it (no Upscaled folder).';
+      savePathPreview.appendChild(up);
+    } else if ((upscaleEnabled.checked && upscaleModel.value.trim()) || usdu.activeForGeneration()) {
       const up = document.createElement('div');
       up.className = 'muted small';
       up.textContent = 'Upscaled copies: the same name in an Upscaled folder next to it.';
@@ -1143,15 +1152,15 @@ declare const BridgeShared: {
           gen.abort.signal.addEventListener('abort', onGenAbort, { once: true });
           let retried = false;
           retryBtn.onclick = () => { retried = true; attempt.abort(); };
-          upText.textContent = 'Uploading reference image… 0%' + (attemptNo > 1 ? ` (attempt ${attemptNo})` : '');
+          upText.textContent = 'Uploading the image… 0%' + (attemptNo > 1 ? ` (attempt ${attemptNo})` : '');
           const upT = comfyTransport(attempt.signal, (loaded, total) => {
-            upText.textContent = `Uploading reference image… ${Math.round(loaded / total * 100)}% (${kb(loaded)} / ${kb(total)})` + (attemptNo > 1 ? ` (attempt ${attemptNo})` : '');
+            upText.textContent = `Uploading the image… ${Math.round(loaded / total * 100)}% (${kb(loaded)} / ${kb(total)})` + (attemptNo > 1 ? ` (attempt ${attemptNo})` : '');
           });
-          try { upload = await BridgeShared.uploadImage(upT, getHost(), imageFilename ?? 'reference', imageBytes, 'Reference image'); }
+          try { upload = await BridgeShared.uploadImage(upT, getHost(), imageFilename ?? 'reference', imageBytes, 'Image'); }
           catch (err) {
             if (gen.cancelled) return stopped;
             if (retried) continue;
-            return { ok: false, uploadFailed: true, error: 'Reference image upload failed (' + errMsg(err) + ').' };
+            return { ok: false, uploadFailed: true, error: 'Image upload failed (' + errMsg(err) + ').' };
           } finally {
             gen.abort.signal.removeEventListener('abort', onGenAbort);
           }
@@ -1277,11 +1286,45 @@ declare const BridgeShared: {
   let refBytes: Uint8Array | null = null;
 
   function applySkipRefImageUI() {
-    refImageSection.classList.toggle('section-disabled', skipRefImage.checked);
-    lliteSection.classList.toggle('section-disabled', skipRefImage.checked);
+    // Image to image needs the image, so it wins over "no image" (mutually
+    // exclusive modes, not two independent switches).
+    if (img2imgMode.checked) skipRefImage.checked = false;
+    const img2img = img2imgMode.checked;
+    const skipped = skipRefImage.checked && !img2img;
+    img2imgRow.style.display = img2img ? '' : 'none';
+    btnPickImage.textContent = img2img ? 'Pick the start image…' : 'Pick reference image…';
+    refImageSection.classList.toggle('section-disabled', skipped);
+    // LLLite is meaningless in image-to-image mode: the picture is the
+    // starting latent, not a ControlNet guide.
+    lliteSection.classList.toggle('section-disabled', skipped || img2img);
+    lliteSection.title = img2img ? 'Image to image starts from the picture itself, so ControlNet (LLLite) is off.' : '';
   }
-  skipRefImage.addEventListener('change', applySkipRefImageUI);
+  skipRefImage.addEventListener('change', () => {
+    if (skipRefImage.checked) img2imgMode.checked = false;
+    applySkipRefImageUI();
+  });
+  img2imgMode.addEventListener('change', () => {
+    if (img2imgMode.checked) skipRefImage.checked = false;
+    applySkipRefImageUI();
+  });
   applySkipRefImageUI();
+
+  // Image to image: fit Width × Height to the picked picture's shape at about
+  // the current pixel count, so Resize fit has no padding bars (or cropped
+  // edges) for the redraw to keep. Rounded to 8 (the VAE's grid). Same as
+  // the desktop shell.
+  $<HTMLButtonElement>('btnImg2imgMatch').addEventListener('click', () => {
+    const iw = refPreview.naturalWidth, ih = refPreview.naturalHeight;
+    if (!refBytes || !iw || !ih) { log('Pick the image to start from first.'); return; }
+    const area = (parseInt(width.value, 10) || 1024) * (parseInt(height.value, 10) || 1024);
+    const r8 = (v: number) => Math.max(256, Math.round(v / 8) * 8);
+    const w = r8(Math.sqrt(area * iw / ih));
+    const h = r8(area / Math.sqrt(area * iw / ih));
+    width.value = String(w);
+    height.value = String(h);
+    for (const el of [width, height]) { el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); }
+    log(`Size set to ${w}×${h} to match ${refFilename} (${iw}×${ih}).`);
+  });
 
   btnPickImage.addEventListener('click', () => refFileInput.click());
   refFileInput.addEventListener('change', async () => {
@@ -1809,7 +1852,8 @@ declare const BridgeShared: {
       seed2: seed2.value,
       denoise2: denoise2.value,
       steps2: steps2.value,
-      upscale: { enabled: upscaleEnabled.checked && !usdu.enabled(), model: upscaleModel.value, scaleBy: upscaleScaleBy.value }
+      upscale: { enabled: upscaleEnabled.checked && !usdu.enabled(), model: upscaleModel.value, scaleBy: upscaleScaleBy.value },
+      img2img: { enabled: img2imgMode.checked, denoise: img2imgDenoise.value }
     });
     if (rg) regional.appendToGeneration(prompt);
     if (usdu.activeForGeneration()) usdu.appendToGeneration(prompt);
@@ -1915,6 +1959,10 @@ declare const BridgeShared: {
     usduOnly?: boolean;
     // 'folder': the Upscale tab's chosen folder (a second SAF grant).
     saveTo?: 'output' | 'folder';
+    // Upscale by 1 (whole-image image to image): the output saves like a
+    // normal image and is labelled/stamped as a redraw.
+    redraw?: boolean;
+    usduImg2img?: boolean;
   }
   const genQueue: GenJob[] = [];
   let genRunning = false;
@@ -1924,16 +1972,18 @@ declare const BridgeShared: {
 
   async function generate() {
     if (regional.active() && regional.problem()) { log(regional.problem()); return; }
-    if (!skipRefImage.checked && !refBytes) { log('Pick a reference image first (or check "No reference image").'); return; }
+    const needsImage = !skipRefImage.checked || img2imgMode.checked;
+    if (needsImage && !refBytes) { log(img2imgMode.checked ? 'Pick the image to start from first.' : 'Pick a reference image first (or check "No image").'); return; }
     await loadTemplate();
     const passCount = use2Pass.checked ? 2 : 1;
     genQueue.push({
       prompt: buildPrompt(),
-      imageFilename: skipRefImage.checked ? null : refFilename,
-      imageBytes: skipRefImage.checked ? null : refBytes,
+      imageFilename: needsImage ? refFilename : null,
+      imageBytes: needsImage ? refBytes : null,
       passCount,
       totalStages: passCount + (((upscaleEnabled.checked && upscaleModel.value.trim()) || usdu.activeForGeneration()) ? 1 : 0),
-      naming: await currentNaming()
+      naming: await currentNaming(),
+      redraw: usdu.enabled() && usdu.isImg2img()
     });
     startQueue();
   }
@@ -1949,7 +1999,8 @@ declare const BridgeShared: {
       totalStages: 1,
       naming: { relDir: '', base: BridgeShared.safeSegment(j.base) || 'usdu', rating: '', character: '', recognized: '' },
       usduOnly: true,
-      saveTo: j.saveTo
+      saveTo: j.saveTo,
+      usduImg2img: j.img2img
     });
     startQueue();
   }
@@ -2044,44 +2095,49 @@ declare const BridgeShared: {
     // way) is the host's business; the /export rel paths it returns no longer
     // place the phone's mirror.
     const taken = new Set<string>();
-    const savePath = (upscaled: boolean): Promise<string> =>
-      BridgeShared.nextSavePath(mobileBackend(), upscaled ? joinRel(job.naming.relDir, 'Upscaled') : job.naming.relDir, job.naming.base, taken);
+    const savePath = (upscaled: boolean, base = job.naming.base): Promise<string> =>
+      BridgeShared.nextSavePath(mobileBackend(), upscaled ? joinRel(job.naming.relDir, 'Upscaled') : job.naming.relDir, base, taken);
     let saveFailed = false;
     const slides: { label: string; bytes: Uint8Array }[] = [];
     // What WD14's "Tag last generation" tags (saved copies only).
     const saved: { label: string; bytes: Uint8Array; relPath: string }[] = [];
-    const keep = async (label: string, bytes: Uint8Array, upscaled: boolean): Promise<void> => {
-      const rel = await savePath(upscaled);
+    const keep = async (label: string, bytes: Uint8Array, upscaled: boolean, base = job.naming.base): Promise<void> => {
+      const rel = await savePath(upscaled, base);
       if (await saveBytes(bytes, rel)) saved.push({ label, bytes, relPath: rel });
       else saveFailed = true;
       slides.push({ label, bytes });
     };
+    // Upscale by 1 is image to image: a whole-image redraw, not an upscale,
+    // so it saves next to the normal images and is labelled so.
+    const redraw = !!(job.usduImg2img || job.redraw);
+    const doneWord = redraw ? 'Redrawn' : 'Upscaled';
     if (job.usduOnly && job.saveTo === 'folder') {
       const f = usduFolder();
       let failed = !f;
       if (res.imageBytes && f) {
         try {
-          const r = await safPlugin().writeNewFile({ rootUri: f.uri, base: job.naming.base + '_upscaled', ext: 'png', base64: BridgeShared.bytesToBase64(res.imageBytes), mimeType: 'image/png' });
+          const r = await safPlugin().writeNewFile({ rootUri: f.uri, base: job.naming.base + (redraw ? '_redrawn' : '_upscaled'), ext: 'png', base64: BridgeShared.bytesToBase64(res.imageBytes), mimeType: 'image/png' });
           log(`Saved ${f.name}/${r.name}`);
-        } catch (e) { failed = true; log('Upscaled, but saving failed: ' + errMsg(e)); }
-        slides.push({ label: 'Upscaled (USDU)', bytes: res.imageBytes });
+        } catch (e) { failed = true; log(doneWord + ', but saving failed: ' + errMsg(e)); }
+        slides.push({ label: redraw ? 'Redrawn (img2img)' : 'Upscaled (USDU)', bytes: res.imageBytes });
       }
-      if (failed) { genStatus.style.display = 'block'; genStatus.textContent = 'Upscaled, but saving failed — see Log for details.'; }
-      finalizeGenNotification(failed ? 'Upscaled, but saving failed' : 'Upscale complete', 'USDU');
+      if (failed) { genStatus.style.display = 'block'; genStatus.textContent = doneWord + ', but saving failed — see Log for details.'; }
+      finalizeGenNotification(failed ? doneWord + ', but saving failed' : (redraw ? 'Redraw complete' : 'Upscale complete'), redraw ? 'img2img' : 'USDU');
       setPreviewSlides(slides);
       return;
     }
     if (job.usduOnly) {
-      if (res.imageBytes) await keep('Upscaled (USDU)', res.imageBytes, true);
+      if (res.imageBytes) await keep(redraw ? 'Redrawn (img2img)' : 'Upscaled (USDU)', res.imageBytes, !redraw,
+        redraw ? `${job.naming.base}_redrawn` : job.naming.base);
       lastSavedImages = saved;
-      if (saveFailed) { genStatus.style.display = 'block'; genStatus.textContent = 'Upscaled, but saving failed — see Log for details.'; }
-      finalizeGenNotification(saveFailed ? 'Upscaled, but saving failed' : 'Upscale complete', 'USDU');
+      if (saveFailed) { genStatus.style.display = 'block'; genStatus.textContent = doneWord + ', but saving failed — see Log for details.'; }
+      finalizeGenNotification(saveFailed ? doneWord + ', but saving failed' : (redraw ? 'Redraw complete' : 'Upscale complete'), redraw ? 'img2img' : 'USDU');
       setPreviewSlides(slides);
       return;
     }
     if (res.pass1ImageBytes) await keep('Pass 1', res.pass1ImageBytes, false);
     if (res.imageBytes) await keep(res.pass1ImageBytes ? 'Pass 2' : 'Pass 1', res.imageBytes, false);
-    if (res.upscaledImageBytes) await keep('Upscaled', res.upscaledImageBytes, true);
+    if (res.upscaledImageBytes) await keep(redraw ? 'Redrawn (img2img)' : 'Upscaled', res.upscaledImageBytes, !redraw);
     lastSavedImages = saved;
     if (saveFailed) {
       genStatus.style.display = 'block';
@@ -2162,9 +2218,10 @@ declare const BridgeShared: {
     lliteStrength, lliteStartPercent, lliteEndPercent,
     unifiedPrompt, global_, character, characterTrigger, rating, hair, face, chest, body_,
     clothes, limbs, sexual, pose, scene, effects, extra, negative,
-    width, height, sampler, scheduler, steps1, cfg1, seed1, steps2, denoise2, seed2, upscaleModel, upscaleScaleBy
+    width, height, sampler, scheduler, steps1, cfg1, seed1, steps2, denoise2, seed2, upscaleModel, upscaleScaleBy,
+    img2imgDenoise
   ];
-  const RESET_CHECKBOXES = [skipRefImage, llitePreserveWrapper, unifiedPromptMode, use2Pass, upscaleEnabled];
+  const RESET_CHECKBOXES = [skipRefImage, img2imgMode, llitePreserveWrapper, unifiedPromptMode, use2Pass, upscaleEnabled];
   function resetGenerationForm() {
     for (const el of RESET_TEXT_FIELDS) el.value = el.defaultValue;
     for (const el of RESET_CHECKBOXES) el.checked = el.defaultChecked;
@@ -2295,13 +2352,20 @@ declare const BridgeShared: {
     }
     for (const r of rows) addLoraRow(r.n, r.s);
 
-    if (prompt['240']) {
+    if (prompt['i2i_encode']) {
+      img2imgMode.checked = true;
+      skipRefImage.checked = false;
+      const dn = prompt['158:53'] && prompt['158:53'].inputs.denoise;
+      if (typeof dn === 'number' || typeof dn === 'string') img2imgDenoise.value = String(dn);
+    } else if (prompt['240']) {
+      img2imgMode.checked = false;
       skipRefImage.checked = false;
       lliteStrength.value = String(prompt['240'].inputs.strength != null ? prompt['240'].inputs.strength : 0);
       lliteStartPercent.value = String(prompt['240'].inputs.start_percent != null ? prompt['240'].inputs.start_percent : 0);
       lliteEndPercent.value = String(prompt['240'].inputs.end_percent != null ? prompt['240'].inputs.end_percent : 0);
       llitePreserveWrapper.checked = Boolean(prompt['240'].inputs.preserve_wrapper);
     } else {
+      img2imgMode.checked = false;
       skipRefImage.checked = true;
     }
     applySkipRefImageUI();
