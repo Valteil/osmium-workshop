@@ -5235,6 +5235,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     padding: 6px 8px 8px; border-bottom: 1px solid var(--border-soft); margin-bottom: 4px;
     word-break: break-all;
   }
+  /* Tag menu opened inside a saved character's section (view.ts openTagContextMenu). */
+  .ctx-header.ctx-header-pool{ display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .ctx-pool-del{
+    flex-shrink: 0; word-break: normal; white-space: nowrap;
+    font-family: var(--ui-font, inherit); font-size: 11px; padding: 2px 8px; min-height: 0;
+    color: var(--danger, #e5484d); border-color: color-mix(in srgb, var(--danger, #e5484d) 55%, transparent);
+  }
   .ctx-item{
     all: unset; cursor: pointer; padding: 7px 8px; border-radius: 5px;
     font-size: 12.5px; color: var(--text-primary);

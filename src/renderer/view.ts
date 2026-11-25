@@ -33,7 +33,7 @@ import { renderTagPruners } from './tag-pruner';
 import { tagSingleImageWithWd14 } from './wd14-tagger';
 import { setIconLabel, iconSvg } from './icons';
 import { ghostTagsFor, resweepAllEntries, restoreEntryFromRules, type GhostTag } from './canonical-tags';
-import { subjectPresets, upsertSubjectPreset, deleteSubjectPreset, subjectPresetById } from './subject-presets';
+import { subjectPresets, upsertSubjectPreset, deleteSubjectPreset, subjectPresetById, removeTagFromSubjectPreset } from './subject-presets';
 import { openImageEditsModal } from './edit-log';
 
 export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
@@ -2319,7 +2319,12 @@ function buildSubjectBlock(entry: Entry, subject: TagSubject, index: number, tag
       b.type = 'button';
       b.className = 'chip tagsub-offer';
       b.textContent = '+ ' + t;
-      b.title = `Add "${t}" to this image, in this character`;
+      b.title = `Add "${t}" to this image, in this character (right-click for options)`;
+      b.addEventListener('contextmenu', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openTagContextMenu(entry, t, ev.clientX, ev.clientY, subject);
+      });
       b.addEventListener('click', () => {
         addTagToEntry(entry, t);
         if (entry.tags.includes(t)) assignTagsToSubject(entry, [t], subject.id);
@@ -3329,7 +3334,9 @@ function tokenizeTag(tag: string): string[] {
   return uniq.length > 1 ? uniq : [];
 }
 
-function openTagContextMenu(entry: Entry, tag: string, x: number, y: number): void {
+// poolSubject: the character section the tag was opened from when it isn't on
+// the image (a "Saved, not on this image" offer); chips find theirs via tagAssign.
+function openTagContextMenu(entry: Entry, tag: string, x: number, y: number, poolSubject?: TagSubject): void {
   closeTagContextMenu();
   const index = buildTagIndex();
   const set = index.get(tag) || new Set();
@@ -3339,7 +3346,30 @@ function openTagContextMenu(entry: Entry, tag: string, x: number, y: number): vo
 
   const header = document.createElement('div');
   header.className = 'ctx-header';
-  header.textContent = `${tag} · ${set.size} image${set.size===1?'':'s'}`;
+  const headerText = document.createElement('span');
+  headerText.textContent = `${tag} · ${set.size} image${set.size===1?'':'s'}`;
+  header.appendChild(headerText);
+  // In a character section linked to a saved character that holds this tag:
+  // drop the tag from the saved character (the image's own tags stay as they are).
+  const assignedId = entry.meta?.tagAssign?.[tag];
+  const subject = poolSubject || (assignedId ? entry.meta?.tagSubjects?.find(s => s.id === assignedId) : undefined);
+  const pool = subjectPresetById(subject?.presetId);
+  if (pool && pool.tags.includes(tag)){
+    header.classList.add('ctx-header-pool');
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'ctx-pool-del';
+    del.textContent = 'Delete tag from pool';
+    del.title = `Remove "${tag}" from the saved character "${pool.name}". This image keeps its tags.`;
+    del.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      removeTagFromSubjectPreset(pool.id, tag);
+      closeTagContextMenu();
+      toast(`Removed "${tag}" from "${pool.name}".`, 2600);
+      renderCurrentView();
+    });
+    header.appendChild(del);
+  }
   menu.appendChild(header);
 
   addContextMenuItem(menu, 'Show all images WITH this tag', () => {

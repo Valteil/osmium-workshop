@@ -27,6 +27,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   section, hold it near the top or bottom edge of the tag panel and the panel scrolls.
 - **Update saved keeps the character's other tags:** updating a saved character from an image no
   longer drops its saved tags that image doesn't have; only tags you moved out of the section go.
+- **Delete tag from pool:** right-click a tag in a saved character's section (or one of its
+  "Saved, not on this image" offers) and use **Delete tag from pool** in the menu's header to take
+  it out of the saved character. The image's own tags don't change.
 
 ### Comfy Bridge
 

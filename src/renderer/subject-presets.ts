@@ -56,6 +56,13 @@ export function upsertSubjectPreset(name: string, tags: string[]): SubjectPreset
   return preset;
 }
 
+export function removeTagFromSubjectPreset(id: string, tag: string): void {
+  const preset = subjectPresets.find(p => p.id === id);
+  if (!preset) return;
+  preset.tags = preset.tags.filter(t => t !== tag);
+  void saveSubjectPresets();
+}
+
 export function deleteSubjectPreset(id: string): void {
   subjectPresets = subjectPresets.filter(p => p.id !== id);
   void saveSubjectPresets();
