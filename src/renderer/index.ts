@@ -737,6 +737,26 @@ import { setIconLabel } from './icons';
     topbarActions.style.transform = scale < 1 ? `scale(${scale})` : '';
   }
   new ResizeObserver(updateTopbarScale).observe(topbarActions);
+
+  // Top bar collapse: ▲ (after Help) folds the brand/File/Settings row up,
+  // ▼ at the tab bar's right end brings it back. Remembered across launches;
+  // ignored at phone width (the CSS hides both buttons there).
+  const TOPBAR_COLLAPSED_KEY = 'dts-topbar-collapsed';
+  const topbarEl = document.getElementById('topbar')!;
+  const topbarExpandBtn = document.getElementById('btnTopbarExpand')!;
+  function applyTopbarCollapse(): void {
+    const on = getBool(TOPBAR_COLLAPSED_KEY, false) && !topbarNarrowQuery.matches;
+    topbarEl.classList.toggle('topbar-collapsed', on);
+    topbarExpandBtn.style.display = on ? '' : 'none';
+  }
+  function setTopbarCollapsed(on: boolean): void {
+    setBool(TOPBAR_COLLAPSED_KEY, on);
+    applyTopbarCollapse();
+  }
+  document.getElementById('btnTopbarCollapse')!.addEventListener('click', () => setTopbarCollapsed(true));
+  topbarExpandBtn.addEventListener('click', () => setTopbarCollapsed(false));
+  topbarNarrowQuery.addEventListener('change', applyTopbarCollapse);
+  applyTopbarCollapse();
   // The row's own box doesn't resize when a theme swaps in wider faces, so
   // the observer above never fires then — re-scale on every theme switch and
   // whenever a (swap-displayed) webfont finishes loading, or wide-face

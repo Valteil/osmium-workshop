@@ -3875,6 +3875,21 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     border-color: var(--accent-manual); color: var(--accent-manual); font-weight: 600;
   }
   .topbar-help-btn:hover:not(:disabled){ background: var(--accent-manual-dim); }
+  /* Top bar collapse (index.ts setTopbarCollapsed): ▲ after Help folds the
+     bar up, ▼ at the tab bar's far right brings it back. Desktop only. */
+  .topbar-collapse-btn, .topbar-expand-btn{
+    flex-shrink: 0; padding: 2px 7px; min-height: 0; line-height: 0;
+  }
+  .topbar-expand-btn{ margin-left: auto; align-self: center; }
+  #topbar{
+    max-height: 200px;
+    transition: max-height var(--panel-dur) var(--pop-ease), min-height var(--panel-dur) var(--pop-ease), padding var(--panel-dur) var(--pop-ease), opacity var(--panel-dur) var(--pop-ease);
+  }
+  #topbar.topbar-collapsed{
+    max-height: 0; min-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0;
+    overflow: hidden; border-bottom-width: 0; box-shadow: none; pointer-events: none;
+  }
+  @media (max-width: 900px){ .topbar-collapse-btn, .topbar-expand-btn{ display: none !important; } }
 
   #topbar {
     display: flex;

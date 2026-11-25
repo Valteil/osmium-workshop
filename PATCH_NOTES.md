@@ -21,6 +21,12 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   group too, and typing `tag group:hair styles` in the lookup works.
 - **Mouse Back / Forward in the Wiki window:** the side buttons go back and forward through the
   tags and groups you've opened.
+- **Hide the top bar:** a ▲ after Help folds the top bar (brand, File, Settings, …) away for more
+  room; the ▼ at the tab bar's right end brings it back. Remembered between launches.
+- **Dragging tags scrolls the panel:** while dragging a chip or category toward a character
+  section, hold it near the top or bottom edge of the tag panel and the panel scrolls.
+- **Update saved keeps the character's other tags:** updating a saved character from an image no
+  longer drops its saved tags that image doesn't have; only tags you moved out of the section go.
 
 ### Comfy Bridge
 

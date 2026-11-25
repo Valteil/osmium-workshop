@@ -2068,7 +2068,14 @@ function saveSubjectAsPreset(entry: Entry, subject: TagSubject, index: number, o
   const assign = entry.meta?.tagAssign || {};
   const tags = entry.tags.filter(t => assign[t] === subject.id);
   if (!tags.length){ toast('Move some tags into this character first, then save it.', 3200); return; }
-  const preset = upsertSubjectPreset(subjectLabel(subject, index), tags);
+  // Updating keeps the saved tags this image simply doesn't have (they're
+  // offered, not removed). A saved tag the image has but that sits outside
+  // this section was moved out on purpose, so that one does drop.
+  const name = subjectLabel(subject, index);
+  const key = name.trim().toLowerCase();
+  const existing = subjectPresetById(subject.presetId) || subjectPresets.find(p => p.name.trim().toLowerCase() === key);
+  if (existing) for (const t of existing.tags) if (!entry.tags.includes(t) && !tags.includes(t)) tags.push(t);
+  const preset = upsertSubjectPreset(name, tags);
   subject.presetId = preset.id;
   persistEntryMeta(entry);
   toast(`Saved "${preset.name}" (${tags.length} tags) to this dataset. Load it on any image from "Load character".`, 3600);
@@ -2098,6 +2105,33 @@ function startSubjectDrag(ev: DragEvent, tags: string[]): void {
   ev.dataTransfer.setData(SUBJECT_DRAG_TYPE, tags.join('\n'));
   ev.dataTransfer.effectAllowed = 'move';
   ev.stopPropagation();
+  installSubjectDragAutoScroll();
+}
+
+// Native drags don't scroll the panel, so a chip low in the tag card could
+// never reach the character sections at its top. While a subject drag is on,
+// holding the pointer near the top/bottom edge of whatever scrolls under it
+// scrolls that, faster the closer to the edge. dragover keeps firing while
+// the pointer holds still, so it alone drives the scroll.
+let subjectDragAutoScrollOn = false;
+function installSubjectDragAutoScroll(): void {
+  if (subjectDragAutoScrollOn) return;
+  subjectDragAutoScrollOn = true;
+  const EDGE = 70, MAX_STEP = 24;
+  document.addEventListener('dragover', (ev) => {
+    if (!ev.dataTransfer?.types.includes(SUBJECT_DRAG_TYPE)) return;
+    for (let el = ev.target instanceof Element ? ev.target : null; el; el = el.parentElement){
+      if (el.scrollHeight <= el.clientHeight + 1) continue;
+      const oy = getComputedStyle(el).overflowY;
+      if (oy !== 'auto' && oy !== 'scroll') continue;
+      const r = el.getBoundingClientRect();
+      const top = Math.max(r.top, 0), bottom = Math.min(r.bottom, window.innerHeight);
+      let step = 0;
+      if (ev.clientY < top + EDGE && el.scrollTop > 0) step = -Math.ceil(MAX_STEP * (1 - (ev.clientY - top) / EDGE));
+      else if (ev.clientY > bottom - EDGE && el.scrollTop + el.clientHeight < el.scrollHeight - 1) step = Math.ceil(MAX_STEP * (1 - (bottom - ev.clientY) / EDGE));
+      if (step){ el.scrollTop += step; return; }
+    }
+  }, true);
 }
 
 // A chip that can be dragged to a section / the main field, or shift-clicked
