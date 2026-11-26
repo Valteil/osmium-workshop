@@ -1,6 +1,6 @@
 {
   "name": "comfy-bridge",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Standalone desktop interface for a ComfyUI instance, built on Osmium Workshop's SynthDat Overseer generation workflow — no dataset, no accept/reject, just Generate.",
   "main": "main.js",
   "author": "",
@@ -48,8 +48,14 @@
       "local-comfy/**/*"
     ],
     "extraFiles": [
-      { "from": "../LICENSE", "to": "LICENSE" },
-      { "from": "../THIRD_PARTY_NOTICES.md", "to": "THIRD_PARTY_NOTICES.md" }
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
+      }
     ],
     "directories": {
       "output": "dist"
