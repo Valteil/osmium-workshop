@@ -89,8 +89,8 @@ export type LightboxInfo = (src: string, close: () => void, key?: string) => HTM
 // `onStep` hears each image ← / → moves to (the result carousel follows it).
 // `full` (the phone's PC gallery): `src` and the siblings are small
 // thumbnails; the lightbox opens on the thumbnail at once and swaps in the
-// full file when `full` returns it. The info panel waits for the full file,
-// since a thumbnail carries no generation settings.
+// full file when `full` returns it. The info panel reads the thumbnail
+// meanwhile (it carries the generation details) and is rebuilt on arrival.
 export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo, infoDeferred?: boolean, onStep?: (src: string) => void, full?: (key: string) => Promise<string | null>): void {
   if (!src) return;
   closeLightbox();
@@ -98,9 +98,8 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   backdrop.className = 'lightbox-backdrop';
   const img = document.createElement('img');
   img.src = src;
-  // The shown image's sibling entry, and whether its full file is still due.
+  // The shown image's sibling entry.
   let cur = src;
-  let pending = false;
   let closed = false;
   const status = document.createElement('div');
   status.className = 'lightbox-status';
@@ -113,12 +112,10 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   backdrop.appendChild(closeBtn);
   function loadFull(key: string): void {
     if (!full) return;
-    pending = true;
     status.textContent = 'Loading the full image…';
     backdrop.appendChild(status);
     full(key).then((u) => u, () => null).then((u) => {
       if (closed || cur !== key) return;
-      pending = false;
       if (u) { img.src = u; status.remove(); }
       else status.textContent = 'Couldn\'t fetch the full image — showing the small preview.';
       if (info && (!infoDeferred || infoShown)) renderInfo();
@@ -232,15 +229,9 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   }
   function renderInfo(): void {
     if (!info) return;
-    let next: HTMLElement | null;
-    if (pending) {
-      next = document.createElement('div');
-      next.className = 'gen-info';
-      const wait = document.createElement('div');
-      wait.className = 'gen-info-empty';
-      wait.textContent = 'Loading the full image…';
-      next.appendChild(wait);
-    } else next = info(img.src, close, cur);
+    // While the full file is due this reads the thumbnail, which carries the
+    // generation details itself (runner gallery_thumb_exif); rebuilt on arrival.
+    const next = info(img.src, close, cur);
     if (infoEl) infoEl.remove();
     infoEl = next;
     if (infoEl) {
@@ -256,7 +247,6 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
     img.src = next;
     cur = next;
     status.remove();
-    pending = false;
     loadFull(next);
     scale = 1;
     panX = 0;
