@@ -796,10 +796,27 @@ declare const BridgeShared: {
       return 'data:' + mime + ';base64,' + BridgeShared.bytesToBase64(body);
     })().catch(() => null);
   }
+  // Opened full images are kept (newest ~80 MB of data URLs): over a relayed
+  // Tailscale link a 5 MB PNG takes ~20 s, and reopening or stepping back to
+  // one re-downloaded it every time. In-flight reads are shared too.
+  const pcFullCache = new Map<string, Promise<string | null>>();
+  const pcFullSizes = new Map<string, number>();
   function pcFullSrc(rel: string): Promise<string | null> {
-    return (async () => {
-      return await pcGalleryBackend().readImage(rel);
-    })().catch(() => null);
+    const hit = pcFullCache.get(rel);
+    if (hit) { pcFullCache.delete(rel); pcFullCache.set(rel, hit); return hit; }
+    const p = pcGalleryBackend().readImage(rel).then((src) => {
+      pcFullSizes.set(rel, src.length);
+      let total = 0;
+      for (const n of pcFullSizes.values()) total += n;
+      for (const k of pcFullCache.keys()) {
+        if (total <= 80e6 || k === rel) break;
+        total -= pcFullSizes.get(k) || 0;
+        pcFullCache.delete(k); pcFullSizes.delete(k);
+      }
+      return src as string | null;
+    }).catch(() => { pcFullCache.delete(rel); pcFullSizes.delete(rel); return null; });
+    pcFullCache.set(rel, p);
+    return p;
   }
   BridgeShared.mountGallerySidebar(mobileBackend, saveLocationLabelText, {
     // Folder navigation with the path listing at the top (v2.0.0: the
