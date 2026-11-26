@@ -2220,6 +2220,8 @@ declare const BridgeShared: {
   }
   async function useTagsAsPrompt(tags: string) {
     regional.exit(); // the tags go into the prompt boxes, so those are what Generate uses
+    // Locked prompt boxes keep their text (prompt-locks.ts), as with every import.
+    const restoreLocked = BridgeShared.keepLockedPrompts();
     if (unifiedPromptMode.checked) {
       unifiedPrompt.value = tags;
     } else {
@@ -2231,10 +2233,11 @@ declare const BridgeShared: {
       for (const id of Object.keys(boxes)) boxes[id].value = split[id] || '';
       global_.value = [keepGlobal, split.global || ''].filter(Boolean).join(', ');
     }
+    restoreLocked();
     autoGrowAll();
     void refreshSavePreview();
     scheduleUiSave();
-    log('Used the WD14 tags as the prompt (Global, Character trigger and Negative kept).');
+    log('Used the WD14 tags as the prompt (Global, Character trigger, Negative and locked boxes kept).');
   }
   const wd14Panel = BridgeShared.mountWd14Panel($('wd14Panel'), {
     tag: comfyTag,

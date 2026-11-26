@@ -201,7 +201,7 @@ export function mountWd14Panel(host: HTMLElement, opts: Wd14PanelOptions): Wd14P
   const actRow = el('div', 'row wd14-actions');
   const copyBtn = el('button', '', 'Copy'); copyBtn.type = 'button'; copyBtn.title = 'Copy the tags to the clipboard.';
   const useBtn = el('button', '', 'Use as prompt'); useBtn.type = 'button';
-  useBtn.title = 'Put the tags into the prompt: sorted into the prompt boxes (or the single prompt box), replacing what is there. Your Global field (artist/style), Character trigger, Negative, models and LoRAs are kept.';
+  useBtn.title = 'Put the tags into the prompt: sorted into the prompt boxes (or the single prompt box), replacing what is there. Locked boxes, your Global field (artist/style), Character trigger, Negative, models and LoRAs are kept.';
   const nextBtn = el('button', '', 'Save .txt next to the image'); nextBtn.type = 'button';
   nextBtn.title = 'Writes <image name>.txt in the image\'s own folder.';
   const copyOutBtn = el('button', '', 'Save copy + .txt to output'); copyOutBtn.type = 'button';

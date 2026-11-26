@@ -1709,6 +1709,8 @@ let lastSavedImages: Wd14SavedImage[] = [];
 let wd14TagModels: string[] = [];
 async function useTagsAsPrompt(tags: string): Promise<void> {
   regional.exit(); // the tags go into the prompt boxes, so those are what Generate uses
+  // Locked prompt boxes keep their text (prompt-locks.ts), as with every import.
+  const restoreLocked = keepLockedPrompts();
   if (unifiedPromptMode.checked) {
     unifiedPrompt.value = tags;
   } else {
@@ -1718,10 +1720,11 @@ async function useTagsAsPrompt(tags: string): Promise<void> {
     for (const [id, text] of Object.entries(split)) PROMPT_BOX[id as PromptFieldId].value = text;
     global_.value = [keepGlobal, split.global].filter(Boolean).join(', ');
   }
+  restoreLocked();
   autoGrowAll();
   void refreshSavePreview();
   scheduleUiSave();
-  log('Used the WD14 tags as the prompt (Global, Character trigger and Negative kept).');
+  log('Used the WD14 tags as the prompt (Global, Character trigger, Negative and locked boxes kept).');
 }
 const wd14Panel = mountWd14Panel($<HTMLDivElement>('wd14Panel'), {
   async tag(prompt, imageName, bytes) {

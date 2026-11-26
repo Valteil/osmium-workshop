@@ -117,6 +117,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   thumbnails only** tickbox (next to Phone | PC, and in the Compare tab) keeps opened images as
   the small preview and never downloads the full file. A full image the phone already fetched
   reopens at once instead of downloading again.
+- **Fixed:** WD14 tags' **Use as prompt** overwrote locked prompt boxes. Locked boxes now keep
+  their text, as with imported generations.
 - **Fixed:** on a slow link, full-size PC images from the phone seemed never to arrive. Each one
   you opened kept downloading after you closed it or stepped away, so the next one waited behind
   it. Leaving an image now cancels its download, and the viewer shows how much has arrived.
