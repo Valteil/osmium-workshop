@@ -64,6 +64,7 @@ declare const BridgeShared: {
   characterIndex: () => Promise<{ byTag: Map<string, string>; names: string[] }>;
   recognizeCharacter: (field: string, index: { byTag: Map<string, string> }) => string;
   ratingFolder: (ratingText: string) => string;
+  applySaveFolders: (prompt: Record<string, any>, rating: string, character: string) => void;
   safeSegment: (s: string) => string;
   fileBaseName: (path: string) => string;
   joinNameParts: (parts: string[]) => string;
@@ -2002,13 +2003,17 @@ declare const BridgeShared: {
     if (needsImage && !refBytes) { log(img2imgMode.checked ? 'Pick the image to start from first.' : 'Pick a reference image first (or check "No image").'); return; }
     await loadTemplate();
     const passCount = use2Pass.checked ? 2 : 1;
+    const naming = await currentNaming();
+    const prompt = buildPrompt();
+    // The PC's own output-folder copy goes in the same rating/character folders.
+    BridgeShared.applySaveFolders(prompt, naming.rating, naming.character);
     genQueue.push({
-      prompt: buildPrompt(),
+      prompt,
       imageFilename: needsImage ? refFilename : null,
       imageBytes: needsImage ? refBytes : null,
       passCount,
       totalStages: passCount + (((upscaleEnabled.checked && upscaleModel.value.trim()) || usdu.activeForGeneration()) ? 1 : 0),
-      naming: await currentNaming(),
+      naming,
       redraw: usdu.enabled() && usdu.isImg2img()
     });
     startQueue();

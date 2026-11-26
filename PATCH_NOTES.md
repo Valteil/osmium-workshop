@@ -111,6 +111,20 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   metadata** is now a tap-to-pick field (the same list as the Generate tab's model fields) and reads
   the LoRA you pick; **LoRA lookup** has a **Your LoRAs…** button that looks the pick up, and its
   box still takes any name or a pasted hash.
+- **PC gallery on the phone shows generation details over a slow link:** the PC's thumbnails now
+  carry their image's generation settings, so **Details** shows them as soon as an image opens.
+  The full image swaps in when it arrives, and ← / → fetches each one in turn. A new **Load
+  thumbnails only** tickbox (next to Phone | PC, and in the Compare tab) keeps opened images as
+  the small preview and never downloads the full file.
+- **Fixed:** opening a PC image from the phone waited on the full file. If that was slow it then
+  showed only the small preview, sometimes after you had already closed the viewer, and Details
+  said the image's settings were stripped.
+- **Fixed:** the copy ComfyUI saves on the PC now goes in the same rating and character folders
+  as the app's own save. Before, a custom or OC character folder (or a character picked from the
+  list) only showed up in the app's copy; the PC's copy stopped at the rating folder, e.g.
+  `safe`, unless the Character field held a Danbooru character.
+- **Fixed (phone):** dragging a Regional box scrolled the page, so the canvas slid out from under
+  your finger. Drawing a box also no longer pops up the keyboard.
 
 ---
 

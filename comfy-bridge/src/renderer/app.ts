@@ -88,7 +88,7 @@ import {
   attachLoraPicker, mountLoraTriggers, setLoraCardHost, loadLoraCards
 } from './shared/index';
 import type { StorageBackend, DirEntry } from './shared/storage';
-import { buildSynthDatPrompt, RES4LYF_PREFIX, describeUnload, type UnloadResult } from '../comfy-core';
+import { buildSynthDatPrompt, applySaveFolders, RES4LYF_PREFIX, describeUnload, type UnloadResult } from '../comfy-core';
 
 function $<T extends HTMLElement>(id: string): T { return document.getElementById(id) as T; }
 
@@ -1573,12 +1573,16 @@ async function generate(): Promise<void> {
   applySeedMode(seed1, seed1Mode.value);
   applySeedMode(seed2, seed2Mode.value);
   await loadTemplate();
+  const naming = await currentNaming();
+  const prompt = buildPrompt();
+  // ComfyUI's own output-folder copy goes in the same rating/character folders.
+  applySaveFolders(prompt, naming.rating, naming.character);
   genQueue.push({
     host: getHost(),
-    prompt: buildPrompt(),
+    prompt,
     imageFilename: needsImage ? refFilename : null,
     imageBytes: needsImage ? new Uint8Array(await refFile!.arrayBuffer()) : null,
-    naming: await currentNaming(),
+    naming,
     redraw: usdu.enabled() && usdu.isImg2img()
   });
   await startQueue();

@@ -303,6 +303,23 @@ export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromp
   return prompt;
 }
 
+// Comfy Bridge's save naming for the copy ComfyUI itself writes into its
+// output folder: the filename chain (#37, and #222 for upscales) takes the
+// app's own rating and character folders as plain strings instead of the
+// template's Rating-contains-"explicit" switch (#35) and Danbooru Character
+// Detect (#203). Otherwise a custom or OC folder, or a Danbooru tag picked by
+// hand, never reaches the PC copy (it landed in just "safe"). An empty value
+// drops that folder, the same as the app's preview.
+export function applySaveFolders(prompt: SynthDatPrompt, rating: string, character: string): void {
+  for (const id of ['37', '222']) {
+    if (!prompt[id]) continue;
+    prompt[id].inputs.text_a = rating;
+    prompt[id].inputs.text_b = character;
+  }
+  // Only #37/#222 read these; left in they'd be dead nodes.
+  for (const id of ['203', '35', '28', '36']) delete prompt[id];
+}
+
 // ---- WD14 tagging graph + queue/history parsing ----
 // The WD14 LoadImage -> WD14Tagger|pysssss graph, the /prompt response
 // interpretation, and the /history tag extraction were each duplicated between
