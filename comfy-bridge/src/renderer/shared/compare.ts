@@ -17,13 +17,13 @@
 // default follows prefers-reduced-motion). Off = every change is instant.
 import type { StorageBackend } from './storage';
 import { isGalleryImage, fileNumber } from './storage';
-import { showImageLightbox, closeLightbox, remoteThumbsOnly, remoteThumbsToggle, type LightboxInfo } from './lightbox';
+import { showImageLightbox, closeLightbox, remoteThumbsOnly, remoteThumbsToggle, type LightboxInfo, type FullOpts } from './lightbox';
 
 export interface CompareSource {
   label: string;
   backend(): StorageBackend;
   thumbSrc?: (rel: string) => Promise<string | null>;
-  fullSrc?: (rel: string) => Promise<string | null>;
+  fullSrc?: (rel: string, opts?: FullOpts) => Promise<string | null>;
 }
 export interface CompareDeps {
   sources: CompareSource[];
@@ -727,7 +727,7 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
         // the full file (and fetches each one ← / → steps to).
         if (!im.src) return;
         const info: LightboxInfo = (srcUrl, close, key) => deps.details(srcUrl, gridRel(key || srcUrl) || rel, close);
-        const fullOf = s.fullSrc ? (key: string) => { const r = gridRel(key); return r ? s.fullSrc!(r) : Promise.resolve(null); } : undefined;
+        const fullOf = s.fullSrc ? (key: string, o?: FullOpts) => { const r = gridRel(key); return r ? s.fullSrc!(r, o) : Promise.resolve(null); } : undefined;
         showImageLightbox(im.src, gridSrcs, info, deps.lazyInfo, undefined, remoteThumbsOnly() ? undefined : fullOf);
       });
       // Long-press on a touch screen adds; desktop right-click keeps its menu.

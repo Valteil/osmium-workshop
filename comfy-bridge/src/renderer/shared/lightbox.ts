@@ -91,7 +91,12 @@ export type LightboxInfo = (src: string, close: () => void, key?: string) => HTM
 // thumbnails; the lightbox opens on the thumbnail at once and swaps in the
 // full file when `full` returns it. The info panel reads the thumbnail
 // meanwhile (it carries the generation details) and is rebuilt on arrival.
-export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo, infoDeferred?: boolean, onStep?: (src: string) => void, full?: (key: string) => Promise<string | null>): void {
+// `signal` aborts a fetch the viewer no longer wants (closed / stepped away),
+// so an unwanted download doesn't hog a slow link; `onProgress` drives the
+// status line.
+export type FullOpts = { signal?: AbortSignal; onProgress?: (loaded: number, total: number) => void };
+export type LightboxFull = (key: string, opts?: FullOpts) => Promise<string | null>;
+export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo, infoDeferred?: boolean, onStep?: (src: string) => void, full?: LightboxFull): void {
   if (!src) return;
   closeLightbox();
   const backdrop = document.createElement('div');
@@ -110,11 +115,22 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   closeBtn.textContent = '×';
   backdrop.appendChild(img);
   backdrop.appendChild(closeBtn);
+  let fullAbort: AbortController | null = null;
   function loadFull(key: string): void {
+    fullAbort?.abort();
+    fullAbort = null;
     if (!full) return;
+    const ctl = new AbortController();
+    fullAbort = ctl;
     status.textContent = 'Loading the full image…';
     backdrop.appendChild(status);
-    full(key).then((u) => u, () => null).then((u) => {
+    const mb = (n: number) => (n / 1048576).toFixed(1);
+    const onProgress = (loaded: number, total: number) => {
+      if (closed || cur !== key) return;
+      status.textContent = 'Loading the full image… ' + mb(loaded) + (total > 0 ? ' / ' + mb(total) : '') + ' MB';
+    };
+    full(key, { signal: ctl.signal, onProgress }).then((u) => u, () => null).then((u) => {
+      if (fullAbort === ctl) fullAbort = null;
       if (closed || cur !== key) return;
       if (u) { img.src = u; status.remove(); }
       else status.textContent = 'Couldn\'t fetch the full image — showing the small preview.';
@@ -207,6 +223,7 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
 
   function close(): void {
     closed = true;
+    fullAbort?.abort();
     if (closeOpenLightbox === close) closeOpenLightbox = null;
     backdrop.classList.remove('modal-visible');
     setTimeout(() => backdrop.remove(), 160);

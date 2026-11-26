@@ -117,6 +117,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   thumbnails only** tickbox (next to Phone | PC, and in the Compare tab) keeps opened images as
   the small preview and never downloads the full file. A full image the phone already fetched
   reopens at once instead of downloading again.
+- **Fixed:** on a slow link, full-size PC images from the phone seemed never to arrive. Each one
+  you opened kept downloading after you closed it or stepped away, so the next one waited behind
+  it. Leaving an image now cancels its download, and the viewer shows how much has arrived.
 - **Fixed:** opening a PC image from the phone waited on the full file. If that was slow it then
   showed only the small preview, sometimes after you had already closed the viewer, and Details
   said the image's settings were stripped.

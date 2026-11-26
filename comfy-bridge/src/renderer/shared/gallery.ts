@@ -11,7 +11,7 @@
 // thumbnail for the zoomable lightbox.
 import type { StorageBackend } from './storage';
 import { scanImages, groupByFolder, fileNumber, isGalleryImage } from './storage';
-import { showImageLightbox, isLightboxOpen, closeLightbox, remoteThumbsOnly, remoteThumbsToggle, type LightboxInfo } from './lightbox';
+import { showImageLightbox, isLightboxOpen, closeLightbox, remoteThumbsOnly, remoteThumbsToggle, type LightboxInfo, type FullOpts } from './lightbox';
 import { bridgeIcon } from './icons';
 
 export interface GalleryHandles {
@@ -36,12 +36,12 @@ export interface GalleryOptions {
   // More than one backend -> a switch row in the panel head (the phone: its
   // own save location vs the PC's picked folder over the relay). Switching
   // resets the folder and re-renders.
-  sources?: { label: string; backend(): StorageBackend; thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string) => Promise<string | null> }[];
+  sources?: { label: string; backend(): StorageBackend; thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string, opts?: FullOpts) => Promise<string | null> }[];
   // Data saver: the grid loads `thumbSrc` (a small version) instead of the
   // full image; an opened image fetches `fullSrc` (the whole file) once.
   // Without these the grid uses request-readImage for both.
   thumbSrc?: (rel: string) => Promise<string | null>;
-  fullSrc?: (rel: string) => Promise<string | null>;
+  fullSrc?: (rel: string, opts?: FullOpts) => Promise<string | null>;
   // An "Info" button in the lightbox instead of an always-on panel (the
   // phone's narrow screen); the desktop keeps its on-at-once panel.
   lazyInfo?: boolean;
@@ -132,7 +132,7 @@ async function renderThumbSlice(
   h: GalleryHandles,
   token: number,
   rels: string[],
-  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string) => Promise<string | null> },
+  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string, opts?: FullOpts) => Promise<string | null> },
   opts?: GalleryOptions
 ): Promise<boolean> {
   const imgs: HTMLImageElement[] = [];
@@ -180,7 +180,7 @@ async function renderThumbSlice(
     // Opens on the thumbnail at once; the lightbox swaps in the full file
     // (and fetches each one ← / → steps to).
     const fullSrc = srcs?.fullSrc;
-    const full = fullSrc ? (key: string) => { const r = galleryThumbRel(h, key); return r ? fullSrc(r) : Promise.resolve(null); } : undefined;
+    const full = fullSrc ? (key: string, o?: FullOpts) => { const r = galleryThumbRel(h, key); return r ? fullSrc(r, o) : Promise.resolve(null); } : undefined;
     img.addEventListener('click', () => {
       showImageLightbox(img.src, () => galleryThumbUrls(h), info, mountedOpts?.lazyInfo, undefined, remoteThumbsOnly() ? undefined : full);
     });
@@ -448,7 +448,7 @@ export async function renderBrowserLevel(
   h: GalleryHandles,
   locationLabel: string,
   state: BrowserState,
-  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string) => Promise<string | null> },
+  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string, opts?: FullOpts) => Promise<string | null> },
   minShown = 0
 ): Promise<void> {
   const token = ++galleryRenderToken;
@@ -587,7 +587,7 @@ export async function renderGallery(
   backend: StorageBackend,
   h: GalleryHandles,
   locationLabel: string,
-  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string) => Promise<string | null> }
+  srcs?: { thumbSrc?: (rel: string) => Promise<string | null>; fullSrc?: (rel: string, opts?: FullOpts) => Promise<string | null> }
 ): Promise<void> {
   const token = ++galleryRenderToken;
   h.navRow.style.display = 'none';

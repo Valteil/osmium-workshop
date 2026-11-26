@@ -734,11 +734,11 @@ declare const BridgeShared: {
   // usually gets through. Only lost/silent requests retry; an HTTP answer
   // (even an error) is returned as-is. timeoutMs is silence, not total time
   // (comfyTransport re-arms it on download progress).
-  async function pcRequest(path: string, timeoutMs: number, tries: number) {
+  async function pcRequest(path: string, timeoutMs: number, tries: number, opts?: { signal?: AbortSignal; onProgress?: (loaded: number, total: number) => void }) {
     let lastErr: unknown;
     for (let i = 0; i < tries; i++) {
       try {
-        return await comfyTransport().request(getHost(), path, { timeoutMs });
+        return await comfyTransport(opts?.signal).request(getHost(), path, { timeoutMs, onProgress: opts?.onProgress });
       } catch (err) {
         lastErr = err;
         if (!/^(no response for|network error)/.test(errMsg(err))) throw err;
@@ -774,8 +774,8 @@ declare const BridgeShared: {
           throw e;
         }
       },
-      async readImage(relPath: string) {
-        const res = await pcRequest('/internal/gallery/read?path=' + encodeURIComponent(relPath || ''), 15000, 2);
+      async readImage(relPath: string, opts?: { signal?: AbortSignal; onProgress?: (loaded: number, total: number) => void }) {
+        const res = await pcRequest('/internal/gallery/read?path=' + encodeURIComponent(relPath || ''), 15000, 2, opts);
         if (res.status !== 200) throw new Error('Fetching the image failed (HTTP ' + res.status + ').');
         // The relay answers with the file's own content type.
         const body = new Uint8Array(res.body);
@@ -797,26 +797,24 @@ declare const BridgeShared: {
     })().catch(() => null);
   }
   // Opened full images are kept (newest ~80 MB of data URLs): over a relayed
-  // Tailscale link a 5 MB PNG takes ~20 s, and reopening or stepping back to
-  // one re-downloaded it every time. In-flight reads are shared too.
-  const pcFullCache = new Map<string, Promise<string | null>>();
-  const pcFullSizes = new Map<string, number>();
-  function pcFullSrc(rel: string): Promise<string | null> {
+  // Tailscale link (measured ~10-25 KB/s on 2026-11-26) a 5 MB PNG takes
+  // minutes, and reopening or stepping back to one re-downloaded it. Only
+  // finished reads are kept; the lightbox aborts the ones it stops wanting.
+  const pcFullCache = new Map<string, string>();
+  function pcFullSrc(rel: string, opts?: { signal?: AbortSignal; onProgress?: (loaded: number, total: number) => void }): Promise<string | null> {
     const hit = pcFullCache.get(rel);
-    if (hit) { pcFullCache.delete(rel); pcFullCache.set(rel, hit); return hit; }
-    const p = pcGalleryBackend().readImage(rel).then((src) => {
-      pcFullSizes.set(rel, src.length);
+    if (hit) { pcFullCache.delete(rel); pcFullCache.set(rel, hit); return Promise.resolve(hit); }
+    return pcGalleryBackend().readImage(rel, opts).then((src) => {
+      pcFullCache.set(rel, src);
       let total = 0;
-      for (const n of pcFullSizes.values()) total += n;
-      for (const k of pcFullCache.keys()) {
+      for (const v of pcFullCache.values()) total += v.length;
+      for (const [k, v] of pcFullCache) {
         if (total <= 80e6 || k === rel) break;
-        total -= pcFullSizes.get(k) || 0;
-        pcFullCache.delete(k); pcFullSizes.delete(k);
+        total -= v.length;
+        pcFullCache.delete(k);
       }
       return src as string | null;
-    }).catch(() => { pcFullCache.delete(rel); pcFullSizes.delete(rel); return null; });
-    pcFullCache.set(rel, p);
-    return p;
+    }).catch(() => null);
   }
   BridgeShared.mountGallerySidebar(mobileBackend, saveLocationLabelText, {
     // Folder navigation with the path listing at the top (v2.0.0: the
@@ -1140,7 +1138,10 @@ declare const BridgeShared: {
         }
         // Downloads: the stall timer measures silence, not the total time, so
         // a big image arriving slowly isn't cut off while bytes still flow.
-        xhr.onprogress = () => armStall(init.timeoutMs, 'while downloading');
+        xhr.onprogress = (ev) => {
+          armStall(init.timeoutMs, 'while downloading');
+          init.onProgress?.(ev.loaded, ev.lengthComputable ? ev.total : 0);
+        };
         xhr.onload = () => { done(); resolve({ status: xhr.status, body: new Uint8Array(xhr.response || new ArrayBuffer(0)) }); };
         xhr.onerror = () => { done(); reject(new Error('network error')); };
         armStall(init.timeoutMs, '');
