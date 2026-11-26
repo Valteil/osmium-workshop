@@ -32,7 +32,8 @@ const latin1 = (u8: Uint8Array): string => new TextDecoder('latin1').decode(u8);
 // TIFF/EXIF block (starting at its byte-order mark): the text tags generators
 // use. UserComment (0x9286) is A1111's "parameters"; ComfyUI's WebP saver
 // writes "prompt:{…}" / "workflow:{…}" into Model/Make (0x0110/0x010F) and
-// the tags just below them.
+// the tags just below them. Bridge's own thumbnails add "parameters:" and
+// "comfybridge_output:" tags.
 function exifTexts(tiff: Uint8Array): Record<string, string> {
   const out: Record<string, string> = {};
   if (tiff.length < 8) return out;
@@ -69,7 +70,9 @@ function exifTexts(tiff: Uint8Array): Record<string, string> {
         if (text) out.parameters = text;
       } else if (type === 2 && size > 0) {
         const s = new TextDecoder().decode(data).replace(/\0+$/, '').trim();
-        const m = /^(prompt|workflow):\s*([\s\S]+)$/i.exec(s);
+        // parameters / comfybridge_output: the runner's gallery thumbnails
+        // (gallery_thumb_exif) carry their source PNG's texts this way.
+        const m = /^(prompt|workflow|parameters|comfybridge_output):\s*([\s\S]+)$/i.exec(s);
         if (m) out[m[1].toLowerCase()] = m[2];
         else if (tag === 0x010e && s) out.ImageDescription = s;
       }

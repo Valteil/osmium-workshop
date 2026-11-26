@@ -162,7 +162,9 @@ input[type="checkbox"]:disabled{ opacity:.5; cursor:default; }
 .lightbox-info-btn.active{border-color:var(--accent);color:var(--accent);}
 /* The gallery's source switch (the phone: its save folder vs the PC's over
    the relay/ShareServer). */
-.gallery-source-row{display:flex;gap:6px;margin-bottom:8px;}
+.gallery-source-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.thumbs-only-toggle{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap;}
+.gallery-source-row .thumbs-only-toggle{flex-basis:100%;}
 .gallery-source-btn{flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--muted);font-size:13px;border-radius:6px;padding:8px 10px;min-height:0;}
 .gallery-source-btn.active{border-color:var(--accent);color:var(--accent);font-weight:600;}
 

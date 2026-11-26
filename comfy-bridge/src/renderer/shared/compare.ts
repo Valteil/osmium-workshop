@@ -17,7 +17,7 @@
 // default follows prefers-reduced-motion). Off = every change is instant.
 import type { StorageBackend } from './storage';
 import { isGalleryImage, fileNumber } from './storage';
-import { showImageLightbox, closeLightbox, type LightboxInfo } from './lightbox';
+import { showImageLightbox, closeLightbox, remoteThumbsOnly, remoteThumbsToggle, type LightboxInfo } from './lightbox';
 
 export interface CompareSource {
   label: string;
@@ -608,6 +608,8 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
       });
       srcRow.appendChild(b);
     });
+    // Remote (full-on-open) sources only.
+    if (src().fullSrc) srcRow.appendChild(remoteThumbsToggle());
   }
   function renderCrumb(): void {
     crumb.replaceChildren();
@@ -710,7 +712,7 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
       cell.appendChild(im);
       const full = async (): Promise<string | null> => {
         let u: string | null = null;
-        try { u = s.fullSrc ? await s.fullSrc(rel) : null; } catch { u = null; }
+        try { u = s.fullSrc && !remoteThumbsOnly() ? await s.fullSrc(rel) : null; } catch { u = null; }
         return u || im.src || null;
       };
       const add = async (): Promise<void> => {
@@ -726,7 +728,7 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
         if (!im.src) return;
         const info: LightboxInfo = (srcUrl, close, key) => deps.details(srcUrl, gridRel(key || srcUrl) || rel, close);
         const fullOf = s.fullSrc ? (key: string) => { const r = gridRel(key); return r ? s.fullSrc!(r) : Promise.resolve(null); } : undefined;
-        showImageLightbox(im.src, gridSrcs, info, deps.lazyInfo, undefined, fullOf);
+        showImageLightbox(im.src, gridSrcs, info, deps.lazyInfo, undefined, remoteThumbsOnly() ? undefined : fullOf);
       });
       // Long-press on a touch screen adds; desktop right-click keeps its menu.
       cell.addEventListener('contextmenu', (e) => {

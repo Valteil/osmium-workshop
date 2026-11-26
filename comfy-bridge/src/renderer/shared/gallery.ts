@@ -11,7 +11,7 @@
 // thumbnail for the zoomable lightbox.
 import type { StorageBackend } from './storage';
 import { scanImages, groupByFolder, fileNumber, isGalleryImage } from './storage';
-import { showImageLightbox, isLightboxOpen, closeLightbox, type LightboxInfo } from './lightbox';
+import { showImageLightbox, isLightboxOpen, closeLightbox, remoteThumbsOnly, remoteThumbsToggle, type LightboxInfo } from './lightbox';
 import { bridgeIcon } from './icons';
 
 export interface GalleryHandles {
@@ -182,7 +182,7 @@ async function renderThumbSlice(
     const fullSrc = srcs?.fullSrc;
     const full = fullSrc ? (key: string) => { const r = galleryThumbRel(h, key); return r ? fullSrc(r) : Promise.resolve(null); } : undefined;
     img.addEventListener('click', () => {
-      showImageLightbox(img.src, () => galleryThumbUrls(h), info, mountedOpts?.lazyInfo, undefined, full);
+      showImageLightbox(img.src, () => galleryThumbUrls(h), info, mountedOpts?.lazyInfo, undefined, remoteThumbsOnly() ? undefined : full);
     });
   };
   await Promise.all(Array.from({ length: Math.min(THUMB_PARALLEL, rels.length) }, worker));
@@ -295,6 +295,8 @@ export function mountGallerySidebar(
       });
       row.appendChild(b);
     }
+    // Remote (full-on-open) sources only.
+    if (sources[srcIdx].fullSrc) row.appendChild(remoteThumbsToggle());
   }
   // The active backend owner: with `sources` the source owns it; otherwise
   // it is the mount's own backend (the desktop's default single-source).

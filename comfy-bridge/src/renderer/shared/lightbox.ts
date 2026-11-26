@@ -37,6 +37,35 @@ function attachLightboxPinch(img: HTMLImageElement, onZoomDelta: (delta: number)
   );
 }
 
+// "Load thumbnails only" for remote sources (the phone's PC gallery): opened
+// images stay the small thumbnail (which carries its generation details, see
+// the runner's gallery_thumb_exif) instead of fetching the full file. One
+// setting shared by every view that shows the toggle.
+const THUMBS_ONLY_KEY = 'bridge.remoteThumbsOnly';
+export function remoteThumbsOnly(): boolean {
+  try { return localStorage.getItem(THUMBS_ONLY_KEY) === '1'; } catch { return false; }
+}
+export function remoteThumbsToggle(): HTMLLabelElement {
+  const label = document.createElement('label');
+  label.className = 'thumbs-only-toggle';
+  label.title = 'Opened images stay the small preview (with their generation details) instead of downloading the full file';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = remoteThumbsOnly();
+  box.addEventListener('change', () => {
+    try { localStorage.setItem(THUMBS_ONLY_KEY, box.checked ? '1' : '0'); } catch { /* best effort */ }
+    document.dispatchEvent(new CustomEvent('bridge-thumbs-only'));
+  });
+  // Keeps other views' toggles in step; a rebuilt-away toggle unhooks itself.
+  const sync = (): void => {
+    if (!label.isConnected) { document.removeEventListener('bridge-thumbs-only', sync); return; }
+    box.checked = remoteThumbsOnly();
+  };
+  document.addEventListener('bridge-thumbs-only', sync);
+  label.append(box, document.createTextNode(' Load thumbnails only'));
+  return label;
+}
+
 // The open lightbox's close(), so Back (mouse side button, Android Back) can
 // close it from outside — see the gallery's galleryBack().
 let closeOpenLightbox: (() => void) | null = null;

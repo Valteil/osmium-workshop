@@ -565,6 +565,35 @@ def gallery_read_bytes(abs):
         return f.read(), GALLERY_MIME[ext]
 
 
+def gallery_thumb_exif(src):
+    """The source image's generation texts as EXIF bytes for its thumbnail, in
+    the shape Bridge's reader (prompt-import.ts exifTexts) takes: ASCII tags
+    holding "key:value" (ComfyUI's WebP saver puts "prompt:{...}" in Model).
+    A JPEG/WebP source's own EXIF passes through. The workflow graph is left
+    out (big, and Details doesn't need it). Non-ASCII text is JSON-escaped
+    (prompt) or dropped (A1111 parameters) since EXIF ASCII is 7-bit."""
+    from PIL import Image
+    info = getattr(src, "info", {}) or {}
+    if info.get("exif") and src.format in ("JPEG", "WEBP"):
+        return info["exif"]
+    ex = Image.Exif()
+    prompt = info.get("prompt")
+    if isinstance(prompt, str) and prompt.strip():
+        try:
+            prompt = json.dumps(json.loads(prompt))  # ensure_ascii escapes the rest
+        except ValueError:
+            prompt = None
+        if prompt:
+            ex[0x0110] = "prompt:" + prompt
+    params = info.get("parameters")
+    if isinstance(params, str) and params.strip() and params.isascii():
+        ex[0x0131] = "parameters:" + params
+    kind = info.get("comfybridge_output")
+    if isinstance(kind, str) and kind.isascii() and kind:
+        ex[0x010D] = "comfybridge_output:" + kind
+    return ex.tobytes() if len(ex) else b""
+
+
 def gallery_thumb_bytes(abs, side):
     """A small JPEG for the phone's grid; Pillow is ComfyUI's own dependency.
     Cached by (path, side, mtime) so scrolling doesn't re-encode."""
@@ -579,16 +608,24 @@ def gallery_thumb_bytes(abs, side):
         while len(GALLERY_THUMB_CACHE) > 600:
             GALLERY_THUMB_CACHE.pop(next(iter(GALLERY_THUMB_CACHE)))
         return hit
-    from PIL import Image  # ComfyUI's own dependency; imported lazily.
-    with Image.open(abs) as im:
-        im = im.convert("RGB")
+    from PIL import Image, features  # ComfyUI's own dependency; imported lazily.
+    with Image.open(abs) as src:
+        exif = gallery_thumb_exif(src)
+        im = src.convert("RGB")
         w, h = im.size
         scale = side / max(w, h) if max(w, h) > side else 1.0
         if scale < 1.0:
             im = im.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
         buf = io.BytesIO()
-        im.save(buf, "JPEG", quality=72)
-    out = (buf.getvalue(), "image/jpeg")
+        # WebP carries the source's generation data in EXIF (a RIFF chunk, so
+        # no 64 KB cap like a JPEG APP1), so a thumbnail alone can show Details.
+        if features.check("webp"):
+            im.save(buf, "WEBP", quality=72, **({"exif": exif} if exif else {}))
+            mime = "image/webp"
+        else:
+            im.save(buf, "JPEG", quality=72)
+            mime = "image/jpeg"
+    out = (buf.getvalue(), mime)
     while len(GALLERY_THUMB_CACHE) > 600:
         GALLERY_THUMB_CACHE.pop(next(iter(GALLERY_THUMB_CACHE)))
     GALLERY_THUMB_CACHE[key] = out
