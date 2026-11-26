@@ -13,6 +13,7 @@ export * from './prompt-import';
 export * from './lora-lookup';
 export * from './metadata-ui';
 export * from './lora-download';
+export * from './lora-cards';
 export * from './usdu';
 export * from './wd14-tag';
 export * from './compare';

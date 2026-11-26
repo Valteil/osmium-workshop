@@ -9,7 +9,7 @@ import {
 } from './lora-lookup';
 import { renderTrainingInfo, readSafetensorsFile } from './lora-training';
 import { openDownloadModal, buildDownloadKeysSection, type LoraOp } from './lora-download';
-import { openPickerModal } from './picker-modal';
+import { attachLoraPicker } from './lora-cards';
 
 export interface LoraTools {
   // ComfyUI's LoRA list as the app knows it (the LoRA stack's options).
@@ -214,12 +214,8 @@ function buildTrainingSection(deps: MetadataTabDeps): HTMLElement {
   // the Android WebView). Picking reads it straight away.
   const input = el('input');
   input.type = 'text';
-  input.readOnly = true;
-  input.placeholder = 'Pick one of your LoRAs…';
-  input.addEventListener('click', () => openPickerModal('LoRA', deps.tools.localNames(), input.value, (v) => {
-    input.value = v;
-    if (v) go.click();
-  }));
+  input.placeholder = 'Tap to choose…';
+  attachLoraPicker(input, 'LoRA', () => deps.tools.localNames(), (v) => { if (v) go.click(); });
   const out = el('div', 'meta-lookup-result');
   const show = async (busy: string, load: () => Promise<LoraFileInfo>) => {
     out.replaceChildren(el('div', 'lora-note', busy));
@@ -285,33 +281,36 @@ export function mountMetadataTab(root: HTMLElement, deps: MetadataTabDeps): void
   const loraHead = el('div', 'sec-head');
   loraHead.appendChild(el('span', 'd', 'LoRA lookup'));
   loraSec.appendChild(loraHead);
-  loraSec.appendChild(el('div', 'muted small', 'One of your LoRAs (file info, exact online match by its hash), or any name searched on CivitAI / CivArchive.'));
-  const row = el('div', 'meta-lookup-row');
-  const input = el('input');
-  input.type = 'text';
-  input.placeholder = 'Your LoRA, or a name to search…';
-  // Free text (any name, or a pasted hash), plus a button for your own LoRAs
-  // in the picker modal (read fresh each time: the list changes after a
-  // Connect / Refresh model lists). Picking looks it up straight away.
-  const pick = el('button', '', 'Your LoRAs…');
-  pick.type = 'button';
-  pick.addEventListener('click', () => openPickerModal('LoRA', deps.tools.localNames(), input.value, (v) => {
-    input.value = v;
-    if (v) go.click();
-  }));
+  loraSec.appendChild(el('div', 'muted small', 'One of your LoRAs (file info, exact online match by its hash), or any name or hash searched on CivitAI / CivArchive.'));
   const result = el('div', 'meta-lookup-result');
-  const go = el('button', '', 'Look up');
-  go.type = 'button';
-  go.addEventListener('click', () => {
-    const q = input.value.trim();
+  const lookUp = (q: string) => {
+    q = q.trim();
     if (!q) return;
     // A pasted SHA-256 (or CivitAI's 10-hex AutoV2) looks up by hash.
     const isHash = /^([0-9a-f]{64}|[0-9a-f]{10})$/i.test(q);
     result.replaceChildren(buildLoraSection([isHash ? { name: q, hash: q.toLowerCase() } : { name: q }], deps.tools));
-  });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') go.click(); });
-  row.append(input, pick, go);
-  loraSec.append(row, result);
+  };
+  // Your own LoRAs: the same tap-to-choose field as the Generate tab's LoRA
+  // fields (picking looks it up). Anything else goes in the search box below.
+  const row = el('div', 'meta-lookup-row');
+  const mine = el('input');
+  mine.type = 'text';
+  mine.placeholder = 'Tap to choose…';
+  attachLoraPicker(mine, 'LoRA', () => deps.tools.localNames(), (v) => { if (v) { text.value = ''; lookUp(v); } });
+  const goMine = el('button', '', 'Look up');
+  goMine.type = 'button';
+  goMine.addEventListener('click', () => lookUp(mine.value));
+  row.append(mine, goMine);
+  const row2 = el('div', 'meta-lookup-row');
+  const text = el('input');
+  text.type = 'text';
+  text.placeholder = 'Or any name / SHA-256 to search…';
+  const goText = el('button', '', 'Search');
+  goText.type = 'button';
+  goText.addEventListener('click', () => { if (text.value.trim()) { mine.value = ''; lookUp(text.value); } });
+  text.addEventListener('keydown', (e) => { if (e.key === 'Enter') goText.click(); });
+  row2.append(text, goText);
+  loraSec.append(row, row2, result);
   root.append(loraSec);
   if (deps.tools.canSetKeys && deps.tools.loraOp) root.appendChild(buildDownloadKeysSection(deps.tools.loraOp));
 }

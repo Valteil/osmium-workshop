@@ -899,11 +899,193 @@ def lora_download_start(src, folder, filename):
     return {k: v for k, v in job.items() if k != "dest"}
 
 
+# ---- LoRA cards (Comfy Bridge's LoRA picker: previews, triggers, versions) ----
+# Each LoRA's card is read from the files beside it, in ComfyUI-Lora-Manager's
+# layout so both tools share them:
+#   <stem>.preview.<png|jpg|jpeg|webp>   the preview (also a bare <stem>.<ext>)
+#   <stem>.metadata.json                 Lora Manager's record (read only here):
+#                                        civitai.trainedWords, civitai.modelId +
+#                                        civitai.name (= the version), model_name
+#   <stem>.osmium.json                   what the user set in Comfy Bridge:
+#                                        {"triggers": [..], "version": "", "group": ""}
+# Unset triggers come from the file name's third " - " part when it has one
+# (the maintainer names LoRAs "<anything> - <name> - <triggers>"), else Lora
+# Manager's CivitAI words, else a two-part name's last part.
+# Versions group by Lora Manager's CivitAI model id, else by the name with its
+# "v2" / "V1.5" token taken out.
+LORA_PREVIEW_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+LORA_CARD_CACHE = {}
+LORA_VERSION_RE = re.compile(r"(?:^|[\s_\-(\[])(v\d+(?:\.\d+)*)(?=$|[\s_\-)\]])", re.I)
+
+
+def lora_resolve(name):
+    name = str(name or "")
+    path = folder_paths.get_full_path("loras", name) if name else None
+    if not path or not os.path.isfile(path):
+        raise LookupError(f"Not in this PC's ComfyUI loras folders: {name}")
+    return path
+
+
+def lora_preview_path(path):
+    stem = os.path.splitext(path)[0]
+    for suffix in (".preview", ""):
+        for ext in LORA_PREVIEW_EXTS:
+            p = stem + suffix + ext
+            if os.path.isfile(p):
+                return p
+    return None
+
+
+def lora_split_triggers(text):
+    return [t.strip() for t in str(text or "").split(",") if t.strip()]
+
+
+def lora_name_triggers(stem):
+    parts = [p.strip() for p in stem.split(" - ") if p.strip()]
+    if len(parts) < 2:
+        return []
+    return lora_split_triggers(parts[-1])
+
+
+def lora_read_json(p):
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def lora_card(name):
+    path = lora_resolve(name)
+    stem_path = os.path.splitext(path)[0]
+    stem = os.path.basename(stem_path)
+    sidecars = (stem_path + ".metadata.json", stem_path + ".osmium.json")
+    preview = lora_preview_path(path)
+    sig = tuple((os.path.getmtime(p) if os.path.isfile(p) else 0) for p in (*sidecars, preview or ""))
+    hit = LORA_CARD_CACHE.get(path)
+    if hit and hit[0] == sig:
+        return hit[1]
+    lm = lora_read_json(sidecars[0])
+    mine = lora_read_json(sidecars[1])
+    civ = lm.get("civitai") if isinstance(lm.get("civitai"), dict) else {}
+    lm_words = [str(w).strip() for w in (civ.get("trainedWords") or []) + (lm.get("trainedWords") or []) if str(w).strip()]
+    named = [p for p in stem.split(" - ") if p.strip()]
+    if isinstance(mine.get("triggers"), list):
+        triggers, source = [str(t).strip() for t in mine["triggers"] if str(t).strip()], "set"
+    elif len(named) >= 3:  # "<anything> - <name> - <triggers>": the user's own slot wins
+        triggers, source = lora_name_triggers(stem), "name"
+    elif lm_words:
+        triggers, source = list(dict.fromkeys(lm_words)), "lora-manager"
+    else:
+        triggers, source = lora_name_triggers(stem), "name"
+    m = LORA_VERSION_RE.search(stem)
+    auto_version = m.group(1).upper() if m else ""
+    base = " - ".join(named[:-1]) if len(named) >= 3 else stem  # the triggers can differ per version
+    auto_group = LORA_VERSION_RE.sub(" ", base).lower()
+    auto_group = os.path.dirname(name).lower() + "/" + re.sub(r"[\s_\-]+", " ", auto_group).strip()
+    if civ.get("modelId"):
+        auto_group = f"civitai:{civ.get('modelId')}"
+        auto_version = auto_version or str(civ.get("name") or "")
+    card = {
+        "name": name,
+        "title": str(lm.get("model_name") or ""),
+        "triggers": triggers,
+        "triggerSource": source,
+        "version": str(mine.get("version") or auto_version),
+        "versionSet": bool(mine.get("version")),
+        "group": str(mine.get("group") or auto_group),
+        "groupSet": bool(mine.get("group")),
+        "preview": bool(preview),
+        "stamp": int(sig[2] * 1000) if preview else 0,
+    }
+    LORA_CARD_CACHE[path] = (sig, card)
+    return card
+
+
+def lora_cards(names):
+    if not names:
+        names = folder_paths.get_filename_list("loras")
+    out = []
+    for n in list(names)[:5000]:
+        try:
+            out.append(lora_card(n))
+        except (LookupError, OSError):
+            pass
+    return out
+
+
+def lora_set_card(name, req):
+    """Saves (or with reset: clears) the user's triggers / version / group."""
+    path = lora_resolve(name)
+    side = os.path.splitext(path)[0] + ".osmium.json"
+    cur = lora_read_json(side)
+    for key in ("triggers", "version", "group"):
+        if key not in req:
+            continue
+        v = req.get(key)
+        if v is None:
+            cur.pop(key, None)
+        elif key == "triggers":
+            cur[key] = (lora_split_triggers(v) if isinstance(v, str) else [str(t).strip()[:200] for t in v if str(t).strip()])[:100]
+        else:
+            cur[key] = str(v).strip()[:120]
+    if cur:
+        with open(side, "w", encoding="utf-8") as f:
+            json.dump(cur, f, ensure_ascii=False, indent=1)
+    elif os.path.isfile(side):
+        os.remove(side)
+    return lora_card(name)
+
+
+def lora_set_preview(name, b64):
+    """Writes <stem>.preview.<ext> (the image's own format) and moves any other
+    preview of it aside to <stem>.preview_old.<ext>, so nothing is lost."""
+    path = lora_resolve(name)
+    data = base64.b64decode(str(b64 or ""), validate=True)
+    if not data or len(data) > 12 * 1024 * 1024:
+        raise ValueError("The preview must be an image under 12 MB.")
+    from PIL import Image
+    with Image.open(io.BytesIO(data)) as im:
+        fmt = (im.format or "").upper()
+    ext = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}.get(fmt)
+    if not ext:
+        raise ValueError("The preview must be a PNG, JPEG or WebP image.")
+    stem = os.path.splitext(path)[0]
+    old = lora_preview_path(path)
+    if old and old.startswith(stem + ".preview."):
+        backup = stem + ".preview_old" + os.path.splitext(old)[1]
+        if os.path.isfile(backup):
+            os.remove(backup)
+        os.replace(old, backup)
+    with open(stem + ".preview" + ext, "wb") as f:
+        f.write(data)
+    return lora_card(name)
+
+
+def lora_thumb(name, side):
+    p = lora_preview_path(lora_resolve(name))
+    if not p:
+        raise LookupError("This LoRA has no preview.")
+    data, mime = gallery_thumb_bytes(p, side)
+    return {"b64": base64.b64encode(data).decode("ascii"), "mime": mime}
+
+
 def lora_op(req, trusted=False):
     """The LoRA folder/download commands, one entry point for the pipe, the
     share server and the Bridge's relay: op = dirs | download | status |
-    cancel, plus set_keys from the desktop app's own pipe (trusted) only."""
+    cancel | cards | thumb | set_card | set_preview, plus set_keys from the
+    desktop app's own pipe (trusted) only."""
     op = str(req.get("op") or "")
+    if op == "cards":
+        names = req.get("names")
+        return {"ok": True, "cards": lora_cards([str(n) for n in names] if isinstance(names, list) else None)}
+    if op == "thumb":
+        return {"ok": True, **lora_thumb(req.get("name"), req.get("side") or 160)}
+    if op == "set_card":
+        return {"ok": True, "card": lora_set_card(req.get("name"), req)}
+    if op == "set_preview":
+        return {"ok": True, "card": lora_set_preview(req.get("name"), req.get("b64"))}
     if op == "dirs":
         return {"ok": True, **lora_dirs(req.get("path"))}
     if op == "download":

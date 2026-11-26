@@ -33,6 +33,17 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Comfy Bridge
 
+- **LoRA picker with previews, trigger words and versions** (desktop and phone, Osmium Comfy or a
+  PC host): every LoRA field (Main LoRA, the LoRA stack, the Metadata tab) opens a picker with a
+  preview thumbnail per LoRA and a big preview when you hover one (tap the thumbnail on a phone).
+  Search matches names and trigger words. LoRAs that are versions of each other (`V1`/`V2` in the
+  name, or the same CivitAI model) share one row with a chip per version. Under each LoRA field its
+  trigger words show as chips; click one to add it to the Global prompt, or **+ all**. Trigger words
+  come from the name's last part (`<anything> - <name> - <triggers>`), else ComfyUI-Lora-Manager's
+  CivitAI words. The ✎ button sets a LoRA's preview image, trigger words and version; previews are
+  the `.preview.*` files Lora Manager uses, so both tools show the same picture.
+- **Metadata tab LoRA fields match the Generate tab:** both are tap-to-choose fields with the
+  same picker; any other name or hash goes in the search box below.
 - **Tag the reference image with WD14** (desktop and phone): **Tag with WD14** next to Pick
   reference image tags the picked picture (ControlNet or image to image alike). The tags land in
   the WD14 tags section, which opens, ready to edit, copy, use as the prompt or save.

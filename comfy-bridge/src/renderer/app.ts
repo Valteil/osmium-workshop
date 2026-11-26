@@ -84,7 +84,8 @@ export {};
 import {
   mountGallerySidebar, attachPickerModal, optionsFromDatalist,
   showImageLightbox, bytesToBase64, base64ToBytes, refreshGallery,
-  initPromptLocks, isPromptLocked, keepLockedPrompts
+  initPromptLocks, isPromptLocked, keepLockedPrompts,
+  attachLoraPicker, mountLoraTriggers, setLoraCardHost, loadLoraCards
 } from './shared/index';
 import type { StorageBackend, DirEntry } from './shared/storage';
 import { buildSynthDatPrompt, RES4LYF_PREFIX, describeUnload, type UnloadResult } from '../comfy-core';
@@ -844,6 +845,7 @@ btnRefreshModels.addEventListener('click', async () => {
   if (loraValues) { loraCombo = loraValues; fillDatalist(loraList, loraValues); }
   if (upscaleValues) fillDatalist(upscaleModelList, upscaleValues);
   log('Model lists refreshed.');
+  void loadLoraCards(true);
   const [usduCkpts, usduWd14] = await Promise.all([
     fetchComboValues('CheckpointLoaderSimple', 'ckpt_name'),
     fetchComboValues('WD14Tagger|pysssss', 'model')
@@ -860,7 +862,14 @@ btnRefreshModels.addEventListener('click', async () => {
 attachPickerModal(diffModel, 'Diffusion model', () => optionsFromDatalist(diffModelList));
 attachPickerModal(clip, 'CLIP', () => optionsFromDatalist(clipList));
 attachPickerModal(vae, 'VAE', () => optionsFromDatalist(vaeList));
-attachPickerModal(mainLora, 'Main LoRA', () => optionsFromDatalist(mainLoraList));
+// LoRA fields: the LoRA picker (previews, versions, trigger words), with the
+// LoRA's trigger words as chips under the field (a click adds one to Global).
+attachLoraPicker(mainLora, 'Main LoRA', () => optionsFromDatalist(mainLoraList), () => scheduleUiSave());
+{
+  const chips = document.createElement('div');
+  mainLora.insertAdjacentElement('afterend', chips);
+  mountLoraTriggers(mainLora, chips);
+}
 attachPickerModal(upscaleModel, 'Upscale model', () => optionsFromDatalist(upscaleModelList));
 // Sampler/scheduler pickers — same tap-to-pick modal as the model fields,
 // option source = the host's KSampler object_info (the canonical ComfyUI
@@ -905,26 +914,30 @@ interface LoraRow { row: HTMLElement; input: HTMLInputElement; strength: HTMLInp
 let loraRows: LoraRow[] = [];
 
 function addLoraRow(defaultLora = '', defaultStrength = 1): void {
+  const wrap = document.createElement('div');
   const row = document.createElement('div');
   row.className = 'synthdat-lora-row';
+  const chips = document.createElement('div');
+  wrap.append(row, chips);
   const input = document.createElement('input');
   input.type = 'text';
   input.placeholder = 'Tap to choose…';
   input.readOnly = true;
   input.value = defaultLora;
-  attachPickerModal(input, 'LoRA', () => optionsFromDatalist(loraList));
+  attachLoraPicker(input, 'LoRA', () => optionsFromDatalist(loraList), () => scheduleUiSave());
+  mountLoraTriggers(input, chips);
   const strength = document.createElement('input');
   strength.type = 'number';
   strength.step = '0.05';
   strength.value = String(defaultStrength);
   const removeBtn = document.createElement('button');
   removeBtn.textContent = '×';
-  removeBtn.addEventListener('click', () => { loraRows = loraRows.filter(r => r.row !== row); row.remove(); });
+  removeBtn.addEventListener('click', () => { loraRows = loraRows.filter(r => r.row !== wrap); wrap.remove(); });
   row.appendChild(input);
   row.appendChild(strength);
   row.appendChild(removeBtn);
-  loraStackRows.appendChild(row);
-  loraRows.push({ row, input, strength });
+  loraStackRows.appendChild(wrap);
+  loraRows.push({ row: wrap, input, strength });
 }
 btnAddLora.addEventListener('click', () => addLoraRow('', 1));
 addLoraRow('', 1);
@@ -2010,6 +2023,19 @@ const loraTools: LoraTools = {
   }
 };
 const IMPORT_LABELS = { full: 'Import Generation', prompts: 'Use prompts only' };
+// The LoRA picker's cards (previews, triggers, versions) come from Osmium
+// Comfy's runner; on a plain ComfyUI server only the name rules apply.
+setLoraCardHost({
+  op: (payload) => window.electronAPI.loraOp(payload),
+  live: () => isLocal(),
+  promptText: () => (unifiedPromptMode.checked ? unifiedPrompt : global_).value,
+  insertTrigger: (text) => {
+    const field = unifiedPromptMode.checked ? unifiedPrompt : global_;
+    const cur = field.value.replace(/[\s,]+$/, '');
+    field.value = cur ? `${cur}, ${text}` : text;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+});
 
 // The picked image (Import Generation, Metadata tab): shown as a data URL;
 // its generation read from main's texts (compressed PNG chunks inflated

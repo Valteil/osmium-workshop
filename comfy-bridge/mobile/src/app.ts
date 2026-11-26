@@ -72,6 +72,11 @@ declare const BridgeShared: {
   nextFileNumber: (backend: any) => Promise<number>;
   optionsFromDatalist: (datalist: any) => string[];
   attachPickerModal: (input: any, title: string, getOptions: () => any) => void;
+  // shared/lora-cards.ts: the LoRA picker (previews, versions, trigger words).
+  attachLoraPicker: (input: HTMLInputElement, title: string, getOptions: () => string[], onPicked?: (v: string) => void) => void;
+  mountLoraTriggers: (input: HTMLInputElement, box: HTMLElement) => void;
+  setLoraCardHost: (h: { op: any; live?: () => boolean; insertTrigger?: (t: string) => void; promptText?: () => string }) => void;
+  loadLoraCards: (force?: boolean) => Promise<void>;
   initPromptLocks: (boxes: HTMLTextAreaElement[]) => void;
   isPromptLocked: (box: HTMLTextAreaElement) => boolean;
   keepLockedPrompts: () => () => void;
@@ -1645,6 +1650,7 @@ declare const BridgeShared: {
     if (usduCkpts.ok) usduCkptOptions = usduCkpts.values;
     if (usduWd14.ok) usduWd14Options = usduWd14.values;
     log('Model lists refreshed from ComfyUI.');
+    void BridgeShared.loadLoraCards(true);
     await refreshSamplerLists();
     log('Sampler/scheduler options refreshed.');
   });
@@ -1669,26 +1675,30 @@ declare const BridgeShared: {
 
   let loraRows: { row: HTMLElement; input: HTMLInputElement; strength: HTMLInputElement }[] = [];
   function addLoraRow(defaultLora: string, defaultStrength: number) {
+    const wrap = document.createElement('div');
     const row = document.createElement('div');
     row.className = 'synthdat-lora-row';
+    const chips = document.createElement('div');
+    wrap.append(row, chips);
     const input = document.createElement('input');
     input.type = 'text';
     input.placeholder = 'Tap to choose…';
     input.readOnly = true;
     input.value = defaultLora || '';
-    BridgeShared.attachPickerModal(input, 'LoRA', () => BridgeShared.optionsFromDatalist(loraList));
+    BridgeShared.attachLoraPicker(input, 'LoRA', () => BridgeShared.optionsFromDatalist(loraList), () => scheduleUiSave());
+    BridgeShared.mountLoraTriggers(input, chips);
     const strength = document.createElement('input');
     strength.type = 'number';
     strength.step = '0.05';
     strength.value = String(defaultStrength != null ? defaultStrength : 1);
     const removeBtn = document.createElement('button');
     removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', () => { loraRows = loraRows.filter((r) => r.row !== row); row.remove(); });
+    removeBtn.addEventListener('click', () => { loraRows = loraRows.filter((r) => r.row !== wrap); wrap.remove(); });
     row.appendChild(input);
     row.appendChild(strength);
     row.appendChild(removeBtn);
-    loraStackRows.appendChild(row);
-    loraRows.push({ row, input, strength });
+    loraStackRows.appendChild(wrap);
+    loraRows.push({ row: wrap, input, strength });
   }
   btnAddLora.addEventListener('click', () => addLoraRow('', 1));
   addLoraRow('', 1);
@@ -2540,6 +2550,18 @@ declare const BridgeShared: {
     }
   };
   const IMPORT_LABELS = { full: 'Import Generation', prompts: 'Use prompts only' };
+  // The LoRA picker's cards come from the PC's runner (relay / Persist Comfy).
+  BridgeShared.setLoraCardHost({
+    op: loraTools.loraOp,
+    promptText: () => (unifiedPromptMode.checked ? unifiedPrompt : global_).value,
+    insertTrigger: (text: string) => {
+      const field = unifiedPromptMode.checked ? unifiedPrompt : global_;
+      const cur = field.value.replace(/[\s,]+$/, '');
+      field.value = cur ? cur + ', ' + text : text;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+  void BridgeShared.loadLoraCards();
 
   // A picked image as a data URL + its generation (null when none).
   async function readPickedImage(file: File): Promise<{ src: string; info: { prompt: Record<string, any>; kind: null } | null }> {
@@ -2703,7 +2725,12 @@ declare const BridgeShared: {
   BridgeShared.attachPickerModal(diffModel, 'Diffusion model', () => BridgeShared.optionsFromDatalist(diffModelList));
   BridgeShared.attachPickerModal(clip, 'CLIP', () => BridgeShared.optionsFromDatalist(clipList));
   BridgeShared.attachPickerModal(vae, 'VAE', () => BridgeShared.optionsFromDatalist(vaeList));
-  BridgeShared.attachPickerModal(mainLora, 'Main LoRA', () => BridgeShared.optionsFromDatalist(mainLoraList));
+  BridgeShared.attachLoraPicker(mainLora, 'Main LoRA', () => BridgeShared.optionsFromDatalist(mainLoraList), () => scheduleUiSave());
+  {
+    const chips = document.createElement('div');
+    mainLora.insertAdjacentElement('afterend', chips);
+    BridgeShared.mountLoraTriggers(mainLora, chips);
+  }
   BridgeShared.attachPickerModal(upscaleModel, 'Upscale model', () => BridgeShared.optionsFromDatalist(upscaleModelList));
   // Sampler/scheduler pickers: real option stores, same tap-to-pick modal
   // as the model fields — source is the host's KSampler object_info (the

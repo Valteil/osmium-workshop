@@ -315,10 +315,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   if (req.method === 'POST' && p === '/internal/lora/op') {
     if (!galleryHandlers) { sendJson(res, 503, { error: { message: 'LoRA downloads are not available on this relay.' } }); return; }
     let body: Record<string, unknown>;
-    try { body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8') || '{}'); } catch { sendJson(res, 400, { error: { message: 'Invalid JSON.' } }); return; }
+    // 16 MB: set_preview carries the picked image (base64).
+    try { body = JSON.parse((await readBody(req, 16 * 1024 * 1024)).toString('utf8') || '{}'); } catch { sendJson(res, 400, { error: { message: 'Invalid JSON.' } }); return; }
     const op = String((body && body.op) || '');
     // Download keys are set from the PC only, never over the network.
-    if (!['dirs', 'download', 'status', 'cancel'].includes(op)) { sendJson(res, 400, { error: { message: 'Unknown LoRA command.' } }); return; }
+    if (!['dirs', 'download', 'status', 'cancel', 'cards', 'thumb', 'set_card', 'set_preview'].includes(op)) { sendJson(res, 400, { error: { message: 'Unknown LoRA command.' } }); return; }
     try {
       const r = await galleryHandlers.loraOp({ ...body, op });
       if (!r.ok) { sendJson(res, 400, { error: { message: r.error || 'The LoRA command failed.' } }); return; }
