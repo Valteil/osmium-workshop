@@ -3323,6 +3323,35 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .tag-wiki-link:hover, .tag-wiki-link:focus-visible{ text-decoration-color: currentColor; }
   .tag-wiki-plain{ font-size: 12.5px; color: var(--text-muted); }
   .tag-wiki-input{ width: 100%; }
+  /* Tag groups sidebar (the header's Groups button): the window widens by the
+     sidebar's width; the sidebar and the main column scroll on their own. */
+  .tag-wiki-head-tools{ display: flex; align-items: center; gap: 6px; }
+  .tag-wiki-side-btn{ padding: 3px 8px; font-size: 12px; }
+  .tag-wiki-side-btn.active{ border-color: var(--accent-manual); color: var(--accent-manual); }
+  .tag-wiki-cols{ display: flex; gap: 12px; min-height: 0; flex: 1 1 auto; }
+  .tag-wiki-main{ display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; flex: 1 1 auto; }
+  .tag-wiki-side{ display: none; }
+  .tag-wiki-window.with-side{ width: 580px; }
+  .tag-wiki-window.with-side .tag-wiki-side{
+    display: flex; flex-direction: column; flex: 0 0 196px; min-height: 0; overflow-y: auto;
+    border-right: 1px solid var(--border-soft); padding-right: 8px; gap: 1px;
+  }
+  .tag-wiki-side-head{
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--accent-flair); margin: 8px 0 3px;
+  }
+  .tag-wiki-side-head:first-child{ margin-top: 0; }
+  .tag-wiki-side-item{
+    all: unset; cursor: pointer; font-size: 12.5px; line-height: 1.35; color: var(--text-primary);
+    padding: 2px 6px; border-radius: var(--radius); overflow-wrap: anywhere;
+  }
+  .tag-wiki-side-item:hover, .tag-wiki-side-item:focus-visible{ background: var(--bg-elevated); }
+  .tag-wiki-side-item.active{ background: var(--bg-elevated); color: var(--accent-manual); }
+  .tag-wiki-group{ display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; line-height: 1.45; }
+  .tag-wiki-group-h{ font-weight: 600; color: var(--text-primary); margin-top: 8px; }
+  .tag-wiki-group-h.sub{ font-weight: 500; color: var(--text-muted); margin-top: 4px; }
+  .tag-wiki-group-p{ color: var(--text-primary); }
+  .tag-wiki-group-li{ color: var(--text-muted); }
   .tag-details-meta{ display: flex; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
   .tag-details-def{ line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; }
   .tag-details-def.greyed{ color: var(--text-faint); font-style: italic; }
@@ -3846,6 +3875,21 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     border-color: var(--accent-manual); color: var(--accent-manual); font-weight: 600;
   }
   .topbar-help-btn:hover:not(:disabled){ background: var(--accent-manual-dim); }
+  /* Top bar collapse (index.ts setTopbarCollapsed): ▲ after Help folds the
+     bar up, ▼ at the tab bar's far right brings it back. Desktop only. */
+  .topbar-collapse-btn, .topbar-expand-btn{
+    flex-shrink: 0; padding: 2px 7px; min-height: 0; line-height: 0;
+  }
+  .topbar-expand-btn{ margin-left: auto; align-self: center; }
+  #topbar{
+    max-height: 200px;
+    transition: max-height var(--panel-dur) var(--pop-ease), min-height var(--panel-dur) var(--pop-ease), padding var(--panel-dur) var(--pop-ease), opacity var(--panel-dur) var(--pop-ease);
+  }
+  #topbar.topbar-collapsed{
+    max-height: 0; min-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0;
+    overflow: hidden; border-bottom-width: 0; box-shadow: none; pointer-events: none;
+  }
+  @media (max-width: 900px){ .topbar-collapse-btn, .topbar-expand-btn{ display: none !important; } }
 
   #topbar {
     display: flex;
@@ -5190,6 +5234,13 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     font-family: var(--mono); font-size: 11.5px; color: var(--text-muted);
     padding: 6px 8px 8px; border-bottom: 1px solid var(--border-soft); margin-bottom: 4px;
     word-break: break-all;
+  }
+  /* Tag menu opened inside a saved character's section (view.ts openTagContextMenu). */
+  .ctx-header.ctx-header-pool{ display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .ctx-pool-del{
+    flex-shrink: 0; word-break: normal; white-space: nowrap;
+    font-family: var(--ui-font, inherit); font-size: 11px; padding: 2px 8px; min-height: 0;
+    color: var(--danger, #e5484d); border-color: color-mix(in srgb, var(--danger, #e5484d) 55%, transparent);
   }
   .ctx-item{
     all: unset; cursor: pointer; padding: 7px 8px; border-radius: 5px;

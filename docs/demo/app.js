@@ -4491,7 +4491,9 @@ You have ${wallet2}. Once unlocked, it's yours for every Custom theme.`, { okLab
         <li><b>Single</b> \u2014 the pass-five step above, with Image Quicktagging and Tag sorting.</li>
         <li><b>\u{1F4D6} Wiki</b> (next to Asc/Desc) \u2014 a small window for looking up any tag's definition.
         Type a tag, pick a suggestion, and its definition shows boxed above the field, with its
-        See also tags below (click one to open it). Drag it by its title; it stays open until you
+        See also tags below (click one to open it). <b>Groups</b> in its title bar opens a sidebar
+        of Danbooru's tag groups (Hair styles, Posture, Colors, \u2026): pick one to see its tags by
+        section, and click a tag to read it. Drag it by its title; it stays open until you
         close it.</li>
         <li><b>\u274C Disabled</b> \u2014 the images you've moved out of the active set.</li>
         ${isTouchDevice ? "" : `<li><b>\u{1F5BC} Originals</b> \u2014 the pre-bucketing originals kept by Bucket Images. Their tags can be
@@ -9782,6 +9784,12 @@ If you choose No, this won't ask again for any folder. You can still add the ope
     }
     void saveSubjectPresets();
     return preset;
+  }
+  function removeTagFromSubjectPreset(id, tag) {
+    const preset = subjectPresets.find((p) => p.id === id);
+    if (!preset) return;
+    preset.tags = preset.tags.filter((t) => t !== tag);
+    void saveSubjectPresets();
   }
   function deleteSubjectPreset(id) {
     subjectPresets = subjectPresets.filter((p) => p.id !== id);
@@ -20379,7 +20387,7 @@ Content-Type: application/octet-stream\r
       prompt["240"].inputs.model = [lastStackId, 0];
       prompt["195"].inputs.model = [lastStackId, 0];
     }
-    if (cfg.skipRefImage) {
+    if (cfg.skipRefImage && !(cfg.img2img && cfg.img2img.enabled)) {
       delete prompt["239"];
       delete prompt["240"];
       delete prompt["243"];
@@ -20387,6 +20395,22 @@ Content-Type: application/octet-stream\r
       delete prompt["246"];
       prompt["158:53"].inputs.model = [lastStackId, 0];
       prompt["158:54"].inputs.model = [lastStackId, 0];
+    } else if (cfg.img2img && cfg.img2img.enabled) {
+      prompt["238"].inputs.fit = cfg.resizeFit;
+      prompt["238"].inputs.method = cfg.resizeMethod;
+      delete prompt["240"];
+      delete prompt["243"];
+      prompt["158:53"].inputs.model = [lastStackId, 0];
+      prompt["158:54"].inputs.model = [lastStackId, 0];
+      prompt["i2i_encode"] = {
+        class_type: "VAEEncode",
+        inputs: { pixels: ["238", 0], vae: ["47:46", 0] },
+        _meta: { title: "Image to image" }
+      };
+      prompt["164"].inputs.latent_image = ["i2i_encode", 0];
+      delete prompt["170"];
+      const i2iDenoise = parseFloat(cfg.img2img.denoise);
+      prompt["158:53"].inputs.denoise = Number.isFinite(i2iDenoise) ? Math.min(1, Math.max(0.05, i2iDenoise)) : 0.6;
     } else {
       prompt["240"].inputs.strength = parseFloat(cfg.lliteStrength) || 0;
       prompt["240"].inputs.start_percent = parseFloat(cfg.lliteStartPercent) || 0;
@@ -23509,6 +23533,13 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     }
     return wikiData;
   }
+  var wikiGroups = null;
+  function ensureWikiGroupsLoaded() {
+    return wikiGroups ??= fetchGzipJson("./data/wiki_groups.json.gzdat").catch((err) => {
+      console.error("wiki_groups.json.gzdat load failed:", err);
+      return { index: [], pages: {} };
+    });
+  }
   async function ensureAllTagsLoaded() {
     if (allTagsMap) return allTagsMap;
     try {
@@ -25346,10 +25377,39 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
 
   // src/renderer/tag-wiki.ts
   var POS_KEY2 = "dts-tag-wiki-pos";
+  var SIDE_KEY = "dts-tag-wiki-side";
   var CATEGORY_NAMES2 = { 0: "General", 1: "Artist", 3: "Copyright", 4: "Character", 5: "Meta" };
   var win = null;
   var bodyEl;
   var inputEl;
+  var sideEl;
+  var sideBtn;
+  var activeGroup = "";
+  var navBack = [];
+  var navFwd = [];
+  var navCur = null;
+  function navVisit(p) {
+    if (navCur && !(navCur.kind === p.kind && navCur.key === p.key)) {
+      navBack.push(navCur);
+      navFwd = [];
+    }
+    navCur = p;
+  }
+  function navStep(dir) {
+    const p = (dir < 0 ? navBack : navFwd).pop();
+    if (!p) return;
+    if (navCur) (dir < 0 ? navFwd : navBack).push(navCur);
+    navCur = p;
+    if (p.kind === "group") void showGroup(p.key, true);
+    else {
+      inputEl.value = p.key;
+      void showTag(p.key, true);
+    }
+  }
+  function groupKeyOf(text) {
+    const m = text.trim().match(/^tag[ _]group:\s*(.+)$/i);
+    return m ? m[1].trim().toLowerCase().replace(/\s+/g, "_") : "";
+  }
   function clampIntoView() {
     if (!win) return;
     const r = win.getBoundingClientRect();
@@ -25393,10 +25453,17 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     const main = [...blocks.slice(0, at), ...blocks.slice(end)].join("\n\n").trim();
     return { main, seeAlso: items2 };
   }
-  async function showTag(raw) {
+  async function showTag(raw, fromHistory = false) {
     const tag = raw.trim().replace(/_/g, " ");
     if (!tag) return;
+    const asGroup = groupKeyOf(tag);
+    if (asGroup && (await ensureWikiGroupsLoaded()).pages[asGroup]) {
+      void showGroup(asGroup, fromHistory);
+      return;
+    }
+    if (!fromHistory) navVisit({ kind: "tag", key: tag });
     closeAutocomplete();
+    markActiveGroup("");
     bodyEl.innerHTML = "";
     const title = document.createElement("div");
     title.className = "tag-wiki-tag";
@@ -25428,6 +25495,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     defEl.textContent = main || (meta ? "No official wiki entry for this tag." : "Not a known tag, and no wiki entry.");
     bodyEl.appendChild(defEl);
     if (seeAlso.length) {
+      const groups2 = seeAlso.some((s) => groupKeyOf(s)) ? await ensureWikiGroupsLoaded() : null;
       const rel = document.createElement("div");
       rel.className = "tag-wiki-seealso";
       const head = document.createElement("div");
@@ -25437,6 +25505,11 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       const list = document.createElement("div");
       list.className = "tag-wiki-seealso-list";
       for (const item of seeAlso) {
+        const gk = groupKeyOf(item);
+        if (gk && groups2 && groups2.pages[gk]) {
+          list.appendChild(groupLink(groups2.pages[gk].title, gk));
+          continue;
+        }
         const known = wiki[item.replace(/ /g, "_")] !== void 0 || allTags.has(item.replace(/ /g, "_"));
         const el2 = document.createElement(known ? "button" : "span");
         el2.className = known ? "tag-wiki-link" : "tag-wiki-plain";
@@ -25469,6 +25542,142 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       bodyEl.append(ta, save);
     }
   }
+  function groupLink(label, key) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tag-wiki-link tag-wiki-grouplink";
+    b.textContent = label;
+    b.addEventListener("click", () => {
+      void showGroup(key);
+    });
+    return b;
+  }
+  function partEl(target, label, groups2, known) {
+    const gk = groupKeyOf(target);
+    if (gk && groups2.pages[gk]) return groupLink(label, gk);
+    if (!gk && known(target)) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tag-wiki-link";
+      b.textContent = label;
+      b.addEventListener("click", () => {
+        inputEl.value = target.replace(/_/g, " ");
+        void showTag(target);
+      });
+      return b;
+    }
+    const s = document.createElement("span");
+    s.className = "tag-wiki-plain";
+    s.textContent = label;
+    return s;
+  }
+  function renderGroupLines(into, lines, groups2, known) {
+    for (const [kind, depth, parts] of lines) {
+      const row = document.createElement("div");
+      row.className = kind === "h" ? `tag-wiki-group-h${depth >= 5 ? " sub" : ""}` : kind === "li" ? "tag-wiki-group-li" : "tag-wiki-group-p";
+      if (kind === "li") row.style.paddingLeft = `${(depth - 1) * 14}px`;
+      for (const p of parts) row.appendChild(typeof p === "string" ? document.createTextNode(p) : partEl(p[0], p[1], groups2, known));
+      into.appendChild(row);
+    }
+  }
+  async function showGroup(key, fromHistory = false) {
+    if (!fromHistory) navVisit({ kind: "group", key });
+    closeAutocomplete();
+    markActiveGroup(key);
+    const loading = document.createElement("div");
+    loading.className = "stats-empty";
+    loading.textContent = "Loading\u2026";
+    bodyEl.replaceChildren(loading);
+    const [groups2, wiki, allTags] = await Promise.all([ensureWikiGroupsLoaded(), ensureWikiDataLoaded(), ensureAllTagsLoaded()]);
+    const page = groups2.pages[key];
+    if (!page) return;
+    const known = (k) => wiki[k] !== void 0 || allTags.has(k);
+    bodyEl.innerHTML = "";
+    const title = document.createElement("div");
+    title.className = "tag-wiki-tag";
+    title.textContent = page.title;
+    const meta = document.createElement("div");
+    meta.className = "tag-details-meta";
+    const kind = document.createElement("span");
+    kind.textContent = "Tag group";
+    meta.appendChild(kind);
+    if (page.updated) {
+      const u = document.createElement("span");
+      u.textContent = `Danbooru, ${page.updated}`;
+      meta.appendChild(u);
+    }
+    const list = document.createElement("div");
+    list.className = "tag-wiki-group";
+    renderGroupLines(list, page.lines, groups2, known);
+    bodyEl.append(title, meta, list);
+    bodyEl.scrollTop = 0;
+    markActiveGroup(key);
+  }
+  function markActiveGroup(key) {
+    activeGroup = key;
+    if (!sideEl) return;
+    for (const b of sideEl.querySelectorAll("[data-group]")) b.classList.toggle("active", b.dataset.group === key);
+  }
+  var sideBuilt = false;
+  async function fillSide() {
+    if (sideBuilt) return;
+    sideBuilt = true;
+    const groups2 = await ensureWikiGroupsLoaded();
+    sideEl.innerHTML = "";
+    const listed = /* @__PURE__ */ new Set();
+    const addItem = (key, label, depth) => {
+      const b = groupLink(label, key);
+      b.className = "tag-wiki-side-item";
+      b.dataset.group = key;
+      b.style.paddingLeft = `${6 + (depth - 1) * 12}px`;
+      sideEl.appendChild(b);
+      listed.add(key);
+    };
+    const addHead = (text) => {
+      const h = document.createElement("div");
+      h.className = "tag-wiki-side-head";
+      h.textContent = text;
+      sideEl.appendChild(h);
+    };
+    let pendingHead = "";
+    for (const [kind, depth, parts] of groups2.index) {
+      if (kind === "h") {
+        pendingHead = parts.map((p) => typeof p === "string" ? p : p[1]).join("").trim();
+        continue;
+      }
+      if (kind !== "li") continue;
+      for (const p of parts) {
+        if (typeof p === "string") continue;
+        const key = groupKeyOf(p[0]);
+        if (!key || !groups2.pages[key] || listed.has(key)) continue;
+        if (pendingHead) {
+          addHead(pendingHead);
+          pendingHead = "";
+        }
+        addItem(key, p[1], depth);
+      }
+    }
+    const rest = Object.keys(groups2.pages).filter((k) => !listed.has(k)).sort();
+    if (rest.length) {
+      addHead("Other groups");
+      for (const k of rest) addItem(k, groups2.pages[k].title, 1);
+    }
+    if (!listed.size) {
+      const empty = document.createElement("div");
+      empty.className = "tag-wiki-plain";
+      empty.textContent = "No tag groups bundled.";
+      sideEl.appendChild(empty);
+    }
+    markActiveGroup(activeGroup);
+  }
+  function setSide(open2) {
+    win?.classList.toggle("with-side", open2);
+    sideBtn.classList.toggle("active", open2);
+    sideBtn.setAttribute("aria-pressed", String(open2));
+    setJSON(SIDE_KEY, open2);
+    if (open2) void fillSide();
+    clampIntoView();
+  }
   function build() {
     const el2 = document.createElement("div");
     el2.className = "tag-wiki-window";
@@ -25485,7 +25694,20 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     close.title = "Close";
     close.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg>';
     close.addEventListener("click", closeTagWiki);
-    head.append(title, close);
+    sideBtn = document.createElement("button");
+    sideBtn.type = "button";
+    sideBtn.className = "tag-wiki-side-btn";
+    sideBtn.title = "Tag groups (Hair styles, Posture, \u2026)";
+    sideBtn.innerHTML = '<svg class="ic ic-lead" aria-hidden="true"><use href="#i-menu"></use></svg>Groups';
+    sideBtn.addEventListener("click", () => setSide(!win?.classList.contains("with-side")));
+    const tools = document.createElement("div");
+    tools.className = "tag-wiki-head-tools";
+    tools.append(sideBtn, close);
+    head.append(title, tools);
+    sideEl = document.createElement("nav");
+    sideEl.className = "tag-wiki-side";
+    sideEl.setAttribute("aria-label", "Tag groups");
+    sideBuilt = false;
     bodyEl = document.createElement("div");
     bodyEl.className = "tag-wiki-body tag-details-body";
     const hint = document.createElement("div");
@@ -25505,8 +25727,20 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       inputEl.value = tag;
       void showTag(tag);
     });
-    el2.append(head, bodyEl, inputEl);
+    const main = document.createElement("div");
+    main.className = "tag-wiki-main";
+    main.append(bodyEl, inputEl);
+    const cols = document.createElement("div");
+    cols.className = "tag-wiki-cols";
+    cols.append(sideEl, main);
+    el2.append(head, cols);
     attachDrag(head);
+    el2.addEventListener("mouseup", (ev) => {
+      if (ev.button !== 3 && ev.button !== 4) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      navStep(ev.button === 3 ? -1 : 1);
+    });
     return el2;
   }
   function openTagWiki() {
@@ -25515,7 +25749,11 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       return;
     }
     win = build();
+    navBack = [];
+    navFwd = [];
+    navCur = null;
     document.body.appendChild(win);
+    setSide(getJSON(SIDE_KEY, false));
     const pos = getJSON(POS_KEY2, null);
     if (pos) {
       win.style.left = pos.left + "px";
@@ -28213,7 +28451,13 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       toast("Move some tags into this character first, then save it.", 3200);
       return;
     }
-    const preset = upsertSubjectPreset(subjectLabel(subject, index2), tags);
+    const name = subjectLabel(subject, index2);
+    const key = name.trim().toLowerCase();
+    const existing = subjectPresetById(subject.presetId) || subjectPresets.find((p) => p.name.trim().toLowerCase() === key);
+    if (existing) {
+      for (const t of existing.tags) if (!entry.tags.includes(t) && !tags.includes(t)) tags.push(t);
+    }
+    const preset = upsertSubjectPreset(name, tags);
     subject.presetId = preset.id;
     persistEntryMeta(entry);
     toast(`Saved "${preset.name}" (${tags.length} tags) to this dataset. Load it on any image from "Load character".`, 3600);
@@ -28237,6 +28481,30 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     ev.dataTransfer.setData(SUBJECT_DRAG_TYPE, tags.join("\n"));
     ev.dataTransfer.effectAllowed = "move";
     ev.stopPropagation();
+    installSubjectDragAutoScroll();
+  }
+  var subjectDragAutoScrollOn = false;
+  function installSubjectDragAutoScroll() {
+    if (subjectDragAutoScrollOn) return;
+    subjectDragAutoScrollOn = true;
+    const EDGE = 70, MAX_STEP = 24;
+    document.addEventListener("dragover", (ev) => {
+      if (!ev.dataTransfer?.types.includes(SUBJECT_DRAG_TYPE)) return;
+      for (let el2 = ev.target instanceof Element ? ev.target : null; el2; el2 = el2.parentElement) {
+        if (el2.scrollHeight <= el2.clientHeight + 1) continue;
+        const oy = getComputedStyle(el2).overflowY;
+        if (oy !== "auto" && oy !== "scroll") continue;
+        const r = el2.getBoundingClientRect();
+        const top = Math.max(r.top, 0), bottom = Math.min(r.bottom, window.innerHeight);
+        let step2 = 0;
+        if (ev.clientY < top + EDGE && el2.scrollTop > 0) step2 = -Math.ceil(MAX_STEP * (1 - (ev.clientY - top) / EDGE));
+        else if (ev.clientY > bottom - EDGE && el2.scrollTop + el2.clientHeight < el2.scrollHeight - 1) step2 = Math.ceil(MAX_STEP * (1 - (bottom - ev.clientY) / EDGE));
+        if (step2) {
+          el2.scrollTop += step2;
+          return;
+        }
+      }
+    }, true);
   }
   function makeChipMovable(chip, tag, onChange) {
     chip.classList.add("tagsub-chip");
@@ -28413,7 +28681,12 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
         b.type = "button";
         b.className = "chip tagsub-offer";
         b.textContent = "+ " + t;
-        b.title = `Add "${t}" to this image, in this character`;
+        b.title = `Add "${t}" to this image, in this character (right-click for options)`;
+        b.addEventListener("contextmenu", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          openTagContextMenu(entry, t, ev.clientX, ev.clientY, subject);
+        });
         b.addEventListener("click", () => {
           addTagToEntry(entry, t);
           if (entry.tags.includes(t)) assignTagsToSubject(entry, [t], subject.id);
@@ -29414,7 +29687,7 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     const uniq = Array.from(new Set(parts));
     return uniq.length > 1 ? uniq : [];
   }
-  function openTagContextMenu(entry, tag, x, y) {
+  function openTagContextMenu(entry, tag, x, y, poolSubject) {
     closeTagContextMenu();
     const index2 = buildTagIndex();
     const set = index2.get(tag) || /* @__PURE__ */ new Set();
@@ -29422,7 +29695,28 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
     menu.className = "ctx-menu";
     const header = document.createElement("div");
     header.className = "ctx-header";
-    header.textContent = `${tag} \xB7 ${set.size} image${set.size === 1 ? "" : "s"}`;
+    const headerText = document.createElement("span");
+    headerText.textContent = `${tag} \xB7 ${set.size} image${set.size === 1 ? "" : "s"}`;
+    header.appendChild(headerText);
+    const assignedId = entry.meta?.tagAssign?.[tag];
+    const subject = poolSubject || (assignedId ? entry.meta?.tagSubjects?.find((s) => s.id === assignedId) : void 0);
+    const pool = subjectPresetById(subject?.presetId);
+    if (pool && pool.tags.includes(tag)) {
+      header.classList.add("ctx-header-pool");
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "ctx-pool-del";
+      del.textContent = "Delete tag from pool";
+      del.title = `Remove "${tag}" from the saved character "${pool.name}". This image keeps its tags.`;
+      del.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        removeTagFromSubjectPreset(pool.id, tag);
+        closeTagContextMenu();
+        toast(`Removed "${tag}" from "${pool.name}".`, 2600);
+        renderCurrentView();
+      });
+      header.appendChild(del);
+    }
     menu.appendChild(header);
     addContextMenuItem(menu, "Show all images WITH this tag", () => {
       setContainsFilter2(tag);
@@ -31087,6 +31381,22 @@ Click: mark/unmark Keep \xB7 Double-click: zoom in`;
       topbarActions.style.transform = scale < 1 ? `scale(${scale})` : "";
     }
     new ResizeObserver(updateTopbarScale).observe(topbarActions);
+    const TOPBAR_COLLAPSED_KEY = "dts-topbar-collapsed";
+    const topbarEl = document.getElementById("topbar");
+    const topbarExpandBtn = document.getElementById("btnTopbarExpand");
+    function applyTopbarCollapse() {
+      const on = getBool(TOPBAR_COLLAPSED_KEY, false) && !topbarNarrowQuery.matches;
+      topbarEl.classList.toggle("topbar-collapsed", on);
+      topbarExpandBtn.style.display = on ? "" : "none";
+    }
+    function setTopbarCollapsed(on) {
+      setBool(TOPBAR_COLLAPSED_KEY, on);
+      applyTopbarCollapse();
+    }
+    document.getElementById("btnTopbarCollapse").addEventListener("click", () => setTopbarCollapsed(true));
+    topbarExpandBtn.addEventListener("click", () => setTopbarCollapsed(false));
+    topbarNarrowQuery.addEventListener("change", applyTopbarCollapse);
+    applyTopbarCollapse();
     new MutationObserver(updateTopbarScale).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     document.fonts.addEventListener("loadingdone", updateTopbarScale);
     updateTopbarScale();

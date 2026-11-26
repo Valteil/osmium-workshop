@@ -147,7 +147,9 @@ which you chose (desktop).
 - **📖 Wiki** (next to Asc/Desc) — opens a small window to look up any tag's definition from the
   bundled wiki, without going through a tag field. Type a tag (suggestions appear beside the window as you type)
   and its definition shows boxed above the field, with its **See also** tags listed below the box;
-  click one to read that tag's definition. Drag the window by its title; it stays open until you
+  click one to read that tag's definition. **Groups** in its title bar opens a sidebar of Danbooru's
+  tag groups (Hair styles, Posture, Colors, …); pick one to see its tags by section and click a tag to
+  read it. Drag the window by its title; it stays open until you
   close it with ×.
 - **❌ Disabled** — images you've moved out of the active set. Use it for maybes you don't want
   to delete.
@@ -856,35 +858,59 @@ This guide covers the desktop app. Its sibling shares this repo:
     slide-out panel and the file-saving toggles in a second one, both opening from the left; click
     their button again (or outside them) to close. The header **Zoom** slider scales the whole
     interface, prompt boxes re-fit as you zoom or change theme, and themes bring their fonts.
-  - **Upscale with USDU** (desktop and phone): instead of the standard upscale (turning one on
-    turns the other off), Ultimate SD Upscale enlarges the image with an upscale model, then
-    redraws it tile by tile with its own checkpoint at low denoise. Turned on in the generation
-    settings, it upscales each image you generate (the pass-2 image with 2-Pass on). For an image
-    you already have there's the **Upscale** tab (next to Generate): choose the image, it shows
-    large beside the USDU settings (kept separately from the generation ones; click the image to
-    zoom in), and **Upscale this image** queues it. **Save to** picks where the result goes: your
-    output folder's Upscaled folder, or **a folder you choose** (Choose folder…; remembered), where
-    it's saved as `<image>_upscaled.png` and never overwrites anything.
-    The tiles' prompt is your image's prompt (optionally without the Global field), WD14 tags, or
-    your own text. Every USDU setting is exposed; hover one for what it does (tap its name on the
-    phone). Needs the ComfyUI_UltimateSDUpscale node pack (and ComfyUI-WD14-Tagger for WD14);
-    Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
-  - **Poses (the ControlNet tab, desktop and phone).** Next to Pick reference image, **Extract
-    pose** finds the people in the reference with DWPose (the comfyui_controlnet_aux node pack;
-    if its person detector finds nobody, it tries the whole image as one person), **New pose**
-    starts from one standing person at the generation size, and **Edit pose** opens the tab. Every
-    edit in the tab becomes the reference image; pick the image again to go back to it.
-    - **Style:** **Mannequin** (default: a solid figure with limbs, hands with fingers, a head with
-      eye marks and feet, on white; Anima's any-test LLLite reads the reference as a picture, so a
-      body is what it follows) or **OpenPose skeleton** (for pose ControlNets).
-    - **Posing:** drag a point; with **Move attached parts** on, a shoulder, elbow, hip, knee or
-      finger joint brings what hangs off it. Drag the torso to move the whole person.
-    - **Sizes for perspective:** click a body part to select it (head, torso, each breast, upper
-      arm, forearm, hand, thigh, calf, foot), then set its **Size**, or use the mouse wheel over it.
-      **Body width** thickens the whole figure; **Chest** and **Length** shape the breasts (longer
-      ones hang toward the bottom of the image, so they hang right on a figure leaning forward).
-    - **+ Person**, **Remove person**, **Mirror**, **Reset**, and **Display original reference**
-      (the original dimmed behind the pose, editor only).
+  - **Image to image** (desktop and phone): in the Reference image section, tick **Image to
+    image** and pick the picture. Pass 1 starts from it instead of an empty canvas — it is resized
+    to the output size, encoded with the model's VAE, and redrawn at **Strength** (0.3 keeps most
+    of it, 0.5 balances, 0.8+ redraws most of it). Use it instead of ControlNet when you want the
+    original's details kept; the ControlNet (LLLite) block is off while it's on. **No image** is
+    the plain text-to-image run.
+  - **Upscale / redraw with USDU** (desktop and phone): instead of the standard upscale (turning
+    one on turns the other off), **Upscale by** picks the method. **2 or more** is Ultimate SD
+    Upscale: the image is enlarged with an upscale model, then redrawn tile by tile with its own
+    checkpoint at low denoise. **1 is image to image**: nothing is enlarged and there are no
+    tiles; the whole picture is encoded and redrawn once by the checkpoint at the Denoise (the
+    same path as the Generate tab's image-to-image mode), which is how you clean or restyle a
+    picture without USDU's tiles. Turned on in the generation settings, it runs on each image you
+    generate (the pass-2 image with 2-Pass on). For an image you already have there's the
+    **Upscale** tab (next to Generate): choose the image, it shows large beside the settings
+    (kept separately from the generation ones; click the image to zoom in), and
+    **Upscale / redraw this image** queues it. **Save to** picks where the result goes: your
+    output folder (an Upscaled folder for a real upscale) or **a folder you choose** (Choose
+    folder…; remembered), where it's saved as `<image>_upscaled.png` or
+    `<image>_redrawn.png` and never overwrites anything.
+    The prompt is your image's prompt (optionally without the Global field), WD14 tags, or your
+    own text. Every setting is exposed; hover one for what it does (tap its name on the phone).
+    Needs the ComfyUI_UltimateSDUpscale node pack for the tiled mode (and ComfyUI-WD14-Tagger for
+    WD14); Osmium Comfy loads them from your ComfyUI's `custom_nodes` the first time they're used.
+  - **Regional prompt (the Regional tab, desktop and phone).** Place subjects in parts of the
+    picture: draw boxes on a canvas the size of your generation (or pick a **Layout…** preset) and
+    give each its own prompt. During the **layout steps** (the first 35% by default) each box's
+    prompt applies only inside it; then the **whole picture** is finished with one prompt, so the
+    result reads as one image. Anima models only.
+    - **Where text goes** (each field shows its scope): **Style** (your Global field: artist tags,
+      style-LoRA triggers) goes into every box, the empty area (where no box is) and the whole
+      picture. **Scene** (quality, rating, setting, lighting) goes into the empty area and the
+      whole picture; each box's edges blend into it (**Soft edges**), so boxes don't become panels. **Whole picture only** (counts like
+      `2girls`, interactions) goes into the whole picture only. Each **box** holds one subject,
+      count first (`1girl, red hair`), plus a character LoRA's trigger if it has one, and also
+      goes into the whole picture. The Character trigger field isn't used with a layout.
+    - **Boxes:** drag to draw, move and resize; arrows nudge, Delete removes, Ctrl+D duplicates,
+      Ctrl+Z / Ctrl+Y undo/redo. Per box: **Strength** (lower if it looks pasted on), **Spread** (0%
+      = hard edge; higher = "roughly here", so a small box sets position without shrinking the
+      subject) and ▲ ▼ order, used by **Overlaps → Top box wins** (the default mixes both prompts in
+      an overlap).
+    - **Generate** in the tab runs the layout; **Use in Generate** swaps the Generate tab's prompt
+      boxes for a layout card until **Back to normal prompt** (nothing is cleared). Importing a
+      regional image restores its layout.
+    - **Preset** picks a tested set of settings for the kind of picture: **Balanced** (default:
+      separate subjects in one scene), **Roughly here** (boxes set position, not size), **Strict
+      boxes** (subjects held to their boxes), **Panels** (diptychs and comic panels: a hard split,
+      each box its own scene), **Interaction** (subjects touching; draw the boxes touching, not
+      overlapping) and **Layered** (an object in front of a subject).
+    - **Blending** has the tuning settings; changing one makes the preset Custom. **? How to use** in the tab
+      explains each one and lists fixes for common problems (it opens by itself the first time).
+    - Needs the ComfyUI-DataSetManagerNodes pack from this release on a ComfyUI server; Osmium Comfy
+      has it built in.
   - **WD14 tags** (desktop and phone, under the result): **Tag last generation** tags each saved
     image and can write a same-name `.txt` beside it in the output folder. **Tag an image** tags any
     image you choose; **Use as prompt** sorts the tags into your prompt boxes (Global, Character
