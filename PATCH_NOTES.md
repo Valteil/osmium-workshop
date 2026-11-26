@@ -30,6 +30,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 - **Delete tag from pool:** right-click a tag in a saved character's section (or one of its
   "Saved, not on this image" offers) and use **Delete tag from pool** in the menu's header to take
   it out of the saved character. The image's own tags don't change.
+- **Load a character for all images:** **Load character ▾** has a **Load for all images** list.
+  It adds the character's section to every image in the dataset (after a confirm) and moves the
+  tags each one has into it.
+- **Fixed:** a character section or other per-image setting could be gone after a reload when two
+  saves overlapped. Saves now run one at a time, always with the latest state.
 
 ### Comfy Bridge
 

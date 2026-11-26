@@ -2009,12 +2009,30 @@ import { setIconLabel } from './icons';
     }
   }
 
-  async function saveEntryMeta(){
+  // One write at a time, always of the latest state: overlapping
+  // createWritable() saves could finish out of order, so an older snapshot
+  // landed last and the file lost the newer change (e.g. a just-loaded
+  // character) until the next save.
+  let metaSaving: Promise<void> | null = null;
+  let metaSaveAgain = false;
+  async function saveEntryMeta(): Promise<void> {
     if (!dirHandle) return;
-    try {
-      const handle = await dirHandle.getFileHandle(META_FILE_NAME, { create: true });
-      await writeBytes(handle, JSON.stringify(entryMeta, null, 2));
-    } catch(err){}
+    if (metaSaving){ metaSaveAgain = true; return metaSaving; }
+    metaSaving = (async () => {
+      do {
+        metaSaveAgain = false;
+        // Folder and data read together, so a dataset switch mid-save can't
+        // write one dataset's meta into the other's folder.
+        const dir = dirHandle;
+        if (!dir) break;
+        const data = JSON.stringify(entryMeta, null, 2);
+        try {
+          const handle = await dir.getFileHandle(META_FILE_NAME, { create: true });
+          await writeBytes(handle, data);
+        } catch(err){}
+      } while (metaSaveAgain);
+    })();
+    try { await metaSaving; } finally { metaSaving = null; }
   }
 
   // A disable copies the pair into Disabled/ and then deletes the root copy;

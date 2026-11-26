@@ -2021,6 +2021,21 @@ function buildLoadPresetButton(entry: Entry, onChange: () => void): HTMLElement 
         onChange();
       });
     }
+    const allHeader = document.createElement('div');
+    allHeader.className = 'ctx-header';
+    allHeader.textContent = 'Load for all images';
+    menu.appendChild(allHeader);
+    for (const preset of subjectPresets){
+      addContextMenuItem(menu, `${preset.name} → all images`, () => {
+        menu.remove();
+        const n = getEntries().filter(e => !e.disabled).length;
+        void showConfirmModal(`Load "${preset.name}" on all ${n} image${n === 1 ? '' : 's'} in this dataset? Each gets its section, and the character's tags it has move into it.`, { okLabel: 'Load for all' }).then((ok) => {
+          if (!ok) return;
+          loadSubjectPresetForAll(preset);
+          onChange();
+        });
+      });
+    }
     const delHeader = document.createElement('div');
     delHeader.className = 'ctx-header';
     delHeader.textContent = 'Delete a saved character';
@@ -2049,7 +2064,8 @@ function buildLoadPresetButton(entry: Entry, onChange: () => void): HTMLElement 
 // Loading a preset reuses the image's section already linked to it (or adds
 // one), then vacuums every preset tag the image has into it, from the main
 // field or another section. Missing ones show there as ghost offers.
-function loadSubjectPreset(entry: Entry, preset: SubjectPreset): void {
+// Puts the preset's section on the image and vacuums its tags in; no save.
+function applySubjectPreset(entry: Entry, preset: SubjectPreset): { subject: TagSubject; subjects: TagSubject[]; present: string[] } {
   const meta = ensureEntryMeta(entry);
   const subjects = meta.tagSubjects || (meta.tagSubjects = []);
   let subject = subjects.find(s => s.presetId === preset.id);
@@ -2058,7 +2074,25 @@ function loadSubjectPreset(entry: Entry, preset: SubjectPreset): void {
     subjects.push(subject);
   }
   const present = preset.tags.filter(t => entry.tags.includes(t));
-  assignTagsToSubject(entry, present, subject.id);
+  const assign = meta.tagAssign || (meta.tagAssign = {});
+  for (const t of present) assign[t] = subject.id;
+  getEntryMeta()[entry.base] = meta;
+  return { subject, subjects, present };
+}
+
+// "Load for all images": the preset's section on every image of the dataset
+// (disabled ones aside), one meta save.
+function loadSubjectPresetForAll(preset: SubjectPreset): void {
+  const all = getEntries().filter(e => !e.disabled);
+  let withTags = 0;
+  for (const e of all) if (applySubjectPreset(e, preset).present.length) withTags++;
+  saveEntryMetaRef();
+  toast(`Loaded "${preset.name}" on ${all.length} image${all.length === 1 ? '' : 's'}; ${withTags} had some of its tags.`, 3600);
+}
+
+function loadSubjectPreset(entry: Entry, preset: SubjectPreset): void {
+  const { subject, subjects, present } = applySubjectPreset(entry, preset);
+  persistEntryMeta(entry);
   const missing = preset.tags.length - present.length;
   toast(`Moved ${present.length} tag${present.length === 1 ? '' : 's'} into ${subjectLabel(subject, subjects.indexOf(subject))}` +
     (missing ? `; ${missing} saved tag${missing === 1 ? '' : 's'} not on this image ${missing === 1 ? 'is' : 'are'} offered there.` : '.'), 3600);
