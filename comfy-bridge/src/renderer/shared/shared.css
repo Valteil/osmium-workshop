@@ -707,3 +707,6 @@ textarea.prompt-locked{border-color:var(--accent);}
 .lora-edit-row{display:flex;gap:6px;}
 .lora-edit-row input{flex:1;min-width:0;}
 .lora-edit-hint{font-size:11px;color:var(--muted);}
+.lora-edit-versions{display:flex;flex-direction:column;gap:4px;}
+.lora-edit-ver{display:flex;align-items:center;gap:8px;}
+.lora-edit-ver-name{flex:1;min-width:0;font-size:12px;overflow-wrap:anywhere;}

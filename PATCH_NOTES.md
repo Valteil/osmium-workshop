@@ -41,7 +41,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   trigger words show as chips; click one to add it to the Global prompt, or **+ all**. Trigger words
   come from the name's last part (`<anything> - <name> - <triggers>`), else ComfyUI-Lora-Manager's
   CivitAI words. The ✎ button sets a LoRA's preview image, trigger words and version; previews are
-  the `.preview.*` files Lora Manager uses, so both tools show the same picture.
+  the `.preview.*` files Lora Manager uses, so both tools show the same picture. It also lists the
+  LoRA's versions: **Add a version…** groups another LoRA with it by hand, **Split off** separates
+  one again, and **Auto** goes back to the automatic grouping.
 - **Metadata tab LoRA fields match the Generate tab:** both are tap-to-choose fields with the
   same picker; any other name or hash goes in the search box below.
 - **Tag the reference image with WD14** (desktop and phone): **Tag with WD14** next to Pick

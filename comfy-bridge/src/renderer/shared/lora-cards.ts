@@ -150,6 +150,14 @@ function hideHover(): void { hoverName = ''; if (hoverEl) hoverEl.hidden = true;
 
 // ---- the picker ---------------------------------------------------------------
 
+// Pickers and editors stack (picker → ✎ editor → Add a version picker):
+// Escape closes only the top one (the last in the DOM that isn't closing;
+// not modal-visible, which waits on a frame that never comes in a hidden window).
+function isTopModal(backdrop: HTMLElement): boolean {
+  const open = document.querySelectorAll('.picker-backdrop:not(.closing)');
+  return open.length > 0 && open[open.length - 1] === backdrop;
+}
+
 interface Group { key: string; members: string[] }
 
 function groupNames(names: string[]): Group[] {
@@ -185,10 +193,11 @@ export function openLoraPicker(title: string, names: string[], current: string, 
   function close(): void {
     hideHover();
     backdrop.classList.remove('modal-visible');
+    backdrop.classList.add('closing');
     setTimeout(() => backdrop.remove(), 160);
     document.removeEventListener('keydown', onKey);
   }
-  function onKey(ev: KeyboardEvent): void { if (ev.key === 'Escape' && !document.querySelector('.lora-edit-backdrop.modal-visible')) close(); }
+  function onKey(ev: KeyboardEvent): void { if (ev.key === 'Escape' && isTopModal(backdrop)) close(); }
 
   function row(g: Group): HTMLElement {
     const shown = g.members.includes(current) ? current : g.members[g.members.length - 1];
@@ -389,10 +398,72 @@ export function openLoraCardEditor(name: string, onSaved?: () => void): void {
   };
   const trig = field('Trigger words', 'Go back to Lora Manager\'s / the file name\'s trigger words');
   const ver = field('Version', 'Go back to the version read from the name (v2, V1.5…) or Lora Manager');
-  const grp = field('Versions of', 'Go back to the automatic grouping');
   trig.inp.placeholder = 'comma, separated';
   ver.inp.placeholder = 'e.g. V2';
-  grp.inp.placeholder = 'LoRAs with the same text here are versions of one LoRA';
+
+  // Versions: the LoRAs grouped with this one (one picker row, a chip each).
+  // Grouping by hand writes the same group key into every member's
+  // .osmium.json; splitting one off gives it a key of its own.
+  const verWrap = el('div', 'lora-edit-field');
+  verWrap.appendChild(el('span', 'lora-edit-label', 'Versions of this LoRA'));
+  const verList = el('div', 'lora-edit-versions');
+  const verNote = el('span', 'lora-edit-hint');
+  const addVer = el('button', 'lora-btn', 'Add a version…');
+  addVer.type = 'button';
+  addVer.title = 'Pick another LoRA to group with this one (its whole group joins)';
+  const autoGrp = el('button', 'lora-btn', 'Auto');
+  autoGrp.type = 'button';
+  autoGrp.title = 'Go back to the automatic grouping for this LoRA';
+  const verBtns = el('div', 'lora-edit-row');
+  verBtns.append(addVer, autoGrp);
+  verWrap.append(verList, verBtns, verNote);
+  const allNames = (): string[] => [...cards.keys()];
+  const membersOf = (key: string): string[] => allNames().filter((n) => loraCard(n).group === key);
+  const setGroup = async (n: string, group: string | null): Promise<void> => {
+    const r = await host.op!({ op: 'set_card', name: n, group });
+    if (!r.ok || !r.card) throw new Error(r.error || 'Could not save.');
+    putCard(r.card as LoraCard);
+  };
+  const regroup = async (busy: string, work: () => Promise<void>) => {
+    status.textContent = busy;
+    try { await work(); status.textContent = 'Saved.'; fill(); if (onSaved) onSaved(); }
+    catch (err) { status.textContent = err instanceof Error ? err.message : String(err); fill(); }
+  };
+  function fillVersions(): void {
+    const mine = membersOf(card.group);
+    verList.replaceChildren();
+    for (const m of mine.length ? mine : [name]) {
+      const row = el('div', 'lora-edit-ver');
+      const c = loraCard(m);
+      row.appendChild(el('span', 'lora-ver' + (m === name ? ' on' : ''), c.version || '—'));
+      row.appendChild(el('span', 'lora-edit-ver-name', stemOf(m) + (m === name ? ' (this one)' : '')));
+      if (mine.length > 1) {
+        const split = el('button', 'lora-btn', 'Split off');
+        split.type = 'button';
+        split.title = 'Make this one its own LoRA again (not a version of the others)';
+        split.addEventListener('click', () => void regroup('Saving…', () => setGroup(m, 'solo:' + m)));
+        row.appendChild(split);
+      }
+      verList.appendChild(row);
+    }
+    verNote.textContent = mine.length > 1
+      ? (card.groupSet ? 'Grouped by hand.' : 'Grouped automatically: ' + (card.group.startsWith('civitai:') ? 'the same CivitAI model.' : 'the same name apart from its version.'))
+      : 'No other versions.';
+  }
+  addVer.addEventListener('click', () => {
+    const inGroup = new Set(membersOf(card.group));
+    openLoraPicker(`Add a version of ${stemOf(name)}`, allNames().filter((n) => !inGroup.has(n)), '', (other) => {
+      if (!other) return;
+      void regroup('Grouping…', async () => {
+        const otherCard = loraCard(other);
+        // Keep a key that's already set by hand; otherwise make one.
+        const key = card.groupSet ? card.group : otherCard.groupSet ? otherCard.group : 'set:' + stemOf(name).toLowerCase();
+        const both = new Set([...membersOf(card.group), name, ...membersOf(otherCard.group), other]);
+        for (const n of both) if (!(loraCard(n).groupSet && loraCard(n).group === key)) await setGroup(n, key);
+      });
+    });
+  });
+  autoGrp.addEventListener('click', () => void regroup('Saving…', () => setGroup(name, null)));
 
   const save = el('button', '', 'Save');
   save.type = 'button';
@@ -403,10 +474,10 @@ export function openLoraCardEditor(name: string, onSaved?: () => void): void {
   const fill = () => {
     card = loraCard(name);
     trig.inp.value = card.triggers.join(', ');
-    trig.note.textContent = card.triggerSource === 'set' ? 'Set here.' : card.triggerSource === 'lora-manager' ? 'From Lora Manager (CivitAI).' : 'From the file name\'s last " - " part.';    ver.inp.value = card.version;
+    trig.note.textContent = card.triggerSource === 'set' ? 'Set here.' : card.triggerSource === 'lora-manager' ? 'From Lora Manager (CivitAI).' : 'From the file name\'s last " - " part.';
+    ver.inp.value = card.version;
     ver.note.textContent = card.versionSet ? 'Set here.' : 'Automatic.';
-    grp.inp.value = card.group;
-    grp.note.textContent = card.groupSet ? 'Set here.' : 'Automatic: ' + (card.group.startsWith('civitai:') ? 'the same CivitAI model.' : 'the name without its version.');
+    fillVersions();
     prev.replaceChildren();
     if (card.preview) {
       const t = el('div', 'lora-edit-img');
@@ -435,29 +506,27 @@ export function openLoraCardEditor(name: string, onSaved?: () => void): void {
   });
   trig.auto.addEventListener('click', () => void send({ op: 'set_card', triggers: null }, 'Saving…'));
   ver.auto.addEventListener('click', () => void send({ op: 'set_card', version: null }, 'Saving…'));
-  grp.auto.addEventListener('click', () => void send({ op: 'set_card', group: null }, 'Saving…'));
   save.addEventListener('click', () => {
     const p: Record<string, unknown> = { op: 'set_card' };
     if (trig.inp.value.trim() !== card.triggers.join(', ')) p.triggers = trig.inp.value;
     if (ver.inp.value.trim() !== card.version) p.version = ver.inp.value.trim() || null;
-    if (grp.inp.value.trim() !== card.group) p.group = grp.inp.value.trim() || null;
     if (Object.keys(p).length === 1) { status.textContent = 'Nothing changed.'; return; }
     void send(p, 'Saving…');
   });
 
-  scroll.append(prev, trig.wrap, ver.wrap, grp.wrap, btns, status);
+  scroll.append(prev, trig.wrap, ver.wrap, btns, verWrap, status);
   fill();
 
   function close(): void {
     backdrop.classList.remove('modal-visible');
+    backdrop.classList.add('closing');
     setTimeout(() => backdrop.remove(), 160);
-    window.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('keydown', onKey);
   }
-  // Capture + stop: the picker under this one also listens for Escape.
-  function onKey(ev: KeyboardEvent): void { if (ev.key === 'Escape') { ev.stopPropagation(); close(); } }
+  function onKey(ev: KeyboardEvent): void { if (ev.key === 'Escape' && isTopModal(backdrop)) close(); }
   backdrop.addEventListener('click', (ev) => { if (ev.target === backdrop) close(); });
   closeBtn.addEventListener('click', close);
-  window.addEventListener('keydown', onKey, true);
+  document.addEventListener('keydown', onKey);
   document.body.appendChild(backdrop);
   requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));
 }
