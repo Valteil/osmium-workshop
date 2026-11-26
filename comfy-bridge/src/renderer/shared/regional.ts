@@ -814,6 +814,18 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     renderUndo();
   }
 
+  // Scroll the row into view inside its own scroll box only. When that box
+  // also holds the canvas (the phone's stacked page), scrolling it mid-drag
+  // would slide the canvas out from under the finger, so leave it.
+  function revealRow(row: HTMLElement): void {
+    let sc: HTMLElement | null = row.parentElement;
+    while (sc && !(/(auto|scroll)/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight > sc.clientHeight)) sc = sc.parentElement;
+    if (!sc || sc.contains(stage)) return;
+    const sr = sc.getBoundingClientRect(), rr = row.getBoundingClientRect();
+    if (rr.top < sr.top) sc.scrollTop -= sr.top - rr.top;
+    else if (rr.bottom > sr.bottom) sc.scrollTop += Math.min(rr.bottom - sr.bottom, rr.top - sr.top);
+  }
+
   function select(id: string | null, focusPrompt: boolean): void {
     selected = id;
     renderStage();
@@ -821,8 +833,8 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
     if (id) {
       const row = list.querySelector<HTMLElement>(`.rg-item[data-id="${id}"]`);
       if (row) {
-        row.scrollIntoView({ block: 'nearest' });
-        if (focusPrompt) row.querySelector('textarea')?.focus();
+        revealRow(row);
+        if (focusPrompt) row.querySelector('textarea')?.focus({ preventScroll: true });
       }
     }
   }
@@ -943,7 +955,8 @@ export function mountRegional(tabHost: HTMLElement, cardHost: HTMLElement, opts:
       pushUndo(d.before);
       save();
       renderStage(); renderList(); renderCard();
-      select(box.id, true);
+      // On touch, focusing the prompt pops the keyboard and shoves the page.
+      select(box.id, e.pointerType === 'mouse');
       return;
     }
     if (box.x !== d.orig.x || box.y !== d.orig.y || box.w !== d.orig.w || box.h !== d.orig.h) {

@@ -54,15 +54,27 @@ export function closeLightbox(): boolean {
 // button in it can dismiss the lightbox. `infoDeferred` (the phone's narrow
 // screen) puts an "Info" button in instead and only builds the panel on tap;
 // stepping rebuilds it while it is showing.
-export type LightboxInfo = (src: string, close: () => void) => HTMLElement | null;
+// `key` is the shown image's entry in `siblings` (its thumbnail when `full` is
+// given), for looking up which file it is.
+export type LightboxInfo = (src: string, close: () => void, key?: string) => HTMLElement | null;
 // `onStep` hears each image ← / → moves to (the result carousel follows it).
-export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo, infoDeferred?: boolean, onStep?: (src: string) => void): void {
+// `full` (the phone's PC gallery): `src` and the siblings are small
+// thumbnails; the lightbox opens on the thumbnail at once and swaps in the
+// full file when `full` returns it. The info panel waits for the full file,
+// since a thumbnail carries no generation settings.
+export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo, infoDeferred?: boolean, onStep?: (src: string) => void, full?: (key: string) => Promise<string | null>): void {
   if (!src) return;
   closeLightbox();
   const backdrop = document.createElement('div');
   backdrop.className = 'lightbox-backdrop';
   const img = document.createElement('img');
   img.src = src;
+  // The shown image's sibling entry, and whether its full file is still due.
+  let cur = src;
+  let pending = false;
+  let closed = false;
+  const status = document.createElement('div');
+  status.className = 'lightbox-status';
   img.draggable = false;
   img.style.transformOrigin = 'center center';
   const closeBtn = document.createElement('button');
@@ -70,6 +82,19 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   closeBtn.textContent = '×';
   backdrop.appendChild(img);
   backdrop.appendChild(closeBtn);
+  function loadFull(key: string): void {
+    if (!full) return;
+    pending = true;
+    status.textContent = 'Loading the full image…';
+    backdrop.appendChild(status);
+    full(key).then((u) => u, () => null).then((u) => {
+      if (closed || cur !== key) return;
+      pending = false;
+      if (u) { img.src = u; status.remove(); }
+      else status.textContent = 'Couldn\'t fetch the full image — showing the small preview.';
+      if (info && (!infoDeferred || infoShown)) renderInfo();
+    });
+  }
 
   let scale = 1,
     panX = 0,
@@ -155,6 +180,7 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   attachLightboxPinch(img, (delta: number) => zoomBy(delta * 0.02));
 
   function close(): void {
+    closed = true;
     if (closeOpenLightbox === close) closeOpenLightbox = null;
     backdrop.classList.remove('modal-visible');
     setTimeout(() => backdrop.remove(), 160);
@@ -177,7 +203,15 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   }
   function renderInfo(): void {
     if (!info) return;
-    const next = info(img.src, close);
+    let next: HTMLElement | null;
+    if (pending) {
+      next = document.createElement('div');
+      next.className = 'gen-info';
+      const wait = document.createElement('div');
+      wait.className = 'gen-info-empty';
+      wait.textContent = 'Loading the full image…';
+      next.appendChild(wait);
+    } else next = info(img.src, close, cur);
     if (infoEl) infoEl.remove();
     infoEl = next;
     if (infoEl) {
@@ -187,10 +221,14 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   }
   function step(dir: 1 | -1): void {
     const list = siblings ? siblings() : [];
-    const i = list.indexOf(img.src);
+    const i = list.indexOf(cur);
     const next = list[i + dir];
     if (i === -1 || !next) return;
     img.src = next;
+    cur = next;
+    status.remove();
+    pending = false;
+    loadFull(next);
     scale = 1;
     panX = 0;
     panY = 0;
@@ -222,6 +260,7 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
     backdrop.appendChild(infoBtn);
   }
   document.addEventListener('keydown', onKey);
+  loadFull(src);
   if (info && !infoDeferred) renderInfo();
   document.body.appendChild(backdrop);
   requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('modal-visible')));

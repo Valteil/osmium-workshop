@@ -173,20 +173,16 @@ async function renderThumbSlice(
     img.src = url;
     // The info panel also gets the image's path in the output folder (the
     // thumbnail's alt), looked up by URL so it follows ← / → steps.
+    // `key` is the thumbnail the lightbox is on (src may be the full file).
     const info: LightboxInfo | undefined = imageInfo
-      ? (src, close) => imageInfo!(src, close, galleryThumbRel(h, src))
+      ? (src, close, key) => imageInfo!(src, close, galleryThumbRel(h, key || src))
       : undefined;
-    img.addEventListener('click', async () => {
-      let openSrc = url;
-      if (srcs?.fullSrc && rel) {
-        try {
-          const full = await srcs.fullSrc(rel);
-          if (full) openSrc = full;
-        } catch {
-          /* the lightbox still opens on the small version */
-        }
-      }
-      showImageLightbox(openSrc, () => galleryThumbUrls(h), info, mountedOpts?.lazyInfo);
+    // Opens on the thumbnail at once; the lightbox swaps in the full file
+    // (and fetches each one ← / → steps to).
+    const fullSrc = srcs?.fullSrc;
+    const full = fullSrc ? (key: string) => { const r = galleryThumbRel(h, key); return r ? fullSrc(r) : Promise.resolve(null); } : undefined;
+    img.addEventListener('click', () => {
+      showImageLightbox(img.src, () => galleryThumbUrls(h), info, mountedOpts?.lazyInfo, undefined, full);
     });
   };
   await Promise.all(Array.from({ length: Math.min(THUMB_PARALLEL, rels.length) }, worker));

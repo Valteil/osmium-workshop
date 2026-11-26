@@ -721,10 +721,12 @@ export function mountCompareTab(root: HTMLElement, deps: CompareDeps): CompareHa
       cell.addEventListener('mousedown', (e) => { if (e.shiftKey) e.preventDefault(); });
       cell.addEventListener('click', async (e) => {
         if (e.shiftKey) { void add(); return; }
-        const u = await full();
-        if (!u) return;
-        const info: LightboxInfo = (srcUrl, close) => deps.details(srcUrl, gridRel(srcUrl) || rel, close);
-        showImageLightbox(u, gridSrcs, info, deps.lazyInfo);
+        // Opens on the thumbnail at once; with a fullSrc the lightbox swaps in
+        // the full file (and fetches each one ← / → steps to).
+        if (!im.src) return;
+        const info: LightboxInfo = (srcUrl, close, key) => deps.details(srcUrl, gridRel(key || srcUrl) || rel, close);
+        const fullOf = s.fullSrc ? (key: string) => { const r = gridRel(key); return r ? s.fullSrc!(r) : Promise.resolve(null); } : undefined;
+        showImageLightbox(im.src, gridSrcs, info, deps.lazyInfo, undefined, fullOf);
       });
       // Long-press on a touch screen adds; desktop right-click keeps its menu.
       cell.addEventListener('contextmenu', (e) => {

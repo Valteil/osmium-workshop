@@ -774,7 +774,7 @@ declare const BridgeShared: {
         }
       },
       async readImage(relPath: string) {
-        const res = await pcRequest('/internal/gallery/read?path=' + encodeURIComponent(relPath || ''), 8000, 3);
+        const res = await pcRequest('/internal/gallery/read?path=' + encodeURIComponent(relPath || ''), 15000, 2);
         if (res.status !== 200) throw new Error('Fetching the image failed (HTTP ' + res.status + ').');
         // The relay answers with the file's own content type.
         const body = new Uint8Array(res.body);
