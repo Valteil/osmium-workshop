@@ -204,6 +204,7 @@ def _rgb(r, g, b):
     return f"\033[38;2;{r};{g};{b}m" if _VT else ""
 
 
+_SGR = re.compile(r"\033\[[0-9;]*m")
 _R = "\033[0m" if _VT else ""
 _B = "\033[1m" if _VT else ""
 _ACC, _DIM, _TXT = _rgb(94, 234, 212), _rgb(98, 108, 122), _rgb(208, 216, 226)
@@ -231,8 +232,117 @@ def _line(tone, text):
     return f"  {_DIM}{time.strftime('%H:%M:%S')}{_R}  {col}{glyph}{_R} {_TXT}{body}{_R}"
 
 
+# Simplified log (the default; L in this window switches it, remembered in
+# <ComfyUI>/user/osmium_console.json): ComfyUI's technical lines are reworded
+# or hidden, tracebacks fold to one line. Only this window changes: the log
+# buffer the apps read, and comfyui_detail.log, stay raw.
+_PREFS_PATH = os.path.join(os.path.dirname(_LIFE_PATH), "osmium_console.json") if _LIFE_PATH else None
+
+
+def _load_simple():
+    try:
+        with open(_PREFS_PATH, encoding="utf-8") as f:
+            return bool(json.load(f).get("simple", True))
+    except Exception:
+        return True
+
+
+SIMPLE = _load_simple()
+
+_MODEL_NAMES = {
+    "AnimaTEModel_": "Anima text encoder", "Anima": "Anima", "WanVAE": "VAE", "AutoencoderKL": "VAE",
+    "SDXL": "SDXL model", "SDXLClipModel": "SDXL text encoder", "ControlNet": "ControlNet",
+    "RRDBNet": "upscale model", "SRVGGNetCompact": "upscale model", "SPAN": "upscale model",
+}
+
+
+def _gb(mb):
+    return f"{int(mb) / 1024:.0f}"
+
+
+# (pattern, None = hide | (tone, text) | callable(match) -> (tone, text) | None).
+# Covers every console line seen in comfyui_detail.log (INFO and up) plus the
+# node packs' own prints; anything unmatched is shown as it is.
+_SIMPLE_RULES = [(re.compile(p), r) for p, r in [
+    # model loading / memory
+    (r"^Requested to load ", None),
+    (r"^Model (\S+) prepared for dynamic VRAM loading\. (\d+)MB",
+     lambda m: None if m[1] == "TAEHV" else ("info", f"Loaded {_MODEL_NAMES.get(m[1], m[1])} · {m[2]} MB")),
+    (r"^\d+ models? unloaded\.$", None),
+    (r"^loaded (completely|partially)", None),
+    (r"^Unloaded partially", None),
+    (r"^Model storage policy", None),
+    (r"^model weight dtype", None),
+    (r"^model_type ", None),
+    (r"^VAE load device", None),
+    (r"^Using RAM pressure cache", None),
+    (r"^Set vram state", None),
+    (r"^Using async weight offloading", None),
+    (r"^Enabled pinned memory", None),
+    (r"^DynamicVRAM support", None),
+    (r"^aimdo: ", None),
+    (r"^Checkpoint files will always be loaded safely", None),
+    # startup facts
+    (r"^Total VRAM (\d+) MB, total RAM (\d+) MB", lambda m: ("info", f"Memory · {_gb(m[1])} GB VRAM · {_gb(m[2])} GB RAM")),
+    (r"^Device: \S+ (.+?) : ", lambda m: ("info", f"GPU · {m[1]}")),
+    (r"^pytorch version", None),
+    (r"^xformers version", None),
+    (r"^Found comfy_kitchen backend", None),
+    (r"^setup plugin ", None),
+    (r"^NumExpr ", None),
+    (r"^Detail log: (.*)", lambda m: ("info", f"Full log · {m[1]}")),
+    (r"^Using \S+ attention in VAE", None),
+    (r"^Using (xformers|Flash|sage|pytorch|split|sub-quadratic)\w* [Aa]ttention", lambda m: ("info", f"Attention · {m[1]}")),
+    # node packs
+    (r"ImpactSwitch does not guarantee", None),
+    (r"^SELECTED: ", None),
+    (r"^loaded LLLite weights", ("info", "ControlNet loaded")),
+    (r"^ControlNet-LLLite", None),
+    (r"^\[USDU Batch Debug\] linear_process called batch_size=(\d+) rows=\d+ cols=\d+ total_tiles=(\d+)",
+     lambda m: ("info", f"Upscaling {m[2]} tiles" + (f", {m[1]} at a time" if int(m[1]) > 1 else ""))),
+    (r"^\[USDU Batch Debug\]", None),
+    (r"^(\[INFO\] )?USDU batch patches", None),
+    (r"^Using tiled decode", None),
+    (r"^\(pysssss:WD14Tagger\) \[DEBUG\]", None),
+    (r"^\[?RES4LYF\]?", None),
+    (r"^HTTP Request: ", None),
+    # runs and errors
+    (r"^Processing interrupted", None),
+    (r"^Prompt executed in", None),
+    (r"^Error handling request from (\S+)", lambda m: ("err", f"A request from {m[1]} failed")),
+    (r"^!!! Exception during processing !!! (.*)", lambda m: ("err", f"Failed · {m[1]}")),
+    (r"^Traceback \(most recent call last\)", None),
+]]
+
+# The runner's own lines, shortened where they carry technical detail.
+_SIMPLE_SAY = [(re.compile(p), r) for p, r in [
+    (r"^Generating \(\d+ nodes\)\.\.\.$", lambda m: "Generating…"),
+    (r"^Ready \(ComfyUI (\S+), device .*\)\.$", lambda m: f"Ready · ComfyUI {m[1]}"),
+    (r"^Could not load (.+?) \(see the log above\)\.$", lambda m: f"Could not load {m[1]}"),
+    (r"^Starting from (.*)", lambda m: f"Starting · {m[1]}"),
+]]
+
+
+def _simplify(text):
+    """(tone, text) for a raw line in simplified mode, None to hide it."""
+    for rx, rep in _SIMPLE_RULES:
+        m = rx.search(text)
+        if m:
+            if rep is None:
+                return None
+            return rep(m) if callable(rep) else rep
+    return ("raw", text)
+
+
 def say(msg, tone=None):
-    print(_line(tone or _tone_of(str(msg)), msg), flush=True)
+    msg = str(msg)
+    if SIMPLE:
+        for rx, rep in _SIMPLE_SAY:
+            m = rx.search(msg)
+            if m:
+                msg = rep(m)
+                break
+    print(_line(tone or _tone_of(msg), msg), flush=True)
 
 
 def rule():
@@ -242,23 +352,158 @@ def rule():
 def banner():
     print("", flush=True)
     print(f"  {_ACC}{_B}◆{_R}  {_TXT}{_B}O S M I U M   C O M F Y{_R}   {_DIM}for {APP_NAME}{_R}", flush=True)
+    print(f"  {_DIM}press L for the {'detailed' if SIMPLE else 'simplified'} log{_R}", flush=True)
     rule()
 
 
 _LEVEL_STYLE = {"DEBUG": (_DIM, "dbg"), "DETAIL": (_DIM, "dtl"), "INFO": (_ACC, "inf"),
                 "WARNING": (_WARN, "wrn"), "ERROR": (_ERR, "err"), "CRITICAL": (_ERR, "crt")}
+_LEVEL_TONE = {"WARNING": "warn", "ERROR": "err", "CRITICAL": "err"}
 
 
 def style_console_logging(logging_mod):
-    """ComfyUI's console handler gets the runner's line shape (the file log is untouched)."""
+    """ComfyUI's console handler gets the runner's line shape (the file log is
+    untouched); in simplified mode each record is reworded or dropped."""
     class Fmt(logging_mod.Formatter):
         def format(self, record):
+            simple = getattr(record, "_osm_simple", None)
+            if simple is not None:
+                tone, text = simple
+                if tone == "raw":
+                    tone = _LEVEL_TONE.get(record.levelname, "info")
+                return _line(tone, text)
             col, tag = _LEVEL_STYLE.get(record.levelname, (_DIM, record.levelname[:3].lower()))
             msg = super().format(record).replace("\n", "\n" + " " * 16)
             return f"  {_DIM}{time.strftime('%H:%M:%S')}{_R}  {col}{tag}{_R} {_TXT if record.levelno >= logging_mod.WARNING else ''}{msg}{_R}"
+
+    class Simple(logging_mod.Filter):
+        def filter(self, record):
+            record._osm_simple = None
+            if not SIMPLE:
+                return True
+            try:
+                msg = _SGR.sub("", record.getMessage()).strip()
+                first = msg.splitlines()[0] if msg else ""
+            except Exception:
+                return True
+            if not first:
+                return False
+            r = _simplify(first)
+            if r is None:
+                return False
+            record._osm_simple = r
+            return True
+
     for h in logging_mod.getLogger().handlers:
         if type(h) is logging_mod.StreamHandler:
             h.setFormatter(Fmt("%(message)s"))
+            h.addFilter(Simple())
+
+
+_STYLED = re.compile(r"^  (\d\d:\d\d:\d\d  |[◆─]|press L)")
+
+
+def simplify_console_prints(logger_mod):
+    """Raw prints (node packs, tracebacks) reach this window through ComfyUI's
+    stdout/stderr interceptors. Their console side is filtered line by line in
+    simplified mode; the buffered log entries the apps read stay as written."""
+    from datetime import datetime as _dt
+
+    def wrap(ic):
+        if ic is None:
+            return
+        base_write = io.TextIOWrapper.write
+        state = {"pend": "", "tb": False}
+
+        def emit(text):
+            if text:
+                base_write(ic, text)
+
+        def present(line):
+            plain = _SGR.sub("", line).rstrip()
+            if state["tb"]:
+                if plain[:1].isspace() or not plain:
+                    return ""
+                state["tb"] = False
+                return _line("err", plain) + "\n"
+            if plain.startswith("Traceback (most recent call last)"):
+                state["tb"] = True
+                return ""
+            if not plain or _STYLED.match(plain):
+                return line + "\n"
+            r = _simplify(plain)
+            if r is None:
+                return ""
+            tone, text = r
+            return _line("info" if tone == "raw" else tone, text) + "\n"
+
+        def write(data):
+            entry = {"t": _dt.now().isoformat(), "m": data}
+            with ic._lock:
+                ic._logs_since_flush.append(entry)
+                logs = logger_mod.logs
+                if logs is not None:
+                    if isinstance(data, str) and data.startswith("\r") and logs and not logs[-1]["m"].endswith("\n"):
+                        logs.pop()
+                    logs.append(entry)
+            if not SIMPLE or not isinstance(data, str):
+                if state["pend"]:
+                    emit(state["pend"])
+                    state["pend"] = ""
+                emit(data)
+                return len(data) if isinstance(data, str) else 0
+            if "\r" in data:  # progress bars redraw in place: straight through
+                if state["pend"]:
+                    emit(state["pend"])
+                    state["pend"] = ""
+                emit(data)
+                return len(data)
+            buf = state["pend"] + data
+            *lines, state["pend"] = buf.split("\n")
+            emit("".join(present(ln) for ln in lines))
+            return len(data)
+
+        base_flush = ic.flush
+
+        def flush():
+            if state["pend"]:
+                emit(state["pend"])
+                state["pend"] = ""
+            base_flush()
+
+        ic.write = write
+        ic.flush = flush
+
+    wrap(getattr(logger_mod, "stdout_interceptor", None))
+    wrap(getattr(logger_mod, "stderr_interceptor", None))
+
+
+def watch_log_toggle():
+    """L in this window switches simplified / detailed (Windows console only)."""
+    if os.name != "nt":
+        return
+    try:
+        import msvcrt
+    except ImportError:
+        return
+
+    def loop():
+        global SIMPLE
+        while True:
+            try:
+                ch = msvcrt.getwch()
+            except Exception:
+                return
+            if ch in ("l", "L"):
+                SIMPLE = not SIMPLE
+                if _PREFS_PATH:
+                    try:
+                        with open(_PREFS_PATH, "w", encoding="utf-8") as f:
+                            json.dump({"simple": SIMPLE}, f)
+                    except OSError:
+                        pass
+                say(f"{'Simplified' if SIMPLE else 'Detailed'} log (press L to switch back)", "ok")
+    threading.Thread(target=loop, name="log-toggle", daemon=True).start()
 
 
 def style_progress_bars():
@@ -273,13 +518,32 @@ def style_progress_bars():
              f"  eta {{remaining}}{_R}")
     orig_init = _tq.tqdm.__init__
     orig_meter = _tq.tqdm.format_meter
+    orig_close = _tq.tqdm.close
+    # Every bar draws on the one line (no tqdm nesting, which stacks a line
+    # per inner bar and needs cursor-up codes). A bar opened while another is
+    # running (a sampler inside USDU's tile bar) says which step of it this
+    # is, and clears its line when done instead of leaving one behind.
+    open_bars = []
 
     def init(self, *a, **kw):
         if "bar_format" not in kw:
-            desc = f"{_ACC}{{desc}}{_R}" if kw.get("desc") else ""
+            outer = next((b for b in reversed(open_bars) if not getattr(b, "disable", False)), None)
+            if outer is not None:
+                total = f"/{outer.total}" if outer.total else ""
+                kw["desc"] = f"{outer.desc or 'step'} {outer.n + 1}{total}"
+                kw["leave"] = False
+            desc = f"{_ACC}{{desc}}{_R}  " if kw.get("desc") else ""
             kw["bar_format"] = f"  {_DIM}{{elapsed:>8}}{_R}  {desc}\x01{{bar:28}}\x02{stats}"
             kw["ascii"] = ".#"
+            kw["position"] = 0
         orig_init(self, *a, **kw)
+        open_bars.append(self)
+
+    def close(self):
+        # By identity: tqdm bars compare equal by line position, and they all
+        # sit on line 0 here.
+        open_bars[:] = [b for b in open_bars if b is not self]
+        orig_close(self)
 
     def meter(*a, **kw):
         s = orig_meter(*a, **kw)
@@ -292,9 +556,13 @@ def style_progress_bars():
             painted = _BG_FILL + " " * full + _BG_TRACK + " " * (len(bar) - full) + _R
         else:
             painted = "#" * full + "." * (len(bar) - full)
-        return s[:i] + painted + s[j + 1:]
+        s = s[:i] + painted + s[j + 1:]
+        # Fixed width: bars sharing the line never leave a longer one's tail.
+        visible = len(_SGR.sub("", s))
+        return s + " " * max(0, 100 - visible)
 
     _tq.tqdm.__init__ = init
+    _tq.tqdm.close = close
     _tq.tqdm.format_meter = staticmethod(meter)
 
 
@@ -405,6 +673,8 @@ from app.logger import setup_logger  # noqa: E402
 from comfy.cli_args import get_console_log_level  # noqa: E402
 setup_logger(log_level=get_console_log_level(args.verbose), use_stdout=False)
 style_console_logging(logging)
+simplify_console_prints(app.logger)
+watch_log_toggle()
 
 import folder_paths  # noqa: E402
 import utils.extra_config  # noqa: E402
