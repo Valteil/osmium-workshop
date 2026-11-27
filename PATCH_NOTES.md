@@ -14,144 +14,47 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 
 ### Osmium Workshop
 
-- **Tag groups in the Wiki window:** a **Groups** button in the Wiki window's title bar opens a
-  sidebar of Danbooru's 100 tag groups (Hair styles, Posture, Colors, Attire, …), sorted the way
-  Danbooru's own tag group index is. Pick one to see its tags by section; click a tag to read its
-  definition, or a related group to open it. A tag's **See also** "Tag group:" entries open the
-  group too, and typing `tag group:hair styles` in the lookup works.
-- **Mouse Back / Forward in the Wiki window:** the side buttons go back and forward through the
-  tags and groups you've opened.
-- **Hide the top bar:** a ▲ after Help folds the top bar (brand, File, Settings, …) away for more
-  room; the ▼ at the tab bar's right end brings it back. Remembered between launches.
-- **Dragging tags scrolls the panel:** while dragging a chip or category toward a character
-  section, hold it near the top or bottom edge of the tag panel and the panel scrolls.
-- **Update saved keeps the character's other tags:** updating a saved character from an image no
-  longer drops its saved tags that image doesn't have; only tags you moved out of the section go.
-- **Delete tag from pool:** right-click a tag in a saved character's section (or one of its
-  "Saved, not on this image" offers) and use **Delete tag from pool** in the menu's header to take
-  it out of the saved character. The image's own tags don't change.
-- **Load a character for all images:** **Load character ▾** has a **Load for all images** list.
-  It adds the character's section to every image in the dataset (after a confirm) and moves the
-  tags each one has into it.
-- **Fixed:** a character section or other per-image setting could be gone after a reload when two
-  saves overlapped. Saves now run one at a time, always with the latest state.
-- **Trigger tags:** right-click a tag and use **Mark as trigger** to give it a green chip on every
-  image of the dataset. Trainflow's **Send…** puts the triggers in the LoRA's name, after its last
-  " - " and separated by commas, and always writes them into the file's own metadata
-  (`modelspec.trigger_phrase`). With the **Concise Lora** tickbox the name isn't given them: type
-  in the one or two you want there, and only the rest go into the metadata.
+- **Tag groups in the Wiki window:** a **Groups** sidebar browses Danbooru's tag groups by section.
+- **Mouse Back / Forward in the Wiki window** steps through the tags and groups you've opened.
+- **Hide the top bar:** ▲ folds it away, ▼ brings it back.
+- **Dragging tags scrolls the panel** when held near its top or bottom edge.
+- **Delete tag from pool:** removes a tag from a saved character without touching the image.
+- **Load a character for all images** from **Load character ▾**.
+- **Trigger tags:** mark tags as triggers (green chip). Trainflow's **Send…** adds them to the
+  LoRA's name and its metadata; **Concise Lora** keeps the ones not in the name in the metadata
+  only.
+- **Fixed:** Update saved dropped a character's tags the image didn't have.
+- **Fixed:** a character section or other per-image setting could be lost on reload.
 
 ### Comfy Bridge
-- **LoRA picker reads triggers from the file:** a LoRA sent from Osmium's Trainflow with trigger
-  tags shows them even when its name doesn't carry them, or carries only some of them.
-- **Trigger chips toggle:** a trigger chip under a LoRA field lights up once it's in the prompt,
-  and clicking it again takes it out instead of adding it again. A chip no longer lights up just
-  because its word sits inside a longer tag. Each trigger now goes into its own tag category's box
-  (e.g. `red hair` into Hair) instead of Global; one the tag lists don't know goes into Extra.
-- **Unlock all prompt fields:** one button takes the lock off every prompt box (Windows: beside
-  Clear all; Android: under Save preset).
-- **WD14 Extra tags (upscale / image to image):** with "Tag with WD14" as the prompt, an Extra
-  tags field adds your own tags after the tagger's (e.g. a quality tag or a trigger). Saved with
-  the image, so Import brings it back.
 
-- **LoRA picker with previews, trigger words and versions** (desktop and phone, Osmium Comfy or a
-  PC host): every LoRA field (Main LoRA, the LoRA stack, the Metadata tab) opens a picker with a
-  preview thumbnail per LoRA and a big preview when you hover one (tap the thumbnail on a phone).
-  Search matches names and trigger words. LoRAs that are versions of each other (`V1`/`V2` in the
-  name, or the same CivitAI model) share one row with a chip per version. Under each LoRA field its
-  trigger words show as chips; click one to add it to the Global prompt, or **+ all**. Trigger words
-  come from the name's last part (`<anything> - <name> - <triggers>`), else ComfyUI-Lora-Manager's
-  CivitAI words. The ✎ button sets a LoRA's preview image, trigger words and version; previews are
-  the `.preview.*` files Lora Manager uses, so both tools show the same picture. It also lists the
-  LoRA's versions: **Add a version…** groups another LoRA with it by hand, **Split off** separates
-  one again, and **Auto** goes back to the automatic grouping.
-- **Metadata tab LoRA fields match the Generate tab:** both are tap-to-choose fields with the
-  same picker; any other name or hash goes in the search box below.
-- **Tag the reference image with WD14** (desktop and phone): **Tag with WD14** next to Pick
-  reference image tags the picked picture (ControlNet or image to image alike). The tags land in
-  the WD14 tags section, which opens, ready to edit, copy, use as the prompt or save.
-- **Unload all models** (desktop and phone, next to the connection buttons): frees every model
-  ComfyUI holds on the GPU and logs VRAM free before → after and how many models were loaded, so
-  you can see it worked. Osmium Comfy's automatic unload (after an upscale, before the next
-  generation) now logs the same numbers.
-- **Image to image** (desktop and phone): tick **Image to image** in the Reference image section
-  and pick a picture. Pass 1 starts from it instead of an empty canvas — it is resized to your
-  output size and redrawn at **Strength** (0.3 keeps most of it, 0.5 balances, 0.8 and up redraws
-  most of it). Use it instead of ControlNet when you want the original's details kept. The
-  ControlNet (LLLite) block is off while it's on, and **No image** is the plain text-to-image run.
-  **Match the image's shape** sets Width × Height to the picture's proportions (about the same
-  size as now), so nothing gets padded or cropped before the redraw.
-- **Image to image for upscaling**: set **Upscale by** to 1 in the USDU panel (in the generation
-  settings or the Upscale tab) and it no longer upscales — the whole picture is redrawn once by
-  the checkpoint at the Denoise, at its own size, with no tiles. 2 or more still does the tile-by-
-  tile USDU upscale. Handy for cleaning or restyling dataset pictures with a non-Anima model: the
-  redrawn copy saves next to the normal images (a `_redrawn` name in a folder you choose), not in
-  an Upscaled folder.
-- **Fixed:** with a result open in the zoom view, ← / → now switch between Pass 1, Pass 2 and
-  Upscaled in the zoom view itself (they used to change only the preview behind it).
-- **Mouse Back / Forward buttons:** in the Wiki window they step through the tags and groups
-  you've opened. In the Upscale tab's image picker they step through the folders you've opened
-  (Back with nothing left closes the picker). In the gallery, Forward now re-opens the folder
-  Back just left.
-- **Upscale tab picks from your gallery** (desktop and phone): **Choose image…** now shows the
-  images in your output folder as thumbnails. Subfolders always sit on top as folder buttons
-  (with how many images each holds); click one to open it, and use the path above to go back.
-  The filter box searches every folder, and a sort menu orders the images (newest first by
-  default, oldest first, or by name; it remembers your choice). **Use native
-  file select** in the picker opens the usual file dialog for any other image. With no output
-  folder chosen yet, the file dialog opens straight away.
-- **Tag groups in the Wiki window** (desktop and phone): the same **Groups** sidebar as Osmium's.
-  Pick a group (Hair styles, Posture, …) to see its tags by section, and click a tag to read it. On
-  the phone the group list sits above the page.
-- **Regional prompt** (new **Regional** tab, desktop and phone; it replaces the ControlNet tab and
-  its pose editor): draw boxes over your image and give each one its own prompt, so you choose what
-  goes where (two characters side by side, a prop in a corner). The boxes steer the first part of
-  the steps, then the whole picture is finished as one image. Every text field shows where it goes:
-  **Style** (your Global field: artist tags and style-LoRA triggers) goes into every box, so a
-  style LoRA looks the same everywhere; **Scene** (the setting) surrounds the boxes, whose edges
-  blend into it; a character LoRA's trigger goes in that
-  character's box; **Whole picture only** takes counts
-  like `2girls` without every box drawing two. Ready-made layouts, duplicate, undo/redo, a
-  strength and a **spread** per box (a small box can mean "roughly here" instead of "exactly this
-  big"), a choice of what wins where boxes overlap, the last result shown behind the boxes, and
-  every blending setting, with presets for the kind of picture (Balanced, Roughly here, Strict
-  boxes, Panels for diptychs and comic panels, Interaction, Layered). **Generate** right from the tab, or **Use in Generate**: the Generate
-  tab's prompt boxes are swapped for the layout until you go back. A short **How to use** guide is
-  built into the tab. Regional images bring their layout back with Import Generation. For Anima
-  models; with your own ComfyUI server, update the ComfyUI-DataSetManagerNodes pack (Osmium Comfy
-  has it built in).
-- **USDU upscaling frees VRAM:** the generation models are unloaded before Ultimate SD Upscale
-  starts (when generating with USDU on, and in the Upscale tab), and the upscale models are
-  unloaded before your next generation, so the two never sit in VRAM together. With your own
-  ComfyUI server, update the ComfyUI-DataSetManagerNodes pack for the first half.
-- **Lock a prompt box** (desktop and phone): the lock beside a prompt box's name keeps its text.
-  **Clear all prompt fields** skips locked boxes, and loading a prompt preset or a generation (full
-  settings or prompts only) leaves them as they are, so a fixed Global or Negative survives every
-  import. A locked Negative also won't take a negative preset until you unlock it.
-- **Fixed:** the Metadata tab's LoRA lists opened only some of the time. **LoRA training
-  metadata** is now a tap-to-pick field (the same list as the Generate tab's model fields) and reads
-  the LoRA you pick; **LoRA lookup** has a **Your LoRAs…** button that looks the pick up, and its
-  box still takes any name or a pasted hash.
-- **PC gallery on the phone shows generation details over a slow link:** the PC's thumbnails now
-  carry their image's generation settings, so **Details** shows them as soon as an image opens.
-  The full image swaps in when it arrives, and ← / → fetches each one in turn. A new **Load
-  thumbnails only** tickbox (next to Phone | PC, and in the Compare tab) keeps opened images as
-  the small preview and never downloads the full file. A full image the phone already fetched
-  reopens at once instead of downloading again.
-- **Fixed:** WD14 tags' **Use as prompt** overwrote locked prompt boxes. Locked boxes now keep
-  their text, as with imported generations.
-- **Fixed:** on a slow link, full-size PC images from the phone seemed never to arrive. Each one
-  you opened kept downloading after you closed it or stepped away, so the next one waited behind
-  it. Leaving an image now cancels its download, and the viewer shows how much has arrived.
-- **Fixed:** opening a PC image from the phone waited on the full file. If that was slow it then
-  showed only the small preview, sometimes after you had already closed the viewer, and Details
-  said the image's settings were stripped.
-- **Fixed:** the copy ComfyUI saves on the PC now goes in the same rating and character folders
-  as the app's own save. Before, a custom or OC character folder (or a character picked from the
-  list) only showed up in the app's copy; the PC's copy stopped at the rating folder, e.g.
-  `safe`, unless the Character field held a Danbooru character.
-- **Fixed (phone):** dragging a Regional box scrolled the page, so the canvas slid out from under
-  your finger. Drawing a box also no longer pops up the keyboard.
+- **LoRA picker:** previews, search by name or trigger word, and versions grouped in one row. The
+  ✎ button edits a LoRA's preview, triggers and versions. Triggers also come from the file's own
+  metadata.
+- **Trigger chips** under each LoRA field add a trigger to its tag category's box, light up while
+  it's in the prompt, and take it out on a second click.
+- **Regional prompt** (new **Regional** tab, replaces ControlNet's pose editor): draw boxes and
+  give each its own prompt, with presets, layouts and a built-in guide. For Anima models; with your
+  own ComfyUI, update the ComfyUI-DataSetManagerNodes pack.
+- **Image to image:** start Pass 1 from a picture at a chosen **Strength**. In the USDU panel,
+  **Upscale by** 1 redraws an image at its own size instead of upscaling.
+- **Tag with WD14** next to Pick reference image tags the reference picture.
+- **WD14 Extra tags** for the upscale / image-to-image WD14 prompt.
+- **Lock a prompt box** so clearing, presets and imports leave it alone; **Unlock all prompt
+  fields** clears every lock.
+- **Unload all models** frees ComfyUI's VRAM and logs how much. USDU now unloads the generation
+  models before upscaling, and the reverse.
+- **Upscale tab picks from your gallery,** with folders, search and sorting.
+- **Tag groups in the Wiki window,** as in Osmium.
+- **Mouse Back / Forward** in the Wiki window, the Upscale picker and the gallery.
+- **Phone, PC gallery over a slow link:** Details show at once, **Load thumbnails only** skips
+  full downloads, and full images are cached and cancelled when you leave them.
+- **Fixed:** ← / → in the zoom view now switch between passes.
+- **Fixed:** the Metadata tab's LoRA lists opened only some of the time; its LoRA fields now use
+  the same picker.
+- **Fixed:** WD14's **Use as prompt** overwrote locked boxes.
+- **Fixed:** ComfyUI's PC copy now saves in the same rating and character folders as the app's.
+- **Fixed (phone):** dragging a Regional box scrolled the page.
 
 ---
 
