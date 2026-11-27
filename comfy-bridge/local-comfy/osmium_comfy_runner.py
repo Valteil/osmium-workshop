@@ -115,6 +115,9 @@ if os.name == "nt":
     _k32 = ctypes.windll.kernel32
     _k32.FreeConsole()
     _k32.AllocConsole()
+    # UTF-8, since CONOUT$ below is written as UTF-8 (a Japanese-locale console
+    # defaults to code page 932, which garbles anything past ASCII).
+    _k32.SetConsoleOutputCP(65001)
     _k32.SetConsoleTitleW(f"{APP_NAME} - Osmium Comfy" + (" (stays open)" if LISTEN_PORT else ""))
     _hwnd = _k32.GetConsoleWindow()
     if _hwnd:
@@ -177,8 +180,124 @@ def send(obj):
             _OUT = None
 
 
-def say(msg):
-    print(f"[{APP_NAME}] {msg}", flush=True)
+# ---- console look -----------------------------------------------------------
+# The runner window's own styling: a small banner, timestamped lines with a
+# tone glyph, ComfyUI's log lines in the same shape, and thin-track progress
+# bars. Colour only (SGR codes, which the phone's ComfyUI terminal strips) and
+# \r, nothing that moves the cursor. Plain text when the console can't do VT.
+def _enable_vt():
+    if os.name != "nt":
+        return sys.stderr.isatty() if hasattr(sys.stderr, "isatty") else False
+    try:
+        k32 = ctypes.windll.kernel32
+        h = k32.CreateFileW("CONOUT$", 0xC0000000, 3, None, 3, 0, None)
+        mode = ctypes.c_uint32()
+        if not h or h == ctypes.c_void_p(-1).value or not k32.GetConsoleMode(h, ctypes.byref(mode)):
+            return False
+        return bool(k32.SetConsoleMode(h, mode.value | 0x4 | 0x1))  # VIRTUAL_TERMINAL_PROCESSING | PROCESSED_OUTPUT
+    except Exception:
+        return False
+
+
+_VT = _enable_vt()
+
+
+def _rgb(r, g, b):
+    return f"\033[38;2;{r};{g};{b}m" if _VT else ""
+
+
+_R = "\033[0m" if _VT else ""
+_B = "\033[1m" if _VT else ""
+_ACC, _DIM, _TXT = _rgb(94, 234, 212), _rgb(98, 108, 122), _rgb(208, 216, 226)
+_OK, _WARN, _ERR = _rgb(134, 239, 172), _rgb(251, 191, 36), _rgb(248, 113, 113)
+_BG_FILL = "\033[48;2;94;234;212m" if _VT else ""
+_BG_TRACK = "\033[48;2;40;46;56m" if _VT else ""
+_TONES = {"info": (_ACC, "◇"), "ok": (_OK, "●"), "warn": (_WARN, "▲"), "err": (_ERR, "■")}
+
+
+def _tone_of(msg):
+    m = msg.lower()
+    if m.startswith(("error", "could not", "couldn't", "failed")):
+        return "err"
+    if m.startswith(("warning", "stopped")):
+        return "warn"
+    if m.startswith(("ready", "done", "saved", "loaded", "models unloaded", f"{APP_NAME.lower()} connected")):
+        return "ok"
+    return "info"
+
+
+def _line(tone, text):
+    col, glyph = _TONES.get(tone, _TONES["info"])
+    pad = " " * 14
+    body = str(text).replace("\n", "\n" + pad)
+    return f"  {_DIM}{time.strftime('%H:%M:%S')}{_R}  {col}{glyph}{_R} {_TXT}{body}{_R}"
+
+
+def say(msg, tone=None):
+    print(_line(tone or _tone_of(str(msg)), msg), flush=True)
+
+
+def rule():
+    print(f"  {_DIM}{'─' * 30}{_R}", flush=True)
+
+
+def banner():
+    print("", flush=True)
+    print(f"  {_ACC}{_B}◆{_R}  {_TXT}{_B}O S M I U M   C O M F Y{_R}   {_DIM}for {APP_NAME}{_R}", flush=True)
+    rule()
+
+
+_LEVEL_STYLE = {"DEBUG": (_DIM, "dbg"), "DETAIL": (_DIM, "dtl"), "INFO": (_ACC, "inf"),
+                "WARNING": (_WARN, "wrn"), "ERROR": (_ERR, "err"), "CRITICAL": (_ERR, "crt")}
+
+
+def style_console_logging(logging_mod):
+    """ComfyUI's console handler gets the runner's line shape (the file log is untouched)."""
+    class Fmt(logging_mod.Formatter):
+        def format(self, record):
+            col, tag = _LEVEL_STYLE.get(record.levelname, (_DIM, record.levelname[:3].lower()))
+            msg = super().format(record).replace("\n", "\n" + " " * 16)
+            return f"  {_DIM}{time.strftime('%H:%M:%S')}{_R}  {col}{tag}{_R} {_TXT if record.levelno >= logging_mod.WARNING else ''}{msg}{_R}"
+    for h in logging_mod.getLogger().handlers:
+        if type(h) is logging_mod.StreamHandler:
+            h.setFormatter(Fmt("%(message)s"))
+
+
+def style_progress_bars():
+    """tqdm bars (sampling, decoding) as a two-tone block bar with elapsed, rate
+    and ETA. The bar is coloured spaces, so it stays one cell per step even in
+    an East Asian console, where box-drawing glyphs are drawn double-width."""
+    try:
+        import tqdm.std as _tq
+    except Exception:
+        return
+    stats = (f" {_TXT}{{percentage:3.0f}}%{_R}  {_DIM}{{n_fmt}}/{{total_fmt}}  {{rate_fmt}}"
+             f"  eta {{remaining}}{_R}")
+    orig_init = _tq.tqdm.__init__
+    orig_meter = _tq.tqdm.format_meter
+
+    def init(self, *a, **kw):
+        if "bar_format" not in kw:
+            desc = f"{_ACC}{{desc}}{_R}" if kw.get("desc") else ""
+            kw["bar_format"] = f"  {_DIM}{{elapsed:>8}}{_R}  {desc}\x01{{bar:28}}\x02{stats}"
+            kw["ascii"] = ".#"
+        orig_init(self, *a, **kw)
+
+    def meter(*a, **kw):
+        s = orig_meter(*a, **kw)
+        i, j = s.find("\x01"), s.find("\x02")
+        if i < 0 or j < i:
+            return s
+        bar = s[i + 1:j]
+        full = bar.count("#")
+        if _VT:
+            painted = _BG_FILL + " " * full + _BG_TRACK + " " * (len(bar) - full) + _R
+        else:
+            painted = "#" * full + "." * (len(bar) - full)
+        return s[:i] + painted + s[j + 1:]
+
+    _tq.tqdm.__init__ = init
+    _tq.tqdm.format_meter = staticmethod(meter)
 
 
 # ---- args -----------------------------------------------------------------
@@ -244,8 +363,10 @@ os.chdir(COMFY_DIR)
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 os.environ.setdefault("DO_NOT_TRACK", "1")
 
-say(f"Osmium Comfy starting from {COMFY_DIR}")
+banner()
+say(f"Starting from {COMFY_DIR}")
 say(f"This window is {APP_NAME}'s ComfyUI. Closing it stops local generation.")
+style_progress_bars()
 if ATTN_NOTE:
     say(ATTN_NOTE)
 
@@ -285,6 +406,7 @@ import app.logger  # noqa: E402
 from app.logger import setup_logger  # noqa: E402
 from comfy.cli_args import get_console_log_level  # noqa: E402
 setup_logger(log_level=get_console_log_level(args.verbose), use_stdout=False)
+style_console_logging(logging)
 
 import folder_paths  # noqa: E402
 import utils.extra_config  # noqa: E402
@@ -1733,6 +1855,7 @@ def main():
 
     app.logger.on_flush(on_logs)
     say(f"Ready (ComfyUI {comfyui_version.__version__}, device {comfy.model_management.get_torch_device_name(comfy.model_management.get_torch_device())}).")
+    rule()
     ready = {"event": "ready", "comfy_version": comfyui_version.__version__, "comfy_dir": COMFY_DIR}
 
     jobs = JOBS
