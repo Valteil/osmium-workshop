@@ -76,7 +76,8 @@ declare const BridgeShared: {
   // shared/lora-cards.ts: the LoRA picker (previews, versions, trigger words).
   attachLoraPicker: (input: HTMLInputElement, title: string, getOptions: () => string[], onPicked?: (v: string) => void) => void;
   mountLoraTriggers: (input: HTMLInputElement, box: HTMLElement) => void;
-  setLoraCardHost: (h: { op: any; live?: () => boolean; insertTrigger?: (t: string) => void; promptText?: () => string; setPromptText?: (t: string) => void }) => void;
+  setLoraCardHost: (h: { op: any; live?: () => boolean; insertTrigger?: (t: string) => void | Promise<void>; promptText?: () => string; removeTrigger?: (t: string) => void }) => void;
+  promptTriggerHost: (o: { unified: () => HTMLTextAreaElement | null; boxes: () => Record<string, HTMLTextAreaElement>; split: (text: string) => Promise<Record<string, string>> }) => { insertTrigger?: (t: string) => void | Promise<void>; promptText?: () => string; removeTrigger?: (t: string) => void };
   loadLoraCards: (force?: boolean) => Promise<void>;
   initPromptLocks: (boxes: HTMLTextAreaElement[]) => void;
   bindUnlockAllButton: (btn: HTMLButtonElement, onUnlocked?: (count: number) => void) => void;
@@ -2581,18 +2582,12 @@ declare const BridgeShared: {
   // The LoRA picker's cards come from the PC's runner (relay / Persist Comfy).
   BridgeShared.setLoraCardHost({
     op: loraTools.loraOp,
-    promptText: () => (unifiedPromptMode.checked ? unifiedPrompt : global_).value,
-    insertTrigger: (text: string) => {
-      const field = unifiedPromptMode.checked ? unifiedPrompt : global_;
-      const cur = field.value.replace(/[\s,]+$/, '');
-      field.value = cur ? cur + ', ' + text : text;
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-    },
-    setPromptText: (text: string) => {
-      const field = unifiedPromptMode.checked ? unifiedPrompt : global_;
-      field.value = text;
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-    }
+    // Trigger chips: each trigger into its tag category's box (lora-cards.ts).
+    ...BridgeShared.promptTriggerHost({
+      unified: () => (unifiedPromptMode.checked ? unifiedPrompt : null),
+      boxes: () => ({ global: global_, rating, character, hair, face, chest, body: body_, clothes, limbs, sexual, pose, extra, effects, scene }),
+      split: (text: string) => BridgeShared.splitPromptToFields(text)
+    })
   });
   void BridgeShared.loadLoraCards();
 

@@ -46,7 +46,8 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   tags shows them even when its name doesn't carry them, or carries only some of them.
 - **Trigger chips toggle:** a trigger chip under a LoRA field lights up once it's in the prompt,
   and clicking it again takes it out instead of adding it again. A chip no longer lights up just
-  because its word sits inside a longer tag.
+  because its word sits inside a longer tag. Each trigger now goes into its own tag category's box
+  (e.g. `red hair` into Hair) instead of Global; one the tag lists don't know goes into Extra.
 - **Unlock all prompt fields:** one button takes the lock off every prompt box (Windows: beside
   Clear all; Android: under Save preset).
 

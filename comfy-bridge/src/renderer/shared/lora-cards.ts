@@ -25,12 +25,53 @@ export interface LoraCardHost {
   op: LoraOp | null;
   // Whether `op` can reach the runner right now (desktop: Run on = Osmium Comfy).
   live?(): boolean;
-  // Adds a trigger to the prompt (the Global field).
-  insertTrigger?(text: string): void;
-  // The prompt text, to mark triggers already in it.
+  // Adds a trigger to the prompt (see promptTriggerHost: its category's box).
+  insertTrigger?(text: string): void | Promise<void>;
+  // The prompt text (every prompt box), to mark triggers already in it.
   promptText?(): string;
-  // Replaces that prompt text (a lit chip's click takes its trigger out).
-  setPromptText?(text: string): void;
+  // Takes a trigger out of every prompt box (a lit chip's click).
+  removeTrigger?(text: string): void;
+}
+
+// The shells' trigger plumbing: in unified mode the one box; otherwise each
+// trigger goes into the box its tag category belongs to (the same splitter
+// Use as prompt / imports use; an unknown word lands in Extra), and lit /
+// remove look across every box.
+export function promptTriggerHost(o: {
+  unified: () => HTMLTextAreaElement | null;
+  boxes: () => Record<string, HTMLTextAreaElement>;
+  split: (text: string) => Promise<Record<string, string>>;
+}): Pick<LoraCardHost, 'insertTrigger' | 'promptText' | 'removeTrigger'> {
+  const fire = (b: HTMLTextAreaElement) => b.dispatchEvent(new Event('input', { bubbles: true }));
+  const append = (b: HTMLTextAreaElement, text: string) => {
+    const cur = b.value.replace(/[\s,]+$/, '');
+    b.value = cur ? `${cur}, ${text}` : text;
+    fire(b);
+  };
+  return {
+    promptText: () => {
+      const u = o.unified();
+      return u ? u.value : Object.values(o.boxes()).map((b) => b.value).join(', ');
+    },
+    insertTrigger: async (text) => {
+      const u = o.unified();
+      if (u) { append(u, text); return; }
+      const boxes = o.boxes();
+      let split: Record<string, string> = {};
+      try { split = await o.split(text); } catch { /* fall back to Global */ }
+      const parts = Object.entries(split).filter(([id, t]) => t && boxes[id]);
+      if (!parts.length) { if (boxes.global) append(boxes.global, text); return; }
+      for (const [id, t] of parts) append(boxes[id], t);
+    },
+    removeTrigger: (text) => {
+      const u = o.unified();
+      for (const b of u ? [u] : Object.values(o.boxes())) {
+        if (!promptHasTrigger(b.value, text)) continue;
+        b.value = removeTriggerFromPrompt(b.value, text);
+        fire(b);
+      }
+    }
+  };
 }
 
 // A trigger is in the prompt when one of its comma-separated parts is that
@@ -332,13 +373,13 @@ export function mountLoraTriggers(input: HTMLInputElement, box: HTMLElement): vo
       const inPrompt = promptHasTrigger(prompt, t);
       const chip = el('button', 'lora-trig' + (inPrompt ? ' in' : ''), t);
       chip.type = 'button';
-      chip.title = inPrompt ? 'In the prompt: click to take it out' : 'Add to the Global prompt';
+      chip.title = inPrompt ? 'In the prompt: click to take it out' : 'Add to the prompt (its tag category\'s box)';
       chip.setAttribute('aria-pressed', String(inPrompt));
-      chip.disabled = inPrompt ? !(host.setPromptText && host.promptText) : !host.insertTrigger;
-      chip.addEventListener('click', () => {
+      chip.disabled = inPrompt ? !host.removeTrigger : !host.insertTrigger;
+      chip.addEventListener('click', async () => {
         const cur = host.promptText ? host.promptText() : '';
-        if (promptHasTrigger(cur, t)) host.setPromptText && host.setPromptText(removeTriggerFromPrompt(cur, t));
-        else if (host.insertTrigger) host.insertTrigger(t);
+        if (promptHasTrigger(cur, t)) host.removeTrigger && host.removeTrigger(t);
+        else if (host.insertTrigger) await host.insertTrigger(t);
         render();
       });
       box.appendChild(chip);
@@ -347,10 +388,10 @@ export function mountLoraTriggers(input: HTMLInputElement, box: HTMLElement): vo
       const all = el('button', 'lora-trig all', '+ all');
       all.type = 'button';
       all.title = 'Add every trigger word that isn\'t in the prompt yet';
-      all.addEventListener('click', () => {
+      all.addEventListener('click', async () => {
         const p = host.promptText ? host.promptText() : '';
         const missing = c.triggers.filter((t) => !promptHasTrigger(p, t));
-        if (missing.length) host.insertTrigger!(missing.join(', '));
+        if (missing.length) await host.insertTrigger!(missing.join(', '));
         render();
       });
       box.appendChild(all);

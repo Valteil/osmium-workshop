@@ -85,7 +85,7 @@ import {
   mountGallerySidebar, attachPickerModal, optionsFromDatalist,
   showImageLightbox, bytesToBase64, base64ToBytes, refreshGallery,
   initPromptLocks, isPromptLocked, keepLockedPrompts, bindUnlockAllButton,
-  attachLoraPicker, mountLoraTriggers, setLoraCardHost, loadLoraCards
+  attachLoraPicker, mountLoraTriggers, setLoraCardHost, loadLoraCards, promptTriggerHost
 } from './shared/index';
 import type { StorageBackend, DirEntry } from './shared/storage';
 import { buildSynthDatPrompt, applySaveFolders, RES4LYF_PREFIX, describeUnload, type UnloadResult } from '../comfy-core';
@@ -2036,18 +2036,12 @@ const IMPORT_LABELS = { full: 'Import Generation', prompts: 'Use prompts only' }
 setLoraCardHost({
   op: (payload) => window.electronAPI.loraOp(payload),
   live: () => isLocal(),
-  promptText: () => (unifiedPromptMode.checked ? unifiedPrompt : global_).value,
-  insertTrigger: (text) => {
-    const field = unifiedPromptMode.checked ? unifiedPrompt : global_;
-    const cur = field.value.replace(/[\s,]+$/, '');
-    field.value = cur ? `${cur}, ${text}` : text;
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-  },
-  setPromptText: (text) => {
-    const field = unifiedPromptMode.checked ? unifiedPrompt : global_;
-    field.value = text;
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-  }
+  // Trigger chips: each trigger into its tag category's box (lora-cards.ts).
+  ...promptTriggerHost({
+    unified: () => (unifiedPromptMode.checked ? unifiedPrompt : null),
+    boxes: () => PROMPT_BOX,
+    split: (text) => splitPromptToFields(text)
+  })
 });
 
 // The picked image (Import Generation, Metadata tab): shown as a data URL;
