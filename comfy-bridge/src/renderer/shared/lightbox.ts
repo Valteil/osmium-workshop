@@ -96,7 +96,26 @@ export type LightboxInfo = (src: string, close: () => void, key?: string) => HTM
 // status line.
 export type FullOpts = { signal?: AbortSignal; onProgress?: (loaded: number, total: number) => void };
 export type LightboxFull = (key: string, opts?: FullOpts) => Promise<string | null>;
-export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo, infoDeferred?: boolean, onStep?: (src: string) => void, full?: LightboxFull): void {
+// #rrggbb of the image pixel under a viewport point, or null (outside it /
+// unreadable).
+export function pixelHexAt(img: HTMLImageElement, clientX: number, clientY: number): string | null {
+  const r = img.getBoundingClientRect();
+  if (!r.width || !r.height || !img.naturalWidth) return null;
+  const x = Math.floor(((clientX - r.left) / r.width) * img.naturalWidth);
+  const y = Math.floor(((clientY - r.top) / r.height) * img.naturalHeight);
+  if (x < 0 || y < 0 || x >= img.naturalWidth || y >= img.naturalHeight) return null;
+  try {
+    const c = document.createElement('canvas');
+    c.width = 1; c.height = 1;
+    const g = c.getContext('2d');
+    if (!g) return null;
+    g.drawImage(img, x, y, 1, 1, 0, 0, 1, 1);
+    const d = g.getImageData(0, 0, 1, 1).data;
+    return '#' + [d[0], d[1], d[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+  } catch { return null; }
+}
+
+export function showImageLightbox(src: string, siblings?: () => string[], info?: LightboxInfo, infoDeferred?: boolean, onStep?: (src: string) => void, full?: LightboxFull, onShiftPick?: (hex: string) => void): void {
   if (!src) return;
   closeLightbox();
   const backdrop = document.createElement('div');
@@ -220,6 +239,16 @@ export function showImageLightbox(src: string, siblings?: () => string[], info?:
   img.addEventListener('pointerup', endDrag);
   img.addEventListener('pointercancel', endDrag);
   attachLightboxPinch(img, (delta: number) => zoomBy(delta * 0.02));
+  // Shift-click picks the clicked pixel's colour (the reference preview's
+  // padding colour). The rect already includes the zoom / pan transform.
+  if (onShiftPick) {
+    img.addEventListener('click', (ev: MouseEvent) => {
+      if (!ev.shiftKey || didDrag) return;
+      ev.stopPropagation();
+      const hex = pixelHexAt(img, ev.clientX, ev.clientY);
+      if (hex) onShiftPick(hex);
+    });
+  }
 
   function close(): void {
     closed = true;

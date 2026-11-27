@@ -20,6 +20,20 @@ def _dsm_name(name):
     return "DSM {}".format(name)
 
 
+def _hex_rgb(value):
+    """'#RRGGBB' -> (r, g, b) in 0..1, or None for black / anything unreadable."""
+    s = str(value or "").strip().lstrip("#")
+    if len(s) == 3:
+        s = "".join(ch * 2 for ch in s)
+    if len(s) != 6:
+        return None
+    try:
+        rgb = tuple(int(s[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    except ValueError:
+        return None
+    return None if rgb == (0.0, 0.0, 0.0) else rgb
+
+
 class RgthreeImageResize:
     """DSM Image Resize — resize with crop/pad/contain fit modes."""
 
@@ -68,6 +82,12 @@ class RgthreeImageResize:
                 }),
                 "method": (nodes.ImageScale.upscale_methods,),
             },
+            "optional": {
+                "pad_color": ("STRING", {
+                    "default": "#000000",
+                    "tooltip": "The colour 'pad' fills the empty space with, as #RRGGBB.",
+                }),
+            },
         }
 
     RETURN_TYPES = ("IMAGE", "INT", "INT",)
@@ -75,7 +95,7 @@ class RgthreeImageResize:
     FUNCTION = "main"
     DESCRIPTION = """Resize the image."""
 
-    def main(self, image, measurement, width, height, method, fit):
+    def main(self, image, measurement, width, height, method, fit, pad_color="#000000"):
         """Resizes the image."""
         _, H, W, _ = image.shape
 
@@ -122,6 +142,10 @@ class RgthreeImageResize:
                 padded_image = torch.zeros(
                     (OB, height, width, OC), dtype=image.dtype, device=image.device
                 )
+                rgb = _hex_rgb(pad_color)
+                if rgb is not None:
+                    for c in range(min(OC, 3)):
+                        padded_image[..., c] = rgb[c]
                 x = (width - OW) // 2
                 y = (height - OH) // 2
                 for b in range(OB):

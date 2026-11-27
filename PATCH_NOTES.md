@@ -40,6 +40,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   **Upscale by** 1 redraws an image at its own size instead of upscaling.
 - **Tag with WD14** next to Pick reference image tags the reference picture.
 - **WD14 Extra tags** for the upscale / image-to-image WD14 prompt.
+- **Padding colour** for the reference image's Pad fit, picked with a colour field or by
+  Shift-clicking the opened preview. With your own ComfyUI, update the ComfyUI-DataSetManagerNodes
+  pack.
 - **Lock a prompt box** so clearing, presets and imports leave it alone; **Unlock all prompt
   fields** clears every lock.
 - **Unload all models** frees ComfyUI's VRAM and logs how much. USDU now unloads the generation

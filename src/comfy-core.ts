@@ -92,6 +92,8 @@ export interface SynthDatPromptConfig {
   skipRefImage: boolean;
   lliteStrength: string; lliteStartPercent: string; lliteEndPercent: string; llitePreserveWrapper: boolean;
   resizeFit: string; resizeMethod: string;
+  // Pad fit's fill colour (#rrggbb); black / unset sends nothing.
+  padColor?: string;
   sampler: string; scheduler: string; steps1: string; cfg1: string;
   width: string; height: string; seed1: string;
   use2Pass: boolean; seed2: string; denoise2: string; steps2: string;
@@ -106,6 +108,14 @@ export interface SynthDatPromptConfig {
 
 // Sampler values Comfy Bridge lists from RES4LYF's ClownSampler carry this prefix.
 export const RES4LYF_PREFIX = 'res4lyf:';
+
+// DSM Image Resize's optional pad_color (an older node pack ignores it and
+// pads black). Only sent for Pad fit with a real, non-black colour.
+function setPadColor(prompt: SynthDatPrompt, cfg: SynthDatPromptConfig): void {
+  const c = (cfg.padColor || '').trim().toLowerCase();
+  if (cfg.resizeFit === 'pad' && /^#[0-9a-f]{6}$/.test(c) && c !== '#000000') prompt['238'].inputs.pad_color = c;
+  else delete prompt['238'].inputs.pad_color;
+}
 
 export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromptConfig): SynthDatPrompt {
   const prompt: SynthDatPrompt = JSON.parse(JSON.stringify(template));
@@ -211,6 +221,7 @@ export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromp
     // starts from 164's output as usual.
     prompt['238'].inputs.fit = cfg.resizeFit;
     prompt['238'].inputs.method = cfg.resizeMethod;
+    setPadColor(prompt, cfg);
     delete prompt['240'];
     delete prompt['243'];
     prompt['158:53'].inputs.model = [lastStackId, 0];
@@ -234,6 +245,7 @@ export function buildSynthDatPrompt(template: SynthDatPrompt, cfg: SynthDatPromp
     prompt['243'].inputs.select = 2; // Always CNET-guided when a reference image is in use
     prompt['238'].inputs.fit = cfg.resizeFit;
     prompt['238'].inputs.method = cfg.resizeMethod;
+    setPadColor(prompt, cfg);
     prompt['240'].inputs.image = ['238', 0];
   }
 

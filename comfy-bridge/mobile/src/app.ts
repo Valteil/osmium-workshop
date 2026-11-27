@@ -106,7 +106,7 @@ declare const BridgeShared: {
   mountGallerySidebar: (backend: any, label: any, opts?: any) => any;
   galleryBack: () => boolean;
   compareBack: () => boolean;
-  showImageLightbox: (src: string, siblings?: () => string[], info?: (src: string, close: () => void) => HTMLElement | null, infoDeferred?: boolean, onStep?: (src: string) => void) => void;
+  showImageLightbox: (src: string, siblings?: () => string[], info?: (src: string, close: () => void) => HTMLElement | null, infoDeferred?: boolean, onStep?: (src: string) => void, full?: unknown, onShiftPick?: (hex: string) => void) => void;
   THEMES: any;
   DEFAULT_THEME: any;
 };
@@ -202,6 +202,8 @@ declare const BridgeShared: {
   const lliteEndPercent = $<HTMLInputElement>('lliteEndPercent');
   const llitePreserveWrapper = $<HTMLInputElement>('llitePreserveWrapper');
   const resizeFit = $<HTMLSelectElement>('resizeFit');
+  const padColor = $<HTMLInputElement>('padColor');
+  const padColorRow = $<HTMLDivElement>('padColorRow');
   const resizeMethod = $<HTMLSelectElement>('resizeMethod');
 
   const unifiedPromptMode = $<HTMLInputElement>('unifiedPromptMode');
@@ -275,6 +277,21 @@ declare const BridgeShared: {
   const btnSaveNegativePreset = $<HTMLButtonElement>('btnSaveNegativePreset');
   const btnLoadNegativePreset = $<HTMLButtonElement>('btnLoadNegativePreset');
   const btnDeleteNegativePreset = $<HTMLButtonElement>('btnDeleteNegativePreset');
+
+  // Pad fit's fill colour, shown with Pad only. The preview opens large on
+  // tap (Shift-click there picks a colour where a keyboard is attached).
+  function applyPadColorUI() { padColorRow.style.display = resizeFit.value === 'pad' ? '' : 'none'; }
+  resizeFit.addEventListener('change', applyPadColorUI);
+  applyPadColorUI();
+  $('btnPadColorReset').addEventListener('click', () => { padColor.value = '#000000'; });
+  refPreview.addEventListener('click', () => {
+    if (!refPreview.src) return;
+    BridgeShared.showImageLightbox(refPreview.src, undefined, undefined, false, undefined, undefined, (hex) => {
+      padColor.value = hex;
+      if (resizeFit.value !== 'pad') { resizeFit.value = 'pad'; applyPadColorUI(); }
+      log(`Padding colour set to ${hex}.`);
+    });
+  });
 
   function log(msg: unknown) {
     const line = document.createElement('div');
@@ -1889,6 +1906,7 @@ declare const BridgeShared: {
       llitePreserveWrapper: llitePreserveWrapper.checked,
       resizeFit: resizeFit.value,
       resizeMethod: resizeMethod.value,
+      padColor: padColor.value,
       sampler: sampler.value,
       scheduler: scheduler.value,
       steps1: steps1.value,
@@ -2290,6 +2308,8 @@ declare const BridgeShared: {
     for (const sel of [resizeFit, resizeMethod]) {
       for (const opt of Array.from(sel.options)) opt.selected = opt.defaultSelected;
     }
+    padColor.value = padColor.defaultValue;
+    applyPadColorUI();
     for (const r of loraRows.slice()) {
       loraRows = loraRows.filter((x) => x !== r);
       r.row.remove();
@@ -2434,6 +2454,9 @@ declare const BridgeShared: {
     if (prompt['238']) {
       setVal(resizeFit, s('238', 'fit'));
       setVal(resizeMethod, s('238', 'method'));
+      const pc = String(s('238', 'pad_color') || '');
+      padColor.value = /^#[0-9a-f]{6}$/i.test(pc) ? pc.toLowerCase() : '#000000';
+      applyPadColorUI();
     }
 
     logDroppedLoras(await applySavedPromptText(prompt, singleBox));

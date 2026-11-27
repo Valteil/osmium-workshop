@@ -170,6 +170,8 @@ const lliteStartPercent = $<HTMLInputElement>('lliteStartPercent');
 const lliteEndPercent = $<HTMLInputElement>('lliteEndPercent');
 const llitePreserveWrapper = $<HTMLInputElement>('llitePreserveWrapper');
 const resizeFit = $<HTMLSelectElement>('resizeFit');
+const padColor = $<HTMLInputElement>('padColor');
+const padColorRow = $<HTMLDivElement>('padColorRow');
 const resizeMethod = $<HTMLSelectElement>('resizeMethod');
 
 const unifiedPromptMode = $<HTMLInputElement>('unifiedPromptMode');
@@ -247,6 +249,23 @@ const previewCarousel = $<HTMLDivElement>('previewCarousel');
 const previewThumbs = $<HTMLDivElement>('previewThumbs');
 const previewEmpty = $<HTMLDivElement>('previewEmpty');
 const logBox = $<HTMLDivElement>('log');
+
+// Pad fit's fill colour: shown with Pad only. The reference preview opens
+// large on click; Shift-click there picks the colour under the pointer.
+function applyPadColorUI(): void { padColorRow.style.display = resizeFit.value === 'pad' ? '' : 'none'; }
+resizeFit.addEventListener('change', applyPadColorUI);
+applyPadColorUI();
+$('btnPadColorReset').addEventListener('click', () => { padColor.value = '#000000'; });
+refPreview.style.cursor = 'zoom-in';
+refPreview.title = 'Click to open it large; Shift-click there picks the padding colour.';
+refPreview.addEventListener('click', () => {
+  if (!refPreview.src) return;
+  showImageLightbox(refPreview.src, undefined, undefined, false, undefined, undefined, (hex) => {
+    padColor.value = hex;
+    if (resizeFit.value !== 'pad') { resizeFit.value = 'pad'; applyPadColorUI(); }
+    log(`Padding colour set to ${hex}.`);
+  });
+});
 
 function log(msg: string): void {
   const line = document.createElement('div');
@@ -1438,6 +1457,7 @@ function buildPromptForComfy(): any {
     llitePreserveWrapper: llitePreserveWrapper.checked,
     resizeFit: resizeFit.value,
     resizeMethod: resizeMethod.value,
+    padColor: padColor.value,
     sampler: sampler.value,
     scheduler: scheduler.value,
     steps1: steps1.value,
@@ -1784,6 +1804,8 @@ function resetGenerationForm(): void {
   for (const sel of [resizeFit, resizeMethod]) {
     for (const opt of Array.from(sel.options)) opt.selected = opt.defaultSelected;
   }
+  padColor.value = padColor.defaultValue;
+  applyPadColorUI();
   for (const r of [...loraRows]) { loraRows = loraRows.filter(x => x !== r); r.row.remove(); }
   refFile = null;
   refFilename = '';
@@ -1942,6 +1964,8 @@ async function applyImportedPrompt(prompt: Record<string, any>): Promise<void> {
   if (prompt['238']) {
     setVal(resizeFit, s('238', 'fit'));
     setVal(resizeMethod, s('238', 'method'));
+    padColor.value = /^#[0-9a-f]{6}$/i.test(s('238', 'pad_color')) ? s('238', 'pad_color').toLowerCase() : '#000000';
+    applyPadColorUI();
   }
 
   logDroppedLoras(await applySavedPromptText(prompt, singleBox));
