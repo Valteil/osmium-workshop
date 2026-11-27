@@ -203,7 +203,9 @@ TESTED_COMFY_VERSION = "0.37.0"
 # land in ComfyUI's output folder under the same path server mode uses.
 # nodes_upscale_model.py is Comfy Bridge's optional upscale branch
 # (UpscaleModelLoader + ImageUpscaleWithModel -> SaveImage 192_upscaled).
-CORE_EXTRAS = ["nodes_custom_sampler.py", "nodes_primitive.py", "nodes_preview_any.py", "nodes_upscale_model.py"]
+# nodes_string.py: StringConcatenate, which joins WD14 tags + the Extra tags.
+CORE_EXTRAS = ["nodes_custom_sampler.py", "nodes_primitive.py", "nodes_preview_any.py", "nodes_upscale_model.py",
+               "nodes_string.py"]
 DSM_SUBPACKAGES = ["anima_lllite", "rgthree_subset", "impact_switch", "easy_lora_names", "was_text_nodes",
                    "danbooru_character_detect", "anima_regional"]
 
