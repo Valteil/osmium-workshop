@@ -233,7 +233,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
        or `.card` rule — at (0,2,1) that beats the state classes
        (.chip-match/.chip-isolated/.chip-flagged-review, .card.dirty/
        .untagged) and silently hides them. Selected chips use
-       `.chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review)`.
+       `.chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger)`.
      - Never set colors in a theme's bare `button` rule: it outranks
        button.primary/.danger-ghost and every classed button.
      - Tab markers use background/box-shadow, never ::after — epic/legendary
@@ -337,7 +337,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: linear-gradient(to top, color-mix(in srgb, var(--accent-manual) 12%, transparent), transparent 70%);
   }
   html[data-theme="cyberpunk"] button.primary{ background: color-mix(in srgb, var(--accent-manual) 14%, var(--bg-panel)); }
-  html[data-theme="cyberpunk"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+  html[data-theme="cyberpunk"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){
     box-shadow: inset 3px 0 0 var(--accent-auto);
   }
   html[data-theme="cyberpunk"] .card{ transition: transform .12s ease, box-shadow .12s ease; }
@@ -403,7 +403,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   html[data-theme="oriental"] .tab-btn.active{ color: var(--text-primary); border-bottom-color: var(--accent-manual); }
   html[data-theme="oriental"] button.primary{ box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-auto) 50%, transparent); }
-  html[data-theme="oriental"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+  html[data-theme="oriental"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-auto) 50%, transparent);
   }
 
@@ -514,7 +514,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="osmium"] .tab-btn.active{ color: var(--text-primary); border-bottom-color: var(--text-primary); }
   html[data-theme="osmium"] button.primary{ background: var(--text-primary); color: var(--bg-panel); border-color: var(--text-primary); }
   html[data-theme="osmium"] button.primary:hover:not(:disabled){ background: var(--accent-manual); border-color: var(--accent-manual); }
-  html[data-theme="osmium"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+  html[data-theme="osmium"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){
     background: var(--text-primary); color: var(--bg-panel); border-color: var(--text-primary);
   }
   html[data-theme="osmium"] .tool-section{ background: var(--bg-panel); border-color: var(--border-strong); }
@@ -558,7 +558,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="terminal"] .tool-section{ border-style: dashed; border-color: var(--border-strong); }
   html[data-theme="terminal"] button.primary{ background: var(--accent-manual); color: var(--bg-base); }
   html[data-theme="terminal"] button.primary:hover:not(:disabled){ background: var(--accent-auto); border-color: var(--accent-auto); }
-  html[data-theme="terminal"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+  html[data-theme="terminal"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){
     background: var(--accent-manual); color: var(--bg-base); border-color: var(--accent-manual);
   }
   html[data-theme="terminal"] ::selection{ background: var(--accent-auto); color: var(--bg-base); }
@@ -592,7 +592,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="sakura"] .tab-btn.active{ background: var(--accent-auto-dim); color: var(--accent-auto); }
   /* Petal cut: the selected tag drops its pill for a petal (two round
      lobes, two pointed tips). */
-  html[data-theme="sakura"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){ border-radius: 14px 2px 14px 2px; }
+  html[data-theme="sakura"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){ border-radius: 14px 2px 14px 2px; }
   html[data-theme="sakura"] .card .thumbwrap{ border-radius: 17px 17px 0 0; }
   html[data-theme="sakura"] .card{ transition: transform 0.18s ease, box-shadow 0.18s ease; }
   html[data-theme="sakura"] .card:hover{ transform: translateY(-2px); }
@@ -633,7 +633,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     background: radial-gradient(circle at 50% calc(100% - 4px), var(--accent-flair) 0 2.5px, color-mix(in srgb, var(--accent-flair) 30%, transparent) 3.5px, transparent 9px);
   }
   html[data-theme="bioluminescent"] .brand span.tag{ color: var(--text-primary); animation: flairPulse 2.6s ease-in-out infinite; animation-play-state: var(--flair-play); }
-  html[data-theme="bioluminescent"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+  html[data-theme="bioluminescent"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){
     box-shadow: inset 0 0 8px color-mix(in srgb, var(--accent-manual) 35%, transparent);
   }
 
@@ -672,7 +672,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   html[data-theme="amethyst"] .tab-btn.active{ color: var(--accent-flair); border-bottom-color: var(--accent-flair); }
   html[data-theme="amethyst"] button.primary{ box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 45%, transparent); }
-  html[data-theme="amethyst"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+  html[data-theme="amethyst"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-flair) 55%, transparent);
   }
 
@@ -873,7 +873,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="vintage-paper"] .tool-section .sec-head{ border-bottom: 3px double var(--border-soft); }
   html[data-theme="vintage-paper"] button{ box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-panel) 70%, transparent); }
   html[data-theme="vintage-paper"] .chip{ border-style: dashed; }
-  html[data-theme="vintage-paper"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){ border-style: solid; }
+  html[data-theme="vintage-paper"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){ border-style: solid; }
   html[data-theme="vintage-paper"] .card{ transition: transform 0.15s ease, box-shadow 0.15s ease; }
   html[data-theme="vintage-paper"] .card:hover{ transform: rotate(-0.6deg) translateY(-2px); box-shadow: 0 6px 14px color-mix(in srgb, var(--text-primary) 18%, transparent); }
 
@@ -908,7 +908,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   }
   /* The clip eats an outside focus outline — draw it inside instead. */
   html[data-theme="obsidian"] button:not(.img-menu-btn):not(.ctx-item):not(.pdrop-item):not(.dock-collapse-btn):not(.compare-img-cell button):not(.chip button):not(.exclude-badge button):not(.lang-common-chip button):not(.dm-menu-btn):not(.dm-icon-picker-cell):focus-visible{ outline: none; box-shadow: inset 0 0 0 2px var(--accent-manual); }
-  html[data-theme="obsidian"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){ box-shadow: inset 0 0 0 1px var(--accent-manual); }
+  html[data-theme="obsidian"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){ box-shadow: inset 0 0 0 1px var(--accent-manual); }
   html[data-theme="obsidian"] .chip{ clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
   html[data-theme="obsidian"] .tool-section,
   html[data-theme="obsidian"] .settings-section{ box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent-flair) 40%, transparent); }
@@ -1002,7 +1002,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
       linear-gradient(var(--deco), var(--deco)) top 4px right 4px / 1px 12px no-repeat,
       var(--bg-elevated);
   }
-  html[data-theme="rose-gold"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){ color: color-mix(in srgb, var(--accent-manual) 45%, var(--text-primary)); }
+  html[data-theme="rose-gold"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){ color: color-mix(in srgb, var(--accent-manual) 45%, var(--text-primary)); }
   html[data-theme="rose-gold"] .tab-btn.active{ color: var(--accent-manual); border-bottom-color: var(--accent-flair); }
   html[data-theme="rose-gold"] button.primary{
     background-image: linear-gradient(110deg, transparent 30%, color-mix(in srgb, var(--bg-panel) 55%, transparent) 48%, transparent 66%);
@@ -1137,7 +1137,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   html[data-theme="candy-pop"] .tab-btn{ border-radius: 999px; border-bottom: none; }
   html[data-theme="candy-pop"] .tab-btn.active{ background: var(--accent-manual); color: #ffffff; }
   /* Candy stripe on the wrapper, solid under the text. */
-  html[data-theme="candy-pop"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+  html[data-theme="candy-pop"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){
     color: var(--text-primary); border: 2px solid transparent; padding: 1px 3px 1px 8px;
     background:
       linear-gradient(var(--accent-manual-dim), var(--accent-manual-dim)) padding-box,
@@ -1498,7 +1498,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     box-shadow: inset 0 1px 0 var(--w7-hi), 0 1px 2px rgba(0,0,0,0.06);
   }
   /* Selection: Explorer's blue glass. */
-  html[data-theme="windows-7"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+  html[data-theme="windows-7"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){
     background: var(--w7-hover); border-color: var(--w7-ring); color: var(--text-primary);
   }
   html[data-theme="windows-7"] .pdrop-item:hover, html[data-theme="windows-7"] .pdrop-item:focus-visible,
@@ -1653,7 +1653,7 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
     border-color: var(--border-soft);
     box-shadow: inset 0 1px 0 var(--bg-panel), 0 3px 10px color-mix(in srgb, var(--accent-manual) 10%, transparent);
   }
-  html[data-theme="frutiger-aero"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review){
+  html[data-theme="frutiger-aero"] .chip.selected:not(.chip-match,.chip-isolated,.chip-flagged-review,.chip-trigger){
     background: var(--fa-wet), color-mix(in srgb, var(--accent-manual) 30%, var(--bg-panel)); border-color: var(--accent-manual); color: var(--text-primary);
   }
   html[data-theme="frutiger-aero"] :where(input[type="checkbox"]:checked){
@@ -5135,6 +5135,10 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .chip.chip-isolated {
     border-color: var(--accent-danger); box-shadow: 0 0 8px var(--accent-danger); color: var(--accent-danger);
   }
+  .chip.chip-trigger {
+    border-color: var(--accent-success); background: color-mix(in srgb, var(--accent-success) 16%, transparent); color: var(--accent-success);
+    box-shadow: 0 0 6px var(--accent-success);
+  }
   .chip.chip-flagged-review {
     border-color: var(--accent-auto); background: var(--accent-auto-dim); color: var(--accent-auto);
     box-shadow: 0 0 6px var(--accent-auto);
@@ -5594,6 +5598,8 @@ html.motion-swipe .modal-backdrop.modal-visible .modal-card{ transform: translat
   .tf-send-label{ font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
   .tf-send-name{ display: flex; align-items: center; gap: 6px; }
   .tf-send-name input{ flex: 1; min-width: 0; margin: 0; }
+  .tf-send-trig{ display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; color: var(--text-muted); }
+  .tf-send-trig input{ margin: 2px 0 0; }
   .tf-send-name span{ color: var(--text-muted); font-size: 12px; }
   .tf-send-path{ font-size: 12px; overflow-wrap: anywhere; background: var(--bg-elevated); border-radius: var(--radius); padding: 6px 8px; }
   .tf-send-dest{ display: flex; gap: 6px; flex-wrap: wrap; }

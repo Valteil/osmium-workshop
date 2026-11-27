@@ -70,6 +70,7 @@ import {
 } from './edit-log';
 import { initCanonicalTags, loadCanonicalRulesForFolder, setUndoRuleTags } from './canonical-tags';
 import { initSubjectPresets, loadSubjectPresetsForFolder } from './subject-presets';
+import { initTriggerTags, loadTriggerTagsForFolder } from './trigger-tags';
 import { initBucketImages, ORIGINAL_DIR, mergeLegacyOriginals, applyDatasetBucketSizes } from './bucket-images';
 import {
   markDirty, updateDirtyUI, recordChange, applyTagDirection, applyRenameDirection, applyPixelDirection, getIsolateState, updateUndoRedoButtons,
@@ -1582,6 +1583,7 @@ import { setIconLabel } from './icons';
 
   // Retroactive Merge/Void dock (right sidebar) moved to ./canonical-tags.ts
   initSubjectPresets({ getDirHandle: () => dirHandle });
+  initTriggerTags({ getDirHandle: () => dirHandle });
   initCanonicalTags({
     getDirHandle: () => dirHandle,
     getEntries: () => entries,
@@ -2164,6 +2166,7 @@ import { setIconLabel } from './icons';
     // dataset has no _dts_canonical_tags.json of its own yet.
     await loadCanonicalRulesForFolder();
     await loadSubjectPresetsForFolder();
+    await loadTriggerTagsForFolder();
     resetRulesDirty();
     await loadSynthDatSettingsForFolder();
 
@@ -2224,6 +2227,7 @@ import { setIconLabel } from './icons';
     await loadFolderStats();
     await loadCanonicalRulesForFolder();
     await loadSubjectPresetsForFolder();
+    await loadTriggerTagsForFolder();
     resetRulesDirty();
     await loadSynthDatSettingsForFolder();
 

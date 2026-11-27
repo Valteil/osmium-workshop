@@ -154,6 +154,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         <li><b>_dts_synthdat_settings.json</b> — SynthDat Overseer's settings (once used).</li>
         <li><b>_dts_achievements.json</b> — achievements unlocked in this dataset.</li>
         <li><b>_dts_subject_presets.json</b> — saved characters (once you save one).</li>
+        <li><b>_dts_triggers.json</b> — tags marked as triggers (once you mark one).</li>
         ${isTouchDevice ? '' : `<li><b>original_images/</b> — originals kept by Bucket Images, shown in the
         🖼 Originals view (once you bucket).</li>`}
       </ul>

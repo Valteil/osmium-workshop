@@ -986,6 +986,23 @@ def lora_name_triggers(stem):
     return lora_split_triggers(parts[-1])
 
 
+def lora_file_triggers(path):
+    """modelspec.trigger_phrase from a .safetensors header (Osmium Trainflow's
+    Send writes it): reads only the header, never the weights."""
+    if not path.lower().endswith(".safetensors"):
+        return []
+    try:
+        with open(path, "rb") as f:
+            n = int.from_bytes(f.read(8), "little")
+            if not 0 < n <= 100 * 1024 * 1024:
+                return []
+            header = json.loads(f.read(n).decode("utf-8", "replace"))
+    except (OSError, ValueError):
+        return []
+    meta = header.get("__metadata__") if isinstance(header, dict) else None
+    return lora_split_triggers(meta.get("modelspec.trigger_phrase")) if isinstance(meta, dict) else []
+
+
 def lora_read_json(p):
     try:
         with open(p, "r", encoding="utf-8") as f:
@@ -1001,7 +1018,8 @@ def lora_card(name):
     stem = os.path.basename(stem_path)
     sidecars = (stem_path + ".metadata.json", stem_path + ".osmium.json")
     preview = lora_preview_path(path)
-    sig = tuple((os.path.getmtime(p) if os.path.isfile(p) else 0) for p in (*sidecars, preview or ""))
+    # The LoRA itself last: its header can carry triggers (lora_file_triggers).
+    sig = tuple((os.path.getmtime(p) if os.path.isfile(p) else 0) for p in (*sidecars, preview or "", path))
     hit = LORA_CARD_CACHE.get(path)
     if hit and hit[0] == sig:
         return hit[1]
@@ -1014,6 +1032,8 @@ def lora_card(name):
         triggers, source = [str(t).strip() for t in mine["triggers"] if str(t).strip()], "set"
     elif len(named) >= 3:  # "<anything> - <name> - <triggers>": the user's own slot wins
         triggers, source = lora_name_triggers(stem), "name"
+    elif lora_file_triggers(path):
+        triggers, source = lora_file_triggers(path), "file"
     elif lm_words:
         triggers, source = list(dict.fromkeys(lm_words)), "lora-manager"
     else:

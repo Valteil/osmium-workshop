@@ -144,7 +144,7 @@ export interface ElectronAPI {
   trainflowSendDest?(): Promise<{ favorite: string | null }>;
   trainflowPickSendDest?(): Promise<string | null>;
   trainflowSetSendFavorite?(): Promise<{ favorite: string | null }>;
-  trainflowSendCheckpoint?(p: { name: string; newName: string; dest: 'favorite' | 'picked' }): Promise<{ ok: boolean; path?: string; exists?: boolean; error?: string }>;
+  trainflowSendCheckpoint?(p: { name: string; newName: string; dest: 'favorite' | 'picked'; triggers?: string[] }): Promise<{ ok: boolean; path?: string; exists?: boolean; error?: string; embedded?: number }>;
   // Is a Trainflow job running (it outlives the app)? Asked by the quit guard.
   trainflowRunning?(): Promise<boolean>;
 

@@ -12,7 +12,7 @@ export interface LoraCard {
   name: string;
   title: string;
   triggers: string[];
-  triggerSource: 'set' | 'lora-manager' | 'name';
+  triggerSource: 'set' | 'lora-manager' | 'name' | 'file';
   version: string;
   versionSet: boolean;
   group: string;
@@ -474,7 +474,7 @@ export function openLoraCardEditor(name: string, onSaved?: () => void): void {
   const fill = () => {
     card = loraCard(name);
     trig.inp.value = card.triggers.join(', ');
-    trig.note.textContent = card.triggerSource === 'set' ? 'Set here.' : card.triggerSource === 'lora-manager' ? 'From Lora Manager (CivitAI).' : 'From the file name\'s last " - " part.';
+    trig.note.textContent = card.triggerSource === 'set' ? 'Set here.' : card.triggerSource === 'lora-manager' ? 'From Lora Manager (CivitAI).' : card.triggerSource === 'file' ? 'From the file\'s own metadata (Osmium Trainflow\'s Send writes it).' : 'From the file name\'s last " - " part.';
     ver.inp.value = card.version;
     ver.note.textContent = card.versionSet ? 'Set here.' : 'Automatic.';
     fillVersions();

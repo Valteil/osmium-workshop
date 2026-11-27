@@ -34,6 +34,7 @@ import { tagSingleImageWithWd14 } from './wd14-tagger';
 import { setIconLabel, iconSvg } from './icons';
 import { ghostTagsFor, resweepAllEntries, restoreEntryFromRules, type GhostTag } from './canonical-tags';
 import { subjectPresets, upsertSubjectPreset, deleteSubjectPreset, subjectPresetById, removeTagFromSubjectPreset } from './subject-presets';
+import { isTriggerTag, toggleTriggerTag } from './trigger-tags';
 import { openImageEditsModal } from './edit-log';
 
 export type ViewMode = 'grid' | 'compact' | 'single' | 'disabled' | 'originals';
@@ -2487,6 +2488,8 @@ function buildChip(entry: Entry, tag: string, onChange: () => void, tagIndex: Ta
   const isFlaggedForReview = entry.meta && entry.meta.flaggedTags && entry.meta.flaggedTags.includes(tag);
   if (isFlaggedForReview){
     chip.classList.add('chip-flagged-review');
+  } else if (isTriggerTag(tag)){
+    chip.classList.add('chip-trigger');
   } else if (tagIndex){
     const flags = tagDisplayFlags(tag, tagIndex);
     if (flags.isMatch) chip.classList.add('chip-match');
@@ -3489,6 +3492,14 @@ function openTagContextMenu(entry: Entry, tag: string, x: number, y: number, poo
       renderCurrentView();
       // Keep the left panel's flagged-for-review list live if it's open.
       refreshStats();
+    });
+    // Dataset-wide (every image's chip): the LoRA's trigger words, which
+    // Trainflow's Send puts in the checkpoint's name and metadata.
+    addContextMenuItem(menu, isTriggerTag(tag) ? '🟢 Unmark as trigger' : '🟢 Mark as trigger (all images)', () => {
+      const on = toggleTriggerTag(tag);
+      closeTagContextMenu();
+      renderCurrentView();
+      toast(on ? `"${tag}" is a trigger: Trainflow's Send adds it to the LoRA's name and metadata.` : `"${tag}" is no longer a trigger.`, 3200);
     });
   }
 

@@ -9,6 +9,7 @@ import { getJSON, setJSON } from './storage';
 import { showImageLightbox, showConfirmModal, toast, createModalShell } from './shared-ui';
 import { writeBytes } from './fs-access';
 import { convertAllWebpToPng, BUCKET_DEFAULTS } from './bucket-images';
+import { getTriggerTags } from './trigger-tags';
 import type { TrainflowSettings, TrainflowStatus, TrainflowDatasetCheck, TrainflowContinueOption } from '../shared-types';
 import type { Entry, DirHandle } from './types';
 
@@ -27,6 +28,21 @@ const PATHS_KEY = 'dts-trainflow-dataset-paths';
 const STORAGE_KEY = 'dts-trainflow-settings';
 const LR_AUTO_MIGRATED_KEY = 'dts-trainflow-lr-auto-migrated';
 const POLL_MS = 2000;
+const SEND_TRIG_NAME_KEY = 'dts-trainflow-send-trigger-name';
+
+// Send's name with the trigger tags in its last " - " part, comma-separated
+// (the "<anything> - <name> - <triggers>" naming Comfy Bridge's LoRA picker
+// reads): appended to an existing " - " part (skipping ones already there),
+// else added as a new one. Characters a file name can't hold become "_".
+export function withTriggers(stem: string, triggers: string[]): string {
+  const safe = triggers.map(t => t.replace(/[<>:"|?*\\/]/g, '_').trim()).filter(Boolean);
+  if (!safe.length) return stem;
+  const i = stem.lastIndexOf(' - ');
+  if (i < 0) return `${stem} - ${safe.join(', ')}`;
+  const have = stem.slice(i + 3).split(',').map(t => t.trim().toLowerCase());
+  const add = safe.filter(t => !have.includes(t.toLowerCase()));
+  return add.length ? `${stem}, ${add.join(', ')}` : stem;
+}
 
 const DEFAULTS: TrainflowSettings = {
   trigger: '', datasetPath: '', ditPath: '', qwenPath: '', vaePath: '',
@@ -607,9 +623,29 @@ export function initTrainflow(deps: TrainflowDeps): void {
     nameRow.className = 'tf-send-name';
     const nameIn = document.createElement('input');
     nameIn.type = 'text'; nameIn.className = 'dm-prompt-input';
-    nameIn.value = file.replace(/\.safetensors$/i, '');
+    const stem = file.replace(/\.safetensors$/i, '');
+    const triggers = getTriggerTags();
+    const named = withTriggers(stem, triggers);
     const ext = document.createElement('span'); ext.textContent = '.safetensors';
     nameRow.append(nameIn, ext);
+    // The dataset's trigger tags (tag menu → Mark as trigger): in the name's
+    // last " - " part (Comfy Bridge's LoRA picker reads that), and always in
+    // the file's metadata, so the name can stay short.
+    const trigRow = document.createElement('label');
+    trigRow.className = 'tf-send-trig';
+    const trigBox = document.createElement('input');
+    trigBox.type = 'checkbox';
+    trigBox.checked = localStorage.getItem(SEND_TRIG_NAME_KEY) !== '0';
+    trigRow.append(trigBox, document.createTextNode(triggers.length
+      ? ` Add the triggers to the name (${triggers.join(', ')}). They go in the file's metadata either way.`
+      : ' No trigger tags in this dataset: mark some from a tag\'s menu (Mark as trigger).'));
+    trigBox.disabled = !triggers.length;
+    nameIn.value = trigBox.checked ? named : stem;
+    trigBox.addEventListener('change', () => {
+      localStorage.setItem(SEND_TRIG_NAME_KEY, trigBox.checked ? '1' : '0');
+      if (trigBox.checked && nameIn.value === stem) nameIn.value = named;
+      else if (!trigBox.checked && nameIn.value === named) nameIn.value = stem;
+    });
     const destLabel = document.createElement('label');
     destLabel.className = 'tf-send-label';
     destLabel.textContent = 'To';
@@ -632,7 +668,7 @@ export function initTrainflow(deps: TrainflowDeps): void {
     const ok = document.createElement('button');
     ok.className = 'primary'; ok.textContent = 'Send';
     btnRow.append(cancel, ok);
-    box.append(msg, nameLabel, nameRow, destLabel, destPath, destRow, err, btnRow);
+    box.append(msg, nameLabel, nameRow, trigRow, destLabel, destPath, destRow, err, btnRow);
 
     const dest = () => picked || favorite;
     const paint = () => {
@@ -654,12 +690,12 @@ export function initTrainflow(deps: TrainflowDeps): void {
       if (!dest() || ok.disabled) return;
       ok.disabled = true;
       ok.textContent = 'Sending…';
-      const r = await api.trainflowSendCheckpoint!({ name: file, newName: nameIn.value, dest: picked ? 'picked' : 'favorite' });
+      const r = await api.trainflowSendCheckpoint!({ name: file, newName: nameIn.value, dest: picked ? 'picked' : 'favorite', triggers });
       ok.textContent = 'Send';
       ok.disabled = false;
       if (!r.ok) { err.textContent = r.error || 'Could not send it.'; if (r.exists) { nameIn.focus(); nameIn.select(); } return; }
       close();
-      toast(`Sent to ${r.path}`, 4200);
+      toast(`Sent to ${r.path}` + (r.embedded ? ` with ${r.embedded} trigger${r.embedded === 1 ? '' : 's'} in its metadata.` : ''), 4200);
     };
     cancel.addEventListener('click', close);
     ok.addEventListener('click', () => { void submit(); });

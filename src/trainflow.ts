@@ -83,6 +83,58 @@ function plainFileName(name: unknown): string | null {
   return name;
 }
 
+// Send with the dataset's trigger tags embedded: a .safetensors file is
+// <u64 LE header length><JSON header><tensor bytes>, and the header's
+// __metadata__ (string values only) gets `modelspec.trigger_phrase` (the SAI
+// ModelSpec key; Comfy Bridge's LoRA picker reads it). Tensor offsets are
+// relative to the end of the header, so a longer header leaves them valid; it
+// is space-padded to a multiple of 8 like the trainer's own. The bytes after
+// the header are streamed unchanged. 'wx' keeps Send's never-overwrite rule.
+export async function copyWithTriggerPhrase(from: string, to: string, phrase: string): Promise<void> {
+  const src = await fs.promises.open(from, 'r');
+  let headerEnd: number;
+  let header: Record<string, unknown>;
+  try {
+    const len = Buffer.alloc(8);
+    await src.read(len, 0, 8, 0);
+    const n = Number(len.readBigUInt64LE(0));
+    if (!(n > 0 && n <= 100 * 1024 * 1024)) throw new Error('Not a .safetensors file (bad header length).');
+    const buf = Buffer.alloc(n);
+    await src.read(buf, 0, n, 8);
+    header = JSON.parse(buf.toString('utf8')) as Record<string, unknown>;
+    if (!header || typeof header !== 'object' || Array.isArray(header)) throw new Error('Not a .safetensors file (bad header).');
+    headerEnd = 8 + n;
+  } finally {
+    await src.close();
+  }
+  const meta = header.__metadata__ && typeof header.__metadata__ === 'object' ? { ...(header.__metadata__ as Record<string, string>) } : {};
+  meta['modelspec.trigger_phrase'] = phrase;
+  header.__metadata__ = meta;
+  let json = Buffer.from(JSON.stringify(header), 'utf8');
+  const pad = (8 - (json.length % 8)) % 8;
+  if (pad) json = Buffer.concat([json, Buffer.alloc(pad, 0x20)]);
+  const lenOut = Buffer.alloc(8);
+  lenOut.writeBigUInt64LE(BigInt(json.length), 0);
+  const out = fs.createWriteStream(to, { flags: 'wx' });
+  const opened = new Promise<void>((res, rej) => { out.once('open', () => res()); out.once('error', rej); });
+  await opened;
+  try {
+    await new Promise<void>((res, rej) => {
+      out.on('error', rej);
+      out.write(lenOut);
+      out.write(json);
+      const rest = fs.createReadStream(from, { start: headerEnd });
+      rest.on('error', rej);
+      rest.pipe(out);
+      out.on('finish', () => res());
+    });
+  } catch (err) {
+    out.destroy();
+    await fs.promises.rm(to, { force: true });
+    throw err;
+  }
+}
+
 function plainFolderName(name: unknown): string | null {
   const n = plainFileName(name);
   return n ? n.trim() || null : null;
@@ -1269,7 +1321,7 @@ export function registerTrainflowHandlers(ipcMain: IpcMain): void {
     if (pickedSendDir) fs.writeFileSync(CONFIG_FILE(), JSON.stringify({ ...readCfg(), sendFolder: pickedSendDir }));
     return { favorite: favoriteSendDir() };
   });
-  ipcMain.handle('trainflow-send-checkpoint', async (_e, p: { name: string; newName: string; dest: 'favorite' | 'picked' }) => {
+  ipcMain.handle('trainflow-send-checkpoint', async (_e, p: { name: string; newName: string; dest: 'favorite' | 'picked'; triggers?: unknown }) => {
     const rec = readRun();
     const src = plainFileName(p?.name);
     if (!rec || !runDirsValid(rec) || !src || !/\.safetensors$/i.test(src)) return { ok: false, error: 'That checkpoint isn\'t in the current run any more.' };
@@ -1281,9 +1333,13 @@ export function registerTrainflowHandlers(ipcMain: IpcMain): void {
     const from = path.join(rec.outDir, src);
     if (!fs.existsSync(from)) return { ok: false, error: 'That checkpoint isn\'t in the current run any more.' };
     const to = path.join(dir, target);
+    const triggers = Array.isArray(p?.triggers)
+      ? p.triggers.filter((t): t is string => typeof t === 'string' && !!t.trim() && t.length <= 200).slice(0, 50).map(t => t.trim())
+      : [];
     try {
-      await fs.promises.copyFile(from, to, fs.constants.COPYFILE_EXCL);
-      return { ok: true, path: to };
+      if (triggers.length) await copyWithTriggerPhrase(from, to, triggers.join(', '));
+      else await fs.promises.copyFile(from, to, fs.constants.COPYFILE_EXCL);
+      return { ok: true, path: to, embedded: triggers.length };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'EEXIST') return { ok: false, exists: true, error: `${target} already exists there. Pick another name.` };
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
