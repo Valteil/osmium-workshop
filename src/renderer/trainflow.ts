@@ -28,7 +28,19 @@ const PATHS_KEY = 'dts-trainflow-dataset-paths';
 const STORAGE_KEY = 'dts-trainflow-settings';
 const LR_AUTO_MIGRATED_KEY = 'dts-trainflow-lr-auto-migrated';
 const POLL_MS = 2000;
+// Concise Lora on/off; the older triggers-in-name key ('0' = off) seeds it.
+const SEND_CONCISE_KEY = 'dts-trainflow-send-concise';
 const SEND_TRIG_NAME_KEY = 'dts-trainflow-send-trigger-name';
+
+// Concise Lora's name: the trigger tags taken out of the last " - " part
+// (case-insensitive); an emptied part drops with its " - ".
+export function withoutTriggers(stem: string, triggers: string[]): string {
+  const i = stem.lastIndexOf(' - ');
+  if (i < 0 || !triggers.length) return stem;
+  const drop = new Set(triggers.map(t => t.replace(/[<>:"|?*\\/]/g, '_').trim().toLowerCase()));
+  const keep = stem.slice(i + 3).split(',').map(t => t.trim()).filter(t => t && !drop.has(t.toLowerCase()));
+  return keep.length ? `${stem.slice(0, i)} - ${keep.join(', ')}` : stem.slice(0, i);
+}
 
 // Send's name with the trigger tags in its last " - " part, comma-separated
 // (the "<anything> - <name> - <triggers>" naming Comfy Bridge's LoRA picker
@@ -626,25 +638,28 @@ export function initTrainflow(deps: TrainflowDeps): void {
     const stem = file.replace(/\.safetensors$/i, '');
     const triggers = getTriggerTags();
     const named = withTriggers(stem, triggers);
+    const concised = withoutTriggers(stem, triggers);
     const ext = document.createElement('span'); ext.textContent = '.safetensors';
     nameRow.append(nameIn, ext);
-    // The dataset's trigger tags (tag menu → Mark as trigger): in the name's
-    // last " - " part (Comfy Bridge's LoRA picker reads that), and always in
-    // the file's metadata, so the name can stay short.
+    // The dataset's trigger tags (tag menu → Mark as trigger) always go in the
+    // file's metadata. By default they also join the name's last " - " part
+    // (Comfy Bridge's LoRA picker reads that); "Concise Lora" keeps them in
+    // the metadata only and takes them out of the name.
     const trigRow = document.createElement('label');
     trigRow.className = 'tf-send-trig';
     const trigBox = document.createElement('input');
     trigBox.type = 'checkbox';
-    trigBox.checked = localStorage.getItem(SEND_TRIG_NAME_KEY) !== '0';
+    const savedConcise = localStorage.getItem(SEND_CONCISE_KEY);
+    trigBox.checked = savedConcise !== null ? savedConcise === '1' : localStorage.getItem(SEND_TRIG_NAME_KEY) === '0';
     trigRow.append(trigBox, document.createTextNode(triggers.length
-      ? ` Add the triggers to the name (${triggers.join(', ')}). They go in the file's metadata either way.`
-      : ' No trigger tags in this dataset: mark some from a tag\'s menu (Mark as trigger).'));
+      ? ` Concise Lora: the triggers (${triggers.join(', ')}) go in the file's metadata only, not the name.`
+      : ' Concise Lora (no trigger tags in this dataset: mark some from a tag\'s menu, Mark as trigger).'));
     trigBox.disabled = !triggers.length;
-    nameIn.value = trigBox.checked ? named : stem;
+    nameIn.value = trigBox.checked ? concised : named;
     trigBox.addEventListener('change', () => {
-      localStorage.setItem(SEND_TRIG_NAME_KEY, trigBox.checked ? '1' : '0');
-      if (trigBox.checked && nameIn.value === stem) nameIn.value = named;
-      else if (!trigBox.checked && nameIn.value === named) nameIn.value = stem;
+      localStorage.setItem(SEND_CONCISE_KEY, trigBox.checked ? '1' : '0');
+      if (trigBox.checked && nameIn.value === named) nameIn.value = concised;
+      else if (!trigBox.checked && nameIn.value === concised) nameIn.value = named;
     });
     const destLabel = document.createElement('label');
     destLabel.className = 'tf-send-label';

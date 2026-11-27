@@ -37,8 +37,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   saves overlapped. Saves now run one at a time, always with the latest state.
 - **Trigger tags:** right-click a tag and use **Mark as trigger** to give it a green chip on every
   image of the dataset. Trainflow's **Send…** puts the triggers in the LoRA's name, after its last
-  " - " and separated by commas, which a tickbox turns off. It also always writes them into the
-  file's own metadata (`modelspec.trigger_phrase`), so the name can stay short.
+  " - " and separated by commas, and always writes them into the file's own metadata
+  (`modelspec.trigger_phrase`). The **Concise Lora** tickbox keeps them in the metadata only and
+  takes them out of the name.
 
 ### Comfy Bridge
 - **LoRA picker reads triggers from the file:** a LoRA sent from Osmium's Trainflow with trigger
