@@ -37,7 +37,7 @@ export interface UsduSettings {
   seamFixMode: string; seamFixDenoise: string; seamFixWidth: string; seamFixMaskBlur: string; seamFixPadding: string;
   forceUniformTiles: boolean; tiledDecode: boolean; batchSize: string;
   promptSource: 'image' | 'wd14' | 'own'; excludeGlobal: boolean; ownPrompt: string; negative: string;
-  wd14Model: string; wd14Threshold: string; wd14CharThreshold: string; wd14ReplaceUnderscore: boolean; wd14Exclude: string;
+  wd14Model: string; wd14Threshold: string; wd14CharThreshold: string; wd14ReplaceUnderscore: boolean; wd14Exclude: string; wd14Extra: string;
 }
 type Key = keyof UsduSettings;
 export type UsduListKind = 'ckpt' | 'upscale' | 'sampler' | 'scheduler' | 'wd14';
@@ -52,7 +52,7 @@ export const USDU_DEFAULTS: UsduSettings = {
   forceUniformTiles: true, tiledDecode: false, batchSize: '1',
   promptSource: 'wd14', excludeGlobal: true, ownPrompt: '',
   negative: 'censored, text, blank censor, extra fingers, six fingers, signature, username, logo, watermark, e621, ambiguous form, anthropomorphic, cropped',
-  wd14Model: 'wd-eva02-large-tagger-v3', wd14Threshold: '0.35', wd14CharThreshold: '0.85', wd14ReplaceUnderscore: false, wd14Exclude: ''
+  wd14Model: 'wd-eva02-large-tagger-v3', wd14Threshold: '0.35', wd14CharThreshold: '0.85', wd14ReplaceUnderscore: false, wd14Exclude: '', wd14Extra: ''
 };
 
 interface FieldDef {
@@ -143,6 +143,8 @@ const SECTIONS: Section[] = [
       tip: 'Write tags as "long hair" instead of "long_hair". Off in the reference workflow.' },
     { key: 'wd14Exclude', type: 'text', label: 'Exclude tags', wide: true, show: (s) => s.promptSource === 'wd14',
       tip: 'Comma-separated tags the tagger must never output (e.g. tags that would fight the upscale).' },
+    { key: 'wd14Extra', type: 'text', label: 'Extra tags', wide: true, show: (s) => s.promptSource === 'wd14',
+      tip: 'Comma-separated tags added after the WD14 tags in the prompt (e.g. a quality tag or a trigger the tagger can\x27t know).' },
     { key: 'negative', type: 'textarea', label: 'Negative prompt', wide: true,
       tip: 'The negative prompt for the tile redraw, used with every prompt choice. Separate from the generation\'s negative, since the checkpoint is different.' }
   ] }
@@ -183,6 +185,15 @@ export function imageSizeOf(b: Uint8Array): ImageSize | null {
   return null;
 }
 
+// The tagger's text, with the Extra tags appended by a core StringConcatenate
+// (none added when the field is blank).
+function wd14WithExtra(prompt: Prompt, tagId: string, title: string, s: UsduSettings): unknown {
+  const extra = (s.wd14Extra || '').trim().replace(/^,+|,+$/g, '').trim();
+  if (!extra) return [tagId, 0];
+  prompt[tagId + '_extra'] = { class_type: 'StringConcatenate', inputs: { string_a: [tagId, 0], string_b: extra, delimiter: ', ' }, _meta: { title: title + ' WD14 + extra tags' } };
+  return [tagId + '_extra', 0];
+}
+
 // Adds the USDU nodes to `prompt`, upscaling `image`, saved by `saveId`.
 // `positive` is ignored with the WD14 prompt source (linked to the tagger).
 // `inputSize` = the image's size, for "Match the input image" tiles.
@@ -206,7 +217,7 @@ export function appendUsduNodes(prompt: Prompt, image: unknown, s: UsduSettings,
       },
       _meta: { title: 'USDU WD14 Tagger' }
     };
-    posText = ['usdu_wd14', 0];
+    posText = wd14WithExtra(prompt, 'usdu_wd14', 'USDU', s);
   }
   prompt['usdu_pos'] = { class_type: 'CLIPTextEncode', inputs: { text: posText, clip: ['usdu_ckpt', 1] }, _meta: { title: 'USDU Positive' } };
   prompt['usdu_neg'] = { class_type: 'CLIPTextEncode', inputs: { text: s.negative, clip: ['usdu_ckpt', 1] }, _meta: { title: 'USDU Negative' } };
@@ -259,7 +270,7 @@ export function appendImg2imgNodes(prompt: Prompt, image: unknown, s: UsduSettin
       },
       _meta: { title: 'Image to image WD14 Tagger' }
     };
-    posText = ['imgup_wd14', 0];
+    posText = wd14WithExtra(prompt, 'imgup_wd14', 'Image to image', s);
   }
   prompt['imgup_pos'] = { class_type: 'CLIPTextEncode', inputs: { text: posText, clip: ['imgup_ckpt', 1] }, _meta: { title: 'Image to image Positive' } };
   prompt['imgup_neg'] = { class_type: 'CLIPTextEncode', inputs: { text: s.negative, clip: ['imgup_ckpt', 1] }, _meta: { title: 'Image to image Negative' } };
@@ -337,6 +348,8 @@ export function usduSettingsFromPrompt(prompt: Prompt): Partial<UsduSettings> | 
     set('wd14Model', str(w.model)); set('wd14Threshold', str(w.threshold)); set('wd14CharThreshold', str(w.character_threshold));
     if (typeof w.replace_underscore === 'boolean') out.wd14ReplaceUnderscore = w.replace_underscore;
     if (typeof w.exclude_tags === 'string') out.wd14Exclude = w.exclude_tags;
+    const ex = prompt[(img ? 'imgup_wd14' : 'usdu_wd14') + '_extra'];
+    out.wd14Extra = ex && typeof ex.inputs.string_b === 'string' ? ex.inputs.string_b : '';
   } else {
     // Which text it was can't be told from the graph; keep it as the user's own.
     const pos = prompt[img ? 'imgup_pos' : 'usdu_pos'] && prompt[img ? 'imgup_pos' : 'usdu_pos'].inputs.text;

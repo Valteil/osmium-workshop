@@ -50,6 +50,9 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
   (e.g. `red hair` into Hair) instead of Global; one the tag lists don't know goes into Extra.
 - **Unlock all prompt fields:** one button takes the lock off every prompt box (Windows: beside
   Clear all; Android: under Save preset).
+- **WD14 Extra tags (upscale / image to image):** with "Tag with WD14" as the prompt, an Extra
+  tags field adds your own tags after the tagger's (e.g. a quality tag or a trigger). Saved with
+  the image, so Import brings it back.
 
 - **LoRA picker with previews, trigger words and versions** (desktop and phone, Osmium Comfy or a
   PC host): every LoRA field (Main LoRA, the LoRA stack, the Metadata tab) opens a picker with a
