@@ -32,14 +32,14 @@ const POLL_MS = 2000;
 const SEND_CONCISE_KEY = 'dts-trainflow-send-concise';
 const SEND_TRIG_NAME_KEY = 'dts-trainflow-send-trigger-name';
 
-// Concise Lora's name: the trigger tags taken out of the last " - " part
-// (case-insensitive); an emptied part drops with its " - ".
-export function withoutTriggers(stem: string, triggers: string[]): string {
-  const i = stem.lastIndexOf(' - ');
-  if (i < 0 || !triggers.length) return stem;
-  const drop = new Set(triggers.map(t => t.replace(/[<>:"|?*\\/]/g, '_').trim().toLowerCase()));
-  const keep = stem.slice(i + 3).split(',').map(t => t.trim()).filter(t => t && !drop.has(t.toLowerCase()));
-  return keep.length ? `${stem.slice(0, i)} - ${keep.join(', ')}` : stem.slice(0, i);
+// Concise Lora's metadata: the triggers the (final, possibly hand-edited)
+// name doesn't already carry in its last " - " part, so a user can keep one or
+// two in the name and the rest in the file (case-insensitive, same "_"
+// substitution as withTriggers).
+export function triggersNotInName(name: string, triggers: string[]): string[] {
+  const i = name.lastIndexOf(' - ');
+  const have = new Set(i < 0 ? [] : name.slice(i + 3).split(',').map(t => t.trim().toLowerCase()));
+  return triggers.filter(t => !have.has(t.replace(/[<>:"|?*\\/]/g, '_').trim().toLowerCase()));
 }
 
 // Send's name with the trigger tags in its last " - " part, comma-separated
@@ -638,13 +638,14 @@ export function initTrainflow(deps: TrainflowDeps): void {
     const stem = file.replace(/\.safetensors$/i, '');
     const triggers = getTriggerTags();
     const named = withTriggers(stem, triggers);
-    const concised = withoutTriggers(stem, triggers);
+    const concised = stem;
     const ext = document.createElement('span'); ext.textContent = '.safetensors';
     nameRow.append(nameIn, ext);
-    // The dataset's trigger tags (tag menu → Mark as trigger) always go in the
-    // file's metadata. By default they also join the name's last " - " part
-    // (Comfy Bridge's LoRA picker reads that); "Concise Lora" keeps them in
-    // the metadata only and takes them out of the name.
+    // The dataset's trigger tags (tag menu → Mark as trigger). Default: all of
+    // them join the name's last " - " part (Comfy Bridge's LoRA picker reads
+    // that) and the file's metadata. "Concise Lora": the name is left as typed
+    // (a user may keep one or two there) and only the triggers it doesn't
+    // carry go in the metadata.
     const trigRow = document.createElement('label');
     trigRow.className = 'tf-send-trig';
     const trigBox = document.createElement('input');
@@ -652,7 +653,7 @@ export function initTrainflow(deps: TrainflowDeps): void {
     const savedConcise = localStorage.getItem(SEND_CONCISE_KEY);
     trigBox.checked = savedConcise !== null ? savedConcise === '1' : localStorage.getItem(SEND_TRIG_NAME_KEY) === '0';
     trigRow.append(trigBox, document.createTextNode(triggers.length
-      ? ` Concise Lora: the triggers (${triggers.join(', ')}) go in the file's metadata only, not the name.`
+      ? ` Concise Lora: the name isn't given the triggers (${triggers.join(', ')}); type any you want there, and the rest go in the file's metadata.`
       : ' Concise Lora (no trigger tags in this dataset: mark some from a tag\'s menu, Mark as trigger).'));
     trigBox.disabled = !triggers.length;
     nameIn.value = trigBox.checked ? concised : named;
@@ -705,7 +706,7 @@ export function initTrainflow(deps: TrainflowDeps): void {
       if (!dest() || ok.disabled) return;
       ok.disabled = true;
       ok.textContent = 'Sending…';
-      const r = await api.trainflowSendCheckpoint!({ name: file, newName: nameIn.value, dest: picked ? 'picked' : 'favorite', triggers });
+      const r = await api.trainflowSendCheckpoint!({ name: file, newName: nameIn.value, dest: picked ? 'picked' : 'favorite', triggers: trigBox.checked ? triggersNotInName(nameIn.value, triggers) : triggers });
       ok.textContent = 'Send';
       ok.disabled = false;
       if (!r.ok) { err.textContent = r.error || 'Could not send it.'; if (r.exists) { nameIn.focus(); nameIn.select(); } return; }

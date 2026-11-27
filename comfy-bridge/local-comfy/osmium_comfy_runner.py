@@ -1031,7 +1031,10 @@ def lora_card(name):
     if isinstance(mine.get("triggers"), list):
         triggers, source = [str(t).strip() for t in mine["triggers"] if str(t).strip()], "set"
     elif len(named) >= 3:  # "<anything> - <name> - <triggers>": the user's own slot wins
-        triggers, source = lora_name_triggers(stem), "name"
+        # Plus the file's own (Osmium's Concise Lora keeps one or two triggers
+        # in the name and writes only the rest into the file).
+        triggers = list(dict.fromkeys(lora_name_triggers(stem) + lora_file_triggers(path)))
+        source = "name"
     elif lora_file_triggers(path):
         triggers, source = lora_file_triggers(path), "file"
     elif lm_words:
