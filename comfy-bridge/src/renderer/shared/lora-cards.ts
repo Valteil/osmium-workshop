@@ -29,6 +29,20 @@ export interface LoraCardHost {
   insertTrigger?(text: string): void;
   // The prompt text, to mark triggers already in it.
   promptText?(): string;
+  // Replaces that prompt text (a lit chip's click takes its trigger out).
+  setPromptText?(text: string): void;
+}
+
+// A trigger is in the prompt when one of its comma-separated parts is that
+// trigger (case-insensitive); a substring match lit "miko" for "mikoscrabb".
+const promptParts = (text: string): string[] => text.split(',').map((p) => p.trim());
+export function promptHasTrigger(text: string, trigger: string): boolean {
+  const t = trigger.trim().toLowerCase();
+  return promptParts(text).some((p) => p.toLowerCase() === t);
+}
+export function removeTriggerFromPrompt(text: string, trigger: string): string {
+  const t = trigger.trim().toLowerCase();
+  return promptParts(text).filter((p) => p && p.toLowerCase() !== t).join(', ');
 }
 
 let host: LoraCardHost = { op: null };
@@ -311,14 +325,22 @@ export function mountLoraTriggers(input: HTMLInputElement, box: HTMLElement): vo
     const c = loraCard(name);
     box.hidden = !c.triggers.length;
     if (!c.triggers.length) return;
-    const prompt = (host.promptText ? host.promptText() : '').toLowerCase();
+    const prompt = host.promptText ? host.promptText() : '';
     for (const t of c.triggers) {
-      const inPrompt = prompt.includes(t.toLowerCase());
+      // A toggle: lit = in the prompt; clicking a lit chip takes it out
+      // instead of adding it again.
+      const inPrompt = promptHasTrigger(prompt, t);
       const chip = el('button', 'lora-trig' + (inPrompt ? ' in' : ''), t);
       chip.type = 'button';
-      chip.title = inPrompt ? 'Already in the prompt' : 'Add to the Global prompt';
-      chip.disabled = !host.insertTrigger;
-      chip.addEventListener('click', () => { host.insertTrigger && host.insertTrigger(t); render(); });
+      chip.title = inPrompt ? 'In the prompt: click to take it out' : 'Add to the Global prompt';
+      chip.setAttribute('aria-pressed', String(inPrompt));
+      chip.disabled = inPrompt ? !(host.setPromptText && host.promptText) : !host.insertTrigger;
+      chip.addEventListener('click', () => {
+        const cur = host.promptText ? host.promptText() : '';
+        if (promptHasTrigger(cur, t)) host.setPromptText && host.setPromptText(removeTriggerFromPrompt(cur, t));
+        else if (host.insertTrigger) host.insertTrigger(t);
+        render();
+      });
       box.appendChild(chip);
     }
     if (c.triggers.length > 1 && host.insertTrigger) {
@@ -326,8 +348,8 @@ export function mountLoraTriggers(input: HTMLInputElement, box: HTMLElement): vo
       all.type = 'button';
       all.title = 'Add every trigger word that isn\'t in the prompt yet';
       all.addEventListener('click', () => {
-        const p = (host.promptText ? host.promptText() : '').toLowerCase();
-        const missing = c.triggers.filter((t) => !p.includes(t.toLowerCase()));
+        const p = host.promptText ? host.promptText() : '';
+        const missing = c.triggers.filter((t) => !promptHasTrigger(p, t));
         if (missing.length) host.insertTrigger!(missing.join(', '));
         render();
       });

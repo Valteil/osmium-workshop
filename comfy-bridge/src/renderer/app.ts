@@ -84,7 +84,7 @@ export {};
 import {
   mountGallerySidebar, attachPickerModal, optionsFromDatalist,
   showImageLightbox, bytesToBase64, base64ToBytes, refreshGallery,
-  initPromptLocks, isPromptLocked, keepLockedPrompts,
+  initPromptLocks, isPromptLocked, keepLockedPrompts, bindUnlockAllButton,
   attachLoraPicker, mountLoraTriggers, setLoraCardHost, loadLoraCards
 } from './shared/index';
 import type { StorageBackend, DirEntry } from './shared/storage';
@@ -760,6 +760,7 @@ const PROMPT_TEXT_FIELDS: HTMLTextAreaElement[] = [
 ];
 // A locked box (prompt-locks.ts) keeps its text here and through imports.
 initPromptLocks([...PROMPT_TEXT_FIELDS, negative]);
+bindUnlockAllButton($<HTMLButtonElement>('btnUnlockPromptFields'), (n) => log(`Unlocked ${n} prompt field${n === 1 ? '' : 's'}.`));
 btnClearPromptFields.addEventListener('click', () => {
   let kept = 0;
   for (const el of PROMPT_TEXT_FIELDS) { if (isPromptLocked(el)) kept++; else el.value = ''; }
@@ -2040,6 +2041,11 @@ setLoraCardHost({
     const field = unifiedPromptMode.checked ? unifiedPrompt : global_;
     const cur = field.value.replace(/[\s,]+$/, '');
     field.value = cur ? `${cur}, ${text}` : text;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  },
+  setPromptText: (text) => {
+    const field = unifiedPromptMode.checked ? unifiedPrompt : global_;
+    field.value = text;
     field.dispatchEvent(new Event('input', { bubbles: true }));
   }
 });

@@ -9,6 +9,12 @@ import { bridgeIcon } from './icons';
 const LOCKS_KEY = 'bridge.promptLocks';
 const locked = new Set<string>();
 const fields: HTMLTextAreaElement[] = [];
+// Each lock button's repaint, plus the Unlock all buttons' state.
+const painters: (() => void)[] = [];
+const unlockButtons: HTMLButtonElement[] = [];
+function syncUnlockButtons(): void {
+  for (const b of unlockButtons) b.disabled = locked.size === 0;
+}
 
 function loadLocks(): void {
   try {
@@ -45,11 +51,29 @@ export function initPromptLocks(boxes: HTMLTextAreaElement[]): void {
       if (locked.has(box.id)) locked.delete(box.id); else locked.add(box.id);
       saveLocks();
       paint();
+      syncUnlockButtons();
     });
     label.classList.add('prompt-lock-label');
     label.appendChild(btn);
+    painters.push(paint);
     paint();
   }
+  syncUnlockButtons();
+}
+
+// "Unlock all prompt fields": greyed out while nothing is locked.
+export function bindUnlockAllButton(btn: HTMLButtonElement, onUnlocked?: (count: number) => void): void {
+  unlockButtons.push(btn);
+  btn.addEventListener('click', () => {
+    const n = locked.size;
+    if (!n) return;
+    locked.clear();
+    saveLocks();
+    for (const p of painters) p();
+    syncUnlockButtons();
+    onUnlocked?.(n);
+  });
+  syncUnlockButtons();
 }
 
 export function isPromptLocked(box: HTMLTextAreaElement): boolean {

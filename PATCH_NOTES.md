@@ -44,6 +44,11 @@ Bridge ships in the same releases from v1.5.0 on. Downloads are on the
 ### Comfy Bridge
 - **LoRA picker reads triggers from the file:** a LoRA sent from Osmium's Trainflow with trigger
   tags shows them even when its name doesn't carry them, or carries only some of them.
+- **Trigger chips toggle:** a trigger chip under a LoRA field lights up once it's in the prompt,
+  and clicking it again takes it out instead of adding it again. A chip no longer lights up just
+  because its word sits inside a longer tag.
+- **Unlock all prompt fields:** one button takes the lock off every prompt box (Windows: beside
+  Clear all; Android: under Save preset).
 
 - **LoRA picker with previews, trigger words and versions** (desktop and phone, Osmium Comfy or a
   PC host): every LoRA field (Main LoRA, the LoRA stack, the Metadata tab) opens a picker with a

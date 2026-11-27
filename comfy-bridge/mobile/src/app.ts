@@ -76,9 +76,10 @@ declare const BridgeShared: {
   // shared/lora-cards.ts: the LoRA picker (previews, versions, trigger words).
   attachLoraPicker: (input: HTMLInputElement, title: string, getOptions: () => string[], onPicked?: (v: string) => void) => void;
   mountLoraTriggers: (input: HTMLInputElement, box: HTMLElement) => void;
-  setLoraCardHost: (h: { op: any; live?: () => boolean; insertTrigger?: (t: string) => void; promptText?: () => string }) => void;
+  setLoraCardHost: (h: { op: any; live?: () => boolean; insertTrigger?: (t: string) => void; promptText?: () => string; setPromptText?: (t: string) => void }) => void;
   loadLoraCards: (force?: boolean) => Promise<void>;
   initPromptLocks: (boxes: HTMLTextAreaElement[]) => void;
+  bindUnlockAllButton: (btn: HTMLButtonElement, onUnlocked?: (count: number) => void) => void;
   isPromptLocked: (box: HTMLTextAreaElement) => boolean;
   keepLockedPrompts: () => () => void;
   // shared/usdu.ts: the USDU panel + graph (same module as the desktop's).
@@ -214,6 +215,7 @@ declare const BridgeShared: {
   // Locked prompt boxes keep their text through imports (prompt-locks.ts).
   BridgeShared.initPromptLocks([unifiedPrompt, global_, character, rating, hair, face, chest, body_,
     clothes, limbs, sexual, pose, scene, effects, extra, characterTrigger, negative]);
+  BridgeShared.bindUnlockAllButton($<HTMLButtonElement>('btnUnlockPromptFields'), (n: number) => log('Unlocked ' + n + ' prompt field' + (n === 1 ? '' : 's') + '.'));
 
   const width = $<HTMLInputElement>('width'), height = $<HTMLInputElement>('height'), btnSwapReso = $<HTMLButtonElement>('btnSwapReso');
   const sampler = $<HTMLInputElement>('sampler'), scheduler = $<HTMLInputElement>('scheduler');
@@ -2584,6 +2586,11 @@ declare const BridgeShared: {
       const field = unifiedPromptMode.checked ? unifiedPrompt : global_;
       const cur = field.value.replace(/[\s,]+$/, '');
       field.value = cur ? cur + ', ' + text : text;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    },
+    setPromptText: (text: string) => {
+      const field = unifiedPromptMode.checked ? unifiedPrompt : global_;
+      field.value = text;
       field.dispatchEvent(new Event('input', { bubbles: true }));
     }
   });
